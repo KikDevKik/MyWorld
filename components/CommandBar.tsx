@@ -60,7 +60,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
     };
 
     return (
-        <div className="absolute bottom-10 left-1/2 transform -translate-x-1/2 w-[600px] max-w-[90%] z-50 animate-slide-up">
+        <div className="absolute bottom-12 left-0 right-0 mx-auto w-[600px] max-w-[90%] z-40 animate-slide-up-centered">
 
             {/* MENÚ FLOTANTE */}
             {isMenuOpen && (

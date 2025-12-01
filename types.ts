@@ -1,5 +1,5 @@
 
-export type GemId = 'perforador' | 'forja' | 'guardian' | 'tribunal' | 'laboratorio' | 'cronograma' | 'imprenta';
+export type GemId = 'perforador' | 'forja' | 'guardian' | 'tribunal' | 'laboratorio' | 'cronograma' | 'imprenta' | 'director';
 
 export interface Gem {
   id: GemId;

@@ -2,28 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+    color-scheme: dark;
+}
+
 /* --- SCROLLBAR TÁCTICA (DARK MODE) --- */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 14px;
+    /* Un poco más ancho para acomodar el borde */
+    height: 14px;
 }
 
 ::-webkit-scrollbar-track {
     background: #09090b;
-    /* Titanium 900 */
+    /* Titanium 950 (Fondo página) para que se integre */
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #27272a;
-    /* Titanium 700 */
-    border-radius: 4px;
+    background-color: #3f3f46;
+    /* Titanium 600 */
+    border-radius: 9999px;
+    border: 3px solid #09090b;
+    /* Borde del mismo color que el track para efecto "flotante" */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #3f3f46;
-    /* Titanium 600 */
+    background-color: #52525b;
+    /* Titanium 500 */
 }
 
+/* Ocultar scrollbar pero permitir scroll */
 .scrollbar-hide::-webkit-scrollbar {
     display: none;
 }

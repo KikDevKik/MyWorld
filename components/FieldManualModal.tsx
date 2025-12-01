@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Book, X, Home, PenTool, Scale, Calendar, FlaskConical, Printer, ChevronRight } from 'lucide-react';
+import { Book, X, Home, PenTool, Scale, Calendar, FlaskConical, Printer, ChevronRight, Globe2, Hammer, ShieldCheck, Sparkles } from 'lucide-react';
 
 interface FieldManualModalProps {
     onClose: () => void;
@@ -11,6 +11,10 @@ const FieldManualModal: React.FC<FieldManualModalProps> = ({ onClose }) => {
     const tabs = [
         { id: 'inicio', label: 'Inicio', icon: Home, content: 'Bienvenido a MyWorld. Conecta tu Drive para empezar.' },
         { id: 'editor', label: 'Editor', icon: PenTool, content: 'Usa Markdown. Escribe # para títulos. Selecciona texto para el Menú Rápido de IA.' },
+        { id: 'perforador', label: 'El Perforador', icon: Globe2, content: 'Tu arquitecto de mundos personal. Utilízalo para hacer brainstorming profundo sobre el lore, sistemas de magia, geopolítica o tecnología. A diferencia del Director, el Perforador se enfoca en el background y la estructura del mundo.' },
+        { id: 'forja', label: 'La Forja', icon: Hammer, content: 'El taller de creación. Aquí nacen los personajes y los conceptos visuales.\n\nGeneración de Imágenes: Usa el botón de imagen para visualizar a tus protagonistas o escenarios.\n\nFichas: Chatea para estructurar perfiles psicológicos y físicos antes de escribir.' },
+        { id: 'guardian', label: 'El Guardián', icon: ShieldCheck, content: 'El protector de la continuidad. Su misión es evitar agujeros de guion. Consúltale sobre hechos pasados de tu historia para asegurarte de no contradecirte (ej: "¿De qué color eran los ojos de Anna en el cap 1?").' },
+        { id: 'menu-tactico', label: 'Menú Táctico', icon: Sparkles, content: 'Selecciona cualquier texto en el editor para desplegar este menú flotante.\n\nFormato: Aplica Negrita, Cursiva o convierte texto en Títulos (#).\n\nIA Rápida: Pide mejorar la prosa, expandir una escena corta o corregir la gramática al instante sin salir del flujo.' },
         { id: 'tribunal', label: 'El Tribunal', icon: Scale, content: 'Invoca a 3 jueces para criticar tu texto. Usa el botón del Mazo.' },
         { id: 'cronograma', label: 'Cronograma', icon: Calendar, content: 'El Cronista utiliza IA para entender el flujo del tiempo en tu historia.\n\nConfigura el Ancla: Define el "Año Actual" y el nombre de la "Era" en la cabecera.\n\nAnaliza: Pulsa "Analizar Archivo" con un capítulo abierto. La IA leerá el texto buscando referencias temporales (ej: "hace diez años", "el día de la coronación").\n\nConfirma: Los eventos detectados aparecerán como "Sugeridos". Apruébalos para fijarlos en la Línea de Tiempo oficial o descártalos si la IA alucina.' },
         { id: 'laboratorio', label: 'Laboratorio', icon: FlaskConical, content: 'Organiza tus personajes y recursos. Sube archivos a la carpeta _RESOURCES para chatear con ellos.' },

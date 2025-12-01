@@ -36,7 +36,7 @@ const Editor: React.FC<EditorProps> = ({
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     // 🟢 REFS
-    const zenContainerRef = useRef<HTMLDivElement>(null);
+    const zenContainerRef = useRef<HTMLDivElement>(null); // Now points to the scrollable content area
     const editorContentRef = useRef<HTMLDivElement>(null);
 
     // 🟢 BUBBLE MENU STATE
@@ -124,7 +124,7 @@ const Editor: React.FC<EditorProps> = ({
         const handleScroll = () => {
             const container = zenContainerRef.current;
             if (container) {
-                setShowScrollTop(container.scrollTop > 300);
+                setShowScrollTop(container.scrollTop > 500);
             }
         };
 
@@ -239,28 +239,26 @@ const Editor: React.FC<EditorProps> = ({
 
     return (
         <div
-            ref={zenContainerRef}
             className={`
-                flex flex-col relative transition-all duration-500
-                ${isZenMode ? 'fixed inset-0 z-50 bg-titanium-950 overflow-y-auto' : 'h-full'}
+                flex flex-col transition-all duration-500
+                ${isZenMode ? 'fixed inset-0 z-50 bg-titanium-950' : 'h-full relative'}
             `}
-            onClick={isZenMode ? handleZenBackgroundClick : undefined}
         >
 
             {/* 🟢 TOP BAR (READING TOOLBAR + META) */}
             <div className={`
-                sticky top-0 z-40 px-8 py-4 flex items-center justify-between
+                flex-none w-full z-40 px-8 py-4 flex items-center justify-center relative
                 transition-all duration-500
-                ${isZenMode ? 'bg-transparent hover:bg-titanium-950/80' : 'bg-titanium-950/95 backdrop-blur-sm border-b border-titanium-800'}
+                ${isZenMode ? 'bg-titanium-950/90 backdrop-blur-md' : 'bg-titanium-950/95 backdrop-blur-sm border-b border-titanium-800'}
             `}>
                 {/* LEFT: FILE INFO */}
-                <div className={`flex items-center gap-3 text-titanium-300 transition-opacity ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
+                <div className={`absolute left-8 flex items-center gap-3 text-titanium-300 transition-opacity ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                     <FileText size={16} className="text-titanium-500" />
                     <span className="text-sm font-medium">{fileName || 'Documento'}</span>
                 </div>
 
                 {/* CENTER: READING TOOLBAR */}
-                <div className="absolute left-1/2 transform -translate-x-1/2">
+                <div className={`flex justify-center w-full transition-all duration-500 ${editorWidth === 'narrow' ? 'max-w-3xl' : 'max-w-5xl'}`}>
                     <ReadingToolbar
                         fontFamily={fontFamily}
                         setFontFamily={setFontFamily}
@@ -272,7 +270,7 @@ const Editor: React.FC<EditorProps> = ({
                 </div>
 
                 {/* RIGHT: SAVE BUTTON */}
-                <div className={`transition-opacity ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
+                <div className={`absolute right-8 transition-opacity ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
@@ -299,24 +297,28 @@ const Editor: React.FC<EditorProps> = ({
 
             {/* 🟢 MAIN EDITOR AREA */}
             <div
-                ref={editorContentRef}
+                ref={zenContainerRef}
                 className={`
-                    flex-1 scrollbar-hide
-                    ${isZenMode ? 'px-0' : 'px-4 overflow-y-auto'}
+                    flex-1 overflow-y-auto
+                    ${isZenMode ? 'px-0' : 'px-4'}
                 `}
-                onClick={(e) => e.stopPropagation()} // Evita cerrar Zen al hacer clic en el texto
+                onClick={isZenMode ? handleZenBackgroundClick : undefined}
             >
-                <div className={`
-                    mx-auto transition-all duration-500 min-h-screen
-                    ${editorWidth === 'narrow' ? 'max-w-3xl' : 'max-w-5xl'}
-                    py-16 px-12
-                `}>
+                <div
+                    ref={editorContentRef}
+                    className={`
+                        mx-auto transition-all duration-500 min-h-screen
+                        ${editorWidth === 'narrow' ? 'max-w-3xl' : 'max-w-5xl'}
+                        py-16 px-12
+                    `}
+                    onClick={(e) => e.stopPropagation()}
+                >
                     <EditorContent editor={editor} />
                 </div>
             </div>
 
             {/* 🟢 SCROLL TO TOP BUTTON */}
-            {isZenMode && showScrollTop && (
+            {showScrollTop && (
                 <button
                     onClick={scrollToTop}
                     className="fixed bottom-8 right-8 p-4 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 hover:text-white rounded-full shadow-2xl transition-all duration-300 z-50 border border-titanium-700"
