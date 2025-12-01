@@ -1,0 +1,50 @@
+
+export type GemId = 'perforador' | 'forja' | 'guardian' | 'tribunal' | 'laboratorio' | 'cronograma' | 'imprenta';
+
+export interface Gem {
+  id: GemId;
+  name: string;
+  backgroundImage: string;
+  systemInstruction: string;
+  model: 'gemini-2.5-pro' | 'gemini-2.5-flash';
+  thinkingBudget?: number;
+  color?: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  isThinking?: boolean;
+}
+
+// ¡REEMPLAZA la vieja 'DriveFile' con esto!
+export interface DriveFile {
+  id: string;
+  name: string;
+  type: 'file' | 'folder';
+  mimeType: string;
+  content?: string;
+  children?: DriveFile[];
+  category?: 'canon' | 'reference';
+  parentId?: string; // 👈 Added for tree building
+}
+
+export interface IndexedFile {
+  id: string;
+  name: string;
+  timelineDate?: string; // ISO String
+  category?: 'canon' | 'reference';
+}
+
+export interface TimelineEvent {
+  id: string;
+  eventName: string;
+  description: string;
+  absoluteYear: number; // Integer for fantasy eras
+  confidence: 'high' | 'low';
+  status: 'suggested' | 'confirmed';
+  sourceFileId: string;
+  era?: string;
+}
+
+export type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";

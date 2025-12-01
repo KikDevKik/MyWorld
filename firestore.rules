@@ -1,0 +1,26 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ¡¡¡AQUÍ ESTÁ LA LLAVE!!!
+    // ¡BLOQUEA TODO por defecto! ¡Nadie entra!
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ¡¡¡LA EXCEPCIÓN!!!
+    // ¡Solo permitimos que el USUARIO LOGUEADO (el Chasis)...
+    // ...pueda LEER la colección "TDB_Index" de su PROPIO usuario!
+    match /TDB_Index/{userId}/{document=**} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      // ¡¡¡LA ESCRITURA SIGUE BLOQUEADA!!! ¡Solo el "Motor" (backend) puede escribir!
+    }
+
+    // 🟢 NUEVA REGLA PARA EL CRONOGRAMA (Intelligent Timeline)
+    // Permitimos leer y escribir (para confirmar/borrar eventos desde la UI)
+    match /TDB_Timeline/{userId}/events/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

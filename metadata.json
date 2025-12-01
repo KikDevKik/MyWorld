@@ -1,0 +1,5 @@
+{
+  "name": "MyWord Creative Writing IDE",
+  "description": "A creative writing IDE powered by Gemini. It features AI-powered assistants (Gems) to help with brainstorming, world-building, and content generation, along with an integrated chatbot and image generator.",
+  "requestFramePermissions": []
+}
