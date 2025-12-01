@@ -1,20 +1,21 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# 🌍 MyWorld - Creative Writing IDE (Titanium Edition)
 
-# Run and deploy your AI Studio app
+Plataforma de escritura avanzada potenciada por IA para novelistas y creadores de mundos.
 
-This contains everything you need to run your app locally.
+## 🚀 Módulos del Sistema
 
-View your app in AI Studio: https://ai.studio/apps/drive/1Eb2if_WhBrxhdwev-6dpv4zc5QO4qvgp
+* **🖋️ El Editor:** Interfaz WYSIWYG "Zen Mode" con tipografía dinámica y telemetría.
+* **⚖️ El Tribunal:** Juicio narrativo con 3 personalidades de IA (Arquitecto, Bardo, Hater).
+* **⏳ El Cronista:** Línea de tiempo interactiva generada automáticamente desde el texto.
+* **🧪 El Laboratorio:** Gestión de activos (Canon vs Referencia) con chat de investigación RAG.
+* **🖨️ La Imprenta:** Compilación y exportación de manuscritos a PDF.
+* **🔨 La Forja:** Generador de ideas y personajes.
 
-## Run Locally
+## 🛠️ Tech Stack
 
-**Prerequisites:**  Node.js
+* **Frontend:** React + Vite + TailwindCSS (Titanium Dark Theme).
+* **Backend:** Firebase Cloud Functions v2.
+* **IA:** Google Gemini 2.0 Flash + Imagen 3 (Vertex AI).
+* **Base de Datos:** Firestore (Vector Search).
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+---
