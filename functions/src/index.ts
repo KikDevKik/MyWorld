@@ -40,6 +40,13 @@ interface WriterProfile {
   rules: string;
 }
 
+interface ProjectConfig {
+  canonPaths: string[];
+  resourcePaths: string[];
+  chronologyPath: string;
+  activeBookContext: string;
+}
+
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
 // --- FILE FILTERING CONSTANTS ---
@@ -51,7 +58,22 @@ const GOOGLE_FOLDER_MIMETYPE = 'application/vnd.google-apps.folder';
 
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
+async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig> {
+  const db = getFirestore();
+  const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
 
+  const defaultConfig: ProjectConfig = {
+    canonPaths: ["MI HISTORIA", "TDB Design Character"],
+    resourcePaths: ["_RESOURCES"],
+    chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
+    activeBookContext: "Just Megu"
+  };
+
+  if (!doc.exists) {
+    return defaultConfig;
+  }
+  return { ...defaultConfig, ...doc.data() };
+}
 
 // --- NUEVO HELPER: Convertir Tubería a Texto ---
 async function streamToString(stream: Readable): Promise<string> {
@@ -127,10 +149,17 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
  * Escáner de Carpetas (AHORA CON INTERRUPTOR DE PROFUNDIDAD)
  * @param drive Cliente de Google Drive
  * @param folderId ID de la carpeta a leer
+ * @param config Configuración del proyecto (para detectar categorías)
  * @param recursive TRUE = Escaneo profundo (para IA), FALSE = Solo nivel actual (para UI)
  * @param currentCategory Contexto actual ('canon' o 'reference')
  */
-async function fetchFolderContents(drive: any, folderId: string, recursive: boolean = false, currentCategory: 'canon' | 'reference' = 'canon'): Promise<DriveFile[]> {
+async function fetchFolderContents(
+  drive: any,
+  folderId: string,
+  config: ProjectConfig,
+  recursive: boolean = false,
+  currentCategory: 'canon' | 'reference' = 'canon'
+): Promise<DriveFile[]> {
   logger.info(`📂 Escaneando carpeta: ${folderId} | Modo Recursivo: ${recursive} | Cat: ${currentCategory}`);
 
   const query = `'${folderId}' in parents and trashed = false`;
@@ -188,16 +217,23 @@ async function fetchFolderContents(drive: any, folderId: string, recursive: bool
 
         // 🟢 DETECCIÓN DE CATEGORÍA
         // Si ya estamos en 'reference', todo lo de adentro es 'reference'.
-        // Si no, miramos si esta carpeta/archivo empieza por _RESOURCES.
+        // Si no, miramos la configuración dinámica.
         let fileCategory: 'canon' | 'reference' = currentCategory;
-        if (file.name.startsWith('_RESOURCES')) {
-          fileCategory = 'reference';
+
+        // 1. Check Resource Paths
+        if (config.resourcePaths.some(path => file.name === path) || file.name.startsWith('_RESOURCES')) {
+           fileCategory = 'reference';
+        }
+
+        // 2. Check Canon Paths (Explicit override)
+        if (config.canonPaths.some(path => file.name === path)) {
+           fileCategory = 'canon';
         }
 
         if (file.mimeType === 'application/vnd.google-apps.folder') {
           let children: DriveFile[] = [];
           if (recursive) {
-            children = await fetchFolderContents(drive, file.id, true, fileCategory); // 👈 Propagamos categoría
+            children = await fetchFolderContents(drive, file.id, config, true, fileCategory); // 👈 Propagamos categoría y config
           }
 
           return {
@@ -286,6 +322,9 @@ export const getDriveFiles = onCall(
     }
 
     try {
+      // 🟢 RECUPERAR CONFIGURACIÓN DEL USUARIO
+      const config = await _getProjectConfigInternal(request.auth.uid);
+
       // 🟢 USAR TOKEN DEL USUARIO
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
@@ -310,7 +349,7 @@ export const getDriveFiles = onCall(
       // 🟢 CAMBIO CRÍTICO: recursive param
       // Permitimos que el cliente decida si quiere recursividad (ej: LaboratoryPanel) o no (ej: Sidebar)
       const recursive = request.data.recursive || false;
-      const fileTree = await fetchFolderContents(drive, cleanFolderId, recursive);
+      const fileTree = await fetchFolderContents(drive, cleanFolderId, config, recursive);
 
       return fileTree;
     } catch (error: any) {
@@ -319,6 +358,96 @@ export const getDriveFiles = onCall(
         throw new HttpsError("not-found", "Carpeta no encontrada. Verifica permisos del Robot.");
       }
       throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+/**
+ * 16. GET PROJECT CONFIG (El Plano del Arquitecto)
+ * Recupera la configuración del proyecto (rutas canon/recursos).
+ */
+export const getProjectConfig = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión para ver la configuración.");
+    }
+
+    const userId = request.auth.uid;
+
+    try {
+      const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+
+      // VALORES POR DEFECTO
+      const defaultConfig: ProjectConfig = {
+        canonPaths: ["MI HISTORIA", "TDB Design Character"],
+        resourcePaths: ["_RESOURCES"],
+        chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
+        activeBookContext: "Just Megu"
+      };
+
+      if (!doc.exists) {
+        logger.info(`📭 No hay config para ${userId}, devolviendo defaults.`);
+        return defaultConfig;
+      }
+
+      logger.info(`🏗️ Configuración del proyecto recuperada para ${userId}`);
+
+      // Fusionar con defaults para evitar undefined en campos nuevos
+      return { ...defaultConfig, ...doc.data() };
+
+    } catch (error: any) {
+      logger.error(`💥 Error al recuperar config para ${userId}:`, error);
+      throw new HttpsError("internal", `Error al recuperar config: ${error.message}`);
+    }
+  }
+);
+
+/**
+ * 17. SAVE PROJECT CONFIG (La Firma del Arquitecto)
+ * Guarda la configuración del proyecto.
+ */
+export const saveProjectConfig = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión para guardar la configuración.");
+    }
+
+    const config = request.data as ProjectConfig;
+    const userId = request.auth.uid;
+
+    if (!config.canonPaths || !config.resourcePaths) {
+      throw new HttpsError("invalid-argument", "Faltan campos obligatorios en la configuración.");
+    }
+
+    logger.info(`💾 Guardando configuración del proyecto para usuario: ${userId}`);
+
+    try {
+      await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+        ...config,
+        updatedAt: new Date().toISOString()
+      });
+
+      logger.info(`✅ Configuración guardada correctamente para ${userId}`);
+
+      return { success: true };
+
+    } catch (error: any) {
+      logger.error(`💥 Error al guardar config para ${userId}:`, error);
+      throw new HttpsError("internal", `Error al guardar config: ${error.message}`);
     }
   }
 );
@@ -401,9 +530,12 @@ export const indexTDB = onCall(
 
       const drive = google.drive({ version: "v3", auth });
 
+      // 🟢 RECUPERAR CONFIGURACIÓN DEL USUARIO
+      const config = await _getProjectConfigInternal(userId);
+
       // 🟢 CAMBIO CRÍTICO: recursive = true
       // Para indexar necesitamos bajar hasta el infierno.
-      const fileTree = await fetchFolderContents(drive, cleanFolderId, true);
+      const fileTree = await fetchFolderContents(drive, cleanFolderId, config, true);
 
       const fileList = flattenFileTree(fileTree);
 
