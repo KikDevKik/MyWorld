@@ -1027,12 +1027,11 @@ export const deleteForgeSession = onCall(
     const userId = request.auth.uid;
 
     try {
-      // Nota: Esto solo borra el documento padre. Si hay subcolecciones (mensajes),
-      // quedarían huérfanas a menos que usemos un borrado recursivo.
-      // Para esta fase, borrado simple está bien.
-      await db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId).delete();
+      // Nota: Usamos recursiveDelete para eliminar el documento padre y todas sus subcolecciones (mensajes).
+      const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId);
+      await db.recursiveDelete(sessionRef);
 
-      logger.info(`🗑️ Sesión de Forja eliminada: ${sessionId}`);
+      logger.info(`🗑️ Sesión de Forja eliminada recursivamente: ${sessionId}`);
       return { success: true };
 
     } catch (error: any) {
