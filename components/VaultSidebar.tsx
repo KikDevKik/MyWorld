@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog } from 'lucide-react';
 import FileTree from './FileTree';
+import { useProjectConfig } from './ProjectConfigContext';
 
 interface VaultSidebarProps {
     folderId: string;
@@ -10,6 +11,7 @@ interface VaultSidebarProps {
     onLogout: () => void;
     onIndexRequest: () => void;
     onOpenSettings: () => void;
+    onOpenProjectSettings: () => void; // 👈 New prop for Project Settings Modal
     accessToken: string | null;
     onRefreshTokens: () => void;
     driveStatus: 'connected' | 'refreshing' | 'error' | 'disconnected';
@@ -32,6 +34,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     onLogout,
     onIndexRequest,
     onOpenSettings,
+    onOpenProjectSettings,
     accessToken,
     onRefreshTokens,
     driveStatus,
@@ -40,6 +43,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
+    const { config } = useProjectConfig();
 
     // HANDLERS
     const handleFilesLoaded = (files: FileNode[]) => {
@@ -142,11 +146,19 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </button>
 
                     <button
+                        onClick={onOpenProjectSettings}
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-titanium-700/50 transition-all text-xs font-medium group"
+                    >
+                        <FolderCog size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
+                        <span>Proyecto</span>
+                    </button>
+
+                    <button
                         onClick={onOpenSettings}
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-titanium-700/50 transition-all text-xs font-medium group"
                     >
                         <Settings size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
-                        <span>Configuración</span>
+                        <span>Preferencias</span>
                     </button>
 
                     {/* 🟢 STATUS INDICATOR BUTTON */}

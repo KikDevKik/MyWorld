@@ -17,6 +17,8 @@ import ConnectDriveModal from './components/ConnectDriveModal';
 import ImageGenModal from './components/ImageGenModal';
 import SettingsModal from './components/SettingsModal';
 import FieldManualModal from './components/FieldManualModal'; // 👈 Import
+import ProjectSettingsModal from './components/ProjectSettingsModal'; // 👈 Import
+import { ProjectConfigProvider } from './components/ProjectConfigContext'; // 👈 Import
 import { GemId } from './types';
 
 function App() {
@@ -38,6 +40,7 @@ function App() {
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [isImageGenOpen, setIsImageGenOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false); // 👈 New state
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false); // 👈 New state
 
     // SINAPSIS
@@ -225,6 +228,7 @@ function App() {
     if (!user) return <LoginScreen onLoginSuccess={(u, t) => { setUser(u); setOauthToken(t); }} />;
 
     return (
+      <ProjectConfigProvider>
         <div className="flex h-screen w-screen bg-titanium-900 text-titanium-200 font-sans overflow-hidden">
 
             {/* 🟢 GLOBAL TOASTER */}
@@ -268,6 +272,10 @@ function App() {
                 />
             )}
 
+            {isProjectSettingsOpen && (
+                <ProjectSettingsModal onClose={() => setIsProjectSettingsOpen(false)} />
+            )}
+
             {/* FIELD MANUAL MODAL */}
             {isFieldManualOpen && (
                 <FieldManualModal onClose={() => setIsFieldManualOpen(false)} />
@@ -287,6 +295,7 @@ function App() {
                     onLogout={handleLogout}
                     onIndexRequest={handleIndex}
                     onOpenSettings={() => setIsSettingsModalOpen(true)}
+                    onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
                     accessToken={oauthToken}
                     onRefreshTokens={handleTokenRefresh}
                     driveStatus={driveStatus}
@@ -354,7 +363,7 @@ function App() {
                             setIsZenMode={setIsZenMode}
                         />
                         {/* COMMAND BAR (Only visible when Editor is NOT active/focused) */}
-                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isFieldManualOpen && !isConnectModalOpen && !isImageGenOpen && (
+                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isImageGenOpen && (
                             <CommandBar onExecute={handleCommandExecution} />
                         )}
                     </>
@@ -385,6 +394,7 @@ function App() {
             )}
 
         </div>
+      </ProjectConfigProvider>
     );
 }
 
