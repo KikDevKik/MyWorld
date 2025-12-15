@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import * as admin from "firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { defineSecret } from "firebase-functions/params";
 import {
@@ -10,7 +10,7 @@ import {
   GoogleGenerativeAIEmbeddings
 } from "@langchain/google-genai";
 import { TaskType, GoogleGenerativeAI } from "@google/generative-ai";
-import { findMostSimilarChunks, Chunk } from "./similarity";
+import { Chunk } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter'; // 👈 Fixed import
 
@@ -458,7 +458,8 @@ export const indexTDB = onCall(
                 order: i,
                 fileName: file.name,
                 category: file.category || 'canon',
-                embedding: vector,
+                userId: userId, // 👈 Store userId for filtering
+                embedding: FieldValue.vector(vector), // 👈 Store as VectorValue
               });
             }
 
@@ -558,27 +559,39 @@ RULES: ${profile.rules || 'Not specified'}
       });
       const queryVector = await embeddings.embedQuery(searchQuery);
 
-      // 3. Recuperar Chunks (Estrategia in-memory para <1000 docs)
-      // Nota: En producción masiva esto cambiaría a Vector Search nativo.
-      const chunksSnapshot = await db.collectionGroup("chunks").get();
-      let allChunks: Chunk[] = chunksSnapshot.docs.map(doc => ({
-        text: doc.data().text,
-        embedding: doc.data().embedding,
-        fileName: doc.data().fileName || "Desconocido",
-        category: doc.data().category || 'canon', // 👈 Ensure category is read
-      }));
+      // 3. Recuperar Chunks (Vector Search Nativo)
+      const coll = db.collectionGroup("chunks");
 
-      // 🟢 FILTRADO POR CATEGORÍA
+      // Construir Query Base (Filter by User & Category)
+      let chunkQuery = coll.where("userId", "==", userId);
+
       if (categoryFilter === 'reference') {
         logger.info("🔍 Filtrando por REFERENCIA");
-        allChunks = allChunks.filter(c => c.category === 'reference');
+        chunkQuery = chunkQuery.where("category", "==", "reference");
       } else if (categoryFilter === 'canon') {
         logger.info("🔍 Filtrando por CANON");
-        allChunks = allChunks.filter(c => c.category !== 'reference'); // Default to canon if not explicit reference
+        // Nota: En Vector Search las desigualdades (!=) tienen limitaciones.
+        // Asumimos que lo que no es reference es canon.
+        // Si hay mas categorias, esto podria necesitar ajuste.
+        chunkQuery = chunkQuery.where("category", "==", "canon");
       }
 
-      // 4. Calcular Similitud (Matemáticas)
-      const relevantChunks = findMostSimilarChunks(queryVector, allChunks);
+      // 4. Ejecutar Búsqueda Vectorial
+      const vectorQuery = chunkQuery.findNearest({
+        queryVector: queryVector,
+        limit: 5,
+        distanceMeasure: 'COSINE',
+        vectorField: 'embedding'
+      });
+
+      const vectorSnapshot = await vectorQuery.get();
+
+      const relevantChunks: Chunk[] = vectorSnapshot.docs.map(doc => ({
+        text: doc.data().text,
+        embedding: [], // No necesitamos el embedding de vuelta
+        fileName: doc.data().fileName || "Desconocido",
+        category: doc.data().category || 'canon',
+      }));
 
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
@@ -685,16 +698,19 @@ export const generateImage = onCall(
       });
       const queryVector = await embeddings.embedQuery(prompt);
 
-      // Búsqueda vectorial rápida
-      const chunksSnapshot = await db.collectionGroup("chunks").get();
-      const allChunks: Chunk[] = chunksSnapshot.docs.map(doc => ({
-        text: doc.data().text,
-        embedding: doc.data().embedding,
-        fileName: doc.data().fileName || "Desconocido",
-      }));
+      // Búsqueda vectorial rápida (Nativa)
+      const vectorQuery = db.collectionGroup("chunks")
+        .where("userId", "==", userId)
+        .findNearest({
+          queryVector: queryVector,
+          limit: 3, // Solo top 3
+          distanceMeasure: 'COSINE',
+          vectorField: 'embedding'
+        });
 
-      const relevantChunks = findMostSimilarChunks(queryVector, allChunks);
-      const contextText = relevantChunks.slice(0, 3).map(c => c.text).join("\n\n"); // Solo top 3
+      const vectorSnapshot = await vectorQuery.get();
+
+      const contextText = vectorSnapshot.docs.map(doc => doc.data().text).join("\n\n");
 
       logger.info("   - Contexto recuperado:", contextText.substring(0, 50) + "...");
 
