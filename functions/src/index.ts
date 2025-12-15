@@ -1204,12 +1204,44 @@ export const forgeToDrive = onCall(
       const aiResponse = await chatModel.invoke(synthesisPrompt);
       const markdownContent = aiResponse.content.toString();
 
-      // 3. GENERAR NOMBRE DE ARCHIVO (Opcional: pedirle a la IA, por ahora usamos timestamp o nombre sesión)
-      // Para hacerlo mejor, recuperamos el nombre de la sesión
-      const sessionDoc = await db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId).get();
-      const sessionName = sessionDoc.exists ? sessionDoc.data()?.name : "Sesion_Forja";
-      const safeName = sessionName.replace(/[^a-zA-Z0-9]/g, "_");
-      const fileName = `${safeName}_${new Date().getTime()}.md`;
+      // 3. GENERAR NOMBRE DE ARCHIVO
+      // Intentamos que la IA nos dé un nombre genial.
+      let fileName = "";
+      try {
+        const titlePrompt = `
+          ACT AS: Expert Editor.
+          GOAL: Generate a short, descriptive filename for the following document.
+
+          INSTRUCTIONS:
+          - Read the document content below.
+          - Create a filename that summarizes the essence (max 6 words).
+          - Use underscores (_) instead of spaces.
+          - Use ONLY alphanumeric characters (A-Z, 0-9) and underscores. NO special characters, NO accents.
+          - If the content is in another language, translate the essence to English OR use non-accented characters.
+          - NO extension, NO extra text. Just the name.
+
+          DOCUMENT CONTENT (Snippet):
+          ${markdownContent.substring(0, 2000)}
+        `;
+
+        const titleResponse = await chatModel.invoke(titlePrompt);
+        let rawName = titleResponse.content.toString().trim();
+        // Limpieza extra
+        rawName = rawName.replace(/[^a-zA-Z0-9_\-]/g, "");
+        if (rawName.length > 0) {
+           fileName = `${rawName}.md`;
+        }
+      } catch (e) {
+        logger.warn("Error generando nombre con IA, usando fallback.", e);
+      }
+
+      // FALLBACK: Si falla la IA, usamos el método antiguo
+      if (!fileName) {
+        const sessionDoc = await db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId).get();
+        const sessionName = sessionDoc.exists ? sessionDoc.data()?.name : "Sesion_Forja";
+        const safeName = sessionName.replace(/[^a-zA-Z0-9]/g, "_");
+        fileName = `${safeName}_${new Date().getTime()}.md`;
+      }
 
       // 4. GUARDAR EN DRIVE (La Materialización)
       const auth = new google.auth.OAuth2();
