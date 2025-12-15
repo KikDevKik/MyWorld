@@ -27,7 +27,6 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
         const cleanId = extractId(inputId);
 
         if (cleanId) {
-            console.log("Conectando con ID:", cleanId); // Debug táctico
             onSubmit(cleanId);
             toast.success("Carpeta conectada");
             onClose();
