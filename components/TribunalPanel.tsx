@@ -123,7 +123,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                 value={text}
                                 onChange={(e) => setText(e.target.value)}
                                 placeholder="Pega aquí tu escena, capítulo o fragmento..."
-                                className="flex-1 bg-titanium-900 border border-titanium-700 rounded-xl p-4 text-titanium-200 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all resize-none font-mono text-sm leading-relaxed"
+                                className="flex-1 bg-titanium-950 border border-gray-700 rounded-xl p-4 text-gray-100 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all resize-none font-mono text-sm leading-relaxed"
                             />
                         ) : (
                             <div className="flex-1 bg-titanium-900 border border-titanium-700 rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4">
@@ -161,7 +161,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                             value={context}
                             onChange={(e) => setContext(e.target.value)}
                             placeholder="¿Qué está pasando? ¿Quiénes son los personajes? (Ayuda a los jueces a entender)"
-                            className="flex-1 bg-titanium-900 border border-titanium-700 rounded-xl p-3 text-titanium-300 focus:outline-none focus:border-red-500/50 transition-all resize-none text-sm"
+                            className="flex-1 bg-titanium-950 border border-gray-700 rounded-xl p-3 text-gray-100 focus:outline-none focus:border-red-500/50 transition-all resize-none text-sm"
                         />
                     </div>
 
