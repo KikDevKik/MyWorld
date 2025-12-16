@@ -95,19 +95,19 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     <select
                         value={selectedSagaId || ''}
                         onChange={(e) => setSelectedSagaId(e.target.value || null)}
-                        className="w-full appearance-none bg-white hover:bg-gray-50 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT/50 cursor-pointer py-2 px-3 pr-8 rounded-md border border-titanium-300 transition-all"
+                        className="w-full appearance-none bg-titanium-950 hover:bg-titanium-900 text-sm font-medium text-titanium-100 focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT/50 cursor-pointer py-2 px-3 pr-8 rounded-md border border-titanium-700 transition-all"
                         disabled={!folderId}
                     >
-                        <option value="" className="bg-white text-gray-900">Vista Global</option>
+                        <option value="" className="bg-titanium-950 text-titanium-100">Vista Global</option>
                         {topLevelFolders.map(folder => (
-                            <option key={folder.id} value={folder.id} className="bg-white text-gray-900">
+                            <option key={folder.id} value={folder.id} className="bg-titanium-950 text-titanium-100">
                                 {folder.name}
                             </option>
                         ))}
                     </select>
                     <ChevronDown
                         size={14}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 pointer-events-none transition-colors"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-titanium-400 pointer-events-none transition-colors"
                     />
                 </div>
             </div>

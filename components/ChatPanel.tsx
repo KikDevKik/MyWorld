@@ -184,7 +184,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             }}
             placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
             disabled={!activeGem || isLoading}
-            className="w-full bg-white border border-gray-300 rounded-xl px-4 py-3 pr-12 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
+            className="w-full bg-titanium-950 border border-titanium-700 rounded-xl px-4 py-3 pr-12 text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
           />
           <button
             onClick={() => handleSendMessage(input)}
