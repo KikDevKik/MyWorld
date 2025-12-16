@@ -647,6 +647,10 @@ export const chatWithGem = onCall(
       ? profileDoc.data() as WriterProfile
       : { style: '', inspirations: '', rules: '' };
 
+    // 🏗️ RECUPERAR CONFIGURACIÓN DEL PROYECTO (PARA EL LIBRO ACTIVO)
+    const projectConfig = await _getProjectConfigInternal(userId);
+    const activeBook = projectConfig.activeBookContext || "Historia General";
+
     // Build profile context
     let profileContext = '';
     if (profile.style || profile.inspirations || profile.rules) {
@@ -735,8 +739,50 @@ RULES: ${profile.rules || 'Not specified'}
         temperature: 0.7,
       });
 
-      // 🟢 INYECCIÓN DE INSTRUCCIÓN DE REFERENCIA
+      // 🟢 INYECCIÓN DE PROTOCOLO DE CONTINUIDAD
+      const CONTINUITY_PROTOCOL = `
+=== PROTOCOLO DE CONTINUIDAD (DARK BROTHERHOOD) ===
+OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
+
+1. PUNTO DE ANCLAJE TEMPORAL (EL AHORA)
+   - LIBRO ACTIVO: "${activeBook}"
+   - AÑO BASE (DEFAULT): 486 (Era del Nuevo Horizonte).
+   - INSTRUCCIÓN DE SOBREESCRITURA: Si encuentras un encabezado \`[TIMELINE CONTEXT: Año X]\` en los archivos recuperados o en el texto del usuario, ese año tiene prioridad sobre el año base.
+
+2. ESTADO DEL MUNDO (486 ENH)
+   - Laboratorio "GardenFlowers": DESTRUIDO/INEXISTENTE (Cayó en el 485).
+   - Elsa Liselotte: Desaparecida/Muerta.
+   - Zoorians: En conflicto abierto o integración parcial.
+
+3. REGLA DE RELATIVIDAD TEMPORAL (CRUCIAL)
+   Analiza la fecha de los eventos en el contexto (RAG) comparada con el AÑO ACTUAL de la narración.
+
+   A. PASADO CONFIRMADO (Eventos < Año Actual):
+      - Trátalos como HECHOS HISTÓRICOS.
+      - IGNORA la etiqueta \`# PLANIFICACIÓN FUTURA\`. Para el presente, eso ya ocurrió. Úsalo para dar profundidad (trauma, experiencia).
+
+   B. FUTURO / DESARROLLO (Eventos > Año Actual):
+      - Si encuentras \`# PLANIFICACIÓN FUTURA\` y el evento es posterior al ahora:
+      - NO LO TRATES COMO HECHO ACTUAL.
+      - ÚSALO COMO SUBTEXTO (Foreshadowing/Potencial) pero no narres que ya sucedió.
+
+4. MANEJO DE FLASHBACKS (Rango 471-485)
+   - DETECCIÓN: Si la narración o el usuario invocan el pasado (ej: "Recuerdo...", "En 475..."):
+     a) REACTIVA "GardenFlowers" (Es una amenaza real en ese tiempo).
+     b) AJUSTE DE EDAD: Calcula la edad restando (Año Flashback - Año Nacimiento en Ficha).
+
+5. SISTEMA DE EXCEPCIONES (OVERRIDE)
+   - [WORLD RULES] / [LOGIC EXCEPTION]: Si encuentras estas etiquetas en el texto recuperado, su contenido es VERDAD ABSOLUTA.
+   - Obedece estas excepciones incluso si contradicen la física, la historia o las reglas anteriores.
+===================================================
+`;
+
+      // 🟢 INYECCIÓN DE INSTRUCCIÓN DE REFERENCIA (COMBINADA)
       let finalSystemInstruction = systemInstruction || "";
+
+      // Prependamos el protocolo
+      finalSystemInstruction = CONTINUITY_PROTOCOL + "\n\n" + finalSystemInstruction;
+
       if (categoryFilter === 'reference') {
         finalSystemInstruction += "\n\nIMPORTANTE: Responde basándote EXCLUSIVAMENTE en el material de referencia proporcionado. Actúa como un tutor o experto en la materia.";
       }
