@@ -213,7 +213,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Escribe a la Forja..."
-                        className="flex-1 bg-white border border-gray-300 rounded-xl px-4 py-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 transition-colors pr-12"
+                        className="flex-1 bg-titanium-950 border border-titanium-600 rounded-xl px-4 py-3 text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 transition-colors pr-12"
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         disabled={isSending}
                     />

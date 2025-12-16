@@ -140,7 +140,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken,
                             value={newSessionName}
                             onChange={(e) => setNewSessionName(e.target.value)}
                             placeholder="Nombre del Personaje o Elemento..."
-                            className="flex-1 bg-white border border-gray-300 rounded-xl px-4 py-3 text-gray-900 placeholder-gray-400 focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 transition-all"
+                            className="flex-1 bg-titanium-950 border border-titanium-700 rounded-xl px-4 py-3 text-titanium-100 placeholder-titanium-500 focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 transition-all"
                             onKeyDown={(e) => e.key === 'Enter' && handleCreateSession()}
                         />
                         <button

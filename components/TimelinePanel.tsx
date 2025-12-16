@@ -138,7 +138,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                             type="number"
                             value={currentYear}
                             onChange={(e) => setCurrentYear(parseInt(e.target.value) || 0)}
-                            className="bg-white border border-gray-300 rounded px-2 py-1 w-24 text-gray-900 placeholder-gray-400 focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 outline-none"
+                            className="bg-titanium-950 border border-titanium-700 rounded px-2 py-1 w-24 text-titanium-100 placeholder-titanium-500 focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 outline-none"
                         />
                     </div>
                     <div className="flex flex-col gap-1 flex-1">
@@ -147,7 +147,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                             type="text"
                             value={eraName}
                             onChange={(e) => setEraName(e.target.value)}
-                            className="bg-white border border-gray-300 rounded px-2 py-1 w-full text-gray-900 placeholder-gray-400 focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 outline-none"
+                            className="bg-titanium-950 border border-titanium-700 rounded px-2 py-1 w-full text-titanium-100 placeholder-titanium-500 focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT/50 outline-none"
                         />
                     </div>
                     <div className="flex flex-col justify-end">
