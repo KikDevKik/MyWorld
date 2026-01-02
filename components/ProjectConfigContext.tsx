@@ -2,13 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
-
-interface ProjectConfig {
-  canonPaths: string[];
-  resourcePaths: string[];
-  chronologyPath: string;
-  activeBookContext: string;
-}
+import { ProjectConfig } from '../types';
 
 interface ProjectConfigContextType {
   config: ProjectConfig | null;
