@@ -774,6 +774,7 @@ RULES: ${profile.rules || 'Not specified'}
 
       if (history && Array.isArray(history) && history.length > 0) {
         // a) Para el Prompt de la IA (Texto completo)
+        // DEFAULT: Use ALL history if small, but we will slice if too big below.
         historyText = history.map((h: any) =>
           `${h.role === 'user' ? 'USUARIO' : 'ASISTENTE'}: ${h.message}`
         ).join("\n");
@@ -787,6 +788,15 @@ RULES: ${profile.rules || 'Not specified'}
 
         searchQuery = `Contexto: ${userHistory} \n Pregunta: ${query}`;
         logger.info("🔍 Búsqueda Vectorial Enriquecida:", searchQuery);
+      }
+
+      // 🛑 OPTIMIZACIÓN DE TOKENS: LIMITAR HISTORIAL (Slice last 20)
+      if (history && Array.isArray(history) && history.length > 20) {
+        const sliced = history.slice(-20);
+        historyText = sliced.map((h: any) =>
+           `${h.role === 'user' ? 'USUARIO' : 'ASISTENTE'}: ${h.message}`
+        ).join("\n");
+        logger.info(`✂️ Historial recortado a los últimos 20 mensajes para ahorrar tokens.`);
       }
 
       // 2. Vectorizar Pregunta
@@ -963,158 +973,6 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
   }
 );
 
-/**
- * 5. GENERATE IMAGE (El Artista)
- * Genera imágenes usando Imagen 3 vía Vertex AI REST API.
- */
-/**
- * 5. GENERATE IMAGE (La Forja Visual)
- * Crea imágenes usando Imagen 3 y contexto de la historia.
- */
-export const generateImage = onCall(
-  {
-    region: "us-central1",
-    enforceAppCheck: false,
-    timeoutSeconds: 60, // Imagen tarda un poco
-    secrets: [googleApiKey], // Necesita la API Key
-  },
-  async (request) => {
-    initializeFirebase();
-    const db = getFirestore();
-
-    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
-
-    const { prompt, aspectRatio, projectId } = request.data; // 👈 Added projectId
-    if (projectId) logger.info(`🎨 Generando imagen para proyecto: ${projectId}`);
-
-    if (!prompt) throw new HttpsError("invalid-argument", "Falta el prompt.");
-
-    // 🧠 RETRIEVE USER PROFILE (Neural Synchronization)
-    const userId = request.auth.uid;
-    const profileDoc = await db.collection("users").doc(userId).collection("profile").doc("writer_config").get();
-    const profile: WriterProfile = profileDoc.exists
-      ? profileDoc.data() as WriterProfile
-      : { style: '', inspirations: '', rules: '' };
-
-    const styleContext = profile.style || profile.inspirations
-      ? `User's preferred style: ${profile.style}. Inspirations: ${profile.inspirations}.`
-      : '';
-
-    try {
-      logger.info(`🎨 [FORJA] Iniciando generación para: "${prompt}"`);
-
-      // 1. OBTENER TOKEN DE ACCESO (CRÍTICO PARA VERTEX AI)
-      const auth = new google.auth.GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/cloud-platform']
-      });
-      const client = await auth.getClient();
-      const token = await client.getAccessToken();
-      const projectId = await auth.getProjectId();
-
-      // 2. RECUPERAR CONTEXTO VISUAL (RAG)
-      // Buscamos en la historia cómo se ven los personajes mencionados
-      const embeddings = new GoogleGenerativeAIEmbeddings({
-        apiKey: googleApiKey.value(),
-        model: "embedding-001",
-        taskType: TaskType.RETRIEVAL_QUERY,
-      });
-      const queryVector = await embeddings.embedQuery(prompt);
-
-      // Búsqueda vectorial rápida (Nativa)
-      let chunkQuery = db.collectionGroup("chunks").where("userId", "==", userId);
-
-      // 🟢 STRICT PROJECT ISOLATION
-      if (projectId) {
-         chunkQuery = chunkQuery.where("projectId", "==", projectId);
-      }
-
-      const vectorQuery = chunkQuery.findNearest({
-          queryVector: queryVector,
-          limit: 3, // Solo top 3
-          distanceMeasure: 'COSINE',
-          vectorField: 'embedding'
-        });
-
-      const vectorSnapshot = await vectorQuery.get();
-
-      const contextText = vectorSnapshot.docs.map(doc => doc.data().text).join("\n\n");
-
-      logger.info("   - Contexto recuperado:", contextText.substring(0, 50) + "...");
-
-      // 3. MEJORAR EL PROMPT CON GEMINI (Nivel SPEEDSTER - Rápido)
-      const chatModel = new ChatGoogleGenerativeAI({
-        apiKey: googleApiKey.value(),
-        model: "gemini-2.5-flash", // <--- Optimizado para tareas unitarias
-        temperature: 0.7,
-      });
-
-      const enhancementPrompt = `
-        ACT AS: Expert AI Art Director for a fantasy novel.
-        GOAL: Convert a user request into a highly detailed visual prompt for 'Imagen 3'.
-        
-        USER REQUEST: "${prompt}"
-        ${styleContext ? `WRITER'S STYLE: ${styleContext}` : ''}
-        STORY CONTEXT (Use this to describe characters/places accurately):
-        ${contextText}
-        
-        INSTRUCTIONS:
-        - Describe the subject, lighting, style (semi-realistic anime), and composition.
-        - Match the user's preferred visual style and inspirations.
-        - If a known character is mentioned (like Anna), use the context to describe her appearance EXACTLY (hair, eyes, clothes).
-        - Keep it under 80 words. English only.
-        - OUTPUT ONLY THE PROMPT TEXT. NO "Here is the prompt:".
-      `;
-
-      const enhancementRes = await chatModel.invoke(enhancementPrompt);
-      const finalPrompt = enhancementRes.content.toString().trim();
-
-      logger.info(`   - Prompt Mejorado: "${finalPrompt}"`);
-
-      // 4. LLAMAR A IMAGEN 3 (VERTEX AI API)
-      // 🟢 USAR GOOGLE PROJECT ID REAL PARA LA URL, NO EL DEL USUARIO (FOLDER)
-      const cloudProjectId = await auth.getProjectId();
-      const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${cloudProjectId}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict`;
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          instances: [{ prompt: finalPrompt }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: aspectRatio || "1:1",
-            // safetySettings: ... (Opcional)
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Vertex AI Error (${response.status}): ${errorText}`);
-      }
-
-      const result = await response.json();
-
-      // La API devuelve: { predictions: [ { bytesBase64Encoded: "..." } ] }
-      const base64Image = result.predictions?.[0]?.bytesBase64Encoded;
-
-      if (!base64Image) {
-        throw new Error("No se recibió imagen de Vertex AI.");
-      }
-
-      logger.info("   ✅ Imagen generada con éxito.");
-
-      return { image: base64Image };
-
-    } catch (error: any) {
-      logger.error("💥 Error en generateImage:", error);
-      throw new HttpsError("internal", error.message);
-    }
-  }
-);
 
 
 

@@ -16,7 +16,6 @@ interface ForgeChatProps {
     onBack: () => void;
     folderId: string;
     accessToken: string | null;
-    onOpenImageGen: () => void;
 }
 
 const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, folderId, accessToken }) => {
