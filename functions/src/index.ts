@@ -95,6 +95,8 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
       fileId: fileId,
       fields: "mimeType, name",
       supportsAllDrives: true
+    }, {
+      headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh metadata
     });
 
     const mimeType = meta.data.mimeType;
@@ -115,7 +117,10 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
       res = await drive.files.export({
         fileId: fileId,
         mimeType: "text/plain",
-      }, { responseType: 'stream' });
+      }, {
+        responseType: 'stream',
+        headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh export
+      });
 
     } else if (mimeType === "application/vnd.google-apps.spreadsheet") {
       // B) ES UNA HOJA DE CÁLCULO
@@ -123,7 +128,10 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
       res = await drive.files.export({
         fileId: fileId,
         mimeType: "text/csv",
-      }, { responseType: 'stream' });
+      }, {
+        responseType: 'stream',
+        headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh export
+      });
 
     } else {
       // C) ES UN ARCHIVO NORMAL (.md, .txt)
@@ -132,7 +140,10 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
         fileId: fileId,
         alt: "media",
         supportsAllDrives: true
-      }, { responseType: 'stream' });
+      }, {
+        responseType: 'stream',
+        headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh content
+      });
     }
 
     // 3. PROCESAR
@@ -584,57 +595,94 @@ export const indexTDB = onCall(
       });
 
       let totalChunks = 0;
+      let totalChunksDeleted = 0; // 👈 Track deletions
 
       // E. Procesar cada archivo
       await Promise.all(
         fileList.map(async (file) => {
           try {
+            // 🛑 Safety Check
+            if (!file.id) {
+              logger.warn(`⚠️ Saltando archivo sin ID: ${file.name}`);
+              return;
+            }
+
+            // 🟢 1. CLEANUP FIRST (Batched Delete Strategy)
+            // Strict "Delete-Then-Write" protocol to prevent Ghost Data
+            const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(file.id);
+            const chunksRef = fileRef.collection("chunks");
+
+            logger.info(`🧹 Iniciando purga de chunks para: ${file.name} (${file.id})`);
+
+            let deletedCount = 0;
+            const snapshot = await chunksRef.get(); // Read all first (usually < 2000 docs)
+
+            if (!snapshot.empty) {
+              let batch = db.batch();
+              let operationCount = 0;
+
+              for (const doc of snapshot.docs) {
+                batch.delete(doc.ref);
+                operationCount++;
+                deletedCount++;
+
+                // Commit batch every 400 operations to be safe
+                if (operationCount >= 400) {
+                  await batch.commit();
+                  batch = db.batch();
+                  operationCount = 0;
+                }
+              }
+
+              // Commit remaining
+              if (operationCount > 0) {
+                await batch.commit();
+              }
+            }
+
+            totalChunksDeleted += deletedCount;
+            logger.info(`   ✅ Purga completada. Chunks eliminados: ${deletedCount}`);
+
+            // 🟢 2. FETCH & SPLIT (Only after delete is confirmed)
             const content = await _getDriveFileContentInternal(drive, file.id);
 
-            // 🟢 PARSE FRONTMATTER (Metadata Extraction)
+            // Parse Frontmatter
             const parsed = matter(content);
             const cleanContent = parsed.content;
             const metadata = parsed.data;
             const timelineDate = metadata.date ? new Date(metadata.date).toISOString() : null;
 
-            const chunks = await splitter.splitText(cleanContent); // 👈 Use clean content
+            const chunks = await splitter.splitText(cleanContent);
 
-            const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(file.id);
-
-            // Guardar info del archivo
+            // Update File Metadata
             await fileRef.set({
               name: file.name,
               lastIndexed: new Date().toISOString(),
               chunkCount: chunks.length,
               category: file.category || 'canon',
-              timelineDate: timelineDate, // 👈 Save extracted date
+              timelineDate: timelineDate,
             });
 
-            // 🟢 CLEANUP: Delete existing chunks to prevent ghost data
-            const existingChunks = await fileRef.collection("chunks").get();
-            if (!existingChunks.empty) {
-              logger.info(`🧹 Limpiando ${existingChunks.size} chunks antiguos de ${file.name}`);
-              const deletePromises = existingChunks.docs.map(doc => doc.ref.delete());
-              await Promise.all(deletePromises);
-            }
-
-            // F. Vectorizar y guardar chunks
-            for (let i = 0; i < chunks.length; i++) {
-              const chunkText = chunks[i];
+            // 🟢 3. VECTORIZE & SAVE (Write new data)
+            // Use sequential writes or small batches if needed, but Promise.all is fine for insertion
+            // as long as previous delete is confirmed.
+            const chunkPromises = chunks.map(async (chunkText, i) => {
               const vector = await embeddings.embedQuery(chunkText);
 
-              await fileRef.collection("chunks").doc(`chunk_${i}`).set({
+              return chunksRef.doc(`chunk_${i}`).set({
                 text: chunkText,
                 order: i,
                 fileName: file.name,
                 category: file.category || 'canon',
-                userId: userId, // 👈 Store userId for filtering
-                embedding: FieldValue.vector(vector), // 👈 Store as VectorValue
+                userId: userId,
+                embedding: FieldValue.vector(vector),
               });
-            }
+            });
+
+            await Promise.all(chunkPromises);
 
             totalChunks += chunks.length;
-            logger.info(`Indexado: ${file.name} (${chunks.length} chunks)`);
+            logger.info(`   ✨ Re-indexado: ${file.name} (${chunks.length} nuevos chunks)`);
 
           } catch (err: any) {
             logger.error(`Error indexando ${file.name}:`, err);
@@ -645,7 +693,9 @@ export const indexTDB = onCall(
       return {
         success: true,
         filesIndexed: fileList.length,
-        totalChunks: totalChunks,
+        totalChunks: totalChunks, // Chunks Created
+        chunksCreated: totalChunks, // Explicit alias
+        chunksDeleted: totalChunksDeleted, // 👈 New stat
         message: "¡Indexado completado con éxito!"
       };
 
