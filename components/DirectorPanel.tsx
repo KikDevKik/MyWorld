@@ -16,6 +16,7 @@ interface DirectorPanelProps {
     pendingMessage?: string | null;
     onClearPendingMessage?: () => void;
     activeFileContent?: string;
+    activeFileName?: string;
 }
 
 interface Message {
@@ -32,7 +33,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     onSessionSelect,
     pendingMessage,
     onClearPendingMessage,
-    activeFileContent
+    activeFileContent,
+    activeFileName
 }) => {
     const [sessions, setSessions] = useState<ForgeSession[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -195,16 +197,25 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 query: text,
                 history: historyContext,
                 systemInstruction: directorGem.systemInstruction,
-                activeFileContent: activeFileContent || "" // 🟢 PASS ACTIVE CONTENT
+                activeFileContent: activeFileContent || "", // 🟢 PASS ACTIVE CONTENT
+                activeFileName: activeFileName || "" // 🟢 PASS ACTIVE FILENAME FOR EXCLUSION
             });
 
             let aiText = aiResponse.data.response;
             const sources = aiResponse.data.sources;
 
-            // 🟢 APPEND SOURCES
+            // 🟢 APPEND SOURCES (NUEVO FORMATO HÍBRIDO)
+            let citations = [];
+            if (activeFileName) {
+                citations.push(`> 🟢 **Editando:** ${activeFileName}`);
+            }
             if (sources && sources.length > 0) {
-                const sourceList = sources.map((s: any) => `* ${s.fileName}`).join('\n');
-                aiText += `\n\n> **Archivos Consultados:**\n${sourceList}`;
+                const sourceList = sources.map((s: any) => s.fileName).join(', ');
+                citations.push(`> 📚 **Memoria:** ${sourceList}`);
+            }
+
+            if (citations.length > 0) {
+                aiText += `\n\n---\n${citations.join('\n')}`;
             }
 
             // Update UI & Save

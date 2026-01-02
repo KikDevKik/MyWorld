@@ -400,6 +400,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 pendingMessage={directorPendingMessage}
                 onClearPendingMessage={() => setDirectorPendingMessage(null)}
                 activeFileContent={selectedFileContent}
+                activeFileName={currentFileName}
             />
 
             {(activeGemId === 'guardian') && (
