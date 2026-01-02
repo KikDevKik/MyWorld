@@ -51,6 +51,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const [historyRetryTrigger, setHistoryRetryTrigger] = useState(0);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const justCreatedSessionId = useRef<string | null>(null);
 
     // HELPER: SAFE DATE FORMATTER
     const formatSessionDate = (dateString: string | undefined): string => {
@@ -90,6 +91,12 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
             return;
         }
 
+        // 🟢 PREVENT WIPE ON CREATION (Race Condition Fix)
+        if (justCreatedSessionId.current === activeSessionId) {
+            justCreatedSessionId.current = null;
+            return;
+        }
+
         const loadHistory = async () => {
             setIsLoadingHistory(true);
             setHistoryError(false);
@@ -122,6 +129,10 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
         try {
             const result = await createForgeSession({ name, type: 'director' });
             const newSession = result.data as ForgeSession;
+
+            // 🟢 MARK AS JUST CREATED
+            justCreatedSessionId.current = newSession.id;
+
             setSessions(prev => [newSession, ...prev]);
             onSessionSelect(newSession.id);
             return newSession.id;
@@ -168,16 +179,24 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
 
         // A. Ensure session exists
         let targetSessionId = activeSessionId;
+        let isNewSession = false;
+
         if (!targetSessionId) {
             targetSessionId = await handleCreateSession();
             if (!targetSessionId) {
                 setIsSending(false);
                 return;
             }
+            isNewSession = true;
         }
 
         // Optimistic UI
-        setMessages(prev => [...prev, { role: 'user', text }]);
+        if (isNewSession) {
+            // 🟢 RESET MESSAGES FOR NEW SESSION (Avoid mixing with old session data)
+            setMessages([{ role: 'user', text }]);
+        } else {
+            setMessages(prev => [...prev, { role: 'user', text }]);
+        }
 
         const functions = getFunctions();
         const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
