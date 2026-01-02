@@ -57,3 +57,11 @@ export interface ProjectConfig {
   activeBookContext: string;
   folderId?: string;
 }
+
+export interface ForgeSession {
+  id: string;
+  name: string;
+  type?: 'director' | 'forge'; // 👈 Distinguish session types
+  createdAt: string;
+  updatedAt: string;
+}

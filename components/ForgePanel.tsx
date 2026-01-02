@@ -3,13 +3,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Trash2, Plus, Hammer, X, Loader2, Image as ImageIcon } from 'lucide-react'; // 👈 AÑADIDO IMAGEICON
 import { toast } from 'sonner';
 import ForgeChat from './ForgeChat';
-
-interface ForgeSession {
-    id: string;
-    name: string;
-    createdAt: string;
-    updatedAt: string;
-}
+import { ForgeSession } from '../types';
 
 interface ForgePanelProps {
     onClose: () => void;
@@ -32,7 +26,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken,
         const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
 
         try {
-            const result = await getForgeSessions();
+            const result = await getForgeSessions({ type: 'forge' });
             setSessions(result.data as ForgeSession[]);
         } catch (error) {
             console.error("Error fetching sessions:", error);
@@ -54,7 +48,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken,
         const createForgeSession = httpsCallable(functions, 'createForgeSession');
 
         try {
-            const result = await createForgeSession({ name: newSessionName });
+            const result = await createForgeSession({ name: newSessionName, type: 'forge' });
             const newSession = result.data as ForgeSession;
             setSessions(prev => [newSession, ...prev]);
             setNewSessionName('');
