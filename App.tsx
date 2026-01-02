@@ -26,7 +26,7 @@ import { Loader2 } from 'lucide-react';
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 // We need this because we want to use 'useProjectConfig' which requires ProjectConfigProvider
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh }: any) {
-    const { config, updateConfig, loading: configLoading } = useProjectConfig();
+    const { config, updateConfig, refreshConfig, loading: configLoading } = useProjectConfig();
 
     // APP STATE
     const [folderId, setFolderId] = useState<string>("");
@@ -272,7 +272,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             toast.promise(promise, {
                 loading: 'Indexando base de conocimiento...',
                 success: (result: any) => {
+                    // 🟢 UPDATE LOCAL STATE & REFRESH GLOBAL CONFIG
                     setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
+                    // Force refresh config to get the definitive timestamp from backend
+                    refreshConfig();
+
                     return `¡Aprendizaje Completado! ${result.data.message}`;
                 },
                 error: 'Error al indexar. Revisa la consola.',
@@ -285,10 +289,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     const handleIndex = () => {
+        // 🟢 DATE LOGIC: Prioritize Config > IndexStatus
+        const displayDate = config?.lastIndexed || indexStatus.lastIndexedAt;
+
         // Si ya está indexado, solo informamos (o permitimos re-indexar forzadamente)
         if (indexStatus.isIndexed) {
              toast("Memoria ya sincronizada", {
-                description: `Última actualización: ${indexStatus.lastIndexedAt ? new Date(indexStatus.lastIndexedAt).toLocaleDateString() : 'Desconocida'}`,
+                description: `Última actualización: ${displayDate ? new Date(displayDate).toLocaleDateString() : 'Desconocida'}`,
                 action: {
                     label: "Re-aprender todo",
                     onClick: () => executeIndexing() // Allow force re-index
