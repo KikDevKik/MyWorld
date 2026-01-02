@@ -18,8 +18,9 @@ import ImageGenModal from './components/ImageGenModal';
 import SettingsModal from './components/SettingsModal';
 import FieldManualModal from './components/FieldManualModal';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
+import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
-import { GemId, ProjectConfig } from './types';
+import { GemId, ProjectConfig, ForgeSession } from './types';
 import { Loader2 } from 'lucide-react';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
@@ -34,6 +35,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [currentFileName, setCurrentFileName] = useState<string>('');
     const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [isDirectorOpen, setIsDirectorOpen] = useState(false); // 👈 NEW STATE
+    const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
 
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
@@ -131,7 +134,127 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
     };
 
-    const handleCommandExecution = (message: string, tool: GemId) => {
+    const handleCommandExecution = async (message: string, tool: GemId) => {
+        if (tool === 'director') {
+            // HYBRID APPROACH: Check for recent session
+            const functions = getFunctions();
+            const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
+            const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
+
+            try {
+                // 1. Get recent sessions
+                const result = await getForgeSessions({ type: 'director' });
+                const sessions = result.data as ForgeSession[];
+
+                let targetSessionId = null;
+
+                if (sessions.length > 0) {
+                    // Check if most recent is < 24 hours
+                    const mostRecent = sessions[0];
+                    const lastUpdate = new Date(mostRecent.updatedAt).getTime();
+                    const now = new Date().getTime();
+                    const hoursDiff = (now - lastUpdate) / (1000 * 60 * 60);
+
+                    if (hoursDiff < 24) {
+                        targetSessionId = mostRecent.id;
+                    }
+                }
+
+                if (!targetSessionId) {
+                    // Create NEW
+                    const createForgeSession = httpsCallable(functions, 'createForgeSession');
+                    const name = `Sesión Director ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+                    const newSessionResult = await createForgeSession({ name, type: 'director' });
+                    const newSession = newSessionResult.data as ForgeSession;
+                    targetSessionId = newSession.id;
+                }
+
+                // 2. Set Active Session & Open Drawer
+                setActiveDirectorSessionId(targetSessionId);
+                setIsDirectorOpen(true);
+
+                // 3. Send the message (if any)
+                // Note: DirectorPanel handles its own messages, but we want to inject this one.
+                // We can save it directly to backend, DirectorPanel will fetch on load/update.
+                // Or we can rely on DirectorPanel to be "smart".
+                // Better approach: Just open the panel and let the user see it, OR send it directly to backend now.
+                // We will send it directly to backend now so it appears when the component loads/refreshes.
+
+                // WAIT! If we save it now, DirectorPanel fetching "on mount" might miss it if race condition.
+                // DirectorPanel fetches on `activeSessionId` change.
+                // So if we save -> setSessionId, it should fetch the new msg.
+
+                // Let's trigger the AI response too?
+                // The requirements say "AL escribir y dar Enter -> SE ABRE y se ENVÍA".
+                // So we should execute the turn here or pass it to the component.
+                // Passing to component is complex without context.
+                // Executing here is cleaner for "Headless" operation.
+
+                // A. Save User Message
+                await addForgeMessage({ sessionId: targetSessionId, role: 'user', text: message });
+
+                // B. Trigger AI (Background)
+                // We let DirectorPanel load the history, which will include the User message.
+                // BUT we want the AI to reply.
+                // We can call `chatWithGem` here too.
+
+                const chatWithGem = httpsCallable(functions, 'chatWithGem');
+                // Need history... fetching it is expensive.
+                // Maybe just send the prompt? Director is context-heavy.
+                // Let's rely on `DirectorPanel` to handle "pending messages"?
+                // No, I added `pendingMessage` state but `DirectorPanel` doesn't use it yet.
+                // Let's make `DirectorPanel` read the history.
+
+                // Actually, to ensure "Seamless" experience:
+                // 1. Open Drawer
+                // 2. Pass pending message to DirectorPanel
+                // 3. DirectorPanel handles sending.
+
+                // Let's try that.
+                // I need to update DirectorPanel to accept `initialMessage`.
+                // BUT I just created it without it.
+                // Okay, I will implement the "Auto-Send" logic inside DirectorPanel if I pass a prop.
+                // But I didn't add that prop in my previous step.
+
+                // Alternative: Execute the whole turn here.
+                // Get History (for context)
+                const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
+                const historyResult = await getForgeHistory({ sessionId: targetSessionId });
+                const history = historyResult.data as any[]; // messages
+
+                const historyContext = history.map((m: any) => ({ role: m.role, message: m.text }));
+
+                // AI Call
+                // Imports GEMS... wait, constants are available.
+                const { GEMS } = await import('./constants');
+                const directorGem = GEMS['director'];
+
+                const aiResponse: any = await chatWithGem({
+                    query: message,
+                    history: historyContext,
+                    systemInstruction: directorGem.systemInstruction
+                });
+
+                await addForgeMessage({ sessionId: targetSessionId, role: 'model', text: aiResponse.data.response });
+
+                // Force refresh in DirectorPanel by toggling session ID? No, maybe a trigger.
+                // Actually, if I just set the ID, it fetches. If I update backend first, then set ID, it fetches new data.
+                // IF session was already active?
+                if (activeDirectorSessionId === targetSessionId) {
+                   // Force re-fetch?
+                   setActiveDirectorSessionId(null);
+                   setTimeout(() => setActiveDirectorSessionId(targetSessionId), 10);
+                } else {
+                   setActiveDirectorSessionId(targetSessionId);
+                }
+
+            } catch (e) {
+                console.error("Director Command Error", e);
+                toast.error("Error al ejecutar comando de Director");
+            }
+            return;
+        }
+
         setActiveGemId(tool);
         setPendingMessage(message);
         setIsChatOpen(true);
@@ -370,10 +493,18 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     activeGemId={activeGemId}
                     onGemSelect={handleGemSelect}
                     onOpenImageGen={() => setIsImageGenOpen(true)}
+                    onToggleDirector={() => setIsDirectorOpen(prev => !prev)} // 👈 TOGGLE
                 />
             )}
 
-            {(activeGemId === 'director' || activeGemId === 'guardian') && (
+            <DirectorPanel
+                isOpen={isDirectorOpen}
+                onClose={() => setIsDirectorOpen(false)}
+                activeSessionId={activeDirectorSessionId}
+                onSessionSelect={setActiveDirectorSessionId}
+            />
+
+            {(activeGemId === 'guardian') && (
                 <ChatPanel
                     isOpen={isChatOpen}
                     onClose={() => {

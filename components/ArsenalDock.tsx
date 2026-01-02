@@ -7,9 +7,10 @@ interface ArsenalDockProps {
     activeGemId: GemId | null;
     onGemSelect: (id: GemId) => void;
     onOpenImageGen: () => void;
+    onToggleDirector: () => void; // 👈 Add prop
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onOpenImageGen }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onOpenImageGen, onToggleDirector }) => {
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
     const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'cronograma', 'imprenta'];
@@ -62,6 +63,16 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onO
             </div>
             <div className="flex-1" /> {/* Espaciador flexible para empujar lo de abajo */}
 
+            {/* 🟢 ACCESOS DIRECTOS FLOTANTES (Director) */}
+            <div className="flex flex-col gap-4 w-full px-2 pb-4">
+                 <button
+                    onClick={onToggleDirector}
+                    className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700"
+                    title="Director de Escena"
+                >
+                    <Clapperboard size={20} />
+                </button>
+            </div>
 
         </aside>
     );

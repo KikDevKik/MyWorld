@@ -1154,7 +1154,7 @@ export const createForgeSession = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { name } = request.data;
+    const { name, type } = request.data; // 👈 ADDED type
     if (!name) {
       throw new HttpsError("invalid-argument", "Falta el nombre de la sesión.");
     }
@@ -1163,14 +1163,17 @@ export const createForgeSession = onCall(
     const sessionId = db.collection("users").doc(userId).collection("forge_sessions").doc().id;
     const now = new Date().toISOString();
 
+    const sessionType = type || 'forge'; // Default to forge for backward compatibility
+
     try {
       await db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId).set({
         name,
+        type: sessionType,
         createdAt: now,
         updatedAt: now,
       });
 
-      logger.info(`🔨 Sesión de Forja creada: ${sessionId} (${name})`);
+      logger.info(`🔨 Sesión de Forja (${sessionType}) creada: ${sessionId} (${name})`);
       return { sessionId, name };
 
     } catch (error: any) {
@@ -1198,11 +1201,17 @@ export const getForgeSessions = onCall(
     }
 
     const userId = request.auth.uid;
+    const { type } = request.data; // 👈 Filter by type
 
     try {
-      const snapshot = await db.collection("users").doc(userId).collection("forge_sessions")
-        .orderBy("updatedAt", "desc")
-        .get();
+      let query = db.collection("users").doc(userId).collection("forge_sessions")
+        .orderBy("updatedAt", "desc");
+
+      if (type) {
+        query = query.where("type", "==", type);
+      }
+
+      const snapshot = await query.get();
 
       const sessions = snapshot.docs.map(doc => ({
         id: doc.id,
