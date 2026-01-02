@@ -72,7 +72,7 @@ const ImageGenModal: React.FC<ImageGenModalProps> = ({ isOpen, onClose, accessTo
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
                                 placeholder="Describe tu visión..."
-                                className="w-full h-32 bg-black border border-gray-700 rounded-xl p-3 text-sm text-gray-200 placeholder:text-gray-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none resize-none transition-all"
+                                className="w-full h-32 bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl p-3 text-sm focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none transition-all"
                             />
                         </div>
 

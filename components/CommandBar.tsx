@@ -83,11 +83,11 @@ const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
             )}
 
             {/* BARRA PRINCIPAL */}
-            <div className="relative flex items-end bg-titanium-950/90 backdrop-blur-xl border border-titanium-700/50 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-colors focus-within:border-titanium-500 focus-within:ring-0 outline-none group overflow-hidden">
+            <div className="relative flex items-end bg-slate-800/90 backdrop-blur-md border border-slate-700 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.6)] transition-colors focus-within:border-accent-DEFAULT focus-within:ring-0 outline-none group overflow-hidden">
 
                 <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    className="h-[56px] pl-4 pr-3 text-titanium-400 hover:text-titanium-200 transition-colors border-r border-titanium-800/50 flex items-center gap-2 outline-none focus:outline-none shrink-0"
+                    className="h-[56px] pl-4 pr-3 text-titanium-400 hover:text-titanium-200 transition-colors border-r border-slate-700/50 flex items-center gap-2 outline-none focus:outline-none shrink-0"
                 >
                     <div className="flex items-center gap-2 animate-fade-in">
                         {selectedTool === 'director' ? <Clapperboard size={18} className="text-accent-DEFAULT" /> : <ShieldCheck size={18} className="text-accent-DEFAULT" />}
@@ -103,7 +103,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={`Instrucciones para el ${selectedTool === 'director' ? 'Director' : 'Guardián'}...`}
-                    className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus:border-none text-titanium-100 placeholder:text-titanium-600 px-4 py-4 text-sm font-sans tracking-wide resize-none overflow-y-auto max-h-[200px] min-h-[56px] whitespace-pre-wrap break-words"
+                    className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus:border-none text-white placeholder:text-gray-400 px-4 py-4 text-sm font-sans tracking-wide resize-none overflow-y-auto max-h-[200px] min-h-[56px] whitespace-pre-wrap break-words"
                     rows={1}
                     spellCheck={false}
                 />

@@ -120,7 +120,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '' }) => {
                                 type="number"
                                 value={dailyGoal}
                                 onChange={handleGoalChange}
-                                className="w-full bg-titanium-950 border border-titanium-700 rounded px-2 py-1 text-xs text-white focus:border-emerald-500 outline-none"
+                                className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded px-2 py-1 text-xs focus:border-emerald-500 outline-none"
                             />
                         </div>
 

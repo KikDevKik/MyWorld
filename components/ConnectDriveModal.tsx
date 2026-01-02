@@ -66,7 +66,7 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
                                 value={inputId}
                                 onChange={(e) => setInputId(e.target.value)}
                                 placeholder="Pega el enlace o el ID aquí..."
-                                className="w-full appearance-none bg-black text-white placeholder:text-gray-600 border border-gray-700 px-4 py-3 rounded-xl outline-none focus:outline-none focus:border-gray-500 focus:ring-0 transition-all font-mono text-sm"
+                                className="w-full appearance-none bg-slate-800 text-white placeholder:text-gray-400 border border-slate-700 px-4 py-3 rounded-xl outline-none focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT transition-all font-mono text-sm"
                                 style={{ colorScheme: 'dark' }}
                             />
 
