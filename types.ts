@@ -56,6 +56,7 @@ export interface ProjectConfig {
   chronologyPath: string;
   activeBookContext: string;
   folderId?: string;
+  lastIndexed?: string;
 }
 
 export interface ForgeSession {
