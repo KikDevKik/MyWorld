@@ -9,13 +9,37 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "__name__",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "embedding",
           "vectorConfig": {
             "dimension": 768,
             "flat": {}
           }
         }
-      ]
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "forge_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "type",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
     }
   ],
   "fieldOverrides": []
