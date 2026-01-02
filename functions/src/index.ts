@@ -736,7 +736,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent } = request.data; // 👈 Added categoryFilter
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName } = request.data; // 👈 Added categoryFilter and activeFileName
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -813,21 +813,31 @@ RULES: ${profile.rules || 'Not specified'}
       }
 
       // 4. Ejecutar Búsqueda Vectorial
+      // 🟢 STRATEGY: Fetch MORE (10) and filter LOCALLY to exclude active file
       const vectorQuery = chunkQuery.findNearest({
         queryVector: queryVector,
-        limit: 5,
+        limit: 10, // 🟢 Increased limit for post-filtering
         distanceMeasure: 'COSINE',
         vectorField: 'embedding'
       });
 
       const vectorSnapshot = await vectorQuery.get();
 
-      const relevantChunks: Chunk[] = vectorSnapshot.docs.map(doc => ({
+      let relevantChunks: Chunk[] = vectorSnapshot.docs.map(doc => ({
         text: doc.data().text,
         embedding: [], // No necesitamos el embedding de vuelta
         fileName: doc.data().fileName || "Desconocido",
         category: doc.data().category || 'canon',
       }));
+
+      // 🟢 EXCLUDE ACTIVE FILE CHUNKS
+      if (activeFileName) {
+        logger.info(`🔍 Filtering out chunks from active file: ${activeFileName}`);
+        relevantChunks = relevantChunks.filter(c => c.fileName !== activeFileName);
+      }
+
+      // Take Top 5 after filtering
+      relevantChunks = relevantChunks.slice(0, 5);
 
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
@@ -891,30 +901,38 @@ OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
       let activeContextSection = "";
       if (activeFileContent) {
           activeContextSection = `
-=== 🚨 ACTIVE FILE CONTEXT (HIGHEST PRIORITY) 🚨 ===
-El usuario tiene este archivo abierto en su editor AHORA MISMO.
-Toda la información aquí presente sobreescribe cualquier dato de la base de datos (RAG).
-Si el usuario pide editar, mejorar o analizar, refiérete a ESTE TEXTO.
--------------------------------------------------------
+[CONTEXTO INMEDIATO - ESCENA ACTUAL]:
+(Lo que el usuario ve ahora en su editor. Úsalo para mantener continuidad inmediata)
 ${activeFileContent.substring(0, 30000)}
--------------------------------------------------------
-=======================================================
           `;
       }
+
+      // 🟢 INYECCIÓN DE MEMORIA A LARGO PLAZO
+      const longTermMemorySection = `
+[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:
+(Fichas de personajes, reglas del mundo, eventos pasados encontrados en la base de datos)
+${contextText || "No se encontraron datos relevantes en la memoria."}
+      `;
+
+      // 🟢 INSTRUCCIÓN DE CO-AUTOR
+      const coAuthorInstruction = `
+[INSTRUCCIÓN]:
+Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero basa tus sugerencias profundas en la Memoria a Largo Plazo. Si el usuario pregunta algo, verifica si ya existe en la Memoria antes de inventar.
+      `;
 
       const promptFinal = `
         ${profileContext}
         ${finalSystemInstruction}
 
+        ${coAuthorInstruction}
+
         ${activeContextSection}
 
-        --- HISTORIAL DE CONVERSACIÓN (MEMORIA) ---
+        ${longTermMemorySection}
+
+        --- HISTORIAL DE CONVERSACIÓN ---
         ${historyText}
         -------------------------------------------
-
-        --- INFORMACIÓN RECUPERADA DEL LORE (RAG) ---
-        "${contextText}"
-        ---------------------------------------------
 
         PREGUNTA DEL USUARIO: "${query}"
       `;
