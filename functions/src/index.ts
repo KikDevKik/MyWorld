@@ -88,7 +88,7 @@ async function streamToString(stream: Readable): Promise<string> {
   });
 }
 
-async function _getDriveFileContentInternal(drive: any, fileId: string): Promise<string> {
+async function _getDriveFileContentInternal(drive: any, fileId: string): Promise<{ content: string, name: string, mimeType: string }> {
   try {
     logger.info(`📖 [LECTOR V5] Analizando archivo: ${fileId}`);
 
@@ -102,6 +102,7 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
     });
 
     const mimeType = meta.data.mimeType;
+    const name = meta.data.name;
     logger.info(`   - Tipo Identificado: ${mimeType}`);
 
     let res;
@@ -109,7 +110,11 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
     // 🛑 DEFENSA 1: SI ES UNA CARPETA, ABORTAR MISIÓN
     if (mimeType === "application/vnd.google-apps.folder") {
       logger.warn("   -> ¡Es una carpeta! Deteniendo descarga.");
-      return "📂 [INFO] Has seleccionado una carpeta. Abre el árbol para ver sus archivos.";
+      return {
+        content: "📂 [INFO] Has seleccionado una carpeta. Abre el árbol para ver sus archivos.",
+        name: name || "Carpeta",
+        mimeType: mimeType || "application/vnd.google-apps.folder"
+      };
     }
 
     // 2. SELECCIÓN DE ARMA
@@ -149,7 +154,8 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
     }
 
     // 3. PROCESAR
-    return await streamToString(res.data);
+    const content = await streamToString(res.data);
+    return { content, name: name || "Archivo", mimeType: mimeType || "text/plain" };
 
   } catch (error: any) {
     logger.error(`💥 [ERROR LECTURA] Falló al procesar ${fileId}:`, error);
@@ -490,8 +496,8 @@ export const getDriveFileContent = onCall(
       auth.setCredentials({ access_token: accessToken });
 
       const drive = google.drive({ version: "v3", auth });
-      const content = await _getDriveFileContentInternal(drive, fileId);
-      return { content };
+      const { content, name } = await _getDriveFileContentInternal(drive, fileId);
+      return { content, name }; // 👈 Returning name too!
     } catch (error: any) {
       logger.error("Error leyendo archivo:", error);
       throw new HttpsError("internal", "No se pudo leer el archivo.");
@@ -646,7 +652,7 @@ export const indexTDB = onCall(
             logger.info(`   ✅ Purga completada. Chunks eliminados: ${deletedCount}`);
 
             // 🟢 2. FETCH & SPLIT (Only after delete is confirmed)
-            const content = await _getDriveFileContentInternal(drive, file.id);
+            const { content } = await _getDriveFileContentInternal(drive, file.id);
 
             // Parse Frontmatter
             const parsed = matter(content);
@@ -1648,7 +1654,8 @@ export const summonTheTribunal = onCall(
           auth.setCredentials({ access_token: accessToken });
           const drive = google.drive({ version: "v3", auth });
 
-          textToAnalyze = await _getDriveFileContentInternal(drive, fileId);
+          const result = await _getDriveFileContentInternal(drive, fileId);
+          textToAnalyze = result.content;
         } catch (error: any) {
           logger.error("Error leyendo archivo para el Tribunal:", error);
           throw new HttpsError("internal", "No se pudo leer el archivo para el juicio.");
@@ -1886,7 +1893,8 @@ export const compileManuscript = onCall(
 
       const contents: string[] = [];
       for (const fileId of fileIds) {
-        const raw = await _getDriveFileContentInternal(drive, fileId);
+        const result = await _getDriveFileContentInternal(drive, fileId);
+        const raw = result.content;
 
         // Clean content (remove YAML frontmatter)
         const parsed = matter(raw);
