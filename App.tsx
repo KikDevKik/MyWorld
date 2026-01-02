@@ -14,7 +14,6 @@ import ExportPanel from './components/ExportPanel';
 import CommandBar from './components/CommandBar';
 import LoginScreen from './components/LoginScreen';
 import ConnectDriveModal from './components/ConnectDriveModal';
-import ImageGenModal from './components/ImageGenModal';
 import SettingsModal from './components/SettingsModal';
 import FieldManualModal from './components/FieldManualModal';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
@@ -46,7 +45,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-    const [isImageGenOpen, setIsImageGenOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
@@ -281,12 +279,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 }}
             />
 
-            <ImageGenModal
-                isOpen={isImageGenOpen}
-                onClose={() => setIsImageGenOpen(false)}
-                accessToken={oauthToken}
-            />
-
             {isSettingsModalOpen && (
                 <SettingsModal
                     onClose={() => setIsSettingsModalOpen(false)}
@@ -332,7 +324,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onClose={() => setActiveGemId(null)}
                         folderId={folderId}
                         accessToken={oauthToken}
-                        onOpenImageGen={() => setIsImageGenOpen(true)}
                     />
                 ) : activeGemId === 'perforador' ? (
                     <ChatPanel
@@ -382,7 +373,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             isZenMode={isZenMode}
                             setIsZenMode={setIsZenMode}
                         />
-                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isImageGenOpen && !isDirectorOpen && (
+                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isDirectorOpen && (
                             <CommandBar onExecute={handleCommandExecution} />
                         )}
                     </>
@@ -393,7 +384,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 <ArsenalDock
                     activeGemId={activeGemId}
                     onGemSelect={handleGemSelect}
-                    onOpenImageGen={() => setIsImageGenOpen(true)}
                     onToggleDirector={() => setIsDirectorOpen(prev => !prev)} // 👈 TOGGLE
                 />
             )}

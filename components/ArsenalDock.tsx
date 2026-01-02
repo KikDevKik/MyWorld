@@ -6,11 +6,10 @@ import { GemId } from '../types';
 interface ArsenalDockProps {
     activeGemId: GemId | null;
     onGemSelect: (id: GemId) => void;
-    onOpenImageGen: () => void;
     onToggleDirector: () => void; // 👈 Add prop
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onOpenImageGen, onToggleDirector }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onToggleDirector }) => {
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
     const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'cronograma', 'imprenta'];

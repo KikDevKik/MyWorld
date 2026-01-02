@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Trash2, Plus, Hammer, X, Loader2, Image as ImageIcon } from 'lucide-react'; // 👈 AÑADIDO IMAGEICON
+import { Trash2, Plus, Hammer, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ForgeChat from './ForgeChat';
 import { ForgeSession } from '../types';
@@ -9,11 +9,10 @@ interface ForgePanelProps {
     onClose: () => void;
     folderId: string;
     accessToken: string | null;
-    onOpenImageGen: () => void;
 }
 
 // 👇 AÑADIDO onOpenImageGen A LA DESESTRUCTURACIÓN
-const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken, onOpenImageGen }) => {
+const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken }) => {
     const [sessions, setSessions] = useState<ForgeSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [newSessionName, setNewSessionName] = useState('');
@@ -90,7 +89,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken,
                     onBack={() => setActiveSession(null)}
                     folderId={folderId}
                     accessToken={accessToken}
-                    onOpenImageGen={onOpenImageGen} // ✅ AHORA SÍ EXISTE
                 />
             </div>
         );
@@ -104,15 +102,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken,
                 <div className="flex items-center gap-3 text-accent-DEFAULT">
                     <Hammer size={24} />
                     <h2 className="font-bold text-xl text-titanium-100">Forja de Almas</h2>
-
-                    {/* BOTÓN DE IMAGEN RÁPIDO (Opcional en la lista, pero útil) */}
-                    <button
-                        onClick={onOpenImageGen}
-                        className="ml-4 p-2 text-titanium-400 hover:text-accent-DEFAULT hover:bg-titanium-700 rounded-lg transition-colors border border-titanium-700/50"
-                        title="Generar Imagen de Referencia"
-                    >
-                        <ImageIcon size={18} />
-                    </button>
                 </div>
 
                 <button
