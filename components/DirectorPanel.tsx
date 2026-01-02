@@ -353,7 +353,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
                                 onChange={(e) => setInputValue(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 placeholder={activeSessionId ? "Escribe al Director..." : "Escribe para iniciar..."}
-                                className="w-full bg-titanium-950 border border-titanium-700 rounded-xl px-4 py-3 pr-12 text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT/50 transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
+                                className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
                                 disabled={isSending}
                             />
                             <button

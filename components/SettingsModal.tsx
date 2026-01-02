@@ -86,7 +86,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
                             id="gdrive-link-input"
                             value={url}
                             onChange={(e) => setUrl(e.target.value)}
-                            className="w-full bg-white border border-titanium-300 text-gray-900 placeholder:text-gray-400 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT/50 outline-none"
+                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none"
                             placeholder="https://drive.google.com/drive/folders/..."
                             type="text"
                         />
@@ -114,7 +114,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
                         <textarea
                             value={profile.style}
                             onChange={(e) => setProfile({ ...profile, style: e.target.value })}
-                            className="w-full bg-white border border-titanium-300 text-gray-900 placeholder:text-gray-400 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT/50 outline-none resize-none"
+                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none"
                             placeholder="Ej: Humor seco, fantasía oscura, primera persona en presente"
                             rows={3}
                         />
@@ -128,7 +128,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
                         <textarea
                             value={profile.inspirations}
                             onChange={(e) => setProfile({ ...profile, inspirations: e.target.value })}
-                            className="w-full bg-white border border-titanium-300 text-gray-900 placeholder:text-gray-400 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT/50 outline-none resize-none"
+                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none"
                             placeholder="Ej: Sistemas de magia de Brandon Sanderson, estética Cyberpunk"
                             rows={3}
                         />
@@ -142,7 +142,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
                         <textarea
                             value={profile.rules}
                             onChange={(e) => setProfile({ ...profile, rules: e.target.value })}
-                            className="w-full bg-white border border-titanium-300 text-gray-900 placeholder:text-gray-400 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT/50 outline-none resize-none"
+                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none"
                             placeholder="Ej: Sin subtramas románticas, mantener la magia lógica y consistente"
                             rows={3}
                         />

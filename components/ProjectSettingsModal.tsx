@@ -143,7 +143,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             type="text"
                             value={activeBookContext}
                             onChange={(e) => setActiveBookContext(e.target.value)}
-                            className="w-full bg-titanium-950 border border-titanium-700 rounded-md px-3 py-2 text-sm text-titanium-100 placeholder-titanium-600 focus:outline-none focus:border-accent-DEFAULT"
+                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT"
                             placeholder="Ej: Just Megu"
                         />
                         <p className="text-xs text-titanium-500 mt-2">
@@ -180,7 +180,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             type="text"
                             value={chronologyPath}
                             onChange={(e) => setChronologyPath(e.target.value)}
-                            className="w-full bg-titanium-950 border border-titanium-700 rounded-md px-3 py-2 text-sm text-titanium-100 placeholder-titanium-600 focus:outline-none focus:border-accent-DEFAULT"
+                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT"
                             placeholder="Ruta a la carpeta de línea de tiempo"
                         />
                     </div>
