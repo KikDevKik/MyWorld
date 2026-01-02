@@ -481,7 +481,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             isZenMode={isZenMode}
                             setIsZenMode={setIsZenMode}
                         />
-                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isImageGenOpen && (
+                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isImageGenOpen && !isDirectorOpen && (
                             <CommandBar onExecute={handleCommandExecution} />
                         )}
                     </>

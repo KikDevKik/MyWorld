@@ -185,8 +185,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
 
     return (
         <div
-            className={`fixed top-0 bottom-0 right-16 z-50 bg-titanium-950 shadow-2xl transition-transform duration-300 border-l border-titanium-800 flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
-            style={{ width: '600px', maxWidth: '90vw' }} // Responsive safe
+            className={`fixed top-0 bottom-0 right-16 z-[100] bg-[#0a0a0a] shadow-2xl transition-transform duration-300 border-l border-titanium-800 flex flex-col w-[90vw] md:w-[60vw] min-w-[320px] md:min-w-[800px] ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
         >
             {/* HEADER */}
             <div className="h-14 border-b border-titanium-800 flex items-center justify-between px-4 bg-titanium-900 shrink-0">
