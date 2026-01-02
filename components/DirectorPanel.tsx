@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { X, Plus, Clapperboard, Send, Loader2, MessageSquare, Trash2, Bot, User } from 'lucide-react';
+import { X, Plus, Clapperboard, Send, Loader2, MessageSquare, Trash2, Bot, User, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { ForgeSession, GemId } from '../types';
 import ReactMarkdown from 'react-markdown';
@@ -29,11 +29,26 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
     const [isLoadingSessions, setIsLoadingSessions] = useState(false);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [isSending, setIsSending] = useState(false);
+
+    // ERROR STATES
+    const [sessionError, setSessionError] = useState(false);
+    const [historyError, setHistoryError] = useState(false);
+    const [historyRetryTrigger, setHistoryRetryTrigger] = useState(0);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // HELPER: SAFE DATE FORMATTER
+    const formatSessionDate = (dateString: string | undefined): string => {
+        if (!dateString) return "Reciente";
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return "Reciente";
+        return date.toLocaleDateString();
+    };
 
     // 1. FETCH SESSIONS (Director Type)
     const fetchSessions = async () => {
         setIsLoadingSessions(true);
+        setSessionError(false);
         const functions = getFunctions();
         const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
         try {
@@ -41,6 +56,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
             setSessions(result.data as ForgeSession[]);
         } catch (error) {
             console.error("Error fetching director sessions:", error);
+            setSessionError(true);
             toast.error("Error al cargar historial.");
         } finally {
             setIsLoadingSessions(false);
@@ -55,11 +71,13 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
     useEffect(() => {
         if (!activeSessionId) {
             setMessages([]);
+            setHistoryError(false);
             return;
         }
 
         const loadHistory = async () => {
             setIsLoadingHistory(true);
+            setHistoryError(false);
             const functions = getFunctions();
             const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
             try {
@@ -67,13 +85,14 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
                 setMessages(result.data as Message[]);
             } catch (error) {
                 console.error("Error loading history:", error);
+                setHistoryError(true);
                 toast.error("Error al cargar mensajes.");
             } finally {
                 setIsLoadingHistory(false);
             }
         };
         loadHistory();
-    }, [activeSessionId]);
+    }, [activeSessionId, historyRetryTrigger]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -215,6 +234,16 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
                     <div className="flex-1 overflow-y-auto p-2 space-y-1 scrollbar-hide">
                         {isLoadingSessions ? (
                             <div className="flex justify-center p-4"><Loader2 className="animate-spin text-titanium-600" size={16} /></div>
+                        ) : sessionError ? (
+                            <div className="flex flex-col items-center justify-center p-6 gap-2 text-titanium-600">
+                                <span className="text-xs">Error al cargar</span>
+                                <button
+                                    onClick={fetchSessions}
+                                    className="p-2 hover:bg-titanium-800 rounded-full hover:text-titanium-200 transition-colors"
+                                >
+                                    <RefreshCw size={14} />
+                                </button>
+                            </div>
                         ) : sessions.length === 0 ? (
                             <div className="text-center p-4 text-xs text-titanium-600">Sin historial</div>
                         ) : (
@@ -229,7 +258,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
                                         <span className="text-xs font-medium truncate w-24 block">{session.name}</span>
                                     </div>
                                     <span className="text-[10px] text-titanium-600 block">
-                                        {new Date(session.updatedAt).toLocaleDateString()}
+                                        {formatSessionDate(session.updatedAt)}
                                     </span>
 
                                     <button
@@ -256,6 +285,17 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
                             </div>
                         ) : isLoadingHistory ? (
                             <div className="flex justify-center p-10"><Loader2 className="animate-spin text-accent-DEFAULT" /></div>
+                        ) : historyError ? (
+                            <div className="h-full flex flex-col items-center justify-center text-titanium-600 space-y-4">
+                                <p className="text-sm">Error al cargar historial</p>
+                                <button
+                                    onClick={() => setHistoryRetryTrigger(prev => prev + 1)}
+                                    className="flex items-center gap-2 px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-xs font-bold transition-colors border border-titanium-700"
+                                >
+                                    <RefreshCw size={14} />
+                                    <span>Reintentar</span>
+                                </button>
+                            </div>
                         ) : messages.length === 0 ? (
                             <div className="text-center p-10 text-titanium-600 text-sm">
                                 La escena está vacía. Da tus instrucciones, Director.
