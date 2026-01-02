@@ -813,10 +813,12 @@ RULES: ${profile.rules || 'Not specified'}
       }
 
       // 4. Ejecutar Búsqueda Vectorial
-      // 🟢 STRATEGY: Fetch MORE (10) and filter LOCALLY to exclude active file
+      // 🟢 STRATEGY: Fetch MORE (50) and filter LOCALLY to exclude active file
+      // Increased from 10 to 50 to avoid "Echo Chamber" effect where all top results
+      // come from the active file itself, leaving no external memory.
       const vectorQuery = chunkQuery.findNearest({
         queryVector: queryVector,
-        limit: 10, // 🟢 Increased limit for post-filtering
+        limit: 50, // 🟢 Drastically increased limit for post-filtering
         distanceMeasure: 'COSINE',
         vectorField: 'embedding'
       });
