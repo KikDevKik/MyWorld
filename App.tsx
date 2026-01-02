@@ -39,6 +39,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
     const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // 👈 DIRECTOR HANDOFF
 
+    // 🟢 REAL-TIME CONTENT SYNC (DEBOUNCED FROM EDITOR)
+    const handleContentChange = (newContent: string) => {
+        setSelectedFileContent(newContent);
+    };
+
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [isImageGenOpen, setIsImageGenOpen] = useState(false);
@@ -368,6 +373,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         <Editor
                             fileId={currentFileId}
                             content={selectedFileContent}
+                            onContentChange={handleContentChange} // 👈 SYNC STATE
                             onBubbleAction={handleEditorAction}
                             accessToken={oauthToken}
                             fileName={currentFileName}
@@ -401,6 +407,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onClearPendingMessage={() => setDirectorPendingMessage(null)}
                 activeFileContent={selectedFileContent}
                 activeFileName={currentFileName}
+                folderId={folderId} // 👈 PASS PROJECT ID
             />
 
             {(activeGemId === 'guardian') && (
@@ -413,6 +420,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     activeGemId={activeGemId}
                     initialMessage={pendingMessage}
                     isFullWidth={false}
+                    folderId={folderId} // 👈 PASS PROJECT ID
                 />
             )}
         </div>
