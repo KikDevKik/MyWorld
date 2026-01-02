@@ -35,7 +35,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     pendingMessage,
     onClearPendingMessage,
     activeFileContent,
-    activeFileName
+    activeFileName,
+    folderId
 }) => {
     const [sessions, setSessions] = useState<ForgeSession[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
