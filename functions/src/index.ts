@@ -850,10 +850,10 @@ RULES: ${profile.rules || 'Not specified'}
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
 
-      // 6. Llamar a Gemini (Modelo 2.0 Flash - Estable)
+      // 6. Llamar a Gemini (Nivel GOD TIER - Razonamiento Puro)
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash", // <--- MUNICIÓN ESTABLE
+        model: "gemini-3-pro-preview", // <--- MÁXIMA POTENCIA (1M Contexto + Deep Reasoning)
         temperature: 0.7,
       });
 
@@ -1041,10 +1041,10 @@ export const generateImage = onCall(
 
       logger.info("   - Contexto recuperado:", contextText.substring(0, 50) + "...");
 
-      // 3. MEJORAR EL PROMPT CON GEMINI (Prompt Engineering)
+      // 3. MEJORAR EL PROMPT CON GEMINI (Nivel SPEEDSTER - Rápido)
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash", // <--- Optimizado para tareas unitarias
         temperature: 0.7,
       });
 
@@ -1527,10 +1527,10 @@ export const forgeToDrive = onCall(
         return `${d.role === 'user' ? 'USUARIO' : 'IA'}: ${d.text}`;
       }).join("\n\n");
 
-      // 2. SINTETIZAR CON GEMINI (El Escriba)
-      const chatModel = new ChatGoogleGenerativeAI({
+      // 2. SINTETIZAR CON GEMINI (El Escriba - GOD TIER para el contenido)
+      const synthesisModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash",
+        model: "gemini-3-pro-preview",
         temperature: 0.4, // Más preciso para documentos
       });
 
@@ -1554,13 +1554,20 @@ export const forgeToDrive = onCall(
         ${historyText}
       `;
 
-      const aiResponse = await chatModel.invoke(synthesisPrompt);
+      const aiResponse = await synthesisModel.invoke(synthesisPrompt);
       const markdownContent = aiResponse.content.toString();
 
-      // 3. GENERAR NOMBRE DE ARCHIVO
+      // 3. GENERAR NOMBRE DE ARCHIVO (Speedster para tareas simples)
       // Intentamos que la IA nos dé un nombre genial.
       let fileName = "";
       try {
+        // Instancia separada para velocidad
+        const titleModel = new ChatGoogleGenerativeAI({
+          apiKey: googleApiKey.value(),
+          model: "gemini-2.5-flash",
+          temperature: 0.7,
+        });
+
         const titlePrompt = `
           ACT AS: Expert Editor.
           GOAL: Generate a short, descriptive filename for the following document.
@@ -1577,7 +1584,7 @@ export const forgeToDrive = onCall(
           ${markdownContent.substring(0, 2000)}
         `;
 
-        const titleResponse = await chatModel.invoke(titlePrompt);
+        const titleResponse = await titleModel.invoke(titlePrompt);
         let rawName = titleResponse.content.toString().trim();
         // Limpieza extra
         rawName = rawName.replace(/[^a-zA-Z0-9_\-]/g, "");
@@ -1692,11 +1699,11 @@ export const summonTheTribunal = onCall(
         - Personal Rules: ${profile.rules || 'Not specified'}
       `;
 
-      // 3. CONFIGURAR GEMINI (MODO JUEZ)
+      // 3. CONFIGURAR GEMINI (MODO JUEZ - GOD TIER)
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash",
-        temperature: 0.8, // Creatividad controlada para las personalidades
+        model: "gemini-3-pro-preview",
+        temperature: 0.4, // Más analítico para el juicio crítico
         generationConfig: {
           responseMimeType: "application/json",
         }
@@ -1794,10 +1801,10 @@ export const extractTimelineEvents = onCall(
     }
 
     try {
-      // A. Configurar Gemini
+      // A. Configurar Gemini (Speedster)
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash-exp", // 👈 User requested specific model
+        model: "gemini-2.5-flash", // 👈 Velocidad y eficiencia para extracción
         generationConfig: {
           responseMimeType: "application/json"
         }
