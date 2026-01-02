@@ -556,6 +556,7 @@ export const indexTDB = onCall(
 
     // Limpieza de ID también aquí por si acaso
     let cleanFolderId = request.data.folderId;
+    const projectId = request.data.projectId || cleanFolderId; // 👈 Project ID is Root Folder ID by default
     const accessToken = request.data.accessToken;
 
     if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
@@ -677,6 +678,7 @@ export const indexTDB = onCall(
                 fileName: file.name,
                 category: file.category || 'canon',
                 userId: userId,
+                projectId: projectId, // 👈 Strict Isolation Tag
                 embedding: FieldValue.vector(vector),
               });
             });
@@ -736,7 +738,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName } = request.data; // 👈 Added categoryFilter and activeFileName
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, projectId } = request.data; // 👈 Added projectId
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -772,6 +774,7 @@ RULES: ${profile.rules || 'Not specified'}
 
       if (history && Array.isArray(history) && history.length > 0) {
         // a) Para el Prompt de la IA (Texto completo)
+        // DEFAULT: Use ALL history if small, but we will slice if too big below.
         historyText = history.map((h: any) =>
           `${h.role === 'user' ? 'USUARIO' : 'ASISTENTE'}: ${h.message}`
         ).join("\n");
@@ -787,6 +790,15 @@ RULES: ${profile.rules || 'Not specified'}
         logger.info("🔍 Búsqueda Vectorial Enriquecida:", searchQuery);
       }
 
+      // 🛑 OPTIMIZACIÓN DE TOKENS: LIMITAR HISTORIAL (Slice last 20)
+      if (history && Array.isArray(history) && history.length > 20) {
+        const sliced = history.slice(-20);
+        historyText = sliced.map((h: any) =>
+           `${h.role === 'user' ? 'USUARIO' : 'ASISTENTE'}: ${h.message}`
+        ).join("\n");
+        logger.info(`✂️ Historial recortado a los últimos 20 mensajes para ahorrar tokens.`);
+      }
+
       // 2. Vectorizar Pregunta
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: googleApiKey.value(),
@@ -800,6 +812,12 @@ RULES: ${profile.rules || 'Not specified'}
 
       // Construir Query Base (Filter by User & Category)
       let chunkQuery = coll.where("userId", "==", userId);
+
+      // 🟢 STRICT PROJECT ISOLATION
+      if (projectId) {
+         logger.info(`🔍 Filtrando por PROYECTO: ${projectId}`);
+         chunkQuery = chunkQuery.where("projectId", "==", projectId);
+      }
 
       if (categoryFilter === 'reference') {
         logger.info("🔍 Filtrando por REFERENCIA");
@@ -842,10 +860,10 @@ RULES: ${profile.rules || 'Not specified'}
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
 
-      // 6. Llamar a Gemini (Modelo 2.0 Flash - Estable)
+      // 6. Llamar a Gemini (Nivel GOD TIER - Razonamiento Puro)
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash", // <--- MUNICIÓN ESTABLE
+        model: "gemini-3-pro-preview", // <--- MÁXIMA POTENCIA (1M Contexto + Deep Reasoning)
         temperature: 0.7,
       });
 
@@ -903,7 +921,7 @@ OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
           activeContextSection = `
 [CONTEXTO INMEDIATO - ESCENA ACTUAL]:
 (Lo que el usuario ve ahora en su editor. Úsalo para mantener continuidad inmediata)
-${activeFileContent.substring(0, 30000)}
+${activeFileContent}
           `;
       }
 
@@ -955,150 +973,6 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
   }
 );
 
-/**
- * 5. GENERATE IMAGE (El Artista)
- * Genera imágenes usando Imagen 3 vía Vertex AI REST API.
- */
-/**
- * 5. GENERATE IMAGE (La Forja Visual)
- * Crea imágenes usando Imagen 3 y contexto de la historia.
- */
-export const generateImage = onCall(
-  {
-    region: "us-central1",
-    enforceAppCheck: false,
-    timeoutSeconds: 60, // Imagen tarda un poco
-    secrets: [googleApiKey], // Necesita la API Key
-  },
-  async (request) => {
-    initializeFirebase();
-    const db = getFirestore();
-
-    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
-
-    const { prompt, aspectRatio } = request.data;
-
-    if (!prompt) throw new HttpsError("invalid-argument", "Falta el prompt.");
-
-    // 🧠 RETRIEVE USER PROFILE (Neural Synchronization)
-    const userId = request.auth.uid;
-    const profileDoc = await db.collection("users").doc(userId).collection("profile").doc("writer_config").get();
-    const profile: WriterProfile = profileDoc.exists
-      ? profileDoc.data() as WriterProfile
-      : { style: '', inspirations: '', rules: '' };
-
-    const styleContext = profile.style || profile.inspirations
-      ? `User's preferred style: ${profile.style}. Inspirations: ${profile.inspirations}.`
-      : '';
-
-    try {
-      logger.info(`🎨 [FORJA] Iniciando generación para: "${prompt}"`);
-
-      // 1. OBTENER TOKEN DE ACCESO (CRÍTICO PARA VERTEX AI)
-      const auth = new google.auth.GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/cloud-platform']
-      });
-      const client = await auth.getClient();
-      const token = await client.getAccessToken();
-      const projectId = await auth.getProjectId();
-
-      // 2. RECUPERAR CONTEXTO VISUAL (RAG)
-      // Buscamos en la historia cómo se ven los personajes mencionados
-      const embeddings = new GoogleGenerativeAIEmbeddings({
-        apiKey: googleApiKey.value(),
-        model: "embedding-001",
-        taskType: TaskType.RETRIEVAL_QUERY,
-      });
-      const queryVector = await embeddings.embedQuery(prompt);
-
-      // Búsqueda vectorial rápida (Nativa)
-      const vectorQuery = db.collectionGroup("chunks")
-        .where("userId", "==", userId)
-        .findNearest({
-          queryVector: queryVector,
-          limit: 3, // Solo top 3
-          distanceMeasure: 'COSINE',
-          vectorField: 'embedding'
-        });
-
-      const vectorSnapshot = await vectorQuery.get();
-
-      const contextText = vectorSnapshot.docs.map(doc => doc.data().text).join("\n\n");
-
-      logger.info("   - Contexto recuperado:", contextText.substring(0, 50) + "...");
-
-      // 3. MEJORAR EL PROMPT CON GEMINI (Prompt Engineering)
-      const chatModel = new ChatGoogleGenerativeAI({
-        apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash",
-        temperature: 0.7,
-      });
-
-      const enhancementPrompt = `
-        ACT AS: Expert AI Art Director for a fantasy novel.
-        GOAL: Convert a user request into a highly detailed visual prompt for 'Imagen 3'.
-        
-        USER REQUEST: "${prompt}"
-        ${styleContext ? `WRITER'S STYLE: ${styleContext}` : ''}
-        STORY CONTEXT (Use this to describe characters/places accurately):
-        ${contextText}
-        
-        INSTRUCTIONS:
-        - Describe the subject, lighting, style (semi-realistic anime), and composition.
-        - Match the user's preferred visual style and inspirations.
-        - If a known character is mentioned (like Anna), use the context to describe her appearance EXACTLY (hair, eyes, clothes).
-        - Keep it under 80 words. English only.
-        - OUTPUT ONLY THE PROMPT TEXT. NO "Here is the prompt:".
-      `;
-
-      const enhancementRes = await chatModel.invoke(enhancementPrompt);
-      const finalPrompt = enhancementRes.content.toString().trim();
-
-      logger.info(`   - Prompt Mejorado: "${finalPrompt}"`);
-
-      // 4. LLAMAR A IMAGEN 3 (VERTEX AI API)
-      const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict`;
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token.token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          instances: [{ prompt: finalPrompt }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: aspectRatio || "1:1",
-            // safetySettings: ... (Opcional)
-          }
-        })
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Vertex AI Error (${response.status}): ${errorText}`);
-      }
-
-      const result = await response.json();
-
-      // La API devuelve: { predictions: [ { bytesBase64Encoded: "..." } ] }
-      const base64Image = result.predictions?.[0]?.bytesBase64Encoded;
-
-      if (!base64Image) {
-        throw new Error("No se recibió imagen de Vertex AI.");
-      }
-
-      logger.info("   ✅ Imagen generada con éxito.");
-
-      return { image: base64Image };
-
-    } catch (error: any) {
-      logger.error("💥 Error en generateImage:", error);
-      throw new HttpsError("internal", error.message);
-    }
-  }
-);
 
 
 
@@ -1511,10 +1385,10 @@ export const forgeToDrive = onCall(
         return `${d.role === 'user' ? 'USUARIO' : 'IA'}: ${d.text}`;
       }).join("\n\n");
 
-      // 2. SINTETIZAR CON GEMINI (El Escriba)
-      const chatModel = new ChatGoogleGenerativeAI({
+      // 2. SINTETIZAR CON GEMINI (El Escriba - GOD TIER para el contenido)
+      const synthesisModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash",
+        model: "gemini-3-pro-preview",
         temperature: 0.4, // Más preciso para documentos
       });
 
@@ -1538,13 +1412,20 @@ export const forgeToDrive = onCall(
         ${historyText}
       `;
 
-      const aiResponse = await chatModel.invoke(synthesisPrompt);
+      const aiResponse = await synthesisModel.invoke(synthesisPrompt);
       const markdownContent = aiResponse.content.toString();
 
-      // 3. GENERAR NOMBRE DE ARCHIVO
+      // 3. GENERAR NOMBRE DE ARCHIVO (Speedster para tareas simples)
       // Intentamos que la IA nos dé un nombre genial.
       let fileName = "";
       try {
+        // Instancia separada para velocidad
+        const titleModel = new ChatGoogleGenerativeAI({
+          apiKey: googleApiKey.value(),
+          model: "gemini-2.5-flash",
+          temperature: 0.7,
+        });
+
         const titlePrompt = `
           ACT AS: Expert Editor.
           GOAL: Generate a short, descriptive filename for the following document.
@@ -1561,7 +1442,7 @@ export const forgeToDrive = onCall(
           ${markdownContent.substring(0, 2000)}
         `;
 
-        const titleResponse = await chatModel.invoke(titlePrompt);
+        const titleResponse = await titleModel.invoke(titlePrompt);
         let rawName = titleResponse.content.toString().trim();
         // Limpieza extra
         rawName = rawName.replace(/[^a-zA-Z0-9_\-]/g, "");
@@ -1676,11 +1557,11 @@ export const summonTheTribunal = onCall(
         - Personal Rules: ${profile.rules || 'Not specified'}
       `;
 
-      // 3. CONFIGURAR GEMINI (MODO JUEZ)
+      // 3. CONFIGURAR GEMINI (MODO JUEZ - GOD TIER)
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-2.0-flash",
-        temperature: 0.8, // Creatividad controlada para las personalidades
+        model: "gemini-3-pro-preview",
+        temperature: 0.4, // Más analítico para el juicio crítico
         generationConfig: {
           responseMimeType: "application/json",
         }
@@ -1778,10 +1659,10 @@ export const extractTimelineEvents = onCall(
     }
 
     try {
-      // A. Configurar Gemini
+      // A. Configurar Gemini (Speedster)
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash-exp", // 👈 User requested specific model
+        model: "gemini-2.5-flash", // 👈 Velocidad y eficiencia para extracción
         generationConfig: {
           responseMimeType: "application/json"
         }
@@ -1813,7 +1694,7 @@ export const extractTimelineEvents = onCall(
         ]
 
         TEXTO A ANALIZAR:
-        "${content.substring(0, 30000)}" // Limitamos a ~30k caracteres por seguridad
+        "${content}" // Limit Removed per architecture change
       `;
 
       // C. Generar

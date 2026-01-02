@@ -16,7 +16,6 @@ interface ForgeChatProps {
     onBack: () => void;
     folderId: string;
     accessToken: string | null;
-    onOpenImageGen: () => void;
 }
 
 const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, folderId, accessToken }) => {
@@ -84,7 +83,8 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
             const aiResponse: any = await chatWithGem({
                 query: userText,
                 history: historyContext,
-                systemInstruction: "You are a creative writing assistant in a persistent session. Remember previous context."
+                systemInstruction: "You are a creative writing assistant in a persistent session. Remember previous context.",
+                projectId: folderId || undefined // 👈 STRICT ISOLATION
             });
 
             const aiText = aiResponse.data.response;

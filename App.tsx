@@ -14,7 +14,6 @@ import ExportPanel from './components/ExportPanel';
 import CommandBar from './components/CommandBar';
 import LoginScreen from './components/LoginScreen';
 import ConnectDriveModal from './components/ConnectDriveModal';
-import ImageGenModal from './components/ImageGenModal';
 import SettingsModal from './components/SettingsModal';
 import FieldManualModal from './components/FieldManualModal';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
@@ -39,9 +38,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
     const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // 👈 DIRECTOR HANDOFF
 
+    // 🟢 REAL-TIME CONTENT SYNC (DEBOUNCED FROM EDITOR)
+    const handleContentChange = (newContent: string) => {
+        setSelectedFileContent(newContent);
+    };
+
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
-    const [isImageGenOpen, setIsImageGenOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
@@ -276,12 +279,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 }}
             />
 
-            <ImageGenModal
-                isOpen={isImageGenOpen}
-                onClose={() => setIsImageGenOpen(false)}
-                accessToken={oauthToken}
-            />
-
             {isSettingsModalOpen && (
                 <SettingsModal
                     onClose={() => setIsSettingsModalOpen(false)}
@@ -327,7 +324,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onClose={() => setActiveGemId(null)}
                         folderId={folderId}
                         accessToken={oauthToken}
-                        onOpenImageGen={() => setIsImageGenOpen(true)}
                     />
                 ) : activeGemId === 'perforador' ? (
                     <ChatPanel
@@ -368,6 +364,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         <Editor
                             fileId={currentFileId}
                             content={selectedFileContent}
+                            onContentChange={handleContentChange} // 👈 SYNC STATE
                             onBubbleAction={handleEditorAction}
                             accessToken={oauthToken}
                             fileName={currentFileName}
@@ -376,7 +373,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             isZenMode={isZenMode}
                             setIsZenMode={setIsZenMode}
                         />
-                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isImageGenOpen && !isDirectorOpen && (
+                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isDirectorOpen && (
                             <CommandBar onExecute={handleCommandExecution} />
                         )}
                     </>
@@ -387,7 +384,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 <ArsenalDock
                     activeGemId={activeGemId}
                     onGemSelect={handleGemSelect}
-                    onOpenImageGen={() => setIsImageGenOpen(true)}
                     onToggleDirector={() => setIsDirectorOpen(prev => !prev)} // 👈 TOGGLE
                 />
             )}
@@ -401,6 +397,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onClearPendingMessage={() => setDirectorPendingMessage(null)}
                 activeFileContent={selectedFileContent}
                 activeFileName={currentFileName}
+                folderId={folderId} // 👈 PASS PROJECT ID
             />
 
             {(activeGemId === 'guardian') && (
@@ -413,6 +410,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     activeGemId={activeGemId}
                     initialMessage={pendingMessage}
                     isFullWidth={false}
+                    folderId={folderId} // 👈 PASS PROJECT ID
                 />
             )}
         </div>
