@@ -331,6 +331,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onClose={() => setActiveGemId(null)}
                         activeGemId={activeGemId}
                         isFullWidth={true}
+                        folderId={folderId}
                     />
                 ) : activeGemId === 'tribunal' ? (
                     <TribunalPanel
