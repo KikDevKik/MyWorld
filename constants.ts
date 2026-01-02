@@ -106,3 +106,17 @@ export const MOCK_FILES: DriveFile[] = [
   { id: '2', name: 'Personajes.md', type: 'file', mimeType: 'text/markdown', content: '## Kael\n\n- Ojos verdes esmeralda.\n- Cabello negro azabache, usualmente desordenado.\n- Complexión atlética pero esbelta.\n- Carácter: Reservado, atormentado por su pasado, pero con un fuerte sentido de la justicia. Rara vez sonríe.\n\n## Lyra\n\n- Ojos de color miel.\n- Cabello castaño claro, largo y ondulado.\n- Complexión menuda.\n- Carácter: Optimista, curiosa e increíblemente inteligente. Es la única que puede hacer sonreír a Kael.' },
   { id: '3', name: 'Lore del Orbe.md', type: 'file', mimeType: 'text/markdown', content: 'El Orbe de Sombras es un artefacto antiguo forjado en la Montaña del Olvido. No es inherentemente maligno, sino que amplifica las emociones de su portador. En manos de alguien con un corazón puro, puede crear maravillas. En manos de alguien con dudas o miedos, puede desatar una catástrofe. Kael lo usó para salvar la ciudad, pero perdió el control, causando una gran destrucción y la pérdida de su mentor, Elara. Por este motivo, Kael abandonó la capital.' },
 ];
+
+// 🟢 NEW CONSTANTS FOR CLEANUP
+export const AUTO_REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
+
+export const TOASTER_THEME = {
+    background: '#09090b',
+    border: '1px solid #27272a',
+    color: '#e4e4e7',
+};
+
+// 🟢 UI COLORS (Used in DirectorPanel)
+export const UI_COLORS = {
+    DIRECTOR_BG: '#0a0a0a',
+};
