@@ -37,6 +37,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isDirectorOpen, setIsDirectorOpen] = useState(false); // 👈 NEW STATE
     const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
+    const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // 👈 DIRECTOR HANDOFF
 
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
@@ -45,7 +46,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
 
-    // SINAPSIS
+    // SINAPSIS (Guardian)
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
     // 🟢 UI STATE
@@ -136,101 +137,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     const handleCommandExecution = async (message: string, tool: GemId) => {
         if (tool === 'director') {
-            const functions = getFunctions();
-            const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
-            const createForgeSession = httpsCallable(functions, 'createForgeSession');
-            const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
-            const chatWithGem = httpsCallable(functions, 'chatWithGem');
-            const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
-
-            try {
-                let targetSessionId: string | null = null;
-
-                // 1. TRY TO GET EXISTING SESSIONS
-                try {
-                    const result = await getForgeSessions({ type: 'director' });
-                    const sessions = result.data as ForgeSession[];
-
-                    if (sessions.length > 0) {
-                        const mostRecent = sessions[0];
-                        const lastUpdate = new Date(mostRecent.updatedAt).getTime();
-                        const now = new Date().getTime();
-                        const hoursDiff = (now - lastUpdate) / (1000 * 60 * 60);
-
-                        if (hoursDiff < 24) {
-                            targetSessionId = mostRecent.id;
-                        }
-                    }
-                } catch (fetchError) {
-                    console.warn("Could not fetch sessions, trying to create new one as fallback...", fetchError);
-                    // Fallback will happen below since targetSessionId is still null
-                }
-
-                // 2. FALLBACK: CREATE NEW SESSION IF NEEDED
-                if (!targetSessionId) {
-                    try {
-                        const name = `Sesión Director ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
-                        const newSessionResult = await createForgeSession({ name, type: 'director' });
-                        const newSession = newSessionResult.data as ForgeSession;
-                        targetSessionId = newSession.id;
-                    } catch (createError) {
-                        console.error("Critical: Failed to create session fallback", createError);
-                        toast.error("Conectando memoria... intenta en 1 minuto");
-                        return; // EXIT
-                    }
-                }
-
-                // 3. SET UI STATE (Open Drawer)
-                setActiveDirectorSessionId(targetSessionId);
-                setIsDirectorOpen(true);
-
-                // 4. EXECUTE TURN (Save User Msg -> AI -> Save AI Msg)
-                try {
-                    // A. Save User Message
-                    await addForgeMessage({ sessionId: targetSessionId, role: 'user', text: message });
-
-                    // B. Get History Context
-                    let historyContext: any[] = [];
-                    try {
-                        const historyResult = await getForgeHistory({ sessionId: targetSessionId });
-                        const history = historyResult.data as any[];
-                        historyContext = history.map((m: any) => ({ role: m.role, message: m.text }));
-                    } catch (historyError) {
-                        console.warn("Failed to load context for AI, proceeding with empty context", historyError);
-                        // We continue even if history load fails, just to send the current message
-                    }
-
-                    // C. AI Generation
-                    // Dynamic import for GEMS constant
-                    const { GEMS } = await import('./constants');
-                    const directorGem = GEMS['director'];
-
-                    const aiResponse: any = await chatWithGem({
-                        query: message,
-                        history: historyContext,
-                        systemInstruction: directorGem.systemInstruction
-                    });
-
-                    // D. Save AI Response
-                    await addForgeMessage({ sessionId: targetSessionId, role: 'model', text: aiResponse.data.response });
-
-                    // E. Force Refresh in Component
-                    if (activeDirectorSessionId === targetSessionId) {
-                        setActiveDirectorSessionId(null);
-                        setTimeout(() => setActiveDirectorSessionId(targetSessionId!), 10);
-                    } else {
-                        setActiveDirectorSessionId(targetSessionId);
-                    }
-
-                } catch (turnError) {
-                    console.error("Error executing Director turn:", turnError);
-                    toast.error("El Director te escuchó, pero no pudo responder.");
-                }
-
-            } catch (e) {
-                console.error("Director Command Fatal Error", e);
-                toast.error("Error crítico en el sistema del Director");
-            }
+            // 🟢 HANDOFF TO DIRECTOR PANEL
+            setDirectorPendingMessage(message);
+            setIsDirectorOpen(true);
             return;
         }
 
@@ -488,6 +397,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onClose={() => setIsDirectorOpen(false)}
                 activeSessionId={activeDirectorSessionId}
                 onSessionSelect={setActiveDirectorSessionId}
+                pendingMessage={directorPendingMessage}
+                onClearPendingMessage={() => setDirectorPendingMessage(null)}
+                activeFileContent={selectedFileContent}
             />
 
             {(activeGemId === 'guardian') && (
