@@ -136,121 +136,100 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     const handleCommandExecution = async (message: string, tool: GemId) => {
         if (tool === 'director') {
-            // HYBRID APPROACH: Check for recent session
             const functions = getFunctions();
             const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
+            const createForgeSession = httpsCallable(functions, 'createForgeSession');
             const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
+            const chatWithGem = httpsCallable(functions, 'chatWithGem');
+            const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
 
             try {
-                // 1. Get recent sessions
-                const result = await getForgeSessions({ type: 'director' });
-                const sessions = result.data as ForgeSession[];
+                let targetSessionId: string | null = null;
 
-                let targetSessionId = null;
+                // 1. TRY TO GET EXISTING SESSIONS
+                try {
+                    const result = await getForgeSessions({ type: 'director' });
+                    const sessions = result.data as ForgeSession[];
 
-                if (sessions.length > 0) {
-                    // Check if most recent is < 24 hours
-                    const mostRecent = sessions[0];
-                    const lastUpdate = new Date(mostRecent.updatedAt).getTime();
-                    const now = new Date().getTime();
-                    const hoursDiff = (now - lastUpdate) / (1000 * 60 * 60);
+                    if (sessions.length > 0) {
+                        const mostRecent = sessions[0];
+                        const lastUpdate = new Date(mostRecent.updatedAt).getTime();
+                        const now = new Date().getTime();
+                        const hoursDiff = (now - lastUpdate) / (1000 * 60 * 60);
 
-                    if (hoursDiff < 24) {
-                        targetSessionId = mostRecent.id;
+                        if (hoursDiff < 24) {
+                            targetSessionId = mostRecent.id;
+                        }
+                    }
+                } catch (fetchError) {
+                    console.warn("Could not fetch sessions, trying to create new one as fallback...", fetchError);
+                    // Fallback will happen below since targetSessionId is still null
+                }
+
+                // 2. FALLBACK: CREATE NEW SESSION IF NEEDED
+                if (!targetSessionId) {
+                    try {
+                        const name = `Sesión Director ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
+                        const newSessionResult = await createForgeSession({ name, type: 'director' });
+                        const newSession = newSessionResult.data as ForgeSession;
+                        targetSessionId = newSession.id;
+                    } catch (createError) {
+                        console.error("Critical: Failed to create session fallback", createError);
+                        toast.error("Conectando memoria... intenta en 1 minuto");
+                        return; // EXIT
                     }
                 }
 
-                if (!targetSessionId) {
-                    // Create NEW
-                    const createForgeSession = httpsCallable(functions, 'createForgeSession');
-                    const name = `Sesión Director ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`;
-                    const newSessionResult = await createForgeSession({ name, type: 'director' });
-                    const newSession = newSessionResult.data as ForgeSession;
-                    targetSessionId = newSession.id;
-                }
-
-                // 2. Set Active Session & Open Drawer
+                // 3. SET UI STATE (Open Drawer)
                 setActiveDirectorSessionId(targetSessionId);
                 setIsDirectorOpen(true);
 
-                // 3. Send the message (if any)
-                // Note: DirectorPanel handles its own messages, but we want to inject this one.
-                // We can save it directly to backend, DirectorPanel will fetch on load/update.
-                // Or we can rely on DirectorPanel to be "smart".
-                // Better approach: Just open the panel and let the user see it, OR send it directly to backend now.
-                // We will send it directly to backend now so it appears when the component loads/refreshes.
+                // 4. EXECUTE TURN (Save User Msg -> AI -> Save AI Msg)
+                try {
+                    // A. Save User Message
+                    await addForgeMessage({ sessionId: targetSessionId, role: 'user', text: message });
 
-                // WAIT! If we save it now, DirectorPanel fetching "on mount" might miss it if race condition.
-                // DirectorPanel fetches on `activeSessionId` change.
-                // So if we save -> setSessionId, it should fetch the new msg.
+                    // B. Get History Context
+                    let historyContext: any[] = [];
+                    try {
+                        const historyResult = await getForgeHistory({ sessionId: targetSessionId });
+                        const history = historyResult.data as any[];
+                        historyContext = history.map((m: any) => ({ role: m.role, message: m.text }));
+                    } catch (historyError) {
+                        console.warn("Failed to load context for AI, proceeding with empty context", historyError);
+                        // We continue even if history load fails, just to send the current message
+                    }
 
-                // Let's trigger the AI response too?
-                // The requirements say "AL escribir y dar Enter -> SE ABRE y se ENVÍA".
-                // So we should execute the turn here or pass it to the component.
-                // Passing to component is complex without context.
-                // Executing here is cleaner for "Headless" operation.
+                    // C. AI Generation
+                    // Dynamic import for GEMS constant
+                    const { GEMS } = await import('./constants');
+                    const directorGem = GEMS['director'];
 
-                // A. Save User Message
-                await addForgeMessage({ sessionId: targetSessionId, role: 'user', text: message });
+                    const aiResponse: any = await chatWithGem({
+                        query: message,
+                        history: historyContext,
+                        systemInstruction: directorGem.systemInstruction
+                    });
 
-                // B. Trigger AI (Background)
-                // We let DirectorPanel load the history, which will include the User message.
-                // BUT we want the AI to reply.
-                // We can call `chatWithGem` here too.
+                    // D. Save AI Response
+                    await addForgeMessage({ sessionId: targetSessionId, role: 'model', text: aiResponse.data.response });
 
-                const chatWithGem = httpsCallable(functions, 'chatWithGem');
-                // Need history... fetching it is expensive.
-                // Maybe just send the prompt? Director is context-heavy.
-                // Let's rely on `DirectorPanel` to handle "pending messages"?
-                // No, I added `pendingMessage` state but `DirectorPanel` doesn't use it yet.
-                // Let's make `DirectorPanel` read the history.
+                    // E. Force Refresh in Component
+                    if (activeDirectorSessionId === targetSessionId) {
+                        setActiveDirectorSessionId(null);
+                        setTimeout(() => setActiveDirectorSessionId(targetSessionId!), 10);
+                    } else {
+                        setActiveDirectorSessionId(targetSessionId);
+                    }
 
-                // Actually, to ensure "Seamless" experience:
-                // 1. Open Drawer
-                // 2. Pass pending message to DirectorPanel
-                // 3. DirectorPanel handles sending.
-
-                // Let's try that.
-                // I need to update DirectorPanel to accept `initialMessage`.
-                // BUT I just created it without it.
-                // Okay, I will implement the "Auto-Send" logic inside DirectorPanel if I pass a prop.
-                // But I didn't add that prop in my previous step.
-
-                // Alternative: Execute the whole turn here.
-                // Get History (for context)
-                const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
-                const historyResult = await getForgeHistory({ sessionId: targetSessionId });
-                const history = historyResult.data as any[]; // messages
-
-                const historyContext = history.map((m: any) => ({ role: m.role, message: m.text }));
-
-                // AI Call
-                // Imports GEMS... wait, constants are available.
-                const { GEMS } = await import('./constants');
-                const directorGem = GEMS['director'];
-
-                const aiResponse: any = await chatWithGem({
-                    query: message,
-                    history: historyContext,
-                    systemInstruction: directorGem.systemInstruction
-                });
-
-                await addForgeMessage({ sessionId: targetSessionId, role: 'model', text: aiResponse.data.response });
-
-                // Force refresh in DirectorPanel by toggling session ID? No, maybe a trigger.
-                // Actually, if I just set the ID, it fetches. If I update backend first, then set ID, it fetches new data.
-                // IF session was already active?
-                if (activeDirectorSessionId === targetSessionId) {
-                   // Force re-fetch?
-                   setActiveDirectorSessionId(null);
-                   setTimeout(() => setActiveDirectorSessionId(targetSessionId), 10);
-                } else {
-                   setActiveDirectorSessionId(targetSessionId);
+                } catch (turnError) {
+                    console.error("Error executing Director turn:", turnError);
+                    toast.error("El Director te escuchó, pero no pudo responder.");
                 }
 
             } catch (e) {
-                console.error("Director Command Error", e);
-                toast.error("Error al ejecutar comando de Director");
+                console.error("Director Command Fatal Error", e);
+                toast.error("Error crítico en el sistema del Director");
             }
             return;
         }
