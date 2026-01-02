@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { GEMS } from '../constants';
+import { useProjectConfig } from './ProjectConfigContext';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -38,6 +39,10 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     activeFileName,
     folderId
 }) => {
+    const { config } = useProjectConfig();
+    // 🟢 SAFE FALLBACK: Use prop or context
+    const safeFolderId = folderId || config?.folderId;
+
     const [sessions, setSessions] = useState<ForgeSession[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -220,7 +225,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 systemInstruction: directorGem.systemInstruction,
                 activeFileContent: activeFileContent || "", // 🟢 PASS ACTIVE CONTENT
                 activeFileName: activeFileName || "", // 🟢 PASS ACTIVE FILENAME FOR EXCLUSION
-                projectId: folderId || undefined // 👈 STRICT ISOLATION
+                projectId: safeFolderId || undefined // 👈 STRICT ISOLATION
             });
 
             let aiText = aiResponse.data.response;

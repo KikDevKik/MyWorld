@@ -7,6 +7,7 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { X } from 'lucide-react';
 import { toast } from 'sonner';
+import { useProjectConfig } from './ProjectConfigContext';
 
 interface ChatPanelProps {
   activeGemId: GemId | null;
@@ -40,6 +41,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   customGem,
   folderId
 }) => {
+  const { config } = useProjectConfig();
+  // 🟢 SAFE FALLBACK: Use prop or context
+  const safeFolderId = folderId || config?.folderId;
+
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -80,7 +85,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         systemInstruction: activeGem.systemInstruction, // 👈 Send instruction
         history: messages.map(m => ({ role: m.role, message: m.text })), // 👈 Map to expected format
         categoryFilter: categoryFilter, // 👈 Send filter
-        projectId: folderId || undefined // 👈 STRICT ISOLATION
+        projectId: safeFolderId || undefined // 👈 STRICT ISOLATION
       });
 
       const data = result.data as any;
