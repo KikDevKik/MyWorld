@@ -17,6 +17,7 @@ interface ChatPanelProps {
   isFullWidth?: boolean;
   categoryFilter?: 'canon' | 'reference'; // 👈 New prop
   customGem?: Gem; // 👈 New prop for virtual gems
+  folderId?: string; // 👈 Project ID for Isolation
 }
 
 interface Source {
@@ -77,7 +78,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         query: text, // 👈 Renamed to query to match backend
         systemInstruction: activeGem.systemInstruction, // 👈 Send instruction
         history: messages.map(m => ({ role: m.role, message: m.text })), // 👈 Map to expected format
-        categoryFilter: categoryFilter // 👈 Send filter
+        categoryFilter: categoryFilter, // 👈 Send filter
+        projectId: folderId || undefined // 👈 STRICT ISOLATION
       });
 
       const data = result.data as any;

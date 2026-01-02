@@ -556,6 +556,7 @@ export const indexTDB = onCall(
 
     // Limpieza de ID también aquí por si acaso
     let cleanFolderId = request.data.folderId;
+    const projectId = request.data.projectId || cleanFolderId; // 👈 Project ID is Root Folder ID by default
     const accessToken = request.data.accessToken;
 
     if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
@@ -677,6 +678,7 @@ export const indexTDB = onCall(
                 fileName: file.name,
                 category: file.category || 'canon',
                 userId: userId,
+                projectId: projectId, // 👈 Strict Isolation Tag
                 embedding: FieldValue.vector(vector),
               });
             });
@@ -736,7 +738,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName } = request.data; // 👈 Added categoryFilter and activeFileName
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, projectId } = request.data; // 👈 Added projectId
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -800,6 +802,12 @@ RULES: ${profile.rules || 'Not specified'}
 
       // Construir Query Base (Filter by User & Category)
       let chunkQuery = coll.where("userId", "==", userId);
+
+      // 🟢 STRICT PROJECT ISOLATION
+      if (projectId) {
+         logger.info(`🔍 Filtrando por PROYECTO: ${projectId}`);
+         chunkQuery = chunkQuery.where("projectId", "==", projectId);
+      }
 
       if (categoryFilter === 'reference') {
         logger.info("🔍 Filtrando por REFERENCIA");
@@ -903,7 +911,7 @@ OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
           activeContextSection = `
 [CONTEXTO INMEDIATO - ESCENA ACTUAL]:
 (Lo que el usuario ve ahora en su editor. Úsalo para mantener continuidad inmediata)
-${activeFileContent.substring(0, 30000)}
+${activeFileContent}
           `;
       }
 
@@ -976,7 +984,8 @@ export const generateImage = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { prompt, aspectRatio } = request.data;
+    const { prompt, aspectRatio, projectId } = request.data; // 👈 Added projectId
+    if (projectId) logger.info(`🎨 Generando imagen para proyecto: ${projectId}`);
 
     if (!prompt) throw new HttpsError("invalid-argument", "Falta el prompt.");
 
@@ -1012,9 +1021,14 @@ export const generateImage = onCall(
       const queryVector = await embeddings.embedQuery(prompt);
 
       // Búsqueda vectorial rápida (Nativa)
-      const vectorQuery = db.collectionGroup("chunks")
-        .where("userId", "==", userId)
-        .findNearest({
+      let chunkQuery = db.collectionGroup("chunks").where("userId", "==", userId);
+
+      // 🟢 STRICT PROJECT ISOLATION
+      if (projectId) {
+         chunkQuery = chunkQuery.where("projectId", "==", projectId);
+      }
+
+      const vectorQuery = chunkQuery.findNearest({
           queryVector: queryVector,
           limit: 3, // Solo top 3
           distanceMeasure: 'COSINE',
@@ -1057,7 +1071,9 @@ export const generateImage = onCall(
       logger.info(`   - Prompt Mejorado: "${finalPrompt}"`);
 
       // 4. LLAMAR A IMAGEN 3 (VERTEX AI API)
-      const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${projectId}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict`;
+      // 🟢 USAR GOOGLE PROJECT ID REAL PARA LA URL, NO EL DEL USUARIO (FOLDER)
+      const cloudProjectId = await auth.getProjectId();
+      const url = `https://us-central1-aiplatform.googleapis.com/v1/projects/${cloudProjectId}/locations/us-central1/publishers/google/models/imagen-3.0-generate-001:predict`;
 
       const response = await fetch(url, {
         method: 'POST',
@@ -1813,7 +1829,7 @@ export const extractTimelineEvents = onCall(
         ]
 
         TEXTO A ANALIZAR:
-        "${content.substring(0, 30000)}" // Limitamos a ~30k caracteres por seguridad
+        "${content}" // Limit Removed per architecture change
       `;
 
       // C. Generar

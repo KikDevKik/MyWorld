@@ -17,6 +17,7 @@ interface DirectorPanelProps {
     onClearPendingMessage?: () => void;
     activeFileContent?: string;
     activeFileName?: string;
+    folderId?: string; // 👈 Project ID for Isolation
 }
 
 interface Message {
@@ -198,7 +199,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 history: historyContext,
                 systemInstruction: directorGem.systemInstruction,
                 activeFileContent: activeFileContent || "", // 🟢 PASS ACTIVE CONTENT
-                activeFileName: activeFileName || "" // 🟢 PASS ACTIVE FILENAME FOR EXCLUSION
+                activeFileName: activeFileName || "", // 🟢 PASS ACTIVE FILENAME FOR EXCLUSION
+                projectId: folderId || undefined // 👈 STRICT ISOLATION
             });
 
             let aiText = aiResponse.data.response;

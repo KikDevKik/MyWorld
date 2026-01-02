@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { getFunctions, httpsCallable } from "firebase/functions";
@@ -13,6 +13,7 @@ import ReadingToolbar from './ReadingToolbar';
 interface EditorProps {
     fileId: string | null;
     content: string;
+    onContentChange?: (content: string) => void; // 👈 NEW PROP
     onBubbleAction?: (action: string, text: string) => void;
     accessToken: string | null;
     fileName?: string;
@@ -22,8 +23,25 @@ interface EditorProps {
     setIsZenMode: (isZen: boolean) => void;
 }
 
+// 🟢 DEBOUNCE UTILITY
+function useDebouncedCallback<T extends (...args: any[]) => void>(
+    callback: T,
+    delay: number
+) {
+    const timer = useRef<NodeJS.Timeout | null>(null);
+
+    return useCallback((...args: Parameters<T>) => {
+        if (timer.current) {
+            clearTimeout(timer.current);
+        }
+        timer.current = setTimeout(() => {
+            callback(...args);
+        }, delay);
+    }, [callback, delay]);
+}
+
 const Editor: React.FC<EditorProps> = ({
-    fileId, content, onBubbleAction, accessToken, fileName, onTokenExpired, onFocusChange,
+    fileId, content, onContentChange, onBubbleAction, accessToken, fileName, onTokenExpired, onFocusChange,
     isZenMode, setIsZenMode
 }) => {
     // 🟢 VISUAL STATE
@@ -54,6 +72,14 @@ const Editor: React.FC<EditorProps> = ({
         });
         return service;
     }, []);
+
+    // 🟢 DEBOUNCED UPDATE HANDLER
+    const debouncedUpdate = useDebouncedCallback((newHtml: string) => {
+        if (onContentChange) {
+            const markdown = turndownService.turndown(newHtml);
+            onContentChange(markdown);
+        }
+    }, 1000); // 1 Second Delay
 
     // 🟢 TIPTAP EDITOR
     const editor = useEditor({
@@ -95,6 +121,11 @@ const Editor: React.FC<EditorProps> = ({
         },
         onFocus: () => onFocusChange?.(true),
         onBlur: () => onFocusChange?.(false),
+        onUpdate: ({ editor }) => {
+            // 🟢 TRIGGER REAL-TIME SYNC
+            const html = editor.getHTML();
+            debouncedUpdate(html);
+        },
         onSelectionUpdate: ({ editor }) => {
             const { empty } = editor.state.selection;
 
