@@ -45,6 +45,7 @@ interface ProjectConfig {
   resourcePaths: string[];
   chronologyPath: string;
   activeBookContext: string;
+  folderId?: string; // 👈 Folder Persistence
 }
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -481,6 +482,43 @@ export const getDriveFileContent = onCall(
     } catch (error: any) {
       logger.error("Error leyendo archivo:", error);
       throw new HttpsError("internal", "No se pudo leer el archivo.");
+    }
+  }
+);
+
+/**
+ * 18. CHECK INDEX STATUS (La Consciencia)
+ * Verifica si el usuario ya tiene una base de conocimiento indexada.
+ */
+export const checkIndexStatus = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const userId = request.auth.uid;
+
+    try {
+      const snapshot = await db.collection("TDB_Index").doc(userId).collection("files").limit(1).get();
+
+      const isIndexed = !snapshot.empty;
+      let lastIndexedAt = null;
+
+      if (isIndexed) {
+        lastIndexedAt = snapshot.docs[0].data().lastIndexed || null;
+      }
+
+      return { isIndexed, lastIndexedAt };
+    } catch (error: any) {
+      logger.error("Error checking index status:", error);
+      throw new HttpsError("internal", error.message);
     }
   }
 );

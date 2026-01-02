@@ -48,3 +48,12 @@ export interface TimelineEvent {
 }
 
 export type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+
+// 🟢 NEW PROJECT CONFIG INTERFACE (Matches Backend)
+export interface ProjectConfig {
+  canonPaths: string[];
+  resourcePaths: string[];
+  chronologyPath: string;
+  activeBookContext: string;
+  folderId?: string;
+}

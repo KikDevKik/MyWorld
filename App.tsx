@@ -16,15 +16,16 @@ import LoginScreen from './components/LoginScreen';
 import ConnectDriveModal from './components/ConnectDriveModal';
 import ImageGenModal from './components/ImageGenModal';
 import SettingsModal from './components/SettingsModal';
-import FieldManualModal from './components/FieldManualModal'; // 👈 Import
-import ProjectSettingsModal from './components/ProjectSettingsModal'; // 👈 Import
-import { ProjectConfigProvider } from './components/ProjectConfigContext'; // 👈 Import
-import { GemId } from './types';
+import FieldManualModal from './components/FieldManualModal';
+import ProjectSettingsModal from './components/ProjectSettingsModal';
+import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
+import { GemId, ProjectConfig } from './types';
+import { Loader2 } from 'lucide-react';
 
-function App() {
-    // AUTH
-    const [user, setUser] = useState<User | null>(null);
-    const [authLoading, setAuthLoading] = useState(true);
+// 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
+// We need this because we want to use 'useProjectConfig' which requires ProjectConfigProvider
+function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh }: any) {
+    const { config, updateConfig, loading: configLoading } = useProjectConfig();
 
     // APP STATE
     const [folderId, setFolderId] = useState<string>("");
@@ -33,15 +34,13 @@ function App() {
     const [currentFileName, setCurrentFileName] = useState<string>('');
     const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
-    const [oauthToken, setOauthToken] = useState<string | null>(null);
-    const [driveStatus, setDriveStatus] = useState<'connected' | 'refreshing' | 'error' | 'disconnected'>('disconnected');
 
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [isImageGenOpen, setIsImageGenOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-    const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false); // 👈 New state
-    const [isFieldManualOpen, setIsFieldManualOpen] = useState(false); // 👈 New state
+    const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
+    const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
 
     // SINAPSIS
     const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -49,31 +48,63 @@ function App() {
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
+    const [isAppLoading, setIsAppLoading] = useState(true);
+    const [indexStatus, setIndexStatus] = useState<{ isIndexed: boolean; lastIndexedAt: string | null }>({ isIndexed: false, lastIndexedAt: null });
 
-    // AUTH LISTENER
+    // 🟢 INITIALIZATION & HYDRATION
     useEffect(() => {
-        const auth = getAuth();
-        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-            setUser(currentUser);
-            setAuthLoading(false);
+        const initApp = async () => {
+            if (!user) {
+                // If no user, we are done loading (LoginScreen will show)
+                setIsAppLoading(false);
+                return;
+            }
 
-            // 🟢 INTENTO DE RECUPERAR TOKEN GUARDADO
-            const storedToken = localStorage.getItem('google_drive_token');
-            if (storedToken) {
-                setOauthToken(storedToken);
-                setDriveStatus('connected'); // Assume connected if token exists
+            if (configLoading) return; // Wait for config context to be ready
+
+            console.log("🚀 INICIANDO HYDRATION DEL PROYECTO...");
+            const functions = getFunctions();
+
+            // 1. RESTORE TOKEN (Already done in parent, passed as prop, but double check)
+            // (Handled by parent App component)
+
+            // 2. RESTORE PROJECT CONFIG (Folder ID)
+            let currentFolderId = "";
+
+            if (config?.folderId) {
+                console.log("✅ Folder ID recuperado de Cloud Config:", config.folderId);
+                currentFolderId = config.folderId;
+                setFolderId(config.folderId);
             } else {
-                setDriveStatus('disconnected');
+                // FALLBACK: LocalStorage (Migration path)
+                const storedFolderId = localStorage.getItem('myworld_folder_id');
+                if (storedFolderId) {
+                    console.log("⚠️ Migrando Folder ID de LocalStorage a Cloud Config...");
+                    currentFolderId = storedFolderId;
+                    setFolderId(storedFolderId);
+                    // Sync to cloud silently
+                    updateConfig({ ...config!, folderId: storedFolderId }).catch(console.error);
+                }
             }
 
-            // 🟢 RECUPERAR FOLDER ID GUARDADO
-            const storedFolderId = localStorage.getItem('myworld_folder_id');
-            if (storedFolderId) {
-                setFolderId(storedFolderId);
+            // 3. CHECK INDEX STATUS
+            try {
+                const checkIndexStatus = httpsCallable(functions, 'checkIndexStatus');
+                const result = await checkIndexStatus();
+                const status = result.data as { isIndexed: boolean, lastIndexedAt: string | null };
+                console.log("🧠 Estado de Memoria:", status);
+                setIndexStatus(status);
+            } catch (error) {
+                console.error("Error checking index status:", error);
             }
-        });
-        return () => unsubscribe();
-    }, []);
+
+            // 4. DONE
+            setIsAppLoading(false);
+        };
+
+        initApp();
+    }, [user, config, configLoading]);
+
 
     // HANDLERS
     const handleLogout = async () => {
@@ -90,56 +121,11 @@ function App() {
         }
     };
 
-    const handleTokenRefresh = async () => {
-        setDriveStatus('refreshing');
-        const auth = getAuth();
-        const provider = new GoogleAuthProvider();
-        provider.addScope('https://www.googleapis.com/auth/drive.file');
-
-        try {
-            const result = await signInWithPopup(auth, provider);
-            const credential = GoogleAuthProvider.credentialFromResult(result);
-            const token = credential?.accessToken;
-
-            if (token) {
-                // ✅ Actualizar INMEDIATAMENTE estado y localStorage
-                setOauthToken(token);
-                localStorage.setItem('google_drive_token', token);
-                setDriveStatus('connected');
-                // toast.success("Credenciales renovadas"); // 👈 Removed intrusive toast
-            }
-        } catch (error) {
-            console.error("Error refreshing token:", error);
-            setDriveStatus('error');
-            toast.error("Error al renovar credenciales");
-        }
-    };
-
-    // 🟢 AUTO-REFRESH TOKEN CÍCLICO (setInterval)
-    useEffect(() => {
-        if (!oauthToken) return;
-
-        const FIFTY_MINUTES = 50 * 60 * 1000; // 3000000 ms
-
-        console.log("⏰ Iniciando ciclo de auto-refresh (50 min)");
-        const intervalId = setInterval(() => {
-            console.log("⏰ Ejecutando auto-refresh programado...");
-            handleTokenRefresh();
-        }, FIFTY_MINUTES);
-
-        return () => {
-            console.log("⏰ Limpiando ciclo de auto-refresh");
-            clearInterval(intervalId);
-        };
-    }, [oauthToken]);
-
     const handleGemSelect = (id: GemId) => {
-        // ✅ Si es la misma gema activa, cerrar
         if (activeGemId === id && isChatOpen) {
             setIsChatOpen(false);
             setTimeout(() => setActiveGemId(null), 300);
         } else {
-            // ✅ Si es diferente o no está abierto, cambiar directamente
             setActiveGemId(id);
             setIsChatOpen(true);
         }
@@ -162,7 +148,10 @@ function App() {
 
             toast.promise(promise, {
                 loading: 'Indexando base de conocimiento...',
-                success: (result: any) => `¡Aprendizaje Completado! ${result.data.message}`,
+                success: (result: any) => {
+                    setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
+                    return `¡Aprendizaje Completado! ${result.data.message}`;
+                },
                 error: 'Error al indexar. Revisa la consola.',
             });
 
@@ -173,6 +162,18 @@ function App() {
     };
 
     const handleIndex = () => {
+        // Si ya está indexado, solo informamos (o permitimos re-indexar forzadamente)
+        if (indexStatus.isIndexed) {
+             toast("Memoria ya sincronizada", {
+                description: `Última actualización: ${indexStatus.lastIndexedAt ? new Date(indexStatus.lastIndexedAt).toLocaleDateString() : 'Desconocida'}`,
+                action: {
+                    label: "Re-aprender todo",
+                    onClick: () => executeIndexing() // Allow force re-index
+                },
+            });
+            return;
+        }
+
         if (!folderId) {
             toast.warning("¡Conecta una carpeta primero!");
             return;
@@ -200,59 +201,60 @@ function App() {
 
     // 🟢 HANDLE TIMELINE FILE SELECT
     const handleTimelineFileSelect = async (fileId: string) => {
-        // 1. Close panel to show editor
         setActiveGemId(null);
-
-        // 2. Set loading state
         setSelectedFileContent("Cargando...");
         setCurrentFileId(fileId);
 
-        // 3. Fetch content
         const functions = getFunctions();
         const getDriveFileContent = httpsCallable(functions, 'getDriveFileContent');
 
         try {
             const result = await getDriveFileContent({ fileId, accessToken: oauthToken });
             const data = result.data as { content: string; name: string };
-
             setSelectedFileContent(data.content);
             setCurrentFileName(data.name);
         } catch (error) {
             console.error("Error loading file from timeline:", error);
             toast.error("Error al abrir el archivo.");
-            setSelectedFileContent(""); // Reset on error
+            setSelectedFileContent("");
         }
     };
 
-    if (authLoading) return <div className="h-screen w-screen bg-titanium-950" />;
-    if (!user) return <LoginScreen onLoginSuccess={(u, t) => { setUser(u); setOauthToken(t); }} />;
+    // 🟢 LOADING GATE
+    if (isAppLoading) {
+        return (
+            <div className="h-screen w-screen bg-titanium-950 flex flex-col items-center justify-center text-titanium-200 gap-4">
+                <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
+                <p className="text-sm font-mono tracking-widest opacity-70">CARGANDO SISTEMAS NEURONALES...</p>
+            </div>
+        );
+    }
 
     return (
-      <ProjectConfigProvider>
         <div className="flex h-screen w-screen bg-titanium-900 text-titanium-200 font-sans overflow-hidden">
-
-            {/* 🟢 GLOBAL TOASTER */}
             <Toaster
                 theme="dark"
                 position="bottom-right"
                 toastOptions={{
                     style: {
-                        background: '#09090b', // bg-titanium-950
-                        border: '1px solid #27272a', // border-titanium-700
-                        color: '#e4e4e7', // text-titanium-200
+                        background: '#09090b',
+                        border: '1px solid #27272a',
+                        color: '#e4e4e7',
                     },
                     className: 'z-50',
                 }}
             />
 
-            {/* MODALES GLOBLALES */}
             <ConnectDriveModal
                 isOpen={isConnectModalOpen}
                 onClose={() => setIsConnectModalOpen(false)}
                 onSubmit={(id) => {
                     setFolderId(id);
-                    // ✅ Guardar folder ID en localStorage
                     localStorage.setItem('myworld_folder_id', id);
+                    // 🟢 SYNC TO CLOUD CONFIG
+                    if (config) {
+                        updateConfig({ ...config, folderId: id });
+                    }
                 }}
             />
 
@@ -267,7 +269,6 @@ function App() {
                     onClose={() => setIsSettingsModalOpen(false)}
                     onSave={(url) => {
                         setFolderId(url);
-                        // SettingsModal handles profile saving internally
                     }}
                 />
             )}
@@ -276,12 +277,10 @@ function App() {
                 <ProjectSettingsModal onClose={() => setIsProjectSettingsOpen(false)} />
             )}
 
-            {/* FIELD MANUAL MODAL */}
             {isFieldManualOpen && (
                 <FieldManualModal onClose={() => setIsFieldManualOpen(false)} />
             )}
 
-            {/* SIDEBAR (IZQUIERDA) - Oculto en Zen Mode */}
             {!isZenMode && (
                 <VaultSidebar
                     folderId={folderId}
@@ -299,14 +298,12 @@ function App() {
                     accessToken={oauthToken}
                     onRefreshTokens={handleTokenRefresh}
                     driveStatus={driveStatus}
-                    onOpenManual={() => setIsFieldManualOpen(true)} // 👈 Connect prop
+                    onOpenManual={() => setIsFieldManualOpen(true)}
+                    isIndexed={indexStatus.isIndexed} // 👈 Pass index status
                 />
             )}
 
-            {/* ÁREA PRINCIPAL (CENTRO) */}
             <main className={`flex-1 flex flex-col min-w-0 bg-titanium-950 relative transition-all duration-300 ${isZenMode ? 'ml-0 mr-0' : 'ml-64 mr-16'}`}>
-
-                {/* 🟢 MAIN STAGE LOGIC */}
                 {activeGemId === 'forja' ? (
                     <ForgePanel
                         onClose={() => setActiveGemId(null)}
@@ -319,7 +316,7 @@ function App() {
                         isOpen={true}
                         onClose={() => setActiveGemId(null)}
                         activeGemId={activeGemId}
-                        isFullWidth={true} // 👈 Full width for Worldbuilder
+                        isFullWidth={true}
                     />
                 ) : activeGemId === 'tribunal' ? (
                     <TribunalPanel
@@ -334,7 +331,6 @@ function App() {
                         folderId={folderId}
                         accessToken={oauthToken}
                     />
-
                 ) : activeGemId === 'cronograma' ? (
                     <TimelinePanel
                         onClose={() => setActiveGemId(null)}
@@ -362,7 +358,6 @@ function App() {
                             isZenMode={isZenMode}
                             setIsZenMode={setIsZenMode}
                         />
-                        {/* COMMAND BAR (Only visible when Editor is NOT active/focused) */}
                         {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isImageGenOpen && (
                             <CommandBar onExecute={handleCommandExecution} />
                         )}
@@ -370,7 +365,6 @@ function App() {
                 )}
             </main>
 
-            {/* DOCK DE HERRAMIENTAS (DERECHA) - Oculto en Zen Mode */}
             {!isZenMode && (
                 <ArsenalDock
                     activeGemId={activeGemId}
@@ -379,7 +373,6 @@ function App() {
                 />
             )}
 
-            {/* CHAT PANEL (SIDE - Only for Director/Guardian) */}
             {(activeGemId === 'director' || activeGemId === 'guardian') && (
                 <ChatPanel
                     isOpen={isChatOpen}
@@ -389,12 +382,91 @@ function App() {
                     }}
                     activeGemId={activeGemId}
                     initialMessage={pendingMessage}
-                    isFullWidth={false} // 👈 Fixed side panel for assistants
+                    isFullWidth={false}
                 />
             )}
-
         </div>
-      </ProjectConfigProvider>
+    );
+}
+
+function App() {
+    // AUTH LIFTED STATE
+    const [user, setUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [oauthToken, setOauthToken] = useState<string | null>(null);
+    const [driveStatus, setDriveStatus] = useState<'connected' | 'refreshing' | 'error' | 'disconnected'>('disconnected');
+
+    // AUTH LISTENER
+    useEffect(() => {
+        const auth = getAuth();
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
+            setAuthLoading(false);
+
+            // 🟢 INTENTO DE RECUPERAR TOKEN GUARDADO
+            const storedToken = localStorage.getItem('google_drive_token');
+            if (storedToken) {
+                setOauthToken(storedToken);
+                setDriveStatus('connected');
+            } else {
+                setDriveStatus('disconnected');
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    const handleTokenRefresh = async () => {
+        setDriveStatus('refreshing');
+        const auth = getAuth();
+        const provider = new GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/drive.file');
+
+        try {
+            const result = await signInWithPopup(auth, provider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            const token = credential?.accessToken;
+
+            if (token) {
+                setOauthToken(token);
+                localStorage.setItem('google_drive_token', token);
+                setDriveStatus('connected');
+            }
+        } catch (error) {
+            console.error("Error refreshing token:", error);
+            setDriveStatus('error');
+            toast.error("Error al renovar credenciales");
+        }
+    };
+
+    // 🟢 AUTO-REFRESH TOKEN CÍCLICO
+    useEffect(() => {
+        if (!oauthToken) return;
+
+        const FIFTY_MINUTES = 50 * 60 * 1000;
+        console.log("⏰ Iniciando ciclo de auto-refresh (50 min)");
+        const intervalId = setInterval(async () => {
+             console.log("⏰ Ejecutando auto-refresh programado...");
+             await handleTokenRefresh();
+        }, FIFTY_MINUTES);
+
+        return () => clearInterval(intervalId);
+    }, [oauthToken]);
+
+    if (authLoading) return <div className="h-screen w-screen bg-titanium-950" />;
+    if (!user) return <LoginScreen onLoginSuccess={(u, t) => { setUser(u); setOauthToken(t); }} />;
+
+    return (
+        <ProjectConfigProvider>
+            <AppContent
+                user={user}
+                setUser={setUser}
+                setOauthToken={setOauthToken}
+                oauthToken={oauthToken}
+                driveStatus={driveStatus}
+                setDriveStatus={setDriveStatus}
+                handleTokenRefresh={handleTokenRefresh}
+            />
+        </ProjectConfigProvider>
     );
 }
 
