@@ -37,7 +37,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   onClose,
   isFullWidth = false,
   categoryFilter,
-  customGem
+  customGem,
+  folderId
 }) => {
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
   const [input, setInput] = useState('');
