@@ -13,6 +13,9 @@ interface DirectorPanelProps {
     onClose: () => void;
     activeSessionId: string | null;
     onSessionSelect: (sessionId: string | null) => void;
+    pendingMessage?: string | null;
+    onClearPendingMessage?: () => void;
+    activeFileContent?: string;
 }
 
 interface Message {
@@ -22,7 +25,15 @@ interface Message {
     timestamp?: string;
 }
 
-const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSessionId, onSessionSelect }) => {
+const DirectorPanel: React.FC<DirectorPanelProps> = ({
+    isOpen,
+    onClose,
+    activeSessionId,
+    onSessionSelect,
+    pendingMessage,
+    onClearPendingMessage,
+    activeFileContent
+}) => {
     const [sessions, setSessions] = useState<ForgeSession[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -135,11 +146,19 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
         }
     };
 
-    // 5. SEND MESSAGE
-    const handleSendMessage = async () => {
-        if (!inputValue.trim() || isSending) return;
+    // 🟢 6. HANDOFF LISTENER
+    useEffect(() => {
+        if (isOpen && pendingMessage && !isSending) {
+            handleSendMessage(pendingMessage);
+            if (onClearPendingMessage) onClearPendingMessage();
+        }
+    }, [isOpen, pendingMessage]);
 
-        const text = inputValue.trim();
+    // 5. SEND MESSAGE
+    const handleSendMessage = async (overrideText?: string) => {
+        const text = overrideText || inputValue.trim();
+        if (!text || isSending) return;
+
         setInputValue('');
         setIsSending(true);
 
@@ -175,10 +194,18 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
             const aiResponse: any = await chatWithGem({
                 query: text,
                 history: historyContext,
-                systemInstruction: directorGem.systemInstruction
+                systemInstruction: directorGem.systemInstruction,
+                activeFileContent: activeFileContent || "" // 🟢 PASS ACTIVE CONTENT
             });
 
-            const aiText = aiResponse.data.response;
+            let aiText = aiResponse.data.response;
+            const sources = aiResponse.data.sources;
+
+            // 🟢 APPEND SOURCES
+            if (sources && sources.length > 0) {
+                const sourceList = sources.map((s: any) => `* ${s.fileName}`).join('\n');
+                aiText += `\n\n> **Archivos Consultados:**\n${sourceList}`;
+            }
 
             // Update UI & Save
             setMessages(prev => [...prev, { role: 'model', text: aiText }]);
@@ -357,7 +384,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({ isOpen, onClose, activeSe
                                 disabled={isSending}
                             />
                             <button
-                                onClick={handleSendMessage}
+                                onClick={() => handleSendMessage()}
                                 disabled={!inputValue.trim() || isSending}
                                 className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-accent-DEFAULT hover:text-titanium-950 disabled:opacity-50 disabled:hover:bg-titanium-800 disabled:hover:text-titanium-400 transition-all"
                             >

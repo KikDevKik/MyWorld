@@ -736,7 +736,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter } = request.data; // 👈 Added categoryFilter
+    const { query, systemInstruction, history, categoryFilter, activeFileContent } = request.data; // 👈 Added categoryFilter
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -887,9 +887,26 @@ OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
         finalSystemInstruction += "\n\nIMPORTANTE: Responde basándote EXCLUSIVAMENTE en el material de referencia proporcionado. Actúa como un tutor o experto en la materia.";
       }
 
+      // 🟢 INYECCIÓN DE CONTEXTO ACTIVO (PRIORIDAD ALTA)
+      let activeContextSection = "";
+      if (activeFileContent) {
+          activeContextSection = `
+=== 🚨 ACTIVE FILE CONTEXT (HIGHEST PRIORITY) 🚨 ===
+El usuario tiene este archivo abierto en su editor AHORA MISMO.
+Toda la información aquí presente sobreescribe cualquier dato de la base de datos (RAG).
+Si el usuario pide editar, mejorar o analizar, refiérete a ESTE TEXTO.
+-------------------------------------------------------
+${activeFileContent.substring(0, 30000)}
+-------------------------------------------------------
+=======================================================
+          `;
+      }
+
       const promptFinal = `
         ${profileContext}
         ${finalSystemInstruction}
+
+        ${activeContextSection}
 
         --- HISTORIAL DE CONVERSACIÓN (MEMORIA) ---
         ${historyText}
