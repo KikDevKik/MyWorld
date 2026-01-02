@@ -1145,7 +1145,7 @@ export const createForgeSession = onCall(
       });
 
       logger.info(`🔨 Sesión de Forja (${sessionType}) creada: ${sessionId} (${name})`);
-      return { sessionId, name };
+      return { id: sessionId, sessionId, name, type: sessionType, createdAt: now, updatedAt: now };
 
     } catch (error: any) {
       logger.error("Error creando sesión de forja:", error);

@@ -121,7 +121,18 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
 
         try {
             const result = await createForgeSession({ name, type: 'director' });
-            const newSession = result.data as ForgeSession;
+            // 🟢 SAFE MAPPING (For fallback)
+            const data = result.data as any;
+            const newSession: ForgeSession = {
+                id: data.id || data.sessionId, // Check both for compatibility
+                name: data.name,
+                type: data.type || 'director',
+                createdAt: data.createdAt || new Date().toISOString(),
+                updatedAt: data.updatedAt || new Date().toISOString()
+            };
+
+            if (!newSession.id) throw new Error("Backend returned no ID");
+
             setSessions(prev => [newSession, ...prev]);
             onSessionSelect(newSession.id);
             return newSession.id;
@@ -135,6 +146,13 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     // 4. DELETE SESSION
     const handleDeleteSession = async (sessionId: string, e: React.MouseEvent) => {
         e.stopPropagation();
+        if (!sessionId) {
+            toast.error("Error: Sesión inválida.");
+            // Clean up invalid session from UI
+            setSessions(prev => prev.filter(s => s.id !== sessionId));
+            return;
+        }
+
         if (!confirm("¿Borrar historial?")) return;
 
         const functions = getFunctions();
@@ -147,6 +165,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
             toast.success("Eliminado.");
         } catch (error) {
             console.error("Error deleting session:", error);
+            toast.error("Error al borrar.");
         }
     };
 
@@ -172,6 +191,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
             targetSessionId = await handleCreateSession();
             if (!targetSessionId) {
                 setIsSending(false);
+                toast.error("No se pudo crear la sesión.");
                 return;
             }
         }
