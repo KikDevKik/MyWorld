@@ -16,6 +16,7 @@ interface VaultSidebarProps {
     onRefreshTokens: () => void;
     driveStatus: 'connected' | 'refreshing' | 'error' | 'disconnected';
     onOpenManual: () => void; // 👈 New prop
+    isIndexed?: boolean; // 👈 New prop for Index State
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -38,7 +39,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     accessToken,
     onRefreshTokens,
     driveStatus,
-    onOpenManual // 👈 Destructure
+    onOpenManual, // 👈 Destructure
+    isIndexed = false, // 👈 Default to false
 }) => {
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
@@ -84,8 +86,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     {folderId && (
                         <button
                             onClick={onIndexRequest}
-                            className="ml-auto p-1.5 rounded-md hover:bg-titanium-700 text-titanium-400 hover:text-accent-DEFAULT transition-colors shrink-0"
-                            title="Indexar Conocimiento (TDB)"
+                            className={`ml-auto p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
+                            title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
                         >
                             <BrainCircuit size={16} />
                         </button>
