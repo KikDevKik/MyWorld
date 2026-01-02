@@ -46,6 +46,7 @@ interface ProjectConfig {
   chronologyPath: string;
   activeBookContext: string;
   folderId?: string; // 👈 Folder Persistence
+  lastIndexed?: string;
 }
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -67,7 +68,8 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
     canonPaths: ["MI HISTORIA", "TDB Design Character"],
     resourcePaths: ["_RESOURCES"],
     chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
-    activeBookContext: "Just Megu"
+    activeBookContext: "Just Megu",
+    lastIndexed: undefined
   };
 
   if (!doc.exists) {
@@ -690,13 +692,23 @@ export const indexTDB = onCall(
         })
       );
 
+      // 🟢 4. UPDATE PROJECT CONFIG (Global Timestamp)
+      const now = new Date().toISOString();
+      await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+        lastIndexed: now,
+        updatedAt: now
+      }, { merge: true });
+
+      logger.info(`✅ Indexación completada. Timestamp global actualizado: ${now}`);
+
       return {
         success: true,
         filesIndexed: fileList.length,
         totalChunks: totalChunks, // Chunks Created
         chunksCreated: totalChunks, // Explicit alias
         chunksDeleted: totalChunksDeleted, // 👈 New stat
-        message: "¡Indexado completado con éxito!"
+        message: "¡Indexado completado con éxito!",
+        lastIndexed: now
       };
 
     } catch (error: any) {
