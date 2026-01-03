@@ -18,6 +18,7 @@ interface DirectorPanelProps {
     activeFileContent?: string;
     activeFileName?: string;
     folderId?: string; // 👈 Project ID for Isolation
+    isFallbackContext?: boolean; // 👈 Context Fallback
 }
 
 interface Message {
@@ -36,7 +37,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     onClearPendingMessage,
     activeFileContent,
     activeFileName,
-    folderId
+    folderId,
+    isFallbackContext
 }) => {
     const [sessions, setSessions] = useState<ForgeSession[]>([]);
     const [messages, setMessages] = useState<Message[]>([]);
@@ -221,7 +223,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 systemInstruction: directorGem.systemInstruction,
                 activeFileContent: activeFileContent || "", // 🟢 PASS ACTIVE CONTENT
                 activeFileName: activeFileName || "", // 🟢 PASS ACTIVE FILENAME FOR EXCLUSION
-                projectId: folderId || undefined // 👈 STRICT ISOLATION
+                projectId: folderId || undefined, // 👈 STRICT ISOLATION
+                isFallbackContext: isFallbackContext // 👈 Pass Flag
             });
 
             let aiText = aiResponse.data.response;
@@ -230,7 +233,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
             // 🟢 APPEND SOURCES (NUEVO FORMATO HÍBRIDO)
             let citations = [];
             if (activeFileName) {
-                citations.push(`> 🟢 **Editando:** ${activeFileName}`);
+                const label = isFallbackContext ? "**Contexto de Fondo:**" : "**Editando:**";
+                citations.push(`> 🟢 ${label} ${activeFileName}`);
             }
             if (sources && sources.length > 0) {
                 const sourceList = sources.map((s: any) => s.fileName).join(', ');
