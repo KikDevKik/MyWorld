@@ -572,6 +572,7 @@ export const indexTDB = onCall(
     let cleanFolderId = request.data.folderId;
     const projectId = request.data.projectId || cleanFolderId; // 👈 Project ID is Root Folder ID by default
     const accessToken = request.data.accessToken;
+    const forceFullReindex = request.data.forceFullReindex; // 👈 Nuclear Option
 
     if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
       const match = cleanFolderId.match(/folders\/([a-zA-Z0-9-_]+)/);
@@ -595,6 +596,15 @@ export const indexTDB = onCall(
       auth.setCredentials({ access_token: accessToken });
 
       const drive = google.drive({ version: "v3", auth });
+
+      // 🟢 NUCLEAR OPTION: TABULA RASA
+      if (forceFullReindex) {
+        logger.warn(`☢️ NUCLEAR OPTION DETECTED: Wiping memory for user ${userId}`);
+        const userIndexRef = db.collection("TDB_Index").doc(userId);
+        // Delete the entire document and its subcollections (files)
+        await db.recursiveDelete(userIndexRef);
+        logger.info("   ☢️ Memory wiped clean. Starting fresh.");
+      }
 
       // 🟢 RECUPERAR CONFIGURACIÓN DEL USUARIO
       const config = await _getProjectConfigInternal(userId);
