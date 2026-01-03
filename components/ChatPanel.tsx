@@ -79,7 +79,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     try {
       const functions = getFunctions();
       // 🟢 CORRECT FUNCTION CALL
-      const chatWithGem = httpsCallable(functions, 'chatWithGem');
+      const chatWithGem = httpsCallable(functions, 'chatWithGem', { timeout: 540000 }); // 👈 9 minute timeout
 
       const result = await chatWithGem({
         query: text, // 👈 Renamed to query to match backend
