@@ -863,9 +863,9 @@ export const chatWithGem = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 120,
+    timeoutSeconds: 540, // 👈 Increased to 9 minutes
     secrets: [googleApiKey],
-    memory: "512MiB",
+    memory: "2GiB",      // 👈 Increased memory for heavy lifting
   },
   async (request) => {
     initializeFirebase();
@@ -966,9 +966,9 @@ RULES: ${profile.rules || 'Not specified'}
       }
 
       // 4. Ejecutar Búsqueda Vectorial
-      // 🟢 STRATEGY: Fetch MORE (10) and filter LOCALLY to exclude active file
-      // 🟢 AGGRESSIVE MODE: If Fallback Context is used, fetch even more chunks (60)
-      const fetchLimit = isFallbackContext ? 60 : 10;
+      // 🟢 STRATEGY: Fetch MORE (30/80) and filter LOCALLY to exclude active file
+      // 🟢 AGGRESSIVE MODE: If Fallback Context is used, fetch even more chunks (80)
+      const fetchLimit = isFallbackContext ? 80 : 30;
 
       const vectorQuery = chunkQuery.findNearest({
         queryVector: queryVector,
@@ -992,8 +992,8 @@ RULES: ${profile.rules || 'Not specified'}
         relevantChunks = relevantChunks.filter(c => c.fileName !== activeFileName);
       }
 
-      // Take Top 5 after filtering (Or 10 if in aggressive mode)
-      const returnLimit = isFallbackContext ? 10 : 5;
+      // Take Top 15 after filtering (Or 20 if in aggressive mode)
+      const returnLimit = isFallbackContext ? 20 : 15;
       relevantChunks = relevantChunks.slice(0, returnLimit);
 
       // 5. Construir Contexto RAG
@@ -1041,6 +1041,10 @@ OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
 5. SISTEMA DE EXCEPCIONES (OVERRIDE)
    - [WORLD RULES] / [LOGIC EXCEPTION]: Si encuentras estas etiquetas en el texto recuperado, su contenido es VERDAD ABSOLUTA.
    - Obedece estas excepciones incluso si contradicen la física, la historia o las reglas anteriores.
+
+6. JERARQUÍA DE LA VERDAD (REFERENCE PRIORITY)
+   - Prioriza la información encontrada en archivos 'Reference', 'Ficha' o 'Resource' al responder preguntas sobre hechos o lore.
+   - SI EXISTE CONFLICTO entre un 'Borrador' (Draft) y una 'Ficha/Referencia', el archivo de REFERENCIA TIENE LA VERDAD CANÓNICA.
 ===================================================
 `;
 
@@ -1650,6 +1654,7 @@ export const summonTheTribunal = onCall(
     region: "us-central1",
     enforceAppCheck: false,
     timeoutSeconds: 540, // <--- 🟢 AUMENTADO A 9 MINUTOS
+    memory: "2GiB",      // 👈 Increased memory
     secrets: [googleApiKey],
   },
   async (request) => {
