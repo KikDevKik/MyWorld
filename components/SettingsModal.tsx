@@ -14,7 +14,6 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
     const { config, refreshConfig } = useProjectConfig(); // 🟢 Use Context
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
-    const [url, setUrl] = useState('');
     const [profile, setProfile] = useState({
         style: '',
         inspirations: '',
@@ -40,11 +39,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             } catch (error) {
                 console.error('Error loading profile:', error);
             }
-
-            // 2. Sync URL from Context (Legacy Display)
-            if (config && config.folderId && !url) {
-                setUrl(`https://drive.google.com/drive/folders/${config.folderId}`);
-            }
         };
         loadData();
     }, [config]); // 🟢 Re-run when config changes
@@ -53,7 +47,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         setIsLoading(true);
         try {
             // Save Drive URL (existing functionality) - Allow clearing it
-            onSave(url || '');
+            onSave('');
 
             // Save writer profile
             const functions = getFunctions();
@@ -327,24 +321,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Brain size={18} className="text-accent-DEFAULT" />
-                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">Integración Drive</h4>
+                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">Configuración General</h4>
                             </div>
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm text-titanium-300" htmlFor="gdrive-link-input">
-                                    Enlace de carpeta raíz (Google Drive)
-                                </label>
-                                <input
-                                    id="gdrive-link-input"
-                                    value={url}
-                                    onChange={(e) => setUrl(e.target.value)}
-                                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none"
-                                    placeholder="https://drive.google.com/drive/folders/..."
-                                    type="text"
-                                />
-                                <p className="text-xs text-titanium-500">
-                                    Este enlace define qué carpeta leerá la IA. Asegúrate de que la cuenta de servicio tenga acceso.
-                                </p>
-                            </div>
+                            <p className="text-sm text-titanium-400">
+                                La configuración de carpetas se ha movido a la sección "Proyecto".
+                            </p>
                         </div>
                     )}
 
