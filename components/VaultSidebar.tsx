@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle } from 'lucide-react';
 import FileTree from './FileTree';
 import { useProjectConfig } from './ProjectConfigContext';
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 interface VaultSidebarProps {
     folderId: string;
@@ -47,12 +49,52 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
     const { config } = useProjectConfig();
 
-    // HANDLERS
-    const handleFilesLoaded = (files: FileNode[]) => {
-        // Filtramos solo las carpetas del nivel raíz para el dropdown
-        const folders = files.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
-        setTopLevelFolders(folders);
-    };
+    // 🟢 INDEXED TREE STATE
+    const [indexedTree, setIndexedTree] = useState<FileNode[] | null>(null);
+    const [isLoadingTree, setIsLoadingTree] = useState(true);
+
+    // 🟢 FIRESTORE LISTENER
+    useEffect(() => {
+        const auth = getAuth();
+        const user = auth.currentUser;
+
+        if (!user) {
+            setIndexedTree(null);
+            setIsLoadingTree(false);
+            return;
+        }
+
+        const db = getFirestore();
+        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
+
+        console.log("📡 Suscribiéndose a TDB_Index/structure/tree...");
+
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data && data.tree && Array.isArray(data.tree)) {
+                     console.log("🌳 Árbol indexado actualizado:", data.tree.length, "nodos raíz");
+                     setIndexedTree(data.tree);
+                     // Update top level folders for dropdown
+                     const folders = data.tree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
+                     setTopLevelFolders(folders);
+                } else {
+                     setIndexedTree([]);
+                }
+            } else {
+                console.log("⚠️ No se encontró estructura de árbol (¿Nuclear Re-index requerido?)");
+                setIndexedTree([]);
+            }
+            setIsLoadingTree(false);
+        }, (error) => {
+            console.error("Error escuchando árbol indexado:", error);
+            setIndexedTree([]);
+            setIsLoadingTree(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
 
     // 🟢 STATUS INDICATOR HELPER
     const getStatusConfig = () => {
@@ -83,22 +125,20 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </div>
                     <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Manual de Campo</h2>
                     {/* BOTÓN DE INDEXAR */}
-                    {folderId && (
-                        <button
-                            onClick={onIndexRequest}
-                            className={`ml-auto p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
-                            title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
-                        >
-                            <BrainCircuit size={16} />
-                        </button>
-                    )}
+                    <button
+                        onClick={onIndexRequest}
+                        className={`ml-auto p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
+                        title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
+                    >
+                        <BrainCircuit size={16} />
+                    </button>
                 </div>
                 <div className="relative">
                     <select
                         value={selectedSagaId || ''}
                         onChange={(e) => setSelectedSagaId(e.target.value || null)}
                         className="w-full appearance-none bg-titanium-950 hover:bg-titanium-900 text-sm font-medium text-titanium-100 focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT/50 cursor-pointer py-2 px-3 pr-8 rounded-md border border-titanium-700 transition-all"
-                        disabled={!folderId}
+                        disabled={!indexedTree || indexedTree.length === 0}
                     >
                         <option value="" className="bg-titanium-950 text-titanium-100">Vista Global</option>
                         {topLevelFolders.map(folder => (
@@ -116,23 +156,41 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
             {/* FILE TREE */}
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
-                <FileTree
-                    folderId={folderId}
-                    onFileSelect={onFileSelect}
-                    accessToken={accessToken}
-                    rootFilterId={selectedSagaId} // 👈 Pasamos el filtro
-                    onLoad={handleFilesLoaded}    // 👈 Recibimos los archivos
-                />
-
-                {!folderId && (
-                    <div className="mt-10 flex justify-center">
-                        <button
-                            onClick={onOpenConnectModal}
-                            className="text-xs bg-titanium-700 hover:bg-titanium-600 text-white px-4 py-2 rounded-lg transition-colors"
-                        >
-                            Conectar Drive
-                        </button>
+                {isLoadingTree ? (
+                    <div className="flex flex-col items-center justify-center h-40 text-titanium-500 gap-2">
+                        <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-accent-DEFAULT"></div>
+                        <span className="text-xs">Cargando memoria...</span>
                     </div>
+                ) : (
+                    <>
+                         {indexedTree && indexedTree.length > 0 ? (
+                            <FileTree
+                                folderId={folderId} // ⚠️ Ignored if preloadedTree is passed
+                                onFileSelect={onFileSelect}
+                                accessToken={accessToken}
+                                rootFilterId={selectedSagaId}
+                                // onLoad is handled by parent subscription now
+                                preloadedTree={indexedTree} // 👈 PASS THE INDEXED TREE
+                            />
+                         ) : (
+                             <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10">
+                                 <div className="p-3 bg-titanium-700/30 rounded-full">
+                                     <AlertTriangle className="text-yellow-500" size={24} />
+                                 </div>
+                                 <h3 className="text-sm font-bold text-titanium-200">Memoria Vacía</h3>
+                                 <p className="text-xs text-titanium-400 leading-relaxed">
+                                     La IA no tiene archivos indexados.
+                                     Ve a <strong>Preferencias &gt; Memoria</strong> y ejecuta un <span className="text-red-400 font-bold">Nuclear Re-index</span> para construir el mapa.
+                                 </p>
+                                 <button
+                                     onClick={onIndexRequest}
+                                     className="mt-2 text-xs bg-titanium-700 hover:bg-titanium-600 text-white px-4 py-2 rounded-lg transition-colors"
+                                 >
+                                     Ir a Indexar
+                                 </button>
+                             </div>
+                         )}
+                    </>
                 )}
             </div>
 

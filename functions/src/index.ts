@@ -677,6 +677,22 @@ export const indexTDB = onCall(
          throw new HttpsError("invalid-argument", "No se proporcionaron carpetas para indexar.");
       }
 
+      // 🟢 C. SAVE FILE TREE STRUCTURE (SNAPSHOT)
+      // Save the hierarchical tree to Firestore for the UI (Sidebar)
+      // This allows the "Manual de Campo" to work without live Drive access.
+      try {
+        // Ensure the object is clean for Firestore
+        const treePayload = JSON.parse(JSON.stringify(fileTree));
+        await db.collection("TDB_Index").doc(userId).collection("structure").doc("tree").set({
+          tree: treePayload,
+          updatedAt: new Date().toISOString()
+        });
+        logger.info("🌳 Árbol de archivos guardado en TDB_Index/structure/tree");
+      } catch (treeError) {
+        logger.error("⚠️ Error guardando estructura del árbol:", treeError);
+        // Non-critical, continue indexing
+      }
+
       const fileList = flattenFileTree(fileTree);
 
       // D. Configurar Splitter
