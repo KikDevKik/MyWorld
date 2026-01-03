@@ -317,6 +317,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onSave={(url) => {
                         setFolderId(url);
                     }}
+                    accessToken={oauthToken}
+                    onGetFreshToken={handleTokenRefresh}
                 />
             )}
 
@@ -483,7 +485,7 @@ function App() {
         return () => unsubscribe();
     }, []);
 
-    const handleTokenRefresh = async () => {
+    const handleTokenRefresh = async (): Promise<string | null> => {
         setDriveStatus('refreshing');
         const auth = getAuth();
         const provider = new GoogleAuthProvider();
@@ -492,17 +494,19 @@ function App() {
         try {
             const result = await signInWithPopup(auth, provider);
             const credential = GoogleAuthProvider.credentialFromResult(result);
-            const token = credential?.accessToken;
+            const token = credential?.accessToken || null;
 
             if (token) {
                 setOauthToken(token);
                 localStorage.setItem('google_drive_token', token);
                 setDriveStatus('connected');
             }
+            return token;
         } catch (error) {
             console.error("Error refreshing token:", error);
             setDriveStatus('error');
             toast.error("Error al renovar credenciales");
+            return null;
         }
     };
 
