@@ -222,7 +222,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 history: historyContext,
                 systemInstruction: directorGem.systemInstruction,
                 activeFileContent: activeFileContent || "", // 🟢 PASS ACTIVE CONTENT
-                activeFileName: activeFileName || "", // 🟢 PASS ACTIVE FILENAME FOR EXCLUSION
+                activeFileName: "", // 🟢 BLIND DIRECTOR: Force Global Search (No Exclusion)
                 projectId: folderId || undefined, // 👈 STRICT ISOLATION
                 isFallbackContext: isFallbackContext // 👈 Pass Flag
             });
