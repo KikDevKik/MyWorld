@@ -41,8 +41,7 @@ interface WriterProfile {
 }
 
 interface ProjectConfig {
-  canonPaths: string[];
-  resourcePaths: string[];
+  contextRules: { [folderId: string]: 'CANON' | 'REFERENCE' | 'IGNORE' };
   chronologyPath: string;
   activeBookContext: string;
   folderId?: string; // 👈 Folder Persistence
@@ -65,8 +64,7 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
   const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
 
   const defaultConfig: ProjectConfig = {
-    canonPaths: ["MI HISTORIA", "TDB Design Character"],
-    resourcePaths: ["_RESOURCES"],
+    contextRules: {}, // 👈 New Dynamic Rules
     chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
     activeBookContext: "Just Megu",
     lastIndexed: undefined
@@ -190,6 +188,13 @@ async function fetchFolderContents(
 
     // 🔍 FILTRO SELECTIVO: Solo contenido relevante
     const validFiles = files.filter((file: any) => {
+      // 🟢 0. CHECK "IGNORE" RULE FIRST (Scorched Earth)
+      // Si la carpeta tiene regla explícita de IGNORE, ni siquiera la procesamos.
+      if (config.contextRules && config.contextRules[file.id] === 'IGNORE') {
+        logger.info(`[SKIPPED] Folder (IGNORE RULE): ${file.name} (${file.id})`);
+        return false;
+      }
+
       const isFolder = file.mimeType === GOOGLE_FOLDER_MIMETYPE;
 
       // FOLDER FILTERING
@@ -226,28 +231,26 @@ async function fetchFolderContents(
       return true;
     });
 
-    const processedFiles = await Promise.all(
-      validFiles.map(async (file: any): Promise<DriveFile> => {
-
-        // 🟢 DETECCIÓN DE CATEGORÍA
-        // Si ya estamos en 'reference', todo lo de adentro es 'reference'.
-        // Si no, miramos la configuración dinámica.
+    // 🟢 PRE-FILTER MAPPING
+    // Map valid files to promises
+    const processedFilesPromises = validFiles.map(async (file: any): Promise<DriveFile | null> => {
+        // 🟢 DETECCIÓN DE CATEGORÍA (CONTEXT MAPPING)
+        // 1. Inherit from parent by default
         let fileCategory: 'canon' | 'reference' = currentCategory;
 
-        // 1. Check Resource Paths
-        if (config.resourcePaths.some(path => file.name === path) || file.name.startsWith('_RESOURCES')) {
-           fileCategory = 'reference';
-        }
-
-        // 2. Check Canon Paths (Explicit override)
-        if (config.canonPaths.some(path => file.name === path)) {
-           fileCategory = 'canon';
+        // 2. Check for Specific Override Rule
+        if (config.contextRules && config.contextRules[file.id]) {
+            const rule = config.contextRules[file.id];
+            if (rule === 'CANON') fileCategory = 'canon';
+            if (rule === 'REFERENCE') fileCategory = 'reference';
+            // IGNORE is already handled in the filter, but double safety for logic flow
+            if (rule === 'IGNORE') return null;
         }
 
         if (file.mimeType === 'application/vnd.google-apps.folder') {
           let children: DriveFile[] = [];
           if (recursive) {
-            children = await fetchFolderContents(drive, file.id, config, true, fileCategory); // 👈 Propagamos categoría y config
+            children = await fetchFolderContents(drive, file.id, config, true, fileCategory); // 👈 Propagamos categoría actualizada
           }
 
           return {
@@ -259,6 +262,7 @@ async function fetchFolderContents(
             category: fileCategory, // 👈 Guardamos categoría
           };
         } else {
+          // Explicit return for files
           return {
             id: file.id,
             name: file.name,
@@ -267,9 +271,11 @@ async function fetchFolderContents(
             category: fileCategory, // 👈 Guardamos categoría
           };
         }
-      })
-    );
-    return processedFiles;
+    });
+
+    const resolvedFiles = await Promise.all(processedFilesPromises);
+    // Filter out nulls (ignored files) - Enhanced check
+    return resolvedFiles.filter((f): f is DriveFile => f != null);
 
   } catch (error) {
     logger.error(`Error escaneando ${folderId}:`, error);
@@ -400,8 +406,7 @@ export const getProjectConfig = onCall(
 
       // VALORES POR DEFECTO
       const defaultConfig: ProjectConfig = {
-        canonPaths: ["MI HISTORIA", "TDB Design Character"],
-        resourcePaths: ["_RESOURCES"],
+        contextRules: {},
         chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
         activeBookContext: "Just Megu"
       };
@@ -443,8 +448,8 @@ export const saveProjectConfig = onCall(
     const config = request.data as ProjectConfig;
     const userId = request.auth.uid;
 
-    if (!config.canonPaths || !config.resourcePaths) {
-      throw new HttpsError("invalid-argument", "Faltan campos obligatorios en la configuración.");
+    if (!config.contextRules) {
+      throw new HttpsError("invalid-argument", "Faltan campos obligatorios en la configuración (contextRules).");
     }
 
     logger.info(`💾 Guardando configuración del proyecto para usuario: ${userId}`);
@@ -453,7 +458,7 @@ export const saveProjectConfig = onCall(
       await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
         ...config,
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true }); // 👈 Merge to avoid overwriting lastIndexed if passed
 
       logger.info(`✅ Configuración guardada correctamente para ${userId}`);
 
@@ -1925,6 +1930,74 @@ export const compileManuscript = onCall(
     } catch (error: any) {
       logger.error("Error compilando manuscrito:", error);
       throw new HttpsError("internal", "Error generando PDF: " + error.message);
+    }
+  }
+);
+
+/**
+ * DEBUG: GET INDEX STATS (La Lupa del Arquitecto)
+ * Devuelve un resumen del estado actual del índice (qué archivos hay y de qué categoría).
+ */
+export const debugGetIndexStats = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const userId = request.auth.uid;
+
+    try {
+      const filesSnapshot = await db.collection("TDB_Index").doc(userId).collection("files").get();
+
+      let totalFiles = 0;
+      let canonCount = 0;
+      let referenceCount = 0;
+      const fileDetails: any[] = [];
+
+      filesSnapshot.forEach(doc => {
+        const data = doc.data();
+        totalFiles++;
+
+        if (data.category === 'reference') {
+          referenceCount++;
+        } else {
+          canonCount++; // Asumimos canon por defecto
+        }
+
+        fileDetails.push({
+          id: doc.id,
+          name: data.name,
+          category: data.category || 'canon', // Explicit fallback
+          chunkCount: data.chunkCount || 0,
+          lastIndexed: data.lastIndexed
+        });
+      });
+
+      // Sort by category then name for readability
+      fileDetails.sort((a, b) => {
+        if (a.category !== b.category) return a.category.localeCompare(b.category);
+        return a.name.localeCompare(b.name);
+      });
+
+      logger.info(`🔍 Debug Stats: ${totalFiles} files (Canon: ${canonCount}, Ref: ${referenceCount})`);
+
+      return {
+        totalFiles,
+        canonCount,
+        referenceCount,
+        files: fileDetails
+      };
+
+    } catch (error: any) {
+      logger.error("Error obteniendo stats del index:", error);
+      throw new HttpsError("internal", error.message);
     }
   }
 );
