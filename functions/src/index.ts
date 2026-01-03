@@ -884,9 +884,8 @@ export const chatWithGem = onCall(
       ? profileDoc.data() as WriterProfile
       : { style: '', inspirations: '', rules: '' };
 
-    // 🏗️ RECUPERAR CONFIGURACIÓN DEL PROYECTO (PARA EL LIBRO ACTIVO)
-    const projectConfig = await _getProjectConfigInternal(userId);
-    const activeBook = projectConfig.activeBookContext || "Historia General";
+    // 🏗️ RECUPERAR CONFIGURACIÓN DEL PROYECTO
+    await _getProjectConfigInternal(userId); // (Wait for config logic just in case needed later, but removed activeBook)
 
     // Build profile context
     let profileContext = '';
@@ -902,6 +901,19 @@ RULES: ${profile.rules || 'Not specified'}
     }
 
     try {
+      // 🟢 0. DEEP TRACE: CONNECTIVITY CHECK
+      // Verify database access before doing anything complex.
+      const traceColl = db.collectionGroup("chunks");
+      const traceQuery = traceColl.where("userId", "==", userId).limit(1);
+      const traceSnapshot = await traceQuery.get();
+
+      if (!traceSnapshot.empty) {
+        const traceDoc = traceSnapshot.docs[0].data();
+        logger.info(`[DEEP TRACE] Connectivity Check: ✅ SUCCESS. Found chunk from file: "${traceDoc.fileName}" (ID: ${traceSnapshot.docs[0].id})`);
+      } else {
+        logger.warn(`[DEEP TRACE] Connectivity Check: ⚠️ FAILED/EMPTY. No chunks found for user ${userId}. Index might be empty.`);
+      }
+
       // 1. Preparar Búsqueda Contextual
       // Si hay historial, lo usamos para mejorar la búsqueda (ej: "¿Quién es él?" -> "¿Quién es Manuel?")
       let searchQuery = query;
@@ -1045,7 +1057,6 @@ RULES: ${profile.rules || 'Not specified'}
 OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
 
 1. PUNTO DE ANCLAJE TEMPORAL (EL AHORA)
-   - LIBRO ACTIVO: "${activeBook}"
    - AÑO BASE (DEFAULT): 486 (Era del Nuevo Horizonte).
    - INSTRUCCIÓN DE SOBREESCRITURA: Si encuentras un encabezado \`[TIMELINE CONTEXT: Año X]\` en los archivos recuperados o en el texto del usuario, ese año tiene prioridad sobre el año base.
 
