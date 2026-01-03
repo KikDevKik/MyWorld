@@ -11,11 +11,12 @@ interface FileNode {
 }
 
 interface FileTreeProps {
-    folderId: string;
+    folderId?: string; // Made optional
     onFileSelect: (id: string, content: string, name?: string) => void;
     accessToken: string | null;
     rootFilterId?: string | null; // 👈 NUEVO: Filtro de Saga
     onLoad?: (files: FileNode[]) => void; // 👈 NUEVO: Callback para el Sidebar
+    preloadedTree?: FileNode[]; // 👈 NUEVO: Árbol estático
 }
 
 // --- HELPER PARA EXTRAER DATOS DE FORMA SEGURA ---
@@ -33,11 +34,20 @@ const FileTreeNode: React.FC<{
     depth: number;
     onFileSelect: (id: string, content: string, name?: string) => void;
     accessToken: string | null;
-}> = ({ node, depth, onFileSelect, accessToken }) => {
+    isPreloaded?: boolean;
+}> = ({ node, depth, onFileSelect, accessToken, isPreloaded }) => {
     const [isOpen, setIsOpen] = useState(false);
-    const [children, setChildren] = useState<FileNode[]>([]);
+    const [children, setChildren] = useState<FileNode[]>(node.children || []);
     const [isLoading, setIsLoading] = useState(false);
-    const [isLoaded, setIsLoaded] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(!!node.children);
+
+    // Update children if node prop changes (essential for preloaded updates)
+    useEffect(() => {
+        if (node.children) {
+            setChildren(node.children);
+            setIsLoaded(true);
+        }
+    }, [node.children]);
 
     // Detectar carpetas de forma segura
     const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
@@ -53,6 +63,11 @@ const FileTreeNode: React.FC<{
 
         // Si es carpeta, abrimos y cargamos hijos si no están cargados
         if (!isLoaded && !isOpen) {
+            // If preloaded mode, do NOT fetch. Children should already be there.
+            if (isPreloaded) {
+                return;
+            }
+
             setIsLoading(true);
             try {
                 const functions = getFunctions();
@@ -123,6 +138,7 @@ const FileTreeNode: React.FC<{
                             depth={depth + 1}
                             onFileSelect={onFileSelect}
                             accessToken={accessToken}
+                            isPreloaded={isPreloaded}
                         />
                     ))}
                     {children.length === 0 && !isLoading && (
@@ -130,7 +146,7 @@ const FileTreeNode: React.FC<{
                             className="text-[10px] text-titanium-600 py-1 italic"
                             style={{ paddingLeft: `${(depth + 1) * 12 + 24}px` }}
                         >
-                            Vacío
+                            {isPreloaded ? 'Vacío (en memoria)' : 'Vacío'}
                         </div>
                     )}
                 </div>
@@ -139,11 +155,19 @@ const FileTreeNode: React.FC<{
     );
 };
 
-const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad }) => {
+const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree }) => {
     const [rootFiles, setRootFiles] = useState<FileNode[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
+        // 1. PRELOADED MODE (Snapshot from DB)
+        if (preloadedTree) {
+            setRootFiles(preloadedTree);
+            if (onLoad) onLoad(preloadedTree);
+            return;
+        }
+
+        // 2. LEGACY DRIVE MODE (Fetching from API)
         const loadRoot = async () => {
             if (!folderId || !accessToken) return; // 🛡️ Si no hay token, no intentamos
             setIsLoading(true);
@@ -166,7 +190,7 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
         };
 
         loadRoot();
-    }, [folderId, accessToken]); // ⚠️ NO añadir onLoad a deps para evitar bucles
+    }, [folderId, accessToken, preloadedTree]); // ⚠️ NO añadir onLoad a deps para evitar bucles
 
     // 🔍 FILTRADO DE SAGA
     const displayedFiles = rootFilterId
@@ -192,6 +216,7 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
                     depth={0}
                     onFileSelect={onFileSelect}
                     accessToken={accessToken}
+                    isPreloaded={!!preloadedTree} // Pass flag down
                 />
             ))}
         </div>
