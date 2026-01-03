@@ -15,7 +15,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
     const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>([]);
     const [chronologyPath, setChronologyPath] = useState<ProjectPath | null>(null);
-    const [activeBookContext, setActiveBookContext] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
     // Google Drive Picker Hook
@@ -27,7 +26,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             setCanonPaths(config.canonPaths || []);
             setResourcePaths(config.resourcePaths || []);
             setChronologyPath(config.chronologyPath || null);
-            setActiveBookContext(config.activeBookContext || '');
         }
     }, [config]);
 
@@ -37,8 +35,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             await updateConfig({
                 canonPaths,
                 resourcePaths,
-                chronologyPath,
-                activeBookContext
+                chronologyPath
             });
             onClose();
         } catch (error) {
@@ -218,23 +215,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-titanium-700 scrollbar-track-transparent">
-
-                    {/* Active Book Context */}
-                    <div className="mb-8">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                            <Book size={14} /> Libro Activo
-                        </label>
-                        <input
-                            type="text"
-                            value={activeBookContext}
-                            onChange={(e) => setActiveBookContext(e.target.value)}
-                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT"
-                            placeholder="Ej: Just Megu"
-                        />
-                        <p className="text-xs text-titanium-500 mt-2">
-                            El contexto principal donde sucede la acción actual.
-                        </p>
-                    </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         {/* Canon Paths */}
