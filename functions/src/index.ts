@@ -519,13 +519,22 @@ export const checkIndexStatus = onCall(
     const userId = request.auth.uid;
 
     try {
+      // 1. Check if ANY file exists (Boolean status)
       const snapshot = await db.collection("TDB_Index").doc(userId).collection("files").limit(1).get();
-
       const isIndexed = !snapshot.empty;
+
+      // 2. Get Global Timestamp from Project Config (Source of Truth)
       let lastIndexedAt = null;
 
-      if (isIndexed) {
-        lastIndexedAt = snapshot.docs[0].data().lastIndexed || null;
+      // Try to get from config first
+      const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+      if (configDoc.exists) {
+        lastIndexedAt = configDoc.data()?.lastIndexed || null;
+      }
+
+      // Fallback: If config has no date but files exist, use the old method (unlikely but safe)
+      if (!lastIndexedAt && isIndexed) {
+         lastIndexedAt = snapshot.docs[0].data().lastIndexed || null;
       }
 
       return { isIndexed, lastIndexedAt };
@@ -596,6 +605,36 @@ export const indexTDB = onCall(
         chunkSize: 1000,
         chunkOverlap: 200,
       });
+
+      // 🟢 GHOST FILE PRUNING (Limpieza de Archivos Fantasma)
+      logger.info("👻 Iniciando protocolo de detección de fantasmas...");
+      const filesCollectionRef = db.collection("TDB_Index").doc(userId).collection("files");
+
+      // 1. Get all DB File IDs
+      const dbFilesSnapshot = await filesCollectionRef.select().get(); // Only get IDs
+      const dbFileIds = new Set(dbFilesSnapshot.docs.map(doc => doc.id));
+
+      // 2. Get all Drive File IDs
+      const driveFileIds = new Set(fileList.map(f => f.id));
+
+      // 3. Find Ghosts (In DB but not in Drive)
+      const ghostFileIds = [...dbFileIds].filter(id => !driveFileIds.has(id));
+      let ghostFilesPruned = 0;
+
+      if (ghostFileIds.length > 0) {
+        logger.info(`👻 Detectados ${ghostFileIds.length} archivos fantasma. Eliminando...`);
+
+        // Execute recursive delete for each ghost
+        // Note: sequential to avoid overwhelming resources, or small batches.
+        for (const ghostId of ghostFileIds) {
+           const ghostRef = filesCollectionRef.doc(ghostId);
+           await db.recursiveDelete(ghostRef);
+           ghostFilesPruned++;
+           logger.info(`   💀 Fantasma exorcizado: ${ghostId}`);
+        }
+      } else {
+        logger.info("👻 No se detectaron archivos fantasma. La memoria está limpia.");
+      }
 
       let totalChunks = 0;
       let totalChunksDeleted = 0; // 👈 Track deletions
@@ -709,7 +748,8 @@ export const indexTDB = onCall(
         totalChunks: totalChunks, // Chunks Created
         chunksCreated: totalChunks, // Explicit alias
         chunksDeleted: totalChunksDeleted, // 👈 New stat
-        message: "¡Indexado completado con éxito!",
+        ghostFilesPruned: ghostFilesPruned, // 👈 New stat
+        message: `¡Indexado completado! (Fantasmas eliminados: ${ghostFilesPruned})`,
         lastIndexed: now
       };
 
