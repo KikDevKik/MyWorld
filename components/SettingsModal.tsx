@@ -221,14 +221,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
             toast.info('Iniciando Purga y Re-indexación Nuclear...');
 
-            await indexTDB({
+            const result = await indexTDB({
                 folderIds: folderIds, // 👈 New: Pass array of IDs
                 projectId: config.folderId, // 👈 Important: Pass legacy ID as Project Context
                 forceFullReindex: true,
                 accessToken: token
             });
 
-            toast.success('¡Memoria reconstruida exitosamente! El sistema está limpio.');
+            console.log("☢️ Nuclear Re-index Result:", result.data);
+
+            const stats = result.data as any;
+            toast.success(`¡Memoria reconstruida! Archivos: ${stats.filesIndexed || 0}, Chunks: ${stats.chunksCreated || 0}, Fantasmas eliminados: ${stats.ghostFilesPruned || 0}`);
         } catch (error: any) {
             console.error('Nuclear reindex failed:', error);
             toast.error(`Error crítico: ${error.message}`);
