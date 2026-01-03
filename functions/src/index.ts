@@ -873,7 +873,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, projectId, isFallbackContext } = request.data; // 👈 Added projectId, isFallbackContext
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext } = request.data; // 👈 Removed projectId
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -948,26 +948,14 @@ RULES: ${profile.rules || 'Not specified'}
       // Construir Query Base (Filter by User & Category)
       let chunkQuery = coll.where("userId", "==", userId);
 
-      // 🟢 STRICT PROJECT ISOLATION
-      if (projectId) {
-         logger.info(`🔍 Filtrando por PROYECTO: ${projectId}`);
-         chunkQuery = chunkQuery.where("projectId", "==", projectId);
-      }
-
-      if (categoryFilter === 'reference') {
-        logger.info("🔍 Filtrando por REFERENCIA");
-        chunkQuery = chunkQuery.where("category", "==", "reference");
-      } else if (categoryFilter === 'canon') {
-        logger.info("🔍 Filtrando por CANON");
-        // Nota: En Vector Search las desigualdades (!=) tienen limitaciones.
-        // Asumimos que lo que no es reference es canon.
-        // Si hay mas categorias, esto podria necesitar ajuste.
-        chunkQuery = chunkQuery.where("category", "==", "canon");
-      }
+      // 🟢 GOD MODE ACTIVATED: NO FILTERS (Project/Category Removed)
+      // We want Global Knowledge. All vectors for this user are fair game.
 
       // 4. Ejecutar Búsqueda Vectorial
       // 🟢 STRATEGY: Fetch WIDE (50/100) and filter for Diversity
       const fetchLimit = isFallbackContext ? 100 : 50;
+
+      console.log('🔍 Vector Search Request for User:', userId);
 
       const vectorQuery = chunkQuery.findNearest({
         queryVector: queryVector,
@@ -977,6 +965,18 @@ RULES: ${profile.rules || 'Not specified'}
       });
 
       const vectorSnapshot = await vectorQuery.get();
+
+      // Log the actual query result count
+      console.log('🔢 Vectors Found (Raw):', vectorSnapshot.docs.length);
+      if (vectorSnapshot.docs.length > 0) {
+          // Note: Firestore Vector Search doesn't easily expose 'score' in the snapshot data directly
+          // without using specific client SDK features, but the order IS by relevance.
+          // We will log the first match's filename to confirm relevance.
+          const firstMatch = vectorSnapshot.docs[0].data();
+          console.log('📜 First Match:', firstMatch.fileName);
+      } else {
+          console.log('⚠️ NO VECTORS FOUND. Check Index or UserID match.');
+      }
 
       let candidates: Chunk[] = vectorSnapshot.docs.map(doc => ({
         text: doc.data().text,
