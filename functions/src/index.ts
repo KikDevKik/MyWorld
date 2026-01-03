@@ -778,7 +778,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, projectId } = request.data; // 👈 Added projectId
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, projectId, isFallbackContext } = request.data; // 👈 Added projectId, isFallbackContext
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -872,9 +872,12 @@ RULES: ${profile.rules || 'Not specified'}
 
       // 4. Ejecutar Búsqueda Vectorial
       // 🟢 STRATEGY: Fetch MORE (10) and filter LOCALLY to exclude active file
+      // 🟢 AGGRESSIVE MODE: If Fallback Context is used, fetch even more chunks (60)
+      const fetchLimit = isFallbackContext ? 60 : 10;
+
       const vectorQuery = chunkQuery.findNearest({
         queryVector: queryVector,
-        limit: 10, // 🟢 Increased limit for post-filtering
+        limit: fetchLimit, // 🟢 Increased limit for post-filtering
         distanceMeasure: 'COSINE',
         vectorField: 'embedding'
       });
@@ -894,8 +897,9 @@ RULES: ${profile.rules || 'Not specified'}
         relevantChunks = relevantChunks.filter(c => c.fileName !== activeFileName);
       }
 
-      // Take Top 5 after filtering
-      relevantChunks = relevantChunks.slice(0, 5);
+      // Take Top 5 after filtering (Or 10 if in aggressive mode)
+      const returnLimit = isFallbackContext ? 10 : 5;
+      relevantChunks = relevantChunks.slice(0, returnLimit);
 
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
@@ -958,9 +962,17 @@ OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
       // 🟢 INYECCIÓN DE CONTEXTO ACTIVO (PRIORIDAD ALTA)
       let activeContextSection = "";
       if (activeFileContent) {
+          const header = isFallbackContext
+            ? "[CONTEXTO DE FONDO - ÚLTIMO ARCHIVO EDITADO]"
+            : "[CONTEXTO INMEDIATO - ESCENA ACTUAL]";
+
+          const note = isFallbackContext
+            ? "(El usuario no tiene archivos abiertos. Este es el último archivo que editó. Úsalo como contexto principal pero no asumas que lo está viendo ahora.)"
+            : "(Lo que el usuario ve ahora en su editor. Úsalo para mantener continuidad inmediata)";
+
           activeContextSection = `
-[CONTEXTO INMEDIATO - ESCENA ACTUAL]:
-(Lo que el usuario ve ahora en su editor. Úsalo para mantener continuidad inmediata)
+${header}:
+${note}
 ${activeFileContent}
           `;
       }

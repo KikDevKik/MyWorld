@@ -32,6 +32,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [selectedFileContent, setSelectedFileContent] = useState<string>("");
     const [currentFileId, setCurrentFileId] = useState<string | null>(null);
     const [currentFileName, setCurrentFileName] = useState<string>('');
+
+    // 🟢 COLD START FALLBACK STATE
+    const [lastActiveFileContent, setLastActiveFileContent] = useState<string>("");
+    const [lastActiveFileId, setLastActiveFileId] = useState<string | null>(null);
+    const [lastActiveFileName, setLastActiveFileName] = useState<string>("");
+
     const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isDirectorOpen, setIsDirectorOpen] = useState(false); // 👈 NEW STATE
@@ -42,6 +48,19 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const handleContentChange = (newContent: string) => {
         setSelectedFileContent(newContent);
     };
+
+    // 🟢 PERSIST LAST ACTIVE CONTEXT
+    useEffect(() => {
+        if (currentFileId && selectedFileContent && currentFileName) {
+            setLastActiveFileContent(selectedFileContent);
+            setLastActiveFileId(currentFileId);
+            setLastActiveFileName(currentFileName);
+
+            localStorage.setItem('lastActiveFileContent', selectedFileContent);
+            localStorage.setItem('lastActiveFileId', currentFileId);
+            localStorage.setItem('lastActiveFileName', currentFileName);
+        }
+    }, [currentFileId, selectedFileContent, currentFileName]);
 
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
@@ -68,6 +87,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
 
             if (configLoading) return; // Wait for config context to be ready
+
+            // Restore Last Active Context
+            const storedContent = localStorage.getItem('lastActiveFileContent');
+            const storedId = localStorage.getItem('lastActiveFileId');
+            const storedName = localStorage.getItem('lastActiveFileName');
+            if (storedContent) setLastActiveFileContent(storedContent);
+            if (storedId) setLastActiveFileId(storedId);
+            if (storedName) setLastActiveFileName(storedName);
 
             console.log("🚀 INICIANDO HYDRATION DEL PROYECTO...");
             const functions = getFunctions();
@@ -251,6 +278,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         );
     }
 
+    // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
+    const effectiveFileContent = selectedFileContent || lastActiveFileContent;
+    const effectiveFileName = currentFileName || lastActiveFileName;
+    const isFallbackContext = !selectedFileContent && !!lastActiveFileContent;
+
     return (
         <div className="flex h-screen w-screen bg-titanium-900 text-titanium-200 font-sans overflow-hidden">
             <Toaster
@@ -332,6 +364,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         activeGemId={activeGemId}
                         isFullWidth={true}
                         folderId={folderId}
+                        activeFileContent={effectiveFileContent} // 👈 Pass Context
+                        activeFileName={effectiveFileName}     // 👈 Pass Context
+                        isFallbackContext={isFallbackContext}  // 👈 Pass Flag
                     />
                 ) : activeGemId === 'tribunal' ? (
                     <TribunalPanel
@@ -396,8 +431,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onSessionSelect={setActiveDirectorSessionId}
                 pendingMessage={directorPendingMessage}
                 onClearPendingMessage={() => setDirectorPendingMessage(null)}
-                activeFileContent={selectedFileContent}
-                activeFileName={currentFileName}
+                activeFileContent={effectiveFileContent} // 👈 Pass Effective Context
+                activeFileName={effectiveFileName}     // 👈 Pass Effective Name
+                isFallbackContext={isFallbackContext}  // 👈 Pass Flag
                 folderId={folderId} // 👈 PASS PROJECT ID
             />
 
@@ -412,6 +448,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     initialMessage={pendingMessage}
                     isFullWidth={false}
                     folderId={folderId} // 👈 PASS PROJECT ID
+                    activeFileContent={effectiveFileContent} // 👈 Pass Context
+                    activeFileName={effectiveFileName}     // 👈 Pass Context
+                    isFallbackContext={isFallbackContext}  // 👈 Pass Flag
                 />
             )}
         </div>
