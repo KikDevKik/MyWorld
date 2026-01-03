@@ -18,6 +18,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         inspirations: '',
         rules: ''
     });
+    const [projectConfig, setProjectConfig] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [isAuditing, setIsAuditing] = useState(false);
     const [isReindexing, setIsReindexing] = useState(false);
@@ -43,6 +44,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 const getProjectConfig = httpsCallable(functions, 'getProjectConfig');
                 const result = await getProjectConfig();
                 const config = result.data as any;
+                setProjectConfig(config);
 
                 // UX: Auto-populate URL if we have a folder ID
                 if (config && config.folderId && !url) {
