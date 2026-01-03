@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { useProjectConfig } from './ProjectConfigContext';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -11,6 +12,7 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
+    const { config, refreshConfig } = useProjectConfig(); // 🟢 Use Context
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
     const [url, setUrl] = useState('');
     const [profile, setProfile] = useState({
@@ -38,30 +40,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 console.error('Error loading profile:', error);
             }
 
-            // 2. Load Project Config (to get Drive URL/ID)
-            try {
-                const getProjectConfig = httpsCallable(functions, 'getProjectConfig');
-                const result = await getProjectConfig();
-                const config = result.data as any;
-
-                // UX: Auto-populate URL if we have a folder ID
-                if (config && config.folderId && !url) {
-                   setUrl(`https://drive.google.com/drive/folders/${config.folderId}`);
-                }
-            } catch (error) {
-                console.error('Error loading project config:', error);
+            // 2. Sync URL from Context (Legacy Display)
+            if (config && config.folderId && !url) {
+                setUrl(`https://drive.google.com/drive/folders/${config.folderId}`);
             }
         };
         loadData();
-    }, []);
+    }, [config]); // 🟢 Re-run when config changes
 
     const handleSave = async () => {
         setIsLoading(true);
         try {
-            // Save Drive URL (existing functionality)
-            if (url) {
-                onSave(url);
-            }
+            // Save Drive URL (existing functionality) - Allow clearing it
+            onSave(url || '');
 
             // Save writer profile
             const functions = getFunctions();
@@ -79,13 +70,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     };
 
     // --- AUDIT LOGIC ---
+    // Note: getFolderIdFromUrl is deprecated for these actions but kept for fallback or legacy input
     const getFolderIdFromUrl = (inputUrl: string) => {
         if (!inputUrl) return null;
         if (inputUrl.includes("drive.google.com")) {
             const match = inputUrl.match(/folders\/([a-zA-Z0-9-_]+)/);
             if (match && match[1]) return match[1];
         }
-        // Assume it might be an ID if no URL pattern
         return inputUrl.length > 20 ? inputUrl : null;
     };
 
@@ -103,33 +94,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     };
 
     const handleAudit = async () => {
-        const folderId = getFolderIdFromUrl(url);
-        if (!folderId) {
-            toast.error('Por favor introduce una URL de Drive válida en la pestaña General.');
-            setActiveTab('general');
+        // 🟢 NEW LOGIC: Use Project Config Source of Truth
+        if (!config) {
+            toast.error("Cargando configuración... intenta de nuevo en unos segundos.");
             return;
         }
 
+        const allPaths = [...config.canonPaths, ...config.resourcePaths];
+        if (allPaths.length === 0) {
+             toast.error("No hay carpetas configuradas. Ve a la pestaña Proyecto y añade carpetas.");
+             return;
+        }
+
+        // Construct IDs from config
+        const folderIds = allPaths.map(p => p.id);
+
         setIsAuditing(true);
         console.clear();
-        console.log(`%c🚀 INICIANDO AUDITORÍA DE RUTAS (DRY RUN)...`, 'color: yellow; font-size: 14px; font-weight: bold;');
+        console.log(`%c🚀 INICIANDO AUDITORÍA DE RUTAS (DRY RUN) [MULTI-ROOT]...`, 'color: yellow; font-size: 14px; font-weight: bold;');
+        console.log("Targets:", folderIds);
 
         try {
             let token = accessToken;
 
-            // 🟢 RE-AUTH LOGIC: Ensure fresh token for critical ops
+            // 🟢 RE-AUTH LOGIC
             if (onGetFreshToken) {
                 try {
-                    // Always try to get a fresh token if the prop is available,
-                    // as 'Audit' is a manual admin action where we want 100% success rate.
                     console.log("🔄 Renovando credenciales de Drive...");
                     const freshToken = await onGetFreshToken();
-                    if (freshToken) {
-                         token = freshToken;
-                         console.log("✅ Credenciales renovadas.");
-                    } else {
-                         throw new Error("No se pudo renovar el acceso a Drive.");
-                    }
+                    if (freshToken) token = freshToken;
+                    else throw new Error("No se pudo renovar el acceso a Drive.");
                 } catch (authErr) {
                     console.error("Auth Refresh Failed:", authErr);
                     toast.error("No se pudo renovar el acceso. Por favor re-autentica.");
@@ -150,9 +144,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             toast.info('Escaneando estructura de carpetas (puede tardar)...');
 
             const result = await getDriveFiles({
-                folderId: folderId,
-                recursive: true, // 👈 Critical for deep nesting check
-                accessToken: token // 👈 Pass FRESH token
+                folderIds: folderIds, // 👈 New: Pass array of IDs
+                recursive: true,
+                accessToken: token
             });
 
             const fileTree = result.data as any[];
@@ -173,11 +167,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
     // --- FORCE REINDEX LOGIC ---
     const handleForceReindex = async () => {
-        const folderId = getFolderIdFromUrl(url);
-        if (!folderId) {
-            toast.error('Falta la URL de Drive (Pestaña General).');
+        // 🟢 NEW LOGIC: Use Project Config Source of Truth
+        if (!config) {
+            toast.error("Cargando configuración...");
             return;
         }
+
+        const allPaths = [...config.canonPaths, ...config.resourcePaths];
+        if (allPaths.length === 0) {
+             toast.error("No hay carpetas configuradas para indexar.");
+             return;
+        }
+
+        const folderIds = allPaths.map(p => p.id);
 
         const confirm = window.confirm(
             "⚠️ ¡PELIGRO NUCLEAR! ⚠️\n\n" +
@@ -197,11 +199,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 try {
                     console.log("🔄 Renovando credenciales de Drive (Nuclear)...");
                     const freshToken = await onGetFreshToken();
-                    if (freshToken) {
-                         token = freshToken;
-                    } else {
-                         throw new Error("No se pudo renovar el acceso a Drive.");
-                    }
+                    if (freshToken) token = freshToken;
+                    else throw new Error("No se pudo renovar el acceso a Drive.");
                 } catch (authErr) {
                     console.error("Auth Refresh Failed:", authErr);
                     toast.error("No se pudo renovar el acceso. Operación cancelada.");
@@ -222,9 +221,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             toast.info('Iniciando Purga y Re-indexación Nuclear...');
 
             await indexTDB({
-                folderId: folderId,
-                forceFullReindex: true, // 👈 The Nuclear Button
-                accessToken: token // 👈 Pass FRESH token
+                folderIds: folderIds, // 👈 New: Pass array of IDs
+                projectId: config.folderId, // 👈 Important: Pass legacy ID as Project Context
+                forceFullReindex: true,
+                accessToken: token
             });
 
             toast.success('¡Memoria reconstruida exitosamente! El sistema está limpio.');

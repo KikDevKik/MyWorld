@@ -323,26 +323,14 @@ export const getDriveFiles = onCall(
   async (request) => {
     initializeFirebase();
 
-    const { folderId, accessToken } = request.data; // <--- 🟢 RECIBIR TOKEN
-
-    // 1. Limpieza de ID (Anti-Error 404)
-    let cleanFolderId = folderId;
-    if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
-      const match = cleanFolderId.match(/folders\/([a-zA-Z0-9-_]+)/);
-      if (match && match[1]) {
-        logger.info(`🧹 URL detectada. ID extraído: ${match[1]}`);
-        cleanFolderId = match[1];
-      }
-    }
-
-    logger.info(`🚀 Iniciando escaneo para ID: ${cleanFolderId}`);
+    const { folderId, folderIds, accessToken } = request.data; // <--- 🟢 RECIBIR TOKEN y folderIds
 
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    if (!cleanFolderId) {
-      throw new HttpsError("invalid-argument", "Falta el ID de la carpeta.");
+    if (!folderId && (!folderIds || folderIds.length === 0)) {
+      throw new HttpsError("invalid-argument", "Falta el ID de la carpeta (folderId o folderIds).");
     }
 
     if (!accessToken) {
@@ -359,32 +347,67 @@ export const getDriveFiles = onCall(
 
       const drive = google.drive({ version: "v3", auth });
 
-      // 📡 PING PROBE: Check access before listing
-      try {
-        await drive.files.get({
-          fileId: cleanFolderId,
-          fields: 'name'
-        });
-        logger.info(`✅ ACCESS CONFIRMED for folder: ${cleanFolderId}`);
-      } catch (pingError: any) {
-        logger.error(`⛔ ACCESS DENIED to folder ${cleanFolderId}:`, pingError);
-        throw new HttpsError(
-          'permission-denied',
-          `ACCESS DENIED. The user cannot access folder [${cleanFolderId}]. Ensure you have permission.`
-        );
-      }
-
       // 🟢 CAMBIO CRÍTICO: recursive param
-      // Permitimos que el cliente decida si quiere recursividad (ej: LaboratoryPanel) o no (ej: Sidebar)
       const recursive = request.data.recursive || false;
-      const fileTree = await fetchFolderContents(drive, cleanFolderId, config, recursive);
+
+      let fileTree: DriveFile[] = [];
+
+      // 🟢 MULTI-ROOT SUPPORT (New Logic)
+      if (folderIds && Array.isArray(folderIds) && folderIds.length > 0) {
+         logger.info(`🚀 Iniciando escaneo MULTI-ROOT para ${folderIds.length} carpetas.`);
+
+         for (const fid of folderIds) {
+             let cleanId = fid;
+             // Basic cleaning just in case
+             if (cleanId.includes("drive.google.com")) {
+                 const match = cleanId.match(/folders\/([a-zA-Z0-9-_]+)/);
+                 if (match && match[1]) cleanId = match[1];
+             }
+
+             // Determine initial category for this root
+             let category: 'canon' | 'reference' = 'canon';
+             if (config.resourcePaths && config.resourcePaths.some(p => p.id === cleanId)) {
+                 category = 'reference';
+             }
+
+             // Fetch contents for this root
+             try {
+                // Ping check optional here to save time, fetchFolderContents handles errors gracefully
+                const tree = await fetchFolderContents(drive, cleanId, config, recursive, category);
+                fileTree = [...fileTree, ...tree];
+             } catch (err) {
+                 logger.error(`⚠️ Error escaneando root ${cleanId}:`, err);
+                 // Continue with others
+             }
+         }
+
+      } else {
+         // 🟢 LEGACY SINGLE ROOT LOGIC
+         let cleanFolderId = folderId;
+         if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
+           const match = cleanFolderId.match(/folders\/([a-zA-Z0-9-_]+)/);
+           if (match && match[1]) {
+             logger.info(`🧹 URL detectada. ID extraído: ${match[1]}`);
+             cleanFolderId = match[1];
+           }
+         }
+
+         logger.info(`🚀 Iniciando escaneo SINGLE-ROOT para ID: ${cleanFolderId}`);
+
+         // 📡 PING PROBE
+         try {
+           await drive.files.get({ fileId: cleanFolderId, fields: 'name' });
+         } catch (pingError: any) {
+           logger.error(`⛔ ACCESS DENIED to folder ${cleanFolderId}:`, pingError);
+           throw new HttpsError('permission-denied', `ACCESS DENIED to [${cleanFolderId}].`);
+         }
+
+         fileTree = await fetchFolderContents(drive, cleanFolderId, config, recursive);
+      }
 
       return fileTree;
     } catch (error: any) {
       logger.error("Error en getDriveFiles:", error);
-      if (error.code === 404) {
-        throw new HttpsError("not-found", "Carpeta no encontrada. Verifica permisos del Robot.");
-      }
       throw new HttpsError("internal", error.message);
     }
   }
@@ -577,16 +600,20 @@ export const indexTDB = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    // Limpieza de ID también aquí por si acaso
-    let cleanFolderId = request.data.folderId;
-    const projectId = request.data.projectId || cleanFolderId; // 👈 Project ID is Root Folder ID by default
-    const accessToken = request.data.accessToken;
-    const forceFullReindex = request.data.forceFullReindex; // 👈 Nuclear Option
+    const { folderId, folderIds, accessToken, forceFullReindex } = request.data;
 
+    // 🟢 Project ID Strategy
+    // If folderId (legacy) is present, use it as default projectId.
+    // If only folderIds, rely on explicit projectId passed by client.
+    let cleanFolderId = folderId;
     if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
       const match = cleanFolderId.match(/folders\/([a-zA-Z0-9-_]+)/);
       if (match && match[1]) cleanFolderId = match[1];
     }
+
+    // Default projectId to cleanFolderId if available, otherwise it MUST be passed or we might have issues identifying the project scope.
+    // Ideally, for multi-root, the client passes projectId (from config.folderId).
+    const projectId = request.data.projectId || cleanFolderId;
 
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
@@ -618,9 +645,37 @@ export const indexTDB = onCall(
       // 🟢 RECUPERAR CONFIGURACIÓN DEL USUARIO
       const config = await _getProjectConfigInternal(userId);
 
-      // 🟢 CAMBIO CRÍTICO: recursive = true
-      // Para indexar necesitamos bajar hasta el infierno.
-      const fileTree = await fetchFolderContents(drive, cleanFolderId, config, true);
+      let fileTree: DriveFile[] = [];
+
+      // 🟢 MULTI-ROOT SCANNING
+      if (folderIds && Array.isArray(folderIds) && folderIds.length > 0) {
+         logger.info(`🚀 Indexando MULTI-ROOT (${folderIds.length} carpetas)...`);
+         for (const fid of folderIds) {
+             let cleanId = fid;
+             if (cleanId.includes("drive.google.com")) {
+                 const match = cleanId.match(/folders\/([a-zA-Z0-9-_]+)/);
+                 if (match && match[1]) cleanId = match[1];
+             }
+
+             let category: 'canon' | 'reference' = 'canon';
+             if (config.resourcePaths && config.resourcePaths.some(p => p.id === cleanId)) {
+                 category = 'reference';
+             }
+
+             try {
+                const tree = await fetchFolderContents(drive, cleanId, config, true, category);
+                fileTree = [...fileTree, ...tree];
+             } catch (err) {
+                logger.error(`⚠️ Error indexando root ${cleanId}:`, err);
+             }
+         }
+      } else if (cleanFolderId) {
+         logger.info(`🚀 Indexando SINGLE-ROOT: ${cleanFolderId}`);
+         // Para indexar necesitamos bajar hasta el infierno (recursive=true)
+         fileTree = await fetchFolderContents(drive, cleanFolderId, config, true);
+      } else {
+         throw new HttpsError("invalid-argument", "No se proporcionaron carpetas para indexar.");
+      }
 
       const fileList = flattenFileTree(fileTree);
 
