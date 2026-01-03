@@ -996,6 +996,9 @@ RULES: ${profile.rules || 'Not specified'}
       const returnLimit = isFallbackContext ? 20 : 15;
       relevantChunks = relevantChunks.slice(0, returnLimit);
 
+      // 🟢 DEBUG LOG: Verify Retrieval Sources
+      logger.info('📚 RAG Context Sources:', relevantChunks.map(c => c.fileName));
+
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
 
