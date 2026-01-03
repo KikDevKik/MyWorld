@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
 import { useProjectConfig } from './ProjectConfigContext';
 
 interface SettingsModalProps {
@@ -23,6 +23,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const [isLoading, setIsLoading] = useState(false);
     const [isAuditing, setIsAuditing] = useState(false);
     const [isReindexing, setIsReindexing] = useState(false);
+    const [isRefreshingAuth, setIsRefreshingAuth] = useState(false);
 
     // Load data on mount
     useEffect(() => {
@@ -236,6 +237,33 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         }
     };
 
+    // --- MANUAL RE-AUTH LOGIC ---
+    const handleReAuth = async () => {
+        if (!onGetFreshToken) {
+            toast.error("Función de re-autenticación no disponible.");
+            return;
+        }
+
+        setIsRefreshingAuth(true);
+        try {
+            console.log("🔄 Iniciando Re-Auth manual...");
+            const token = await onGetFreshToken();
+
+            if (token) {
+                toast.success("¡Permisos renovados correctamente! Ahora puedes auditar e indexar.", {
+                    description: "El sistema ahora tiene acceso de lectura a tus bóvedas externas."
+                });
+            } else {
+                toast.error("El usuario canceló o falló la autenticación.");
+            }
+        } catch (error) {
+            console.error("Manual Re-Auth Error:", error);
+            toast.error("Error al renovar permisos.");
+        } finally {
+            setIsRefreshingAuth(false);
+        }
+    };
+
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
             <div className="bg-titanium-950 rounded-xl border border-titanium-800 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
@@ -409,11 +437,34 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     </div>
                                     <button
                                         onClick={handleForceReindex}
-                                        disabled={isAuditing || isReindexing}
+                                        disabled={isAuditing || isReindexing || isRefreshingAuth}
                                         className="flex items-center gap-2 px-4 py-2 bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/30 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
                                     >
                                         {isReindexing ? <RefreshCw className="animate-spin" size={16}/> : <AlertTriangle size={16}/>}
                                         {isReindexing ? 'Purgando...' : 'Nuclear'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="bg-yellow-900/10 border border-yellow-900/30 p-4 rounded-xl space-y-4">
+                                <div className="flex items-start justify-between gap-4">
+                                    <div>
+                                        <h5 className="text-yellow-400 font-bold flex items-center gap-2">
+                                            <ShieldCheck size={16} />
+                                            Renovar Permisos (Re-Auth)
+                                        </h5>
+                                        <p className="text-xs text-titanium-400 mt-1">
+                                            Si la auditoría devuelve 0 archivos, usa esto.
+                                            Forzará una nueva autenticación para garantizar que la IA tenga permiso de lectura (ReadOnly) sobre tus bóvedas externas.
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={handleReAuth}
+                                        disabled={isAuditing || isReindexing || isRefreshingAuth}
+                                        className="flex items-center gap-2 px-4 py-2 bg-yellow-600/10 text-yellow-500 hover:bg-yellow-600/20 border border-yellow-600/30 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
+                                    >
+                                        {isRefreshingAuth ? <RefreshCw className="animate-spin" size={16}/> : <ShieldCheck size={16}/>}
+                                        {isRefreshingAuth ? 'Renovando...' : 'Renovar Permisos'}
                                     </button>
                                 </div>
                             </div>
