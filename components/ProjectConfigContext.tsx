@@ -11,7 +11,7 @@ interface ProjectConfigContextType {
   refreshConfig: () => Promise<void>;
 }
 
-const ProjectConfigContext = createContext<ProjectConfigContextType | undefined>(undefined);
+export const ProjectConfigContext = createContext<ProjectConfigContextType | undefined>(undefined);
 
 export const useProjectConfig = () => {
   const context = useContext(ProjectConfigContext);

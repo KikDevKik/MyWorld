@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Save, Folder, Book, Clock } from 'lucide-react';
 import { useProjectConfig } from './ProjectConfigContext';
+import useDrivePicker from 'react-google-drive-picker';
+import { ProjectPath } from '../types';
 
 interface ProjectSettingsModalProps {
     onClose: () => void;
@@ -10,18 +12,21 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     const { config, updateConfig, loading } = useProjectConfig();
 
     // Local state for form handling
-    const [canonPaths, setCanonPaths] = useState<string[]>([]);
-    const [resourcePaths, setResourcePaths] = useState<string[]>([]);
-    const [chronologyPath, setChronologyPath] = useState('');
+    const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
+    const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>([]);
+    const [chronologyPath, setChronologyPath] = useState<ProjectPath | null>(null);
     const [activeBookContext, setActiveBookContext] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+
+    // Google Drive Picker Hook
+    const [openPicker] = useDrivePicker();
 
     // Load initial values from context
     useEffect(() => {
         if (config) {
             setCanonPaths(config.canonPaths || []);
             setResourcePaths(config.resourcePaths || []);
-            setChronologyPath(config.chronologyPath || '');
+            setChronologyPath(config.chronologyPath || null);
             setActiveBookContext(config.activeBookContext || '');
         }
     }, [config]);
@@ -43,14 +48,105 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         }
     };
 
-    // Helper to manage list inputs
-    const addPath = (list: string[], setList: (l: string[]) => void, value: string) => {
-        if (value && !list.includes(value)) {
-            setList([...list, value]);
+    const handleOpenPicker = (
+        setList: (l: ProjectPath[]) => void,
+        currentList: ProjectPath[],
+        singleSelect: boolean = false
+    ) => {
+        const token = localStorage.getItem('google_drive_token');
+        if (!token) {
+            alert("No hay token de acceso. Por favor recarga la página o inicia sesión de nuevo.");
+            return;
         }
+
+        // 🧠 Retrieve Google API Key/Client ID securely if needed, but react-google-drive-picker usually needs them passed.
+        // Assuming environment variables or constants are available, but for now we'll assume the library handles it
+        // if the user is authenticated via the same Google session or we pass the token.
+        // ACTUALLY, react-google-drive-picker needs developerKey and clientId.
+        // Since I don't have them in constants, I will check if I can use the existing token solely or if I need to ask the user.
+        // BUT the user instruction said "Instala e implementa react-google-drive-picker".
+        // I'll try to use standard env vars if they exist in the codebase context, or placeholders.
+        // Wait, the project setup usually has these. Let's look at `firebase.json` or similar? No.
+        // I will use placeholders and rely on the existing token if possible, but the hook requires params.
+
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+        if (!clientId || !developerKey) {
+            alert("Falta configuración de API Key o Client ID en las variables de entorno (VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_API_KEY).");
+            return;
+        }
+
+        openPicker({
+            clientId: clientId,
+            developerKey: developerKey,
+            viewId: "FOLDERS",
+            token: token, // Pass the existing access token
+            showUploadView: false,
+            showUploadFolders: false,
+            supportDrives: true,
+            multiselect: !singleSelect,
+            callbackFunction: (data) => {
+                if (data.action === 'picked') {
+                    const newPaths: ProjectPath[] = data.docs.map((doc: any) => ({
+                        id: doc.id,
+                        name: doc.name
+                    }));
+
+                    if (singleSelect) {
+                        // For chronologyPath, we expect a setter for a single object, but here we reuse the list setter signature?
+                        // No, handleOpenPicker logic needs to be flexible.
+                        // Actually, let's fix the call site logic.
+                    } else {
+                        // Prevent duplicates
+                        const uniquePaths = [...currentList];
+                        newPaths.forEach(p => {
+                            if (!uniquePaths.find(existing => existing.id === p.id)) {
+                                uniquePaths.push(p);
+                            }
+                        });
+                        setList(uniquePaths);
+                    }
+                }
+            },
+        });
     };
 
-    const removePath = (list: string[], setList: (l: string[]) => void, index: number) => {
+    // Helper for single select (Chronology)
+    const handlePickSingle = () => {
+         const token = localStorage.getItem('google_drive_token');
+         if (!token) {
+             alert("No hay token de acceso. Por favor recarga la página.");
+             return;
+         }
+
+         const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+         const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+         if (!clientId || !developerKey) {
+            alert("Falta configuración de API Key o Client ID.");
+            return;
+         }
+
+         openPicker({
+            clientId: clientId,
+            developerKey: developerKey,
+            viewId: "FOLDERS",
+            token: token,
+            supportDrives: true,
+            multiselect: false,
+            callbackFunction: (data) => {
+                if (data.action === 'picked') {
+                    const doc = data.docs[0];
+                    setChronologyPath({ id: doc.id, name: doc.name });
+                }
+            }
+         });
+    }
+
+
+    // Helper to manage list inputs
+    const removePath = (list: ProjectPath[], setList: (l: ProjectPath[]) => void, index: number) => {
         const newList = [...list];
         newList.splice(index, 1);
         setList(newList);
@@ -58,46 +154,23 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     const PathListInput: React.FC<{
         label: string;
-        paths: string[];
-        setPaths: (l: string[]) => void;
-        placeholder: string;
+        paths: ProjectPath[];
+        setPaths: (l: ProjectPath[]) => void;
         icon: React.ElementType;
-    }> = ({ label, paths, setPaths, placeholder, icon: Icon }) => {
-        const [inputValue, setInputValue] = useState('');
-
+    }> = ({ label, paths, setPaths, icon: Icon }) => {
         return (
             <div className="mb-6">
                 <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                     <Icon size={14} /> {label}
                 </label>
-                <div className="flex gap-2 mb-3">
-                    <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder={placeholder}
-                        className="flex-1 bg-titanium-950 border border-titanium-700 rounded-md px-3 py-2 text-sm text-titanium-100 placeholder-titanium-600 focus:outline-none focus:border-accent-DEFAULT"
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                addPath(paths, setPaths, inputValue);
-                                setInputValue('');
-                            }
-                        }}
-                    />
-                    <button
-                        onClick={() => {
-                            addPath(paths, setPaths, inputValue);
-                            setInputValue('');
-                        }}
-                        className="bg-titanium-700 hover:bg-titanium-600 text-titanium-100 p-2 rounded-md transition-colors"
-                    >
-                        <Plus size={18} />
-                    </button>
-                </div>
+
                 <div className="space-y-2">
                     {paths.map((path, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50">
-                            <span className="text-sm text-titanium-200 font-mono">{path}</span>
+                        <div key={path.id} className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50">
+                            <div className="flex flex-col">
+                                <span className="text-sm text-titanium-200 font-medium">{path.name}</span>
+                                <span className="text-[10px] text-titanium-500 font-mono">{path.id}</span>
+                            </div>
                             <button
                                 onClick={() => removePath(paths, setPaths, idx)}
                                 className="text-titanium-500 hover:text-red-400 transition-colors"
@@ -106,9 +179,13 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             </button>
                         </div>
                     ))}
-                    {paths.length === 0 && (
-                        <div className="text-xs text-titanium-600 italic px-2">No hay rutas definidas.</div>
-                    )}
+
+                    <button
+                        onClick={() => handleOpenPicker(setPaths, paths)}
+                        className="w-full flex items-center justify-center gap-2 py-2 bg-titanium-800/30 hover:bg-titanium-800 border border-dashed border-titanium-600 rounded-md text-titanium-400 hover:text-titanium-200 transition-all text-sm"
+                    >
+                        <Plus size={14} /> Añadir Carpeta desde Drive
+                    </button>
                 </div>
             </div>
         );
@@ -157,7 +234,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             label="Rutas Canon (Verdad Absoluta)"
                             paths={canonPaths}
                             setPaths={setCanonPaths}
-                            placeholder="Añadir carpeta (ej: MI HISTORIA)"
                             icon={Folder}
                         />
 
@@ -166,7 +242,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             label="Rutas de Recursos (Inspiración)"
                             paths={resourcePaths}
                             setPaths={setResourcePaths}
-                            placeholder="Añadir carpeta (ej: _RESOURCES)"
                             icon={Folder}
                         />
                     </div>
@@ -176,13 +251,29 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                         <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider mb-2 flex items-center gap-2">
                             <Clock size={14} /> Ruta de Cronología
                         </label>
-                        <input
-                            type="text"
-                            value={chronologyPath}
-                            onChange={(e) => setChronologyPath(e.target.value)}
-                            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT"
-                            placeholder="Ruta a la carpeta de línea de tiempo"
-                        />
+
+                        {chronologyPath ? (
+                             <div className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50">
+                                <div className="flex flex-col">
+                                    <span className="text-sm text-titanium-200 font-medium">{chronologyPath.name}</span>
+                                    <span className="text-[10px] text-titanium-500 font-mono">{chronologyPath.id}</span>
+                                </div>
+                                <button
+                                    onClick={() => setChronologyPath(null)}
+                                    className="text-titanium-500 hover:text-red-400 transition-colors"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
+                            </div>
+                        ) : (
+                             <button
+                                onClick={handlePickSingle}
+                                className="w-full flex items-center justify-center gap-2 py-2 bg-titanium-800/30 hover:bg-titanium-800 border border-dashed border-titanium-600 rounded-md text-titanium-400 hover:text-titanium-200 transition-all text-sm"
+                            >
+                                <Plus size={14} /> Seleccionar Carpeta de Cronología
+                            </button>
+                        )}
+
                     </div>
 
                 </div>
