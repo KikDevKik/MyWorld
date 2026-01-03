@@ -595,6 +595,7 @@ export const indexTDB = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
+    console.log('🚀 SYSTEM UPDATE: Index Logic Refreshed - Deploy Timestamp:', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -868,6 +869,7 @@ export const chatWithGem = onCall(
     memory: "2GiB",      // 👈 Increased memory for heavy lifting
   },
   async (request) => {
+    console.log('🚀 SYSTEM UPDATE: Filters Removed - Deploy Timestamp:', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
