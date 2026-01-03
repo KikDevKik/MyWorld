@@ -18,6 +18,9 @@ interface ChatPanelProps {
   categoryFilter?: 'canon' | 'reference'; // 👈 New prop
   customGem?: Gem; // 👈 New prop for virtual gems
   folderId?: string; // 👈 Project ID for Isolation
+  activeFileContent?: string; // 👈 Context Fallback
+  activeFileName?: string;    // 👈 Context Fallback
+  isFallbackContext?: boolean; // 👈 Context Fallback
 }
 
 interface Source {
@@ -38,7 +41,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   isFullWidth = false,
   categoryFilter,
   customGem,
-  folderId
+  folderId,
+  activeFileContent,
+  activeFileName,
+  isFallbackContext
 }) => {
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
   const [input, setInput] = useState('');
@@ -80,7 +86,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         systemInstruction: activeGem.systemInstruction, // 👈 Send instruction
         history: messages.map(m => ({ role: m.role, message: m.text })), // 👈 Map to expected format
         categoryFilter: categoryFilter, // 👈 Send filter
-        projectId: folderId || undefined // 👈 STRICT ISOLATION
+        projectId: folderId || undefined, // 👈 STRICT ISOLATION
+        activeFileContent: activeFileContent || "", // 👈 Pass Context
+        activeFileName: activeFileName || "", // 👈 Pass Name
+        isFallbackContext: isFallbackContext // 👈 Pass Flag
       });
 
       const data = result.data as any;
