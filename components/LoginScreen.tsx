@@ -14,7 +14,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         const auth = getAuth();
         const provider = new GoogleAuthProvider();
         // IMPORTANTE: Este scope es vital para que nos den el token correcto
-        provider.addScope('https://www.googleapis.com/auth/drive');
+        provider.addScope('https://www.googleapis.com/auth/drive.file');
+        provider.addScope('https://www.googleapis.com/auth/drive.readonly');
         provider.setCustomParameters({
             prompt: 'consent'
         });
