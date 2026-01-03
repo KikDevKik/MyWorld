@@ -42,7 +42,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
 
         setIsLoading(true);
         const functions = getFunctions();
-        const summonTheTribunal = httpsCallable(functions, 'summonTheTribunal');
+        const summonTheTribunal = httpsCallable(functions, 'summonTheTribunal', { timeout: 540000 }); // 👈 9 minute timeout
 
         try {
             // 🟢 Send different payload based on mode

@@ -203,7 +203,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
 
         const functions = getFunctions();
         const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
-        const chatWithGem = httpsCallable(functions, 'chatWithGem');
+        const chatWithGem = httpsCallable(functions, 'chatWithGem', { timeout: 540000 }); // 👈 9 minute timeout
 
         try {
             // Save User Msg
