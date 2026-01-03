@@ -40,9 +40,15 @@ interface WriterProfile {
   rules: string;
 }
 
+interface ProjectPath {
+  id: string;
+  name: string;
+}
+
 interface ProjectConfig {
-  contextRules: { [folderId: string]: 'CANON' | 'REFERENCE' | 'IGNORE' };
-  chronologyPath: string;
+  canonPaths: ProjectPath[]; // 👈 Changed from string[] to ProjectPath[]
+  resourcePaths: ProjectPath[]; // 👈 Changed from string[] to ProjectPath[]
+  chronologyPath: ProjectPath | null; // 👈 Changed from string to ProjectPath | null
   activeBookContext: string;
   folderId?: string; // 👈 Folder Persistence
   lastIndexed?: string;
@@ -64,8 +70,9 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
   const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
 
   const defaultConfig: ProjectConfig = {
-    contextRules: {}, // 👈 New Dynamic Rules
-    chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
+    canonPaths: [],
+    resourcePaths: [],
+    chronologyPath: null,
     activeBookContext: "Just Megu",
     lastIndexed: undefined
   };
@@ -188,11 +195,13 @@ async function fetchFolderContents(
 
     // 🔍 FILTRO SELECTIVO: Solo contenido relevante
     const validFiles = files.filter((file: any) => {
-      // 🟢 0. CHECK "IGNORE" RULE FIRST (Scorched Earth)
-      // Si la carpeta tiene regla explícita de IGNORE, ni siquiera la procesamos.
-      if (config.contextRules && config.contextRules[file.id] === 'IGNORE') {
-        logger.info(`[SKIPPED] Folder (IGNORE RULE): ${file.name} (${file.id})`);
-        return false;
+      // We don't have explicit IGNORE rules in the new config structure yet,
+      // but if we did, we would check them here.
+      // For now, relies on standard filters.
+      // (Legacy support: if config has contextRules and it's IGNORE)
+      const legacyConfig = config as any;
+      if (legacyConfig.contextRules && legacyConfig.contextRules[file.id] === 'IGNORE') {
+         return false;
       }
 
       const isFolder = file.mimeType === GOOGLE_FOLDER_MIMETYPE;
@@ -238,14 +247,13 @@ async function fetchFolderContents(
         // 1. Inherit from parent by default
         let fileCategory: 'canon' | 'reference' = currentCategory;
 
-        // 2. Check for Specific Override Rule
-        if (config.contextRules && config.contextRules[file.id]) {
-            const rule = config.contextRules[file.id];
-            if (rule === 'CANON') fileCategory = 'canon';
-            if (rule === 'REFERENCE') fileCategory = 'reference';
-            // IGNORE is already handled in the filter, but double safety for logic flow
-            if (rule === 'IGNORE') return null;
-        }
+        // 2. Check for Specific Override Rule based on New Config Structure
+        // Check if this file/folder ID is in the explicit lists
+        const isExplicitCanon = config.canonPaths && config.canonPaths.some(p => p.id === file.id);
+        const isExplicitResource = config.resourcePaths && config.resourcePaths.some(p => p.id === file.id);
+
+        if (isExplicitCanon) fileCategory = 'canon';
+        if (isExplicitResource) fileCategory = 'reference';
 
         if (file.mimeType === 'application/vnd.google-apps.folder') {
           let children: DriveFile[] = [];
@@ -406,8 +414,9 @@ export const getProjectConfig = onCall(
 
       // VALORES POR DEFECTO
       const defaultConfig: ProjectConfig = {
-        contextRules: {},
-        chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
+        canonPaths: [],
+        resourcePaths: [],
+        chronologyPath: null,
         activeBookContext: "Just Megu"
       };
 
@@ -448,13 +457,13 @@ export const saveProjectConfig = onCall(
     const config = request.data as ProjectConfig;
     const userId = request.auth.uid;
 
-    if (!config.contextRules) {
-      throw new HttpsError("invalid-argument", "Faltan campos obligatorios en la configuración (contextRules).");
-    }
-
     logger.info(`💾 Guardando configuración del proyecto para usuario: ${userId}`);
 
     try {
+      // 🟢 Force validation of structure before saving?
+      // Not strictly necessary if frontend sends correct types, but good practice.
+      // We just save it.
+
       await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
         ...config,
         updatedAt: new Date().toISOString()
