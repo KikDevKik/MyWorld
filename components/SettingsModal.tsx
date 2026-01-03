@@ -6,9 +6,11 @@ import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, Re
 interface SettingsModalProps {
     onClose: () => void;
     onSave: (url: string) => void;
+    accessToken?: string | null;
+    onGetFreshToken?: () => Promise<string | null>;
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
     const [url, setUrl] = useState('');
     const [profile, setProfile] = useState({
@@ -113,6 +115,35 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
         console.log(`%c🚀 INICIANDO AUDITORÍA DE RUTAS (DRY RUN)...`, 'color: yellow; font-size: 14px; font-weight: bold;');
 
         try {
+            let token = accessToken;
+
+            // 🟢 RE-AUTH LOGIC: Ensure fresh token for critical ops
+            if (onGetFreshToken) {
+                try {
+                    // Always try to get a fresh token if the prop is available,
+                    // as 'Audit' is a manual admin action where we want 100% success rate.
+                    console.log("🔄 Renovando credenciales de Drive...");
+                    const freshToken = await onGetFreshToken();
+                    if (freshToken) {
+                         token = freshToken;
+                         console.log("✅ Credenciales renovadas.");
+                    } else {
+                         throw new Error("No se pudo renovar el acceso a Drive.");
+                    }
+                } catch (authErr) {
+                    console.error("Auth Refresh Failed:", authErr);
+                    toast.error("No se pudo renovar el acceso. Por favor re-autentica.");
+                    setIsAuditing(false);
+                    return;
+                }
+            }
+
+            if (!token) {
+                 toast.error("Error de autenticación: No hay token disponible.");
+                 setIsAuditing(false);
+                 return;
+            }
+
             const functions = getFunctions();
             const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
 
@@ -120,7 +151,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
 
             const result = await getDriveFiles({
                 folderId: folderId,
-                recursive: true // 👈 Critical for deep nesting check
+                recursive: true, // 👈 Critical for deep nesting check
+                accessToken: token // 👈 Pass FRESH token
             });
 
             const fileTree = result.data as any[];
@@ -158,6 +190,32 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
 
         setIsReindexing(true);
         try {
+            let token = accessToken;
+
+            // 🟢 RE-AUTH LOGIC
+            if (onGetFreshToken) {
+                try {
+                    console.log("🔄 Renovando credenciales de Drive (Nuclear)...");
+                    const freshToken = await onGetFreshToken();
+                    if (freshToken) {
+                         token = freshToken;
+                    } else {
+                         throw new Error("No se pudo renovar el acceso a Drive.");
+                    }
+                } catch (authErr) {
+                    console.error("Auth Refresh Failed:", authErr);
+                    toast.error("No se pudo renovar el acceso. Operación cancelada.");
+                    setIsReindexing(false);
+                    return;
+                }
+            }
+
+            if (!token) {
+                 toast.error("Error de autenticación: No hay token disponible.");
+                 setIsReindexing(false);
+                 return;
+            }
+
             const functions = getFunctions();
             const indexTDB = httpsCallable(functions, 'indexTDB');
 
@@ -165,7 +223,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave }) => {
 
             await indexTDB({
                 folderId: folderId,
-                forceFullReindex: true // 👈 The Nuclear Button
+                forceFullReindex: true, // 👈 The Nuclear Button
+                accessToken: token // 👈 Pass FRESH token
             });
 
             toast.success('¡Memoria reconstruida exitosamente! El sistema está limpio.');
