@@ -966,35 +966,65 @@ RULES: ${profile.rules || 'Not specified'}
       }
 
       // 4. Ejecutar Búsqueda Vectorial
-      // 🟢 STRATEGY: Fetch MORE (30/80) and filter LOCALLY to exclude active file
-      // 🟢 AGGRESSIVE MODE: If Fallback Context is used, fetch even more chunks (80)
-      const fetchLimit = isFallbackContext ? 80 : 30;
+      // 🟢 STRATEGY: Fetch WIDE (50/100) and filter for Diversity
+      const fetchLimit = isFallbackContext ? 100 : 50;
 
       const vectorQuery = chunkQuery.findNearest({
         queryVector: queryVector,
-        limit: fetchLimit, // 🟢 Increased limit for post-filtering
+        limit: fetchLimit, // 🟢 Wide Net for Diversity
         distanceMeasure: 'COSINE',
         vectorField: 'embedding'
       });
 
       const vectorSnapshot = await vectorQuery.get();
 
-      let relevantChunks: Chunk[] = vectorSnapshot.docs.map(doc => ({
+      let candidates: Chunk[] = vectorSnapshot.docs.map(doc => ({
         text: doc.data().text,
-        embedding: [], // No necesitamos el embedding de vuelta
+        embedding: [],
         fileName: doc.data().fileName || "Desconocido",
+        fileId: doc.ref.parent.parent?.id || "unknown_id", // 🟢 ID Retrieval
         category: doc.data().category || 'canon',
       }));
 
-      // 🟢 EXCLUDE ACTIVE FILE CHUNKS
+      // 🟢 SOURCE DIVERSITY LIMITING (Per-File Cap + Backfill)
+      const returnLimit = isFallbackContext ? 20 : 15;
+      const MAX_CHUNKS_PER_FILE = 5;
+
+      const finalContext: Chunk[] = [];
+      const rejectedCandidates: Chunk[] = [];
+      const fileCounts: { [key: string]: number } = {};
+
+      // A) FILTER EXCLUSION (Active File)
       if (activeFileName) {
-        logger.info(`🔍 Filtering out chunks from active file: ${activeFileName}`);
-        relevantChunks = relevantChunks.filter(c => c.fileName !== activeFileName);
+         logger.info(`🔍 Filtering out chunks from active file: ${activeFileName}`);
+         candidates = candidates.filter(c => c.fileName !== activeFileName);
       }
 
-      // Take Top 15 after filtering (Or 20 if in aggressive mode)
-      const returnLimit = isFallbackContext ? 20 : 15;
-      relevantChunks = relevantChunks.slice(0, returnLimit);
+      // B) DIVERSITY PASS (Cap)
+      for (const chunk of candidates) {
+          if (finalContext.length >= returnLimit) break;
+
+          const fid = chunk.fileId || chunk.fileName; // Fallback if ID fails
+          const currentCount = fileCounts[fid] || 0;
+
+          if (currentCount < MAX_CHUNKS_PER_FILE) {
+              finalContext.push(chunk);
+              fileCounts[fid] = currentCount + 1;
+          } else {
+              rejectedCandidates.push(chunk);
+          }
+      }
+
+      // C) BACKFILL PASS (Fill Gaps)
+      if (finalContext.length < returnLimit) {
+          logger.info(`⚠️ Diversity Shortfall (${finalContext.length}/${returnLimit}). Backfilling...`);
+          for (const chunk of rejectedCandidates) {
+              if (finalContext.length >= returnLimit) break;
+              finalContext.push(chunk);
+          }
+      }
+
+      const relevantChunks = finalContext;
 
       // 🟢 DEBUG LOG: Verify Retrieval Sources
       logger.info('📚 RAG Context Sources:', relevantChunks.map(c => c.fileName));
