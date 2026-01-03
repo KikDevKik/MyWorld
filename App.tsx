@@ -183,12 +183,33 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const functions = getFunctions();
         const indexTDB = httpsCallable(functions, 'indexTDB');
 
+        // 🟢 FIX: USE PROJECT CONFIG FOR ROBUST INDEXING
+        if (!config) {
+            toast.error("Configuración no cargada. Intenta de nuevo.");
+            return;
+        }
+
+        const allPaths = [...(config.canonPaths || []), ...(config.resourcePaths || [])];
+        const folderIds = allPaths.map(p => p.id);
+
+        // If no specific paths, fallback to root folderId
+        if (folderIds.length === 0 && config.folderId) {
+            folderIds.push(config.folderId);
+        }
+
         try {
-            console.log("Iniciando indexado...");
-            const promise = indexTDB({ folderId, accessToken: oauthToken });
+            console.log("Iniciando indexado incremental...", folderIds);
+
+            // 🟢 PAYLOAD ROBUSTO: folderIds + projectId + forceFullReindex: false
+            const promise = indexTDB({
+                folderIds: folderIds,
+                projectId: config.folderId || folderId, // Context Project ID
+                accessToken: oauthToken,
+                forceFullReindex: false
+            });
 
             toast.promise(promise, {
-                loading: 'Indexando base de conocimiento...',
+                loading: 'Indexando base de conocimiento (Incremental)...',
                 success: (result: any) => {
                     // 🟢 UPDATE LOCAL STATE & REFRESH GLOBAL CONFIG
                     setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
