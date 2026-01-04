@@ -624,7 +624,7 @@ export const indexTDB = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    console.log('🚀 SYSTEM UPDATE: Force Read Fallback - Deploy Timestamp:', new Date().toISOString());
+    console.log('🚀 SYSTEM UPDATE: Removing ProjectId to Fix Crash - Deploy Timestamp:', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -643,7 +643,7 @@ export const indexTDB = onCall(
 
     // Default projectId to cleanFolderId if available, otherwise it MUST be passed or we might have issues identifying the project scope.
     // Ideally, for multi-root, the client passes projectId (from config.folderId).
-    const projectId = request.data.projectId || cleanFolderId;
+    // const projectId = request.data.projectId || cleanFolderId; // 🟢 REMOVED: Causing crash if undefined and unused in simple pipeline.
 
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
@@ -848,7 +848,6 @@ export const indexTDB = onCall(
               fileName: file.name,
               category: file.category || 'canon',
               userId: userId,
-              projectId: projectId,
               embedding: FieldValue.vector(vector),
               type: 'raw_bypass' // 👈 Metadata tag
             });
