@@ -5,10 +5,6 @@
       "queryScope": "COLLECTION_GROUP",
       "fields": [
         {
-          "fieldPath": "projectId",
-          "order": "ASCENDING"
-        },
-        {
           "fieldPath": "userId",
           "order": "ASCENDING"
         },
