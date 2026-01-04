@@ -91,8 +91,24 @@ async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN"):
     stream.on('end', () => {
       const fullBuffer = Buffer.concat(chunks);
       logger.info(`📉 [STREAM DEBUG] Buffer size for ${debugLabel}: ${fullBuffer.length} bytes`);
-      const text = fullBuffer.toString('utf8');
-      logger.info(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${text.substring(0, 100).replace(/\n/g, ' ')}...`);
+
+      let text = "";
+      try {
+        text = fullBuffer.toString('utf8');
+        // Sanitize NULL bytes for Firestore safety
+        // eslint-disable-next-line no-control-regex
+        text = text.replace(/\0/g, '');
+      } catch (err) {
+        logger.error(`💥 [STREAM ERROR] Failed to convert buffer to string for ${debugLabel}:`, err);
+        text = ""; // Fallback to empty
+      }
+
+      if (text) {
+        logger.info(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${text.substring(0, 100).replace(/\n/g, ' ')}...`);
+      } else {
+        logger.warn(`📉 [STREAM DEBUG] Preview (${debugLabel}): [EMPTY OR NULL CONTENT]`);
+      }
+
       resolve(text);
     });
   });
@@ -633,6 +649,15 @@ export const indexTDB = onCall(
 
     const userId = request.auth.uid;
 
+    // 🟢 CANARY PURGE: DELETE SYSTEM_TEST
+    try {
+      const canaryRef = db.collection("TDB_Index").doc(userId).collection("files").doc("SYSTEM_TEST");
+      await db.recursiveDelete(canaryRef);
+      logger.info(`🐤 [CANARY PROTOCOL] SYSTEM_TEST artifact executed (deleted) for user ${userId}`);
+    } catch (canaryErr) {
+      logger.warn(`⚠️ [CANARY PROTOCOL] Failed to delete SYSTEM_TEST:`, canaryErr);
+    }
+
     try {
       // A. Configurar Embeddings
       const embeddings = new GoogleGenerativeAIEmbeddings({
@@ -877,7 +902,7 @@ export const chatWithGem = onCall(
     memory: "2GiB",      // 👈 Increased memory for heavy lifting
   },
   async (request) => {
-    console.log('🚀 SYSTEM UPDATE: Index Sync Fix - Deploy Timestamp:', new Date().toISOString());
+    console.log('🚀 SYSTEM UPDATE: Safety Checks & Canary Purge - Deploy Timestamp:', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
