@@ -595,7 +595,7 @@ export const indexTDB = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    console.log('🚀 SYSTEM UPDATE: Index Logic Refreshed - Deploy Timestamp:', new Date().toISOString());
+    console.log('🚀 SYSTEM UPDATE: Force Read Fallback - Deploy Timestamp:', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -783,22 +783,41 @@ export const indexTDB = onCall(
 
             // 🟢 2. FETCH & SPLIT (Only after delete is confirmed)
             const content = await _getDriveFileContentInternal(drive, file.id);
+            const rawLength = content ? content.length : 0;
 
-            logger.info(`📝 [DEBUG] Raw Content Length for ${file.name}: ${content ? content.length : 0}`);
+            logger.info(`📝 [DEBUG] Raw Content Length for ${file.name}: ${rawLength}`);
+
+            // 🛑 TRULY EMPTY FILE CHECK
+            if (!content || content.trim().length === 0) {
+              logger.warn(`⚠️ [SKIP] File is genuinely empty (0 bytes or whitespace): ${file.name}`);
+              return; // Skip processing this file entirely
+            }
 
             // Parse Frontmatter
             const parsed = matter(content);
-            const cleanContent = parsed.content;
+            let textToSplit = parsed.content;
             const metadata = parsed.data;
             const timelineDate = metadata.date ? new Date(metadata.date).toISOString() : null;
 
-            logger.info(`📝 [DEBUG] Clean Content Length (after matter): ${cleanContent ? cleanContent.length : 0}`);
+            const cleanLength = textToSplit ? textToSplit.length : 0;
+            logger.info(`📝 [DEBUG] Clean Content Length (after matter): ${cleanLength}`);
 
-            if (!cleanContent || cleanContent.trim().length === 0) {
-              logger.warn(`⚠️ [WARNING] Empty content for file: ${file.name} (${file.id}). Skipping splitting.`);
+            // 🛡️ FALLBACK 1: GRAY-MATTER LOSS
+            // If gray-matter swallowed the text (returned empty) but raw file had content, use RAW.
+            if ((!textToSplit || textToSplit.trim().length === 0) && rawLength > 0) {
+              logger.warn(`⚠️ [FALLBACK] Gray-matter returned empty. Using RAW content for: ${file.name}`);
+              textToSplit = content;
             }
 
-            const chunks = await splitter.splitText(cleanContent);
+            let chunks = await splitter.splitText(textToSplit);
+
+            // 🛡️ FALLBACK 2: SPLITTER LOSS
+            // If splitter produced 0 chunks but we have text, force a single chunk.
+            if (chunks.length === 0 && textToSplit && textToSplit.trim().length > 0) {
+              logger.warn(`⚠️ [FALLBACK] Splitter returned 0 chunks. Force creating single chunk for: ${file.name}`);
+              // Safety Cap: 8000 chars to avoid Firestore limits, though rare for a "no chunk" scenario.
+              chunks = [textToSplit.substring(0, 8000)];
+            }
 
             logger.info(`🧩 [DEBUG] Chunks Generated: ${chunks.length}`);
 
