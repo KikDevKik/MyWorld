@@ -869,7 +869,7 @@ export const chatWithGem = onCall(
     memory: "2GiB",      // 👈 Increased memory for heavy lifting
   },
   async (request) => {
-    console.log('🚀 SYSTEM UPDATE: Filters Removed - Deploy Timestamp:', new Date().toISOString());
+    console.log('🚀 SYSTEM UPDATE: Index Sync Fix - Deploy Timestamp:', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
