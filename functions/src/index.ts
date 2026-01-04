@@ -784,13 +784,23 @@ export const indexTDB = onCall(
             // 🟢 2. FETCH & SPLIT (Only after delete is confirmed)
             const content = await _getDriveFileContentInternal(drive, file.id);
 
+            logger.info(`📝 [DEBUG] Raw Content Length for ${file.name}: ${content ? content.length : 0}`);
+
             // Parse Frontmatter
             const parsed = matter(content);
             const cleanContent = parsed.content;
             const metadata = parsed.data;
             const timelineDate = metadata.date ? new Date(metadata.date).toISOString() : null;
 
+            logger.info(`📝 [DEBUG] Clean Content Length (after matter): ${cleanContent ? cleanContent.length : 0}`);
+
+            if (!cleanContent || cleanContent.trim().length === 0) {
+              logger.warn(`⚠️ [WARNING] Empty content for file: ${file.name} (${file.id}). Skipping splitting.`);
+            }
+
             const chunks = await splitter.splitText(cleanContent);
+
+            logger.info(`🧩 [DEBUG] Chunks Generated: ${chunks.length}`);
 
             // Update File Metadata
             await fileRef.set({
@@ -905,15 +915,19 @@ RULES: ${profile.rules || 'Not specified'}
     try {
       // 🟢 0. DEEP TRACE: CONNECTIVITY CHECK
       // Verify database access before doing anything complex.
-      const traceColl = db.collectionGroup("chunks");
-      const traceQuery = traceColl.where("userId", "==", userId).limit(1);
-      const traceSnapshot = await traceQuery.get();
+      try {
+        const traceColl = db.collectionGroup("chunks");
+        const traceQuery = traceColl.where("userId", "==", userId).limit(1);
+        const traceSnapshot = await traceQuery.get();
 
-      if (!traceSnapshot.empty) {
-        const traceDoc = traceSnapshot.docs[0].data();
-        logger.info(`[DEEP TRACE] Connectivity Check: ✅ SUCCESS. Found chunk from file: "${traceDoc.fileName}" (ID: ${traceSnapshot.docs[0].id})`);
-      } else {
-        logger.warn(`[DEEP TRACE] Connectivity Check: ⚠️ FAILED/EMPTY. No chunks found for user ${userId}. Index might be empty.`);
+        if (!traceSnapshot.empty) {
+          const traceDoc = traceSnapshot.docs[0].data();
+          logger.info(`[DEEP TRACE] Connectivity Check: ✅ SUCCESS. Found chunk from file: "${traceDoc.fileName}" (ID: ${traceSnapshot.docs[0].id})`);
+        } else {
+          logger.warn(`[DEEP TRACE] Connectivity Check: ⚠️ FAILED/EMPTY. No chunks found for user ${userId}. Index might be empty.`);
+        }
+      } catch (traceError: any) {
+        logger.warn(`[DEEP TRACE] Connectivity Check SKIPPED/FAILED: ${traceError.message} (This is non-critical, proceeding to Vector Search)`);
       }
 
       // 1. Preparar Búsqueda Contextual
