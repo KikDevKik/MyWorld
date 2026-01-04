@@ -84,12 +84,18 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
 }
 
 // --- NUEVO HELPER: Convertir Tubería a Texto ---
-async function streamToString(stream: Readable): Promise<string> {
+async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN"): Promise<string> {
   const chunks: Buffer[] = [];
   return new Promise((resolve, reject) => {
     stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
     stream.on('error', (err) => reject(err));
-    stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    stream.on('end', () => {
+      const fullBuffer = Buffer.concat(chunks);
+      logger.info(`📉 [STREAM DEBUG] Buffer size for ${debugLabel}: ${fullBuffer.length} bytes`);
+      const text = fullBuffer.toString('utf8');
+      logger.info(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${text.substring(0, 100).replace(/\n/g, ' ')}...`);
+      resolve(text);
+    });
   });
 }
 
@@ -107,6 +113,7 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
     });
 
     const mimeType = meta.data.mimeType;
+    const fileName = meta.data.name || fileId;
     logger.info(`   - Tipo Identificado: ${mimeType}`);
 
     let res;
@@ -153,8 +160,15 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
       });
     }
 
+    // 📉 [HEADER DEBUG]
+    if (res.headers && res.headers['content-length']) {
+      logger.info(`📉 [HEADER DEBUG] Content-Length for ${fileName}: ${res.headers['content-length']}`);
+    } else {
+      logger.info(`📉 [HEADER DEBUG] No Content-Length header received for ${fileName}`);
+    }
+
     // 3. PROCESAR
-    return await streamToString(res.data);
+    return await streamToString(res.data, fileName);
 
   } catch (error: any) {
     logger.error(`💥 [ERROR LECTURA] Falló al procesar ${fileId}:`, error);
@@ -641,6 +655,30 @@ export const indexTDB = onCall(
         // Delete the entire document and its subcollections (files)
         await db.recursiveDelete(userIndexRef);
         logger.info("   ☢️ Memory wiped clean. Starting fresh.");
+      }
+
+      // 🐤 CANARY TEST (DATABASE VERIFY)
+      logger.info("🐤 [CANARY] Injecting SYSTEM_TEST chunk...");
+      try {
+        const canaryText = "CANARY TEST: Mohamed Davila es el Rey de los Zoorians.";
+        const canaryVector = await embeddings.embedQuery(canaryText);
+
+        await db.collection("TDB_Index").doc(userId)
+          .collection("files").doc("SYSTEM_TEST")
+          .collection("chunks").doc("chunk_0")
+          .set({
+            text: canaryText,
+            order: 0,
+            fileName: "SYSTEM_TEST",
+            category: "canon",
+            userId: userId,
+            projectId: "SYSTEM_TEST_PROJECT",
+            embedding: FieldValue.vector(canaryVector),
+          });
+
+        logger.info("🐤 [CANARY] SYSTEM_TEST chunk injected successfully.");
+      } catch (canaryErr) {
+        logger.error("🐤 [CANARY] Failed to inject chunk:", canaryErr);
       }
 
       // 🟢 RECUPERAR CONFIGURACIÓN DEL USUARIO
