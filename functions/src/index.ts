@@ -3,7 +3,6 @@ import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 import { defineSecret } from "firebase-functions/params";
 import {
   ChatGoogleGenerativeAI,
@@ -657,30 +656,6 @@ export const indexTDB = onCall(
         logger.info("   ☢️ Memory wiped clean. Starting fresh.");
       }
 
-      // 🐤 CANARY TEST (DATABASE VERIFY)
-      logger.info("🐤 [CANARY] Injecting SYSTEM_TEST chunk...");
-      try {
-        const canaryText = "CANARY TEST: Mohamed Davila es el Rey de los Zoorians.";
-        const canaryVector = await embeddings.embedQuery(canaryText);
-
-        await db.collection("TDB_Index").doc(userId)
-          .collection("files").doc("SYSTEM_TEST")
-          .collection("chunks").doc("chunk_0")
-          .set({
-            text: canaryText,
-            order: 0,
-            fileName: "SYSTEM_TEST",
-            category: "canon",
-            userId: userId,
-            projectId: "SYSTEM_TEST_PROJECT",
-            embedding: FieldValue.vector(canaryVector),
-          });
-
-        logger.info("🐤 [CANARY] SYSTEM_TEST chunk injected successfully.");
-      } catch (canaryErr) {
-        logger.error("🐤 [CANARY] Failed to inject chunk:", canaryErr);
-      }
-
       // 🟢 RECUPERAR CONFIGURACIÓN DEL USUARIO
       const config = await _getProjectConfigInternal(userId);
 
@@ -733,12 +708,6 @@ export const indexTDB = onCall(
       }
 
       const fileList = flattenFileTree(fileTree);
-
-      // D. Configurar Splitter
-      const splitter = new RecursiveCharacterTextSplitter({
-        chunkSize: 1000,
-        chunkOverlap: 200,
-      });
 
       // 🟢 GHOST FILE PRUNING (Limpieza de Archivos Fantasma)
       logger.info("👻 Iniciando protocolo de detección de fantasmas...");
@@ -819,7 +788,7 @@ export const indexTDB = onCall(
             totalChunksDeleted += deletedCount;
             logger.info(`   ✅ Purga completada. Chunks eliminados: ${deletedCount}`);
 
-            // 🟢 2. FETCH & SPLIT (Only after delete is confirmed)
+            // 🟢 2. FETCH (Only after delete is confirmed)
             const content = await _getDriveFileContentInternal(drive, file.id);
             const rawLength = content ? content.length : 0;
 
@@ -831,82 +800,36 @@ export const indexTDB = onCall(
               return; // Skip processing this file entirely
             }
 
-            // Parse Frontmatter
-            let textToSplit = content;
-            let metadata: any = {};
-            let timelineDate = null;
+            // --- RAW BYPASS LOGIC (ONE FILE = ONE CHUNK) ---
+            // Mission: Simplify Pipeline. Remove gray-matter and splitter.
+            // Just take the raw string, cap it at 8000 chars, and save it.
+            const chunkText = content.substring(0, 8000);
 
-            // 🟢 SAFETY NET 1: GRAY-MATTER
-            try {
-              const parsed = matter(content);
-              if (parsed.content && parsed.content.trim().length > 0) {
-                textToSplit = parsed.content;
-                metadata = parsed.data;
-                timelineDate = metadata.date ? new Date(metadata.date).toISOString() : null;
-              } else {
-                // Empty content from matter, but raw exists -> Use Raw
-                logger.warn(`⚠️ Gray-matter failed/empty for ${file.name}. Using RAW content.`);
-                textToSplit = content;
-              }
-            } catch (matterError) {
-              logger.warn(`⚠️ Gray-matter crashed for ${file.name}. Using RAW content. Error: ${matterError}`);
-              textToSplit = content;
-              // Metadata remains empty
-            }
-
-            const cleanLength = textToSplit ? textToSplit.length : 0;
-            logger.info(`📝 [DEBUG] Clean Content Length (after matter): ${cleanLength}`);
-
-            // 🟢 SAFETY NET 2: TEXT SPLITTER & SLEDGEHAMMER
-            let chunks: string[] = [];
-            try {
-              chunks = await splitter.splitText(textToSplit);
-            } catch (splitError) {
-              logger.error(`💥 Splitter crashed for ${file.name}:`, splitError);
-              chunks = []; // Force empty to trigger sledgehammer
-            }
-
-            // 🛡️ FALLBACK 2: SLEDGEHAMMER (The "Unbreakable" Logic)
-            // IF chunks array is empty [] BUT rawLength > 0 (we downloaded bytes):
-            // ACTION: Force create a single chunk manually.
-            if (chunks.length === 0 && rawLength > 0) {
-              logger.warn(`⚠️ Splitter returned 0 chunks (or failed). Used Sledgehammer fallback for ${file.name}.`);
-              // Force create single chunk (Safety Cap: 8000 chars)
-              chunks = [textToSplit.substring(0, 8000)];
-            }
-
-            logger.info(`🧩 [DEBUG] Chunks Generated: ${chunks.length}`);
-
-            // Update File Metadata
+            // Update File Metadata (No timeline parsing)
             await fileRef.set({
               name: file.name,
               lastIndexed: new Date().toISOString(),
-              chunkCount: chunks.length,
+              chunkCount: 1,
               category: file.category || 'canon',
-              timelineDate: timelineDate,
+              timelineDate: null,
             });
 
-            // 🟢 3. VECTORIZE & SAVE (Write new data)
-            // Use sequential writes or small batches if needed, but Promise.all is fine for insertion
-            // as long as previous delete is confirmed.
-            const chunkPromises = chunks.map(async (chunkText, i) => {
-              const vector = await embeddings.embedQuery(chunkText);
+            // 🟢 3. VECTORIZE & SAVE (Single Chunk)
+            const vector = await embeddings.embedQuery(chunkText);
 
-              return chunksRef.doc(`chunk_${i}`).set({
-                text: chunkText,
-                order: i,
-                fileName: file.name,
-                category: file.category || 'canon',
-                userId: userId,
-                projectId: projectId, // 👈 Strict Isolation Tag
-                embedding: FieldValue.vector(vector),
-              });
+            await chunksRef.doc("chunk_0").set({
+              text: chunkText,
+              order: 0,
+              fileName: file.name,
+              category: file.category || 'canon',
+              userId: userId,
+              projectId: projectId,
+              embedding: FieldValue.vector(vector),
+              type: 'raw_bypass' // 👈 Metadata tag
             });
 
-            await Promise.all(chunkPromises);
-
-            totalChunks += chunks.length;
-            logger.info(`   ✨ Re-indexado: ${file.name} (${chunks.length} nuevos chunks)`);
+            totalChunks += 1;
+            logger.info(`   ✨ Re-indexado (RAW BYPASS): ${file.name} (1 chunk)`);
 
           } catch (err: any) {
             logger.error(`Error indexando ${file.name}:`, err);
