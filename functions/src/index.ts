@@ -832,28 +832,46 @@ export const indexTDB = onCall(
             }
 
             // Parse Frontmatter
-            const parsed = matter(content);
-            let textToSplit = parsed.content;
-            const metadata = parsed.data;
-            const timelineDate = metadata.date ? new Date(metadata.date).toISOString() : null;
+            let textToSplit = content;
+            let metadata: any = {};
+            let timelineDate = null;
+
+            // 🟢 SAFETY NET 1: GRAY-MATTER
+            try {
+              const parsed = matter(content);
+              if (parsed.content && parsed.content.trim().length > 0) {
+                textToSplit = parsed.content;
+                metadata = parsed.data;
+                timelineDate = metadata.date ? new Date(metadata.date).toISOString() : null;
+              } else {
+                // Empty content from matter, but raw exists -> Use Raw
+                logger.warn(`⚠️ Gray-matter failed/empty for ${file.name}. Using RAW content.`);
+                textToSplit = content;
+              }
+            } catch (matterError) {
+              logger.warn(`⚠️ Gray-matter crashed for ${file.name}. Using RAW content. Error: ${matterError}`);
+              textToSplit = content;
+              // Metadata remains empty
+            }
 
             const cleanLength = textToSplit ? textToSplit.length : 0;
             logger.info(`📝 [DEBUG] Clean Content Length (after matter): ${cleanLength}`);
 
-            // 🛡️ FALLBACK 1: GRAY-MATTER LOSS
-            // If gray-matter swallowed the text (returned empty) but raw file had content, use RAW.
-            if ((!textToSplit || textToSplit.trim().length === 0) && rawLength > 0) {
-              logger.warn(`⚠️ [FALLBACK] Gray-matter returned empty. Using RAW content for: ${file.name}`);
-              textToSplit = content;
+            // 🟢 SAFETY NET 2: TEXT SPLITTER & SLEDGEHAMMER
+            let chunks: string[] = [];
+            try {
+              chunks = await splitter.splitText(textToSplit);
+            } catch (splitError) {
+              logger.error(`💥 Splitter crashed for ${file.name}:`, splitError);
+              chunks = []; // Force empty to trigger sledgehammer
             }
 
-            let chunks = await splitter.splitText(textToSplit);
-
-            // 🛡️ FALLBACK 2: SPLITTER LOSS
-            // If splitter produced 0 chunks but we have text, force a single chunk.
-            if (chunks.length === 0 && textToSplit && textToSplit.trim().length > 0) {
-              logger.warn(`⚠️ [FALLBACK] Splitter returned 0 chunks. Force creating single chunk for: ${file.name}`);
-              // Safety Cap: 8000 chars to avoid Firestore limits, though rare for a "no chunk" scenario.
+            // 🛡️ FALLBACK 2: SLEDGEHAMMER (The "Unbreakable" Logic)
+            // IF chunks array is empty [] BUT rawLength > 0 (we downloaded bytes):
+            // ACTION: Force create a single chunk manually.
+            if (chunks.length === 0 && rawLength > 0) {
+              logger.warn(`⚠️ Splitter returned 0 chunks (or failed). Used Sledgehammer fallback for ${file.name}.`);
+              // Force create single chunk (Safety Cap: 8000 chars)
               chunks = [textToSplit.substring(0, 8000)];
             }
 
