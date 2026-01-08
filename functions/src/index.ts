@@ -104,7 +104,7 @@ async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN"):
       }
 
       if (text) {
-        logger.info(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${text.substring(0, 100).replace(/\n/g, ' ')}...`);
+        logger.debug(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${text.substring(0, 100).replace(/\n/g, ' ')}...`);
       } else {
         logger.warn(`📉 [STREAM DEBUG] Preview (${debugLabel}): [EMPTY OR NULL CONTENT]`);
       }
@@ -624,7 +624,7 @@ export const indexTDB = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    console.log('🚀 SYSTEM UPDATE: Removing ProjectId to Fix Crash - Deploy Timestamp:', new Date().toISOString());
+    console.log('🚀 SYSTEM STABLE: Production Build', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -632,31 +632,15 @@ export const indexTDB = onCall(
 
     const { folderId, folderIds, accessToken, forceFullReindex } = request.data;
 
-    // 🟢 Project ID Strategy
-    // If folderId (legacy) is present, use it as default projectId.
-    // If only folderIds, rely on explicit projectId passed by client.
     let cleanFolderId = folderId;
     if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
       const match = cleanFolderId.match(/folders\/([a-zA-Z0-9-_]+)/);
       if (match && match[1]) cleanFolderId = match[1];
     }
 
-    // Default projectId to cleanFolderId if available, otherwise it MUST be passed or we might have issues identifying the project scope.
-    // Ideally, for multi-root, the client passes projectId (from config.folderId).
-    // const projectId = request.data.projectId || cleanFolderId; // 🟢 REMOVED: Causing crash if undefined and unused in simple pipeline.
-
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
     const userId = request.auth.uid;
-
-    // 🟢 CANARY PURGE: DELETE SYSTEM_TEST
-    try {
-      const canaryRef = db.collection("TDB_Index").doc(userId).collection("files").doc("SYSTEM_TEST");
-      await db.recursiveDelete(canaryRef);
-      logger.info(`🐤 [CANARY PROTOCOL] SYSTEM_TEST artifact executed (deleted) for user ${userId}`);
-    } catch (canaryErr) {
-      logger.warn(`⚠️ [CANARY PROTOCOL] Failed to delete SYSTEM_TEST:`, canaryErr);
-    }
 
     try {
       // A. Configurar Embeddings
@@ -825,8 +809,8 @@ export const indexTDB = onCall(
               return; // Skip processing this file entirely
             }
 
-            // --- RAW BYPASS LOGIC (ONE FILE = ONE CHUNK) ---
-            // Mission: Simplify Pipeline. Remove gray-matter and splitter.
+            // --- STANDARD LOGIC (ONE FILE = ONE CHUNK) ---
+            // Mission: Simplify Pipeline.
             // Just take the raw string, cap it at 8000 chars, and save it.
             const chunkText = content.substring(0, 8000);
 
@@ -849,11 +833,11 @@ export const indexTDB = onCall(
               category: file.category || 'canon',
               userId: userId,
               embedding: FieldValue.vector(vector),
-              type: 'raw_bypass' // 👈 Metadata tag
+              type: 'file'
             });
 
             totalChunks += 1;
-            logger.info(`   ✨ Re-indexado (RAW BYPASS): ${file.name} (1 chunk)`);
+            logger.info(`   ✨ Re-indexado: ${file.name} (1 chunk)`);
 
           } catch (err: any) {
             logger.error(`Error indexando ${file.name}:`, err);
@@ -901,13 +885,13 @@ export const chatWithGem = onCall(
     memory: "2GiB",      // 👈 Increased memory for heavy lifting
   },
   async (request) => {
-    console.log('🚀 SYSTEM UPDATE: Safety Checks & Canary Purge - Deploy Timestamp:', new Date().toISOString());
+    console.log('🚀 SYSTEM STABLE: Production Build', new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext } = request.data; // 👈 Removed projectId
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
