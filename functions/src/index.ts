@@ -590,7 +590,7 @@ export const indexTDB = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    console.log('🚀 WORLD ENGINE PREP: Phase 1 Stable - ' + new Date().toISOString());
+    console.log('🚀 WORLD ENGINE: Phase 2 - Powered by Gemini 3 - ' + new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -830,7 +830,7 @@ export const chatWithGem = onCall(
     memory: "2GiB",
   },
   async (request) => {
-    console.log('🚀 WORLD ENGINE PREP: Phase 1 Stable - ' + new Date().toISOString());
+    console.log('🚀 WORLD ENGINE: Phase 2 - Powered by Gemini 3 - ' + new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -1100,6 +1100,151 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
 
     } catch (error: any) {
       logger.error("Error en Chat RAG:", error);
+      throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+/**
+ * PHASE 2: WORLD ENGINE (The Simulation)
+ * Motor de simulación y lógica narrativa aislado.
+ */
+export const worldEngine = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+    timeoutSeconds: 300,
+    memory: "2GiB",
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    console.log('🚀 WORLD ENGINE: Phase 2 - Powered by Gemini 3 - ' + new Date().toISOString());
+    initializeFirebase();
+
+    if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+
+    const { query, agentMode, chaosLevel, axiomFileIds, accessToken } = request.data;
+
+    // 1. INPUT VALIDATION
+    if (!query) throw new HttpsError("invalid-argument", "Falta el query.");
+    if (!['ARCHITECT', 'ORACLE', 'DEVIL_ADVOCATE'].includes(agentMode)) {
+      throw new HttpsError("invalid-argument", "agentMode inválido.");
+    }
+    if (!axiomFileIds || !Array.isArray(axiomFileIds)) {
+      throw new HttpsError("invalid-argument", "axiomFileIds debe ser un array.");
+    }
+    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    try {
+      // 2. AXIOM INGESTION (Concurrent Fetch)
+      logger.info(`🌍 World Engine activado [${agentMode}]. Ingestando ${axiomFileIds.length} axiomas...`);
+
+      const auth = new google.auth.OAuth2();
+      auth.setCredentials({ access_token: accessToken });
+      const drive = google.drive({ version: "v3", auth });
+
+      // Fetch all axioms in parallel
+      const axiomPromises = axiomFileIds.map(id => _getDriveFileContentInternal(drive, id));
+      const axiomContents = await Promise.all(axiomPromises);
+      const combinedAxioms = axiomContents.join("\n\n");
+
+      // 3. AGENT CONFIGURATION
+      let temperature = 0.7;
+      let topK = 40;
+      let systemAddendum = "";
+
+      switch (agentMode) {
+        case 'ARCHITECT':
+          temperature = 0.2;
+          topK = 10;
+          systemAddendum = "You are the LOGIC ENGINE. Prioritize strict internal consistency and physics.";
+          break;
+        case 'ORACLE':
+          temperature = 0.9;
+          topK = 40;
+          systemAddendum = "You are the CHAOS ENGINE. Prioritize lateral thinking, surrealism, and hidden connections.";
+          break;
+        case 'DEVIL_ADVOCATE':
+          temperature = 0.5;
+          topK = 40; // Defaulting to 40 as not specified
+          systemAddendum = "You are the CRITICAL ENGINE. Ruthlessly find logical holes, economic collapses, and contradictions.";
+          break;
+      }
+
+      // Chaos Override
+      if (chaosLevel !== undefined && chaosLevel !== null) {
+        const chaos = Number(chaosLevel);
+        if (!isNaN(chaos) && chaos >= 0 && chaos <= 1) {
+          temperature = chaos;
+          logger.info(`🔥 Chaos Override applied: Temp ${temperature}`);
+        }
+      }
+
+      const systemPrompt = `
+      ${systemAddendum}
+
+      AXIOMS / LAWS OF PHYSICS: The following text represents the unchangeable laws of this world. You must adhere to them:
+      ${combinedAxioms}
+
+      OUTPUT SCHEMA (STRICT JSON):
+      {
+        "analysis": "Brief synthesis of the premise...",
+        "consequences": [
+          { "type": "Economy|Culture|Politics|War", "description": "Specific ripple effect..." }
+        ],
+        "anomaly_detected": true/false,
+        "anomaly_details": "If true, explain the contradiction with Axioms."
+      }
+      `;
+
+      // 4. MODEL EXECUTION (The Agent Switch)
+      const invokeModel = async (modelName: string) => {
+        logger.info(`🤖 Invoking Model: ${modelName} | Temp: ${temperature} | TopK: ${topK}`);
+        const chatModel = new ChatGoogleGenerativeAI({
+          apiKey: googleApiKey.value(),
+          model: modelName,
+          temperature: temperature,
+          topK: topK,
+          generationConfig: {
+            responseMimeType: "application/json",
+            topK: topK
+          }
+        } as any);
+
+        return await chatModel.invoke([
+          ["system", systemPrompt],
+          ["human", query]
+        ]);
+      };
+
+      let responseContent = "";
+
+      try {
+        // PRIMARY ATTEMPT: Gemini 3
+        const response = await invokeModel("gemini-3-pro-preview");
+        responseContent = response.content.toString();
+      } catch (primaryError: any) {
+        logger.warn(`⚠️ Gemini 3 Failed. Fallback initiated: ${primaryError.message}`);
+
+        // FALLBACK ATTEMPT: Gemini 2.5 Pro (Safe Fallback)
+        try {
+            const response = await invokeModel("gemini-2.5-pro");
+            responseContent = response.content.toString();
+        } catch (fallbackError: any) {
+             logger.error(`💥 FATAL: Both models failed.`, fallbackError);
+             throw new HttpsError("internal", "World Engine failure: All models unresponsive.");
+        }
+      }
+
+      // 5. PARSE & RETURN
+      // Safety: Strip markdown code blocks if present (Gemini sometimes adds them despite JSON mode)
+      const cleanJson = responseContent.replace(/```json/g, '').replace(/```/g, '').trim();
+      const parsedResult = JSON.parse(cleanJson);
+
+      return parsedResult;
+
+    } catch (error: any) {
+      logger.error("Error en World Engine:", error);
       throw new HttpsError("internal", error.message);
     }
   }
