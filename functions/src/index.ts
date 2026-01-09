@@ -1367,6 +1367,13 @@ export const worldEngine = onCall(
       sessionId: sessionId || 'NO_SESSION'
     });
 
+    // 🟢 AUDIT LOGGING: Verify Priority Lore Injection
+    if (canon_dump && canon_dump.includes('[CORE WORLD RULES / PRIORITY LORE]')) {
+        logger.info("✅ PRIORITY LORE DETECTED in Canon Dump");
+    } else {
+        logger.warn("⚠️ PRIORITY LORE MISSING in Canon Dump (Star Logic Check Required)");
+    }
+
     try {
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
@@ -1420,11 +1427,11 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
            - IF Prompt is Clear: Generate a TYPE A (Standard Node).
 
         4. **LORE AUDIT (COHERENCY CHECK):**
-           - **MANDATORY STEP:** Before finalizing a TYPE A response, scan the generated content against the blocks marked '[CORE WORLD RULES / PRIORITY LORE]' in the context.
+           - "CRITICAL MANDATE: You are a strict Continuity Auditor. Before generating any response, compare the prompt's dates and facts against files marked [PRIORITY_LORE] or [CORE WORLD RULES]. If a date (e.g., 486) or status (e.g., Elsa is alive) contradicts a priority file, you MUST populate the coherency_report object. Failing to report a contradiction is a System Failure."
            - **IF A CONTRADICTION IS FOUND:**
              - DO NOT STOP GENERATION.
-             - Generate the TYPE A response normally (let the creativity flow).
-             - **MUST** append a 'coherency_report' object to the JSON.
+             - Generate the TYPE A response normally.
+             - **MUST** append a 'coherency_report' object to the JSON. This field is NOT optional if a divergence is detected.
              - The 'warning' must be a short, alarming headline (e.g., "VIOLACIÓN DE CANON" or "DISCORDANCIA TEMPORAL").
              - The 'file_source' must be the exact filename of the contradicted PRIORITY LORE file.
              - The 'explanation' must be a concise summary (max 2 lines) of the conflict.
