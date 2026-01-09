@@ -414,6 +414,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 return;
             }
 
+            // 🟢 COHERENCY CHECK (LOGGING)
+            if (data.coherency_report) {
+                console.log("⚠️ COHERENCY REPORT RECEIVED:", data.coherency_report);
+            }
+
             // STANDARD NODE (SUCCESS)
             const newNode: Node = {
                 id: Date.now().toString(),
@@ -423,7 +428,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 agentId: activeAgent,
                 x: Math.random() * 60 + 20,
                 y: Math.random() * 60 + 20,
-                metadata: data.metadata
+                metadata: data.metadata,
+                coherency_report: data.coherency_report // 👈 Fixed Mapping
             };
             setNodes(prev => [...prev, newNode]);
             setSessionHistory(prev => [...prev, { prompt, result: data }]);
