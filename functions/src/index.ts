@@ -47,6 +47,7 @@ interface ProjectPath {
 
 interface ProjectConfig {
   canonPaths: ProjectPath[];
+  primaryCanonPathId?: string | null;
   resourcePaths: ProjectPath[];
   chronologyPath: ProjectPath | null;
   activeBookContext: string;
@@ -77,6 +78,7 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
 
   const defaultConfig: ProjectConfig = {
     canonPaths: [],
+    primaryCanonPathId: null,
     resourcePaths: [],
     chronologyPath: null,
     activeBookContext: "Just Megu",
@@ -671,6 +673,7 @@ export const getProjectConfig = onCall(
 
       const defaultConfig: ProjectConfig = {
         canonPaths: [],
+        primaryCanonPathId: null,
         resourcePaths: [],
         chronologyPath: null,
         activeBookContext: "Just Megu"

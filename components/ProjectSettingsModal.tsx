@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, Save, Folder, Book, Clock } from 'lucide-react';
+import { X, Plus, Trash2, Save, Folder, Book, Clock, Star } from 'lucide-react';
 import { useProjectConfig } from './ProjectConfigContext';
 import useDrivePicker from 'react-google-drive-picker';
 import { ProjectPath } from '../types';
@@ -13,6 +13,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     // Local state for form handling
     const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
+    const [primaryCanonPathId, setPrimaryCanonPathId] = useState<string | null>(null);
     const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>([]);
     const [chronologyPath, setChronologyPath] = useState<ProjectPath | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -24,6 +25,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     useEffect(() => {
         if (config) {
             setCanonPaths(config.canonPaths || []);
+            setPrimaryCanonPathId(config.primaryCanonPathId || null);
             setResourcePaths(config.resourcePaths || []);
             setChronologyPath(config.chronologyPath || null);
         }
@@ -34,6 +36,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         try {
             await updateConfig({
                 canonPaths,
+                primaryCanonPathId,
                 resourcePaths,
                 chronologyPath
             });
@@ -162,7 +165,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         paths: ProjectPath[];
         setPaths: (l: ProjectPath[]) => void;
         icon: React.ElementType;
-    }> = ({ label, paths, setPaths, icon: Icon }) => {
+        allowPrimary?: boolean; // 👈 Feature flag for Canon
+    }> = ({ label, paths, setPaths, icon: Icon, allowPrimary = false }) => {
         return (
             <div className="mb-6">
                 <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider mb-2 flex items-center gap-2">
@@ -170,20 +174,37 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                 </label>
 
                 <div className="space-y-2">
-                    {paths.map((path, idx) => (
-                        <div key={path.id} className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50">
-                            <div className="flex flex-col">
-                                <span className="text-sm text-titanium-200 font-medium">{path.name}</span>
-                                <span className="text-[10px] text-titanium-500 font-mono">{path.id}</span>
+                    {paths.map((path, idx) => {
+                        const isPrimary = allowPrimary && primaryCanonPathId === path.id;
+
+                        return (
+                            <div key={path.id} className={`flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border transition-all duration-300 ${isPrimary ? 'border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'border-titanium-700/50'}`}>
+                                <div className="flex items-center gap-3">
+                                    {allowPrimary && (
+                                        <button
+                                            onClick={() => setPrimaryCanonPathId(isPrimary ? null : path.id)}
+                                            className={`transition-all duration-200 ${isPrimary ? 'text-yellow-400 scale-110' : 'text-titanium-600 hover:text-yellow-400/50'}`}
+                                            title={isPrimary ? "Fuente Primaria de Worldbuilding (Activa)" : "Marcar como Fuente Primaria de Reglas"}
+                                        >
+                                            <Star size={16} fill={isPrimary ? "currentColor" : "none"} />
+                                        </button>
+                                    )}
+                                    <div className="flex flex-col">
+                                        <span className={`text-sm font-medium ${isPrimary ? 'text-yellow-100' : 'text-titanium-200'}`}>
+                                            {path.name} {isPrimary && <span className="text-[10px] text-yellow-500 font-bold ml-2 tracking-widest">[PRIMARY CORE]</span>}
+                                        </span>
+                                        <span className="text-[10px] text-titanium-500 font-mono">{path.id}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => removePath(paths, setPaths, idx)}
+                                    className="text-titanium-500 hover:text-red-400 transition-colors"
+                                >
+                                    <Trash2 size={14} />
+                                </button>
                             </div>
-                            <button
-                                onClick={() => removePath(paths, setPaths, idx)}
-                                className="text-titanium-500 hover:text-red-400 transition-colors"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        </div>
-                    ))}
+                        );
+                    })}
 
                     <button
                         onClick={() => handleOpenPicker(setPaths, paths)}
@@ -223,6 +244,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             paths={canonPaths}
                             setPaths={setCanonPaths}
                             icon={Folder}
+                            allowPrimary={true}
                         />
 
                         {/* Resource Paths */}
