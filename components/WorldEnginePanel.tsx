@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
     LayoutTemplate,
     Sparkles,
@@ -18,6 +19,16 @@ interface WorldEnginePanelProps {
 
 type AgentType = 'architect' | 'oracle' | 'advocate';
 
+interface Node {
+    id: string;
+    type: string;
+    title: string;
+    content: string;
+    agentId: AgentType;
+    x?: number; // Position X (percentage)
+    y?: number; // Position Y (percentage)
+}
+
 const AGENTS = {
     architect: {
         id: 'architect',
@@ -26,7 +37,12 @@ const AGENTS = {
         icon: LayoutTemplate,
         color: 'cyan',
         colorHex: '#06b6d4', // cyan-500
-        desc: 'Diseño lógico y coherencia estructural.'
+        desc: 'Diseño lógico y coherencia estructural.',
+        styles: {
+            border: 'border-cyan-500/30',
+            text: 'text-cyan-400',
+            shadow: 'shadow-[0_0_30px_rgba(6,182,212,0.1)]'
+        }
     },
     oracle: {
         id: 'oracle',
@@ -35,7 +51,12 @@ const AGENTS = {
         icon: Sparkles,
         color: 'purple',
         colorHex: '#a855f7', // purple-500
-        desc: 'Creatividad desenfrenada y alucinación controlada.'
+        desc: 'Creatividad desenfrenada y alucinación controlada.',
+        styles: {
+            border: 'border-purple-500/30',
+            text: 'text-purple-400',
+            shadow: 'shadow-[0_0_30px_rgba(168,85,247,0.1)]'
+        }
     },
     advocate: {
         id: 'advocate',
@@ -44,7 +65,12 @@ const AGENTS = {
         icon: TriangleAlert,
         color: 'red',
         colorHex: '#ef4444', // red-500
-        desc: 'Detección de riesgos y agujeros de guion.'
+        desc: 'Detección de riesgos y agujeros de guion.',
+        styles: {
+            border: 'border-red-500/30',
+            text: 'text-red-400',
+            shadow: 'shadow-[0_0_30px_rgba(239,68,68,0.1)]'
+        }
     }
 };
 
@@ -144,12 +170,61 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [chaosLevel, setChaosLevel] = useState<number>(0.3);
     const [combatMode, setCombatMode] = useState<boolean>(false);
 
+    // DATA STATE
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const [isLoading, setIsLoading] = useState<boolean>(false);
+
     // MOCK NOTIFICATIONS
     const [notifications] = useState([
         { id: 1, type: 'alert', text: 'ANOMALY DETECTED: Timeline Divergence' }
     ]);
 
     const activeAgentConfig = AGENTS[activeAgent];
+
+    // --- NEURAL LINK (BACKEND CONNECTION) ---
+    const generateNode = async (prompt: string) => {
+        setIsLoading(true);
+        const functions = getFunctions();
+        const worldEngine = httpsCallable(functions, 'worldEngine');
+
+        // MAP AGENT ID
+        let backendAgentId = 'ARCHITECT';
+        if (activeAgent === 'oracle') backendAgentId = 'ORACLE';
+        if (activeAgent === 'advocate') backendAgentId = 'DEVIL_ADVOCATE';
+
+        const payload = {
+            prompt,
+            agentId: backendAgentId,
+            chaosLevel,
+            combatMode,
+            contextData: "", // Future-proofing
+            userFocus: ""    // Future-proofing
+        };
+
+        try {
+            const result = await worldEngine(payload) as any;
+            const data = result.data;
+
+            // CREATE DYNAMIC NODE
+            const newNode: Node = {
+                id: Date.now().toString(),
+                type: data.type || 'idea',
+                title: data.title || 'Unknown',
+                content: data.content || 'No content received.',
+                agentId: activeAgent,
+                x: Math.random() * 60 + 20, // Random pos 20-80%
+                y: Math.random() * 60 + 20
+            };
+
+            setNodes(prev => [...prev, newNode]);
+
+        } catch (error) {
+            console.error("NEURAL LINK FAILURE:", error);
+            // Optionally add error notification here
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     if (!isOpen) return null;
 
@@ -235,35 +310,32 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 </AnimatePresence>
             </div>
 
-            {/* LAYER 1: GHOST NODES */}
+            {/* LAYER 1: DYNAMIC NODES */}
             <AnimatePresence>
-                {/* Node A: The Architect */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.2, duration: 0.5 }}
-                    className="absolute top-[20%] left-[15%] w-64 p-4 bg-black/60 border border-cyan-500/30 rounded-lg backdrop-blur-sm shadow-[0_0_30px_rgba(6,182,212,0.1)] z-0"
-                >
-                    <div className="flex items-center gap-2 mb-2 text-cyan-400">
-                        <LayoutTemplate size={14} />
-                        <span className="text-xs font-bold tracking-widest">STRUCTURE IDEA</span>
-                    </div>
-                    <p className="text-sm text-titanium-300 font-serif leading-relaxed">Three-Act Setup</p>
-                </motion.div>
-
-                {/* Node B: The Oracle */}
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4, duration: 0.5 }}
-                    className="absolute top-[60%] right-[20%] w-64 p-4 bg-black/60 border border-purple-500/30 rounded-lg backdrop-blur-sm shadow-[0_0_30px_rgba(168,85,247,0.1)] z-0"
-                >
-                    <div className="flex items-center gap-2 mb-2 text-purple-400">
-                        <Sparkles size={14} />
-                        <span className="text-xs font-bold tracking-widest">CHAOS SPARK</span>
-                    </div>
-                    <p className="text-sm text-titanium-300 font-serif leading-relaxed">Dragon made of glass</p>
-                </motion.div>
+                {nodes.map(node => {
+                   const agent = AGENTS[node.agentId];
+                   return (
+                    <motion.div
+                        key={node.id}
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ duration: 0.5 }}
+                        className={`absolute w-64 p-4 bg-black/60 border rounded-lg backdrop-blur-sm z-0 ${agent.styles.border} ${agent.styles.shadow}`}
+                        style={{
+                            top: `${node.y}%`,
+                            left: `${node.x}%`
+                        }}
+                    >
+                        <div className={`flex items-center gap-2 mb-2 ${agent.styles.text}`}>
+                            <agent.icon size={14} />
+                            <span className="text-xs font-bold tracking-widest uppercase">{node.type}</span>
+                        </div>
+                        <div className="text-xs font-bold text-white mb-1">{node.title}</div>
+                        <p className="text-sm text-titanium-300 font-serif leading-relaxed">{node.content}</p>
+                    </motion.div>
+                   );
+                })}
             </AnimatePresence>
 
             {/* LAYER 2: COMMAND DECK (OPERATION MONOLITH) */}
@@ -271,12 +343,16 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 {/* Row 1: The Input */}
                 <input
                     type="text"
-                    placeholder="Initialize simulation protocol..."
-                    className="w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl z-10"
+                    disabled={isLoading}
+                    placeholder={isLoading ? "ESTABLISHING NEURAL LINK..." : "Initialize simulation protocol..."}
+                    className={`w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl z-10 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                            console.log('INPUT NEXUS COMMAND:', e.currentTarget.value);
-                            e.currentTarget.value = '';
+                        if (e.key === 'Enter' && !isLoading) {
+                            const val = e.currentTarget.value.trim();
+                            if (val) {
+                                generateNode(val);
+                                e.currentTarget.value = '';
+                            }
                         }
                     }}
                 />
