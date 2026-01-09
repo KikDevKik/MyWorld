@@ -18,6 +18,7 @@ import SettingsModal from './components/SettingsModal';
 import FieldManualModal from './components/FieldManualModal';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
 import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
+import WorldEnginePanel from './components/WorldEnginePanel'; // 👈 IMPORT NEW PANEL
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
 import { GemId, ProjectConfig, ForgeSession } from './types';
 import { Loader2 } from 'lucide-react';
@@ -381,15 +382,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         accessToken={oauthToken}
                     />
                 ) : activeGemId === 'perforador' ? (
-                    <ChatPanel
+                    <WorldEnginePanel
                         isOpen={true}
                         onClose={() => setActiveGemId(null)}
                         activeGemId={activeGemId}
-                        isFullWidth={true}
-                        folderId={folderId}
-                        activeFileContent={effectiveFileContent} // 👈 Pass Context
-                        activeFileName={effectiveFileName}     // 👈 Pass Context
-                        isFallbackContext={isFallbackContext}  // 👈 Pass Flag
                     />
                 ) : activeGemId === 'tribunal' ? (
                     <TribunalPanel
