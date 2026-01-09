@@ -169,7 +169,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </div>
 
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 w-fit">
                 <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
                     {Object.values(AGENTS).map((agent) => (
                         <button
@@ -208,7 +208,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </div>
 
             {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
-            <div className="absolute top-6 right-6 z-10 flex flex-col gap-2 w-72 pointer-events-none">
+            <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-72 pointer-events-none">
                 <div className="flex justify-end mb-2">
                      <button onClick={onClose} className="pointer-events-auto p-2 hover:bg-white/10 rounded-full text-titanium-400 hover:text-white transition-colors">
                         <X size={20} />
@@ -267,12 +267,12 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </AnimatePresence>
 
             {/* LAYER 2: COMMAND DECK (OPERATION MONOLITH) */}
-            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col w-[600px]">
+            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-0 items-center w-[600px]">
                 {/* Row 1: The Input */}
                 <input
                     type="text"
                     placeholder="Initialize simulation protocol..."
-                    className="w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-sm px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl z-10"
+                    className="w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl z-10"
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             console.log('INPUT NEXUS COMMAND:', e.currentTarget.value);
@@ -282,7 +282,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 />
 
                 {/* Row 2: The Parameters ("The Chin") */}
-                <div className="w-full bg-black/80 backdrop-blur-xl border border-titanium-500/50 border-t-0 rounded-b-xl px-4 py-3 flex items-center justify-between gap-4 -mt-px shadow-2xl">
+                <div className="w-full bg-black/80 backdrop-blur-xl border border-titanium-500/50 border-t-0 rounded-t-none rounded-b-xl px-4 py-3 flex items-center justify-between gap-4 -mt-px shadow-2xl">
                     {/* Left: Chaos Slider (65%) */}
                     <div className="w-[65%]">
                         <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
