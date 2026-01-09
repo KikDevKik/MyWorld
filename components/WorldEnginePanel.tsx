@@ -10,6 +10,7 @@ import {
     Activity
 } from 'lucide-react';
 import { GemId } from '../types';
+import { useProjectConfig } from '../components/ProjectConfigContext';
 
 interface WorldEnginePanelProps {
     isOpen: boolean;
@@ -173,6 +174,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // DATA STATE
     const [nodes, setNodes] = useState<Node[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
+
+    // CONTEXT
+    const { config } = useProjectConfig();
 
     // MOCK NOTIFICATIONS
     const [notifications] = useState([
@@ -181,27 +186,101 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     const activeAgentConfig = AGENTS[activeAgent];
 
+    // --- HARVESTER (FRONTEND LOGIC) ---
+    const harvestWorldContext = async (): Promise<{ canon_dump: string; timeline_dump: string }> => {
+        if (!config) return { canon_dump: "", timeline_dump: "" };
+
+        const functions = getFunctions();
+        const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
+        const getDriveFileContent = httpsCallable(functions, 'getDriveFileContent');
+
+        let canonText = "";
+        let timelineText = "";
+
+        // HELPER: Fetch content from a list of files
+        const fetchContent = async (fileList: any[]): Promise<string> => {
+            let combined = "";
+            for (const file of fileList) {
+                if (file.mimeType === 'application/vnd.google-apps.folder') continue;
+
+                try {
+                    // Get Access Token (assuming it's stored in localStorage as per memory)
+                    const token = localStorage.getItem('google_drive_token');
+                    if (!token) continue;
+
+                    const res = await getDriveFileContent({ fileId: file.id, accessToken: token }) as any;
+                    combined += `\n\n--- FILE: ${file.name} ---\n${res.data.content}`;
+                } catch (e) {
+                    console.warn(`Failed to read ${file.name}`, e);
+                }
+            }
+            return combined;
+        };
+
+        // 1. HARVEST CANON
+        if (config.canonPaths && config.canonPaths.length > 0) {
+            setStatusMessage("ALIGNING WITH CANON PROTOCOLS...");
+            const token = localStorage.getItem('google_drive_token');
+            if (token) {
+                try {
+                     // Get File List
+                     const folderIds = config.canonPaths.map(p => p.id);
+                     const res = await getDriveFiles({ folderIds, accessToken: token, recursive: true }) as any;
+                     const files = res.data.filter((f: any) => f.name.endsWith('.md') || f.name.endsWith('.txt'));
+
+                     // Get Content
+                     canonText = await fetchContent(files);
+                } catch (e) {
+                    console.error("Canon Harvest Failed", e);
+                }
+            }
+        }
+
+        // 2. HARVEST TIMELINE
+        if (config.chronologyPath) {
+             setStatusMessage("SYNCHRONIZING TIMELINE EVENTS...");
+             const token = localStorage.getItem('google_drive_token');
+             if (token) {
+                 try {
+                     const res = await getDriveFiles({ folderId: config.chronologyPath.id, accessToken: token, recursive: true }) as any;
+                     const files = res.data.filter((f: any) => f.name.endsWith('.md') || f.name.endsWith('.txt'));
+                     timelineText = await fetchContent(files);
+                 } catch (e) {
+                     console.error("Timeline Harvest Failed", e);
+                 }
+             }
+        }
+
+        return { canon_dump: canonText, timeline_dump: timelineText };
+    };
+
     // --- NEURAL LINK (BACKEND CONNECTION) ---
     const generateNode = async (prompt: string) => {
         setIsLoading(true);
+        setStatusMessage("INITIALIZING HARVESTER...");
+
         const functions = getFunctions();
-        const worldEngine = httpsCallable(functions, 'worldEngine');
+        const worldEngine = httpsCallable(functions, 'worldEngine', { timeout: 1800000 }); // 30 Minutes
 
         // MAP AGENT ID
         let backendAgentId = 'ARCHITECT';
         if (activeAgent === 'oracle') backendAgentId = 'ORACLE';
         if (activeAgent === 'advocate') backendAgentId = 'DEVIL_ADVOCATE';
 
-        const payload = {
-            prompt,
-            agentId: backendAgentId,
-            chaosLevel,
-            combatMode,
-            contextData: "", // Future-proofing
-            userFocus: ""    // Future-proofing
-        };
-
         try {
+            // STEP 1: DEEP HARVEST
+            const contextPayload = await harvestWorldContext();
+
+            setStatusMessage("DEEP REASONING IN PROGRESS... DO NOT REFRESH.");
+
+            const payload = {
+                prompt,
+                agentId: backendAgentId,
+                chaosLevel,
+                combatMode,
+                context: contextPayload
+            };
+
             const result = await worldEngine(payload) as any;
             const data = result.data;
 
@@ -223,6 +302,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             // Optionally add error notification here
         } finally {
             setIsLoading(false);
+            setStatusMessage("ESTABLISHING NEURAL LINK...");
         }
     };
 
@@ -344,7 +424,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 <input
                     type="text"
                     disabled={isLoading}
-                    placeholder={isLoading ? "ESTABLISHING NEURAL LINK..." : "Initialize simulation protocol..."}
+                    placeholder={isLoading ? statusMessage : "Initialize simulation protocol..."}
                     className={`w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl z-10 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !isLoading) {
