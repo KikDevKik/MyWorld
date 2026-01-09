@@ -169,7 +169,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </div>
 
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
-            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50">
                 <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
                     {Object.values(AGENTS).map((agent) => (
                         <button
@@ -266,12 +266,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 </motion.div>
             </AnimatePresence>
 
-            {/* LAYER 2: INPUT NEXUS */}
-            <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20">
+            {/* LAYER 2: COMMAND DECK (OPERATION MONOLITH) */}
+            <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50 flex flex-col w-[600px]">
+                {/* Row 1: The Input */}
                 <input
                     type="text"
                     placeholder="Initialize simulation protocol..."
-                    className="w-[600px] bg-black/60 border border-titanium-500/50 rounded-xl px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl"
+                    className="w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-sm px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl z-10"
                     onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                             console.log('INPUT NEXUS COMMAND:', e.currentTarget.value);
@@ -279,30 +280,27 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         }
                     }}
                 />
-            </div>
 
-            {/* LAYER 1: HUD CONTROLS (LEFT - CHAOS) */}
-            <div className="absolute bottom-8 left-8 z-10 w-96">
-                <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl">
-                    <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
-                </div>
-            </div>
+                {/* Row 2: The Parameters ("The Chin") */}
+                <div className="w-full bg-black/80 backdrop-blur-xl border border-titanium-500/50 border-t-0 rounded-b-xl px-4 py-3 flex items-center justify-between gap-4 -mt-px shadow-2xl">
+                    {/* Left: Chaos Slider (65%) */}
+                    <div className="w-[65%]">
+                        <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
+                    </div>
 
-            {/* LAYER 1: HUD CONTROLS (RIGHT - SYSTEM) */}
-            <div className="absolute bottom-8 right-8 z-10">
-                <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center gap-6">
-                    <CombatToggle value={combatMode} onChange={setCombatMode} />
-
-                    {/* Divider */}
-                    <div className="w-px h-8 bg-white/10" />
-
-                    {/* Status Indicator */}
-                    <div className="flex flex-col items-end">
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full animate-pulse ${combatMode ? 'bg-red-500' : 'bg-green-500'}`} />
-                            <span className="text-[10px] font-bold text-titanium-400">ONLINE</span>
+                    {/* Right: Status & Toggle (35%) */}
+                    <div className="w-[35%] flex items-center justify-end gap-4">
+                        {/* Status Indicator */}
+                        <div className="flex flex-col items-end">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2 h-2 rounded-full animate-pulse ${combatMode ? 'bg-red-500' : 'bg-green-500'}`} />
+                                <span className="text-[10px] font-bold text-titanium-400">ONLINE</span>
+                            </div>
+                            <span className="text-[9px] font-mono text-titanium-600">LATENCY: 12ms</span>
                         </div>
-                        <span className="text-[9px] font-mono text-titanium-600">LATENCY: 12ms</span>
+
+                        {/* Combat Toggle */}
+                        <CombatToggle value={combatMode} onChange={setCombatMode} />
                     </div>
                 </div>
             </div>
