@@ -1138,6 +1138,7 @@ export const worldEngine = onCall(
         model: "gemini-3-pro-preview",
         generationConfig: {
           temperature: 1.0,
+          responseMimeType: "application/json",
           // @ts-ignore - SDK types might lag behind experimental features
           thinking_config: { include_thoughts: true, thinking_level: "high" }
         } as any
@@ -1176,9 +1177,22 @@ export const worldEngine = onCall(
 
       const responseText = result.response.text();
 
-      // Clean JSON
-      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(cleanJson);
+      // Clean JSON with Aggressive Regex to strip "Thinking Traces"
+      try {
+        const firstBrace = responseText.indexOf('{');
+        const lastBrace = responseText.lastIndexOf('}');
+
+        if (firstBrace === -1 || lastBrace === -1 || firstBrace >= lastBrace) {
+           throw new Error("No valid JSON object found (Braces missing or inverted)");
+        }
+
+        const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
+        return JSON.parse(cleanJson);
+
+      } catch (parseError: any) {
+         logger.error("💥 MALFORMED AI RESPONSE:", responseText);
+         throw new HttpsError('internal', 'AI Output Malformed: ' + responseText.slice(0, 100) + '...');
+      }
 
     } catch (error: any) {
       logger.error("💥 TITAN LINK FAILED:", error);
