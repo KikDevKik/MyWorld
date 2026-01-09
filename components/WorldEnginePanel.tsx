@@ -42,7 +42,8 @@ const AGENTS = {
         styles: {
             border: 'border-cyan-500/30',
             text: 'text-cyan-400',
-            shadow: 'shadow-[0_0_30px_rgba(6,182,212,0.1)]'
+            shadow: 'shadow-[0_0_30px_rgba(6,182,212,0.1)]',
+            focusRing: 'focus:border-cyan-500 focus:ring-cyan-500'
         }
     },
     oracle: {
@@ -56,7 +57,8 @@ const AGENTS = {
         styles: {
             border: 'border-purple-500/30',
             text: 'text-purple-400',
-            shadow: 'shadow-[0_0_30px_rgba(168,85,247,0.1)]'
+            shadow: 'shadow-[0_0_30px_rgba(168,85,247,0.1)]',
+            focusRing: 'focus:border-purple-500 focus:ring-purple-500'
         }
     },
     advocate: {
@@ -70,7 +72,8 @@ const AGENTS = {
         styles: {
             border: 'border-red-500/30',
             text: 'text-red-400',
-            shadow: 'shadow-[0_0_30px_rgba(239,68,68,0.1)]'
+            shadow: 'shadow-[0_0_30px_rgba(239,68,68,0.1)]',
+            focusRing: 'focus:border-red-500 focus:ring-red-500'
         }
     }
 };
@@ -324,7 +327,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </div>
 
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 w-fit">
+            <div className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit">
                 <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
                     {Object.values(AGENTS).map((agent) => (
                         <button
@@ -419,13 +422,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </AnimatePresence>
 
             {/* LAYER 2: COMMAND DECK (OPERATION MONOLITH) */}
-            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-50 flex flex-col gap-0 items-center w-[600px]">
+            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px]">
                 {/* Row 1: The Input */}
                 <input
                     type="text"
                     disabled={isLoading}
                     placeholder={isLoading ? statusMessage : "Initialize simulation protocol..."}
-                    className={`w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl z-10 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:ring-1 ${activeAgentConfig.styles.focusRing} transition-all font-mono text-sm shadow-2xl z-10 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                     onKeyDown={(e) => {
                         if (e.key === 'Enter' && !isLoading) {
                             const val = e.currentTarget.value.trim();
