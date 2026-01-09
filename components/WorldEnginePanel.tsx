@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     LayoutTemplate,
@@ -81,16 +81,12 @@ const ChaosSlider: React.FC<{ value: number; onChange: (val: number) => void }> 
     };
 
     return (
-        <div className="space-y-2 select-none">
-            <div className="flex justify-between text-xs font-bold text-titanium-400">
-                <span className="tracking-widest">RIGOR</span>
-                <span className="font-mono text-white">{value.toFixed(2)}</span>
-                <span className="tracking-widest">ENTROPÍA</span>
-            </div>
+        <div className="flex items-center gap-4 select-none w-full">
+            <span className="text-xs font-bold text-titanium-400 tracking-widest min-w-[50px]">RIGOR</span>
 
             <div
                 ref={trackRef}
-                className="relative h-6 bg-slate-800 rounded-lg cursor-pointer touch-none group border border-slate-700 overflow-hidden"
+                className="relative flex-1 h-4 bg-slate-800 rounded-full cursor-pointer touch-none group border border-slate-700 overflow-hidden"
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
@@ -103,49 +99,38 @@ const ChaosSlider: React.FC<{ value: number; onChange: (val: number) => void }> 
 
                 {/* Vertical Pill Thumb */}
                 <motion.div
-                    className="absolute top-1 bottom-1 w-2 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] z-10"
-                    style={{ left: `calc(${value * 100}% - 4px)` }}
-                    animate={{ scale: isDragging ? 1.1 : 1 }}
-                    whileHover={{ scale: 1.1, boxShadow: "0 0 15px rgba(255,255,255,1)" }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                    className="absolute top-0.5 bottom-0.5 w-3 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] z-10"
+                    style={{ left: `calc(${value * 100}% - 6px)` }}
+                    animate={{ scale: isDragging ? 1.2 : 1 }}
+                    whileHover={{ scale: 1.2 }}
                 />
 
-                {/* Grid Lines Overlay */}
-                <div className="absolute inset-0 opacity-20 pointer-events-none flex justify-between px-1">
-                    {[...Array(9)].map((_, i) => (
-                        <div key={i} className="w-[1px] h-full bg-slate-500" />
-                    ))}
+                 {/* Value Readout Overlay */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50">
+                     <span className="text-[9px] font-mono font-bold text-white drop-shadow-md">{value.toFixed(2)}</span>
                 </div>
             </div>
+
+            <span className="text-xs font-bold text-titanium-400 tracking-widest min-w-[60px] text-right">ENTROPÍA</span>
         </div>
     );
 };
 
 const CombatToggle: React.FC<{ value: boolean; onChange: (val: boolean) => void }> = ({ value, onChange }) => {
     return (
-        <div className="flex items-center justify-between p-3 bg-slate-800/50 rounded-lg border border-slate-700/50">
-            <div className="flex items-center gap-2">
-                <Zap size={16} className={value ? 'text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.8)]' : 'text-titanium-500'} />
-                <span className={`text-sm font-bold transition-colors ${value ? 'text-red-100' : 'text-titanium-300'}`}>
-                    PROTOCOLO DE CONFLICTO
-                </span>
-            </div>
-
-            <button
-                onClick={() => onChange(!value)}
-                className={`relative w-12 h-6 rounded-full transition-all duration-300 border ${
-                    value
-                        ? 'bg-red-600 border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.6)]'
-                        : 'bg-slate-700 border-slate-600'
-                }`}
-            >
-                <motion.div
-                    className="absolute top-1 w-4 h-4 bg-white rounded-full shadow-sm"
-                    animate={{ left: value ? '28px' : '4px' }}
-                    transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                />
-            </button>
-        </div>
+        <button
+            onClick={() => onChange(!value)}
+            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-all duration-300 ${
+                value
+                    ? 'bg-red-900/40 border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.2)]'
+                    : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800'
+            }`}
+        >
+            <Zap size={16} className={value ? 'text-red-500' : 'text-titanium-500'} />
+            <span className={`text-xs font-bold tracking-wider ${value ? 'text-red-100' : 'text-titanium-400'}`}>
+                {value ? 'RED ALERT' : 'SAFE MODE'}
+            </span>
+        </button>
     );
 };
 
@@ -156,7 +141,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 }) => {
     // UI STATE
     const [activeAgent, setActiveAgent] = useState<AgentType>('architect');
-    const [chaosLevel, setChaosLevel] = useState<number>(0.3); // Default 0.3
+    const [chaosLevel, setChaosLevel] = useState<number>(0.3);
     const [combatMode, setCombatMode] = useState<boolean>(false);
 
     // MOCK NOTIFICATIONS
@@ -169,116 +154,124 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed top-0 bottom-0 right-16 w-[600px] bg-titanium-950 border-l border-titanium-700 flex flex-col shadow-2xl z-40 overflow-hidden font-sans text-titanium-100">
+        <div className="relative w-full h-full bg-titanium-950 overflow-hidden font-sans text-titanium-100 flex flex-col">
 
-            {/* --- HEADER --- */}
-            <div className="p-4 border-b border-titanium-800 flex items-center justify-between bg-titanium-900/50 backdrop-blur-md">
-                <div className="flex items-center gap-3">
-                    <Activity className={`text-${activeAgentConfig.color}-500 animate-pulse`} size={20} />
-                    <span className="font-bold tracking-widest text-sm text-titanium-200">
-                        PERFORADOR DE MUNDOS <span className="text-titanium-500">// V3.0</span>
-                    </span>
-                </div>
-                <button onClick={onClose} className="text-titanium-500 hover:text-white transition-colors">
-                    <X size={20} />
-                </button>
+            {/* LAYER 0: INFINITE GRID */}
+            <div className="absolute inset-0 z-0 pointer-events-none">
+                <div
+                    className="absolute inset-0 opacity-20 transition-all duration-700"
+                    style={{
+                        backgroundImage: `radial-gradient(${combatMode ? '#7f1d1d' : '#334155'} 1px, transparent 1px)`,
+                        backgroundSize: '24px 24px'
+                    }}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-titanium-950 via-transparent to-titanium-950 opacity-80" />
             </div>
 
-            {/* --- TRINITY SWITCH (AGENT SELECTOR) --- */}
-            <div className="p-6 pb-2">
-                <div className="flex bg-titanium-900/50 p-1 rounded-xl border border-titanium-800 relative">
-                    {/* Animated Background Highlight */}
-                    <motion.div
-                        layoutId="activeAgentHighlight"
-                        className={`absolute inset-y-1 rounded-lg bg-${activeAgentConfig.color}-500/10 border border-${activeAgentConfig.color}-500/30`}
-                        initial={false}
-                        animate={{
-                            left: activeAgent === 'architect' ? '4px' : activeAgent === 'oracle' ? '33.33%' : '66.66%',
-                            width: '32.5%', // Approx 1/3 minus padding
-                            x: activeAgent === 'architect' ? 0 : activeAgent === 'oracle' ? 4 : 8
-                        }}
-                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                    />
-
+            {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
+            <div className="absolute top-6 left-1/2 -translate-x-1/2 z-10">
+                <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
                     {Object.values(AGENTS).map((agent) => (
                         <button
                             key={agent.id}
                             onClick={() => setActiveAgent(agent.id as AgentType)}
-                            className={`flex-1 flex flex-col items-center justify-center py-3 px-2 z-10 transition-colors duration-200 group relative ${
-                                activeAgent === agent.id ? 'text-white' : 'text-titanium-500 hover:text-titanium-300'
-                            }`}
+                            className="relative px-5 py-2 rounded-full flex items-center gap-2 transition-all duration-200 group"
                         >
+                            {activeAgent === agent.id && (
+                                <motion.div
+                                    layoutId="activeAgentPill"
+                                    className={`absolute inset-0 bg-${agent.color}-500/20 border border-${agent.color}-500/50 rounded-full`}
+                                    initial={false}
+                                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                                />
+                            )}
                             <agent.icon
-                                size={20}
-                                className={`mb-1 transition-transform group-hover:scale-110 ${activeAgent === agent.id ? `text-${agent.color}-400` : ''}`}
+                                size={14}
+                                className={`relative z-10 transition-colors ${activeAgent === agent.id ? `text-${agent.color}-400` : 'text-titanium-500 group-hover:text-titanium-300'}`}
                             />
-                            <span className="text-[10px] font-bold tracking-wider">{agent.role}</span>
+                            <span className={`relative z-10 text-xs font-bold tracking-widest transition-colors ${activeAgent === agent.id ? 'text-white' : 'text-titanium-500 group-hover:text-titanium-300'}`}>
+                                {agent.name}
+                            </span>
                         </button>
                     ))}
                 </div>
 
-                {/* Agent Description */}
+                {/* Agent Description (Subtext) */}
                 <motion.div
                     key={activeAgent}
-                    initial={{ opacity: 0, y: 5 }}
+                    initial={{ opacity: 0, y: -5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className={`mt-3 text-xs text-center text-${activeAgentConfig.color}-400/80 font-mono`}
+                    className={`mt-2 text-center text-[10px] font-mono tracking-wider text-${activeAgentConfig.color}-400/80`}
                 >
                     [{activeAgentConfig.desc}]
                 </motion.div>
             </div>
 
-            {/* --- NODE CANVAS (MAIN STAGE) --- */}
-            <div className={`flex-1 relative bg-titanium-950 overflow-hidden m-4 border rounded-lg transition-all duration-500 ${
-                combatMode
-                    ? 'border-red-900/30 shadow-[inset_0_0_20px_rgba(220,38,38,0.2)]'
-                    : 'border-titanium-800'
-            }`}>
-                {/* Grid Background */}
-                <div className="absolute inset-0 opacity-10"
-                     style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
+            {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
+            <div className="absolute top-6 right-6 z-10 flex flex-col gap-2 w-72 pointer-events-none">
+                <div className="flex justify-end mb-2">
+                     <button onClick={onClose} className="pointer-events-auto p-2 hover:bg-white/10 rounded-full text-titanium-400 hover:text-white transition-colors">
+                        <X size={20} />
+                    </button>
                 </div>
-
-                {/* Empty State / System Status */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <motion.div
-                        animate={{ opacity: [0.3, 0.7, 0.3] }}
-                        transition={{ duration: 3, repeat: Infinity }}
-                        className={`font-mono text-sm tracking-[0.2em] transition-colors duration-300 ${
-                            combatMode ? 'text-red-500' : `text-${activeAgentConfig.color}-500`
-                        }`}
-                    >
-                        {combatMode ? 'PROTOCOL ENGAGED' : 'SYSTEM ONLINE'}
-                    </motion.div>
-                    <div className="text-titanium-600 text-xs mt-2">WAITING FOR INPUT...</div>
-                </div>
-
-                {/* Auditor HUD (Notifications) */}
-                <div className="absolute top-4 right-4 flex flex-col gap-2 w-64 pointer-events-none">
-                    <AnimatePresence>
-                        {notifications.map(notif => (
-                            <motion.div
-                                key={notif.id}
-                                initial={{ opacity: 0, x: 20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: 20 }}
-                                className="bg-titanium-900/90 border-l-2 border-red-500 p-3 rounded shadow-lg backdrop-blur-sm"
-                            >
-                                <div className="flex items-start gap-2">
-                                    <TriangleAlert size={14} className="text-red-500 mt-0.5" />
-                                    <span className="text-xs font-mono text-red-200">{notif.text}</span>
+                <AnimatePresence>
+                    {notifications.map(notif => (
+                        <motion.div
+                            key={notif.id}
+                            initial={{ opacity: 0, x: 20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: 20 }}
+                            className="bg-black/80 border-l-2 border-red-500 p-3 rounded backdrop-blur-sm shadow-lg pointer-events-auto"
+                        >
+                            <div className="flex items-start gap-3">
+                                <TriangleAlert size={16} className="text-red-500 mt-0.5 shrink-0" />
+                                <div>
+                                    <div className="text-xs font-bold text-red-200">SYSTEM ALERT</div>
+                                    <span className="text-[10px] font-mono text-titanium-400">{notif.text}</span>
                                 </div>
-                            </motion.div>
-                        ))}
-                    </AnimatePresence>
+                            </div>
+                        </motion.div>
+                    ))}
+                </AnimatePresence>
+            </div>
+
+            {/* LAYER 1: CENTER VOID (PLACEHOLDER FOR NODES) */}
+            <div className="flex-1 flex items-center justify-center pointer-events-none z-0">
+                <div className={`text-center transition-opacity duration-1000 ${combatMode ? 'opacity-80' : 'opacity-40'}`}>
+                    <div className={`text-6xl mb-4 text-${activeAgentConfig.color}-500/20 font-black tracking-tighter`}>
+                        VOID
+                    </div>
+                    <div className="text-xs font-mono text-titanium-600 tracking-[0.5em]">
+                        WAITING FOR NODE GRAPH
+                    </div>
                 </div>
             </div>
 
-            {/* --- SYNTHESIZER (CONTROL PANEL) --- */}
-            <div className="p-6 bg-titanium-900 border-t border-titanium-800 space-y-6 relative z-10">
-                <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
-                <CombatToggle value={combatMode} onChange={setCombatMode} />
+            {/* LAYER 1: HUD FOOTER (SYNTHESIZER) */}
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-3xl z-10">
+                <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center gap-6">
+                    {/* Chaos Slider Section */}
+                    <div className="flex-1">
+                        <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
+                    </div>
+
+                    {/* Divider */}
+                    <div className="w-px h-8 bg-white/10" />
+
+                    {/* Combat Toggle Section */}
+                    <CombatToggle value={combatMode} onChange={setCombatMode} />
+
+                    {/* Status Indicator */}
+                     <div className="flex flex-col items-end">
+                        <div className="flex items-center gap-2">
+                             <div className={`w-2 h-2 rounded-full animate-pulse ${combatMode ? 'bg-red-500' : 'bg-green-500'}`} />
+                             <span className="text-[10px] font-bold text-titanium-400">ONLINE</span>
+                        </div>
+                        <span className="text-[9px] font-mono text-titanium-600">LATENCY: 12ms</span>
+                    </div>
+                </div>
             </div>
+
         </div>
     );
 };
