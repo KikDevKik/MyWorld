@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { GemId } from '../types';
 import { useProjectConfig } from '../components/ProjectConfigContext';
+import InterrogationModal from './InterrogationModal';
 
 interface WorldEnginePanelProps {
     isOpen: boolean;
@@ -19,6 +20,14 @@ interface WorldEnginePanelProps {
 }
 
 type AgentType = 'architect' | 'oracle' | 'advocate';
+
+interface InterrogationState {
+    isOpen: boolean;
+    questions: string[];
+    depth: number;
+    history: { questions: string[]; answer: string }[];
+    pendingPrompt: string;
+}
 
 interface Node {
     id: string;
@@ -178,6 +187,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [nodes, setNodes] = useState<Node[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
+    const [interrogation, setInterrogation] = useState<InterrogationState>({
+        isOpen: false,
+        questions: [],
+        depth: 0,
+        history: [],
+        pendingPrompt: ''
+    });
 
     // CONTEXT
     const { config } = useProjectConfig();
@@ -258,9 +274,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     };
 
     // --- NEURAL LINK (BACKEND CONNECTION) ---
-    const generateNode = async (prompt: string) => {
+    const runSimulation = async (
+        prompt: string,
+        currentDepth: number,
+        clarificationHistory: { questions: string[]; answer: string }[]
+    ) => {
         setIsLoading(true);
-        setStatusMessage("INITIALIZING HARVESTER...");
+        setStatusMessage(currentDepth > 0 ? `REFINING... (DEPTH ${currentDepth}/3)` : "INITIALIZING HARVESTER...");
 
         const functions = getFunctions();
         const worldEngine = httpsCallable(functions, 'worldEngine', { timeout: 1800000 }); // 30 Minutes
@@ -271,34 +291,63 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         if (activeAgent === 'advocate') backendAgentId = 'DEVIL_ADVOCATE';
 
         try {
-            // STEP 1: DEEP HARVEST
+            // STEP 1: DEEP HARVEST (Only on first run? No, context might be needed always)
             const contextPayload = await harvestWorldContext();
 
             setStatusMessage("DEEP REASONING IN PROGRESS... DO NOT REFRESH.");
+
+            // Format Clarifications for Backend
+            let clarificationsText = "";
+            if (clarificationHistory.length > 0) {
+                clarificationsText = clarificationHistory.map((item, idx) =>
+                    `[ROUND ${idx + 1}]\nQ: ${item.questions.join(" / ")}\nA: ${item.answer}`
+                ).join("\n\n");
+            }
 
             const payload = {
                 prompt,
                 agentId: backendAgentId,
                 chaosLevel,
                 combatMode,
-                context: contextPayload
+                context: contextPayload,
+                interrogationDepth: currentDepth,
+                clarifications: clarificationsText
             };
 
             const result = await worldEngine(payload) as any;
             const data = result.data;
 
-            // CREATE DYNAMIC NODE
-            const newNode: Node = {
-                id: Date.now().toString(),
-                type: data.type || 'idea',
-                title: data.title || 'Unknown',
-                content: data.content || 'No content received.',
-                agentId: activeAgent,
-                x: Math.random() * 60 + 20, // Random pos 20-80%
-                y: Math.random() * 60 + 20
-            };
+            // HANDLE RESPONSE TYPES
+            if (data.type === 'inquiry') {
+                setInterrogation({
+                    isOpen: true,
+                    questions: data.questions || ["Please clarify your intent."],
+                    depth: currentDepth,
+                    history: clarificationHistory,
+                    pendingPrompt: prompt
+                });
+            } else {
+                // STANDARD NODE (SUCCESS)
+                const newNode: Node = {
+                    id: Date.now().toString(),
+                    type: data.type || 'idea',
+                    title: data.title || 'Unknown',
+                    content: data.content || 'No content received.',
+                    agentId: activeAgent,
+                    x: Math.random() * 60 + 20, // Random pos 20-80%
+                    y: Math.random() * 60 + 20
+                };
+                setNodes(prev => [...prev, newNode]);
 
-            setNodes(prev => [...prev, newNode]);
+                // Reset Interrogation State
+                setInterrogation({
+                    isOpen: false,
+                    questions: [],
+                    depth: 0,
+                    history: [],
+                    pendingPrompt: ''
+                });
+            }
 
         } catch (error) {
             console.error("NEURAL LINK FAILURE:", error);
@@ -307,6 +356,23 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             setIsLoading(false);
             setStatusMessage("ESTABLISHING NEURAL LINK...");
         }
+    };
+
+    const generateNode = async (prompt: string) => {
+        // Start fresh
+        runSimulation(prompt, 0, []);
+    };
+
+    const handleInterrogationSubmit = (answer: string) => {
+        const newHistory = [
+            ...interrogation.history,
+            { questions: interrogation.questions, answer }
+        ];
+
+        // Close modal temporarily while loading (or keep it open with loading state - choice: close to show progress on main screen)
+        setInterrogation(prev => ({ ...prev, isOpen: false }));
+
+        runSimulation(interrogation.pendingPrompt, interrogation.depth + 1, newHistory);
     };
 
     if (!isOpen) return null;
@@ -421,7 +487,17 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 })}
             </AnimatePresence>
 
-            {/* LAYER 2: COMMAND DECK (OPERATION MONOLITH) */}
+            {/* LAYER 2: INTERROGATION MODAL */}
+            <InterrogationModal
+                isOpen={interrogation.isOpen}
+                questions={interrogation.questions}
+                history={interrogation.history}
+                depth={interrogation.depth}
+                onSubmit={handleInterrogationSubmit}
+                onCancel={() => setInterrogation(prev => ({ ...prev, isOpen: false }))}
+            />
+
+            {/* LAYER 3: COMMAND DECK (OPERATION MONOLITH) */}
             <div className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px]">
                 {/* Row 1: The Input */}
                 <input

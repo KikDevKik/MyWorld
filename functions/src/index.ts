@@ -1122,15 +1122,18 @@ export const worldEngine = onCall(
     console.log('🚀 WORLD ENGINE: Phase 4.1 - TITAN LINK - ' + new Date().toISOString());
 
     // 1. DATA RECEPTION
-    const { prompt, agentId, chaosLevel, context } = request.data;
+    const { prompt, agentId, chaosLevel, context, interrogationDepth, clarifications } = request.data;
     const { canon_dump, timeline_dump } = context || {};
+
+    const currentDepth = interrogationDepth || 0;
 
     // 2. DEBUG LOGGING
     logger.info("🔌 [TITAN LINK] Payload Received:", {
       agentId,
       chaosLevel,
       canonLength: canon_dump ? canon_dump.length : 0,
-      timelineLength: timeline_dump ? timeline_dump.length : 0
+      timelineLength: timeline_dump ? timeline_dump.length : 0,
+      interrogationDepth: currentDepth
     });
 
     try {
@@ -1154,20 +1157,40 @@ export const worldEngine = onCall(
         === TIMELINE (THE LORE) ===
         ${timeline_dump || "No timeline events provided."}
 
+        === ITERATIVE REFINEMENT LOOP ===
+        CURRENT INTERROGATION DEPTH: ${currentDepth}/3
+        PREVIOUS CLARIFICATIONS (IF ANY):
+        ${clarifications || "None."}
+
         INSTRUCTIONS:
         1. Ingest the provided World Context (Canon/Timeline).
-        2. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
-        3. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
-        4. Output: A JSON Node Card.
+        2. Analyze the USER PROMPT for ambiguity or missing critical parameters (e.g., Economy, Magic Rules, Political Impact).
+        3. DECISION LOGIC:
+           - IF (Depth < 3) AND (Ambiguity Exists OR New Conflict Detected):
+             STOP. DO NOT GUESS. Return an 'inquiry' object to ask strategic questions.
+           - IF (Depth >= 3) OR (Prompt is Clear):
+             FORCE RESOLUTION. Use available data (even if imperfect) to generate the Node.
+
+        4. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
+        5. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
 
         USER PROMPT: "${prompt}"
 
-        OUTPUT FORMAT (JSON):
+        OUTPUT FORMATS (JSON ONLY):
+
+        TYPE A (STANDARD NODE - WHEN RESOLVED):
         {
           "type": "concept" | "plot" | "character",
           "title": "Short Title",
           "content": "Deeply reasoned analysis...",
           "thoughts": "Optional summary of your reasoning process"
+        }
+
+        TYPE B (INQUIRY - WHEN CLARIFICATION NEEDED):
+        {
+          "type": "inquiry",
+          "title": "⚠️ CLARIFICATION NEEDED",
+          "questions": ["Question 1?", "Question 2?", "Question 3?"]
         }
       `;
 
