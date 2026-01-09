@@ -281,25 +281,26 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 />
             </div>
 
-            {/* LAYER 1: HUD FOOTER (SYNTHESIZER) */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-[90%] max-w-3xl z-10">
+            {/* LAYER 1: HUD CONTROLS (LEFT - CHAOS) */}
+            <div className="absolute bottom-8 left-8 z-10 w-96">
+                <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl">
+                    <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
+                </div>
+            </div>
+
+            {/* LAYER 1: HUD CONTROLS (RIGHT - SYSTEM) */}
+            <div className="absolute bottom-8 right-8 z-10">
                 <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex items-center gap-6">
-                    {/* Chaos Slider Section */}
-                    <div className="flex-1">
-                        <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
-                    </div>
+                    <CombatToggle value={combatMode} onChange={setCombatMode} />
 
                     {/* Divider */}
                     <div className="w-px h-8 bg-white/10" />
 
-                    {/* Combat Toggle Section */}
-                    <CombatToggle value={combatMode} onChange={setCombatMode} />
-
                     {/* Status Indicator */}
-                     <div className="flex flex-col items-end">
+                    <div className="flex flex-col items-end">
                         <div className="flex items-center gap-2">
-                             <div className={`w-2 h-2 rounded-full animate-pulse ${combatMode ? 'bg-red-500' : 'bg-green-500'}`} />
-                             <span className="text-[10px] font-bold text-titanium-400">ONLINE</span>
+                            <div className={`w-2 h-2 rounded-full animate-pulse ${combatMode ? 'bg-red-500' : 'bg-green-500'}`} />
+                            <span className="text-[10px] font-bold text-titanium-400">ONLINE</span>
                         </div>
                         <span className="text-[9px] font-mono text-titanium-600">LATENCY: 12ms</span>
                     </div>
