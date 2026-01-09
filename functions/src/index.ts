@@ -11,7 +11,7 @@ import {
 import { TaskType, GoogleGenerativeAI } from "@google/generative-ai";
 import { Chunk } from "./similarity";
 import { Readable } from 'stream';
-import matter from 'gray-matter'; // 👈 Fixed import
+import matter from 'gray-matter';
 
 // --- SINGLETON APP (Evita reiniciar Firebase mil veces) ---
 let firebaseApp: admin.app.App | undefined;
@@ -30,7 +30,8 @@ interface DriveFile {
   type: 'file' | 'folder';
   mimeType: string;
   children?: DriveFile[];
-  category?: 'canon' | 'reference'; // 👈 Nueva propiedad
+  category?: 'canon' | 'reference';
+  parentId?: string; // 👈 Added for Strict Schema
 }
 
 interface WriterProfile {
@@ -45,11 +46,11 @@ interface ProjectPath {
 }
 
 interface ProjectConfig {
-  canonPaths: ProjectPath[]; // 👈 Changed from string[] to ProjectPath[]
-  resourcePaths: ProjectPath[]; // 👈 Changed from string[] to ProjectPath[]
-  chronologyPath: ProjectPath | null; // 👈 Changed from string to ProjectPath | null
+  canonPaths: ProjectPath[];
+  resourcePaths: ProjectPath[];
+  chronologyPath: ProjectPath | null;
   activeBookContext: string;
-  folderId?: string; // 👈 Folder Persistence
+  folderId?: string;
   lastIndexed?: string;
 }
 
@@ -90,7 +91,7 @@ async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN"):
     stream.on('error', (err) => reject(err));
     stream.on('end', () => {
       const fullBuffer = Buffer.concat(chunks);
-      logger.info(`📉 [STREAM DEBUG] Buffer size for ${debugLabel}: ${fullBuffer.length} bytes`);
+      logger.debug(`📉 [STREAM DEBUG] Buffer size for ${debugLabel}: ${fullBuffer.length} bytes`);
 
       let text = "";
       try {
@@ -124,7 +125,7 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
       fields: "mimeType, name",
       supportsAllDrives: true
     }, {
-      headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh metadata
+      headers: { 'Cache-Control': 'no-cache' }
     });
 
     const mimeType = meta.data.mimeType;
@@ -148,7 +149,7 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
         mimeType: "text/plain",
       }, {
         responseType: 'stream',
-        headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh export
+        headers: { 'Cache-Control': 'no-cache' }
       });
 
     } else if (mimeType === "application/vnd.google-apps.spreadsheet") {
@@ -159,7 +160,7 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
         mimeType: "text/csv",
       }, {
         responseType: 'stream',
-        headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh export
+        headers: { 'Cache-Control': 'no-cache' }
       });
 
     } else {
@@ -171,15 +172,15 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
         supportsAllDrives: true
       }, {
         responseType: 'stream',
-        headers: { 'Cache-Control': 'no-cache' } // 👈 Force fresh content
+        headers: { 'Cache-Control': 'no-cache' }
       });
     }
 
     // 📉 [HEADER DEBUG]
     if (res.headers && res.headers['content-length']) {
-      logger.info(`📉 [HEADER DEBUG] Content-Length for ${fileName}: ${res.headers['content-length']}`);
+      logger.debug(`📉 [HEADER DEBUG] Content-Length for ${fileName}: ${res.headers['content-length']}`);
     } else {
-      logger.info(`📉 [HEADER DEBUG] No Content-Length header received for ${fileName}`);
+      logger.debug(`📉 [HEADER DEBUG] No Content-Length header received for ${fileName}`);
     }
 
     // 3. PROCESAR
@@ -224,10 +225,6 @@ async function fetchFolderContents(
 
     // 🔍 FILTRO SELECTIVO: Solo contenido relevante
     const validFiles = files.filter((file: any) => {
-      // We don't have explicit IGNORE rules in the new config structure yet,
-      // but if we did, we would check them here.
-      // For now, relies on standard filters.
-      // (Legacy support: if config has contextRules and it's IGNORE)
       const legacyConfig = config as any;
       if (legacyConfig.contextRules && legacyConfig.contextRules[file.id] === 'IGNORE') {
          return false;
@@ -237,26 +234,22 @@ async function fetchFolderContents(
 
       // FOLDER FILTERING
       if (isFolder) {
-        // Skip if starts with any ignored prefix
         if (IGNORED_FOLDER_PREFIXES.some(prefix => file.name.startsWith(prefix))) {
           logger.info(`[SKIPPED] Folder (prefix): ${file.name}`);
           return false;
         }
-        // Skip if matches known system folders
         if (IGNORED_FOLDER_NAMES.includes(file.name)) {
           logger.info(`[SKIPPED] Folder (system): ${file.name}`);
           return false;
         }
-        return true; // Folder is valid
+        return true;
       }
 
       // FILE FILTERING
-      // Allow Google Docs
       if (file.mimeType === GOOGLE_DOC_MIMETYPE) {
         return true;
       }
 
-      // Allow only .md and .txt files
       const hasAllowedExtension = ALLOWED_EXTENSIONS.some(ext =>
         file.name.toLowerCase().endsWith(ext)
       );
@@ -270,14 +263,10 @@ async function fetchFolderContents(
     });
 
     // 🟢 PRE-FILTER MAPPING
-    // Map valid files to promises
     const processedFilesPromises = validFiles.map(async (file: any): Promise<DriveFile | null> => {
         // 🟢 DETECCIÓN DE CATEGORÍA (CONTEXT MAPPING)
-        // 1. Inherit from parent by default
         let fileCategory: 'canon' | 'reference' = currentCategory;
 
-        // 2. Check for Specific Override Rule based on New Config Structure
-        // Check if this file/folder ID is in the explicit lists
         const isExplicitCanon = config.canonPaths && config.canonPaths.some(p => p.id === file.id);
         const isExplicitResource = config.resourcePaths && config.resourcePaths.some(p => p.id === file.id);
 
@@ -287,7 +276,7 @@ async function fetchFolderContents(
         if (file.mimeType === 'application/vnd.google-apps.folder') {
           let children: DriveFile[] = [];
           if (recursive) {
-            children = await fetchFolderContents(drive, file.id, config, true, fileCategory); // 👈 Propagamos categoría actualizada
+            children = await fetchFolderContents(drive, file.id, config, true, fileCategory);
           }
 
           return {
@@ -296,27 +285,27 @@ async function fetchFolderContents(
             type: 'folder',
             mimeType: file.mimeType,
             children: children,
-            category: fileCategory, // 👈 Guardamos categoría
+            category: fileCategory,
+            parentId: folderId // 👈 Added parentId
           };
         } else {
-          // Explicit return for files
           return {
             id: file.id,
             name: file.name,
             type: 'file',
             mimeType: file.mimeType,
-            category: fileCategory, // 👈 Guardamos categoría
+            category: fileCategory,
+            parentId: folderId // 👈 Added parentId
           };
         }
     });
 
     const resolvedFiles = await Promise.all(processedFilesPromises);
-    // Filter out nulls (ignored files) - Enhanced check
     return resolvedFiles.filter((f): f is DriveFile => f != null);
 
   } catch (error) {
     logger.error(`Error escaneando ${folderId}:`, error);
-    return []; // En caso de error en una subcarpeta, no rompemos todo el árbol
+    return [];
   }
 }
 
@@ -352,7 +341,7 @@ export const getDriveFiles = onCall(
   async (request) => {
     initializeFirebase();
 
-    const { folderId, folderIds, accessToken } = request.data; // <--- 🟢 RECIBIR TOKEN y folderIds
+    const { folderId, folderIds, accessToken } = request.data;
 
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
@@ -367,46 +356,36 @@ export const getDriveFiles = onCall(
     }
 
     try {
-      // 🟢 RECUPERAR CONFIGURACIÓN DEL USUARIO
       const config = await _getProjectConfigInternal(request.auth.uid);
-
-      // 🟢 USAR TOKEN DEL USUARIO
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
 
       const drive = google.drive({ version: "v3", auth });
-
-      // 🟢 CAMBIO CRÍTICO: recursive param
       const recursive = request.data.recursive || false;
 
       let fileTree: DriveFile[] = [];
 
-      // 🟢 MULTI-ROOT SUPPORT (New Logic)
+      // 🟢 MULTI-ROOT SUPPORT
       if (folderIds && Array.isArray(folderIds) && folderIds.length > 0) {
          logger.info(`🚀 Iniciando escaneo MULTI-ROOT para ${folderIds.length} carpetas.`);
 
          for (const fid of folderIds) {
              let cleanId = fid;
-             // Basic cleaning just in case
              if (cleanId.includes("drive.google.com")) {
                  const match = cleanId.match(/folders\/([a-zA-Z0-9-_]+)/);
                  if (match && match[1]) cleanId = match[1];
              }
 
-             // Determine initial category for this root
              let category: 'canon' | 'reference' = 'canon';
              if (config.resourcePaths && config.resourcePaths.some(p => p.id === cleanId)) {
                  category = 'reference';
              }
 
-             // Fetch contents for this root
              try {
-                // Ping check optional here to save time, fetchFolderContents handles errors gracefully
                 const tree = await fetchFolderContents(drive, cleanId, config, recursive, category);
                 fileTree = [...fileTree, ...tree];
              } catch (err) {
                  logger.error(`⚠️ Error escaneando root ${cleanId}:`, err);
-                 // Continue with others
              }
          }
 
@@ -423,7 +402,6 @@ export const getDriveFiles = onCall(
 
          logger.info(`🚀 Iniciando escaneo SINGLE-ROOT para ID: ${cleanFolderId}`);
 
-         // 📡 PING PROBE
          try {
            await drive.files.get({ fileId: cleanFolderId, fields: 'name' });
          } catch (pingError: any) {
@@ -464,7 +442,6 @@ export const getProjectConfig = onCall(
     try {
       const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
 
-      // VALORES POR DEFECTO
       const defaultConfig: ProjectConfig = {
         canonPaths: [],
         resourcePaths: [],
@@ -478,8 +455,6 @@ export const getProjectConfig = onCall(
       }
 
       logger.info(`🏗️ Configuración del proyecto recuperada para ${userId}`);
-
-      // Fusionar con defaults para evitar undefined en campos nuevos
       return { ...defaultConfig, ...doc.data() };
 
     } catch (error: any) {
@@ -512,14 +487,10 @@ export const saveProjectConfig = onCall(
     logger.info(`💾 Guardando configuración del proyecto para usuario: ${userId}`);
 
     try {
-      // 🟢 Force validation of structure before saving?
-      // Not strictly necessary if frontend sends correct types, but good practice.
-      // We just save it.
-
       await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
         ...config,
         updatedAt: new Date().toISOString()
-      }, { merge: true }); // 👈 Merge to avoid overwriting lastIndexed if passed
+      }, { merge: true });
 
       logger.info(`✅ Configuración guardada correctamente para ${userId}`);
 
@@ -551,7 +522,6 @@ export const getDriveFileContent = onCall(
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
     try {
-      // 🟢 USAR TOKEN DEL USUARIO
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
 
@@ -585,20 +555,16 @@ export const checkIndexStatus = onCall(
     const userId = request.auth.uid;
 
     try {
-      // 1. Check if ANY file exists (Boolean status)
       const snapshot = await db.collection("TDB_Index").doc(userId).collection("files").limit(1).get();
       const isIndexed = !snapshot.empty;
 
-      // 2. Get Global Timestamp from Project Config (Source of Truth)
       let lastIndexedAt = null;
 
-      // Try to get from config first
       const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
       if (configDoc.exists) {
         lastIndexedAt = configDoc.data()?.lastIndexed || null;
       }
 
-      // Fallback: If config has no date but files exist, use the old method (unlikely but safe)
       if (!lastIndexedAt && isIndexed) {
          lastIndexedAt = snapshot.docs[0].data().lastIndexed || null;
       }
@@ -619,12 +585,12 @@ export const indexTDB = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 3600, // 👈 Increased to 1 hour
-    memory: "1GiB",       // 👈 Increased memory
+    timeoutSeconds: 3600,
+    memory: "1GiB",
     secrets: [googleApiKey],
   },
   async (request) => {
-    console.log('🚀 SYSTEM STABLE: Production Build', new Date().toISOString());
+    console.log('🚀 WORLD ENGINE PREP: Phase 1 Stable - ' + new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -650,7 +616,7 @@ export const indexTDB = onCall(
         taskType: TaskType.RETRIEVAL_DOCUMENT,
       });
 
-      // B. Conectar Drive (🟢 USUARIO)
+      // B. Conectar Drive
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
 
@@ -660,7 +626,6 @@ export const indexTDB = onCall(
       if (forceFullReindex) {
         logger.warn(`☢️ NUCLEAR OPTION DETECTED: Wiping memory for user ${userId}`);
         const userIndexRef = db.collection("TDB_Index").doc(userId);
-        // Delete the entire document and its subcollections (files)
         await db.recursiveDelete(userIndexRef);
         logger.info("   ☢️ Memory wiped clean. Starting fresh.");
       }
@@ -694,17 +659,13 @@ export const indexTDB = onCall(
          }
       } else if (cleanFolderId) {
          logger.info(`🚀 Indexando SINGLE-ROOT: ${cleanFolderId}`);
-         // Para indexar necesitamos bajar hasta el infierno (recursive=true)
          fileTree = await fetchFolderContents(drive, cleanFolderId, config, true);
       } else {
          throw new HttpsError("invalid-argument", "No se proporcionaron carpetas para indexar.");
       }
 
       // 🟢 C. SAVE FILE TREE STRUCTURE (SNAPSHOT)
-      // Save the hierarchical tree to Firestore for the UI (Sidebar)
-      // This allows the "Manual de Campo" to work without live Drive access.
       try {
-        // Ensure the object is clean for Firestore
         const treePayload = JSON.parse(JSON.stringify(fileTree));
         await db.collection("TDB_Index").doc(userId).collection("structure").doc("tree").set({
           tree: treePayload,
@@ -713,31 +674,22 @@ export const indexTDB = onCall(
         logger.info("🌳 Árbol de archivos guardado en TDB_Index/structure/tree");
       } catch (treeError) {
         logger.error("⚠️ Error guardando estructura del árbol:", treeError);
-        // Non-critical, continue indexing
       }
 
       const fileList = flattenFileTree(fileTree);
 
-      // 🟢 GHOST FILE PRUNING (Limpieza de Archivos Fantasma)
+      // 🟢 GHOST FILE PRUNING
       logger.info("👻 Iniciando protocolo de detección de fantasmas...");
       const filesCollectionRef = db.collection("TDB_Index").doc(userId).collection("files");
 
-      // 1. Get all DB File IDs
-      const dbFilesSnapshot = await filesCollectionRef.select().get(); // Only get IDs
+      const dbFilesSnapshot = await filesCollectionRef.select().get();
       const dbFileIds = new Set(dbFilesSnapshot.docs.map(doc => doc.id));
-
-      // 2. Get all Drive File IDs
       const driveFileIds = new Set(fileList.map(f => f.id));
-
-      // 3. Find Ghosts (In DB but not in Drive)
       const ghostFileIds = [...dbFileIds].filter(id => !driveFileIds.has(id));
       let ghostFilesPruned = 0;
 
       if (ghostFileIds.length > 0) {
         logger.info(`👻 Detectados ${ghostFileIds.length} archivos fantasma. Eliminando...`);
-
-        // Execute recursive delete for each ghost
-        // Note: sequential to avoid overwhelming resources, or small batches.
         for (const ghostId of ghostFileIds) {
            const ghostRef = filesCollectionRef.doc(ghostId);
            await db.recursiveDelete(ghostRef);
@@ -749,27 +701,25 @@ export const indexTDB = onCall(
       }
 
       let totalChunks = 0;
-      let totalChunksDeleted = 0; // 👈 Track deletions
+      let totalChunksDeleted = 0;
 
       // E. Procesar cada archivo
       await Promise.all(
         fileList.map(async (file) => {
           try {
-            // 🛑 Safety Check
             if (!file.id) {
               logger.warn(`⚠️ Saltando archivo sin ID: ${file.name}`);
               return;
             }
 
             // 🟢 1. CLEANUP FIRST (Batched Delete Strategy)
-            // Strict "Delete-Then-Write" protocol to prevent Ghost Data
             const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(file.id);
             const chunksRef = fileRef.collection("chunks");
 
             logger.info(`🧹 Iniciando purga de chunks para: ${file.name} (${file.id})`);
 
             let deletedCount = 0;
-            const snapshot = await chunksRef.get(); // Read all first (usually < 2000 docs)
+            const snapshot = await chunksRef.get();
 
             if (!snapshot.empty) {
               let batch = db.batch();
@@ -780,7 +730,6 @@ export const indexTDB = onCall(
                 operationCount++;
                 deletedCount++;
 
-                // Commit batch every 400 operations to be safe
                 if (operationCount >= 400) {
                   await batch.commit();
                   batch = db.batch();
@@ -788,52 +737,48 @@ export const indexTDB = onCall(
                 }
               }
 
-              // Commit remaining
               if (operationCount > 0) {
                 await batch.commit();
               }
             }
 
             totalChunksDeleted += deletedCount;
-            logger.info(`   ✅ Purga completada. Chunks eliminados: ${deletedCount}`);
 
-            // 🟢 2. FETCH (Only after delete is confirmed)
+            // 🟢 2. FETCH
             const content = await _getDriveFileContentInternal(drive, file.id);
-            const rawLength = content ? content.length : 0;
-
-            logger.info(`📝 [DEBUG] Raw Content Length for ${file.name}: ${rawLength}`);
 
             // 🛑 TRULY EMPTY FILE CHECK
             if (!content || content.trim().length === 0) {
               logger.warn(`⚠️ [SKIP] File is genuinely empty (0 bytes or whitespace): ${file.name}`);
-              return; // Skip processing this file entirely
+              return;
             }
 
-            // --- STANDARD LOGIC (ONE FILE = ONE CHUNK) ---
-            // Mission: Simplify Pipeline.
-            // Just take the raw string, cap it at 8000 chars, and save it.
+            // --- STANDARD PROTOCOL (One File = One Chunk) ---
             const chunkText = content.substring(0, 8000);
+            const now = new Date().toISOString();
 
-            // Update File Metadata (No timeline parsing)
+            // Update File Metadata
             await fileRef.set({
               name: file.name,
-              lastIndexed: new Date().toISOString(),
+              lastIndexed: now,
               chunkCount: 1,
               category: file.category || 'canon',
               timelineDate: null,
             });
 
-            // 🟢 3. VECTORIZE & SAVE (Single Chunk)
+            // 🟢 3. VECTORIZE & SAVE (Strict Schema)
             const vector = await embeddings.embedQuery(chunkText);
 
             await chunksRef.doc("chunk_0").set({
-              text: chunkText,
-              order: 0,
-              fileName: file.name,
-              category: file.category || 'canon',
               userId: userId,
-              embedding: FieldValue.vector(vector),
-              type: 'file'
+              fileName: file.name,
+              text: chunkText,
+              docId: file.id,
+              folderId: file.parentId || 'unknown',
+              timestamp: now,
+              type: 'file',
+              category: file.category || 'canon',
+              embedding: FieldValue.vector(vector)
             });
 
             totalChunks += 1;
@@ -845,7 +790,7 @@ export const indexTDB = onCall(
         })
       );
 
-      // 🟢 4. UPDATE PROJECT CONFIG (Global Timestamp)
+      // 🟢 4. UPDATE PROJECT CONFIG
       const now = new Date().toISOString();
       await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
         lastIndexed: now,
@@ -857,10 +802,10 @@ export const indexTDB = onCall(
       return {
         success: true,
         filesIndexed: fileList.length,
-        totalChunks: totalChunks, // Chunks Created
-        chunksCreated: totalChunks, // Explicit alias
-        chunksDeleted: totalChunksDeleted, // 👈 New stat
-        ghostFilesPruned: ghostFilesPruned, // 👈 New stat
+        totalChunks: totalChunks,
+        chunksCreated: totalChunks,
+        chunksDeleted: totalChunksDeleted,
+        ghostFilesPruned: ghostFilesPruned,
         message: `¡Indexado completado! (Fantasmas eliminados: ${ghostFilesPruned})`,
         lastIndexed: now
       };
@@ -880,12 +825,12 @@ export const chatWithGem = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 540, // 👈 Increased to 9 minutes
+    timeoutSeconds: 540,
     secrets: [googleApiKey],
-    memory: "2GiB",      // 👈 Increased memory for heavy lifting
+    memory: "2GiB",
   },
   async (request) => {
-    console.log('🚀 SYSTEM STABLE: Production Build', new Date().toISOString());
+    console.log('🚀 WORLD ENGINE PREP: Phase 1 Stable - ' + new Date().toISOString());
     initializeFirebase();
     const db = getFirestore();
 
@@ -895,17 +840,14 @@ export const chatWithGem = onCall(
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
-    // 🧠 RETRIEVE USER PROFILE (Neural Synchronization)
     const userId = request.auth.uid;
     const profileDoc = await db.collection("users").doc(userId).collection("profile").doc("writer_config").get();
     const profile: WriterProfile = profileDoc.exists
       ? profileDoc.data() as WriterProfile
       : { style: '', inspirations: '', rules: '' };
 
-    // 🏗️ RECUPERAR CONFIGURACIÓN DEL PROYECTO
-    await _getProjectConfigInternal(userId); // (Wait for config logic just in case needed later, but removed activeBook)
+    await _getProjectConfigInternal(userId);
 
-    // Build profile context
     let profileContext = '';
     if (profile.style || profile.inspirations || profile.rules) {
       profileContext = `
@@ -920,7 +862,6 @@ RULES: ${profile.rules || 'Not specified'}
 
     try {
       // 🟢 0. DEEP TRACE: CONNECTIVITY CHECK
-      // Verify database access before doing anything complex.
       try {
         const traceColl = db.collectionGroup("chunks");
         const traceQuery = traceColl.where("userId", "==", userId).limit(1);
@@ -933,22 +874,18 @@ RULES: ${profile.rules || 'Not specified'}
           logger.warn(`[DEEP TRACE] Connectivity Check: ⚠️ FAILED/EMPTY. No chunks found for user ${userId}. Index might be empty.`);
         }
       } catch (traceError: any) {
-        logger.warn(`[DEEP TRACE] Connectivity Check SKIPPED/FAILED: ${traceError.message} (This is non-critical, proceeding to Vector Search)`);
+        logger.warn(`[DEEP TRACE] Connectivity Check SKIPPED/FAILED: ${traceError.message}`);
       }
 
       // 1. Preparar Búsqueda Contextual
-      // Si hay historial, lo usamos para mejorar la búsqueda (ej: "¿Quién es él?" -> "¿Quién es Manuel?")
       let searchQuery = query;
       let historyText = "No hay historial previo.";
 
       if (history && Array.isArray(history) && history.length > 0) {
-        // a) Para el Prompt de la IA (Texto completo)
-        // DEFAULT: Use ALL history if small, but we will slice if too big below.
         historyText = history.map((h: any) =>
           `${h.role === 'user' ? 'USUARIO' : 'ASISTENTE'}: ${h.message}`
         ).join("\n");
 
-        // b) Para el Vectorizador (Solo preguntas recientes del usuario)
         const userHistory = history
           .filter((h: any) => h.role === 'user' || h.role === 'USER')
           .slice(-3)
@@ -959,7 +896,6 @@ RULES: ${profile.rules || 'Not specified'}
         logger.info("🔍 Búsqueda Vectorial Enriquecida:", searchQuery);
       }
 
-      // 🛑 OPTIMIZACIÓN DE TOKENS: LIMITAR HISTORIAL (Slice last 20)
       if (history && Array.isArray(history) && history.length > 20) {
         const sliced = history.slice(-20);
         historyText = sliced.map((h: any) =>
@@ -978,34 +914,23 @@ RULES: ${profile.rules || 'Not specified'}
 
       // 3. Recuperar Chunks (Vector Search Nativo)
       const coll = db.collectionGroup("chunks");
-
-      // Construir Query Base (Filter by User & Category)
       let chunkQuery = coll.where("userId", "==", userId);
 
-      // 🟢 GOD MODE ACTIVATED: NO FILTERS (Project/Category Removed)
-      // We want Global Knowledge. All vectors for this user are fair game.
-
-      // 4. Ejecutar Búsqueda Vectorial
-      // 🟢 STRATEGY: Fetch WIDE (50/100) and filter for Diversity
       const fetchLimit = isFallbackContext ? 100 : 50;
 
       console.log('🔍 Vector Search Request for User:', userId);
 
       const vectorQuery = chunkQuery.findNearest({
         queryVector: queryVector,
-        limit: fetchLimit, // 🟢 Wide Net for Diversity
+        limit: fetchLimit,
         distanceMeasure: 'COSINE',
         vectorField: 'embedding'
       });
 
       const vectorSnapshot = await vectorQuery.get();
 
-      // Log the actual query result count
       console.log('🔢 Vectors Found (Raw):', vectorSnapshot.docs.length);
       if (vectorSnapshot.docs.length > 0) {
-          // Note: Firestore Vector Search doesn't easily expose 'score' in the snapshot data directly
-          // without using specific client SDK features, but the order IS by relevance.
-          // We will log the first match's filename to confirm relevance.
           const firstMatch = vectorSnapshot.docs[0].data();
           console.log('📜 First Match:', firstMatch.fileName);
       } else {
@@ -1016,11 +941,11 @@ RULES: ${profile.rules || 'Not specified'}
         text: doc.data().text,
         embedding: [],
         fileName: doc.data().fileName || "Desconocido",
-        fileId: doc.ref.parent.parent?.id || "unknown_id", // 🟢 ID Retrieval
+        fileId: doc.ref.parent.parent?.id || "unknown_id",
         category: doc.data().category || 'canon',
       }));
 
-      // 🟢 SOURCE DIVERSITY LIMITING (Per-File Cap + Backfill)
+      // 🟢 SOURCE DIVERSITY LIMITING
       const returnLimit = isFallbackContext ? 20 : 15;
       const MAX_CHUNKS_PER_FILE = 5;
 
@@ -1038,7 +963,7 @@ RULES: ${profile.rules || 'Not specified'}
       for (const chunk of candidates) {
           if (finalContext.length >= returnLimit) break;
 
-          const fid = chunk.fileId || chunk.fileName; // Fallback if ID fails
+          const fid = chunk.fileId || chunk.fileName;
           const currentCount = fileCounts[fid] || 0;
 
           if (currentCount < MAX_CHUNKS_PER_FILE) {
@@ -1059,21 +984,18 @@ RULES: ${profile.rules || 'Not specified'}
       }
 
       const relevantChunks = finalContext;
-
-      // 🟢 DEBUG LOG: Verify Retrieval Sources
       logger.info('📚 RAG Context Sources:', relevantChunks.map(c => c.fileName));
 
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
 
-      // 6. Llamar a Gemini (Nivel GOD TIER - Razonamiento Puro)
+      // 6. Llamar a Gemini (Nivel GOD TIER)
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-3-pro-preview", // <--- MÁXIMA POTENCIA (1M Contexto + Deep Reasoning)
+        model: "gemini-3-pro-preview",
         temperature: 0.7,
       });
 
-      // 🟢 INYECCIÓN DE PROTOCOLO DE CONTINUIDAD
       const CONTINUITY_PROTOCOL = `
 === PROTOCOLO DE CONTINUIDAD (DARK BROTHERHOOD) ===
 OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
@@ -1114,17 +1036,13 @@ OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
 ===================================================
 `;
 
-      // 🟢 INYECCIÓN DE INSTRUCCIÓN DE REFERENCIA (COMBINADA)
       let finalSystemInstruction = systemInstruction || "";
-
-      // Prependamos el protocolo
       finalSystemInstruction = CONTINUITY_PROTOCOL + "\n\n" + finalSystemInstruction;
 
       if (categoryFilter === 'reference') {
         finalSystemInstruction += "\n\nIMPORTANTE: Responde basándote EXCLUSIVAMENTE en el material de referencia proporcionado. Actúa como un tutor o experto en la materia.";
       }
 
-      // 🟢 INYECCIÓN DE CONTEXTO ACTIVO (PRIORIDAD ALTA)
       let activeContextSection = "";
       if (activeFileContent) {
           const header = isFallbackContext
@@ -1142,14 +1060,12 @@ ${activeFileContent}
           `;
       }
 
-      // 🟢 INYECCIÓN DE MEMORIA A LARGO PLAZO
       const longTermMemorySection = `
 [MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:
 (Fichas de personajes, reglas del mundo, eventos pasados encontrados en la base de datos)
 ${contextText || "No se encontraron datos relevantes en la memoria."}
       `;
 
-      // 🟢 INSTRUCCIÓN DE CO-AUTOR
       const coAuthorInstruction = `
 [INSTRUCCIÓN]:
 Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero basa tus sugerencias profundas en la Memoria a Largo Plazo. Si el usuario pregunta algo, verifica si ya existe en la Memoria antes de inventar.
@@ -1174,7 +1090,6 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
 
       const response = await chatModel.invoke(promptFinal);
 
-      // 7. Responder con Fuentes
       return {
         response: response.content,
         sources: relevantChunks.map(chunk => ({
@@ -1219,7 +1134,6 @@ export const saveDriveFile = onCall(
     logger.info(`💾 Guardando archivo: ${fileId}`);
 
     try {
-      // 🟢 USAR TOKEN DEL USUARIO
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
 
@@ -1342,7 +1256,7 @@ export const createForgeSession = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { name, type } = request.data; // 👈 ADDED type
+    const { name, type } = request.data;
     if (!name) {
       throw new HttpsError("invalid-argument", "Falta el nombre de la sesión.");
     }
@@ -1351,7 +1265,7 @@ export const createForgeSession = onCall(
     const sessionId = db.collection("users").doc(userId).collection("forge_sessions").doc().id;
     const now = new Date().toISOString();
 
-    const sessionType = type || 'forge'; // Default to forge for backward compatibility
+    const sessionType = type || 'forge';
 
     try {
       await db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId).set({
@@ -1389,7 +1303,7 @@ export const getForgeSessions = onCall(
     }
 
     const userId = request.auth.uid;
-    const { type } = request.data; // 👈 Filter by type
+    const { type } = request.data;
 
     try {
       let query = db.collection("users").doc(userId).collection("forge_sessions")
@@ -1440,7 +1354,6 @@ export const deleteForgeSession = onCall(
     const userId = request.auth.uid;
 
     try {
-      // Nota: Usamos recursiveDelete para eliminar el documento padre y todas sus subcolecciones (mensajes).
       const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId);
       await db.recursiveDelete(sessionRef);
 
@@ -1480,7 +1393,6 @@ export const addForgeMessage = onCall(
     const now = new Date().toISOString();
 
     try {
-      // 1. Guardar mensaje
       const msgRef = db.collection("users").doc(userId)
         .collection("forge_sessions").doc(sessionId)
         .collection("messages").doc();
@@ -1491,7 +1403,6 @@ export const addForgeMessage = onCall(
         timestamp: now
       });
 
-      // 2. Actualizar 'updatedAt' de la sesión (para que suba en la lista)
       await db.collection("users").doc(userId)
         .collection("forge_sessions").doc(sessionId)
         .update({ updatedAt: now });
@@ -1558,7 +1469,7 @@ export const forgeToDrive = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 120, // Gemini + Drive puede tardar
+    timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -1570,9 +1481,8 @@ export const forgeToDrive = onCall(
     }
 
     const { sessionId, accessToken } = request.data;
-    let { folderId } = request.data; // Usamos let para poder modificarlo
+    let { folderId } = request.data;
 
-    // 🧼 LIMPIEZA DE ID (Sanitización Táctica)
     if (folderId && folderId.includes("drive.google.com")) {
       const match = folderId.match(/folders\/([a-zA-Z0-9-_]+)/);
       if (match && match[1]) {
@@ -1586,7 +1496,6 @@ export const forgeToDrive = onCall(
     const userId = request.auth.uid;
 
     try {
-      // 1. RECUPERAR HISTORIAL
       const snapshot = await db.collection("users").doc(userId)
         .collection("forge_sessions").doc(sessionId)
         .collection("messages")
@@ -1602,11 +1511,10 @@ export const forgeToDrive = onCall(
         return `${d.role === 'user' ? 'USUARIO' : 'IA'}: ${d.text}`;
       }).join("\n\n");
 
-      // 2. SINTETIZAR CON GEMINI (El Escriba - GOD TIER para el contenido)
       const synthesisModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
         model: "gemini-3-pro-preview",
-        temperature: 0.4, // Más preciso para documentos
+        temperature: 0.4,
       });
 
       const synthesisPrompt = `
@@ -1632,11 +1540,8 @@ export const forgeToDrive = onCall(
       const aiResponse = await synthesisModel.invoke(synthesisPrompt);
       const markdownContent = aiResponse.content.toString();
 
-      // 3. GENERAR NOMBRE DE ARCHIVO (Speedster para tareas simples)
-      // Intentamos que la IA nos dé un nombre genial.
       let fileName = "";
       try {
-        // Instancia separada para velocidad
         const titleModel = new ChatGoogleGenerativeAI({
           apiKey: googleApiKey.value(),
           model: "gemini-2.5-flash",
@@ -1661,7 +1566,6 @@ export const forgeToDrive = onCall(
 
         const titleResponse = await titleModel.invoke(titlePrompt);
         let rawName = titleResponse.content.toString().trim();
-        // Limpieza extra
         rawName = rawName.replace(/[^a-zA-Z0-9_\-]/g, "");
         if (rawName.length > 0) {
            fileName = `${rawName}.md`;
@@ -1670,7 +1574,6 @@ export const forgeToDrive = onCall(
         logger.warn("Error generando nombre con IA, usando fallback.", e);
       }
 
-      // FALLBACK: Si falla la IA, usamos el método antiguo
       if (!fileName) {
         const sessionDoc = await db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId).get();
         const sessionName = sessionDoc.exists ? sessionDoc.data()?.name : "Sesion_Forja";
@@ -1678,14 +1581,10 @@ export const forgeToDrive = onCall(
         fileName = `${safeName}_${new Date().getTime()}.md`;
       }
 
-      // 4. GUARDAR EN DRIVE (La Materialización)
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
       const drive = google.drive({ version: "v3", auth });
 
-
-
-      // Si queremos guardar como MD puro:
       const media = {
         mimeType: 'text/markdown',
         body: markdownContent
@@ -1719,8 +1618,8 @@ export const summonTheTribunal = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 540, // <--- 🟢 AUMENTADO A 9 MINUTOS
-    memory: "2GiB",      // 👈 Increased memory
+    timeoutSeconds: 540,
+    memory: "2GiB",
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -1731,16 +1630,14 @@ export const summonTheTribunal = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión para convocar al Tribunal.");
     }
 
-    const { text, fileId, context, accessToken } = request.data; // <--- 🟢 NUEVOS ARGUMENTOS
+    const { text, fileId, context, accessToken } = request.data;
 
-    // 1. OBTENER EL TEXTO A JUZGAR (TEXTO DIRECTO O ARCHIVO)
     let textToAnalyze = text;
 
     if (!textToAnalyze) {
       if (fileId && accessToken) {
         try {
           logger.info(`⚖️ Tribunal leyendo archivo: ${fileId}`);
-          // 🟢 USAR TOKEN DEL USUARIO PARA LEER DRIVE
           const auth = new google.auth.OAuth2();
           auth.setCredentials({ access_token: accessToken });
           const drive = google.drive({ version: "v3", auth });
@@ -1762,7 +1659,6 @@ export const summonTheTribunal = onCall(
     const userId = request.auth.uid;
 
     try {
-      // 2. RECUPERAR PERFIL DE ESCRITOR
       const profileDoc = await db.collection("users").doc(userId).collection("profile").doc("writer_config").get();
       const profile: WriterProfile = profileDoc.exists
         ? profileDoc.data() as WriterProfile
@@ -1775,17 +1671,15 @@ export const summonTheTribunal = onCall(
         - Personal Rules: ${profile.rules || 'Not specified'}
       `;
 
-      // 3. CONFIGURAR GEMINI (MODO JUEZ - GOD TIER)
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
         model: "gemini-3-pro-preview",
-        temperature: 0.4, // Más analítico para el juicio crítico
+        temperature: 0.4,
         generationConfig: {
           responseMimeType: "application/json",
         }
       } as any);
 
-      // 4. CONSTRUIR EL PROMPT DEL SISTEMA (LAS 3 MÁSCARAS)
       const systemPrompt = `
         ACT AS: The Literary Tribunal, a panel of 3 distinct AI judges who critique writing.
 
@@ -1828,7 +1722,6 @@ export const summonTheTribunal = onCall(
         }
       `;
 
-      // 5. INVOCAR AL TRIBUNAL
       const response = await chatModel.invoke([
         ["system", systemPrompt],
         ["human", textToAnalyze]
@@ -1836,8 +1729,6 @@ export const summonTheTribunal = onCall(
 
       const content = response.content.toString();
 
-      // Parsear JSON (Gemini devuelve JSON string en markdown block a veces, pero con response_mime_type debería ser limpio)
-      // Aun así, limpiamos por si acaso.
       const cleanJson = content.replace(/```json/g, '').replace(/```/g, '').trim();
       const tribunalVerdict = JSON.parse(cleanJson);
 
@@ -1860,7 +1751,7 @@ export const extractTimelineEvents = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 120, // 2 minutos debería sobrar para Flash
+    timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -1877,16 +1768,14 @@ export const extractTimelineEvents = onCall(
     }
 
     try {
-      // A. Configurar Gemini (Speedster)
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash", // 👈 Velocidad y eficiencia para extracción
+        model: "gemini-2.5-flash",
         generationConfig: {
           responseMimeType: "application/json"
         }
       });
 
-      // B. Prompt del Cronista
       const prompt = `
         Eres un Cronista experto en narrativa y continuidad.
         Tu misión es analizar el siguiente texto y extraer eventos temporales, tanto explícitos como implícitos.
@@ -1912,25 +1801,23 @@ export const extractTimelineEvents = onCall(
         ]
 
         TEXTO A ANALIZAR:
-        "${content}" // Limit Removed per architecture change
+        "${content}"
       `;
 
-      // C. Generar
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
       const events = JSON.parse(responseText);
 
-      // D. Persistencia (Human-in-the-loop: status 'suggested')
       const batch = db.batch();
       const timelineRef = db.collection("TDB_Timeline").doc(userId).collection("events");
 
       let count = 0;
       for (const event of events) {
-        const docRef = timelineRef.doc(); // Auto-ID
+        const docRef = timelineRef.doc();
         batch.set(docRef, {
           ...event,
           sourceFileId: fileId,
-          status: 'suggested', // 👈 Veto Humano
+          status: 'suggested',
           createdAt: new Date().toISOString()
         });
         count++;
@@ -1955,7 +1842,7 @@ export const compileManuscript = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 540, // 9 minutos para libros grandes
+    timeoutSeconds: 540,
     memory: "2GiB",
     secrets: [googleApiKey],
   },
@@ -1976,7 +1863,6 @@ export const compileManuscript = onCall(
     try {
       logger.info(`📚 Compilando manuscrito: ${title} (${fileIds.length} archivos)`);
 
-      // 1. Fetch content for all files
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
       const drive = google.drive({ version: "v3", auth });
@@ -1985,17 +1871,14 @@ export const compileManuscript = onCall(
       for (const fileId of fileIds) {
         const raw = await _getDriveFileContentInternal(drive, fileId);
 
-        // Clean content (remove YAML frontmatter)
         const parsed = matter(raw);
         const cleanContent = parsed.content.trim();
 
         contents.push(cleanContent);
       }
 
-      // 2. Generate PDF with pdfmake
       const PdfPrinter = require("pdfmake");
 
-      // Define fonts (using built-in fonts)
       const fonts = {
         Roboto: {
           normal: "Helvetica",
@@ -2007,10 +1890,8 @@ export const compileManuscript = onCall(
 
       const printer = new PdfPrinter(fonts);
 
-      // Build document definition
       const docDefinition: any = {
         content: [
-          // Cover Page
           {
             text: title,
             style: "title",
@@ -2025,7 +1906,6 @@ export const compileManuscript = onCall(
           },
           { text: "", pageBreak: "after" },
 
-          // Content pages
           ...contents.map((content, index) => {
             return [
               {
@@ -2033,7 +1913,6 @@ export const compileManuscript = onCall(
                 style: "body",
                 margin: [0, 0, 0, 20]
               },
-              // Page break after each file except the last
               ...(index < contents.length - 1 ? [{ text: "", pageBreak: "after" }] : [])
             ];
           }).flat()
@@ -2059,13 +1938,11 @@ export const compileManuscript = onCall(
           font: "Roboto"
         },
         pageSize: "LETTER",
-        pageMargins: [72, 72, 72, 72] // 1 inch margins
+        pageMargins: [72, 72, 72, 72]
       };
 
-      // Generate PDF
       const pdfDoc = printer.createPdfKitDocument(docDefinition);
 
-      // Collect PDF chunks
       const chunks: Buffer[] = [];
       pdfDoc.on("data", (chunk: Buffer) => chunks.push(chunk));
 
@@ -2075,7 +1952,6 @@ export const compileManuscript = onCall(
         pdfDoc.end();
       });
 
-      // Convert to base64
       const pdfBuffer = Buffer.concat(chunks);
       const pdfBase64 = pdfBuffer.toString("base64");
 
@@ -2129,19 +2005,18 @@ export const debugGetIndexStats = onCall(
         if (data.category === 'reference') {
           referenceCount++;
         } else {
-          canonCount++; // Asumimos canon por defecto
+          canonCount++;
         }
 
         fileDetails.push({
           id: doc.id,
           name: data.name,
-          category: data.category || 'canon', // Explicit fallback
+          category: data.category || 'canon',
           chunkCount: data.chunkCount || 0,
           lastIndexed: data.lastIndexed
         });
       });
 
-      // Sort by category then name for readability
       fileDetails.sort((a, b) => {
         if (a.category !== b.category) return a.category.localeCompare(b.category);
         return a.name.localeCompare(b.name);
