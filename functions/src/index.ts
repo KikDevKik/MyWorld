@@ -1118,6 +1118,7 @@ export const worldEngine = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
+    console.log("🚀 WORLD ENGINE v2.0 (Sanitizer Active) - Loaded");
     console.log('🚀 WORLD ENGINE: Phase 4.1 - TITAN LINK - ' + new Date().toISOString());
 
     // 1. DATA RECEPTION
@@ -1176,8 +1177,19 @@ export const worldEngine = onCall(
 
       const responseText = result.response.text();
 
-      // Clean JSON
-      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      // 🟢 STRICT SANITIZER V2.0
+      console.log("🔍 RAW AI OUTPUT:", responseText.slice(0, 50) + "...");
+
+      const firstBrace = responseText.indexOf('{');
+      const lastBrace = responseText.lastIndexOf('}');
+
+      if (firstBrace === -1 || lastBrace === -1) {
+        throw new HttpsError('internal', 'AI Output Malformed: No JSON braces found.');
+      }
+
+      const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
+      console.log("Pk SANITIZED OUTPUT:", cleanJson.slice(0, 50) + "...");
+
       return JSON.parse(cleanJson);
 
     } catch (error: any) {
