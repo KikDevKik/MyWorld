@@ -561,6 +561,93 @@ export const getDriveFiles = onCall(
 );
 
 /**
+ * CRYSTALLIZE NODE (La Materialización)
+ * Convierte un nodo efímero en un archivo persistente en Drive.
+ */
+export const crystallizeNode = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+    const { accessToken, folderId, fileName, content, frontmatter } = request.data;
+    const userId = request.auth.uid;
+
+    if (!folderId || !fileName || !content || !accessToken) {
+      throw new HttpsError("invalid-argument", "Faltan datos obligatorios.");
+    }
+
+    try {
+      // 1. CONSTRUIR CONTENIDO
+      let fileContent = content;
+      if (frontmatter) {
+          // Usamos stringify de matter, pero a veces inserta saltos de línea extraños.
+          // Construcción manual segura para YAML simple.
+          const fmBlock = Object.entries(frontmatter)
+              .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+              .join('\n');
+          fileContent = `---\n${fmBlock}\n---\n\n${content}`;
+      }
+
+      // 2. GUARDAR EN DRIVE
+      const auth = new google.auth.OAuth2();
+      auth.setCredentials({ access_token: accessToken });
+      const drive = google.drive({ version: "v3", auth });
+
+      const fileMetadata = {
+        name: fileName,
+        parents: [folderId],
+        mimeType: 'text/markdown'
+      };
+
+      const media = {
+        mimeType: 'text/markdown',
+        body: fileContent
+      };
+
+      const file = await drive.files.create({
+        requestBody: fileMetadata,
+        media: media,
+        fields: 'id, name, webViewLink'
+      });
+
+      const newFileId = file.data.id;
+
+      logger.info(`💎 Nodo cristalizado: ${fileName} (${newFileId})`);
+
+      // 3. ACTUALIZAR ÍNDICE (LIGERO)
+      // Agregamos el archivo a la colección 'files' para que conste.
+      if (newFileId) {
+          await db.collection("TDB_Index").doc(userId).collection("files").doc(newFileId).set({
+              name: fileName,
+              lastIndexed: new Date().toISOString(),
+              chunkCount: 0,
+              category: 'canon',
+              timelineDate: null,
+              isGhost: false
+          });
+      }
+
+      return {
+          success: true,
+          fileId: newFileId,
+          webViewLink: file.data.webViewLink
+      };
+
+    } catch (error: any) {
+      logger.error("Error en crystallizeNode:", error);
+      throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+/**
  * 16. GET PROJECT CONFIG (El Plano del Arquitecto)
  * Recupera la configuración del proyecto (rutas canon/recursos).
  */
@@ -1342,8 +1429,19 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
           "type": "concept" | "plot" | "character",
           "title": "Short Title",
           "content": "Deeply reasoned analysis...",
-          "thoughts": "Optional summary of your reasoning process"
+          "thoughts": "Optional summary of your reasoning process",
+          "metadata": {
+            "node_type": "concept" | "conflict" | "lore",
+            "suggested_filename": "snake_case_name.md",
+            "suggested_folder_category": "Factions" | "Characters" | "Locations" | "Magic",
+            "related_node_ids": ["id1", "id2"]
+          }
         }
+
+        COLOR CODING LOGIC (For node_type):
+        - "concept" (BLUE): Foundations, Rules, Magic Systems, Tech.
+        - "conflict" (RED): Threats, Wars, Dilemmas, Antagonists.
+        - "lore" (VIOLET): History, Flavor, Myths, Artifacts.
 
         TYPE B (INQUIRY - WHEN CLARIFICATION NEEDED):
         {

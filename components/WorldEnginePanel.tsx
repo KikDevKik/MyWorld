@@ -7,12 +7,13 @@ import {
     TriangleAlert,
     X,
     Zap,
-    Activity,
-    Disc // Record Icon
+    Disc,
+    Diamond
 } from 'lucide-react';
 import { GemId } from '../types';
 import { useProjectConfig } from '../components/ProjectConfigContext';
 import InterrogationModal from './InterrogationModal';
+import CrystallizeModal from './CrystallizeModal';
 
 interface WorldEnginePanelProps {
     isOpen: boolean;
@@ -38,6 +39,12 @@ interface Node {
     agentId: AgentType;
     x?: number; // Position X (percentage)
     y?: number; // Position Y (percentage)
+    metadata?: {
+        suggested_filename?: string;
+        suggested_folder_category?: string;
+        node_type?: string;
+        related_node_ids?: string[];
+    };
 }
 
 // 🟢 SESSION INTERFACE
@@ -53,12 +60,9 @@ const AGENTS = {
         role: 'ESTRUCTURA',
         icon: LayoutTemplate,
         color: 'cyan',
-        colorHex: '#06b6d4', // cyan-500
+        colorHex: '#06b6d4',
         desc: 'Diseño lógico y coherencia estructural.',
         styles: {
-            border: 'border-cyan-500/30',
-            text: 'text-cyan-400',
-            shadow: 'shadow-[0_0_30px_rgba(6,182,212,0.1)]',
             focusRing: 'focus:border-cyan-500 focus:ring-cyan-500'
         }
     },
@@ -68,12 +72,9 @@ const AGENTS = {
         role: 'CAOS',
         icon: Sparkles,
         color: 'purple',
-        colorHex: '#a855f7', // purple-500
+        colorHex: '#a855f7',
         desc: 'Creatividad desenfrenada y alucinación controlada.',
         styles: {
-            border: 'border-purple-500/30',
-            text: 'text-purple-400',
-            shadow: 'shadow-[0_0_30px_rgba(168,85,247,0.1)]',
             focusRing: 'focus:border-purple-500 focus:ring-purple-500'
         }
     },
@@ -83,14 +84,38 @@ const AGENTS = {
         role: 'CRÍTICA',
         icon: TriangleAlert,
         color: 'red',
-        colorHex: '#ef4444', // red-500
+        colorHex: '#ef4444',
         desc: 'Detección de riesgos y agujeros de guion.',
         styles: {
-            border: 'border-red-500/30',
-            text: 'text-red-400',
-            shadow: 'shadow-[0_0_30px_rgba(239,68,68,0.1)]',
             focusRing: 'focus:border-red-500 focus:ring-red-500'
         }
+    }
+};
+
+const CONTENT_TYPES: {[key: string]: {color: string, border: string, shadow: string, text: string}} = {
+    concept: {
+        color: 'blue',
+        border: 'border-blue-500/50',
+        shadow: 'shadow-[0_0_30px_rgba(59,130,246,0.2)]',
+        text: 'text-blue-400'
+    },
+    conflict: {
+        color: 'red',
+        border: 'border-red-500/50',
+        shadow: 'shadow-[0_0_30px_rgba(239,68,68,0.2)]',
+        text: 'text-red-400'
+    },
+    lore: {
+        color: 'violet',
+        border: 'border-violet-500/50',
+        shadow: 'shadow-[0_0_30px_rgba(139,92,246,0.2)]',
+        text: 'text-violet-400'
+    },
+    default: {
+        color: 'slate',
+        border: 'border-slate-500/50',
+        shadow: 'shadow-[0_0_20px_rgba(100,116,139,0.2)]',
+        text: 'text-slate-400'
     }
 };
 
@@ -137,21 +162,16 @@ const ChaosSlider: React.FC<{ value: number; onChange: (val: number) => void }> 
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
             >
-                {/* Dynamic Gradient Bar */}
                 <div
                     className={`absolute top-0 left-0 bottom-0 bg-gradient-to-r ${getChaosColor(value)} transition-all duration-100 ease-out`}
                     style={{ width: `${value * 100}%` }}
                 />
-
-                {/* Vertical Pill Thumb */}
                 <motion.div
                     className="absolute top-0.5 bottom-0.5 w-3 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] z-10"
                     style={{ left: `calc(${value * 100}% - 6px)` }}
                     animate={{ scale: isDragging ? 1.2 : 1 }}
                     whileHover={{ scale: 1.2 }}
                 />
-
-                 {/* Value Readout Overlay */}
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50">
                      <span className="text-[9px] font-mono font-bold text-white drop-shadow-md">{value.toFixed(2)}</span>
                 </div>
@@ -202,6 +222,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         pendingPrompt: ''
     });
 
+    // CRYSTALLIZATION STATE
+    const [crystallizeModal, setCrystallizeModal] = useState<{isOpen: boolean, node: Node | null, isProcessing: boolean}>({
+        isOpen: false, node: null, isProcessing: false
+    });
+
     // 🟢 PHASE 4.3: SESSION STATE
     const [sessionId] = useState(() => `sess_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
     const [sessionHistory, setSessionHistory] = useState<SessionItem[]>([]);
@@ -209,7 +234,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // CONTEXT
     const { config } = useProjectConfig();
 
-    // MOCK NOTIFICATIONS
     const [notifications] = useState([
         { id: 1, type: 'alert', text: 'ANOMALY DETECTED: Timeline Divergence' }
     ]);
@@ -247,18 +271,14 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             return combined;
         };
 
-        // 1. HARVEST CANON
         if (config.canonPaths && config.canonPaths.length > 0) {
             setStatusMessage("ALIGNING WITH CANON PROTOCOLS...");
             const token = localStorage.getItem('google_drive_token');
             if (token) {
                 try {
-                     // Get File List
                      const folderIds = config.canonPaths.map(p => p.id);
                      const res = await getDriveFiles({ folderIds, accessToken: token, recursive: true }) as any;
                      const files = res.data.filter((f: any) => f.name.endsWith('.md') || f.name.endsWith('.txt'));
-
-                     // Get Content
                      canonText = await fetchContent(files);
                 } catch (e) {
                     console.error("Canon Harvest Failed", e);
@@ -266,7 +286,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             }
         }
 
-        // 2. HARVEST TIMELINE
         if (config.chronologyPath) {
              setStatusMessage("SYNCHRONIZING TIMELINE EVENTS...");
              const token = localStorage.getItem('google_drive_token');
@@ -294,20 +313,17 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         setStatusMessage(currentDepth > 0 ? `REFINING... (DEPTH ${currentDepth}/3)` : "INITIALIZING HARVESTER...");
 
         const functions = getFunctions();
-        const worldEngine = httpsCallable(functions, 'worldEngine', { timeout: 1800000 }); // 30 Minutes
+        const worldEngine = httpsCallable(functions, 'worldEngine', { timeout: 1800000 });
 
-        // MAP AGENT ID
         let backendAgentId = 'ARCHITECT';
         if (activeAgent === 'oracle') backendAgentId = 'ORACLE';
         if (activeAgent === 'advocate') backendAgentId = 'DEVIL_ADVOCATE';
 
         try {
-            // STEP 1: DEEP HARVEST
             const contextPayload = await harvestWorldContext();
 
             setStatusMessage("DEEP REASONING IN PROGRESS... DO NOT REFRESH.");
 
-            // Format Clarifications for Backend
             let clarificationsText = "";
             if (clarificationHistory.length > 0) {
                 clarificationsText = clarificationHistory.map((item, idx) =>
@@ -315,7 +331,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 ).join("\n\n");
             }
 
-            // 🟢 PREPARE SESSION HISTORY (LAST 5 TURNS)
             const recentHistory = sessionHistory.slice(-5);
             const accessToken = localStorage.getItem('google_drive_token');
 
@@ -327,7 +342,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 context: contextPayload,
                 interrogationDepth: currentDepth,
                 clarifications: clarificationsText,
-                // 🟢 PHASE 4.3 PAYLOAD EXTENSIONS
                 sessionId,
                 sessionHistory: recentHistory,
                 accessToken,
@@ -339,7 +353,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
             console.log("🔍 WORLD ENGINE RESPONSE TYPE:", data.type);
 
-            // HANDLE RESPONSE TYPES
             if (data.type === 'inquiry') {
                 setInterrogation({
                     isOpen: true,
@@ -348,7 +361,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     history: clarificationHistory,
                     pendingPrompt: prompt
                 });
-                return; // STOP EXECUTION HERE - DO NOT CREATE NODE
+                return;
             }
 
             // STANDARD NODE (SUCCESS)
@@ -358,15 +371,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 title: data.title || 'Unknown',
                 content: data.content || 'No content received.',
                 agentId: activeAgent,
-                x: Math.random() * 60 + 20, // Random pos 20-80%
-                y: Math.random() * 60 + 20
+                x: Math.random() * 60 + 20,
+                y: Math.random() * 60 + 20,
+                metadata: data.metadata
             };
             setNodes(prev => [...prev, newNode]);
-
-            // 🟢 UPDATE SESSION HISTORY
             setSessionHistory(prev => [...prev, { prompt, result: data }]);
 
-            // Reset Interrogation State
             setInterrogation({
                 isOpen: false,
                 questions: [],
@@ -378,7 +389,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
         } catch (error) {
             console.error("NEURAL LINK FAILURE:", error);
-            // Optionally add error notification here
         } finally {
             setIsLoading(false);
             setStatusMessage("ESTABLISHING NEURAL LINK...");
@@ -386,7 +396,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     };
 
     const generateNode = async (prompt: string) => {
-        // Start fresh
         runSimulation(prompt, 0, []);
     };
 
@@ -395,11 +404,41 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             ...interrogation.history,
             { questions: interrogation.questions, answer }
         ];
-
-        // Close modal temporarily while loading (or keep it open with loading state - choice: close to show progress on main screen)
         setInterrogation(prev => ({ ...prev, isOpen: false }));
-
         runSimulation(interrogation.pendingPrompt, interrogation.depth + 1, newHistory);
+    };
+
+    // CRYSTALLIZATION
+    const handleCrystallize = (node: Node) => {
+        setCrystallizeModal({ isOpen: true, node, isProcessing: false });
+    };
+
+    const confirmCrystallization = async (data: { fileName: string; folderId: string; frontmatter: any }) => {
+        if (!crystallizeModal.node) return;
+        setCrystallizeModal(prev => ({ ...prev, isProcessing: true }));
+
+        try {
+            const functions = getFunctions();
+            const crystallizeNode = httpsCallable(functions, 'crystallizeNode');
+            const accessToken = localStorage.getItem('google_drive_token');
+
+            await crystallizeNode({
+                accessToken,
+                folderId: data.folderId,
+                fileName: data.fileName,
+                content: crystallizeModal.node.content,
+                frontmatter: data.frontmatter
+            });
+
+            // Success Animation or Notification here
+            // Removing node from canvas after crystallization? Or keep it? keeping it for now.
+
+            setCrystallizeModal({ isOpen: false, node: null, isProcessing: false });
+
+        } catch (e) {
+            console.error("Crystallization Failed", e);
+            setCrystallizeModal(prev => ({ ...prev, isProcessing: false }));
+        }
     };
 
     if (!isOpen) return null;
@@ -418,6 +457,44 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-titanium-950 via-transparent to-titanium-950 opacity-80" />
             </div>
+
+            {/* LAYER 0.5: SVG CONNECTIONS */}
+            <svg className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-visible">
+                {nodes.map((node) => {
+                    if (!node.metadata?.related_node_ids) return null;
+
+                    return node.metadata.related_node_ids.map((relId, idx) => {
+                        // Try to find target by ID or Title (fuzzy match for AI suggestions)
+                        const target = nodes.find(n => n.id === relId || n.title.toLowerCase() === relId.toLowerCase());
+
+                        if (!target || !node.x || !node.y || !target.x || !target.y) return null;
+
+                        // Center offsets (Cards are roughly 18rem wide => ~12-15% of screen width)
+                        const x1 = node.x + 8;
+                        const y1 = node.y + 10;
+                        const x2 = target.x + 8;
+                        const y2 = target.y + 10;
+
+                        // Determine style based on node type
+                        const isConflict = node.metadata?.node_type === 'conflict' || target.metadata?.node_type === 'conflict';
+
+                        return (
+                            <line
+                                key={`${node.id}-${target.id}-${idx}`}
+                                x1={`${x1}%`}
+                                y1={`${y1}%`}
+                                x2={`${x2}%`}
+                                y2={`${y2}%`}
+                                stroke={isConflict ? "#ef4444" : "#94a3b8"}
+                                strokeWidth="2"
+                                strokeDasharray={isConflict ? "5,5" : "none"}
+                                opacity="0.3"
+                            />
+                        );
+                    });
+                })}
+            </svg>
+
 
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
             <div className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit">
@@ -447,7 +524,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     ))}
                 </div>
 
-                {/* Agent Description (Subtext) */}
                 <motion.div
                     key={activeAgent}
                     initial={{ opacity: 0, y: -5 }}
@@ -490,6 +566,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             <AnimatePresence>
                 {nodes.map(node => {
                    const agent = AGENTS[node.agentId];
+                   const nodeType = node.metadata?.node_type || 'default';
+                   const style = CONTENT_TYPES[nodeType] || CONTENT_TYPES['default'];
+
                    return (
                     <motion.div
                         key={node.id}
@@ -497,18 +576,39 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
                         transition={{ duration: 0.5 }}
-                        className={`absolute w-64 p-4 bg-black/60 border rounded-lg backdrop-blur-sm z-0 ${agent.styles.border} ${agent.styles.shadow}`}
+                        className={`absolute w-72 p-0 bg-black/80 border rounded-lg backdrop-blur-sm z-0 ${style.border} ${style.shadow}`}
                         style={{
                             top: `${node.y}%`,
                             left: `${node.x}%`
                         }}
                     >
-                        <div className={`flex items-center gap-2 mb-2 ${agent.styles.text}`}>
-                            <agent.icon size={14} />
-                            <span className="text-xs font-bold tracking-widest uppercase">{node.type}</span>
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-3 border-b border-white/10">
+                            <div className={`flex items-center gap-2 ${style.text}`}>
+                                <Diamond size={12} className="rotate-45" />
+                                <span className="text-[10px] font-bold tracking-widest uppercase">{node.metadata?.node_type || node.type}</span>
+                            </div>
+                            <div className="opacity-50">
+                                <agent.icon size={12} className={`text-${agent.color}-400`} />
+                            </div>
                         </div>
-                        <div className="text-xs font-bold text-white mb-1">{node.title}</div>
-                        <p className="text-sm text-titanium-300 font-serif leading-relaxed">{node.content}</p>
+
+                        {/* Content */}
+                        <div className="p-4">
+                             <div className="text-sm font-bold text-white mb-2">{node.title}</div>
+                             <p className="text-xs text-titanium-300 font-serif leading-relaxed line-clamp-6">{node.content}</p>
+                        </div>
+
+                        {/* Footer / Actions */}
+                        <div className="p-2 border-t border-white/10 bg-black/40 flex justify-end">
+                            <button
+                                onClick={() => handleCrystallize(node)}
+                                className="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-white/10 transition-colors group"
+                            >
+                                <span className="text-[10px] font-bold text-titanium-400 group-hover:text-cyan-400 transition-colors">💎 CRISTALIZAR</span>
+                            </button>
+                        </div>
+
                     </motion.div>
                    );
                 })}
@@ -523,6 +623,15 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 isThinking={isLoading}
                 onSubmit={handleInterrogationSubmit}
                 onCancel={() => setInterrogation(prev => ({ ...prev, isOpen: false }))}
+            />
+
+            {/* LAYER 2.5: CRYSTALLIZE MODAL */}
+            <CrystallizeModal
+                isOpen={crystallizeModal.isOpen}
+                onClose={() => setCrystallizeModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmCrystallization}
+                node={crystallizeModal.node}
+                isProcessing={crystallizeModal.isProcessing}
             />
 
             {/* LAYER 3: COMMAND DECK (OPERATION MONOLITH) */}
