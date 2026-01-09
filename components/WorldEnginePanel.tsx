@@ -235,16 +235,50 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 </AnimatePresence>
             </div>
 
-            {/* LAYER 1: CENTER VOID (PLACEHOLDER FOR NODES) */}
-            <div className="flex-1 flex items-center justify-center pointer-events-none z-0">
-                <div className={`text-center transition-opacity duration-1000 ${combatMode ? 'opacity-80' : 'opacity-40'}`}>
-                    <div className={`text-6xl mb-4 text-${activeAgentConfig.color}-500/20 font-black tracking-tighter`}>
-                        VOID
+            {/* LAYER 1: GHOST NODES */}
+            <AnimatePresence>
+                {/* Node A: The Architect */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.2, duration: 0.5 }}
+                    className="absolute top-[20%] left-[15%] w-64 p-4 bg-black/60 border border-cyan-500/30 rounded-lg backdrop-blur-sm shadow-[0_0_30px_rgba(6,182,212,0.1)] z-0"
+                >
+                    <div className="flex items-center gap-2 mb-2 text-cyan-400">
+                        <LayoutTemplate size={14} />
+                        <span className="text-xs font-bold tracking-widest">STRUCTURE IDEA</span>
                     </div>
-                    <div className="text-xs font-mono text-titanium-600 tracking-[0.5em]">
-                        WAITING FOR NODE GRAPH
+                    <p className="text-sm text-titanium-300 font-serif leading-relaxed">Three-Act Setup</p>
+                </motion.div>
+
+                {/* Node B: The Oracle */}
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.4, duration: 0.5 }}
+                    className="absolute top-[60%] right-[20%] w-64 p-4 bg-black/60 border border-purple-500/30 rounded-lg backdrop-blur-sm shadow-[0_0_30px_rgba(168,85,247,0.1)] z-0"
+                >
+                    <div className="flex items-center gap-2 mb-2 text-purple-400">
+                        <Sparkles size={14} />
+                        <span className="text-xs font-bold tracking-widest">CHAOS SPARK</span>
                     </div>
-                </div>
+                    <p className="text-sm text-titanium-300 font-serif leading-relaxed">Dragon made of glass</p>
+                </motion.div>
+            </AnimatePresence>
+
+            {/* LAYER 2: INPUT NEXUS */}
+            <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-20">
+                <input
+                    type="text"
+                    placeholder="Initialize simulation protocol..."
+                    className="w-[600px] bg-black/60 border border-titanium-500/50 rounded-xl px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all font-mono text-sm shadow-2xl"
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            console.log('INPUT NEXUS COMMAND:', e.currentTarget.value);
+                            e.currentTarget.value = '';
+                        }
+                    }}
+                />
             </div>
 
             {/* LAYER 1: HUD FOOTER (SYNTHESIZER) */}
