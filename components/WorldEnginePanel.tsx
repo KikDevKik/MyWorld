@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import {
@@ -7,7 +7,8 @@ import {
     TriangleAlert,
     X,
     Zap,
-    Activity
+    Activity,
+    Disc // Record Icon
 } from 'lucide-react';
 import { GemId } from '../types';
 import { useProjectConfig } from '../components/ProjectConfigContext';
@@ -37,6 +38,12 @@ interface Node {
     agentId: AgentType;
     x?: number; // Position X (percentage)
     y?: number; // Position Y (percentage)
+}
+
+// 🟢 SESSION INTERFACE
+interface SessionItem {
+    prompt: string;
+    result: any;
 }
 
 const AGENTS = {
@@ -195,6 +202,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         pendingPrompt: ''
     });
 
+    // 🟢 PHASE 4.3: SESSION STATE
+    const [sessionId] = useState(() => `sess_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
+    const [sessionHistory, setSessionHistory] = useState<SessionItem[]>([]);
+
     // CONTEXT
     const { config } = useProjectConfig();
 
@@ -291,7 +302,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         if (activeAgent === 'advocate') backendAgentId = 'DEVIL_ADVOCATE';
 
         try {
-            // STEP 1: DEEP HARVEST (Only on first run? No, context might be needed always)
+            // STEP 1: DEEP HARVEST
             const contextPayload = await harvestWorldContext();
 
             setStatusMessage("DEEP REASONING IN PROGRESS... DO NOT REFRESH.");
@@ -304,6 +315,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 ).join("\n\n");
             }
 
+            // 🟢 PREPARE SESSION HISTORY (LAST 5 TURNS)
+            const recentHistory = sessionHistory.slice(-5);
+            const accessToken = localStorage.getItem('google_drive_token');
+
             const payload = {
                 prompt,
                 agentId: backendAgentId,
@@ -311,7 +326,12 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 combatMode,
                 context: contextPayload,
                 interrogationDepth: currentDepth,
-                clarifications: clarificationsText
+                clarifications: clarificationsText,
+                // 🟢 PHASE 4.3 PAYLOAD EXTENSIONS
+                sessionId,
+                sessionHistory: recentHistory,
+                accessToken,
+                folderId: config?.folderId
             };
 
             const result = await worldEngine(payload) as any;
@@ -342,6 +362,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 y: Math.random() * 60 + 20
             };
             setNodes(prev => [...prev, newNode]);
+
+            // 🟢 UPDATE SESSION HISTORY
+            setSessionHistory(prev => [...prev, { prompt, result: data }]);
 
             // Reset Interrogation State
             setInterrogation({
@@ -543,6 +566,12 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         <CombatToggle value={combatMode} onChange={setCombatMode} />
                     </div>
                 </div>
+            </div>
+
+            {/* 🟢 UI: REC INDICATOR */}
+            <div className="absolute bottom-8 right-8 z-10 flex items-center gap-2 opacity-50 pointer-events-none">
+                 <Disc className="text-red-500 animate-pulse" size={12} />
+                 <span className="text-[9px] font-mono text-red-500/80 tracking-widest">REC</span>
             </div>
 
         </div>

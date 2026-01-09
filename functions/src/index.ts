@@ -54,6 +54,12 @@ interface ProjectConfig {
   lastIndexed?: string;
 }
 
+interface SessionInteraction {
+  prompt: string;
+  response: any;
+  clarifications?: string;
+}
+
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
 // --- FILE FILTERING CONSTANTS ---
@@ -194,6 +200,140 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
     );
   }
 }
+
+/**
+ * 🔒 SYSTEM LOGS HELPER: ENSURE FOLDER EXISTS
+ */
+async function ensureSystemLogsFolder(drive: any, rootFolderId: string): Promise<string> {
+  const query = `'${rootFolderId}' in parents and name = '_SYSTEM_LOGS' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  try {
+    const res = await drive.files.list({
+      q: query,
+      fields: "files(id)",
+      pageSize: 1
+    });
+
+    if (res.data.files && res.data.files.length > 0) {
+      return res.data.files[0].id;
+    }
+
+    // Create if not exists
+    const createRes = await drive.files.create({
+      requestBody: {
+        name: '_SYSTEM_LOGS',
+        mimeType: 'application/vnd.google-apps.folder',
+        parents: [rootFolderId]
+      },
+      fields: 'id'
+    });
+    return createRes.data.id;
+  } catch (e) {
+    logger.error("Error ensuring _SYSTEM_LOGS folder:", e);
+    throw e;
+  }
+}
+
+/**
+ * 📝 SYSTEM LOGS HELPER: APPEND INTERACTION
+ */
+async function appendToSessionLog(
+  drive: any,
+  sessionId: string,
+  rootFolderId: string,
+  interaction: SessionInteraction
+): Promise<void> {
+  try {
+    const logsFolderId = await ensureSystemLogsFolder(drive, rootFolderId);
+
+    // 1. Search for existing session file by appProperties.sessionId
+    const query = `'${logsFolderId}' in parents and appProperties has { key='sessionId' and value='${sessionId}' } and trashed = false`;
+    const res = await drive.files.list({
+      q: query,
+      fields: "files(id, name)",
+      pageSize: 1
+    });
+
+    let fileId: string | null = null;
+    let currentContent = "";
+
+    // 2. Prepare Markdown Block
+    const timestamp = new Date().toISOString();
+    const promptSnippet = interaction.prompt.length > 50 ? interaction.prompt.substring(0, 50) + "..." : interaction.prompt;
+
+    let responseSummary = "";
+    if (interaction.response.type === 'inquiry') {
+       responseSummary = `**CLARIFICATION REQUIRED**\nQuestions: ${(interaction.response.questions || []).join(', ')}`;
+    } else {
+       responseSummary = `**NODE GENERATED**: ${interaction.response.title}\n${interaction.response.content ? interaction.response.content.substring(0, 200) + '...' : ''}`;
+    }
+
+    const newBlock = `
+### 🔄 Interaction [${timestamp}]
+**Commander:** ${interaction.prompt}
+${interaction.clarifications ? `**Clarifications:** ${interaction.clarifications}\n` : ''}
+**Architect's Logic:**
+${responseSummary}
+
+---
+`;
+
+    if (res.data.files && res.data.files.length > 0 && res.data.files[0].id) {
+      // File Exists
+      fileId = res.data.files[0].id;
+      logger.info(`📝 Appending to existing session log: ${res.data.files[0].name} (${fileId})`);
+
+      // Read existing content to append (Drive API doesn't support 'append' operation directly on files, we must update)
+      // Note: For very large logs, this is inefficient. But for text logs < 10MB it's fine.
+      try {
+        if (fileId) {
+            currentContent = await _getDriveFileContentInternal(drive, fileId);
+        }
+      } catch (readErr) {
+        logger.warn("Could not read existing log, starting fresh for append.");
+      }
+
+    } else {
+      // Create New File
+      const safeDate = new Date().toISOString().split('T')[0];
+      const safePrompt = promptSnippet.replace(/[^a-zA-Z0-9]/g, '-');
+      const fileName = `Session_${safeDate}_${safePrompt}.md`;
+
+      logger.info(`📝 Creating new session log: ${fileName}`);
+
+      // Initial Content
+      currentContent = `# 📜 THE CHRONICLER LOG\nSession ID: ${sessionId}\nDate: ${timestamp}\n\n`;
+
+      const createRes = await drive.files.create({
+        requestBody: {
+          name: fileName,
+          parents: [logsFolderId],
+          mimeType: 'text/markdown',
+          appProperties: {
+            sessionId: sessionId
+          }
+        },
+        fields: 'id'
+      });
+      fileId = createRes.data.id;
+    }
+
+    // 3. Write Updated Content
+    const updatedContent = currentContent + newBlock;
+    await drive.files.update({
+      fileId: fileId!,
+      media: {
+        mimeType: 'text/markdown',
+        body: updatedContent
+      }
+    });
+    logger.info("✅ Session Log Updated.");
+
+  } catch (e) {
+    logger.error("💥 Failed to append to session log:", e);
+    // Non-blocking error - we don't want to crash the AI response if logging fails
+  }
+}
+
 /**
  * Escáner de Carpetas (AHORA CON INTERRUPTOR DE PROFUNDIDAD)
  * @param drive Cliente de Google Drive
@@ -275,8 +415,8 @@ async function fetchFolderContents(
 
         if (file.mimeType === 'application/vnd.google-apps.folder') {
           let children: DriveFile[] = [];
-          if (recursive) {
-            children = await fetchFolderContents(drive, file.id, config, true, fileCategory);
+          if (recursive && file.id) {
+            children = await fetchFolderContents(drive, file.id as string, config, true, fileCategory);
           }
 
           return {
@@ -1122,7 +1262,7 @@ export const worldEngine = onCall(
     console.log('🚀 WORLD ENGINE: Phase 4.1 - TITAN LINK - ' + new Date().toISOString());
 
     // 1. DATA RECEPTION
-    const { prompt, agentId, chaosLevel, context, interrogationDepth, clarifications } = request.data;
+    const { prompt, agentId, chaosLevel, context, interrogationDepth, clarifications, sessionId, sessionHistory, accessToken, folderId } = request.data;
     const { canon_dump, timeline_dump } = context || {};
 
     const currentDepth = interrogationDepth || 0;
@@ -1133,7 +1273,8 @@ export const worldEngine = onCall(
       chaosLevel,
       canonLength: canon_dump ? canon_dump.length : 0,
       timelineLength: timeline_dump ? timeline_dump.length : 0,
-      interrogationDepth: currentDepth
+      interrogationDepth: currentDepth,
+      sessionId: sessionId || 'NO_SESSION'
     });
 
     try {
@@ -1147,6 +1288,21 @@ export const worldEngine = onCall(
         } as any
       });
 
+      // 🟢 PHASE 4.3: SESSION AWARENESS
+      let sessionContext = "";
+      if (sessionHistory && Array.isArray(sessionHistory) && sessionHistory.length > 0) {
+         sessionContext = `
+=== CURRENT SESSION HISTORY (THE CHRONICLER) ===
+(This is what has happened so far in this session. Maintain consistency with these decisions.)
+${sessionHistory.map((item: any, i: number) => `
+[TURN ${i+1}]
+User: ${item.prompt}
+AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
+`).join('\n')}
+================================================
+`;
+      }
+
       const systemPrompt = `
         You are using the Gemini 3 Reasoning Engine.
         Your Persona: ${agentId} (Chaos Level: ${chaosLevel}).
@@ -1156,6 +1312,8 @@ export const worldEngine = onCall(
 
         === TIMELINE (THE LORE) ===
         ${timeline_dump || "No timeline events provided."}
+
+        ${sessionContext}
 
         === ITERATIVE REFINEMENT LOOP ===
         CURRENT INTERROGATION DEPTH: ${currentDepth}/3
@@ -1173,6 +1331,7 @@ export const worldEngine = onCall(
 
         4. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
         5. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
+        6. THE CHRONICLER RULE: Always refer to the CURRENT SESSION HISTORY (if available) to maintain consistency. If the user previously decided X in this session, do not contradict it.
 
         USER PROMPT: "${prompt}"
 
@@ -1213,7 +1372,23 @@ export const worldEngine = onCall(
       const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
       console.log("Pk SANITIZED OUTPUT:", cleanJson.slice(0, 50) + "...");
 
-      return JSON.parse(cleanJson);
+      const parsedResult = JSON.parse(cleanJson);
+
+      // 🟢 PHASE 4.3: ASYNC LOGGING (FIRE AND FORGET OR AWAIT)
+      // We await to ensure persistence, even if it adds 1-2s latency. Reliability > Speed here.
+      if (sessionId && accessToken && folderId) {
+          const auth = new google.auth.OAuth2();
+          auth.setCredentials({ access_token: accessToken });
+          const drive = google.drive({ version: "v3", auth });
+
+          await appendToSessionLog(drive, sessionId, folderId, {
+              prompt,
+              response: parsedResult,
+              clarifications
+          });
+      }
+
+      return parsedResult;
 
     } catch (error: any) {
       logger.error("💥 TITAN LINK FAILED:", error);
