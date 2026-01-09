@@ -1419,9 +1419,19 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
              `- IF Ambiguity Exists OR New Conflict Detected: STOP. Return a TYPE B ('inquiry') object to ask strategic questions.`}
            - IF Prompt is Clear: Generate a TYPE A (Standard Node).
 
-        4. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
-        5. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
-        6. THE CHRONICLER RULE: Always refer to the CURRENT SESSION HISTORY (if available) to maintain consistency. If the user previously decided X in this session, do not contradict it.
+        4. **LORE AUDIT (COHERENCY CHECK):**
+           - **MANDATORY STEP:** Before finalizing a TYPE A response, scan the generated content against the blocks marked '[CORE WORLD RULES / PRIORITY LORE]' in the context.
+           - **IF A CONTRADICTION IS FOUND:**
+             - DO NOT STOP GENERATION.
+             - Generate the TYPE A response normally (let the creativity flow).
+             - **MUST** append a 'coherency_report' object to the JSON.
+             - The 'warning' must be a short, alarming headline (e.g., "VIOLACIÓN DE CANON" or "DISCORDANCIA TEMPORAL").
+             - The 'file_source' must be the exact filename of the contradicted PRIORITY LORE file.
+             - The 'explanation' must be a concise summary (max 2 lines) of the conflict.
+
+        5. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
+        6. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
+        7. THE CHRONICLER RULE: Always refer to the CURRENT SESSION HISTORY (if available) to maintain consistency. If the user previously decided X in this session, do not contradict it.
 
         USER PROMPT: "${prompt}"
 
@@ -1438,6 +1448,11 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
             "suggested_filename": "snake_case_name.md",
             "suggested_folder_category": "Factions" | "Characters" | "Locations" | "Magic",
             "related_node_ids": ["id1", "id2"]
+          },
+          "coherency_report": {
+             "warning": "VIOLACIÓN DE CANON",
+             "file_source": "filename.md",
+             "explanation": "Explanation of the contradiction."
           }
         }
 

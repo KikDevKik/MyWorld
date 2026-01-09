@@ -45,6 +45,11 @@ interface Node {
         node_type?: string;
         related_node_ids?: string[];
     };
+    coherency_report?: {
+        warning: string;
+        file_source: string;
+        explanation: string;
+    };
 }
 
 // 🟢 SESSION INTERFACE
@@ -234,11 +239,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // CONTEXT
     const { config } = useProjectConfig();
 
-    const [notifications] = useState([
-        { id: 1, type: 'alert', text: 'ANOMALY DETECTED: Timeline Divergence' }
-    ]);
-
     const activeAgentConfig = AGENTS[activeAgent];
+
+    // 🟢 COHERENCY MONITOR
+    const latestNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
+    const activeAlert = latestNode?.coherency_report;
 
     // --- HARVESTER (FRONTEND LOGIC) ---
     const harvestWorldContext = async (): Promise<{ canon_dump: string; timeline_dump: string }> => {
@@ -467,12 +472,27 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             const crystallizeNode = httpsCallable(functions, 'crystallizeNode');
             const accessToken = localStorage.getItem('google_drive_token');
 
+            // 🟢 COHERENCY INJECTION
+            let finalFrontmatter = { ...data.frontmatter };
+            let finalContent = crystallizeModal.node.content;
+
+            if (crystallizeModal.node.coherency_report) {
+                // 1. Inject Frontmatter Tag
+                const existingTags = finalFrontmatter.tags || [];
+                finalFrontmatter.tags = [...existingTags, 'INCONSISTENCY_WARNING'];
+
+                // 2. Inject Markdown Header
+                const report = crystallizeModal.node.coherency_report;
+                const warningHeader = `> ⚠️ **[${report.warning}]:** ${report.explanation}\n> *Source Conflict: ${report.file_source}*\n\n`;
+                finalContent = warningHeader + finalContent;
+            }
+
             await crystallizeNode({
                 accessToken,
                 folderId: data.folderId,
                 fileName: data.fileName,
-                content: crystallizeModal.node.content,
-                frontmatter: data.frontmatter
+                content: finalContent,
+                frontmatter: finalFrontmatter
             });
 
             // Success Animation or Notification here
@@ -580,30 +600,35 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </div>
 
             {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
-            <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-72 pointer-events-none">
+            <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-80 pointer-events-none">
                 <div className="flex justify-end mb-2">
                      <button onClick={onClose} className="pointer-events-auto p-2 hover:bg-white/10 rounded-full text-titanium-400 hover:text-white transition-colors">
                         <X size={20} />
                     </button>
                 </div>
                 <AnimatePresence>
-                    {notifications.map(notif => (
+                    {activeAlert && (
                         <motion.div
-                            key={notif.id}
+                            key="coherency-alert"
                             initial={{ opacity: 0, x: 20 }}
                             animate={{ opacity: 1, x: 0 }}
                             exit={{ opacity: 0, x: 20 }}
-                            className="bg-black/80 border-l-2 border-red-500 p-3 rounded backdrop-blur-sm shadow-lg pointer-events-auto"
+                            className="bg-black/90 border-l-2 border-red-500 p-4 rounded backdrop-blur-md shadow-2xl pointer-events-auto"
                         >
                             <div className="flex items-start gap-3">
-                                <TriangleAlert size={16} className="text-red-500 mt-0.5 shrink-0" />
+                                <TriangleAlert size={20} className="text-red-500 mt-1 shrink-0 animate-pulse" />
                                 <div>
-                                    <div className="text-xs font-bold text-red-200">SYSTEM ALERT</div>
-                                    <span className="text-[10px] font-mono text-titanium-400">{notif.text}</span>
+                                    <div className="text-xs font-bold text-red-400 tracking-widest mb-1">{activeAlert.warning.toUpperCase()}</div>
+                                    <p className="text-[11px] font-serif text-titanium-200 leading-relaxed">
+                                        {activeAlert.explanation}
+                                    </p>
+                                    <div className="mt-2 text-[10px] font-mono text-red-500/80">
+                                        SOURCE: {activeAlert.file_source}
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
-                    ))}
+                    )}
                 </AnimatePresence>
             </div>
 
