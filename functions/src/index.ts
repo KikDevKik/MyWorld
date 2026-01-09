@@ -1106,37 +1106,84 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
 );
 
 /**
- * PHASE 2: WORLD ENGINE (The Simulation)
- * Motor de simulación y lógica narrativa aislado.
+ * PHASE 4.1: WORLD ENGINE (TITAN LINK)
+ * Motor de simulación y lógica narrativa potenciado por Gemini 3.
  */
 export const worldEngine = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 60,
+    timeoutSeconds: 1800, // 30 Minutes
+    memory: "2GiB",
+    secrets: [googleApiKey],
   },
   async (request) => {
-    console.log('🚀 WORLD ENGINE: Phase 4.0 - Infrastructure Link - ' + new Date().toISOString());
+    console.log('🚀 WORLD ENGINE: Phase 4.1 - TITAN LINK - ' + new Date().toISOString());
 
     // 1. DATA RECEPTION
-    const { prompt, agentId, chaosLevel, combatMode, contextData, userFocus } = request.data;
+    const { prompt, agentId, chaosLevel, context } = request.data;
+    const { canon_dump, timeline_dump } = context || {};
 
     // 2. DEBUG LOGGING
-    logger.info("🔌 [NEURAL LINK] Payload Received:", {
-      prompt,
+    logger.info("🔌 [TITAN LINK] Payload Received:", {
       agentId,
       chaosLevel,
-      combatMode,
-      hasContext: !!contextData,
-      hasUserFocus: !!userFocus
+      canonLength: canon_dump ? canon_dump.length : 0,
+      timelineLength: timeline_dump ? timeline_dump.length : 0
     });
 
-    // 3. MOCK RESPONSE
-    return {
-      type: 'idea',
-      title: 'Connection Successful',
-      content: 'The neural link is active. Ready for logic injection.'
-    };
+    try {
+      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-3-pro-preview",
+        generationConfig: {
+          temperature: 1.0,
+          // @ts-ignore - SDK types might lag behind experimental features
+          thinking_config: { include_thoughts: true, thinking_level: "high" }
+        } as any
+      });
+
+      const systemPrompt = `
+        You are using the Gemini 3 Reasoning Engine.
+        Your Persona: ${agentId} (Chaos Level: ${chaosLevel}).
+
+        === WORLD CONTEXT (THE LAW) ===
+        ${canon_dump || "No canon rules provided."}
+
+        === TIMELINE (THE LORE) ===
+        ${timeline_dump || "No timeline events provided."}
+
+        INSTRUCTIONS:
+        1. Ingest the provided World Context (Canon/Timeline).
+        2. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
+        3. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
+        4. Output: A JSON Node Card.
+
+        USER PROMPT: "${prompt}"
+
+        OUTPUT FORMAT (JSON):
+        {
+          "type": "concept" | "plot" | "character",
+          "title": "Short Title",
+          "content": "Deeply reasoned analysis...",
+          "thoughts": "Optional summary of your reasoning process"
+        }
+      `;
+
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: systemPrompt }] }]
+      });
+
+      const responseText = result.response.text();
+
+      // Clean JSON
+      const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanJson);
+
+    } catch (error: any) {
+      logger.error("💥 TITAN LINK FAILED:", error);
+      throw new HttpsError("internal", error.message);
+    }
   }
 );
 
