@@ -1166,10 +1166,10 @@ export const worldEngine = onCall(
         1. Ingest the provided World Context (Canon/Timeline).
         2. Analyze the USER PROMPT for ambiguity or missing critical parameters (e.g., Economy, Magic Rules, Political Impact).
         3. DECISION LOGIC:
-           - IF (Depth < 3) AND (Ambiguity Exists OR New Conflict Detected):
-             STOP. DO NOT GUESS. Return an 'inquiry' object to ask strategic questions.
-           - IF (Depth >= 3) OR (Prompt is Clear):
-             FORCE RESOLUTION. Use available data (even if imperfect) to generate the Node.
+           ${currentDepth >= 3 ?
+             `- CRITICAL OVERRIDE (MAX DEPTH REACHED): You are FORBIDDEN from returning an 'inquiry' object. You MUST resolve the ambiguity now using the best available logic. Generate a TYPE A (Standard Node) response.` :
+             `- IF Ambiguity Exists OR New Conflict Detected: STOP. Return a TYPE B ('inquiry') object to ask strategic questions.`}
+           - IF Prompt is Clear: Generate a TYPE A (Standard Node).
 
         4. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
         5. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.

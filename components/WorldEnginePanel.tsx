@@ -317,6 +317,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             const result = await worldEngine(payload) as any;
             const data = result.data;
 
+            console.log("🔍 WORLD ENGINE RESPONSE TYPE:", data.type);
+
             // HANDLE RESPONSE TYPES
             if (data.type === 'inquiry') {
                 setInterrogation({
@@ -326,28 +328,30 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     history: clarificationHistory,
                     pendingPrompt: prompt
                 });
-            } else {
-                // STANDARD NODE (SUCCESS)
-                const newNode: Node = {
-                    id: Date.now().toString(),
-                    type: data.type || 'idea',
-                    title: data.title || 'Unknown',
-                    content: data.content || 'No content received.',
-                    agentId: activeAgent,
-                    x: Math.random() * 60 + 20, // Random pos 20-80%
-                    y: Math.random() * 60 + 20
-                };
-                setNodes(prev => [...prev, newNode]);
-
-                // Reset Interrogation State
-                setInterrogation({
-                    isOpen: false,
-                    questions: [],
-                    depth: 0,
-                    history: [],
-                    pendingPrompt: ''
-                });
+                return; // STOP EXECUTION HERE - DO NOT CREATE NODE
             }
+
+            // STANDARD NODE (SUCCESS)
+            const newNode: Node = {
+                id: Date.now().toString(),
+                type: data.type || 'idea',
+                title: data.title || 'Unknown',
+                content: data.content || 'No content received.',
+                agentId: activeAgent,
+                x: Math.random() * 60 + 20, // Random pos 20-80%
+                y: Math.random() * 60 + 20
+            };
+            setNodes(prev => [...prev, newNode]);
+
+            // Reset Interrogation State
+            setInterrogation({
+                isOpen: false,
+                questions: [],
+                depth: 0,
+                history: [],
+                pendingPrompt: ''
+            });
+
 
         } catch (error) {
             console.error("NEURAL LINK FAILURE:", error);
@@ -493,6 +497,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 questions={interrogation.questions}
                 history={interrogation.history}
                 depth={interrogation.depth}
+                isThinking={isLoading}
                 onSubmit={handleInterrogationSubmit}
                 onCancel={() => setInterrogation(prev => ({ ...prev, isOpen: false }))}
             />

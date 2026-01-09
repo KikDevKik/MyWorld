@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TriangleAlert, Send, X, Terminal } from 'lucide-react';
+import { TriangleAlert, Send, X, Terminal, Loader2 } from 'lucide-react';
 
 interface HistoryItem {
     questions: string[];
@@ -12,6 +12,7 @@ interface InterrogationModalProps {
     questions: string[];
     history: HistoryItem[];
     depth: number;
+    isThinking?: boolean;
     onSubmit: (answer: string) => void;
     onCancel: () => void;
 }
@@ -21,19 +22,20 @@ const InterrogationModal: React.FC<InterrogationModalProps> = ({
     questions,
     history,
     depth,
+    isThinking = false,
     onSubmit,
     onCancel
 }) => {
     const [answer, setAnswer] = useState('');
 
     const handleSubmit = () => {
-        if (!answer.trim()) return;
+        if (!answer.trim() || isThinking) return;
         onSubmit(answer);
         setAnswer('');
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' && e.ctrlKey) {
+        if (e.key === 'Enter' && e.ctrlKey && !isThinking) {
             handleSubmit();
         }
     };
@@ -48,7 +50,7 @@ const InterrogationModal: React.FC<InterrogationModalProps> = ({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/80 backdrop-blur-xl"
-                onClick={onCancel}
+                onClick={!isThinking ? onCancel : undefined}
             />
 
             {/* MODAL WINDOW */}
@@ -65,7 +67,7 @@ const InterrogationModal: React.FC<InterrogationModalProps> = ({
                             <TriangleAlert className="text-amber-500" size={20} />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-amber-100 tracking-wider">INTERROGATION PROTOCOL</h2>
+                            <h2 className="text-lg font-bold text-amber-100 tracking-wider">⚠️ TACTICAL CLARIFICATION REQUIRED</h2>
                             <div className="flex items-center gap-2">
                                 <span className="text-[10px] font-mono text-amber-500/80 uppercase">Clarification Required</span>
                                 <span className="w-1 h-1 rounded-full bg-amber-500" />
@@ -75,7 +77,8 @@ const InterrogationModal: React.FC<InterrogationModalProps> = ({
                     </div>
                     <button
                         onClick={onCancel}
-                        className="p-2 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors"
+                        disabled={isThinking}
+                        className="p-2 hover:bg-white/5 rounded-full text-slate-400 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <X size={20} />
                     </button>
@@ -132,18 +135,19 @@ const InterrogationModal: React.FC<InterrogationModalProps> = ({
                             onChange={(e) => setAnswer(e.target.value)}
                             onKeyDown={handleKeyDown}
                             placeholder="Provide strategic parameters..."
-                            className="w-full h-32 bg-slate-950 border border-slate-700 rounded-lg p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-all font-sans resize-none text-sm"
+                            disabled={isThinking}
+                            className="w-full h-32 bg-slate-950 border border-slate-700 rounded-lg p-4 text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500/50 transition-all font-sans resize-none text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                             autoFocus
                         />
                         <div className="absolute bottom-3 right-3 flex items-center gap-2">
                              <span className="text-[10px] text-slate-500 font-mono hidden sm:inline-block">CTRL + ENTER to Send</span>
                             <button
                                 onClick={handleSubmit}
-                                disabled={!answer.trim()}
+                                disabled={!answer.trim() || isThinking}
                                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white text-xs font-bold rounded-md shadow-lg shadow-amber-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-95"
                             >
-                                <Send size={14} />
-                                TRANSMIT
+                                {isThinking ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                                {isThinking ? 'PROCESSING...' : 'TRANSMIT'}
                             </button>
                         </div>
                     </div>
