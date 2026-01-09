@@ -251,21 +251,60 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         let canonText = "";
         let timelineText = "";
 
-        // HELPER: Fetch content from a list of files
-        const fetchContent = async (fileList: any[]): Promise<string> => {
-            let combined = "";
-            for (const file of fileList) {
-                if (file.mimeType === 'application/vnd.google-apps.folder') continue;
+        // 🟢 HELPER: Flatten tree and track Priority (Source of Truth)
+        const flattenAndSortFiles = (
+            nodes: any[],
+            isPriorityBranch: boolean = false,
+            primaryId: string | null = null
+        ): { file: any; isPriority: boolean }[] => {
+            let result: { file: any; isPriority: boolean }[] = [];
 
+            for (const node of nodes) {
+                // Determine if this node (root or child) is part of the Primary Tree
+                // If we are already in a priority branch, children inherit it.
+                // If not, check if this node IS the primary root.
+                const currentIsPriority = isPriorityBranch || (primaryId && node.id === primaryId);
+
+                if (node.type === 'file' || node.mimeType !== 'application/vnd.google-apps.folder') {
+                    // Filter for markdown/text
+                    if (node.name.endsWith('.md') || node.name.endsWith('.txt')) {
+                        result.push({ file: node, isPriority: !!currentIsPriority });
+                    }
+                }
+
+                if (node.children && node.children.length > 0) {
+                    result = [...result, ...flattenAndSortFiles(node.children, !!currentIsPriority, primaryId)];
+                }
+            }
+
+            return result;
+        };
+
+        // HELPER: Fetch content with Sorting & Headers
+        const fetchContent = async (items: { file: any; isPriority: boolean }[]): Promise<string> => {
+            // SORT: Priority First
+            const sortedItems = [...items].sort((a, b) => {
+                if (a.isPriority && !b.isPriority) return -1;
+                if (!a.isPriority && b.isPriority) return 1;
+                return 0;
+            });
+
+            let combined = "";
+            for (const item of sortedItems) {
                 try {
-                    // Get Access Token (assuming it's stored in localStorage as per memory)
                     const token = localStorage.getItem('google_drive_token');
                     if (!token) continue;
 
-                    const res = await getDriveFileContent({ fileId: file.id, accessToken: token }) as any;
-                    combined += `\n\n--- FILE: ${file.name} ---\n${res.data.content}`;
+                    const res = await getDriveFileContent({ fileId: item.file.id, accessToken: token }) as any;
+
+                    // 🏷️ APPLY PRIORITY TAGS
+                    const header = item.isPriority
+                        ? `[CORE WORLD RULES / PRIORITY LORE - File: ${item.file.name}]`
+                        : `[FILE: ${item.file.name}]`;
+
+                    combined += `\n\n${header}\n${res.data.content}`;
                 } catch (e) {
-                    console.warn(`Failed to read ${file.name}`, e);
+                    console.warn(`Failed to read ${item.file.name}`, e);
                 }
             }
             return combined;
@@ -278,8 +317,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 try {
                      const folderIds = config.canonPaths.map(p => p.id);
                      const res = await getDriveFiles({ folderIds, accessToken: token, recursive: true }) as any;
-                     const files = res.data.filter((f: any) => f.name.endsWith('.md') || f.name.endsWith('.txt'));
-                     canonText = await fetchContent(files);
+
+                     // 🟢 FLATTEN & IDENTIFY PRIORITY
+                     const flatList = flattenAndSortFiles(res.data, false, config.primaryCanonPathId);
+
+                     canonText = await fetchContent(flatList);
                 } catch (e) {
                     console.error("Canon Harvest Failed", e);
                 }
@@ -292,8 +334,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
              if (token) {
                  try {
                      const res = await getDriveFiles({ folderId: config.chronologyPath.id, accessToken: token, recursive: true }) as any;
-                     const files = res.data.filter((f: any) => f.name.endsWith('.md') || f.name.endsWith('.txt'));
-                     timelineText = await fetchContent(files);
+
+                     // Flatten simple for timeline (no priority distinction needed here, but reusing logic)
+                     const flatList = flattenAndSortFiles(res.data, false, null);
+
+                     timelineText = await fetchContent(flatList);
                  } catch (e) {
                      console.error("Timeline Harvest Failed", e);
                  }

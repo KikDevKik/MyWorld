@@ -57,6 +57,7 @@ export interface ProjectPath {
 
 export interface ProjectConfig {
   canonPaths: ProjectPath[];
+  primaryCanonPathId?: string | null; // 👈 SINGLE SOURCE OF TRUTH
   resourcePaths: ProjectPath[];
   chronologyPath: ProjectPath | null;
   activeBookContext: string;
