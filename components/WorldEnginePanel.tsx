@@ -219,6 +219,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [nodes, setNodes] = useState<Node[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
+
+    // 🟢 KINETIC STATE
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+    const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
+    const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
     const [interrogation, setInterrogation] = useState<InterrogationState>({
         isOpen: false,
         questions: [],
@@ -468,6 +475,63 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         runSimulation(interrogation.pendingPrompt, interrogation.depth + 1, newHistory);
     };
 
+    // 🟢 KINETIC HANDLERS
+    const handleNodeDragStart = (e: React.PointerEvent, node: Node) => {
+        e.stopPropagation(); // Prevent triggering other clicks
+        e.preventDefault(); // Prevent text selection
+
+        if (expandedNodeId === node.id) return; // Disable drag if expanded
+
+        if (containerRef.current && node.x !== undefined && node.y !== undefined) {
+            const rect = containerRef.current.getBoundingClientRect();
+            // Calculate mouse offset relative to the node's current visual position
+            // node.x is %, so we convert to px
+            const nodeX = (node.x / 100) * rect.width;
+            const nodeY = (node.y / 100) * rect.height;
+
+            // Mouse position relative to container
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            setDragOffset({
+                x: mouseX - nodeX,
+                y: mouseY - nodeY
+            });
+            setDraggingNodeId(node.id);
+        }
+    };
+
+    const handleContainerMouseMove = (e: React.PointerEvent) => {
+        if (!draggingNodeId || !containerRef.current) return;
+
+        e.preventDefault();
+        const rect = containerRef.current.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+
+        // Calculate new node position by subtracting the initial offset
+        let newX_px = mouseX - dragOffset.x;
+        let newY_px = mouseY - dragOffset.y;
+
+        // Clamp to safe boundaries (0% to ~90% to keep header visible)
+        // Converting back to percentage
+        let newX = (newX_px / rect.width) * 100;
+        let newY = (newY_px / rect.height) * 100;
+
+        // Clamp
+        newX = Math.max(0, Math.min(newX, 90));
+        newY = Math.max(0, Math.min(newY, 90));
+
+        setNodes(prev => prev.map(n =>
+            n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n
+        ));
+    };
+
+    const handleContainerMouseUp = () => {
+        setDraggingNodeId(null);
+    };
+
+
     // CRYSTALLIZATION
     const handleCrystallize = (node: Node) => {
         setCrystallizeModal({ isOpen: true, node, isProcessing: false });
@@ -519,7 +583,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="relative w-full h-full bg-titanium-950 overflow-hidden font-sans text-titanium-100 flex flex-col">
+        <div
+            ref={containerRef}
+            className="relative w-full h-full bg-titanium-950 overflow-hidden font-sans text-titanium-100 flex flex-col touch-none"
+            onPointerMove={handleContainerMouseMove}
+            onPointerUp={handleContainerMouseUp}
+            onPointerLeave={handleContainerMouseUp}
+        >
 
             {/* LAYER 0: INFINITE GRID */}
             <div className="absolute inset-0 z-0 pointer-events-none">
@@ -572,7 +642,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
 
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
-            <div className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit">
+            {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
+            <motion.div
+                className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit"
+                animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? -20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
+            >
                 <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
                     {Object.values(AGENTS).map((agent) => (
                         <button
@@ -607,7 +681,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 >
                     [{activeAgentConfig.desc}]
                 </motion.div>
-            </div>
+            </motion.div>
 
             {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
             <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-80 pointer-events-none">
@@ -642,28 +716,97 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 </AnimatePresence>
             </div>
 
-            {/* LAYER 1: DYNAMIC NODES */}
+            {/* LAYER 1: DYNAMIC NODES & EXPANSION OVERLAY */}
             <AnimatePresence>
                 {nodes.map(node => {
                    const agent = AGENTS[node.agentId];
                    const nodeType = node.metadata?.node_type || 'default';
                    const style = CONTENT_TYPES[nodeType] || CONTENT_TYPES['default'];
 
+                   const isExpanded = expandedNodeId === node.id;
+
+                   if (isExpanded) {
+                       // 🟢 DATAPAD: EXPANDED MODE
+                       return (
+                           <React.Fragment key={node.id}>
+                               {/* BACKDROP */}
+                               <motion.div
+                                    initial={{ opacity: 0 }}
+                                    animate={{ opacity: 1 }}
+                                    exit={{ opacity: 0 }}
+                                    className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm"
+                                    onClick={() => setExpandedNodeId(null)}
+                               />
+
+                               {/* EXPANDED CARD */}
+                               <motion.div
+                                   layoutId={`node-${node.id}`}
+                                   className={`fixed inset-0 m-auto w-[60vw] h-[80vh] bg-slate-900 border rounded-xl z-[100] overflow-hidden flex flex-col shadow-2xl touch-auto ${style.border}`}
+                                   transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
+                               >
+                                    {/* Expanded Header */}
+                                    <div className="flex items-center justify-between p-6 border-b border-white/10 bg-black/20 shrink-0">
+                                        <div className={`flex items-center gap-3 ${style.text}`}>
+                                            <Diamond size={16} className="rotate-45" />
+                                            <span className="text-sm font-bold tracking-[0.2em] uppercase">{node.metadata?.node_type || node.type}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => setExpandedNodeId(null)}
+                                            className="p-2 hover:bg-white/10 rounded-full text-titanium-400 hover:text-white transition-colors"
+                                        >
+                                            <X size={24} />
+                                        </button>
+                                    </div>
+
+                                    {/* Expanded Content */}
+                                    <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+                                        <div className="max-w-4xl mx-auto">
+                                            <h2 className="text-3xl font-bold text-white mb-6 font-serif">{node.title}</h2>
+                                            <div className="prose prose-invert prose-lg max-w-none text-titanium-200 font-serif leading-loose whitespace-pre-wrap">
+                                                {node.content}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Expanded Footer */}
+                                    <div className="p-4 border-t border-white/10 bg-black/40 flex justify-between items-center shrink-0">
+                                        <div className="flex items-center gap-3 opacity-50">
+                                            <agent.icon size={16} className={`text-${agent.color}-400`} />
+                                            <span className="text-xs font-mono text-titanium-400">GENERATED BY {agent.name}</span>
+                                        </div>
+                                        <button
+                                            onClick={() => handleCrystallize(node)}
+                                            className="flex items-center gap-2 px-6 py-3 bg-titanium-800 hover:bg-cyan-900/30 border border-titanium-700 hover:border-cyan-500/50 rounded-lg transition-all group"
+                                        >
+                                            <span className="text-xs font-bold text-titanium-300 group-hover:text-cyan-400 tracking-wider">💎 CRISTALIZAR MEMORIA</span>
+                                        </button>
+                                    </div>
+                               </motion.div>
+                           </React.Fragment>
+                       );
+                   }
+
+                   // 🟢 STANDARD MODE
                    return (
                     <motion.div
+                        layoutId={`node-${node.id}`}
                         key={node.id}
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.9 }}
+                        whileHover={{ scale: 1.02, zIndex: 10 }}
                         transition={{ duration: 0.5 }}
-                        className={`absolute w-72 p-0 bg-black/80 border rounded-lg backdrop-blur-sm z-0 ${style.border} ${style.shadow}`}
+                        className={`absolute w-72 p-0 bg-black/80 border rounded-lg backdrop-blur-sm ${style.border} ${style.shadow} ${draggingNodeId === node.id ? 'cursor-grabbing z-50' : 'cursor-default z-10'}`}
                         style={{
                             top: `${node.y}%`,
                             left: `${node.x}%`
                         }}
                     >
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-3 border-b border-white/10">
+                        {/* Header (Drag Handle) */}
+                        <div
+                            className="flex items-center justify-between p-3 border-b border-white/10 cursor-grab active:cursor-grabbing"
+                            onPointerDown={(e) => handleNodeDragStart(e, node)}
+                        >
                             <div className={`flex items-center gap-2 ${style.text}`}>
                                 <Diamond size={12} className="rotate-45" />
                                 <span className="text-[10px] font-bold tracking-widest uppercase">{node.metadata?.node_type || node.type}</span>
@@ -673,16 +816,19 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                             </div>
                         </div>
 
-                        {/* Content */}
-                        <div className="p-4">
+                        {/* Content (Click to Expand) */}
+                        <div
+                            className="p-4 cursor-pointer hover:bg-white/5 transition-colors"
+                            onClick={() => setExpandedNodeId(node.id)}
+                        >
                              <div className="text-sm font-bold text-white mb-2">{node.title}</div>
-                             <p className="text-xs text-titanium-300 font-serif leading-relaxed line-clamp-6">{node.content}</p>
+                             <p className="text-xs text-titanium-300 font-serif leading-relaxed line-clamp-6 pointer-events-none">{node.content}</p>
                         </div>
 
                         {/* Footer / Actions */}
                         <div className="p-2 border-t border-white/10 bg-black/40 flex justify-end">
                             <button
-                                onClick={() => handleCrystallize(node)}
+                                onClick={(e) => { e.stopPropagation(); handleCrystallize(node); }}
                                 className="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-white/10 transition-colors group"
                             >
                                 <span className="text-[10px] font-bold text-titanium-400 group-hover:text-cyan-400 transition-colors">💎 CRISTALIZAR</span>
@@ -715,7 +861,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             />
 
             {/* LAYER 3: COMMAND DECK (OPERATION MONOLITH) */}
-            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px]">
+            {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
+            <motion.div
+                className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px]"
+                animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? 20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
+            >
                 {/* Row 1: The Input */}
                 <input
                     type="text"
@@ -755,7 +905,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         <CombatToggle value={combatMode} onChange={setCombatMode} />
                     </div>
                 </div>
-            </div>
+            </motion.div>
 
             {/* 🟢 UI: REC INDICATOR */}
             <div className="absolute bottom-8 right-8 z-10 flex items-center gap-2 opacity-50 pointer-events-none">
