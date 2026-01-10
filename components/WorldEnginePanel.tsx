@@ -14,6 +14,7 @@ import { GemId } from '../types';
 import { useProjectConfig } from '../components/ProjectConfigContext';
 import InterrogationModal from './InterrogationModal';
 import CrystallizeModal from './CrystallizeModal';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface WorldEnginePanelProps {
     isOpen: boolean;
@@ -763,7 +764,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                         <div className="max-w-4xl mx-auto">
                                             <h2 className="text-3xl font-bold text-white mb-6 font-serif">{node.title}</h2>
                                             <div className="prose prose-invert prose-lg max-w-none text-titanium-200 font-serif leading-loose whitespace-pre-wrap">
-                                                {node.content}
+                                                <MarkdownRenderer content={node.content} mode="full" />
                                             </div>
                                         </div>
                                     </div>
@@ -822,7 +823,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                             onClick={() => setExpandedNodeId(node.id)}
                         >
                              <div className="text-sm font-bold text-white mb-2">{node.title}</div>
-                             <p className="text-xs text-titanium-300 font-serif leading-relaxed line-clamp-6 pointer-events-none">{node.content}</p>
+                             <div className="text-xs text-titanium-300 font-serif leading-relaxed line-clamp-6 pointer-events-none">
+                                <MarkdownRenderer content={node.content} mode="compact" />
+                             </div>
                         </div>
 
                         {/* Footer / Actions */}
