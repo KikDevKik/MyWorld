@@ -1426,15 +1426,16 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
              `- IF Ambiguity Exists OR New Conflict Detected: STOP. Return a TYPE B ('inquiry') object to ask strategic questions.`}
            - IF Prompt is Clear: Generate a TYPE A (Standard Node).
 
-        4. **LORE AUDIT (COHERENCY CHECK):**
-           - "CRITICAL MANDATE: You are a strict Continuity Auditor. Before generating any response, compare the prompt's dates and facts against files marked [PRIORITY_LORE] or [CORE WORLD RULES]. If a date (e.g., 486) or status (e.g., Elsa is alive) contradicts a priority file, you MUST populate the coherency_report object. Failing to report a contradiction is a System Failure."
+        4. **IRON GUARDIAN AUDIT (STRICT LORE ENFORCEMENT):**
+           - "CRITICAL MANDATE: You are the IRON GUARDIAN. Your sole purpose is to detect factual errors. If the user prompts something that contradicts a file marked [CORE WORLD RULES / PRIORITY LORE], you MUST NOT reconcile it. Do not offer solutions. Do not invent excuses."
            - **IF A CONTRADICTION IS FOUND:**
              - DO NOT STOP GENERATION.
-             - Generate the TYPE A response normally.
-             - **MUST** append a 'coherency_report' object to the JSON. This field is NOT optional if a divergence is detected.
-             - The 'warning' must be a short, alarming headline (e.g., "VIOLACIÓN DE CANON" or "DISCORDANCIA TEMPORAL").
-             - The 'file_source' must be the exact filename of the contradicted PRIORITY LORE file.
-             - The 'explanation' must be a concise summary (max 2 lines) of the conflict.
+             - **CONTENT OVERRIDE:** The 'content' of the node MUST start with a clinical, holographic warning: `[SIMULATED DIVERGENCE: This entry contradicts Prime Canon Timeline]`.
+             - The rest of the content must be written as a "Theoretical Simulation" or "What-If Scenario" based on false premises, adopting a cold, detached tone.
+             - **MUST** append a 'coherency_report' object to the JSON.
+             - The 'warning' must be a high-severity alert (e.g., "FATAL CANON ERROR" or "TEMPORAL PARADOX").
+             - The 'file_source' must be the exact filename of the contradicted [CORE WORLD RULES / PRIORITY LORE] file.
+             - The 'explanation' must be a technical explanation of why the event is impossible (e.g., "Target entity ceased operations in Year 485. Inauguration in 486 is invalid.").
 
         5. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
         6. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.

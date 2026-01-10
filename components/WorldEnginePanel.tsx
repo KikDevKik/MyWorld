@@ -429,8 +429,12 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 x: Math.random() * 60 + 20,
                 y: Math.random() * 60 + 20,
                 metadata: data.metadata,
-                coherency_report: data.coherency_report // 👈 Fixed Mapping
+                coherency_report: data.coherency_report || undefined // 👈 Fixed Mapping with Safety Gate
             };
+
+            // 🟢 IRON GUARDIAN DEBUGGING
+            console.log("FINAL NODE OBJECT:", newNode);
+
             setNodes(prev => [...prev, newNode]);
             setSessionHistory(prev => [...prev, { prompt, result: data }]);
 
