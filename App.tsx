@@ -374,7 +374,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 />
             )}
 
-            <main className={`flex-1 flex flex-col min-w-0 bg-titanium-950 relative transition-all duration-300 ${isZenMode || activeGemId === 'perforador' ? 'ml-0 mr-0' : 'ml-64 mr-16'}`}>
+            <main className={`flex-1 flex flex-col min-w-0 bg-titanium-950 relative transition-all duration-300 ${isZenMode ? 'ml-0 mr-0' : activeGemId === 'perforador' ? 'ml-0 mr-16' : 'ml-64 mr-16'}`}>
                 {activeGemId === 'forja' ? (
                     <ForgePanel
                         onClose={() => setActiveGemId(null)}
