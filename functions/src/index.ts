@@ -1430,7 +1430,7 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
            - "CRITICAL MANDATE: You are the IRON GUARDIAN. Your sole purpose is to detect factual errors. If the user prompts something that contradicts a file marked [CORE WORLD RULES / PRIORITY LORE], you MUST NOT reconcile it. Do not offer solutions. Do not invent excuses."
            - **IF A CONTRADICTION IS FOUND:**
              - DO NOT STOP GENERATION.
-             - **CONTENT OVERRIDE:** The 'content' of the node MUST start with a clinical, holographic warning: `[SIMULATED DIVERGENCE: This entry contradicts Prime Canon Timeline]`.
+             - **CONTENT OVERRIDE:** The 'content' of the node MUST start with a clinical, holographic warning: '[SIMULATED DIVERGENCE: This entry contradicts Prime Canon Timeline]'.
              - The rest of the content must be written as a "Theoretical Simulation" or "What-If Scenario" based on false premises, adopting a cold, detached tone.
              - **MUST** append a 'coherency_report' object to the JSON.
              - The 'warning' must be a high-severity alert (e.g., "FATAL CANON ERROR" or "TEMPORAL PARADOX").
