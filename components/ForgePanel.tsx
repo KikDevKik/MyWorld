@@ -21,10 +21,22 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
 
     // --- VAULT SELECTION ---
     const handleConnectVault = () => {
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+        if (!clientId || !developerKey) {
+            toast.error("Missing Google API Configuration (Client ID / API Key)");
+            return;
+        }
+
         openPicker({
-            clientId: "", // Not needed for standard flow usually, but lib might warn
-            developerKey: "", // We rely on access token
+            clientId,
+            developerKey,
             viewId: "FOLDERS",
+            viewMimeTypes: "application/vnd.google-apps.folder",
+            setSelectFolderEnabled: true,
+            setIncludeFolders: true,
+            setOrigin: window.location.protocol + '//' + window.location.host,
             token: accessToken || "",
             showUploadView: false,
             showUploadFolders: false,
