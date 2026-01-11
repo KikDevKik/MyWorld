@@ -2935,15 +2935,21 @@ export const forgeAnalyzer = onCall(
         CONTEXT - EXISTING CHARACTERS IN DATABASE:
         [ ${existingList} ]
 
-        CRITICAL DIRECTIVE - LANGUAGE DETECTION:
+        CRITICAL DIRECTIVE - LANGUAGE DETECTION & PERSONALITY:
         1. DETECT the language of the provided "MANUSCRIPT TEXT" below.
-        2. You MUST respond in the SAME LANGUAGE as the document for all narrative fields.
-           - If the document is in Spanish -> "report_summary" and "role" MUST be in Spanish.
-           - If the document is in English -> "report_summary" and "role" MUST be in English.
-        3. EXCEPTION: TECHNICAL ENUMS MUST REMAIN IN ENGLISH.
-           - "status" MUST be "EXISTING" or "DETECTED".
-           - "suggested_action" MUST be "None", "Create Sheet", or "Update Sheet".
-           - DO NOT translate these technical keys or values.
+
+        Directiva de Personalidad:
+        "Your persona must adapt to the document's language. If the document is in Spanish, you are NOT 'Commander', you are 'Comandante'. You MUST write the report_summary fully in Spanish."
+        "Example for Spanish Doc: 'Comandante, he analizado el texto provisto. Parece ser una biblia de personajes...'"
+        "Example for English Doc: 'Commander, I have analyzed...'"
+
+        Regla de Oro:
+        "Do not mix languages. If the content extracted is Spanish, the report summary must be Spanish."
+
+        TECHNICAL CONSTRAINTS:
+        - Output JSON keys and Enum values (like 'DETECTED', 'EXISTING') MUST remain in English.
+        - "suggested_action" values ("None", "Create Sheet", "Update Sheet") MUST remain in English.
+        - All narrative content (report_summary, role, description) MUST be in the Detected Language.
 
         TASK:
         1. READ the text deepy.
@@ -2956,7 +2962,7 @@ export const forgeAnalyzer = onCall(
            - For "DETECTED" characters, summarize what is known about them from the text (Role, Traits).
            - For "EXISTING" characters, flag if the text contradicts known traits (optional).
         6. GENERATE A STATUS REPORT:
-           - A brief, professional summary addressed to the "Commander" (User).
+           - A brief, professional summary addressed to the user with the appropriate rank title based on the language ('Commander' for English, 'Comandante' for Spanish).
            - Highlight key findings (e.g., "I found 3 new characters", "Megu appears in 4 scenes").
            - Suggest immediate actions (e.g., "Should we create a sheet for 'The Baker'?").
            - REMEMBER: Write this summary in the language of the document.
