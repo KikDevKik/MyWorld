@@ -2935,6 +2935,19 @@ export const forgeAnalyzer = onCall(
         CONTEXT - EXISTING CHARACTERS IN DATABASE:
         [ ${existingList} ]
 
+        MATCHING PROTOCOL (FUZZY LOGIC):
+        - When checking against "EXISTING CHARACTERS", IGNORE prefixes like 'Ficha', 'Profile', or 'Character'.
+        - Example: If text has "Saya" and list has "Ficha Saya", TREAT AS EXACT MATCH -> Status: EXISTING.
+
+        CONSISTENCY & ACTION PROTOCOL:
+        1. Your 'report_summary' narrative MUST NOT contradict the JSON 'status' fields.
+        2. IF Status == "EXISTING":
+           - You MUST acknowledge them (e.g., "Detected known entity Saya...").
+           - You MUST NOT suggest "Creating", "Adding", or "New Entry" for them.
+           - You MAY suggest "Update Sheet" ONLY if the text contains significant NEW lore/contradictions.
+        3. IF Status == "DETECTED" (New):
+           - You MAY suggest creating a database entry.
+
         CRITICAL DIRECTIVE - LANGUAGE PROTOCOL:
         1. DETECT the language of the provided "MANUSCRIPT TEXT".
         2. ADAPT your persona to that language.
