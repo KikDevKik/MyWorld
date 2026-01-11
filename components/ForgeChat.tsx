@@ -16,9 +16,10 @@ interface ForgeChatProps {
     onBack: () => void;
     folderId: string;
     accessToken: string | null;
+    characterContext?: string;
 }
 
-const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, folderId, accessToken }) => {
+const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, folderId, accessToken, characterContext }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -80,10 +81,14 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
             const historyContext = messages.map(m => ({ role: m.role, message: m.text }));
             historyContext.push({ role: 'user', message: userText });
 
+            const systemPrompt = `You are a creative writing assistant in a persistent session.
+${characterContext ? `[ACTIVE CHARACTER CONTEXT]\n${characterContext}` : ''}
+Remember previous context.`;
+
             const aiResponse: any = await chatWithGem({
                 query: userText,
                 history: historyContext,
-                systemInstruction: "You are a creative writing assistant in a persistent session. Remember previous context.",
+                systemInstruction: systemPrompt,
                 projectId: folderId || undefined // 👈 STRICT ISOLATION
             });
 

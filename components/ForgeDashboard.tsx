@@ -20,6 +20,9 @@ interface Character {
     role?: string;
     faction?: string;
     content?: string; // Derived content
+    description?: string;
+    bio?: string;
+    body?: string;
 }
 
 interface ForgeDashboardProps {
@@ -150,6 +153,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                 onBack={() => {}} // No back button needed in split view
                                 folderId={folderId}
                                 accessToken={accessToken}
+                                characterContext={activeChar.content || activeChar.description || activeChar.bio || activeChar.body || ""}
                             />
                         </div>
                     </div>
