@@ -2935,6 +2935,16 @@ export const forgeAnalyzer = onCall(
         CONTEXT - EXISTING CHARACTERS IN DATABASE:
         [ ${existingList} ]
 
+        CRITICAL DIRECTIVE - LANGUAGE DETECTION:
+        1. DETECT the language of the provided "MANUSCRIPT TEXT" below.
+        2. You MUST respond in the SAME LANGUAGE as the document for all narrative fields.
+           - If the document is in Spanish -> "report_summary" and "role" MUST be in Spanish.
+           - If the document is in English -> "report_summary" and "role" MUST be in English.
+        3. EXCEPTION: TECHNICAL ENUMS MUST REMAIN IN ENGLISH.
+           - "status" MUST be "EXISTING" or "DETECTED".
+           - "suggested_action" MUST be "None", "Create Sheet", or "Update Sheet".
+           - DO NOT translate these technical keys or values.
+
         TASK:
         1. READ the text deepy.
         2. IDENTIFY all unique characters mentioned.
@@ -2949,14 +2959,15 @@ export const forgeAnalyzer = onCall(
            - A brief, professional summary addressed to the "Commander" (User).
            - Highlight key findings (e.g., "I found 3 new characters", "Megu appears in 4 scenes").
            - Suggest immediate actions (e.g., "Should we create a sheet for 'The Baker'?").
+           - REMEMBER: Write this summary in the language of the document.
 
         OUTPUT FORMAT (JSON STRICT):
         {
-          "report_summary": "Commander, I have analyzed the draft...",
+          "report_summary": "Commander, I have analyzed the draft... (IN DETECTED LANGUAGE)",
           "entities": [
             {
               "name": "Name",
-              "role": "Brief role description from text",
+              "role": "Brief role description from text (IN DETECTED LANGUAGE)",
               "relevance_score": 1-10,
               "frequency_count": 0,
               "status": "EXISTING" | "DETECTED",
