@@ -35,12 +35,20 @@ const ForgeSkeleton: React.FC<ForgeSkeletonProps> = ({ activeChar, onUpdate }) =
                 `Name: ${activeChar.name}, Role: ${activeChar.role}, Faction: ${activeChar.faction}, Age: ${activeChar.age}`;
 
             const result: any = await chatWithGem({
-                query: "Generate a high-fidelity art prompt for Stable Diffusion/Midjourney based on this character. Focus on visual details: hair, eyes, clothing, vibe, lighting. Output ONLY the prompt string, no conversational filler.",
+                query: "Actúa como ingeniero de prompts para Midjourney v6. Genera una descripción técnica, detallada y atmosférica de este personaje. Solo dame el prompt en inglés, sin introducciones.",
                 activeFileContent: contextData,
-                systemInstruction: "You are a Visual Synthesizer. Extract visual traits and construct a comma-separated art prompt."
+                systemInstruction: "You are a Visual Synthesizer. Extract visual traits and construct a high-fidelity art prompt."
             });
 
-            setGeneratedPrompt(result.data.response);
+            const promptText = result.data.response;
+            setGeneratedPrompt(promptText);
+
+            // AUTO-COPY
+            navigator.clipboard.writeText(promptText);
+            toast.success("Prompt copiado al portapapeles");
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+
         } catch (error) {
             console.error("Error generating prompt:", error);
             toast.error("Error generating prompt.");

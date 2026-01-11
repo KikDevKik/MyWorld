@@ -174,7 +174,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                 sessionId={`char_${activeChar.id}`}
                                 sessionName={`Advisor: ${activeChar.name}`}
                                 onBack={() => {}} // No back button needed in split view
-                                folderId={folderId}
+                                folderId={activeContextFolderId || characterVaultId || folderId}
                                 accessToken={accessToken}
                                 characterContext={activeChar.content || activeChar.description || activeChar.bio || activeChar.body || ""}
                             />

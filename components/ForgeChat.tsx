@@ -81,9 +81,22 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
             const historyContext = messages.map(m => ({ role: m.role, message: m.text }));
             historyContext.push({ role: 'user', message: userText });
 
+            const TOOL_INSTRUCTION = `
+[TOOL ACCESS GRANTED]: 'create_lore_file'
+If the user asks to create a file, character, or document, you can invoke this tool.
+TO USE IT, RETURN ONLY A JSON OBJECT:
+{ "tool": "create_lore_file", "args": { "title": "...", "content": "..." } }
+
+Rules:
+- Title should be short (e.g., "Saya_Profile").
+- Content must be the full text body of the file (Markdown allowed).
+- DO NOT hallucinate a 'folderId'. The system will handle it.
+`;
+
             const systemPrompt = `You are a creative writing assistant in a persistent session.
 ${characterContext ? `[ACTIVE CHARACTER CONTEXT]\n${characterContext}` : ''}
-Remember previous context.`;
+Remember previous context.
+${TOOL_INSTRUCTION}`;
 
             const aiResponse: any = await chatWithGem({
                 query: userText,
@@ -94,12 +107,37 @@ Remember previous context.`;
 
             const aiText = aiResponse.data.response;
 
+            // --- TOOL DETECTION LOGIC ---
+            let finalText = aiText;
+            try {
+                // Check if response looks like JSON
+                if (aiText.trim().startsWith('{') && aiText.includes('create_lore_file')) {
+                     const toolCall = JSON.parse(aiText);
+                     if (toolCall.tool === 'create_lore_file' && toolCall.args) {
+                         const toastId = toast.loading("🔨 Forjando documento...");
+
+                         const forgeToolExecution = httpsCallable(functions, 'forgeToolExecution');
+                         const result: any = await forgeToolExecution({
+                             title: toolCall.args.title,
+                             content: toolCall.args.content,
+                             folderId: folderId, // Injected from prop (Tactical Assistance)
+                             accessToken: accessToken
+                         });
+
+                         toast.success("Documento creado con éxito", { id: toastId });
+                         finalText = `✅ **SYSTEM:** Archivo creado: [${toolCall.args.title}](${result.data.webViewLink})`;
+                     }
+                }
+            } catch (err) {
+                console.warn("Not a tool call or parse error:", err);
+            }
+
             // 4. Update UI (AI)
-            const aiMsg: Message = { role: 'model', text: aiText };
+            const aiMsg: Message = { role: 'model', text: finalText };
             setMessages(prev => [...prev, aiMsg]);
 
             // 5. Save AI Message
-            await addForgeMessage({ sessionId, role: 'model', text: aiText });
+            await addForgeMessage({ sessionId, role: 'model', text: finalText });
 
         } catch (error) {
             console.error("Error in chat flow:", error);
