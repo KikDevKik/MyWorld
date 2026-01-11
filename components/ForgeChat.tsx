@@ -3,6 +3,9 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { ArrowLeft, Send, Loader2, Bot, User, Hammer } from 'lucide-react';
 import { toast } from 'sonner';
 
+import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
+import MarkdownRenderer from '../MarkdownRenderer';
+
 interface Message {
     id?: string;
     role: 'user' | 'model';
@@ -17,14 +20,28 @@ interface ForgeChatProps {
     folderId: string;
     accessToken: string | null;
     characterContext?: string;
+
+    // NEW PROPS
+    activeContextFile?: { id: string, name: string, content: string };
+    initialReport?: string;
 }
 
-const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, folderId, accessToken, characterContext }) => {
+const ForgeChat: React.FC<ForgeChatProps> = ({
+    sessionId,
+    sessionName,
+    onBack,
+    folderId,
+    accessToken,
+    characterContext,
+    activeContextFile,
+    initialReport
+}) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const initializedRef = useRef(false);
 
     // SCROLL TO BOTTOM
     const scrollToBottom = () => {
@@ -35,7 +52,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
         scrollToBottom();
     }, [messages]);
 
-    // LOAD HISTORY
+    // LOAD HISTORY & INJECT INITIAL REPORT
     useEffect(() => {
         const loadHistory = async () => {
             setIsLoading(true);
@@ -43,8 +60,32 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
             const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
 
             try {
-                const result = await getForgeHistory({ sessionId });
-                setMessages(result.data as Message[]);
+                const result: any = await getForgeHistory({ sessionId });
+                let loadedMessages = result.data as Message[];
+
+                // INJECTION LOGIC: If history is empty AND we have an initial report, inject it.
+                if (loadedMessages.length === 0 && initialReport && !initializedRef.current) {
+                    const reportMsg: Message = {
+                        role: 'model',
+                        text: initialReport,
+                        timestamp: new Date().toISOString()
+                    };
+
+                    // Optimistic add locally
+                    loadedMessages = [reportMsg];
+
+                    // Async save to backend
+                    const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
+                    addForgeMessage({
+                        sessionId,
+                        role: 'model',
+                        text: initialReport
+                    }).catch(console.error);
+
+                    initializedRef.current = true;
+                }
+
+                setMessages(loadedMessages);
             } catch (error) {
                 console.error("Error loading history:", error);
                 toast.error("Error al cargar el historial.");
@@ -53,7 +94,9 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
             }
         };
 
-        loadHistory();
+        if (sessionId) {
+            loadHistory();
+        }
     }, [sessionId]);
 
     // SEND MESSAGE
@@ -77,7 +120,6 @@ const ForgeChat: React.FC<ForgeChatProps> = ({ sessionId, sessionName, onBack, f
             await addForgeMessage({ sessionId, role: 'user', text: userText });
 
             // 3. Call AI (with history context)
-            // We pass the current messages + the new one as history context
             const historyContext = messages.map(m => ({ role: m.role, message: m.text }));
             historyContext.push({ role: 'user', message: userText });
 
@@ -93,8 +135,9 @@ Rules:
 - DO NOT hallucinate a 'folderId'. The system will handle it.
 `;
 
-            const systemPrompt = `You are a creative writing assistant in a persistent session.
+            let systemPrompt = `You are a creative writing assistant (Senior Editor).
 ${characterContext ? `[ACTIVE CHARACTER CONTEXT]\n${characterContext}` : ''}
+${activeContextFile ? `[ACTIVE FILE CONTEXT: ${activeContextFile.name}]` : ''}
 Remember previous context.
 ${TOOL_INSTRUCTION}`;
 
@@ -102,7 +145,9 @@ ${TOOL_INSTRUCTION}`;
                 query: userText,
                 history: historyContext,
                 systemInstruction: systemPrompt,
-                projectId: folderId || undefined // 👈 STRICT ISOLATION
+                projectId: folderId || undefined, // 👈 STRICT ISOLATION
+                activeFileName: activeContextFile?.name,
+                // Pass activeFileContent if it were available as a prop, currently empty or RAG handles it
             });
 
             const aiText = aiResponse.data.response;
@@ -168,23 +213,29 @@ ${TOOL_INSTRUCTION}`;
     };
 
     return (
-        <div className="flex flex-col h-full bg-titanium-900">
+        <div className="flex flex-col h-full bg-titanium-950">
             {/* HEADER */}
-            <div className="h-16 flex items-center gap-4 px-6 border-b border-titanium-700 bg-titanium-800 shrink-0">
+            <div className="h-16 flex items-center gap-4 px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
+                {/* BACK BUTTON REMOVED AS IT IS SPLIT VIEW NOW - OR KEPT IF NEEDED */}
+                {/*
                 <button
                     onClick={onBack}
-                    className="p-2 hover:bg-titanium-700 rounded-full text-titanium-400 hover:text-white transition-colors"
+                    className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
                 >
                     <ArrowLeft size={20} />
                 </button>
+                */}
                 <div>
-                    <h2 className="font-bold text-titanium-100 truncate max-w-[200px]">{sessionName}</h2>
-                    <p className="text-[10px] text-titanium-400 uppercase tracking-wider">Sesión Activa</p>
+                    <h2 className="font-bold text-titanium-100 truncate max-w-[300px]">{sessionName}</h2>
+                    <p className="text-[10px] text-titanium-400 uppercase tracking-wider flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                        Sesión Activa
+                    </p>
                 </div>
                 <div className="ml-auto">
                     <button
                         onClick={handleForgeToDrive}
-                        className="p-2 hover:bg-titanium-700 rounded-full text-titanium-400 hover:text-accent-DEFAULT transition-colors"
+                        className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-accent-DEFAULT transition-colors"
                         title="Forjar a Drive"
                     >
                         <Hammer size={20} />
@@ -193,39 +244,40 @@ ${TOOL_INSTRUCTION}`;
             </div>
 
             {/* MESSAGES */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 {isLoading ? (
                     <div className="flex justify-center py-8 text-titanium-500">
                         <Loader2 size={24} className="animate-spin" />
                     </div >
                 ) : messages.length === 0 ? (
-                    <div className="text-center py-8 text-titanium-500 text-sm italic">
-                        La forja está en silencio. Empieza a crear.
+                    <div className="text-center py-20 text-titanium-600">
+                        <Bot size={48} className="mx-auto mb-4 opacity-20" />
+                        <p className="text-sm font-medium">Esperando órdenes, Comandante.</p>
                     </div>
                 ) : (
                     messages.map((msg, idx) => (
                         <div
                             key={idx}
-                            className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                            className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start max-w-3xl'}`}
                         >
                             {msg.role === 'model' && (
-                                <div className="w-8 h-8 rounded-full bg-accent-DEFAULT/20 flex items-center justify-center shrink-0">
-                                    <Bot size={14} className="text-accent-DEFAULT" />
+                                <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
+                                    <Bot size={16} className="text-accent-DEFAULT" />
                                 </div>
                             )}
 
                             <div
-                                className={`max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user'
-                                    ? 'bg-titanium-700 text-titanium-100 rounded-tr-none'
-                                    : 'bg-titanium-800 text-titanium-200 rounded-tl-none border border-titanium-700/50'
+                                className={`flex-1 p-4 rounded-xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
+                                    ? 'bg-titanium-800 text-titanium-100 border border-titanium-700 rounded-tr-sm max-w-[80%]'
+                                    : 'bg-transparent text-titanium-300 rounded-tl-sm' // Minimalist for AI
                                     }`}
                             >
-                                {msg.text}
+                                <MarkdownRenderer content={msg.text} />
                             </div>
 
                             {msg.role === 'user' && (
-                                <div className="w-8 h-8 rounded-full bg-titanium-700 flex items-center justify-center shrink-0">
-                                    <User size={14} className="text-titanium-400" />
+                                <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
+                                    <User size={16} className="text-titanium-400" />
                                 </div>
                             )}
                         </div>
@@ -233,14 +285,12 @@ ${TOOL_INSTRUCTION}`;
                 )}
                 {
                     isSending && (
-                        <div className="flex gap-3 justify-start">
-                            <div className="w-8 h-8 rounded-full bg-accent-DEFAULT/20 flex items-center justify-center shrink-0">
-                                <Bot size={14} className="text-accent-DEFAULT" />
+                        <div className="flex gap-4 justify-start max-w-3xl">
+                            <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
+                                <Bot size={16} className="text-accent-DEFAULT" />
                             </div>
-                            <div className="bg-titanium-800 p-3 rounded-2xl rounded-tl-none border border-titanium-700/50 flex items-center gap-2">
-                                <span className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                                <span className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                                <span className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                            <div className="p-4 text-titanium-500 text-xs font-mono animate-pulse">
+                                THINKING...
                             </div>
                         </div>
                     )
@@ -249,24 +299,30 @@ ${TOOL_INSTRUCTION}`;
             </div >
 
             {/* INPUT */}
-            < div className="p-4 border-t border-titanium-700 bg-titanium-800 shrink-0" >
-                <div className="flex gap-2 relative">
+            <div className="p-4 border-t border-titanium-800 bg-titanium-900 shrink-0">
+                <div className="max-w-4xl mx-auto flex gap-2 relative">
                     <input
                         type="text"
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Escribe a la Forja..."
-                        className="flex-1 bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT transition-colors pr-12"
+                        className="flex-1 bg-titanium-950 text-white placeholder-titanium-600 border border-titanium-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT transition-all shadow-inner"
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         disabled={isSending}
+                        autoFocus
                     />
                     <button
                         onClick={handleSend}
                         disabled={!input.trim() || isSending}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 rounded-lg disabled:opacity-0 disabled:pointer-events-none transition-all"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 rounded-lg disabled:opacity-0 disabled:pointer-events-none transition-all shadow-lg hover:shadow-accent-DEFAULT/20"
                     >
-                        <Send size={16} />
+                        <Send size={18} />
                     </button>
+                </div>
+                <div className="text-center mt-2">
+                     <span className="text-[10px] text-titanium-600">
+                        AI Mode: <span className="text-accent-DEFAULT font-bold">GEMINI 3 PRO</span> (Deep Reasoning Active)
+                     </span>
                 </div>
             </div >
         </div >
