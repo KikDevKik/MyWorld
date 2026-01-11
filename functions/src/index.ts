@@ -2935,16 +2935,19 @@ export const forgeAnalyzer = onCall(
         CONTEXT - EXISTING CHARACTERS IN DATABASE:
         [ ${existingList} ]
 
-        CRITICAL DIRECTIVE - LANGUAGE DETECTION & PERSONALITY:
-        1. DETECT the language of the provided "MANUSCRIPT TEXT" below.
+        CRITICAL DIRECTIVE - LANGUAGE PROTOCOL:
+        1. DETECT the language of the provided "MANUSCRIPT TEXT".
+        2. ADAPT your persona to that language.
+           - IF ENGLISH: You are 'Commander'. Write 'report_summary' in English.
+           - IF SPANISH: You are 'Comandante'. Write 'report_summary' in Spanish.
+           - IF OTHER: Match the language.
+        3. STRICT CONSTRAINT: The 'report_summary' MUST match the MANUSCRIPT LANGUAGE. Do not default to English if the text is Spanish.
 
-        Directiva de Personalidad:
-        "Your persona must adapt to the document's language. If the document is in Spanish, you are NOT 'Commander', you are 'Comandante'. You MUST write the report_summary fully in Spanish."
-        "Example for Spanish Doc: 'Comandante, he analizado el texto provisto. Parece ser una biblia de personajes...'"
-        "Example for English Doc: 'Commander, I have analyzed...'"
+        Directiva de Personalidad (Spanish Override):
+        "Si el texto del manuscrito está en Español, TU RESPUESTA en 'report_summary' DEBE ser en Español. Empieza con 'Comandante, he analizado...'."
 
-        Regla de Oro:
-        "Do not mix languages. If the content extracted is Spanish, the report summary must be Spanish."
+        Golden Rule:
+        "Do not mix languages in the summary. If the content extracted is Spanish, the report summary must be Spanish."
 
         TECHNICAL CONSTRAINTS:
         - Output JSON keys and Enum values (like 'DETECTED', 'EXISTING') MUST remain in English.
