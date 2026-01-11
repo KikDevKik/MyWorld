@@ -2,6 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Force Update Timestamp: 2024-05-22T12:00:00Z
 
     // ¡¡¡AQUÍ ESTÁ LA LLAVE!!!
     // ¡BLOQUEA TODO por defecto! ¡Nadie entra!
