@@ -7,31 +7,16 @@ import { toast } from 'sonner';
 import ForgeSkeleton from './ForgeSkeleton';
 import ForgeSoul from './ForgeSoul';
 import ForgeChat from './ForgeChat';
-
-interface Character {
-    id: string;
-    name: string;
-    tier: 'MAIN' | 'SUPPORTING';
-    sourceType: 'MASTER' | 'LOCAL' | 'HYBRID';
-    masterFileId?: string;
-    snippets?: { text: string; sourceBookId: string }[];
-    // Extended fields
-    age?: string;
-    role?: string;
-    faction?: string;
-    content?: string; // Derived content
-    description?: string;
-    bio?: string;
-    body?: string;
-}
+import { Character } from '../types';
 
 interface ForgeDashboardProps {
     folderId: string;
     accessToken: string | null;
     characterVaultId: string;
+    activeContextFolderId: string | null;
 }
 
-const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, characterVaultId }) => {
+const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, characterVaultId, activeContextFolderId }) => {
     const [characters, setCharacters] = useState<Character[]>([]);
     const [activeChar, setActiveChar] = useState<Character | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -41,6 +26,13 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         const auth = getAuth();
         if (!auth.currentUser) return;
 
+        // Reset selection if context changes and active char is hidden
+        if (activeChar) {
+             const isVisible = (!activeContextFolderId && activeChar.sourceContext === 'GLOBAL') ||
+                               (activeContextFolderId && (activeChar.sourceContext === 'GLOBAL' || activeChar.sourceContext === activeContextFolderId));
+             if (!isVisible) setActiveChar(null);
+        }
+
         const db = getFirestore();
         const q = query(collection(db, "users", auth.currentUser.uid, "characters"));
 
@@ -49,12 +41,29 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             snapshot.forEach(doc => {
                 chars.push({ id: doc.id, ...doc.data() } as Character);
             });
-            // Sort: MAIN first, then alphabetically
-            chars.sort((a, b) => {
-                if (a.tier === b.tier) return a.name.localeCompare(b.name);
-                return a.tier === 'MAIN' ? -1 : 1;
+
+            // 🟢 HIDING LOGIC (Filter)
+            const filteredChars = chars.filter(char => {
+                if (!activeContextFolderId) {
+                    // GLOBAL MODE: Show Global (Tier 1/2) only
+                    return char.sourceContext === 'GLOBAL';
+                } else {
+                    // LOCAL MODE: Show Global + Local matches
+                    return char.sourceContext === 'GLOBAL' || char.sourceContext === activeContextFolderId;
+                }
             });
-            setCharacters(chars);
+
+            // Sort: MAIN first, then SUPPORTING, then BACKGROUND, then alphabetically
+            const tierOrder = { 'MAIN': 0, 'SUPPORTING': 1, 'BACKGROUND': 2 };
+
+            filteredChars.sort((a, b) => {
+                const tierA = tierOrder[a.tier] ?? 99;
+                const tierB = tierOrder[b.tier] ?? 99;
+                if (tierA === tierB) return a.name.localeCompare(b.name);
+                return tierA - tierB;
+            });
+
+            setCharacters(filteredChars);
             setIsLoading(false);
         }, (error) => {
             console.error("Error fetching characters:", error);
@@ -92,29 +101,43 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         <div className="flex justify-center py-20"><Loader2 className="animate-spin" /></div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {characters.map(char => (
-                                <button
-                                    key={char.id}
-                                    onClick={() => setActiveChar(char)}
-                                    className={`p-4 rounded-xl border text-left transition-all hover:-translate-y-1 hover:shadow-lg ${
-                                        char.tier === 'MAIN'
-                                        ? 'bg-titanium-900 border-titanium-700 hover:border-accent-DEFAULT/50'
-                                        : 'bg-titanium-900/50 border-titanium-800 hover:border-titanium-600'
-                                    }`}
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                            char.tier === 'MAIN' ? 'bg-accent-DEFAULT/10 text-accent-DEFAULT' : 'bg-titanium-800 text-titanium-500'
-                                        }`}>
-                                            {char.tier === 'MAIN' ? 'MASTER' : 'LOCAL'}
-                                        </span>
-                                    </div>
-                                    <h3 className="font-bold text-lg text-titanium-100 truncate">{char.name}</h3>
-                                    <p className="text-xs text-titanium-500 mt-1 truncate">
-                                        {char.role || "No archetype defined"}
-                                    </p>
-                                </button>
-                            ))}
+                            {characters.map(char => {
+                                // TIER 3: Compact Style
+                                const isBackground = char.tier === 'BACKGROUND';
+                                return (
+                                    <button
+                                        key={char.id}
+                                        onClick={() => setActiveChar(char)}
+                                        className={`rounded-xl border text-left transition-all hover:-translate-y-1 hover:shadow-lg ${
+                                            isBackground
+                                                ? 'p-3 bg-titanium-950/50 border-titanium-800 hover:border-titanium-600 opacity-80'
+                                                : char.tier === 'MAIN'
+                                                    ? 'p-4 bg-titanium-900 border-titanium-700 hover:border-accent-DEFAULT/50'
+                                                    : 'p-4 bg-titanium-900/50 border-titanium-800 hover:border-titanium-600'
+                                        }`}
+                                    >
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                                char.tier === 'MAIN' ? 'bg-accent-DEFAULT/10 text-accent-DEFAULT' :
+                                                char.tier === 'BACKGROUND' ? 'bg-titanium-900 text-titanium-600' : 'bg-titanium-800 text-titanium-500'
+                                            }`}>
+                                                {char.tier === 'MAIN' ? 'MASTER' : char.tier === 'BACKGROUND' ? 'LIGHT' : 'LOCAL'}
+                                            </span>
+                                            {char.sourceContext !== 'GLOBAL' && (
+                                                <span className="text-[9px] font-mono text-titanium-600 uppercase ml-2">LOCAL</span>
+                                            )}
+                                        </div>
+                                        <h3 className={`font-bold text-titanium-100 truncate ${isBackground ? 'text-sm' : 'text-lg'}`}>
+                                            {char.name}
+                                        </h3>
+                                        {!isBackground && (
+                                            <p className="text-xs text-titanium-500 mt-1 truncate">
+                                                {char.role || "No archetype defined"}
+                                            </p>
+                                        )}
+                                    </button>
+                                );
+                            })}
                         </div>
                     )}
                 </div>
