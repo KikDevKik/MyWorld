@@ -73,3 +73,28 @@ export interface ForgeSession {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface CharacterSnippet {
+  sourceBookId: string;
+  sourceBookTitle: string;
+  text: string;
+}
+
+export interface Character {
+  id: string; // Slug
+  name: string;
+  tier: 'MAIN' | 'SUPPORTING' | 'BACKGROUND';
+  sourceType: 'MASTER' | 'LOCAL' | 'HYBRID';
+  sourceContext: string; // 'GLOBAL' or FolderID
+  masterFileId?: string;
+  appearances: string[]; // Book IDs
+  snippets: CharacterSnippet[];
+  // Extended fields
+  age?: string;
+  role?: string;
+  faction?: string;
+  content?: string; // Derived content
+  description?: string;
+  bio?: string;
+  body?: string;
+}

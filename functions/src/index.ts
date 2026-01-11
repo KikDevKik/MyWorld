@@ -71,8 +71,9 @@ interface CharacterSnippet {
 interface Character {
   id: string; // Slug
   name: string;
-  tier: 'MAIN' | 'SUPPORTING';
+  tier: 'MAIN' | 'SUPPORTING' | 'BACKGROUND';
   sourceType: 'MASTER' | 'LOCAL' | 'HYBRID';
+  sourceContext: string; // 'GLOBAL' or FolderID
   masterFileId?: string;
   appearances: string[]; // Book IDs
   snippets: CharacterSnippet[];
@@ -1243,9 +1244,23 @@ RULES: ${profile.rules || 'Not specified'}
         temperature: 0.7,
       });
 
+      let activeCharacterPrompt = "";
+      if (activeFileName && activeFileContent) {
+          activeCharacterPrompt = `
+[CONTEXTO VISUAL ACTIVO]:
+Nombre: ${activeFileName}
+(Este es el personaje o archivo que el usuario tiene abierto en pantalla. Prioriza su información sobre cualquier búsqueda externa si hay conflicto).
+`;
+      }
+
       const CONTINUITY_PROTOCOL = `
 === PROTOCOLO DE CONTINUIDAD (DARK BROTHERHOOD) ===
 OBJETIVO: Actuar como Arquitecto Narrativo y Gestor de Continuidad.
+
+[REGLA DE BÚSQUEDA DE PERSONAJES]:
+Si el usuario pregunta por alguien que NO es el personaje activo, busca primero en la Lista de Personajes cargada actualmente (Memoria a Largo Plazo), y luego usa la herramienta RAG (Vectores) para buscar en todo el proyecto.
+
+${activeCharacterPrompt}
 
 1. PUNTO DE ANCLAJE TEMPORAL (EL AHORA)
    - AÑO BASE (DEFAULT): 486 (Era del Nuevo Horizonte).
@@ -2522,6 +2537,8 @@ export const syncCharacterManifest = onCall(
 
     try {
         const manifest = new Map<string, Partial<Character>>();
+        const masterFilenames = new Map<string, string>(); // Name (clean) -> FileId
+        const fileIdToSlug = new Map<string, string>(); // FileId -> Slug
 
         // --- HELPER: Slugify ---
         const slugify = (text: string): string => {
@@ -2558,6 +2575,10 @@ export const syncCharacterManifest = onCall(
                     const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
                     const slug = slugify(cleanName);
 
+                    // TRACK FILENAME FOR ROBUST MATCHING
+                    masterFilenames.set(cleanName.toLowerCase(), file.id);
+                    fileIdToSlug.set(file.id, slug);
+
                     // Fetch Content (The Soul)
                     // Note: _getDriveFileContentInternal handles Google Doc conversion to text/plain automatically
                     let snippetText = "";
@@ -2575,6 +2596,7 @@ export const syncCharacterManifest = onCall(
                             name: cleanName,
                             tier: 'MAIN',
                             sourceType: 'MASTER',
+                            sourceContext: 'GLOBAL',
                             masterFileId: file.id,
                             appearances: [],
                             snippets: []
@@ -2637,6 +2659,7 @@ export const syncCharacterManifest = onCall(
                     let name = "";
                     let description = "";
                     let isWiki = false;
+                    let explicitType: 'MAIN' | 'SUPPORTING' | 'BACKGROUND' | undefined = undefined;
 
                     // WikiLink
                     const wikiMatch = trimmed.match(wikiLinkRegex);
@@ -2655,6 +2678,7 @@ export const syncCharacterManifest = onCall(
                         if (colonMatch) {
                             name = colonMatch[1].trim().replace(/^[-*]\s+/, '');
                             description = colonMatch[2].trim();
+                            explicitType = 'BACKGROUND'; // Plain text def implies Tier 3
                         } else {
                             // List Item "- Name"
                             const listMatch = trimmed.match(listRegex);
@@ -2666,7 +2690,22 @@ export const syncCharacterManifest = onCall(
 
                     if (name && name.length < 50) {
                         const slug = slugify(name);
-                        const existing = manifest.get(slug);
+
+                        // 🟢 HYBRID MATCHING LOGIC
+                        let existing = manifest.get(slug);
+
+                        // If not found by slug, try FILENAME MATCH from Master Vault (Obsidian Logic)
+                        // This handles cases where file is "Gandalf.md" but link is [[Gandalf]],
+                        // matching ignoring case even if slugify matches generally.
+                        if (!existing && masterFilenames.has(name.toLowerCase())) {
+                            const masterId = masterFilenames.get(name.toLowerCase());
+                            if (masterId) {
+                                const masterSlug = fileIdToSlug.get(masterId);
+                                if (masterSlug) {
+                                    existing = manifest.get(masterSlug);
+                                }
+                            }
+                        }
 
                         if (existing) {
                             // It's a MASTER or already found LOCAL
@@ -2678,18 +2717,27 @@ export const syncCharacterManifest = onCall(
                             if (description) {
                                 existing.snippets!.push({
                                     sourceBookId: bookFolderId,
-                                    sourceBookTitle: "Libro Local", // We could fetch title if needed
+                                    sourceBookTitle: "Libro Local",
                                     text: description
                                 });
                             }
                             manifest.set(slug, existing);
                         } else {
                             // NEW LOCAL CHARACTER
+                            // If explicitType is set (Colon match), use it. Else infer.
+                            // WikiLink usually implies importance (MAIN/SUPPORTING), but if local only, maybe SUPPORTING.
+                            // Plain Text list item -> BACKGROUND.
+
+                            let tier: 'MAIN' | 'SUPPORTING' | 'BACKGROUND' = 'SUPPORTING';
+                            if (explicitType) tier = explicitType;
+                            else if (!isWiki) tier = 'BACKGROUND'; // Just a list item "- Juan"
+
                             const newChar: Partial<Character> = {
                                 id: slug,
                                 name: name,
-                                tier: isWiki ? 'MAIN' : 'SUPPORTING', // Wiki links implies importance usually
+                                tier: tier,
                                 sourceType: 'LOCAL',
+                                sourceContext: bookFolderId,
                                 appearances: [bookFolderId],
                                 snippets: description ? [{
                                     sourceBookId: bookFolderId,
