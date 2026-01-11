@@ -62,6 +62,7 @@ export interface ProjectConfig {
   chronologyPath: ProjectPath | null;
   activeBookContext: string;
   folderId?: string;
+  characterVaultId?: string | null;
   lastIndexed?: string;
 }
 
