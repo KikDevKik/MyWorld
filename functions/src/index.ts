@@ -1832,7 +1832,7 @@ export const addForgeMessage = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { sessionId, role, text } = request.data;
+    const { sessionId, role, text, characterId } = request.data;
     if (!sessionId || !role || !text) {
       throw new HttpsError("invalid-argument", "Faltan datos del mensaje.");
     }
@@ -1841,6 +1841,7 @@ export const addForgeMessage = onCall(
     const now = new Date().toISOString();
 
     try {
+      // 1. SAVE MESSAGE (Always succeeds as new doc)
       const msgRef = db.collection("users").doc(userId)
         .collection("forge_sessions").doc(sessionId)
         .collection("messages").doc();
@@ -1851,9 +1852,38 @@ export const addForgeMessage = onCall(
         timestamp: now
       });
 
-      await db.collection("users").doc(userId)
-        .collection("forge_sessions").doc(sessionId)
-        .update({ updatedAt: now });
+      // 2. UPSERT SESSION (The "Upsert Protocol")
+      const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId);
+      const sessionDoc = await sessionRef.get();
+
+      if (!sessionDoc.exists) {
+         // A) NEW SESSION (Auto-Creation)
+         let targetCharId = characterId;
+
+         // Fallback Logic: Try to extract ID from Session Slug (e.g. char_ficha_megu -> megu)
+         if (!targetCharId && sessionId.startsWith('char_ficha_')) {
+             targetCharId = sessionId.replace('char_ficha_', '');
+         }
+
+         await sessionRef.set({
+             userId,
+             characterId: targetCharId || 'unknown',
+             name: targetCharId || sessionId, // Fallback name
+             type: 'forge',
+             createdAt: FieldValue.serverTimestamp(), // 🟢 MANDATORY
+             updatedAt: FieldValue.serverTimestamp(),
+             lastUpdated: FieldValue.serverTimestamp() // 🟢 MANDATORY
+         });
+
+         logger.info(`🔨 [AUTO-CREATE] Session created via addForgeMessage: ${sessionId}`);
+
+      } else {
+         // B) EXISTING SESSION (Update Timestamps)
+         await sessionRef.set({
+             updatedAt: FieldValue.serverTimestamp(),
+             lastUpdated: FieldValue.serverTimestamp()
+         }, { merge: true });
+      }
 
       return { success: true, id: msgRef.id };
 
