@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { X, Save, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Save, Sparkles, Database } from 'lucide-react';
 import { Character } from '../types';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
 
 // Define a unified interface for display
@@ -23,6 +25,36 @@ interface CharacterInspectorProps {
 
 const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, onMaterialize, folderId, accessToken }) => {
     const [isSaving, setIsSaving] = useState(false);
+    const [realData, setRealData] = useState<any | null>(null);
+    const [isLoadingReal, setIsLoadingReal] = useState(false);
+
+    // 🟢 GAMMA FIX: Fetch Real Data if EXISTING
+    useEffect(() => {
+        if (data && data.status === 'EXISTING' && data.id) {
+            const fetchRealData = async () => {
+                setIsLoadingReal(true);
+                try {
+                    const auth = getAuth();
+                    if (!auth.currentUser) return;
+
+                    const db = getFirestore();
+                    const docRef = doc(db, "users", auth.currentUser.uid, "characters", data.id!);
+                    const snapshot = await getDoc(docRef);
+
+                    if (snapshot.exists()) {
+                        setRealData(snapshot.data());
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch real character data:", e);
+                } finally {
+                    setIsLoadingReal(false);
+                }
+            };
+            fetchRealData();
+        } else {
+            setRealData(null); // Reset if switching to ghost
+        }
+    }, [data]);
 
     if (!data) return null;
 
@@ -70,6 +102,24 @@ Materialized from Deep Scan.
         }
     };
 
+    // 🟢 RENDER LOGIC: PRIORITY TO REAL DATA
+    const displayRole = realData?.role || data.role;
+
+    // Construct Display Bio
+    let displayBio = null;
+    if (realData) {
+        // Option A: Use snippets if available
+        if (realData.snippets && realData.snippets.length > 0) {
+            displayBio = realData.snippets[0].text;
+        } else if (realData.bio) {
+            displayBio = realData.bio;
+        } else {
+             displayBio = "Ficha cargada, pero sin biografía textual.";
+        }
+    } else {
+        displayBio = data.description || "No detailed description available from the scan.";
+    }
+
     return (
         <div className="absolute inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end animate-fade-in" onClick={onClose}>
             <div
@@ -91,17 +141,45 @@ Materialized from Deep Scan.
 
                 {/* CONTENT */}
                 <div className="flex-1 p-6 overflow-y-auto space-y-6">
+
+                    {/* ROLE SECTION */}
                     <div>
-                        <label className="text-xs font-bold text-titanium-500 uppercase">Detected Role</label>
-                        <p className="text-titanium-200 mt-1 text-lg">{data.role}</p>
+                        <label className="text-xs font-bold text-titanium-500 uppercase">Role</label>
+                        <p className="text-titanium-200 mt-1 text-lg">{displayRole}</p>
                     </div>
 
+                    {/* BIO SECTION */}
                     <div>
-                        <label className="text-xs font-bold text-titanium-500 uppercase">Analysis Summary</label>
-                        <div className="p-4 bg-titanium-900 rounded-lg border border-titanium-800 mt-2 text-titanium-300 text-sm leading-relaxed">
-                            {data.description || "No detailed description available from the scan."}
+                        <div className="flex justify-between items-center mb-2">
+                             <label className="text-xs font-bold text-titanium-500 uppercase">
+                                {realData ? "Official Database Record" : "Analysis Summary"}
+                             </label>
+                             {realData && <Database size={12} className="text-accent-DEFAULT" />}
                         </div>
+
+                        {isLoadingReal ? (
+                            <div className="p-4 bg-titanium-900 rounded-lg border border-titanium-800 animate-pulse text-titanium-500 text-sm">
+                                Fetching Vault Data...
+                            </div>
+                        ) : (
+                            <div className={`p-4 rounded-lg border text-sm leading-relaxed ${realData ? 'bg-accent-DEFAULT/5 border-accent-DEFAULT/20 text-titanium-100' : 'bg-titanium-900 border-titanium-800 text-titanium-300'}`}>
+                                {displayBio}
+                            </div>
+                        )}
                     </div>
+
+                    {/* SCAN NOTES (If Existing but Analysis has new info) */}
+                    {realData && data.description && (
+                         <div className="mt-4">
+                             <label className="text-xs font-bold text-purple-400 uppercase flex items-center gap-2">
+                                <Sparkles size={12} />
+                                Notes from Current Scan
+                             </label>
+                             <div className="p-3 bg-purple-900/10 border border-purple-500/20 rounded-lg mt-1 text-titanium-400 text-xs italic">
+                                 {data.description}
+                             </div>
+                         </div>
+                    )}
 
                     {/* GHOST ACTIONS */}
                     {isGhost && (

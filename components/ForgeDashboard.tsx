@@ -73,8 +73,21 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             });
 
             // Process Result
-            const entities = result.data.entities || [];
+            let entities = result.data.entities || [];
             const report = result.data.report_summary || "Analysis complete.";
+
+            // 🔍 INTELLIGENT MATCHING (GAMMA FIX)
+            // Attach Real IDs to detected entities if they are 'EXISTING'
+            entities = entities.map((e: any) => {
+                if (e.status === 'EXISTING') {
+                    // Try to find in characters list
+                    const match = characters.find(c => c.name.toLowerCase() === e.name.toLowerCase());
+                    if (match) {
+                        return { ...e, id: match.id };
+                    }
+                }
+                return e;
+            });
 
             setDetectedEntities(entities);
             setInitialReport(report);
@@ -85,6 +98,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             console.error("Analysis failed:", error);
             toast.error("Deep Scan failed. Proceeding without analysis.");
             setState('IDE'); // Fallback
+        }
+    };
+
+    // 🟢 ALPHA FIX: REFRESH HANDLER
+    const handleRefresh = () => {
+        if (activeSourceFile) {
+            toast.info("Forzando re-análisis...");
+            handleSourceSelected(activeSourceFile.id, activeSourceFile.name);
         }
     };
 
@@ -143,6 +164,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     detectedEntities={detectedEntities}
                     onCharacterSelect={handleCharacterSelect}
                     isLoading={false}
+                    onRefresh={handleRefresh}
                 />
             </div>
 
