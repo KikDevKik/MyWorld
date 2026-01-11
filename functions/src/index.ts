@@ -2881,3 +2881,114 @@ export const forgeToolExecution = onCall(
     }
   }
 );
+
+/**
+ * 19. FORGE ANALYZER (El Inspector)
+ * Analiza un texto narrativo para extraer elenco, detectar entidades y generar un informe de estado.
+ */
+export const forgeAnalyzer = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+    timeoutSeconds: 540,
+    memory: "2GiB",
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    initializeFirebase();
+
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+    const { fileId, accessToken, existingCharacterNames } = request.data;
+
+    if (!fileId) throw new HttpsError("invalid-argument", "Falta fileId.");
+    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    try {
+      const auth = new google.auth.OAuth2();
+      auth.setCredentials({ access_token: accessToken });
+      const drive = google.drive({ version: "v3", auth });
+
+      // 1. LEER ARCHIVO FUENTE
+      const content = await _getDriveFileContentInternal(drive, fileId);
+      if (!content) throw new HttpsError("not-found", "El archivo está vacío o no se pudo leer.");
+
+      // 2. PREPARAR PROMPT DE ANÁLISIS
+      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-3-pro-preview",
+        generationConfig: {
+          temperature: 0.2, // Analítico
+          // @ts-ignore
+          thinking_config: { include_thoughts: true, thinking_level: "high" }
+        } as any
+      });
+
+      const existingList = existingCharacterNames && Array.isArray(existingCharacterNames)
+        ? existingCharacterNames.join(", ")
+        : "Ninguno (Proyecto Nuevo)";
+
+      const systemPrompt = `
+        ACT AS: Senior Literary Editor & Continuity Manager.
+        MISSION: Analyze the provided MANUSCRIPT TEXT (Draft/Chapter) and extract the CAST OF CHARACTERS.
+
+        CONTEXT - EXISTING CHARACTERS IN DATABASE:
+        [ ${existingList} ]
+
+        TASK:
+        1. READ the text deepy.
+        2. IDENTIFY all unique characters mentioned.
+        3. CLASSIFY them by Relevance (MAIN, SECONDARY, BACKGROUND).
+        4. CROSS-REFERENCE with the "EXISTING CHARACTERS" list.
+           - If a character is in the text but NOT in the list -> Mark as "DETECTED" (Ghost).
+           - If a character is in the list -> Mark as "EXISTING".
+        5. ANALYZE DATA GAPS:
+           - For "DETECTED" characters, summarize what is known about them from the text (Role, Traits).
+           - For "EXISTING" characters, flag if the text contradicts known traits (optional).
+        6. GENERATE A STATUS REPORT:
+           - A brief, professional summary addressed to the "Commander" (User).
+           - Highlight key findings (e.g., "I found 3 new characters", "Megu appears in 4 scenes").
+           - Suggest immediate actions (e.g., "Should we create a sheet for 'The Baker'?").
+
+        OUTPUT FORMAT (JSON STRICT):
+        {
+          "report_summary": "Commander, I have analyzed the draft...",
+          "entities": [
+            {
+              "name": "Name",
+              "role": "Brief role description from text",
+              "relevance_score": 1-10,
+              "frequency_count": 0,
+              "status": "EXISTING" | "DETECTED",
+              "suggested_action": "None" | "Create Sheet" | "Update Sheet"
+            }
+          ]
+        }
+
+        MANUSCRIPT TEXT (Truncated for Context if too long):
+        ${content.substring(0, 100000)}
+      `;
+
+      // 3. EJECUTAR ANÁLISIS
+      const result = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: systemPrompt }] }]
+      });
+
+      const responseText = result.response.text();
+
+      // 4. SANITIZAR JSON
+      const firstBrace = responseText.indexOf('{');
+      const lastBrace = responseText.lastIndexOf('}');
+      if (firstBrace === -1 || lastBrace === -1) {
+         throw new Error("No JSON found in response");
+      }
+      const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
+
+      return JSON.parse(cleanJson);
+
+    } catch (error: any) {
+      logger.error("Error en forgeAnalyzer:", error);
+      throw new HttpsError("internal", error.message);
+    }
+  }
+);
