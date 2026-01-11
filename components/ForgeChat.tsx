@@ -4,7 +4,7 @@ import { ArrowLeft, Send, Loader2, Bot, User, Hammer } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
-import MarkdownRenderer from '../MarkdownRenderer';
+import MarkdownRenderer from './MarkdownRenderer';
 
 interface Message {
     id?: string;
