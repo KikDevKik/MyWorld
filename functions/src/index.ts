@@ -2899,12 +2899,14 @@ export const forgeAnalyzer = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { fileId, accessToken, existingCharacterNames } = request.data;
+    const { fileId, accessToken, existingCharacterNames, characterSourceId } = request.data;
+    const userId = request.auth.uid;
 
     if (!fileId) throw new HttpsError("invalid-argument", "Falta fileId.");
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
     try {
+      const db = getFirestore();
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
       const drive = google.drive({ version: "v3", auth });
@@ -2912,6 +2914,38 @@ export const forgeAnalyzer = onCall(
       // 1. LEER ARCHIVO FUENTE
       const content = await _getDriveFileContentInternal(drive, fileId);
       if (!content) throw new HttpsError("not-found", "El archivo está vacío o no se pudo leer.");
+
+      // 🟢 WIDE NET STRATEGY: Fetch ALL characters from Firestore
+      if (characterSourceId) {
+          logger.info(`🕸️ [WIDE NET] Fetching full character roster for user: ${userId} (Source: ${characterSourceId})`);
+      } else {
+          logger.info(`🕸️ [WIDE NET] Fetching full character roster for user: ${userId} (Global Scan)`);
+      }
+
+      const charsSnapshot = await db.collection("users").doc(userId).collection("characters").get();
+
+      const roster = new Map<string, { id: string, name: string, role?: string }>();
+      const rosterNames: string[] = [];
+
+      charsSnapshot.forEach(doc => {
+          const data = doc.data();
+          const cleanName = data.name.trim();
+          roster.set(cleanName.toLowerCase(), {
+              id: doc.id,
+              name: cleanName,
+              role: data.role
+          });
+          rosterNames.push(cleanName);
+      });
+
+      // Fallback to frontend list if DB is empty (rare)
+      let finalNameList = rosterNames;
+      if (rosterNames.length === 0 && existingCharacterNames && Array.isArray(existingCharacterNames)) {
+          finalNameList = existingCharacterNames;
+          logger.warn("⚠️ [WIDE NET] DB Empty. Using frontend fallback list.");
+      }
+
+      const existingListString = finalNameList.length > 0 ? finalNameList.join(", ") : "Ninguno (Proyecto Nuevo)";
 
       // 2. PREPARAR PROMPT DE ANÁLISIS
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
@@ -2924,15 +2958,11 @@ export const forgeAnalyzer = onCall(
         } as any
       });
 
-      const existingList = existingCharacterNames && Array.isArray(existingCharacterNames)
-        ? existingCharacterNames.join(", ")
-        : "Ninguno (Proyecto Nuevo)";
-
       // 🔍 BETA DEBUG: LOGGING
       logger.info(`🔍 [ANALYZER BETA] Content Length: ${content.length} chars`);
-      logger.info(`🔍 [ANALYZER BETA] Existing Characters Count: ${existingCharacterNames?.length || 0}`);
-      if (existingCharacterNames && existingCharacterNames.length > 0) {
-          logger.info(`🔍 [ANALYZER BETA] First 5 Existing: ${existingCharacterNames.slice(0, 5).join(', ')}`);
+      logger.info(`🔍 [ANALYZER BETA] Roster Count: ${finalNameList.length}`);
+      if (finalNameList.length > 0) {
+          logger.info(`🔍 [ANALYZER BETA] First 5 Roster: ${finalNameList.slice(0, 5).join(', ')}`);
       }
 
       const systemPrompt = `
@@ -2940,7 +2970,7 @@ export const forgeAnalyzer = onCall(
         MISSION: Analyze the provided MANUSCRIPT TEXT (Draft/Chapter) and extract the CAST OF CHARACTERS.
 
         CONTEXT - EXISTING CHARACTERS IN DATABASE:
-        [ ${existingList} ]
+        [ ${existingListString} ]
 
         MATCHING PROTOCOL (FUZZY LOGIC):
         - When checking against "EXISTING CHARACTERS", IGNORE prefixes like 'Ficha', 'Profile', or 'Character'.
@@ -3024,7 +3054,27 @@ export const forgeAnalyzer = onCall(
       }
       const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
 
-      return JSON.parse(cleanJson);
+      const parsed = JSON.parse(cleanJson);
+
+      // 5. INJECT REAL IDS (GAMMA FIX)
+      if (parsed.entities && Array.isArray(parsed.entities)) {
+         parsed.entities = parsed.entities.map((e: any) => {
+             const lowerName = e.name.trim().toLowerCase();
+             if (roster.has(lowerName)) {
+                 const match = roster.get(lowerName);
+                 logger.info(`✅ [ID INJECTION] Matched ${e.name} -> ${match?.id}`);
+                 return {
+                     ...e,
+                     id: match?.id,
+                     status: 'EXISTING', // Force status if not already
+                     role: e.role || match?.role // Fallback role if AI missed it
+                 };
+             }
+             return e;
+         });
+      }
+
+      return parsed;
 
     } catch (error: any) {
       logger.error("Error en forgeAnalyzer:", error);

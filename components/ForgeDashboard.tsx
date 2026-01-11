@@ -69,7 +69,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             const result: any = await forgeAnalyzer({
                 fileId,
                 accessToken,
-                existingCharacterNames: existingNames
+                existingCharacterNames: existingNames,
+                characterSourceId: characterVaultId // 🟢 WIDE NET: Pass master vault ID
             });
 
             // Process Result
