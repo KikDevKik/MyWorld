@@ -2816,3 +2816,70 @@ export const syncCharacterManifest = onCall(
     }
   }
 );
+
+/**
+ * PHASE 6.2: MATERIALIZATION (AI TOOLS)
+ * Crea un archivo físico a petición de la IA.
+ */
+export const forgeToolExecution = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    initializeFirebase();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const { title, content, folderId, accessToken } = request.data;
+
+    if (!title || !content || !folderId) {
+      throw new HttpsError("invalid-argument", "Faltan argumentos (title, content, folderId).");
+    }
+    if (!accessToken) {
+      throw new HttpsError("unauthenticated", "Falta accessToken.");
+    }
+
+    logger.info(`🔨 TOOL EXECUTION: Creating file '${title}' in ${folderId}`);
+
+    try {
+      const auth = new google.auth.OAuth2();
+      auth.setCredentials({ access_token: accessToken });
+      const drive = google.drive({ version: "v3", auth });
+
+      // Sanitize Title
+      const safeTitle = title.replace(/[^a-zA-Z0-9À-ÿ\s\-_]/g, '').trim() || "Untitled_Lore";
+      const fileName = `${safeTitle}.md`;
+
+      const media = {
+        mimeType: 'text/markdown',
+        body: content
+      };
+
+      const file = await drive.files.create({
+        requestBody: {
+          name: fileName,
+          parents: [folderId],
+        },
+        media: media,
+        fields: 'id, name, webViewLink',
+      });
+
+      logger.info(`   ✅ Materialización exitosa: ${file.data.id}`);
+
+      return {
+        success: true,
+        fileId: file.data.id,
+        webViewLink: file.data.webViewLink,
+        message: `Archivo '${fileName}' forjado con éxito.`
+      };
+
+    } catch (error: any) {
+      logger.error("Error en forgeToolExecution:", error);
+      throw new HttpsError("internal", error.message);
+    }
+  }
+);
