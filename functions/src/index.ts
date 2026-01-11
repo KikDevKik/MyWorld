@@ -214,10 +214,8 @@ async function _getDriveFileContentInternal(drive: any, fileId: string): Promise
 
   } catch (error: any) {
     logger.error(`💥 [ERROR LECTURA] Falló al procesar ${fileId}:`, error);
-    throw new HttpsError(
-      "internal",
-      `Error al leer (${fileId}): ${error.message}`
-    );
+    // 🟢 BLINDAJE DEL LECTOR: NO CRASHEAR. DEVOLVER AVISO.
+    return `[ERROR: No se pudo cargar el archivo. Verifica permisos o existencia. Detalle: ${error.message}]`;
   }
 }
 

@@ -188,6 +188,13 @@ const Editor: React.FC<EditorProps> = ({
             const html = editor.getHTML();
             const markdown = turndownService.turndown(html);
 
+            // 🛑 SAFETY CHECK: PREVENT SAVING ERROR MESSAGES
+            if (markdown.includes("[ERROR: No se pudo cargar el archivo")) {
+                toast.error("ERROR CRÍTICO: No se puede guardar un archivo en estado de error.");
+                setIsSaving(false);
+                return;
+            }
+
             const functions = getFunctions();
             const saveDriveFile = httpsCallable(functions, 'saveDriveFile');
 
