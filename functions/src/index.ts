@@ -2928,6 +2928,13 @@ export const forgeAnalyzer = onCall(
         ? existingCharacterNames.join(", ")
         : "Ninguno (Proyecto Nuevo)";
 
+      // 🔍 BETA DEBUG: LOGGING
+      logger.info(`🔍 [ANALYZER BETA] Content Length: ${content.length} chars`);
+      logger.info(`🔍 [ANALYZER BETA] Existing Characters Count: ${existingCharacterNames?.length || 0}`);
+      if (existingCharacterNames && existingCharacterNames.length > 0) {
+          logger.info(`🔍 [ANALYZER BETA] First 5 Existing: ${existingCharacterNames.slice(0, 5).join(', ')}`);
+      }
+
       const systemPrompt = `
         ACT AS: Senior Literary Editor & Continuity Manager.
         MISSION: Analyze the provided MANUSCRIPT TEXT (Draft/Chapter) and extract the CAST OF CHARACTERS.

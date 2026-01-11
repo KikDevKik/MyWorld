@@ -1,8 +1,9 @@
 import React from 'react';
 import { Character } from '../types';
-import { Users, Ghost, User, BookOpen } from 'lucide-react';
+import { Users, Ghost, User, BookOpen, RefreshCw } from 'lucide-react';
 
-interface DetectedEntity {
+export interface DetectedEntity {
+    id?: string; // Optional ID if matched
     name: string;
     role: string;
     relevance_score: number;
@@ -15,9 +16,10 @@ interface ForgeContextDockProps {
     detectedEntities: DetectedEntity[];
     onCharacterSelect: (char: Character | DetectedEntity) => void;
     isLoading: boolean;
+    onRefresh?: () => void;
 }
 
-const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detectedEntities, onCharacterSelect, isLoading }) => {
+const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detectedEntities, onCharacterSelect, isLoading, onRefresh }) => {
 
     // Group characters
     const protagonists = characters.filter(c => c.tier === 'MAIN');
@@ -41,11 +43,20 @@ const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detecte
     return (
         <div className="h-full w-full bg-titanium-950 border-l border-titanium-800 flex flex-col">
             {/* HEADER */}
-            <div className="h-14 flex items-center px-6 border-b border-titanium-800 shrink-0 bg-titanium-900/50">
+            <div className="h-14 flex items-center justify-between px-6 border-b border-titanium-800 shrink-0 bg-titanium-900/50">
                 <h3 className="text-sm font-bold text-titanium-300 uppercase tracking-wider flex items-center gap-2">
                     <BookOpen size={16} />
                     <span>Dramatis Personae</span>
                 </h3>
+                {onRefresh && (
+                    <button
+                        onClick={onRefresh}
+                        className="p-1.5 rounded-full text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-800 transition-colors"
+                        title="Forzar Re-análisis"
+                    >
+                        <RefreshCw size={14} />
+                    </button>
+                )}
             </div>
 
             {/* LIST */}
