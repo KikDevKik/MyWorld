@@ -53,6 +53,7 @@ interface ProjectConfig {
   activeBookContext: string;
   folderId?: string;
   lastIndexed?: string;
+  characterVaultId?: string | null;
 }
 
 interface SessionInteraction {
@@ -493,7 +494,7 @@ export const getDriveFiles = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 300,
+    timeoutSeconds: 540, // Increased for Deep Extraction
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -2480,7 +2481,7 @@ export const syncCharacterManifest = onCall(
   {
     region: "us-central1",
     enforceAppCheck: false,
-    timeoutSeconds: 300,
+    timeoutSeconds: 540,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -2492,15 +2493,32 @@ export const syncCharacterManifest = onCall(
     }
 
     const { masterVaultId, bookFolderId, accessToken } = request.data;
-    if (!masterVaultId) throw new HttpsError("invalid-argument", "Falta el ID del Master Vault.");
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
     const userId = request.auth.uid;
+
+    // 🟢 1. INTELLIGENT FALLBACK (Config Retrieval)
+    const config = await _getProjectConfigInternal(userId);
+
+    let targetVaultId = masterVaultId;
+    if (!targetVaultId) {
+        logger.info("🕵️ Param 'masterVaultId' missing. Checking Project Config...");
+        if (config.characterVaultId) {
+            targetVaultId = config.characterVaultId;
+            logger.info(`   -> Found in Config (Character Vault): ${targetVaultId}`);
+        } else if (config.canonPaths && config.canonPaths.length > 0) {
+            targetVaultId = config.canonPaths[0].id;
+            logger.info(`   -> Found in Config (Primary Canon Path): ${targetVaultId}`);
+        } else {
+             throw new HttpsError("invalid-argument", "No masterVaultId provided and no configuration found.");
+        }
+    }
+
     const auth = new google.auth.OAuth2();
     auth.setCredentials({ access_token: accessToken });
     const drive = google.drive({ version: "v3", auth });
 
-    logger.info(`👻 SOUL COLLECTOR: Iniciando escaneo para ${userId}`);
+    logger.info(`👻 SOUL COLLECTOR (DEEP EXTRACTION): Iniciando escaneo para ${userId} en ${targetVaultId}`);
 
     try {
         const manifest = new Map<string, Partial<Character>>();
@@ -2514,32 +2532,75 @@ export const syncCharacterManifest = onCall(
                 .replace(/^_|_$/g, '');
         };
 
-        // --- STEP A: MASTER SCAN (High Tier) ---
-        logger.info(`   -> Escaneando Master Vault: ${masterVaultId}`);
-        const masterFiles = await drive.files.list({
-            q: `'${masterVaultId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
-            fields: 'files(id, name)',
-            pageSize: 1000
-        });
+        // --- STEP A: MASTER SCAN (Recursive & Deep) ---
+        // 1. Fetch File Tree (Using existing recursive helper)
+        const tree = await fetchFolderContents(drive, targetVaultId, config, true);
+        const flatFiles = flattenFileTree(tree);
 
-        if (masterFiles.data.files) {
-            for (const file of masterFiles.data.files) {
-                if (!file.name || !file.id) continue;
-                const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
-                const slug = slugify(cleanName);
+        // 2. Filter Candidates (Docs, MD, TXT)
+        const candidates = flatFiles.filter(f =>
+            f.mimeType === 'application/vnd.google-apps.document' ||
+            f.name.endsWith('.md') ||
+            f.name.endsWith('.txt')
+        );
 
-                manifest.set(slug, {
-                    id: slug,
-                    name: cleanName,
-                    tier: 'MAIN',
-                    sourceType: 'MASTER',
-                    masterFileId: file.id,
-                    appearances: [],
-                    snippets: []
-                });
-            }
+        logger.info(`   -> Candidates for Extraction: ${candidates.length}`);
+
+        // 3. Batch Process (Deep Soul Extraction)
+        // Process files in small concurrent batches to avoid timeouts/limits
+        const BATCH_SIZE = 5;
+        for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+            const batch = candidates.slice(i, i + BATCH_SIZE);
+            logger.info(`   -> Processing Batch ${Math.floor(i / BATCH_SIZE) + 1} / ${Math.ceil(candidates.length / BATCH_SIZE)}`);
+
+            await Promise.all(batch.map(async (file) => {
+                try {
+                    const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
+                    const slug = slugify(cleanName);
+
+                    // Fetch Content (The Soul)
+                    // Note: _getDriveFileContentInternal handles Google Doc conversion to text/plain automatically
+                    let snippetText = "";
+                    try {
+                        const content = await _getDriveFileContentInternal(drive, file.id);
+                        snippetText = content.substring(0, 2000); // Limit snippet size to save DB space
+                    } catch (e) {
+                        logger.warn(`Failed to read content for ${file.name}, skipping body.`);
+                    }
+
+                    // Upsert to Manifest
+                    if (!manifest.has(slug)) {
+                        manifest.set(slug, {
+                            id: slug,
+                            name: cleanName,
+                            tier: 'MAIN',
+                            sourceType: 'MASTER',
+                            masterFileId: file.id,
+                            appearances: [],
+                            snippets: []
+                        });
+                    }
+
+                    const char = manifest.get(slug)!;
+
+                    // Add snippet if content exists
+                    if (snippetText) {
+                         // Check if we already have a master vault snippet to avoid duplication on re-runs
+                         // (Though logic creates fresh manifest each time, so simple push is fine)
+                         char.snippets?.push({
+                            sourceBookId: 'MASTER_VAULT',
+                            sourceBookTitle: 'Master Vault File',
+                            text: snippetText
+                         });
+                    }
+
+                } catch (err) {
+                    logger.warn(`   ⚠️ Failed to extract soul from ${file.name}:`, err);
+                }
+            }));
         }
-        logger.info(`   -> ${manifest.size} Maestros encontrados.`);
+
+        logger.info(`   -> ${manifest.size} Maestros procesados.`);
 
         // --- STEP B: LOCAL SCAN (Low Tier) ---
         if (bookFolderId) {
