@@ -61,6 +61,22 @@ interface SessionInteraction {
   clarifications?: string;
 }
 
+interface CharacterSnippet {
+  sourceBookId: string;
+  sourceBookTitle: string;
+  text: string;
+}
+
+interface Character {
+  id: string; // Slug
+  name: string;
+  tier: 'MAIN' | 'SUPPORTING';
+  sourceType: 'MASTER' | 'LOCAL' | 'HYBRID';
+  masterFileId?: string;
+  appearances: string[]; // Book IDs
+  snippets: CharacterSnippet[];
+}
+
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
 // --- FILE FILTERING CONSTANTS ---
@@ -2450,6 +2466,214 @@ export const debugGetIndexStats = onCall(
     } catch (error: any) {
       logger.error("Error obteniendo stats del index:", error);
       throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+// --- CHARACTER MANIFEST LOGIC (THE SOUL COLLECTOR) ---
+
+/**
+ * PHASE 6.0: MANIFEST GENERATOR
+ * Escanea Drive y genera un manifiesto de personajes en Firestore.
+ */
+export const syncCharacterManifest = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+    timeoutSeconds: 300,
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const { masterVaultId, bookFolderId, accessToken } = request.data;
+    if (!masterVaultId) throw new HttpsError("invalid-argument", "Falta el ID del Master Vault.");
+    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    const userId = request.auth.uid;
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: accessToken });
+    const drive = google.drive({ version: "v3", auth });
+
+    logger.info(`👻 SOUL COLLECTOR: Iniciando escaneo para ${userId}`);
+
+    try {
+        const manifest = new Map<string, Partial<Character>>();
+
+        // --- HELPER: Slugify ---
+        const slugify = (text: string): string => {
+            return text
+                .toLowerCase()
+                .trim()
+                .replace(/[\s\W-]+/g, '_')
+                .replace(/^_|_$/g, '');
+        };
+
+        // --- STEP A: MASTER SCAN (High Tier) ---
+        logger.info(`   -> Escaneando Master Vault: ${masterVaultId}`);
+        const masterFiles = await drive.files.list({
+            q: `'${masterVaultId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
+            fields: 'files(id, name)',
+            pageSize: 1000
+        });
+
+        if (masterFiles.data.files) {
+            for (const file of masterFiles.data.files) {
+                if (!file.name || !file.id) continue;
+                const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
+                const slug = slugify(cleanName);
+
+                manifest.set(slug, {
+                    id: slug,
+                    name: cleanName,
+                    tier: 'MAIN',
+                    sourceType: 'MASTER',
+                    masterFileId: file.id,
+                    appearances: [],
+                    snippets: []
+                });
+            }
+        }
+        logger.info(`   -> ${manifest.size} Maestros encontrados.`);
+
+        // --- STEP B: LOCAL SCAN (Low Tier) ---
+        if (bookFolderId) {
+            logger.info(`   -> Escaneando Libro Local: ${bookFolderId}`);
+
+            // 1. Find Personajes.md
+            const localQuery = `'${bookFolderId}' in parents and name = 'Personajes.md' and trashed = false`;
+            const localFiles = await drive.files.list({
+                q: localQuery,
+                fields: 'files(id, name)',
+                pageSize: 1
+            });
+
+            if (localFiles.data.files && localFiles.data.files.length > 0) {
+                const pFile = localFiles.data.files[0];
+                logger.info(`   -> Leído Personajes.md (${pFile.id})`);
+
+                // 2. Read Content
+                const content = await _getDriveFileContentInternal(drive, pFile.id!);
+
+                // 3. Parse Logic (Regex)
+                const lines = content.split('\n');
+
+                // Patterns
+                const wikiLinkRegex = /\[\[(.*?)\]\]/;
+                const listRegex = /^[-*]\s+(.*)/;
+                const colonRegex = /^([^:]+):\s*(.*)/;
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed) continue;
+                    if (trimmed.startsWith('#')) continue; // Skip headers
+
+                    let name = "";
+                    let description = "";
+                    let isWiki = false;
+
+                    // WikiLink
+                    const wikiMatch = trimmed.match(wikiLinkRegex);
+                    if (wikiMatch) {
+                        const raw = wikiMatch[1];
+                        name = raw.includes('|') ? raw.split('|')[0].trim() : raw.trim();
+                        isWiki = true;
+
+                        const afterLink = trimmed.replace(wikiMatch[0], '').trim();
+                        if (afterLink.startsWith('-') || afterLink.startsWith(':')) {
+                            description = afterLink.replace(/^[-:]\s*/, '');
+                        }
+                    } else {
+                        // Colon "Name: Desc"
+                        const colonMatch = trimmed.match(colonRegex);
+                        if (colonMatch) {
+                            name = colonMatch[1].trim().replace(/^[-*]\s+/, '');
+                            description = colonMatch[2].trim();
+                        } else {
+                            // List Item "- Name"
+                            const listMatch = trimmed.match(listRegex);
+                            if (listMatch) {
+                                name = listMatch[1].trim();
+                            }
+                        }
+                    }
+
+                    if (name && name.length < 50) {
+                        const slug = slugify(name);
+                        const existing = manifest.get(slug);
+
+                        if (existing) {
+                            // It's a MASTER or already found LOCAL
+                            // Add appearance
+                            if (!existing.appearances!.includes(bookFolderId)) {
+                                existing.appearances!.push(bookFolderId);
+                            }
+                            // Add snippet if new
+                            if (description) {
+                                existing.snippets!.push({
+                                    sourceBookId: bookFolderId,
+                                    sourceBookTitle: "Libro Local", // We could fetch title if needed
+                                    text: description
+                                });
+                            }
+                            manifest.set(slug, existing);
+                        } else {
+                            // NEW LOCAL CHARACTER
+                            const newChar: Partial<Character> = {
+                                id: slug,
+                                name: name,
+                                tier: isWiki ? 'MAIN' : 'SUPPORTING', // Wiki links implies importance usually
+                                sourceType: 'LOCAL',
+                                appearances: [bookFolderId],
+                                snippets: description ? [{
+                                    sourceBookId: bookFolderId,
+                                    sourceBookTitle: "Libro Local",
+                                    text: description
+                                }] : []
+                            };
+                            manifest.set(slug, newChar);
+                        }
+                    }
+                }
+            } else {
+                logger.warn("   -> Personajes.md no encontrado en el libro.");
+            }
+        }
+
+        // --- STEP C: BATCH WRITE TO FIRESTORE ---
+        logger.info(`   -> Persistiendo ${manifest.size} personajes...`);
+        const batch = db.batch();
+        const charsRef = db.collection("users").doc(userId).collection("characters");
+
+        let batchCount = 0;
+        const now = new Date().toISOString();
+
+        for (const [slug, char] of manifest) {
+            const docRef = charsRef.doc(slug);
+            batch.set(docRef, { ...char, lastUpdated: now }, { merge: true });
+            batchCount++;
+
+            if (batchCount >= 400) {
+                await batch.commit();
+                batchCount = 0;
+            }
+        }
+
+        if (batchCount > 0) {
+            await batch.commit();
+        }
+
+        logger.info("✅ Soul Collector ha terminado.");
+        return { success: true, count: manifest.size };
+
+    } catch (error: any) {
+        logger.error("Error en syncCharacterManifest:", error);
+        throw new HttpsError("internal", error.message);
     }
   }
 );
