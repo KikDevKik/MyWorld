@@ -94,6 +94,7 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
                 setRealData((prev: any) => ({
                     ...prev,
                     contextualAnalysis: result.data.analysis,
+                    sources: result.data.sources, // 📚 Store Sources
                     lastAnalyzed: result.data.timestamp
                 }));
             } else {
@@ -248,6 +249,13 @@ Materialized from Deep Scan.
                              <div className="prose prose-invert prose-sm max-w-none text-purple-200/80">
                                 <MarkdownRenderer content={realData.contextualAnalysis} mode="compact" />
                              </div>
+
+                             {/* 📚 SOURCES FOOTNOTE */}
+                             {realData.sources && realData.sources.length > 0 && (
+                                <div className="mt-4 pt-3 border-t border-purple-500/20 text-[10px] text-purple-400/50 font-mono">
+                                    <span className="font-bold">📚 SOURCES:</span> {realData.sources.join(", ")}
+                                </div>
+                             )}
                         </div>
                     )}
 
