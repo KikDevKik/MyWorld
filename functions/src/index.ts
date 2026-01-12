@@ -2783,20 +2783,25 @@ export const syncCharacterManifest = onCall(
         }
 
         // --- STEP C: BATCH WRITE TO FIRESTORE ---
+        const manifestNames = Array.from(manifest.values()).map(c => c.name);
+        logger.info("Loaded Roster Names:", manifestNames);
         logger.info(`   -> Persistiendo ${manifest.size} personajes...`);
-        const batch = db.batch();
+
+        let batch = db.batch();
         const charsRef = db.collection("users").doc(userId).collection("characters");
 
         let batchCount = 0;
         const now = new Date().toISOString();
 
         for (const [slug, char] of manifest) {
+            logger.info(`Writing character to DB: ${char.name} (${slug})`);
             const docRef = charsRef.doc(slug);
             batch.set(docRef, { ...char, lastUpdated: now }, { merge: true });
             batchCount++;
 
             if (batchCount >= 400) {
                 await batch.commit();
+                batch = db.batch(); // 🟢 FIX: Re-instantiate batch after commit
                 batchCount = 0;
             }
         }
@@ -2945,7 +2950,24 @@ export const forgeAnalyzer = onCall(
           logger.warn("⚠️ [WIDE NET] DB Empty. Using frontend fallback list.");
       }
 
-      const existingListString = finalNameList.length > 0 ? finalNameList.join(", ") : "Ninguno (Proyecto Nuevo)";
+      // 🟢 PREFIX CLEANING LOGIC (BACKEND NORMALIZATION)
+      logger.info("Loaded Roster Names (Raw):", finalNameList);
+
+      const cleanedRoster = finalNameList.map(rawName => {
+         // Regex to remove common prefixes + whitespace
+         return rawName.replace(/^(Ficha|Profile|Expediente|Character)\s+/i, "").trim();
+      });
+
+      const existingListString = cleanedRoster.length > 0 ? cleanedRoster.join(", ") : "Ninguno (Proyecto Nuevo)";
+
+      // We keep the original map for ID injection, but we map CLEAN names to IDs now too
+      cleanedRoster.forEach((cleanName, index) => {
+         const originalName = finalNameList[index];
+         if (roster.has(originalName.toLowerCase())) {
+             // Map the clean version to the same data as the original
+             roster.set(cleanName.toLowerCase(), roster.get(originalName.toLowerCase())!);
+         }
+      });
 
       // 2. PREPARAR PROMPT DE ANÁLISIS
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
@@ -2962,19 +2984,19 @@ export const forgeAnalyzer = onCall(
       logger.info(`🔍 [ANALYZER BETA] Content Length: ${content.length} chars`);
       logger.info(`🔍 [ANALYZER BETA] Roster Count: ${finalNameList.length}`);
       if (finalNameList.length > 0) {
-          logger.info(`🔍 [ANALYZER BETA] First 5 Roster: ${finalNameList.slice(0, 5).join(', ')}`);
+          logger.info(`🔍 [ANALYZER BETA] Cleaned Context List: ${cleanedRoster.slice(0, 5).join(', ')}`);
       }
 
       const systemPrompt = `
         ACT AS: Senior Literary Editor & Continuity Manager.
         MISSION: Analyze the provided MANUSCRIPT TEXT (Draft/Chapter) and extract the CAST OF CHARACTERS.
 
-        CONTEXT - EXISTING CHARACTERS IN DATABASE:
+        CONTEXT - EXISTING CHARACTERS IN DATABASE (Normalized Names):
         [ ${existingListString} ]
 
         MATCHING PROTOCOL (FUZZY LOGIC):
-        - When checking against "EXISTING CHARACTERS", IGNORE prefixes like 'Ficha', 'Profile', or 'Character'.
-        - Example: If text has "Saya" and list has "Ficha Saya", TREAT AS EXACT MATCH -> Status: EXISTING.
+        - The list above contains known character names (stripped of metadata prefixes).
+        - Example: If text has "Saya" and list has "Saya" (derived from "Ficha Saya"), TREAT AS EXACT MATCH -> Status: EXISTING.
 
         CONSISTENCY & ACTION PROTOCOL:
         1. Your 'report_summary' narrative MUST NOT contradict the JSON 'status' fields.
