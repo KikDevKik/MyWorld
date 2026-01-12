@@ -748,11 +748,27 @@ export const enrichCharacterContext = onCall(
         ## ⚠️ Inconsistencies or New Data
         (What does the RAG memory say that might contradict or add to the current file?)
 
+        ## 🏷️ GLOBAL ROLE SUMMARY
+        (One simple sentence summarizing their function in the entire saga. Max 15 words. Example: "Protagonist and former soldier seeking redemption.")
+
         LANGUAGE: Match the language of the source text (Spanish/English).
       `;
 
       const result = await model.generateContent(prompt);
       const analysisText = result.response.text();
+
+      // 🟢 EXTRACT GLOBAL ROLE (REGEX HEROICS)
+      let extractedRole = null;
+      try {
+          const roleMatch = analysisText.match(/## 🏷️ GLOBAL ROLE SUMMARY\s*\n\s*([^\n]+)/i);
+          if (roleMatch && roleMatch[1]) {
+              extractedRole = roleMatch[1].trim().replace(/^[\*\-\s]+/, ''); // Remove bullets
+              if (extractedRole.length > 100) extractedRole = extractedRole.substring(0, 97) + "..."; // Safety cap
+              logger.info(`🏷️ Extracted Role for ${name}: ${extractedRole}`);
+          }
+      } catch (e) {
+          logger.warn("Failed to extract Global Role from analysis.");
+      }
 
       // 5. PERSISTENCE (The Update)
       // HELPER: Slugify if ID missing
@@ -764,6 +780,7 @@ export const enrichCharacterContext = onCall(
               id: targetId,
               name: name,
               contextualAnalysis: analysisText,
+              role: extractedRole || undefined, // Update role if found
               lastAnalyzed: new Date().toISOString(),
               saga: saga || 'Global',
               status: 'DETECTED'
@@ -772,16 +789,23 @@ export const enrichCharacterContext = onCall(
 
       } else {
           // 👤 EXISTING PROTOCOL: Save to characters
-          await db.collection("users").doc(userId).collection("characters").doc(targetId).set({
+          const updatePayload: any = {
               contextualAnalysis: analysisText,
               lastAnalyzed: new Date().toISOString()
-          }, { merge: true });
-          logger.info(`✅ Analysis persisted for ${targetId}`);
+          };
+
+          if (extractedRole) {
+              updatePayload.role = extractedRole; // 🟢 FORCE OVERWRITE BAD ROLE
+          }
+
+          await db.collection("users").doc(userId).collection("characters").doc(targetId).set(updatePayload, { merge: true });
+          logger.info(`✅ Analysis persisted for ${targetId} (Role Updated: ${!!extractedRole})`);
       }
 
       return {
           success: true,
           analysis: analysisText,
+          generatedRole: extractedRole,
           sources: sources, // 👈 New: Return Source List
           timestamp: new Date().toISOString()
       };
