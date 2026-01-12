@@ -97,4 +97,5 @@ export interface Character {
   description?: string;
   bio?: string;
   body?: string;
+  status?: 'EXISTING' | 'DETECTED';
 }

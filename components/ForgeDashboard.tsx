@@ -49,7 +49,12 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const chars: Character[] = [];
             snapshot.forEach(doc => {
-                chars.push({ id: doc.id, ...doc.data() } as Character);
+                // 🟢 INJECT STATUS: EXISTING
+                chars.push({
+                    id: doc.id,
+                    ...doc.data(),
+                    status: 'EXISTING'
+                } as Character);
             });
             // Filter logic if needed, or just store all
             setCharacters(chars);

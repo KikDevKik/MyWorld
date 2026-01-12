@@ -113,6 +113,8 @@ Materialized from Deep Scan.
             displayBio = realData.snippets[0].text;
         } else if (realData.bio) {
             displayBio = realData.bio;
+        } else if (realData.content) {
+            displayBio = realData.content;
         } else {
              displayBio = "Ficha cargada, pero sin biografía textual.";
         }
