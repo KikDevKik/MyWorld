@@ -90,6 +90,65 @@ const GOOGLE_FOLDER_MIMETYPE = 'application/vnd.google-apps.folder';
 
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
+// 🟢 NEW: JSON SANITIZER (ANTI-CRASH)
+function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
+  try {
+    // 1. Basic Clean: Trim whitespace and Markdown code fences
+    let clean = jsonString.trim();
+    // Remove wrapping ```json ... ``` or just ``` ... ```
+    clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+
+    // 2. Extract JSON Block (Find first '{' and last '}')
+    const firstBrace = clean.indexOf('{');
+    const lastBrace = clean.lastIndexOf('}');
+
+    if (firstBrace !== -1 && lastBrace !== -1) {
+       clean = clean.substring(firstBrace, lastBrace + 1);
+    } else {
+       // If no braces, it might be an array? Or just malformed.
+       // If it's an array, it starts with [.
+       const firstBracket = clean.indexOf('[');
+       const lastBracket = clean.lastIndexOf(']');
+       if (firstBracket !== -1 && lastBracket !== -1) {
+           clean = clean.substring(firstBracket, lastBracket + 1);
+       }
+    }
+
+    // 3. Aggressive Clean: Control Characters
+    // Remove non-printable control characters (ASCII 0-31) except allowed whitespace (\t, \n, \r)
+    // We use a regex that matches characters in range 0-31 BUT NOT 9 (\t), 10 (\n), 13 (\r)
+    clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
+
+    // 4. ATTEMPT 1: Direct Parse
+    try {
+      return JSON.parse(clean);
+    } catch (firstPassError) {
+      // 5. RESCUE STRATEGY: Aggressive Newline Escape (User Requested)
+      // "Intenta escapar los saltos de línea literales dentro de las cadenas."
+      // NOTE: We cannot easily distinguish structural newlines from string newlines without a parser.
+      // However, if we assume the AI *might* have outputted single-line JSON with broken newlines,
+      // we can try replacing ALL \n with \\n. If it was pretty-printed, this will break it worse,
+      // but it's a "Hail Mary" attempt before failing.
+
+      try {
+        const rescued = clean.replace(/\n/g, '\\n');
+        return JSON.parse(rescued);
+      } catch (secondPassError) {
+        throw firstPassError; // Throw original error if rescue failed
+      }
+    }
+
+  } catch (error: any) {
+    logger.error(`💥 [JSON PARSE ERROR] in ${contextLabel}:`, error);
+    // Return a controlled error object instead of throwing 500
+    return {
+      error: "JSON_PARSE_FAILED",
+      details: error.message,
+      partial_content: jsonString.substring(0, 500)
+    };
+  }
+}
+
 async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig> {
   const db = getFirestore();
   const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
@@ -1513,20 +1572,14 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
 
       const responseText = result.response.text();
 
-      // 🟢 STRICT SANITIZER V2.0
+      // 🟢 STRICT SANITIZER V2.0 (NOW USING GLOBAL HELPER)
       console.log("🔍 RAW AI OUTPUT:", responseText.slice(0, 50) + "...");
 
-      const firstBrace = responseText.indexOf('{');
-      const lastBrace = responseText.lastIndexOf('}');
+      const parsedResult = parseSecureJSON(responseText, "WorldEngine");
 
-      if (firstBrace === -1 || lastBrace === -1) {
-        throw new HttpsError('internal', 'AI Output Malformed: No JSON braces found.');
+      if (parsedResult.error === "JSON_PARSE_FAILED") {
+          throw new HttpsError('internal', `AI JSON Corruption: ${parsedResult.details}`);
       }
-
-      const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
-      console.log("Pk SANITIZED OUTPUT:", cleanJson.slice(0, 50) + "...");
-
-      const parsedResult = JSON.parse(cleanJson);
 
       // 🟢 PHASE 4.3: ASYNC LOGGING (FIRE AND FORGET OR AWAIT)
       // We await to ensure persistence, even if it adds 1-2s latency. Reliability > Speed here.
@@ -2205,8 +2258,11 @@ export const summonTheTribunal = onCall(
 
       const content = response.content.toString();
 
-      const cleanJson = content.replace(/```json/g, '').replace(/```/g, '').trim();
-      const tribunalVerdict = JSON.parse(cleanJson);
+      const tribunalVerdict = parseSecureJSON(content, "SummonTheTribunal");
+
+      if (tribunalVerdict.error === "JSON_PARSE_FAILED") {
+          throw new HttpsError('internal', `Tribunal JSON Malformed: ${tribunalVerdict.details}`);
+      }
 
       logger.info(`⚖️ Tribunal convocado por ${userId}. Veredicto emitido.`);
 
@@ -2282,7 +2338,16 @@ export const extractTimelineEvents = onCall(
 
       const result = await model.generateContent(prompt);
       const responseText = result.response.text();
-      const events = JSON.parse(responseText);
+      const events = parseSecureJSON(responseText, "ExtractTimelineEvents");
+
+      if (events.error === "JSON_PARSE_FAILED") {
+          throw new HttpsError('internal', `Timeline JSON Malformed: ${events.details}`);
+      }
+
+      // Ensure it is an array
+      if (!Array.isArray(events)) {
+         throw new HttpsError('internal', `Timeline JSON is not an array.`);
+      }
 
       const batch = db.batch();
       const timelineRef = db.collection("TDB_Timeline").doc(userId).collection("events");
@@ -2568,15 +2633,16 @@ export const syncCharacterManifest = onCall(
         const masterFilenames = new Map<string, string>(); // Name (clean) -> FileId
         const fileIdToSlug = new Map<string, string>(); // FileId -> Slug
 
-        // --- HELPER: Slugify ---
+        // --- HELPER: Slugify (STRICT KEBAB-CASE / DETERMINISTIC ID) ---
+        // "Ficha Anna" -> "ficha-anna"
         const slugify = (text: string): string => {
             return text
                 .toLowerCase()
                 .trim()
-                .replace(/\s+/g, '-')
-                .replace(/[^a-z0-9-]/g, '')
-                .replace(/-+/g, '-')
-                .replace(/^-|-$/g, '');
+                .replace(/\s+/g, '-') // Convert spaces to hyphens
+                .replace(/[^a-z0-9-]/g, '') // Remove non-alphanumeric chars (except hyphens)
+                .replace(/-+/g, '-') // Deduplicate hyphens
+                .replace(/^-|-$/g, ''); // Trim leading/trailing hyphens
         };
 
         // --- STEP A: MASTER SCAN (Recursive & Deep) ---
@@ -3070,15 +3136,12 @@ export const forgeAnalyzer = onCall(
 
       const responseText = result.response.text();
 
-      // 4. SANITIZAR JSON
-      const firstBrace = responseText.indexOf('{');
-      const lastBrace = responseText.lastIndexOf('}');
-      if (firstBrace === -1 || lastBrace === -1) {
-         throw new Error("No JSON found in response");
-      }
-      const cleanJson = responseText.substring(firstBrace, lastBrace + 1);
+      // 4. SANITIZAR JSON (GLOBAL HELPER)
+      const parsed = parseSecureJSON(responseText, "ForgeAnalyzer");
 
-      const parsed = JSON.parse(cleanJson);
+      if (parsed.error === "JSON_PARSE_FAILED") {
+         throw new HttpsError('internal', `ForgeAnalyzer JSON Failed: ${parsed.details}`);
+      }
 
       // 5. INJECT REAL IDS (GAMMA FIX)
       if (parsed.entities && Array.isArray(parsed.entities)) {
