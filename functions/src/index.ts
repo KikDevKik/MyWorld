@@ -735,23 +735,26 @@ export const enrichCharacterContext = onCall(
         3. Highlight anything found in the Memory that is MISSING from the Current Bio.
         4. OUTPUT FORMAT: Markdown (structured with headers).
 
-        SECTION STRUCTURE:
-        ## 📜 The Saga Context
+        LANGUAGE PROTOCOL:
+        1. DETECT the dominant language of the SOURCE MATERIAL (RAG MEMORY).
+        2. GENERATE the entire response (Headers, Content, and Role) in that detected language.
+
+        SECTION STRUCTURE (Translate headers to the Detected Language):
+
+        ## 📜 [The Saga Context / Contexto de la Saga]
         (How they fit into the main storyline based on the text chunks)
 
-        ## 🔑 Key Events & Interactions
+        ## 🔑 [Key Events & Interactions / Eventos e Interacciones Clave]
         (Bulleted list of verified scenes/actions)
 
-        ## 🧩 Hidden Connections
+        ## 🧩 [Hidden Connections / Conexiones Ocultas]
         (Relationships or details not immediately obvious)
 
-        ## ⚠️ Inconsistencies or New Data
+        ## ⚠️ [Inconsistencies / Inconsistencias o Nuevos Datos]
         (What does the RAG memory say that might contradict or add to the current file?)
 
-        ## 🏷️ GLOBAL ROLE SUMMARY
+        ## 🏷️ [GLOBAL ROLE SUMMARY / RESUMEN DE ROL GLOBAL]
         (One simple sentence summarizing their function in the entire saga. Max 15 words. Example: "Protagonist and former soldier seeking redemption.")
-
-        LANGUAGE: Match the language of the source text (Spanish/English).
       `;
 
       const result = await model.generateContent(prompt);
@@ -760,9 +763,10 @@ export const enrichCharacterContext = onCall(
       // 🟢 EXTRACT GLOBAL ROLE (REGEX HEROICS)
       let extractedRole = null;
       try {
-          const roleMatch = analysisText.match(/## 🏷️ GLOBAL ROLE SUMMARY\s*\n\s*([^\n]+)/i);
-          if (roleMatch && roleMatch[1]) {
-              extractedRole = roleMatch[1].trim().replace(/^[\*\-\s]+/, ''); // Remove bullets
+          // Support both English and Spanish headers for the regex
+          const roleMatch = analysisText.match(/## 🏷️ (GLOBAL ROLE SUMMARY|RESUMEN DE ROL GLOBAL)\s*\n\s*([^\n]+)/i);
+          if (roleMatch && roleMatch[2]) {
+              extractedRole = roleMatch[2].trim().replace(/^[\*\-\s]+/, ''); // Remove bullets
               if (extractedRole.length > 100) extractedRole = extractedRole.substring(0, 97) + "..."; // Safety cap
               logger.info(`🏷️ Extracted Role for ${name}: ${extractedRole}`);
           }
