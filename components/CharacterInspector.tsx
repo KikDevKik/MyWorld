@@ -150,8 +150,24 @@ Materialized from Deep Scan.
         }
     };
 
-    // 🟢 RENDER LOGIC: PRIORITY TO REAL DATA
-    const displayRole = realData?.role || data.role;
+    // 🟢 RENDER LOGIC: PRIORITY TO REAL DATA (WITH QUALITY CHECK)
+    // If realData.role is too long (> 60 chars), it's likely a description leak from legacy imports.
+    // In that case, we fallback to the AI-detected role (data.role) from the current session.
+    // If realData.role is short, we respect it (it might be the fixed Global Role).
+    let displayRole = data.role; // Default to AI detected
+
+    if (realData?.role) {
+        if (realData.role.length < 60) {
+            displayRole = realData.role; // It's a proper role
+        } else {
+             // It's a description leak. Do we have an AI role?
+             if (!data.role || data.role.length > 60) {
+                 // Even AI role is bad or missing? Truncate the DB one.
+                 displayRole = realData.role.substring(0, 50) + "...";
+             }
+             // Else keep AI role
+        }
+    }
 
     // Construct Display Bio
     let displayBio = "";
