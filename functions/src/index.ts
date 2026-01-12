@@ -12,7 +12,7 @@ import { TaskType, GoogleGenerativeAI } from "@google/generative-ai";
 import { Chunk } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
-import * as crypto from 'crypto';
+import { ingestFile } from "./ingestion";
 
 // --- SINGLETON APP (Evita reiniciar Firebase mil veces) ---
 let firebaseApp: admin.app.App | undefined;
@@ -61,23 +61,6 @@ interface SessionInteraction {
   prompt: string;
   response: any;
   clarifications?: string;
-}
-
-interface CharacterSnippet {
-  sourceBookId: string;
-  sourceBookTitle: string;
-  text: string;
-}
-
-interface Character {
-  id: string; // Slug
-  name: string;
-  tier: 'MAIN' | 'SUPPORTING' | 'BACKGROUND';
-  sourceType: 'MASTER' | 'LOCAL' | 'HYBRID';
-  sourceContext: string; // 'GLOBAL' or FolderID
-  masterFileId?: string;
-  appearances: string[]; // Book IDs
-  snippets: CharacterSnippet[];
 }
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -1018,90 +1001,27 @@ export const indexTDB = onCall(
               return;
             }
 
-            const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(file.id);
-            const chunksRef = fileRef.collection("chunks");
-
-            // 🟢 1. FETCH & HASH CHECK (OPTIMIZATION)
+            // 🟢 1. FETCH CONTENT
             const content = await _getDriveFileContentInternal(drive, file.id);
 
-            // 🛑 TRULY EMPTY FILE CHECK
-            if (!content || content.trim().length === 0) {
-              logger.warn(`⚠️ [SKIP] File is genuinely empty (0 bytes or whitespace): ${file.name}`);
-              return;
+            // 🟢 2. INGEST (HASH, CLEAN, VECTORIZE, SAVE)
+            const result = await ingestFile(
+                db,
+                userId,
+                {
+                    id: file.id,
+                    name: file.name,
+                    parentId: file.parentId,
+                    category: file.category
+                },
+                content,
+                embeddings
+            );
+
+            if (result.status === 'processed') {
+                totalChunks += result.chunksCreated;
+                totalChunksDeleted += result.chunksDeleted;
             }
-
-            const chunkText = content.substring(0, 8000);
-            const currentHash = crypto.createHash('sha256').update(content).digest('hex');
-
-            const fileDoc = await fileRef.get();
-            const storedHash = fileDoc.exists ? fileDoc.data()?.contentHash : null;
-
-            // 🛑 SKIP IF HASH MATCHES
-            if (storedHash === currentHash) {
-                logger.info(`⏩ Hash Match for ${file.name}. Skipping vectors.`);
-                // Update timestamp to show it was checked
-                await fileRef.update({ lastIndexed: new Date().toISOString() });
-                return;
-            }
-
-            logger.info(`🧹 Hash Mismatch (Old: ${storedHash ? storedHash.substring(0,8) : 'None'} vs New: ${currentHash.substring(0,8)}). Re-indexing ${file.name}`);
-
-            // 🟢 2. CLEANUP OLD CHUNKS
-            let deletedCount = 0;
-            const snapshot = await chunksRef.get();
-
-            if (!snapshot.empty) {
-              let batch = db.batch();
-              let operationCount = 0;
-
-              for (const doc of snapshot.docs) {
-                batch.delete(doc.ref);
-                operationCount++;
-                deletedCount++;
-
-                if (operationCount >= 400) {
-                  await batch.commit();
-                  batch = db.batch();
-                  operationCount = 0;
-                }
-              }
-
-              if (operationCount > 0) {
-                await batch.commit();
-              }
-            }
-
-            totalChunksDeleted += deletedCount;
-
-            // 🟢 3. VECTORIZE & SAVE (Strict Schema)
-            const now = new Date().toISOString();
-
-            // Update File Metadata (Include Hash)
-            await fileRef.set({
-              name: file.name,
-              lastIndexed: now,
-              chunkCount: 1,
-              category: file.category || 'canon',
-              timelineDate: null,
-              contentHash: currentHash // 👈 New Field
-            });
-
-            const vector = await embeddings.embedQuery(chunkText);
-
-            await chunksRef.doc("chunk_0").set({
-              userId: userId,
-              fileName: file.name,
-              text: chunkText,
-              docId: file.id,
-              folderId: file.parentId || 'unknown',
-              timestamp: now,
-              type: 'file',
-              category: file.category || 'canon',
-              embedding: FieldValue.vector(vector)
-            });
-
-            totalChunks += 1;
-            logger.info(`   ✨ Re-indexado: ${file.name} (1 chunk)`);
 
           } catch (err: any) {
             logger.error(`Error indexando ${file.name}:`, err);
@@ -2619,143 +2539,131 @@ export const syncCharacterManifest = onCall(
 
     const userId = request.auth.uid;
 
-    // 🟢 1. INTELLIGENT FALLBACK (Config Retrieval)
+    // 🟢 1. CONFIGURATION & SETUP
     const config = await _getProjectConfigInternal(userId);
+    let targetVaultId = masterVaultId || config.characterVaultId;
 
-    let targetVaultId = masterVaultId;
-
-    // Strict Source of Truth Logic
     if (!targetVaultId) {
-        logger.info("🕵️ Param 'masterVaultId' missing. Checking Project Config...");
-        if (config.characterVaultId) {
-            targetVaultId = config.characterVaultId;
-            logger.info(`   -> Found in Config (Character Vault): ${targetVaultId}`);
-        } else {
-             logger.info("ℹ️ Sin manifiesto de personajes configurado (ni param ni config). Sincronización omitida.");
-             return { success: true, count: 0, message: "No character source configured." };
-        }
+         logger.info("ℹ️ Sin Bóveda Maestra configurada. Sincronización omitida.");
+         return { success: true, count: 0, message: "No character vault configured." };
     }
+
+    // Initialize Embeddings for Ingestion
+    const embeddings = new GoogleGenerativeAIEmbeddings({
+        apiKey: googleApiKey.value(),
+        model: "embedding-001",
+        taskType: TaskType.RETRIEVAL_DOCUMENT,
+    });
 
     const auth = new google.auth.OAuth2();
     auth.setCredentials({ access_token: accessToken });
     const drive = google.drive({ version: "v3", auth });
 
-    logger.info(`👻 SOUL COLLECTOR (DEEP EXTRACTION): Iniciando escaneo para ${userId} en ${targetVaultId}`);
+    logger.info(`👻 SOUL COLLECTOR v2 (Hybrid Indexer): Scanning ${targetVaultId} for User ${userId}`);
 
     try {
-        const manifest = new Map<string, Partial<Character>>();
-
-        // --- HELPER: Slugify (STRICT KEBAB-CASE / DETERMINISTIC ID) ---
-        // "Ficha Anna" -> "ficha-anna"
+        // --- HELPER: Slugify ---
         const slugify = (text: string): string => {
             return text
                 .toLowerCase()
                 .trim()
-                .replace(/\s+/g, '-') // Convert spaces to hyphens
-                .replace(/[^a-z0-9-]/g, '') // Remove non-alphanumeric chars (except hyphens)
-                .replace(/-+/g, '-') // Deduplicate hyphens
-                .replace(/^-|-$/g, ''); // Trim leading/trailing hyphens
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '');
         };
 
-        // --- STEP A: MASTER SCAN (Recursive & Deep) ---
-        // 1. Fetch File Tree (Using existing recursive helper)
+        // --- STEP A: RECURSIVE SCAN ---
         const tree = await fetchFolderContents(drive, targetVaultId, config, true);
         const flatFiles = flattenFileTree(tree);
 
-        // 2. Filter Candidates (Docs, MD, TXT)
         const candidates = flatFiles.filter(f =>
             f.mimeType === 'application/vnd.google-apps.document' ||
             f.name.endsWith('.md') ||
             f.name.endsWith('.txt')
         );
 
-        logger.info(`   -> Candidates for Extraction: ${candidates.length}`);
+        logger.info(`   -> Files Found: ${candidates.length}`);
 
-        // 3. Batch Process (Deep Soul Extraction)
-        // Process files in small concurrent batches to avoid timeouts/limits
+        // --- STEP B: BATCH PROCESS (INGEST + ROSTER) ---
         const BATCH_SIZE = 5;
+        let processedCount = 0;
+
         for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
             const batch = candidates.slice(i, i + BATCH_SIZE);
-            logger.info(`   -> Processing Batch ${Math.floor(i / BATCH_SIZE) + 1} / ${Math.ceil(candidates.length / BATCH_SIZE)}`);
 
             await Promise.all(batch.map(async (file) => {
                 try {
-                    const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
-                    const slug = slugify(cleanName);
+                    // 1. Fetch Content
+                    const content = await _getDriveFileContentInternal(drive, file.id);
 
-                    // Fetch Content (The Soul)
-                    // Note: _getDriveFileContentInternal handles Google Doc conversion to text/plain automatically
-                    let snippetText = "";
-                    try {
-                        const content = await _getDriveFileContentInternal(drive, file.id);
-                        snippetText = content.substring(0, 2000); // Limit snippet size to save DB space
-                    } catch (e) {
-                        logger.warn(`Failed to read content for ${file.name}, skipping body.`);
-                    }
+                    // 2. Ingest (Vectorize + Hash Check + TDB_Index)
+                    // NOTE: syncCharacterManifest uses this to ensure RAG visibility for chars.
+                    await ingestFile(
+                        db,
+                        userId,
+                        {
+                            id: file.id,
+                            name: file.name,
+                            parentId: file.parentId,
+                            category: 'canon' // Character sheets are Canon
+                        },
+                        content,
+                        embeddings
+                    );
 
-                    // Upsert to Manifest
-                    if (!manifest.has(slug)) {
-                        manifest.set(slug, {
+                    // 3. Update Roster (If Changed or New)
+                    // If ingestFile returns 'processed', it means the content changed or is new.
+                    // We also update if it's 'skipped' BUT we want to ensure the UI roster is up to date?
+                    // Strategy: To be safe and ensure UI consistency (e.g. if I deleted the DB char but not the file),
+                    // we should probably Upsert the Roster entry always, or at least if we have content.
+                    // Since 'ingestFile' returns 'skipped' if hash matches, we might skip parsing metadata to save time.
+                    // BUT: If the user deleted the Firestore 'characters' doc but the 'TDB_Index' hash is same, we'd lose the char in UI.
+                    // COMPROMISE: We will parse metadata and update roster IF result is 'processed' OR if we want to force check.
+                    // Given the user instruction "Sync Character Manifest", it implies making sure the manifest is correct.
+                    // However, for performance, we'll trust 'ingestFile'. If hash matches, we assume metadata matches.
+                    // ...WAIT. The user specifically asked to "Elimina la deuda técnica".
+                    // Let's assume we update roster if content is available. It's just a DB write.
+
+                    if (content && content.length > 0) {
+                        const parsed = matter(content);
+                        const fm = parsed.data;
+                        const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
+                        const slug = slugify(cleanName);
+
+                        const charRef = db.collection("users").doc(userId).collection("characters").doc(slug);
+
+                        // We only perform the write if it was processed OR if we want to ensure existence.
+                        // Let's do it always for now to guarantee the Roster is complete (Self-Healing).
+                        await charRef.set({
                             id: slug,
-                            name: cleanName,
-                            tier: 'MAIN',
+                            name: fm.name || cleanName,
+                            role: fm.role || fm.class || 'Unknown',
+                            tier: fm.tier || 'MAIN',
+                            age: fm.age || null,
+                            avatar: fm.avatar || null,
                             sourceType: 'MASTER',
                             sourceContext: 'GLOBAL',
                             masterFileId: file.id,
-                            appearances: [],
-                            snippets: []
-                        });
-                    }
+                            lastUpdated: new Date().toISOString(),
+                            snippets: [{
+                                sourceBookId: 'MASTER_VAULT',
+                                sourceBookTitle: 'Master Vault File',
+                                text: content.substring(0, 2000)
+                            }]
+                        }, { merge: true });
 
-                    const char = manifest.get(slug)!;
-
-                    // Add snippet if content exists
-                    if (snippetText) {
-                         char.snippets?.push({
-                            sourceBookId: 'MASTER_VAULT',
-                            sourceBookTitle: 'Master Vault File',
-                            text: snippetText
-                         });
+                        processedCount++;
                     }
 
                 } catch (err) {
-                    logger.warn(`   ⚠️ Failed to extract soul from ${file.name}:`, err);
+                    logger.warn(`   ⚠️ Failed to process character ${file.name}:`, err);
                 }
             }));
         }
 
-        logger.info(`   -> ${manifest.size} Maestros procesados.`);
-
-        // --- STEP C: BATCH WRITE TO FIRESTORE ---
-        const manifestNames = Array.from(manifest.values()).map(c => c.name);
-        logger.info("Loaded Roster Names:", manifestNames);
-        logger.info(`   -> Persistiendo ${manifest.size} personajes...`);
-
-        let batch = db.batch();
-        const charsRef = db.collection("users").doc(userId).collection("characters");
-
-        let batchCount = 0;
-        const now = new Date().toISOString();
-
-        for (const [slug, char] of manifest) {
-            logger.info(`Writing character to DB: ${char.name} (${slug})`);
-            const docRef = charsRef.doc(slug);
-            batch.set(docRef, { ...char, lastUpdated: now }, { merge: true });
-            batchCount++;
-
-            if (batchCount >= 400) {
-                await batch.commit();
-                batch = db.batch(); // 🟢 FIX: Re-instantiate batch after commit
-                batchCount = 0;
-            }
-        }
-
-        if (batchCount > 0) {
-            await batch.commit();
-        }
-
-        logger.info("✅ Soul Collector ha terminado.");
-        return { success: true, count: manifest.size };
+        logger.info(`✅ Manifest Synced: ${processedCount} characters processed.`);
+        return { success: true, count: processedCount };
 
     } catch (error: any) {
         logger.error("Error en syncCharacterManifest:", error);
