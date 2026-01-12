@@ -28,6 +28,8 @@ function initializeFirebase() {
 interface DriveFile {
   id: string;
   name: string;
+  path: string; // 👈 Absolute/Relative path for ID generation
+  saga?: string; // 👈 Saga/Context tag
   type: 'file' | 'folder';
   mimeType: string;
   children?: DriveFile[];
@@ -408,9 +410,10 @@ async function fetchFolderContents(
   folderId: string,
   config: ProjectConfig,
   recursive: boolean = false,
-  currentCategory: 'canon' | 'reference' = 'canon'
+  currentCategory: 'canon' | 'reference' = 'canon',
+  parentPath: string = '' // 👈 New: Accumulate path
 ): Promise<DriveFile[]> {
-  logger.info(`📂 Escaneando carpeta: ${folderId} | Modo Recursivo: ${recursive} | Cat: ${currentCategory}`);
+  logger.info(`📂 Escaneando carpeta: ${folderId} | Modo Recursivo: ${recursive} | Cat: ${currentCategory} | Path: ${parentPath}`);
 
   const query = `'${folderId}' in parents and trashed = false`;
 
@@ -474,15 +477,32 @@ async function fetchFolderContents(
         if (isExplicitCanon) fileCategory = 'canon';
         if (isExplicitResource) fileCategory = 'reference';
 
+        // 🟢 PATH CONSTRUCTION
+        const currentPath = parentPath ? `${parentPath}/${file.name}` : file.name;
+
+        // 🟢 SAGA DETECTION (Context Tagging)
+        // If we have a parent path, the "Saga" is the top-level folder of that branch relative to the root scan
+        // OR the immediate parent? The user said: "si está en Libros/JUST MEGU, el tag es JUST MEGU".
+        // That implies immediate parent.
+        // Let's extract immediate parent name from parentPath.
+        let sagaTag = 'Global';
+        if (parentPath) {
+            const segments = parentPath.split('/');
+            sagaTag = segments[segments.length - 1]; // Last segment is immediate parent
+        }
+
         if (file.mimeType === 'application/vnd.google-apps.folder') {
           let children: DriveFile[] = [];
           if (recursive && file.id) {
-            children = await fetchFolderContents(drive, file.id as string, config, true, fileCategory);
+            // Pass currentPath as parentPath for children
+            children = await fetchFolderContents(drive, file.id as string, config, true, fileCategory, currentPath);
           }
 
           return {
             id: file.id,
             name: file.name,
+            path: currentPath,
+            saga: sagaTag,
             type: 'folder',
             mimeType: file.mimeType,
             children: children,
@@ -493,6 +513,8 @@ async function fetchFolderContents(
           return {
             id: file.id,
             name: file.name,
+            path: currentPath,
+            saga: sagaTag,
             type: 'file',
             mimeType: file.mimeType,
             category: fileCategory,
@@ -583,7 +605,12 @@ export const getDriveFiles = onCall(
              }
 
              try {
-                const tree = await fetchFolderContents(drive, cleanId, config, recursive, category);
+                // Get Root Name for correct Path Construction
+                const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
+                const rootName = rootMeta.data.name || 'Root';
+
+                // Initial Path is the Root Name
+                const tree = await fetchFolderContents(drive, cleanId, config, recursive, category, rootName);
                 fileTree = [...fileTree, ...tree];
              } catch (err) {
                  logger.error(`⚠️ Error escaneando root ${cleanId}:`, err);
@@ -604,13 +631,14 @@ export const getDriveFiles = onCall(
          logger.info(`🚀 Iniciando escaneo SINGLE-ROOT para ID: ${cleanFolderId}`);
 
          try {
-           await drive.files.get({ fileId: cleanFolderId, fields: 'name' });
+           const rootMeta = await drive.files.get({ fileId: cleanFolderId, fields: 'name' });
+           const rootName = rootMeta.data.name || 'Root';
+
+           fileTree = await fetchFolderContents(drive, cleanFolderId, config, recursive, 'canon', rootName);
          } catch (pingError: any) {
            logger.error(`⛔ ACCESS DENIED to folder ${cleanFolderId}:`, pingError);
            throw new HttpsError('permission-denied', `ACCESS DENIED to [${cleanFolderId}].`);
          }
-
-         fileTree = await fetchFolderContents(drive, cleanFolderId, config, recursive);
       }
 
       return fileTree;
@@ -915,6 +943,8 @@ export const indexTDB = onCall(
       if (forceFullReindex) {
         logger.warn(`☢️ NUCLEAR OPTION DETECTED: Wiping memory for user ${userId}`);
         const userIndexRef = db.collection("TDB_Index").doc(userId);
+        // Explicitly delete subcollections if recursiveDelete fails? No, recursiveDelete is powerful.
+        // We will trust it but log extensively.
         await db.recursiveDelete(userIndexRef);
         logger.info("   ☢️ Memory wiped clean. Starting fresh.");
       }
@@ -940,7 +970,11 @@ export const indexTDB = onCall(
              }
 
              try {
-                const tree = await fetchFolderContents(drive, cleanId, config, true, category);
+                // Get Root Name for correct Path Construction
+                const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
+                const rootName = rootMeta.data.name || 'Root';
+
+                const tree = await fetchFolderContents(drive, cleanId, config, true, category, rootName);
                 fileTree = [...fileTree, ...tree];
              } catch (err) {
                 logger.error(`⚠️ Error indexando root ${cleanId}:`, err);
@@ -948,7 +982,9 @@ export const indexTDB = onCall(
          }
       } else if (cleanFolderId) {
          logger.info(`🚀 Indexando SINGLE-ROOT: ${cleanFolderId}`);
-         fileTree = await fetchFolderContents(drive, cleanFolderId, config, true);
+         const rootMeta = await drive.files.get({ fileId: cleanFolderId, fields: 'name' });
+         const rootName = rootMeta.data.name || 'Root';
+         fileTree = await fetchFolderContents(drive, cleanFolderId, config, true, 'canon', rootName);
       } else {
          throw new HttpsError("invalid-argument", "No se proporcionaron carpetas para indexar.");
       }
@@ -1009,8 +1045,10 @@ export const indexTDB = onCall(
                 db,
                 userId,
                 {
-                    id: file.id,
+                    id: file.id, // Drive ID (Legacy ref)
                     name: file.name,
+                    path: file.path, // 👈 New: Path Key
+                    saga: file.saga, // 👈 New: Saga Context
                     parentId: file.parentId,
                     category: file.category
                 },
@@ -2605,6 +2643,8 @@ export const syncCharacterManifest = onCall(
                         {
                             id: file.id,
                             name: file.name,
+                            path: file.path, // 👈 New: Path Key from flattened file
+                            saga: file.saga || 'Global', // 👈 New: Saga Context
                             parentId: file.parentId,
                             category: 'canon' // Character sheets are Canon
                         },
