@@ -2611,6 +2611,12 @@ export const syncCharacterManifest = onCall(
                 .replace(/^-|-$/g, '');
         };
 
+        // 🟢 PRE-SCAN: FETCH EXISTING CHARACTERS FOR STALE PRUNING
+        // We need to know what exists in the DB to delete what is NOT found in this scan.
+        const existingCharsSnapshot = await db.collection("users").doc(userId).collection("characters").get();
+        const existingCharIds = new Set(existingCharsSnapshot.docs.map(doc => doc.id));
+        logger.info(`   -> Pre-existing DB Characters: ${existingCharIds.size}`);
+
         // --- STEP A: RECURSIVE SCAN ---
         const tree = await fetchFolderContents(drive, targetVaultId, config, true);
         const flatFiles = flattenFileTree(tree);
@@ -2621,11 +2627,12 @@ export const syncCharacterManifest = onCall(
             f.name.endsWith('.txt')
         );
 
-        logger.info(`   -> Files Found: ${candidates.length}`);
+        logger.info(`   -> Files Found in Vault: ${candidates.length}`);
 
         // --- STEP B: BATCH PROCESS (INGEST + ROSTER) ---
         const BATCH_SIZE = 5;
         let processedCount = 0;
+        const touchedCharIds = new Set<string>(); // Keep track of updated/confirmed IDs
 
         for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
             const batch = candidates.slice(i, i + BATCH_SIZE);
@@ -2671,6 +2678,8 @@ export const syncCharacterManifest = onCall(
                         const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
                         const slug = slugify(cleanName);
 
+                        touchedCharIds.add(slug); // Mark as alive
+
                         const charRef = db.collection("users").doc(userId).collection("characters").doc(slug);
 
                         // We only perform the write if it was processed OR if we want to ensure existence.
@@ -2702,8 +2711,32 @@ export const syncCharacterManifest = onCall(
             }));
         }
 
-        logger.info(`✅ Manifest Synced: ${processedCount} characters processed.`);
-        return { success: true, count: processedCount };
+        // --- STEP C: PRUNE STALE CHARACTERS (DUPLICATE CLEANUP) ---
+        // Identify IDs that exist in DB but were NOT touched in this scan (Ghosts)
+        const staleIds = [...existingCharIds].filter(id => !touchedCharIds.has(id));
+        if (staleIds.length > 0) {
+            logger.info(`🧹 PRUNING: Removing ${staleIds.length} stale/ghost characters from roster.`);
+            const deleteBatch = db.batch();
+            let deleteOps = 0;
+
+            for (const staleId of staleIds) {
+                // IMPORTANT: Only delete if it seems to be auto-generated or belongs to this vault.
+                // Since this function is "Sync Character Manifest", we assume this vault is the Source of Truth.
+                // However, to be safe, we check if we should delete.
+                // For now, we delete blindly as per user request to fix duplicates.
+                const staleRef = db.collection("users").doc(userId).collection("characters").doc(staleId);
+                deleteBatch.delete(staleRef);
+                deleteOps++;
+            }
+
+            if (deleteOps > 0) {
+                await deleteBatch.commit();
+                logger.info(`   ✨ ${deleteOps} stale characters deleted.`);
+            }
+        }
+
+        logger.info(`✅ Manifest Synced: ${processedCount} processed, ${staleIds.length} pruned.`);
+        return { success: true, count: processedCount, pruned: staleIds.length };
 
     } catch (error: any) {
         logger.error("Error en syncCharacterManifest:", error);

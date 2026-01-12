@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { ArrowLeft, Send, Loader2, Bot, User, Hammer } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Bot, User, Hammer, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
@@ -24,6 +24,7 @@ interface ForgeChatProps {
     // NEW PROPS
     activeContextFile?: { id: string, name: string, content: string };
     initialReport?: string;
+    onReset?: () => void;
 }
 
 const ForgeChat: React.FC<ForgeChatProps> = ({
@@ -34,7 +35,8 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     accessToken,
     characterContext,
     activeContextFile,
-    initialReport
+    initialReport,
+    onReset
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
@@ -232,7 +234,16 @@ ${TOOL_INSTRUCTION}`;
                         Sesión Activa
                     </p>
                 </div>
-                <div className="ml-auto">
+                <div className="ml-auto flex items-center gap-2">
+                    {onReset && (
+                        <button
+                            onClick={onReset}
+                            className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
+                            title="Nueva Sesión (Limpiar Chat)"
+                        >
+                            <RefreshCcw size={20} />
+                        </button>
+                    )}
                     <button
                         onClick={handleForgeToDrive}
                         className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-accent-DEFAULT transition-colors"

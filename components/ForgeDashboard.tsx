@@ -25,6 +25,9 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const [state, setState] = useState<DashboardState>('SELECT_SOURCE');
     const [isLoading, setIsLoading] = useState(true);
 
+    // SESSION VERSIONING (Forcing Refresh)
+    const [sessionVersion, setSessionVersion] = useState(0);
+
     // DATA
     const [characters, setCharacters] = useState<Character[]>([]);
     const [detectedEntities, setDetectedEntities] = useState<any[]>([]); // Results from Analyzer
@@ -110,6 +113,12 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         }
     };
 
+    // 🟢 NEW SESSION HANDLER
+    const handleResetSession = () => {
+        setSessionVersion(prev => prev + 1);
+        toast.info("Nueva sesión iniciada.");
+    };
+
     // --- 3. HANDLE FOCUS ---
     const handleCharacterSelect = (char: any) => {
         // If double click or specific action, open Inspector?
@@ -143,7 +152,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             {/* LEFT PANEL: CHAT / EDITOR (60%) */}
             <div className="w-[60%] h-full flex flex-col border-r border-titanium-800">
                 <ForgeChat
-                    sessionId={`session_${activeSourceFile?.id || 'general'}`}
+                    sessionId={`session_${activeSourceFile?.id || 'general'}_v${sessionVersion}`}
                     sessionName={`Editor: ${activeSourceFile?.name || 'General'}`}
                     onBack={() => {}}
                     folderId={folderId}
@@ -155,6 +164,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         content: "" // Analyzer read it, Chat RAG will read it if needed
                     } : undefined}
                     initialReport={initialReport}
+                    onReset={handleResetSession}
                 />
             </div>
 
