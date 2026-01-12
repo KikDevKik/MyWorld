@@ -667,13 +667,13 @@ export const enrichCharacterContext = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { characterId, name, saga, currentBio } = request.data;
+    const { characterId, name, saga, currentBio, status } = request.data;
     const userId = request.auth.uid;
 
     if (!name) throw new HttpsError("invalid-argument", "Falta el nombre del personaje.");
 
     try {
-      logger.info(`🔮 Deep Analysis Triggered for: ${name} (Saga: ${saga || 'Global'})`);
+      logger.info(`🔮 Deep Analysis Triggered for: ${name} (Saga: ${saga || 'Global'}) | Status: ${status || 'Unknown'}`);
 
       // 1. SETUP VECTORS
       const embeddings = new GoogleGenerativeAIEmbeddings({
@@ -749,17 +749,34 @@ export const enrichCharacterContext = onCall(
       const analysisText = result.response.text();
 
       // 5. PERSISTENCE (The Update)
-      if (characterId) {
-          await db.collection("users").doc(userId).collection("characters").doc(characterId).set({
+      // HELPER: Slugify if ID missing
+      const targetId = characterId || name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
+
+      if (status === 'DETECTED') {
+          // 👻 GHOST PROTOCOL: Save to forge_detected_entities
+          await db.collection("users").doc(userId).collection("forge_detected_entities").doc(targetId).set({
+              id: targetId,
+              name: name,
+              contextualAnalysis: analysisText,
+              lastAnalyzed: new Date().toISOString(),
+              saga: saga || 'Global',
+              status: 'DETECTED'
+          }, { merge: true });
+          logger.info(`✅ Ghost Analysis persisted for ${targetId}`);
+
+      } else {
+          // 👤 EXISTING PROTOCOL: Save to characters
+          await db.collection("users").doc(userId).collection("characters").doc(targetId).set({
               contextualAnalysis: analysisText,
               lastAnalyzed: new Date().toISOString()
           }, { merge: true });
-          logger.info(`✅ Analysis persisted for ${characterId}`);
+          logger.info(`✅ Analysis persisted for ${targetId}`);
       }
 
       return {
           success: true,
-          analysis: analysisText
+          analysis: analysisText,
+          timestamp: new Date().toISOString()
       };
 
     } catch (error: any) {
@@ -1274,6 +1291,59 @@ RULES: ${profile.rules || 'Not specified'}
         logger.warn(`[DEEP TRACE] Connectivity Check SKIPPED/FAILED: ${traceError.message}`);
       }
 
+      // 🟢 0.5. ENTITY RECOGNITION (RAG++ OPTIMIZATION)
+      let entityContext = "";
+      try {
+          const lowerQuery = query.toLowerCase();
+
+          // Strategy: Fetch names only to match, then fetch full doc
+          const charsRef = db.collection("users").doc(userId).collection("characters").select("name");
+          const ghostsRef = db.collection("users").doc(userId).collection("forge_detected_entities").select("name");
+
+          const [charsSnap, ghostsSnap] = await Promise.all([charsRef.get(), ghostsRef.get()]);
+
+          let matchedDocRef: any = null;
+          let matchedName = "";
+
+          // Check Existing
+          for (const doc of charsSnap.docs) {
+              const n = doc.data().name;
+              if (n && lowerQuery.includes(n.toLowerCase())) {
+                  matchedDocRef = doc.ref;
+                  matchedName = n;
+                  break;
+              }
+          }
+
+          // Check Ghosts (if no existing match found)
+          if (!matchedDocRef) {
+              for (const doc of ghostsSnap.docs) {
+                  const n = doc.data().name;
+                  if (n && lowerQuery.includes(n.toLowerCase())) {
+                      matchedDocRef = doc.ref;
+                      matchedName = n;
+                      break;
+                  }
+              }
+          }
+
+          if (matchedDocRef) {
+              const fullDoc = await matchedDocRef.get();
+              const analysis = fullDoc.data()?.contextualAnalysis;
+              if (analysis) {
+                  logger.info(`🎯 [ENTITY RECOGNITION] Matched: ${matchedName}`);
+                  entityContext = `
+[CRITICAL CHARACTER CONTEXT - DEEP ANALYSIS]:
+(This is verified intelligence about ${matchedName}. Use it as primary truth.)
+${analysis}
+`;
+              }
+          }
+
+      } catch (e) {
+          logger.warn(`⚠️ Entity Recognition failed:`, e);
+      }
+
       // 1. Preparar Búsqueda Contextual
       let searchQuery = query;
       let historyText = "No hay historial previo.";
@@ -1448,7 +1518,7 @@ ${activeCharacterPrompt}
 `;
 
       let finalSystemInstruction = systemInstruction || "";
-      finalSystemInstruction = CONTINUITY_PROTOCOL + "\n\n" + finalSystemInstruction;
+      finalSystemInstruction = CONTINUITY_PROTOCOL + "\n\n" + entityContext + "\n\n" + finalSystemInstruction;
 
       if (categoryFilter === 'reference') {
         finalSystemInstruction += "\n\nIMPORTANTE: Responde basándote EXCLUSIVAMENTE en el material de referencia proporcionado. Actúa como un tutor o experto en la materia.";

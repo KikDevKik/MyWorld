@@ -30,9 +30,9 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
     const [realData, setRealData] = useState<any | null>(null);
     const [isLoadingReal, setIsLoadingReal] = useState(false);
 
-    // 🟢 GAMMA FIX: Fetch Real Data if EXISTING
+    // 🟢 GAMMA FIX: Fetch Real Data (EXISTING or DETECTED)
     useEffect(() => {
-        if (data && data.status === 'EXISTING' && data.id) {
+        if (data) {
             const fetchRealData = async () => {
                 setIsLoadingReal(true);
                 try {
@@ -40,21 +40,31 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
                     if (!auth.currentUser) return;
 
                     const db = getFirestore();
-                    const docRef = doc(db, "users", auth.currentUser.uid, "characters", data.id!);
-                    const snapshot = await getDoc(docRef);
+                    let docRef = null;
 
-                    if (snapshot.exists()) {
-                        setRealData(snapshot.data());
+                    if (data.status === 'EXISTING' && data.id) {
+                         docRef = doc(db, "users", auth.currentUser.uid, "characters", data.id);
+                    } else if (data.status === 'DETECTED') {
+                         // Ghosts: Derive ID from name if missing
+                         const targetId = data.id || data.name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
+                         docRef = doc(db, "users", auth.currentUser.uid, "forge_detected_entities", targetId);
+                    }
+
+                    if (docRef) {
+                        const snapshot = await getDoc(docRef);
+                        if (snapshot.exists()) {
+                            setRealData(snapshot.data());
+                        } else {
+                            setRealData(null);
+                        }
                     }
                 } catch (e) {
-                    console.error("Failed to fetch real character data:", e);
+                    console.error("Failed to fetch real data:", e);
                 } finally {
                     setIsLoadingReal(false);
                 }
             };
             fetchRealData();
-        } else {
-            setRealData(null); // Reset if switching to ghost
         }
     }, [data]);
 
@@ -64,19 +74,18 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
 
     // 🔮 PHASE 2: DEEP ANALYSIS TRIGGER
     const handleDeepAnalysis = async () => {
-        if (!data.id) return;
+        // if (!data.id) return; // Allow ghosts without ID (backend handles it)
         setIsAnalyzing(true);
         const functions = getFunctions();
         const enrichContext = httpsCallable(functions, 'enrichCharacterContext');
 
         try {
-            // Optimistic UI update or just wait?
-            // Let's call backend
             const result: any = await enrichContext({
                 characterId: data.id,
                 name: data.name,
                 saga: realData?.sourceContext || 'Global',
-                currentBio: realData?.content || ''
+                currentBio: realData?.content || '',
+                status: data.status // 🟢 Pass status for correct routing
             });
 
             if (result.data.success) {
@@ -84,7 +93,8 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
                 // Update local state to show result immediately
                 setRealData((prev: any) => ({
                     ...prev,
-                    contextualAnalysis: result.data.analysis
+                    contextualAnalysis: result.data.analysis,
+                    lastAnalyzed: result.data.timestamp
                 }));
             } else {
                 toast.error(result.data.message || "Analysis returned no results.");
@@ -222,11 +232,19 @@ Materialized from Deep Scan.
 
                     {/* 🔮 PHASE 2: CONTEXTUAL ANALYSIS SECTION */}
                     {realData && realData.contextualAnalysis && (
-                        <div className="mt-12 pt-8 border-t border-titanium-800/50 bg-gradient-to-r from-purple-900/10 to-transparent -mx-10 px-10 pb-8">
-                             <h4 className="text-sm font-bold text-purple-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <BrainCircuit size={16} />
-                                Deep Contextual Analysis
-                             </h4>
+                        <div className="mt-12 pt-8 border-t border-titanium-800/50 bg-gradient-to-r from-purple-900/10 to-transparent -mx-10 px-10 pb-8 animate-fade-in">
+                             <div className="flex items-center justify-between mb-4">
+                                <h4 className="text-sm font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2">
+                                    <BrainCircuit size={16} />
+                                    📂 ARCHIVOS DE INTELIGENCIA
+                                </h4>
+                                {realData.lastAnalyzed && (
+                                    <span className="text-[10px] font-mono text-purple-400/50">
+                                        UPDATED: {new Date(realData.lastAnalyzed).toLocaleString()}
+                                    </span>
+                                )}
+                             </div>
+
                              <div className="prose prose-invert prose-sm max-w-none text-purple-200/80">
                                 <MarkdownRenderer content={realData.contextualAnalysis} mode="compact" />
                              </div>
@@ -264,17 +282,24 @@ Materialized from Deep Scan.
                              Close
                          </button>
 
-                         {/* 🔮 DEEP ANALYSIS BUTTON (EXISTING ONLY) */}
-                         {!isGhost && realData && (
-                            <button
-                                onClick={handleDeepAnalysis}
-                                disabled={isAnalyzing}
-                                className="px-6 py-2.5 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-purple-300 font-bold rounded-lg flex items-center gap-2 transition-all"
-                            >
-                                {isAnalyzing ? <Loader2 className="animate-spin" size={18} /> : <BrainCircuit size={18} />}
-                                <span>{isAnalyzing ? 'Analyzing...' : 'Deep Analysis'}</span>
-                            </button>
-                         )}
+                         {/* 🔮 DEEP ANALYSIS / RE-SCAN BUTTON */}
+                         <button
+                            onClick={handleDeepAnalysis}
+                            disabled={isAnalyzing}
+                            className={`px-6 py-2.5 font-bold rounded-lg flex items-center gap-2 transition-all border ${
+                                realData?.contextualAnalysis
+                                ? 'bg-slate-800 hover:bg-slate-700 text-purple-300 border-purple-500/30'
+                                : 'bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border-purple-500/30'
+                            }`}
+                         >
+                            {isAnalyzing ? <Loader2 className="animate-spin" size={18} /> : <BrainCircuit size={18} />}
+                            <span>
+                                {isAnalyzing
+                                    ? 'Analyzing...'
+                                    : (realData?.contextualAnalysis ? '🔄 Re-Scan Context' : '🔮 Deep Analysis')
+                                }
+                            </span>
+                         </button>
 
                          {isGhost && (
                              <button
