@@ -2573,8 +2573,10 @@ export const syncCharacterManifest = onCall(
             return text
                 .toLowerCase()
                 .trim()
-                .replace(/[\s\W-]+/g, '_')
-                .replace(/^_|_$/g, '');
+                .replace(/\s+/g, '-')
+                .replace(/[^a-z0-9-]/g, '')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '');
         };
 
         // --- STEP A: MASTER SCAN (Recursive & Deep) ---
