@@ -12,6 +12,7 @@ import { TaskType, GoogleGenerativeAI } from "@google/generative-ai";
 import { Chunk } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
+import * as crypto from 'crypto';
 
 // --- SINGLETON APP (Evita reiniciar Firebase mil veces) ---
 let firebaseApp: admin.app.App | undefined;
@@ -1017,12 +1018,35 @@ export const indexTDB = onCall(
               return;
             }
 
-            // 🟢 1. CLEANUP FIRST (Batched Delete Strategy)
             const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(file.id);
             const chunksRef = fileRef.collection("chunks");
 
-            logger.info(`🧹 Iniciando purga de chunks para: ${file.name} (${file.id})`);
+            // 🟢 1. FETCH & HASH CHECK (OPTIMIZATION)
+            const content = await _getDriveFileContentInternal(drive, file.id);
 
+            // 🛑 TRULY EMPTY FILE CHECK
+            if (!content || content.trim().length === 0) {
+              logger.warn(`⚠️ [SKIP] File is genuinely empty (0 bytes or whitespace): ${file.name}`);
+              return;
+            }
+
+            const chunkText = content.substring(0, 8000);
+            const currentHash = crypto.createHash('sha256').update(content).digest('hex');
+
+            const fileDoc = await fileRef.get();
+            const storedHash = fileDoc.exists ? fileDoc.data()?.contentHash : null;
+
+            // 🛑 SKIP IF HASH MATCHES
+            if (storedHash === currentHash) {
+                logger.info(`⏩ Hash Match for ${file.name}. Skipping vectors.`);
+                // Update timestamp to show it was checked
+                await fileRef.update({ lastIndexed: new Date().toISOString() });
+                return;
+            }
+
+            logger.info(`🧹 Hash Mismatch (Old: ${storedHash ? storedHash.substring(0,8) : 'None'} vs New: ${currentHash.substring(0,8)}). Re-indexing ${file.name}`);
+
+            // 🟢 2. CLEANUP OLD CHUNKS
             let deletedCount = 0;
             const snapshot = await chunksRef.get();
 
@@ -1049,29 +1073,19 @@ export const indexTDB = onCall(
 
             totalChunksDeleted += deletedCount;
 
-            // 🟢 2. FETCH
-            const content = await _getDriveFileContentInternal(drive, file.id);
-
-            // 🛑 TRULY EMPTY FILE CHECK
-            if (!content || content.trim().length === 0) {
-              logger.warn(`⚠️ [SKIP] File is genuinely empty (0 bytes or whitespace): ${file.name}`);
-              return;
-            }
-
-            // --- STANDARD PROTOCOL (One File = One Chunk) ---
-            const chunkText = content.substring(0, 8000);
+            // 🟢 3. VECTORIZE & SAVE (Strict Schema)
             const now = new Date().toISOString();
 
-            // Update File Metadata
+            // Update File Metadata (Include Hash)
             await fileRef.set({
               name: file.name,
               lastIndexed: now,
               chunkCount: 1,
               category: file.category || 'canon',
               timelineDate: null,
+              contentHash: currentHash // 👈 New Field
             });
 
-            // 🟢 3. VECTORIZE & SAVE (Strict Schema)
             const vector = await embeddings.embedQuery(chunkText);
 
             await chunksRef.doc("chunk_0").set({
@@ -2600,7 +2614,7 @@ export const syncCharacterManifest = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { masterVaultId, bookFolderId, accessToken } = request.data;
+    const { masterVaultId, accessToken } = request.data;
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
     const userId = request.auth.uid;
@@ -2609,16 +2623,16 @@ export const syncCharacterManifest = onCall(
     const config = await _getProjectConfigInternal(userId);
 
     let targetVaultId = masterVaultId;
+
+    // Strict Source of Truth Logic
     if (!targetVaultId) {
         logger.info("🕵️ Param 'masterVaultId' missing. Checking Project Config...");
         if (config.characterVaultId) {
             targetVaultId = config.characterVaultId;
             logger.info(`   -> Found in Config (Character Vault): ${targetVaultId}`);
-        } else if (config.canonPaths && config.canonPaths.length > 0) {
-            targetVaultId = config.canonPaths[0].id;
-            logger.info(`   -> Found in Config (Primary Canon Path): ${targetVaultId}`);
         } else {
-             throw new HttpsError("invalid-argument", "No masterVaultId provided and no configuration found.");
+             logger.info("ℹ️ Sin manifiesto de personajes configurado (ni param ni config). Sincronización omitida.");
+             return { success: true, count: 0, message: "No character source configured." };
         }
     }
 
@@ -2630,8 +2644,6 @@ export const syncCharacterManifest = onCall(
 
     try {
         const manifest = new Map<string, Partial<Character>>();
-        const masterFilenames = new Map<string, string>(); // Name (clean) -> FileId
-        const fileIdToSlug = new Map<string, string>(); // FileId -> Slug
 
         // --- HELPER: Slugify (STRICT KEBAB-CASE / DETERMINISTIC ID) ---
         // "Ficha Anna" -> "ficha-anna"
@@ -2671,10 +2683,6 @@ export const syncCharacterManifest = onCall(
                     const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
                     const slug = slugify(cleanName);
 
-                    // TRACK FILENAME FOR ROBUST MATCHING
-                    masterFilenames.set(cleanName.toLowerCase(), file.id);
-                    fileIdToSlug.set(file.id, slug);
-
                     // Fetch Content (The Soul)
                     // Note: _getDriveFileContentInternal handles Google Doc conversion to text/plain automatically
                     let snippetText = "";
@@ -2703,8 +2711,6 @@ export const syncCharacterManifest = onCall(
 
                     // Add snippet if content exists
                     if (snippetText) {
-                         // Check if we already have a master vault snippet to avoid duplication on re-runs
-                         // (Though logic creates fresh manifest each time, so simple push is fine)
                          char.snippets?.push({
                             sourceBookId: 'MASTER_VAULT',
                             sourceBookTitle: 'Master Vault File',
@@ -2719,136 +2725,6 @@ export const syncCharacterManifest = onCall(
         }
 
         logger.info(`   -> ${manifest.size} Maestros procesados.`);
-
-        // --- STEP B: LOCAL SCAN (Low Tier) ---
-        if (bookFolderId) {
-            logger.info(`   -> Escaneando Libro Local: ${bookFolderId}`);
-
-            // 1. Find Personajes.md
-            const localQuery = `'${bookFolderId}' in parents and name = 'Personajes.md' and trashed = false`;
-            const localFiles = await drive.files.list({
-                q: localQuery,
-                fields: 'files(id, name)',
-                pageSize: 1
-            });
-
-            if (localFiles.data.files && localFiles.data.files.length > 0) {
-                const pFile = localFiles.data.files[0];
-                logger.info(`   -> Leído Personajes.md (${pFile.id})`);
-
-                // 2. Read Content
-                const content = await _getDriveFileContentInternal(drive, pFile.id!);
-
-                // 3. Parse Logic (Regex)
-                const lines = content.split('\n');
-
-                // Patterns
-                const wikiLinkRegex = /\[\[(.*?)\]\]/;
-                const listRegex = /^[-*]\s+(.*)/;
-                const colonRegex = /^([^:]+):\s*(.*)/;
-
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed) continue;
-                    if (trimmed.startsWith('#')) continue; // Skip headers
-
-                    let name = "";
-                    let description = "";
-                    let isWiki = false;
-                    let explicitType: 'MAIN' | 'SUPPORTING' | 'BACKGROUND' | undefined = undefined;
-
-                    // WikiLink
-                    const wikiMatch = trimmed.match(wikiLinkRegex);
-                    if (wikiMatch) {
-                        const raw = wikiMatch[1];
-                        name = raw.includes('|') ? raw.split('|')[0].trim() : raw.trim();
-                        isWiki = true;
-
-                        const afterLink = trimmed.replace(wikiMatch[0], '').trim();
-                        if (afterLink.startsWith('-') || afterLink.startsWith(':')) {
-                            description = afterLink.replace(/^[-:]\s*/, '');
-                        }
-                    } else {
-                        // Colon "Name: Desc"
-                        const colonMatch = trimmed.match(colonRegex);
-                        if (colonMatch) {
-                            name = colonMatch[1].trim().replace(/^[-*]\s+/, '');
-                            description = colonMatch[2].trim();
-                            explicitType = 'BACKGROUND'; // Plain text def implies Tier 3
-                        } else {
-                            // List Item "- Name"
-                            const listMatch = trimmed.match(listRegex);
-                            if (listMatch) {
-                                name = listMatch[1].trim();
-                            }
-                        }
-                    }
-
-                    if (name && name.length < 50) {
-                        const slug = slugify(name);
-
-                        // 🟢 HYBRID MATCHING LOGIC
-                        let existing = manifest.get(slug);
-
-                        // If not found by slug, try FILENAME MATCH from Master Vault (Obsidian Logic)
-                        // This handles cases where file is "Gandalf.md" but link is [[Gandalf]],
-                        // matching ignoring case even if slugify matches generally.
-                        if (!existing && masterFilenames.has(name.toLowerCase())) {
-                            const masterId = masterFilenames.get(name.toLowerCase());
-                            if (masterId) {
-                                const masterSlug = fileIdToSlug.get(masterId);
-                                if (masterSlug) {
-                                    existing = manifest.get(masterSlug);
-                                }
-                            }
-                        }
-
-                        if (existing) {
-                            // It's a MASTER or already found LOCAL
-                            // Add appearance
-                            if (!existing.appearances!.includes(bookFolderId)) {
-                                existing.appearances!.push(bookFolderId);
-                            }
-                            // Add snippet if new
-                            if (description) {
-                                existing.snippets!.push({
-                                    sourceBookId: bookFolderId,
-                                    sourceBookTitle: "Libro Local",
-                                    text: description
-                                });
-                            }
-                            manifest.set(slug, existing);
-                        } else {
-                            // NEW LOCAL CHARACTER
-                            // If explicitType is set (Colon match), use it. Else infer.
-                            // WikiLink usually implies importance (MAIN/SUPPORTING), but if local only, maybe SUPPORTING.
-                            // Plain Text list item -> BACKGROUND.
-
-                            let tier: 'MAIN' | 'SUPPORTING' | 'BACKGROUND' = 'SUPPORTING';
-                            if (explicitType) tier = explicitType;
-                            else if (!isWiki) tier = 'BACKGROUND'; // Just a list item "- Juan"
-
-                            const newChar: Partial<Character> = {
-                                id: slug,
-                                name: name,
-                                tier: tier,
-                                sourceType: 'LOCAL',
-                                sourceContext: bookFolderId,
-                                appearances: [bookFolderId],
-                                snippets: description ? [{
-                                    sourceBookId: bookFolderId,
-                                    sourceBookTitle: "Libro Local",
-                                    text: description
-                                }] : []
-                            };
-                            manifest.set(slug, newChar);
-                        }
-                    }
-                }
-            } else {
-                logger.warn("   -> Personajes.md no encontrado en el libro.");
-            }
-        }
 
         // --- STEP C: BATCH WRITE TO FIRESTORE ---
         const manifestNames = Array.from(manifest.values()).map(c => c.name);
