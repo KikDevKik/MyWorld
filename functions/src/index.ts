@@ -650,6 +650,126 @@ export const getDriveFiles = onCall(
 );
 
 /**
+ * 20. ENRICH CHARACTER CONTEXT (La Bola de Cristal)
+ * Realiza una búsqueda vectorial profunda para analizar un personaje en el contexto de la saga.
+ */
+export const enrichCharacterContext = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+    timeoutSeconds: 300,
+    memory: "2GiB",
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+    const { characterId, name, saga, currentBio } = request.data;
+    const userId = request.auth.uid;
+
+    if (!name) throw new HttpsError("invalid-argument", "Falta el nombre del personaje.");
+
+    try {
+      logger.info(`🔮 Deep Analysis Triggered for: ${name} (Saga: ${saga || 'Global'})`);
+
+      // 1. SETUP VECTORS
+      const embeddings = new GoogleGenerativeAIEmbeddings({
+        apiKey: googleApiKey.value(),
+        model: "embedding-001",
+        taskType: TaskType.RETRIEVAL_QUERY,
+      });
+
+      // 2. SEARCH QUERY
+      const searchQuery = `Historia y rol de ${name} en la saga ${saga || 'Principal'}. Eventos clave, relaciones y secretos.`;
+      const queryVector = await embeddings.embedQuery(searchQuery);
+
+      // 3. EXECUTE VECTOR SEARCH
+      const coll = db.collectionGroup("chunks");
+      const vectorQuery = coll.where("userId", "==", userId).findNearest({
+        queryVector: queryVector,
+        limit: 20, // Fetch ample context
+        distanceMeasure: 'COSINE',
+        vectorField: 'embedding'
+      });
+
+      const vectorSnapshot = await vectorQuery.get();
+      const chunks = vectorSnapshot.docs.map(doc => doc.data().text);
+
+      if (chunks.length === 0) {
+          return { success: false, message: "No se encontraron datos en la memoria para este personaje." };
+      }
+
+      const contextText = chunks.join("\n\n---\n\n");
+
+      // 4. AI ANALYSIS (Gemini 3 Pro)
+      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: "gemini-2.0-flash-exp", // ⚡ Reverted to Stable Model (Gemini 3 not public yet)
+        generationConfig: {
+            temperature: 0.7,
+        } as any
+      });
+
+      const prompt = `
+        ACT AS: Senior Lorekeeper & Biographer.
+        OBJECTIVE: Perform a Deep Contextual Analysis of the character "${name}".
+
+        SOURCE MATERIAL (RAG MEMORY):
+        ${contextText}
+
+        CURRENT KNOWN BIO (Optional):
+        ${currentBio || "No existing bio."}
+
+        INSTRUCTIONS:
+        1. Synthesize the RAG Memory chunks to reconstruct the character's journey.
+        2. Identify key plot points, hidden relationships, and role in the grand scheme.
+        3. Highlight anything found in the Memory that is MISSING from the Current Bio.
+        4. OUTPUT FORMAT: Markdown (structured with headers).
+
+        SECTION STRUCTURE:
+        ## 📜 The Saga Context
+        (How they fit into the main storyline based on the text chunks)
+
+        ## 🔑 Key Events & Interactions
+        (Bulleted list of verified scenes/actions)
+
+        ## 🧩 Hidden Connections
+        (Relationships or details not immediately obvious)
+
+        ## ⚠️ Inconsistencies or New Data
+        (What does the RAG memory say that might contradict or add to the current file?)
+
+        LANGUAGE: Match the language of the source text (Spanish/English).
+      `;
+
+      const result = await model.generateContent(prompt);
+      const analysisText = result.response.text();
+
+      // 5. PERSISTENCE (The Update)
+      if (characterId) {
+          await db.collection("users").doc(userId).collection("characters").doc(characterId).set({
+              contextualAnalysis: analysisText,
+              lastAnalyzed: new Date().toISOString()
+          }, { merge: true });
+          logger.info(`✅ Analysis persisted for ${characterId}`);
+      }
+
+      return {
+          success: true,
+          analysis: analysisText
+      };
+
+    } catch (error: any) {
+      logger.error("Error en enrichCharacterContext:", error);
+      throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+/**
  * CRYSTALLIZE NODE (La Materialización)
  * Convierte un nodo efímero en un archivo persistente en Drive.
  */
@@ -2682,12 +2802,25 @@ export const syncCharacterManifest = onCall(
 
                         const charRef = db.collection("users").doc(userId).collection("characters").doc(slug);
 
+                        // ⚡ FAST PATH: Role Extraction (No LLM)
+                        let resolvedRole = 'Unregistered Entity';
+                        if (fm.role) resolvedRole = fm.role;
+                        else if (fm.class) resolvedRole = fm.class;
+                        else {
+                            // Fallback: First paragraph (truncated)
+                            const body = content.replace(/^---[\s\S]*?---\s*/, '').trim(); // Remove Frontmatter
+                            if (body.length > 0) {
+                                const firstPara = body.split('\n\n')[0].replace(/\n/g, ' ').trim();
+                                resolvedRole = firstPara.substring(0, 150) + (firstPara.length > 150 ? '...' : '');
+                            }
+                        }
+
                         // We only perform the write if it was processed OR if we want to ensure existence.
                         // Let's do it always for now to guarantee the Roster is complete (Self-Healing).
                         await charRef.set({
                             id: slug,
                             name: fm.name || cleanName,
-                            role: fm.role || fm.class || 'Unknown',
+                            role: resolvedRole,
                             tier: fm.tier || 'MAIN',
                             age: fm.age || null,
                             avatar: fm.avatar || null,
@@ -2931,6 +3064,7 @@ export const forgeAnalyzer = onCall(
            - You MAY suggest "Update Sheet" ONLY if the text contains significant NEW lore/contradictions.
         3. IF Status == "DETECTED" (New):
            - You MAY suggest creating a database entry.
+           - You MUST extract the RAW TEXT SNIPPET (Context Window) where they appear.
 
         CRITICAL DIRECTIVE - LANGUAGE PROTOCOL:
         1. DETECT the language of the provided "MANUSCRIPT TEXT".
@@ -2959,7 +3093,9 @@ export const forgeAnalyzer = onCall(
            - If a character is in the text but NOT in the list -> Mark as "DETECTED" (Ghost).
            - If a character is in the list -> Mark as "EXISTING".
         5. ANALYZE DATA GAPS:
-           - For "DETECTED" characters, summarize what is known about them from the text (Role, Traits).
+           - For "DETECTED" characters:
+             a) Summarize their Role/Traits.
+             b) **EXTRACT A RAW SNIPPET**: Copy the exact sentence/paragraph where they first appear or are best described.
            - For "EXISTING" characters, flag if the text contradicts known traits (optional).
         6. GENERATE A STATUS REPORT:
            - A brief, professional summary addressed to the user with the appropriate rank title based on the language ('Commander' for English, 'Comandante' for Spanish).
@@ -2974,6 +3110,7 @@ export const forgeAnalyzer = onCall(
             {
               "name": "Name",
               "role": "Brief role description from text (IN DETECTED LANGUAGE)",
+              "description": "Found in context: '...raw text of the paragraph...'",
               "relevance_score": 1-10,
               "frequency_count": 0,
               "status": "EXISTING" | "DETECTED",

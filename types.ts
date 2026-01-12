@@ -98,4 +98,5 @@ export interface Character {
   bio?: string;
   body?: string;
   status?: 'EXISTING' | 'DETECTED';
+  contextualAnalysis?: string; // 🔮 Phase 2: AI RAG Analysis
 }

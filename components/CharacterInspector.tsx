@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Sparkles, Database, Loader2 } from 'lucide-react';
+import { X, Save, Sparkles, Database, Loader2, BrainCircuit } from 'lucide-react';
 import { Character } from '../types';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
@@ -7,11 +7,11 @@ import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
 import MarkdownRenderer from './MarkdownRenderer';
 
-// Define a unified interface for display
-interface InspectorData {
+// Define a unified interface for display (Now Compatible with Character type)
+interface InspectorData extends Partial<Character> {
     id?: string; // Only existing chars have ID
     name: string;
-    role: string;
+    role: string; // Mandatory in UI
     description?: string;
     status: 'EXISTING' | 'DETECTED';
 }
@@ -26,6 +26,7 @@ interface CharacterInspectorProps {
 
 const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, onMaterialize, folderId, accessToken }) => {
     const [isSaving, setIsSaving] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false); // 🔮 Deep Analysis State
     const [realData, setRealData] = useState<any | null>(null);
     const [isLoadingReal, setIsLoadingReal] = useState(false);
 
@@ -60,6 +61,41 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
     if (!data) return null;
 
     const isGhost = data.status === 'DETECTED';
+
+    // 🔮 PHASE 2: DEEP ANALYSIS TRIGGER
+    const handleDeepAnalysis = async () => {
+        if (!data.id) return;
+        setIsAnalyzing(true);
+        const functions = getFunctions();
+        const enrichContext = httpsCallable(functions, 'enrichCharacterContext');
+
+        try {
+            // Optimistic UI update or just wait?
+            // Let's call backend
+            const result: any = await enrichContext({
+                characterId: data.id,
+                name: data.name,
+                saga: realData?.sourceContext || 'Global',
+                currentBio: realData?.content || ''
+            });
+
+            if (result.data.success) {
+                toast.success("Context Analysis Complete!");
+                // Update local state to show result immediately
+                setRealData((prev: any) => ({
+                    ...prev,
+                    contextualAnalysis: result.data.analysis
+                }));
+            } else {
+                toast.error(result.data.message || "Analysis returned no results.");
+            }
+        } catch (error: any) {
+            console.error("Analysis failed:", error);
+            toast.error(`Deep Analysis Failed: ${error.message}`);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
 
     const handleMaterialize = async () => {
         setIsSaving(true);
@@ -184,8 +220,21 @@ Materialized from Deep Scan.
                         </div>
                     )}
 
+                    {/* 🔮 PHASE 2: CONTEXTUAL ANALYSIS SECTION */}
+                    {realData && realData.contextualAnalysis && (
+                        <div className="mt-12 pt-8 border-t border-titanium-800/50 bg-gradient-to-r from-purple-900/10 to-transparent -mx-10 px-10 pb-8">
+                             <h4 className="text-sm font-bold text-purple-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <BrainCircuit size={16} />
+                                Deep Contextual Analysis
+                             </h4>
+                             <div className="prose prose-invert prose-sm max-w-none text-purple-200/80">
+                                <MarkdownRenderer content={realData.contextualAnalysis} mode="compact" />
+                             </div>
+                        </div>
+                    )}
+
                     {/* Scan Notes (Secondary / Append) */}
-                    {realData && data.description && (
+                    {data.description && (
                          <div className="mt-16 pt-8 border-t border-titanium-800/30">
                              <h4 className="text-xs font-bold text-purple-400/70 uppercase tracking-widest mb-3 flex items-center gap-2">
                                 <Sparkles size={12} />
@@ -214,6 +263,18 @@ Materialized from Deep Scan.
                          >
                              Close
                          </button>
+
+                         {/* 🔮 DEEP ANALYSIS BUTTON (EXISTING ONLY) */}
+                         {!isGhost && realData && (
+                            <button
+                                onClick={handleDeepAnalysis}
+                                disabled={isAnalyzing}
+                                className="px-6 py-2.5 bg-purple-900/30 hover:bg-purple-900/50 border border-purple-500/30 text-purple-300 font-bold rounded-lg flex items-center gap-2 transition-all"
+                            >
+                                {isAnalyzing ? <Loader2 className="animate-spin" size={18} /> : <BrainCircuit size={18} />}
+                                <span>{isAnalyzing ? 'Analyzing...' : 'Deep Analysis'}</span>
+                            </button>
+                         )}
 
                          {isGhost && (
                              <button
