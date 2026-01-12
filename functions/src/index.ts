@@ -696,13 +696,19 @@ export const enrichCharacterContext = onCall(
       });
 
       const vectorSnapshot = await vectorQuery.get();
-      const chunks = vectorSnapshot.docs.map(doc => doc.data().text);
+      // 🟢 SOURCE TRANSPARENCY
+      const chunksData = vectorSnapshot.docs.map(doc => ({
+          text: doc.data().text,
+          fileName: doc.data().fileName || "Unknown Source"
+      }));
 
-      if (chunks.length === 0) {
+      if (chunksData.length === 0) {
           return { success: false, message: "No se encontraron datos en la memoria para este personaje." };
       }
 
-      const contextText = chunks.join("\n\n---\n\n");
+      const contextText = chunksData.map(c => c.text).join("\n\n---\n\n");
+      // Deduplicate sources
+      const sources = Array.from(new Set(chunksData.map(c => c.fileName)));
 
       // 4. AI ANALYSIS (Gemini 3 Pro)
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
@@ -776,6 +782,7 @@ export const enrichCharacterContext = onCall(
       return {
           success: true,
           analysis: analysisText,
+          sources: sources, // 👈 New: Return Source List
           timestamp: new Date().toISOString()
       };
 
@@ -2880,8 +2887,25 @@ export const syncCharacterManifest = onCall(
                             // Fallback: First paragraph (truncated)
                             const body = content.replace(/^---[\s\S]*?---\s*/, '').trim(); // Remove Frontmatter
                             if (body.length > 0) {
-                                const firstPara = body.split('\n\n')[0].replace(/\n/g, ' ').trim();
-                                resolvedRole = firstPara.substring(0, 150) + (firstPara.length > 150 ? '...' : '');
+                                let firstPara = body.split('\n\n')[0].replace(/\n/g, ' ').trim();
+
+                                // 🟢 SCORCHED EARTH SANITIZATION
+                                // 1. Remove Images: ![alt](url) -> ""
+                                firstPara = firstPara.replace(/!\[[^\]]*\]\([^\)]+\)/g, '');
+                                // 2. Normalize Links: [text](url) -> "text"
+                                firstPara = firstPara.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
+                                // 3. Strip Markdown syntax chars: #, *, _, >, ~, `
+                                firstPara = firstPara.replace(/[*#_>~`]/g, '');
+                                // 4. Collapse multiple spaces
+                                firstPara = firstPara.replace(/\s+/g, ' ').trim();
+
+                                // 🟢 STRICT TRUNCATION (Inclusive)
+                                const MAX_LEN = 150;
+                                if (firstPara.length > MAX_LEN) {
+                                    resolvedRole = firstPara.slice(0, MAX_LEN - 3) + '...';
+                                } else {
+                                    resolvedRole = firstPara;
+                                }
                             }
                         }
 
@@ -3165,7 +3189,7 @@ export const forgeAnalyzer = onCall(
         5. ANALYZE DATA GAPS:
            - For "DETECTED" characters:
              a) Summarize their Role/Traits.
-             b) **EXTRACT A RAW SNIPPET**: Copy the exact sentence/paragraph where they first appear or are best described.
+             b) **EXTRACT A RICH CONTEXT WINDOW**: Extract approximately 800-1000 characters of text surrounding their key appearance. This MUST include the paragraph immediately preceding the mention, the paragraph of the mention, and the paragraph immediately following it. Return this in the 'description' field.
            - For "EXISTING" characters, flag if the text contradicts known traits (optional).
         6. GENERATE A STATUS REPORT:
            - A brief, professional summary addressed to the user with the appropriate rank title based on the language ('Commander' for English, 'Comandante' for Spanish).
