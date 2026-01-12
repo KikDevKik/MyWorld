@@ -131,12 +131,13 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         if (!localId || localId === 'root') localId = undefined as any;
 
         try {
-            await syncCharacterManifest({
+            const result = await syncCharacterManifest({
                 masterVaultId: config.characterVaultId,
                 bookFolderId: localId,
                 accessToken
             });
-            toast.success("Soul Manifest updated from Drive.");
+            const count = (result.data as any).count || 0;
+            toast.success(`Sincronizados ${count} personajes en la Bóveda`);
         } catch (error) {
             console.error("Error syncing souls:", error);
             toast.error("Failed to sync character manifest.");
@@ -291,7 +292,9 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         >
                             <span>{activeContextName}</span>
                             {activeContextFolderId && (
-                                <span className="text-[10px] bg-titanium-800 px-1.5 rounded text-titanium-400">LOCAL</span>
+                                <span className="text-[10px] bg-titanium-800 px-1.5 rounded text-titanium-400">
+                                    {activeContextFolderId === config?.characterVaultId ? 'VAULT' : 'LOCAL'}
+                                </span>
                             )}
                         </button>
                     </div>
