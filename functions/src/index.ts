@@ -1307,7 +1307,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, filterScope, activeFileContent, activeFileName, isFallbackContext } = request.data;
+    const { query, systemInstruction, history, categoryFilter, filterScope, activeFileContent, activeFileName, isFallbackContext, filterScopeIds, filterScopePath } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -1446,6 +1446,31 @@ ${analysis}
           chunkQuery = chunkQuery.where("category", "==", "canon");
       }
 
+      // 🟢 NEW RECURSIVE SCOPE FILTER
+      if (filterScopeIds && Array.isArray(filterScopeIds) && filterScopeIds.length > 0) {
+          logger.info(`🛡️ RECURSIVE SCOPE ACTIVE: Restricting search to ${filterScopeIds.length} folders.`);
+
+          // OPTIMIZATION: Use PATH PREFIX if available and reliable (Infinite Depth)
+          if (filterScopePath) {
+             logger.info(`   -> Using PATH PREFIX optimization: ${filterScopePath}`);
+             chunkQuery = chunkQuery
+                .where("path", ">=", filterScopePath)
+                .where("path", "<=", filterScopePath + "\uf8ff");
+          } else if (filterScopeIds.length <= 10) {
+             // Use IN operator for small sets
+             logger.info(`   -> Using IN operator for IDs.`);
+             chunkQuery = chunkQuery.where("folderId", "in", filterScopeIds); // Note: chunks store parentFolderId as folderId
+          } else {
+             logger.warn(`   -> Scope too large for 'IN' query (${filterScopeIds.length}). Fallback to post-filter recommended or Path optimization.`);
+             // For now, we will rely on post-filtering if we can't use path or IN.
+             // But actually, we will try to slice the first 10 for now to respect limits or just warn.
+             // Best effort: slice 10.
+             const slicedIds = filterScopeIds.slice(0, 10);
+             logger.warn(`   -> Sliced to first 10 IDs for query stability.`);
+             chunkQuery = chunkQuery.where("folderId", "in", slicedIds);
+          }
+      }
+
       const fetchLimit = isFallbackContext ? 100 : 50;
 
       console.log('🔍 Vector Search Request for User:', userId);
@@ -1473,6 +1498,8 @@ ${analysis}
         fileName: doc.data().fileName || "Desconocido",
         fileId: doc.ref.parent.parent?.id || "unknown_id",
         category: doc.data().category || 'canon',
+        // 🟢 Pass Path for Source Transparency
+        path: doc.data().path || ""
       }));
 
       // 🟢 SOURCE DIVERSITY LIMITING
@@ -1518,6 +1545,11 @@ ${analysis}
 
       // 5. Construir Contexto RAG
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
+
+      // 🟢 DEBUG SOURCES
+      if (filterScopeIds) {
+         logger.info("📊 Scope Filter Result Sources:", relevantChunks.map(c => `${c.fileName} (${(c as any).path})`));
+      }
 
       // 6. Llamar a Gemini (Nivel GOD TIER)
       const chatModel = new ChatGoogleGenerativeAI({
