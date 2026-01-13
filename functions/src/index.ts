@@ -74,6 +74,10 @@ const ALLOWED_EXTENSIONS = ['.md', '.txt'];
 const GOOGLE_DOC_MIMETYPE = 'application/vnd.google-apps.document';
 const GOOGLE_FOLDER_MIMETYPE = 'application/vnd.google-apps.folder';
 
+// 🛡️ SENTINEL CONSTANTS
+const MAX_AI_INPUT_CHARS = 100000; // 100k chars (~25k tokens) limit for AI analysis
+const MAX_FILE_SAVE_BYTES = 5 * 1024 * 1024; // 5MB limit for text file saves
+
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
 // 🟢 NEW: JSON SANITIZER (ANTI-CRASH)
@@ -1887,6 +1891,14 @@ export const saveDriveFile = onCall(
     if (content === undefined || content === null) throw new HttpsError("invalid-argument", "Falta el contenido.");
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
+    // 🛡️ SECURITY: INPUT VALIDATION
+    if (typeof content !== 'string') {
+       throw new HttpsError("invalid-argument", "El contenido debe ser texto (string).");
+    }
+    if (content.length > MAX_FILE_SAVE_BYTES) {
+       throw new HttpsError("resource-exhausted", `El archivo excede el límite de ${MAX_FILE_SAVE_BYTES / 1024 / 1024}MB.`);
+    }
+
     logger.info(`💾 Guardando archivo: ${fileId}`);
 
     try {
@@ -2443,6 +2455,11 @@ export const summonTheTribunal = onCall(
       throw new HttpsError("invalid-argument", "El contenido a analizar está vacío.");
     }
 
+    // 🛡️ SECURITY: SIZE LIMIT FOR AI
+    if (textToAnalyze.length > MAX_AI_INPUT_CHARS) {
+       throw new HttpsError("invalid-argument", `El texto excede el límite de análisis (${MAX_AI_INPUT_CHARS} caracteres).`);
+    }
+
     const userId = request.auth.uid;
 
     try {
@@ -2555,6 +2572,11 @@ export const extractTimelineEvents = onCall(
 
     if (!content || !currentYear) {
       throw new HttpsError("invalid-argument", "Faltan datos (content o currentYear).");
+    }
+
+    // 🛡️ SECURITY: SIZE LIMIT FOR AI
+    if (content.length > MAX_AI_INPUT_CHARS) {
+       throw new HttpsError("invalid-argument", `El texto excede el límite de análisis (${MAX_AI_INPUT_CHARS} caracteres).`);
     }
 
     try {
