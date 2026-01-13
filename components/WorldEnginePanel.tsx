@@ -157,13 +157,32 @@ const ChaosSlider: React.FC<{ value: number; onChange: (val: number) => void }> 
         e.currentTarget.releasePointerCapture(e.pointerId);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        const step = 0.05;
+        if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
+            e.preventDefault();
+            onChange(Math.min(1, Number((value + step).toFixed(2))));
+        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
+            e.preventDefault();
+            onChange(Math.max(0, Number((value - step).toFixed(2))));
+        }
+    };
+
     return (
         <div className="flex items-center gap-4 select-none w-full">
             <span className="text-xs font-bold text-titanium-400 tracking-widest min-w-[50px]">RIGOR</span>
 
             <div
                 ref={trackRef}
-                className="relative flex-1 h-4 bg-slate-800 rounded-full cursor-pointer touch-none group border border-slate-700 overflow-hidden"
+                role="slider"
+                aria-label="Nivel de Caos (Entropía)"
+                aria-valuemin={0}
+                aria-valuemax={1}
+                aria-valuenow={value}
+                aria-valuetext={`${(value * 100).toFixed(0)}% Caos`}
+                tabIndex={0}
+                onKeyDown={handleKeyDown}
+                className="relative flex-1 h-4 bg-slate-800 rounded-full cursor-pointer touch-none group border border-slate-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT focus:border-transparent"
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
@@ -872,6 +891,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 {/* Row 1: The Input */}
                 <input
                     type="text"
+                    aria-label="Input de Comando del Motor Mundial"
                     disabled={isLoading}
                     placeholder={isLoading ? statusMessage : "Initialize simulation protocol..."}
                     className={`w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:ring-1 ${activeAgentConfig.styles.focusRing} transition-all font-mono text-sm shadow-2xl z-10 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
