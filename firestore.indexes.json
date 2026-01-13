@@ -9,6 +9,10 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "path",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "embedding",
           "vectorConfig": {
             "dimension": 768,
