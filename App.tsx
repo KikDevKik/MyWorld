@@ -485,6 +485,30 @@ function App() {
 
     // AUTH LISTENER
     useEffect(() => {
+        // 👻 GHOST ACCESS: BYPASS AUTH IN DEV
+        if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
+            console.warn("👻 GHOST ACCESS ENABLED: Skipping Google Auth");
+            setUser({
+                uid: 'jules-dev',
+                email: 'jules@internal.test',
+                displayName: 'Jules Agent',
+                emailVerified: true,
+                isAnonymous: false,
+                metadata: {},
+                providerData: [],
+                refreshToken: '',
+                tenantId: null,
+                delete: async () => {},
+                getIdToken: async () => 'mock-token',
+                getIdTokenResult: async () => ({} as any),
+                reload: async () => {},
+                toJSON: () => ({})
+            } as unknown as User);
+            setAuthLoading(false);
+            setDriveStatus('disconnected');
+            return;
+        }
+
         const auth = getAuth();
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
