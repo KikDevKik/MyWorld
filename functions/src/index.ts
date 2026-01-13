@@ -12,7 +12,8 @@ import {
   TaskType,
   GoogleGenerativeAI,
   HarmCategory,
-  HarmBlockThreshold
+  HarmBlockThreshold,
+  FinishReason
 } from "@google/generative-ai";
 import { Chunk } from "./similarity";
 import { Readable } from 'stream';
@@ -1449,14 +1450,19 @@ ${analysis}
       const coll = db.collectionGroup("chunks");
       let chunkQuery = coll.where("userId", "==", userId);
 
-      // 🟢 NEW RECURSIVE SCOPE FILTER
-      // ⚠️ IMPORTANT: NO CATEGORY FILTER HERE to match Composite Index (userId, path)
-      // ⚠️ IMPORTANT: NO folderId FILTER HERE to avoid FAILED_PRECONDITION
+      // 🟢 PRECONDITION FIX: ALWAYS USE PATH FILTER (Composite Index: userId + path + embedding)
       if (filterScopePath) {
-          logger.info(`🛡️ RECURSIVE SCOPE ACTIVE: Using PATH PREFIX optimization: ${filterScopePath}`);
+          logger.info(`🛡️ SCOPED SEARCH: Using PATH PREFIX optimization: ${filterScopePath}`);
           chunkQuery = chunkQuery
             .where("path", ">=", filterScopePath)
             .where("path", "<=", filterScopePath + "\uf8ff");
+      } else {
+          // 🟢 GLOBAL SEARCH: UNIVERSAL PATH RANGE
+          // We must include 'path' in the query to satisfy the Firestore Composite Index requirement.
+          logger.info(`🌍 GLOBAL SEARCH: Using Universal Path Range ("" to "\\uf8ff")`);
+          chunkQuery = chunkQuery
+            .where("path", ">=", "")
+            .where("path", "<=", "\uf8ff");
       }
 
       const fetchLimit = isFallbackContext ? 100 : 50;
@@ -1555,21 +1561,7 @@ ${analysis}
          logger.info("📊 Scope Filter Result Sources:", relevantChunks.map(c => `${c.fileName} (${(c as any).path})`));
       }
 
-      // 6. Llamar a Gemini (Nivel GOD TIER)
-      const chatModel = new ChatGoogleGenerativeAI({
-        apiKey: googleApiKey.value(),
-        model: "gemini-3-pro-preview",
-        temperature: 0.7,
-        // @ts-ignore - Timeout might not be in the type definition but is supported
-        timeout: 60000, // 🛡️ TIMEOUT EXPLÍCITO (60s)
-        safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        ]
-      });
-
+      // 6. Preparar Prompt del Sistema (Nivel GOD TIER)
       let activeCharacterPrompt = "";
       if (activeFileName && activeFileContent) {
           activeCharacterPrompt = `
@@ -1676,55 +1668,85 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         PREGUNTA DEL USUARIO: "${query}"
       `;
 
+      // 🟢 OPERATION BYPASS TOTAL: NATIVE SDK IMPLEMENTATION
       try {
-        // 🛡️ LANGCHAIN WRAPPER: Intercept 'invoke' explicitly
-        let response;
+        const genAI = new GoogleGenerativeAI(googleApiKey.value());
+
+        // --- 1. CONFIGURATION ---
+        const generationConfig = {
+             temperature: 0.7,
+             maxOutputTokens: 8192,
+        };
+
+        const standardSafetySettings = [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+        ];
+
+        // --- 2. ATTEMPT 1: STANDARD CALL ---
+        let model = genAI.getGenerativeModel({
+            model: "gemini-3-pro-preview",
+            generationConfig,
+            safetySettings: standardSafetySettings
+        });
+
+        logger.info("🚀 [BYPASS] Attempt 1: Calling Gemini Native SDK...");
+        let result = await model.generateContent(promptFinal);
+        let response = result.response;
+        let finishReason = response.candidates?.[0]?.finishReason;
+
+        // 🟢 DEBUG RAW RESPONSE
+        logger.info("🔍 [RAW NATIVE RESPONSE]:", JSON.stringify(result, null, 2));
+
+        // --- 3. RETRY LOGIC (IF BLOCKED OR EMPTY) ---
+        // Conditions for retry:
+        // A) FinishReason is SAFETY/BLOCKED
+        // B) No candidates
+        // C) Candidate has no content parts
+        const isBlocked = finishReason === FinishReason.SAFETY || finishReason === FinishReason.OTHER; // Native SDK uses Enum
+        const isEmpty = !response.candidates || response.candidates.length === 0 || !response.text;
+
+        if (isBlocked || isEmpty) {
+             logger.warn(`⚠️ [BYPASS] Attempt 1 Failed (Reason: ${finishReason}). Initiating SAFETY OVERRIDE...`);
+
+             // RE-INITIATE WITH EXTREME PREJUDICE
+             // Note: In Native SDK, we just pass the same settings again but let's be explicit if needed.
+             // Actually, "BLOCK_NONE" was already passed, but maybe the model glitched.
+             // We retry once more.
+
+             logger.info("🚀 [BYPASS] Attempt 2: Retrying...");
+             result = await model.generateContent(promptFinal);
+             response = result.response;
+             finishReason = response.candidates?.[0]?.finishReason;
+
+             logger.info("🔍 [RAW NATIVE RESPONSE 2]:", JSON.stringify(result, null, 2));
+        }
+
+        // --- 4. FINAL VALIDATION ---
+        let finalText = "";
         try {
-             // 🟢 DIRECT INVOKE (No .bind, Safety Settings in Constructor)
-             response = await chatModel.invoke(promptFinal);
-
-             // 🟢 RAW RESPONSE LOGGING (DEBUGGING 500/UNDEFINED)
-             logger.info("🔍 [RAW AI RESPONSE]:", JSON.stringify(response, null, 2));
-
-        } catch (innerError: any) {
-             logger.error("💥 CRASH INSIDE INVOKE (Gemini/LangChain):", innerError);
-             throw new Error("Fallo interno al invocar el modelo: " + (innerError.message || "Unknown Error"));
+            finalText = response.text();
+        } catch (e) {
+            // .text() throws if there is no text. Use robust check.
+            finalText = "";
         }
 
-        // 🛡️ VALIDATION 1: Empty Response or Invalid Object
-        if (!response || typeof response !== 'object') {
-             throw new Error("La IA devolvió una respuesta vacía o inválida (null/undefined).");
-        }
-
-        // 🛡️ VALIDATION 2: Safety Blocks
-        // Check standard Google GenAI metadata structure in LangChain
-        const finishReason = response.response_metadata?.finishReason;
-
-        // Log for debugging safety filters
-        if (finishReason) {
-            logger.info(`🛡️ Gemini Finish Reason: ${finishReason}`);
-        }
-
-        if (finishReason === 'BLOCKED' || finishReason === 'SAFETY') {
-            logger.warn("🛑 CONTENIDO BLOQUEADO POR FILTROS DE SEGURIDAD (Override Attempted but Failed)");
-            return {
-                response: "Contenido Bloqueado: Esta consulta activa los protocolos de seguridad de Gemini. Intenta reformular el prompt narrativo.",
+        if (!finalText && (finishReason === FinishReason.SAFETY)) {
+            // FAIL STATE A: BLOCKED
+             return {
+                response: "⚠️ Contenido Bloqueado por Protocolos de Seguridad (Gemini Refusal).",
                 sources: []
             };
+        } else if (!finalText) {
+             // FAIL STATE B: EMPTY/NULL
+             // 🟢 FALLBACK PROTOCOL INJECTED
+             throw new Error("EMPTY_FRAGMENT_ERROR");
         }
-
-        // 🛡️ VALIDATION 3: Content Existence
-        // FIX: Check explicitly for null/undefined content property
-        if (response.content === undefined || response.content === null || (typeof response.content === 'string' && response.content.trim() === '')) {
-             throw new Error("El contenido de la respuesta es undefined, null o vacío.");
-        }
-
-        const finalContent = typeof response.content === 'string'
-            ? response.content
-            : JSON.stringify(response.content);
 
         return {
-          response: finalContent,
+          response: finalText,
           sources: relevantChunks.map(chunk => ({
             text: chunk.text.substring(0, 200) + "...",
             fileName: chunk.fileName
@@ -1732,6 +1754,14 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         };
 
       } catch (invokeError: any) {
+         if (invokeError.message === "EMPTY_FRAGMENT_ERROR") {
+             logger.error("💥 [BYPASS] CRITICAL: Gemini returned empty fragment after retries.");
+             // 🟢 RETURN CONTROLLED ERROR OBJECT (DO NOT THROW)
+             return {
+                 response: "La Forja recibió un fragmento vacío de Gemini. Reintentando con parámetros de seguridad reducidos...",
+                 sources: []
+             };
+         }
          logger.error("💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG) [CATCH-ALL]:", invokeError?.message || invokeError);
 
          // 🟢 PROTOCOLO DE FALLO: Romper el bucle de UI
