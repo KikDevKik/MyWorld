@@ -87,6 +87,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
 
                 <button
                     onClick={() => setIsMenuOpen(!isMenuOpen)}
+                    aria-label="Menú de herramientas"
                     className="h-[56px] pl-4 pr-3 text-titanium-400 hover:text-titanium-200 transition-colors border-r border-slate-700/50 flex items-center gap-2 outline-none focus:outline-none shrink-0"
                 >
                     <div className="flex items-center gap-2 animate-fade-in">
@@ -103,6 +104,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
                     onChange={(e) => setInputValue(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={`Instrucciones para el ${selectedTool === 'director' ? 'Director' : 'Guardián'}...`}
+                    aria-label="Instrucción"
                     className="flex-1 bg-transparent border-none outline-none focus:outline-none focus:ring-0 focus:border-none text-white placeholder:text-gray-400 px-4 py-4 text-sm font-sans tracking-wide resize-none overflow-y-auto max-h-[200px] min-h-[56px] whitespace-pre-wrap break-words"
                     rows={1}
                     spellCheck={false}
@@ -111,6 +113,7 @@ const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
                 <div className="h-[56px] flex items-center shrink-0">
                     <button
                         onClick={handleSend}
+                        aria-label="Ejecutar comando"
                         className="mr-2 p-2 bg-titanium-800/50 hover:bg-titanium-700 text-titanium-400 hover:text-titanium-100 rounded-xl transition-all border border-transparent hover:border-titanium-600 outline-none focus:outline-none"
                     >
                         <ArrowUp size={18} />

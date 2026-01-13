@@ -249,6 +249,7 @@ ${TOOL_INSTRUCTION}`;
                             onClick={onReset}
                             className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
                             title="Nueva Sesión (Limpiar Chat)"
+                            aria-label="Nueva sesión"
                         >
                             <RefreshCcw size={20} />
                         </button>
@@ -257,6 +258,7 @@ ${TOOL_INSTRUCTION}`;
                         onClick={handleForgeToDrive}
                         className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-accent-DEFAULT transition-colors"
                         title="Forjar a Drive"
+                        aria-label="Forjar a Drive"
                     >
                         <Hammer size={20} />
                     </button>
@@ -357,6 +359,7 @@ ${TOOL_INSTRUCTION}`;
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             placeholder={selectedScope.id ? `Consultando ${selectedScope.name}...` : "Escribe a la Forja..."}
+                            aria-label="Mensaje"
                             className={`flex-1 !bg-slate-900 !text-white placeholder-slate-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
                                 selectedScope.id
                                 ? 'border-cyan-900/50 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
@@ -371,6 +374,7 @@ ${TOOL_INSTRUCTION}`;
                         <button
                             onClick={handleSend}
                             disabled={!input.trim() || isSending}
+                            aria-label="Enviar mensaje"
                             className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-lg disabled:opacity-0 disabled:pointer-events-none transition-all shadow-lg ${
                                 selectedScope.id
                                 ? 'bg-cyan-600 hover:bg-cyan-500 text-white hover:shadow-cyan-500/20'
