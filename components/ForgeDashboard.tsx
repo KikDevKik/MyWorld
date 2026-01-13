@@ -15,12 +15,13 @@ interface ForgeDashboardProps {
     folderId: string;
     accessToken: string | null;
     characterVaultId: string;
-    activeContextFolderId: string | null;
+    // 🟢 NEW SCOPE PROP
+    selectedScope: { id: string | null; name: string; recursiveIds: string[]; path?: string };
 }
 
 type DashboardState = 'SELECT_SOURCE' | 'ANALYZING' | 'IDE';
 
-const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, characterVaultId, activeContextFolderId }) => {
+const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, characterVaultId, selectedScope }) => {
     // STATE MACHINE
     const [state, setState] = useState<DashboardState>('SELECT_SOURCE');
     const [isLoading, setIsLoading] = useState(true);
@@ -217,6 +218,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     } : undefined}
                     initialReport={initialReport}
                     onReset={handleResetSession}
+                    selectedScope={selectedScope} // 🟢 Pass Scope to Chat
                 />
             </div>
 
@@ -255,7 +257,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         // Detected entities list might need cleanup if we want to remove the ghost immediately
                         setDetectedEntities(prev => prev.map(e => e.name === char.name ? { ...e, status: 'EXISTING' } : e));
                     }}
-                    folderId={activeContextFolderId || characterVaultId || folderId}
+                    folderId={selectedScope.id || characterVaultId || folderId}
                     accessToken={accessToken}
                 />
             )}

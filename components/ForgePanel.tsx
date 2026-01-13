@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Hammer, X, FolderInput, RefreshCw, Loader2, Book, FolderPlus, Globe, ChevronRight } from 'lucide-react';
+import { Hammer, X, FolderInput, RefreshCw, Book, FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import useDrivePicker from 'react-google-drive-picker';
 
 import { useProjectConfig } from './ProjectConfigContext';
 import ForgeDashboard from './ForgeDashboard';
 import { ProjectConfig } from '../types';
+import ScopeTreeSelector from './ScopeTreeSelector';
 
 interface ForgePanelProps {
     onClose: () => void;
@@ -19,9 +20,12 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
     const [openPicker] = useDrivePicker();
     const [isSyncing, setIsSyncing] = useState(false);
 
-    // CONTEXT STATE (Global by default)
-    const [activeContextFolderId, setActiveContextFolderId] = useState<string | null>(null);
-    const [activeContextName, setActiveContextName] = useState<string>("Bóveda Maestra");
+    // 🟢 SCOPE STATE (REPLACED BREADCRUMB)
+    const [selectedScope, setSelectedScope] = useState<{ id: string | null; name: string; recursiveIds: string[]; path?: string }>({
+        id: null,
+        name: "Global (Todo el Proyecto)",
+        recursiveIds: []
+    });
 
     // --- VAULT SELECTION (SETUP) ---
     const handleConnectVault = () => {
@@ -73,67 +77,23 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         toast.success("Character Vault selected successfully.");
     };
 
-    // --- CONTEXT SWITCHER (BREADCRUMB) ---
-    const handleChangeContext = () => {
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
-
-        openPicker({
-            clientId,
-            developerKey,
-            viewId: "FOLDERS",
-            viewMimeTypes: "application/vnd.google-apps.folder",
-            setSelectFolderEnabled: true,
-            setIncludeFolders: true,
-            setOrigin: window.location.protocol + '//' + window.location.host,
-            token: accessToken || "",
-            showUploadView: false,
-            showUploadFolders: false,
-            supportDrives: true,
-            multiselect: false,
-            callbackFunction: async (data) => {
-                if (data.action === 'picked' && data.docs && data.docs[0]) {
-                    const picked = data.docs[0];
-
-                    // 1. UPDATE UI STATE
-                    setActiveContextFolderId(picked.id);
-                    setActiveContextName(picked.name);
-
-                    // 2. TRIGGER SYNC (Add Local Context)
-                    // We call syncCharacterManifest with this new folder as the "bookFolderId"
-                    await handleSyncSouls(picked.id);
-                }
-            }
-        });
-    };
-
-    const handleResetToGlobal = () => {
-        setActiveContextFolderId(null);
-        setActiveContextName("Bóveda Maestra");
-    };
-
     // --- SYNC SOULS ---
-    const handleSyncSouls = async (targetLocalId?: string) => {
+    const handleSyncSouls = async () => {
         if (!config?.characterVaultId) return;
 
         setIsSyncing(true);
         const functions = getFunctions();
         const syncCharacterManifest = httpsCallable(functions, 'syncCharacterManifest');
 
-        // Use provided target or default to current prop folderId if valid, else ignore local
-        // If targetLocalId is provided, use it.
-        // If not, use activeContextFolderId if set.
-        // If not, use prop folderId (if not root).
-
-        let localId = targetLocalId || activeContextFolderId || folderId;
-
-        // Safety check: Don't sync root drive as local book
-        if (!localId || localId === 'root') localId = undefined as any;
+        // Logic remains: Sync Master Vault mostly.
+        // If we want to sync the Local Scope, we could pass it.
+        // For now, let's keep it syncing the Master Vault to ensure characters are up to date.
+        // If the user wants to sync the "Current Scope", we might need to change this logic,
+        // but traditionally Sync is for Characters (Master Vault).
 
         try {
             const result = await syncCharacterManifest({
                 masterVaultId: config.characterVaultId,
-                bookFolderId: localId,
                 accessToken
             });
             const count = (result.data as any).count || 0;
@@ -268,35 +228,12 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         <span className="font-bold hidden md:inline">Forja de Almas</span>
                     </span>
 
-                    <ChevronRight size={16} className="text-titanium-600 shrink-0" />
-
-                    {/* BREADCRUMB CONTEXT TRIGGER */}
-                    <div className="flex items-center gap-2 bg-titanium-950 rounded-lg border border-titanium-700 p-1 pr-3">
-                        {activeContextFolderId ? (
-                             <button
-                                onClick={handleResetToGlobal}
-                                className="p-1.5 hover:bg-titanium-800 rounded-md text-titanium-500 hover:text-titanium-300 transition-colors"
-                                title="Reset to Global"
-                             >
-                                <Globe size={14} />
-                             </button>
-                        ) : (
-                            <div className="p-1.5 text-accent-DEFAULT bg-accent-DEFAULT/10 rounded-md">
-                                <Globe size={14} />
-                            </div>
-                        )}
-
-                        <button
-                            onClick={handleChangeContext}
-                            className="text-sm font-bold truncate max-w-[200px] hover:text-white transition-colors flex items-center gap-2"
-                        >
-                            <span>{activeContextName}</span>
-                            {activeContextFolderId && (
-                                <span className="text-[10px] bg-titanium-800 px-1.5 rounded text-titanium-400">
-                                    {activeContextFolderId === config?.characterVaultId ? 'VAULT' : 'LOCAL'}
-                                </span>
-                            )}
-                        </button>
+                    {/* 🟢 NEW SCOPE SELECTOR */}
+                    <div className="ml-4">
+                        <ScopeTreeSelector
+                            onScopeSelected={setSelectedScope}
+                            activeScopeId={selectedScope.id}
+                        />
                     </div>
                 </div>
 
@@ -327,7 +264,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                     folderId={folderId}
                     accessToken={accessToken}
                     characterVaultId={config?.characterVaultId || ""}
-                    activeContextFolderId={activeContextFolderId}
+                    selectedScope={selectedScope} // 🟢 Pass Scope Down
                 />
             </div>
         </div>

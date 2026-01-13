@@ -26,6 +26,8 @@ interface ForgeChatProps {
     activeContextFile?: { id: string, name: string, content: string };
     initialReport?: string;
     onReset?: () => void;
+    // 🟢 NEW SCOPE PROP
+    selectedScope: { id: string | null; name: string; recursiveIds: string[]; path?: string };
 }
 
 const ForgeChat: React.FC<ForgeChatProps> = ({
@@ -37,13 +39,14 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     characterContext,
     activeContextFile,
     initialReport,
-    onReset
+    onReset,
+    selectedScope
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
-    const [isCanonOnly, setIsCanonOnly] = useState(false); // 🟢 Truth Border Toggle
+    // Removed old binary toggle state
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const initializedRef = useRef(false);
 
@@ -151,7 +154,9 @@ ${TOOL_INSTRUCTION}`;
                 systemInstruction: systemPrompt,
                 projectId: folderId || undefined, // 👈 STRICT ISOLATION
                 activeFileName: activeContextFile?.name,
-                filterScope: isCanonOnly ? 'canon_only' : 'global', // 🟢 Pass Scope
+                // 🟢 PASS NEW SCOPE PARAMS
+                filterScopeIds: selectedScope.id ? selectedScope.recursiveIds : undefined,
+                filterScopePath: selectedScope.path, // Optimization Hint
                 // Pass activeFileContent if it were available as a prop, currently empty or RAG handles it
             });
 
@@ -332,19 +337,18 @@ ${TOOL_INSTRUCTION}`;
             <div className="p-4 border-t border-titanium-800 bg-titanium-900 shrink-0">
                 <div className="max-w-4xl mx-auto flex flex-col gap-3">
 
-                    {/* 🟢 TRUTH BORDER TOGGLE */}
+                    {/* 🟢 SCOPE INDICATOR (READ ONLY) */}
                     <div className="flex items-center gap-2 px-1">
-                         <button
-                            onClick={() => setIsCanonOnly(!isCanonOnly)}
+                         <div
                             className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${
-                                isCanonOnly
+                                selectedScope.id
                                 ? 'bg-cyan-900/30 border-cyan-500/50 text-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
-                                : 'bg-titanium-800 border-titanium-700 text-titanium-500 hover:border-titanium-500 hover:text-titanium-300'
+                                : 'bg-titanium-800 border-titanium-700 text-titanium-500'
                             }`}
                          >
-                            <Shield size={12} className={isCanonOnly ? "fill-cyan-500/20" : ""} />
-                            <span>{isCanonOnly ? "Scope: Canon Only" : "Scope: Global"}</span>
-                         </button>
+                            <Shield size={12} className={selectedScope.id ? "fill-cyan-500/20" : ""} />
+                            <span>Scope: {selectedScope.name}</span>
+                         </div>
                     </div>
 
                     <div className="flex gap-2 relative">
@@ -352,9 +356,9 @@ ${TOOL_INSTRUCTION}`;
                             type="text"
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder={isCanonOnly ? "Consultando Archivos Canónicos..." : "Escribe a la Forja..."}
+                            placeholder={selectedScope.id ? `Consultando ${selectedScope.name}...` : "Escribe a la Forja..."}
                             className={`flex-1 !bg-slate-900 !text-white placeholder-slate-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
-                                isCanonOnly
+                                selectedScope.id
                                 ? 'border-cyan-900/50 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
                                 : 'border-slate-700 focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT'
                             }`}
@@ -368,7 +372,7 @@ ${TOOL_INSTRUCTION}`;
                             onClick={handleSend}
                             disabled={!input.trim() || isSending}
                             className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-lg disabled:opacity-0 disabled:pointer-events-none transition-all shadow-lg ${
-                                isCanonOnly
+                                selectedScope.id
                                 ? 'bg-cyan-600 hover:bg-cyan-500 text-white hover:shadow-cyan-500/20'
                                 : 'bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 hover:shadow-accent-DEFAULT/20'
                             }`}
