@@ -155,10 +155,28 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
 }
 
 // --- NUEVO HELPER: Convertir Tubería a Texto ---
-async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN"): Promise<string> {
+// 🛡️ SENTINEL UPDATE: Added maxSizeBytes to prevent DoS/OOM
+const MAX_STREAM_SIZE_BYTES = 10 * 1024 * 1024; // 10MB Default
+
+async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN", maxSizeBytes: number = MAX_STREAM_SIZE_BYTES): Promise<string> {
   const chunks: Buffer[] = [];
+  let currentSize = 0;
+
   return new Promise((resolve, reject) => {
-    stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+    stream.on('data', (chunk) => {
+      currentSize += chunk.length;
+
+      // 🛡️ SECURITY CHECK: Prevent OOM/DoS
+      if (currentSize > maxSizeBytes) {
+        logger.error(`🛑 [SECURITY] Stream Limit Exceeded for ${debugLabel}. Size: ${currentSize} > ${maxSizeBytes}. Aborting.`);
+        stream.destroy(); // Abort the stream to save bandwidth/memory
+        reject(new Error(`Security Limit Exceeded: File ${debugLabel} exceeds max size of ${maxSizeBytes} bytes.`));
+        return;
+      }
+
+      chunks.push(Buffer.from(chunk));
+    });
+
     stream.on('error', (err) => reject(err));
     stream.on('end', () => {
       const fullBuffer = Buffer.concat(chunks);

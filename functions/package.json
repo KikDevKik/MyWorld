@@ -31,6 +31,7 @@
     "pdfmake": "^0.2.20"
   },
   "devDependencies": {
+    "@types/node": "^22.19.5",
     "@typescript-eslint/eslint-plugin": "^5.12.0",
     "@typescript-eslint/parser": "^5.12.0",
     "eslint": "^8.9.0",
