@@ -802,33 +802,31 @@ export const enrichCharacterContext = onCall(
       // HELPER: Slugify if ID missing
       const targetId = characterId || name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
 
-      if (status === 'DETECTED') {
-          // 👻 GHOST PROTOCOL: Save to forge_detected_entities
-          await db.collection("users").doc(userId).collection("forge_detected_entities").doc(targetId).set({
-              id: targetId,
-              name: name,
-              contextualAnalysis: analysisText,
-              role: extractedRole || undefined, // Update role if found
-              lastAnalyzed: new Date().toISOString(),
-              saga: saga || 'Global',
-              status: 'DETECTED'
-          }, { merge: true });
-          logger.info(`✅ Ghost Analysis persisted for ${targetId}`);
+      // 🟢 UNIVERSAL PROMOTION: All analyzed entities live in 'characters' now.
+      const updatePayload: any = {
+          contextualAnalysis: analysisText,
+          lastAnalyzed: new Date().toISOString(),
+          isAIEnriched: true // 🟢 FLAG: Mark as AI-enhanced for Sync protection
+      };
 
-      } else {
-          // 👤 EXISTING PROTOCOL: Save to characters
-          const updatePayload: any = {
-              contextualAnalysis: analysisText,
-              lastAnalyzed: new Date().toISOString()
-          };
-
-          if (extractedRole) {
-              updatePayload.role = extractedRole; // 🟢 FORCE OVERWRITE BAD ROLE
-          }
-
-          await db.collection("users").doc(userId).collection("characters").doc(targetId).set(updatePayload, { merge: true });
-          logger.info(`✅ Analysis persisted for ${targetId} (Role Updated: ${!!extractedRole})`);
+      if (extractedRole) {
+          updatePayload.role = extractedRole;
       }
+
+      if (status === 'DETECTED') {
+          // 👻 GHOST PROMOTION: Promote to main roster but mark as Ghost
+          updatePayload.id = targetId;
+          updatePayload.name = name;
+          updatePayload.status = 'DETECTED';
+          updatePayload.isGhost = true; // 🟢 ANTI-PRUNING FLAG
+          updatePayload.saga = saga || 'Global';
+          updatePayload.sourceType = 'LOCAL'; // Treat as local/virtual until crystallized
+
+          logger.info(`👻 Promoting Ghost to Roster: ${targetId}`);
+      }
+
+      await db.collection("users").doc(userId).collection("characters").doc(targetId).set(updatePayload, { merge: true });
+      logger.info(`✅ Deep Analysis persisted for ${targetId} (Role: ${!!extractedRole}, Ghost: ${status === 'DETECTED'})`);
 
       return {
           success: true,
@@ -2924,7 +2922,7 @@ export const syncCharacterManifest = onCall(
                     }
 
                     // 2. Ingest (Vectorize + Hash Check + TDB_Index)
-                    await ingestFile(
+                    const ingestResult = await ingestFile(
                         db,
                         userId,
                         {
@@ -2969,25 +2967,45 @@ export const syncCharacterManifest = onCall(
                         // 🟢 STRICT SANITIZATION
                         if (resolvedRole) {
                              resolvedRole = resolvedRole.replace(/[\r\n]+/g, ' ').trim();
-                             // 🛡️ FULL DISCLOSURE: NO TRUNCATION HERE
-                             // We store the full truth. UI will handle display limits.
+                        }
+
+                        // 🟢 TRUTH HIERARCHY LOGIC
+                        const currentDoc = await charRef.get();
+                        const currentData = currentDoc.exists ? currentDoc.data() : {};
+
+                        let finalRole = resolvedRole;
+                        let isAIEnriched = currentData?.isAIEnriched || false;
+
+                        // IF AI enriched AND content has NOT changed (Hash Match) -> KEEP AI ROLE
+                        if (currentData?.isAIEnriched && currentData?.contentHash === ingestResult.hash) {
+                             logger.info(`🛡️ [TRUTH SHIELD] Preserving AI Role for ${slug} (Hash Match)`);
+                             if (currentData.role) finalRole = currentData.role;
+                             isAIEnriched = true;
+                        } else if (currentData?.contentHash !== ingestResult.hash) {
+                             // IF Content Changed -> MANUAL OVERRIDE (Reset AI Flag)
+                             if (currentDoc.exists) {
+                                 logger.info(`📝 [MANUAL OVERRIDE] File changed for ${slug}. Resetting AI enrichment.`);
+                             }
+                             isAIEnriched = false;
                         }
 
                         await charRef.set({
                             id: slug,
                             name: fm.name || cleanName,
-                            role: resolvedRole,
+                            role: finalRole, // 🟢 USES PROTECTED ROLE
                             tier: fm.tier || 'MAIN',
                             age: fm.age || null,
                             avatar: fm.avatar || null,
                             sourceType: 'MASTER',
                             sourceContext: 'GLOBAL',
                             masterFileId: file.id,
+                            contentHash: ingestResult.hash, // 🟢 SAVE HASH FOR FUTURE CHECKS
+                            isAIEnriched: isAIEnriched,     // 🟢 PERSIST FLAG
                             lastUpdated: new Date().toISOString(),
                             snippets: [{
                                 sourceBookId: 'MASTER_VAULT',
                                 sourceBookTitle: 'Master Vault File',
-                                text: content.substring(0, 5000) // Increased snippet limit
+                                text: content.substring(0, 5000)
                             }]
                         }, { merge: true });
 
@@ -3005,21 +3023,34 @@ export const syncCharacterManifest = onCall(
         if (!specificFileId) {
             const staleIds = [...existingCharIds].filter(id => !touchedCharIds.has(id));
             if (staleIds.length > 0) {
-                logger.info(`🧹 PRUNING: Removing ${staleIds.length} stale/ghost characters from roster.`);
+                logger.info(`🧹 PRUNING CHECK: Found ${staleIds.length} potentially stale characters.`);
                 const deleteBatch = db.batch();
                 let deleteOps = 0;
 
+                // 🟢 ANTI-PRUNING: Fetch to check for GHOSTS before killing
                 for (const staleId of staleIds) {
                     const staleRef = db.collection("users").doc(userId).collection("characters").doc(staleId);
+                    const snapshot = await staleRef.get();
+
+                    if (snapshot.exists) {
+                        const d = snapshot.data();
+                        // 🛡️ GHOST SHIELD: Do not delete if detected/ghost
+                        if (d?.isGhost === true || d?.status === 'DETECTED') {
+                            logger.info(`   👻 Ghost Shield Active: Skipping prune for ${staleId}`);
+                            continue;
+                        }
+                    }
+
                     deleteBatch.delete(staleRef);
                     deleteOps++;
+                    logger.info(`   💀 Pruned Stale Entity: ${staleId}`);
                 }
 
                 if (deleteOps > 0) {
                     await deleteBatch.commit();
                     logger.info(`   ✨ ${deleteOps} stale characters deleted.`);
                 }
-                return { success: true, count: processedCount, pruned: staleIds.length };
+                return { success: true, count: processedCount, pruned: deleteOps };
             }
         }
 
