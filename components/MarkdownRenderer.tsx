@@ -60,10 +60,28 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, mode }) =>
         ),
 
         // CODE (Inline)
-        code: ({ node, inline, className, children, ...props }: any) => (
-            <code className="bg-titanium-800 text-cyan-200 px-1 py-0.5 rounded text-xs font-mono" {...props}>
-                {children}
-            </code>
+        code: ({ node, inline, className, children, ...props }: any) => {
+            const match = /language-(\w+)/.exec(className || '');
+            return !inline ? (
+                <div className="overflow-x-hidden w-full my-4 rounded-lg bg-titanium-900 border border-titanium-800">
+                     <div className="flex items-center justify-between px-4 py-2 bg-titanium-950/50 border-b border-titanium-800">
+                        <span className="text-xs text-titanium-500 font-mono uppercase">{match ? match[1] : 'CODE'}</span>
+                    </div>
+                    <pre className="p-4 overflow-x-hidden whitespace-pre-wrap break-all text-xs font-mono text-cyan-100/90" style={{ overflowWrap: 'anywhere' }}>
+                        <code className={className} {...props}>
+                            {children}
+                        </code>
+                    </pre>
+                </div>
+            ) : (
+                <code className="bg-titanium-800 text-cyan-200 px-1 py-0.5 rounded text-xs font-mono break-all whitespace-pre-wrap" {...props}>
+                    {children}
+                </code>
+            );
+        },
+
+        pre: ({ node, ...props }: any) => (
+             <div className="not-prose" {...props} />
         )
     };
 

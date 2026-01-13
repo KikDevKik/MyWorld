@@ -38,6 +38,49 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const [activeFocusChar, setActiveFocusChar] = useState<any | null>(null); // Character or Ghost
     const [inspectorData, setInspectorData] = useState<any | null>(null); // Open Inspector
 
+    // RESIZE LOGIC
+    const [leftPanelWidth, setLeftPanelWidth] = useState(60);
+    const [isDragging, setIsDragging] = useState(false);
+    const containerRef = React.useRef<HTMLDivElement>(null);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        setIsDragging(true);
+        e.preventDefault();
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging || !containerRef.current) return;
+
+            const containerRect = containerRef.current.getBoundingClientRect();
+            // Calculate percentage relative to container
+            const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+
+            // Snap logic
+            if (newWidth > 95) {
+                setLeftPanelWidth(100); // Snap to hide right panel
+            } else if (newWidth < 20) {
+                setLeftPanelWidth(20); // Minimum width for left panel
+            } else {
+                setLeftPanelWidth(newWidth);
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
+        if (isDragging) {
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging]);
+
     // --- 1. FETCH CHARACTERS (BACKGROUND SYNC) ---
     useEffect(() => {
         const auth = getAuth();
@@ -152,10 +195,13 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // IDE MODE (SPLIT VIEW)
     return (
-        <div className="w-full h-full flex bg-titanium-950 overflow-hidden relative">
+        <div ref={containerRef} className="w-full h-full flex bg-titanium-950 overflow-hidden relative">
 
-            {/* LEFT PANEL: CHAT / EDITOR (60%) */}
-            <div className="w-[60%] h-full flex flex-col border-r border-titanium-800">
+            {/* LEFT PANEL: CHAT / EDITOR */}
+            <div
+                style={{ width: `${leftPanelWidth}%` }}
+                className="h-full flex flex-col relative transition-all duration-75 ease-out"
+            >
                 <ForgeChat
                     sessionId={`session_${activeSourceFile?.id || 'general'}_v${sessionVersion}`}
                     sessionName={`Editor: ${activeSourceFile?.name || 'General'}`}
@@ -173,8 +219,21 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 />
             </div>
 
-            {/* RIGHT PANEL: CONTEXT DOCK (40%) */}
-            <div className="w-[40%] h-full flex flex-col">
+            {/* RESIZER HANDLE */}
+            <div
+                className={`w-1 h-full cursor-col-resize hover:bg-accent-DEFAULT transition-colors z-50 flex-shrink-0
+                    ${isDragging ? 'bg-accent-DEFAULT' : 'bg-titanium-800'}
+                    ${leftPanelWidth === 100 ? 'absolute right-0 top-0 bottom-0 opacity-0 hover:opacity-100 w-4 bg-transparent hover:bg-accent-DEFAULT/20' : ''}
+                `}
+                onMouseDown={handleMouseDown}
+                title={leftPanelWidth === 100 ? "Drag left to show Context Dock" : "Drag to resize"}
+            />
+
+            {/* RIGHT PANEL: CONTEXT DOCK */}
+            <div
+                style={{ width: `${100 - leftPanelWidth}%` }}
+                className={`h-full flex flex-col ${leftPanelWidth === 100 ? 'hidden' : ''}`}
+            >
                 <ForgeContextDock
                     characters={characters}
                     detectedEntities={detectedEntities}

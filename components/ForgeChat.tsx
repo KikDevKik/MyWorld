@@ -278,10 +278,11 @@ ${TOOL_INSTRUCTION}`;
                             )}
 
                             <div
-                                className={`flex-1 p-4 rounded-xl text-sm leading-relaxed shadow-sm ${msg.role === 'user'
+                                className={`flex-1 p-4 rounded-xl text-sm leading-relaxed shadow-sm overflow-hidden break-words whitespace-pre-wrap ${msg.role === 'user'
                                     ? 'bg-titanium-800 text-titanium-100 border border-titanium-700 rounded-tr-sm max-w-[80%]'
                                     : 'bg-transparent text-titanium-300 rounded-tl-sm' // Minimalist for AI
                                     }`}
+                                style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                             >
                                 <MarkdownRenderer content={msg.text} />
                             </div>
