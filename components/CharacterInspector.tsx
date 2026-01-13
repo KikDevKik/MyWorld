@@ -26,6 +26,26 @@ interface CharacterInspectorProps {
     accessToken: string | null;
 }
 
+// 🟢 INTERNAL COMPONENT: ROLE MODAL OVERLAY
+// Extracted to ensure clean Stacking Context and event handling
+const RoleModalOverlay: React.FC<{ content: string; onClose: () => void }> = ({ content, onClose }) => {
+    return (
+        <div
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+            onClick={onClose} // Close when clicking the backdrop
+        >
+            <div
+                className="w-full max-w-xl bg-titanium-950 border border-titanium-600 p-8 rounded-2xl shadow-2xl relative m-4 max-h-[80vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()} // Prevent close when clicking content
+            >
+                <div className="prose prose-invert prose-lg max-w-none text-titanium-100">
+                    <MarkdownRenderer content={content} mode="full" />
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, onMaterialize, folderId, accessToken }) => {
     const [isSaving, setIsSaving] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false); // 🔮 Deep Analysis State
@@ -229,35 +249,14 @@ Materialized from Deep Scan.
                                  </button>
                              )}
 
-                             {/* Role Expansion Popover (Centered Mini Modal - Portal) */}
-                             <AnimatePresence>
-                                {isRoleExpanded && fullRoleText && createPortal(
-                                    <motion.div
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-md"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsRoleExpanded(false);
-                                        }}
-                                    >
-                                        <motion.div
-                                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                                            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                                            className="w-full max-w-xl bg-titanium-950 border border-titanium-600 p-8 rounded-2xl shadow-2xl relative m-4 max-h-[80vh] overflow-y-auto"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <div className="prose prose-invert prose-lg max-w-none text-titanium-100">
-                                               <MarkdownRenderer content={fullRoleText} mode="full" />
-                                            </div>
-                                        </motion.div>
-                                    </motion.div>,
-                                    document.body
-                                )}
-                             </AnimatePresence>
+                             {/* Role Expansion Popover (Portal to Body) */}
+                             {isRoleExpanded && fullRoleText && createPortal(
+                                 <RoleModalOverlay
+                                     content={fullRoleText}
+                                     onClose={() => setIsRoleExpanded(false)}
+                                 />,
+                                 document.body
+                             )}
                         </div>
                     </div>
 
