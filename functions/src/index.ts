@@ -1316,7 +1316,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, filterScope, activeFileContent, activeFileName, isFallbackContext, filterScopeIds, filterScopePath, sessionId } = request.data;
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopeIds, filterScopePath, sessionId } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -1449,13 +1449,8 @@ ${analysis}
       const coll = db.collectionGroup("chunks");
       let chunkQuery = coll.where("userId", "==", userId);
 
-      // 🟢 TRUTH BORDER FILTER (CANON ONLY)
-      if (filterScope === 'canon_only') {
-          logger.info("🛡️ TRUTH BORDER ACTIVE: Restricting search to CANON only.");
-          chunkQuery = chunkQuery.where("category", "==", "canon");
-      }
-
       // 🟢 NEW RECURSIVE SCOPE FILTER
+      // ⚠️ IMPORTANT: NO CATEGORY FILTER HERE to match Composite Index (userId, path)
       if (filterScopeIds && Array.isArray(filterScopeIds) && filterScopeIds.length > 0) {
           logger.info(`🛡️ RECURSIVE SCOPE ACTIVE: Restricting search to ${filterScopeIds.length} folders.`);
 
@@ -1472,7 +1467,6 @@ ${analysis}
           } else {
              logger.warn(`   -> Scope too large for 'IN' query (${filterScopeIds.length}). Fallback to post-filter recommended or Path optimization.`);
              // For now, we will rely on post-filtering if we can't use path or IN.
-             // But actually, we will try to slice the first 10 for now to respect limits or just warn.
              // Best effort: slice 10.
              const slicedIds = filterScopeIds.slice(0, 10);
              logger.warn(`   -> Sliced to first 10 IDs for query stability.`);
@@ -1519,6 +1513,8 @@ ${analysis}
       const rejectedCandidates: Chunk[] = [];
       const fileCounts: { [key: string]: number } = {};
 
+      const isScopedSearch = (filterScopePath || (filterScopeIds && filterScopeIds.length > 0));
+
       // A) FILTER EXCLUSION (Active File)
       // CONDITION: Only filter if we have enough candidates (>10) to avoid "Diversity Shortfall"
       if (activeFileName && candidates.length > 10) {
@@ -1543,16 +1539,27 @@ ${analysis}
           }
       }
 
-      // C) BACKFILL PASS (Fill Gaps)
-      if (finalContext.length < returnLimit) {
+      // C) BACKFILL PASS (Fill Gaps) - DISABLE IF SCOPED
+      if (!isScopedSearch && finalContext.length < returnLimit) {
           logger.info(`⚠️ Diversity Shortfall (${finalContext.length}/${returnLimit}). Backfilling...`);
           for (const chunk of rejectedCandidates) {
               if (finalContext.length >= returnLimit) break;
               finalContext.push(chunk);
           }
+      } else if (isScopedSearch) {
+          logger.info(`⚖️ SCOPED SEARCH ACTIVE: Backfilling DISABLED. Context is Finite (${finalContext.length} chunks).`);
       }
 
       const relevantChunks = finalContext;
+
+      // 🛑 FINITE CONTEXT CHECK (Prevent Crash on Empty)
+      if (isScopedSearch && relevantChunks.length === 0) {
+          logger.warn("🛑 SCOPE EMPTY: No chunks found in selected path. Aborting AI call.");
+          return {
+             response: "No encontré información en los libros seleccionados.",
+             sources: []
+          };
+      }
       logger.info('📚 RAG Context Sources:', relevantChunks.map(c => c.fileName));
 
       // 5. Construir Contexto RAG
@@ -1688,7 +1695,21 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         // 🛡️ LANGCHAIN WRAPPER: Intercept 'invoke' explicitly
         let response;
         try {
-             response = await chatModel.invoke(promptFinal);
+             // 🟢 FORCE SAFETY SETTINGS (RUNTIME OVERRIDE)
+             const safeModel = (chatModel as any).bind({
+                 safetySettings: [
+                     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                 ]
+             });
+
+             response = await safeModel.invoke(promptFinal);
+
+             // 🟢 RAW RESPONSE LOGGING (DEBUGGING 500/UNDEFINED)
+             logger.info("🔍 [RAW AI RESPONSE]:", JSON.stringify(response, null, 2));
+
         } catch (innerError: any) {
              logger.error("💥 CRASH INSIDE INVOKE (Gemini/LangChain):", innerError);
              throw new Error("Fallo interno al invocar el modelo: " + (innerError.message || "Unknown Error"));
