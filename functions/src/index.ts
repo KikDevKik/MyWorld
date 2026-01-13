@@ -2828,7 +2828,7 @@ export const syncCharacterManifest = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { masterVaultId, accessToken } = request.data;
+    const { masterVaultId, accessToken, specificFileId } = request.data;
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
     const userId = request.auth.uid;
@@ -2837,7 +2837,7 @@ export const syncCharacterManifest = onCall(
     const config = await _getProjectConfigInternal(userId);
     let targetVaultId = masterVaultId || config.characterVaultId;
 
-    if (!targetVaultId) {
+    if (!targetVaultId && !specificFileId) {
          logger.info("ℹ️ Sin Bóveda Maestra configurada. Sincronización omitida.");
          return { success: true, count: 0, message: "No character vault configured." };
     }
@@ -2853,7 +2853,7 @@ export const syncCharacterManifest = onCall(
     auth.setCredentials({ access_token: accessToken });
     const drive = google.drive({ version: "v3", auth });
 
-    logger.info(`👻 SOUL COLLECTOR v2 (Hybrid Indexer): Scanning ${targetVaultId} for User ${userId}`);
+    logger.info(`👻 SOUL COLLECTOR v2 (Hybrid Indexer): Scanning for User ${userId}`);
 
     try {
         // --- HELPER: Slugify ---
@@ -2867,23 +2867,43 @@ export const syncCharacterManifest = onCall(
                 .replace(/^-|-$/g, '');
         };
 
-        // 🟢 PRE-SCAN: FETCH EXISTING CHARACTERS FOR STALE PRUNING
-        // We need to know what exists in the DB to delete what is NOT found in this scan.
-        const existingCharsSnapshot = await db.collection("users").doc(userId).collection("characters").get();
-        const existingCharIds = new Set(existingCharsSnapshot.docs.map(doc => doc.id));
-        logger.info(`   -> Pre-existing DB Characters: ${existingCharIds.size}`);
+        let candidates: any[] = [];
+        let existingCharIds = new Set<string>();
 
-        // --- STEP A: RECURSIVE SCAN ---
-        const tree = await fetchFolderContents(drive, targetVaultId, config, true);
-        const flatFiles = flattenFileTree(tree);
+        if (specificFileId) {
+             logger.info(`👻 SOUL COLLECTOR (Surgical Strike): Syncing single file ${specificFileId}`);
+             try {
+                 const meta = await drive.files.get({ fileId: specificFileId, fields: 'name, parents' });
+                 candidates = [{
+                     id: specificFileId,
+                     name: meta.data.name,
+                     path: meta.data.name,
+                     saga: 'Global',
+                     parentId: meta.data.parents?.[0],
+                     category: 'canon'
+                 }];
+             } catch (e: any) {
+                 logger.error(`Error fetching specific file ${specificFileId}:`, e);
+                 throw new HttpsError("not-found", "Could not find specific file.");
+             }
+        } else {
+             logger.info(`👻 SOUL COLLECTOR (Full Scan): Scanning ${targetVaultId}`);
+             // 🟢 PRE-SCAN: FETCH EXISTING CHARACTERS FOR STALE PRUNING
+             const existingCharsSnapshot = await db.collection("users").doc(userId).collection("characters").get();
+             existingCharIds = new Set(existingCharsSnapshot.docs.map(doc => doc.id));
+             logger.info(`   -> Pre-existing DB Characters: ${existingCharIds.size}`);
 
-        const candidates = flatFiles.filter(f =>
-            f.mimeType === 'application/vnd.google-apps.document' ||
-            f.name.endsWith('.md') ||
-            f.name.endsWith('.txt')
-        );
+             // --- STEP A: RECURSIVE SCAN ---
+             const tree = await fetchFolderContents(drive, targetVaultId, config, true);
+             const flatFiles = flattenFileTree(tree);
 
-        logger.info(`   -> Files Found in Vault: ${candidates.length}`);
+             candidates = flatFiles.filter(f =>
+                f.mimeType === 'application/vnd.google-apps.document' ||
+                f.name.endsWith('.md') ||
+                f.name.endsWith('.txt')
+            );
+            logger.info(`   -> Files Found in Vault: ${candidates.length}`);
+        }
 
         // --- STEP B: BATCH PROCESS (INGEST + ROSTER) ---
         const BATCH_SIZE = 5;
@@ -2896,10 +2916,14 @@ export const syncCharacterManifest = onCall(
             await Promise.all(batch.map(async (file) => {
                 try {
                     // 1. Fetch Content
-                    const content = await _getDriveFileContentInternal(drive, file.id);
+                    let content = await _getDriveFileContentInternal(drive, file.id);
+
+                    // 🟢 CLEANUP: Remove excessive newlines (Global Hygiene)
+                    if (content) {
+                        content = content.replace(/\n{3,}/g, '\n\n');
+                    }
 
                     // 2. Ingest (Vectorize + Hash Check + TDB_Index)
-                    // NOTE: syncCharacterManifest uses this to ensure RAG visibility for chars.
                     await ingestFile(
                         db,
                         userId,
@@ -2915,68 +2939,40 @@ export const syncCharacterManifest = onCall(
                         embeddings
                     );
 
-                    // 3. Update Roster (If Changed or New)
-                    // If ingestFile returns 'processed', it means the content changed or is new.
-                    // We also update if it's 'skipped' BUT we want to ensure the UI roster is up to date?
-                    // Strategy: To be safe and ensure UI consistency (e.g. if I deleted the DB char but not the file),
-                    // we should probably Upsert the Roster entry always, or at least if we have content.
-                    // Since 'ingestFile' returns 'skipped' if hash matches, we might skip parsing metadata to save time.
-                    // BUT: If the user deleted the Firestore 'characters' doc but the 'TDB_Index' hash is same, we'd lose the char in UI.
-                    // COMPROMISE: We will parse metadata and update roster IF result is 'processed' OR if we want to force check.
-                    // Given the user instruction "Sync Character Manifest", it implies making sure the manifest is correct.
-                    // However, for performance, we'll trust 'ingestFile'. If hash matches, we assume metadata matches.
-                    // ...WAIT. The user specifically asked to "Elimina la deuda técnica".
-                    // Let's assume we update roster if content is available. It's just a DB write.
-
+                    // 3. Update Roster
                     if (content && content.length > 0) {
                         const parsed = matter(content);
                         const fm = parsed.data;
                         const cleanName = file.name.replace(/\.md$/, '').replace(/\.txt$/, '');
                         const slug = slugify(cleanName);
 
-                        touchedCharIds.add(slug); // Mark as alive
+                        touchedCharIds.add(slug);
 
                         const charRef = db.collection("users").doc(userId).collection("characters").doc(slug);
 
-                        // ⚡ FAST PATH: Role Extraction (No LLM)
+                        // ⚡ FAST PATH: Role Extraction
                         let resolvedRole = 'Unregistered Entity';
                         if (fm.role) resolvedRole = fm.role;
                         else if (fm.class) resolvedRole = fm.class;
                         else {
-                            // Fallback: First paragraph (truncated)
-                            const body = content.replace(/^---[\s\S]*?---\s*/, '').trim(); // Remove Frontmatter
+                            const body = content.replace(/^---[\s\S]*?---\s*/, '').trim();
                             if (body.length > 0) {
                                 let firstPara = body.split('\n\n')[0].replace(/\n/g, ' ').trim();
-
-                                // 🟢 SCORCHED EARTH SANITIZATION
-                                // 1. Remove Images: ![alt](url) -> ""
                                 firstPara = firstPara.replace(/!\[[^\]]*\]\([^\)]+\)/g, '');
-                                // 2. Normalize Links: [text](url) -> "text"
                                 firstPara = firstPara.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
-                                // 3. Strip Markdown syntax chars: #, *, _, >, ~, `
                                 firstPara = firstPara.replace(/[*#_>~`]/g, '');
-                                // 4. Collapse multiple spaces
                                 firstPara = firstPara.replace(/\s+/g, ' ').trim();
-
                                 resolvedRole = firstPara;
                             }
                         }
 
-                        // 🟢 STRICT SANITIZATION & TRUNCATION (GLOBAL ENFORCEMENT)
-                        // Even if it came from frontmatter, we must clean it.
-                        // 1. Flatten newlines (prevent description leak)
+                        // 🟢 STRICT SANITIZATION
                         if (resolvedRole) {
                              resolvedRole = resolvedRole.replace(/[\r\n]+/g, ' ').trim();
+                             // 🛡️ FULL DISCLOSURE: NO TRUNCATION HERE
+                             // We store the full truth. UI will handle display limits.
                         }
 
-                        // 2. Strict Truncation
-                        const MAX_ROLE_LEN = 150;
-                        if (resolvedRole && resolvedRole.length > MAX_ROLE_LEN) {
-                            resolvedRole = resolvedRole.slice(0, MAX_ROLE_LEN - 3) + '...';
-                        }
-
-                        // We only perform the write if it was processed OR if we want to ensure existence.
-                        // Let's do it always for now to guarantee the Roster is complete (Self-Healing).
                         await charRef.set({
                             id: slug,
                             name: fm.name || cleanName,
@@ -2991,7 +2987,7 @@ export const syncCharacterManifest = onCall(
                             snippets: [{
                                 sourceBookId: 'MASTER_VAULT',
                                 sourceBookTitle: 'Master Vault File',
-                                text: content.substring(0, 2000)
+                                text: content.substring(0, 5000) // Increased snippet limit
                             }]
                         }, { merge: true });
 
@@ -3005,31 +3001,30 @@ export const syncCharacterManifest = onCall(
         }
 
         // --- STEP C: PRUNE STALE CHARACTERS (DUPLICATE CLEANUP) ---
-        // Identify IDs that exist in DB but were NOT touched in this scan (Ghosts)
-        const staleIds = [...existingCharIds].filter(id => !touchedCharIds.has(id));
-        if (staleIds.length > 0) {
-            logger.info(`🧹 PRUNING: Removing ${staleIds.length} stale/ghost characters from roster.`);
-            const deleteBatch = db.batch();
-            let deleteOps = 0;
+        // Only prune if doing a full scan (no specificFileId)
+        if (!specificFileId) {
+            const staleIds = [...existingCharIds].filter(id => !touchedCharIds.has(id));
+            if (staleIds.length > 0) {
+                logger.info(`🧹 PRUNING: Removing ${staleIds.length} stale/ghost characters from roster.`);
+                const deleteBatch = db.batch();
+                let deleteOps = 0;
 
-            for (const staleId of staleIds) {
-                // IMPORTANT: Only delete if it seems to be auto-generated or belongs to this vault.
-                // Since this function is "Sync Character Manifest", we assume this vault is the Source of Truth.
-                // However, to be safe, we check if we should delete.
-                // For now, we delete blindly as per user request to fix duplicates.
-                const staleRef = db.collection("users").doc(userId).collection("characters").doc(staleId);
-                deleteBatch.delete(staleRef);
-                deleteOps++;
-            }
+                for (const staleId of staleIds) {
+                    const staleRef = db.collection("users").doc(userId).collection("characters").doc(staleId);
+                    deleteBatch.delete(staleRef);
+                    deleteOps++;
+                }
 
-            if (deleteOps > 0) {
-                await deleteBatch.commit();
-                logger.info(`   ✨ ${deleteOps} stale characters deleted.`);
+                if (deleteOps > 0) {
+                    await deleteBatch.commit();
+                    logger.info(`   ✨ ${deleteOps} stale characters deleted.`);
+                }
+                return { success: true, count: processedCount, pruned: staleIds.length };
             }
         }
 
-        logger.info(`✅ Manifest Synced: ${processedCount} processed, ${staleIds.length} pruned.`);
-        return { success: true, count: processedCount, pruned: staleIds.length };
+        logger.info(`✅ Manifest Synced: ${processedCount} processed.`);
+        return { success: true, count: processedCount };
 
     } catch (error: any) {
         logger.error("Error en syncCharacterManifest:", error);

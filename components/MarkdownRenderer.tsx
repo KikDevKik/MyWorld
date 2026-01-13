@@ -40,7 +40,7 @@ const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content, mode }) =>
 
         // PARAGRAPHS
         p: ({ node, ...props }: any) => (
-            <p className={`text-titanium-200 font-serif ${mode === 'full' ? 'mb-4 leading-loose' : 'mb-2 leading-snug text-xs'}`} {...props} />
+            <p className={`text-titanium-200 font-serif whitespace-pre-wrap ${mode === 'full' ? 'mb-4 leading-loose' : 'mb-2 leading-snug text-xs'}`} {...props} />
         ),
 
         // LISTS

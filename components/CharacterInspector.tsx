@@ -35,10 +35,10 @@ const RoleModalOverlay: React.FC<{ content: string; onClose: () => void }> = ({ 
             onClick={onClose} // Close when clicking the backdrop
         >
             <div
-                className="w-full max-w-xl bg-titanium-950 border border-titanium-600 p-8 rounded-2xl shadow-2xl relative m-4 max-h-[80vh] overflow-y-auto"
+                className="w-full max-w-xl bg-titanium-950 border border-titanium-600 p-8 rounded-2xl shadow-2xl relative m-4 max-h-[90vh] overflow-y-auto"
                 onClick={(e) => e.stopPropagation()} // Prevent close when clicking content
             >
-                <div className="prose prose-invert prose-lg max-w-none text-titanium-100">
+                <div className="prose prose-invert prose-lg max-w-none text-titanium-100 whitespace-pre-wrap">
                     <MarkdownRenderer content={content} mode="full" />
                 </div>
             </div>
@@ -95,14 +95,38 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
 
     const isGhost = data.status === 'DETECTED';
 
-    // 🔮 PHASE 2: DEEP ANALYSIS TRIGGER
+    // 🔮 PHASE 2: DEEP ANALYSIS TRIGGER (WITH SYNC)
     const handleDeepAnalysis = async () => {
-        // if (!data.id) return; // Allow ghosts without ID (backend handles it)
         setIsAnalyzing(true);
         const functions = getFunctions();
         const enrichContext = httpsCallable(functions, 'enrichCharacterContext');
+        const syncManifest = httpsCallable(functions, 'syncCharacterManifest');
 
         try {
+            // 1. HARD SYNC: If we have a masterFileId, force update from Drive first
+            if (realData?.masterFileId && accessToken) {
+                 try {
+                     toast.info("Syncing latest data from Drive...");
+                     await syncManifest({
+                         masterVaultId: null, // Ignored
+                         accessToken: accessToken,
+                         specificFileId: realData.masterFileId
+                     });
+                     // Force refresh local data after sync
+                     const db = getFirestore();
+                     const auth = getAuth();
+                     if (auth.currentUser && data.id) {
+                         const updatedDoc = await getDoc(doc(db, "users", auth.currentUser.uid, "characters", data.id));
+                         if (updatedDoc.exists()) {
+                             setRealData(updatedDoc.data());
+                         }
+                     }
+                 } catch (syncErr) {
+                     console.warn("Sync failed, proceeding with Analysis only.", syncErr);
+                 }
+            }
+
+            // 2. AI ANALYSIS
             const result: any = await enrichContext({
                 characterId: data.id,
                 name: data.name,
@@ -196,10 +220,10 @@ Materialized from Deep Scan.
     // Capture the full role text BEFORE truncation for the popover
     const fullRoleText = displayRole;
 
-    // 🛡️ SAFETY CLIPPING: Enforce strict role length for UI Badge
-    // Just in case the logic above leaked a long string
-    if (displayRole && displayRole.length > 50) {
-        displayRole = displayRole.substring(0, 50) + "...";
+    // 🛡️ SAFETY CLIPPING: Enforce strict role length for UI Badge (HEADER ONLY)
+    // The popover (fullRoleText) remains untouched.
+    if (displayRole && displayRole.length > 150) {
+        displayRole = displayRole.substring(0, 150) + "...";
     }
 
     // Construct Display Bio
@@ -224,7 +248,7 @@ Materialized from Deep Scan.
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in" onClick={onClose}>
             <div
-                className="w-full max-w-4xl max-h-[85vh] flex flex-col bg-titanium-950 border border-titanium-700 shadow-2xl rounded-2xl overflow-hidden transform transition-all"
+                className="w-full max-w-4xl h-fit max-h-screen flex flex-col bg-titanium-950 border border-titanium-700 shadow-2xl rounded-2xl overflow-hidden transform transition-all my-auto"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* HEADER (Sticky) */}
@@ -267,7 +291,7 @@ Materialized from Deep Scan.
                 </div>
 
                 {/* CONTENT BODY (Scrollable) */}
-                <div className="flex-1 overflow-y-auto p-10 bg-gradient-to-b from-titanium-950 to-titanium-900/30">
+                <div className="flex-1 overflow-y-auto max-h-[60vh] p-10 bg-gradient-to-b from-titanium-950 to-titanium-900/30">
 
                     {/* Loading State */}
                     {isLoadingReal && (
