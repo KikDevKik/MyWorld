@@ -29,6 +29,7 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
     const [isAnalyzing, setIsAnalyzing] = useState(false); // 🔮 Deep Analysis State
     const [realData, setRealData] = useState<any | null>(null);
     const [isLoadingReal, setIsLoadingReal] = useState(false);
+    const [isRoleExpanded, setIsRoleExpanded] = useState(false);
 
     // 🟢 GAMMA FIX: Fetch Real Data (EXISTING or DETECTED)
     useEffect(() => {
@@ -170,6 +171,9 @@ Materialized from Deep Scan.
         }
     }
 
+    // Capture the full role text BEFORE truncation for the popover
+    const fullRoleText = displayRole;
+
     // 🛡️ SAFETY CLIPPING: Enforce strict role length for UI Badge
     // Just in case the logic above leaked a long string
     if (displayRole && displayRole.length > 50) {
@@ -215,9 +219,29 @@ Materialized from Deep Scan.
 
                              {/* Role Badge (Moved from body) */}
                              {displayRole && (
-                                 <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border bg-titanium-800/50 border-titanium-600/30 text-titanium-300">
+                                 <button
+                                    onClick={() => setIsRoleExpanded(true)}
+                                    className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border bg-titanium-800/50 border-titanium-600/30 text-titanium-300 hover:border-titanium-400 hover:text-titanium-100 transition-colors cursor-pointer text-left max-w-[200px] truncate"
+                                 >
                                      {displayRole}
-                                 </span>
+                                 </button>
+                             )}
+
+                             {/* Role Expansion Popover (Balloon) */}
+                             {isRoleExpanded && fullRoleText && (
+                                 <div
+                                     className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
+                                     onClick={() => setIsRoleExpanded(false)}
+                                 >
+                                     <div
+                                         className="w-full max-w-lg bg-titanium-950 border border-titanium-700 p-8 rounded-2xl shadow-2xl relative m-4"
+                                         onClick={(e) => e.stopPropagation()}
+                                     >
+                                         <div className="prose prose-invert prose-sm max-w-none text-titanium-200">
+                                            <MarkdownRenderer content={fullRoleText} mode="compact" />
+                                         </div>
+                                     </div>
+                                 </div>
                              )}
                         </div>
                     </div>
