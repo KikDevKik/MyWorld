@@ -221,8 +221,8 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
     return (
         <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
             {/* HEADER */}
-            <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
-                <div className="flex items-center gap-2 text-titanium-100 overflow-hidden">
+            <div className="relative z-20 h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
+                <div className="flex items-center gap-2 text-titanium-100">
                     <span className="flex items-center gap-2 text-titanium-400 shrink-0">
                         <Hammer size={20} />
                         <span className="font-bold hidden md:inline">Forja de Almas</span>
