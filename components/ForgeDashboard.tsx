@@ -26,7 +26,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const [isLoading, setIsLoading] = useState(true);
 
     // SESSION VERSIONING (Forcing Refresh)
-    const [sessionVersion, setSessionVersion] = useState(0);
+    // 🟢 UPDATED: Force Unique Session ID on Mount (Break the Loop)
+    const [sessionVersion, setSessionVersion] = useState(() => Date.now());
 
     // DATA
     const [characters, setCharacters] = useState<Character[]>([]);

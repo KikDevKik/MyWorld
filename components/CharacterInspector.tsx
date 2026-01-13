@@ -6,6 +6,7 @@ import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
 import MarkdownRenderer from './MarkdownRenderer';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Define a unified interface for display (Now Compatible with Character type)
 interface InspectorData extends Partial<Character> {
@@ -227,22 +228,31 @@ Materialized from Deep Scan.
                                  </button>
                              )}
 
-                             {/* Role Expansion Popover (Balloon) */}
-                             {isRoleExpanded && fullRoleText && (
-                                 <div
-                                     className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in"
-                                     onClick={() => setIsRoleExpanded(false)}
-                                 >
-                                     <div
-                                         className="w-full max-w-lg bg-titanium-950 border border-titanium-700 p-8 rounded-2xl shadow-2xl relative m-4"
-                                         onClick={(e) => e.stopPropagation()}
-                                     >
-                                         <div className="prose prose-invert prose-sm max-w-none text-titanium-200">
-                                            <MarkdownRenderer content={fullRoleText} mode="compact" />
-                                         </div>
-                                     </div>
-                                 </div>
-                             )}
+                             {/* Role Expansion Popover (Centered Mini Modal) */}
+                             <AnimatePresence>
+                                {isRoleExpanded && fullRoleText && (
+                                    <motion.div
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-md"
+                                        onClick={() => setIsRoleExpanded(false)}
+                                    >
+                                        <motion.div
+                                            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                                            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                                            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                                            className="w-full max-w-lg bg-titanium-950 border border-titanium-600 p-8 rounded-2xl shadow-2xl relative m-4"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <div className="prose prose-invert prose-base max-w-none text-titanium-100">
+                                               <MarkdownRenderer content={fullRoleText} mode="compact" />
+                                            </div>
+                                        </motion.div>
+                                    </motion.div>
+                                )}
+                             </AnimatePresence>
                         </div>
                     </div>
 
