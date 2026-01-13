@@ -167,7 +167,7 @@ ${TOOL_INSTRUCTION}`;
             let finalText = aiText;
             try {
                 // Check if response looks like JSON
-                if (aiText.trim().startsWith('{') && aiText.includes('create_lore_file')) {
+                if (aiText && aiText.trim().startsWith('{') && aiText.includes('create_lore_file')) {
                      const toolCall = JSON.parse(aiText);
                      if (toolCall.tool === 'create_lore_file' && toolCall.args) {
                          const toastId = toast.loading("🔨 Forjando documento...");
@@ -189,11 +189,17 @@ ${TOOL_INSTRUCTION}`;
             }
 
             // 4. Update UI (AI)
-            const aiMsg: Message = { role: 'model', text: finalText, sources };
-            setMessages(prev => [...prev, aiMsg]);
+            // 🛡️ NULL-OBJECT HANDLING: Prevent "Bucle de Información"
+            if (finalText) {
+                const aiMsg: Message = { role: 'model', text: finalText, sources };
+                setMessages(prev => [...prev, aiMsg]);
 
-            // 5. Save AI Message
-            await addForgeMessage({ sessionId, role: 'model', text: finalText, sources });
+                // 5. Save AI Message
+                await addForgeMessage({ sessionId, role: 'model', text: finalText, sources });
+            } else {
+                console.warn("⚠️ AI returned empty response. Skipping save to prevent loop.");
+                toast.error("La IA no devolvió contenido.");
+            }
 
         } catch (error: any) {
             console.error("Error in chat flow:", error);
