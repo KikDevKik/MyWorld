@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { ArrowLeft, Send, Loader2, Bot, User, Hammer, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
@@ -11,6 +11,7 @@ interface Message {
     role: 'user' | 'model';
     text: string;
     timestamp?: string;
+    sources?: string[]; // 🟢 Persistent Sources
 }
 
 interface ForgeChatProps {
@@ -42,6 +43,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
+    const [isCanonOnly, setIsCanonOnly] = useState(false); // 🟢 Truth Border Toggle
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const initializedRef = useRef(false);
 
@@ -149,10 +151,12 @@ ${TOOL_INSTRUCTION}`;
                 systemInstruction: systemPrompt,
                 projectId: folderId || undefined, // 👈 STRICT ISOLATION
                 activeFileName: activeContextFile?.name,
+                filterScope: isCanonOnly ? 'canon_only' : 'global', // 🟢 Pass Scope
                 // Pass activeFileContent if it were available as a prop, currently empty or RAG handles it
             });
 
             const aiText = aiResponse.data.response;
+            const sources = aiResponse.data.sources?.map((s: any) => s.fileName) || [];
 
             // --- TOOL DETECTION LOGIC ---
             let finalText = aiText;
@@ -180,11 +184,11 @@ ${TOOL_INSTRUCTION}`;
             }
 
             // 4. Update UI (AI)
-            const aiMsg: Message = { role: 'model', text: finalText };
+            const aiMsg: Message = { role: 'model', text: finalText, sources };
             setMessages(prev => [...prev, aiMsg]);
 
             // 5. Save AI Message
-            await addForgeMessage({ sessionId, role: 'model', text: finalText });
+            await addForgeMessage({ sessionId, role: 'model', text: finalText, sources });
 
         } catch (error) {
             console.error("Error in chat flow:", error);
@@ -277,14 +281,28 @@ ${TOOL_INSTRUCTION}`;
                                 </div>
                             )}
 
-                            <div
-                                className={`flex-1 p-4 rounded-xl text-sm leading-relaxed shadow-sm overflow-hidden break-words whitespace-pre-wrap ${msg.role === 'user'
-                                    ? 'bg-titanium-800 text-titanium-100 border border-titanium-700 rounded-tr-sm max-w-[80%]'
-                                    : 'bg-transparent text-titanium-300 rounded-tl-sm' // Minimalist for AI
-                                    }`}
-                                style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
-                            >
-                                <MarkdownRenderer content={msg.text} />
+                            <div className={`flex-1 flex flex-col gap-2 max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                <div
+                                    className={`p-4 rounded-xl text-sm leading-relaxed shadow-sm overflow-hidden break-words whitespace-pre-wrap ${msg.role === 'user'
+                                        ? 'bg-titanium-800 text-titanium-100 border border-titanium-700 rounded-tr-sm'
+                                        : 'bg-transparent text-titanium-300 rounded-tl-sm w-full'
+                                        }`}
+                                    style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
+                                >
+                                    <MarkdownRenderer content={msg.text} />
+                                </div>
+
+                                {/* 🟢 SOURCES DISPLAY */}
+                                {msg.role === 'model' && msg.sources && msg.sources.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 animate-fade-in px-1">
+                                        {msg.sources.map((src, i) => (
+                                            <div key={i} className="text-[10px] font-mono text-titanium-500 bg-titanium-900 border border-titanium-800 px-2 py-0.5 rounded flex items-center gap-1 opacity-70 hover:opacity-100 transition-opacity">
+                                                <span>📄</span>
+                                                <span className="truncate max-w-[200px]">{src}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
 
                             {msg.role === 'user' && (
@@ -312,29 +330,50 @@ ${TOOL_INSTRUCTION}`;
 
             {/* INPUT */}
             <div className="p-4 border-t border-titanium-800 bg-titanium-900 shrink-0">
-                <div className="max-w-4xl mx-auto flex gap-2 relative">
-                    <input
-                        type="text"
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        placeholder="Escribe a la Forja..."
-                        className="flex-1 bg-slate-900 text-white placeholder-slate-400 border border-slate-700 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT transition-all shadow-inner"
-                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        disabled={isSending}
-                        autoFocus
-                    />
-                    <button
-                        onClick={handleSend}
-                        disabled={!input.trim() || isSending}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 rounded-lg disabled:opacity-0 disabled:pointer-events-none transition-all shadow-lg hover:shadow-accent-DEFAULT/20"
-                    >
-                        <Send size={18} />
-                    </button>
-                </div>
-                <div className="text-center mt-2">
-                     <span className="text-[10px] text-titanium-600">
-                        AI Mode: <span className="text-accent-DEFAULT font-bold">GEMINI 3 PRO</span> (Deep Reasoning Active)
-                     </span>
+                <div className="max-w-4xl mx-auto flex flex-col gap-3">
+
+                    {/* 🟢 TRUTH BORDER TOGGLE */}
+                    <div className="flex items-center gap-2 px-1">
+                         <button
+                            onClick={() => setIsCanonOnly(!isCanonOnly)}
+                            className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all border ${
+                                isCanonOnly
+                                ? 'bg-cyan-900/30 border-cyan-500/50 text-cyan-300 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                                : 'bg-titanium-800 border-titanium-700 text-titanium-500 hover:border-titanium-500 hover:text-titanium-300'
+                            }`}
+                         >
+                            <Shield size={12} className={isCanonOnly ? "fill-cyan-500/20" : ""} />
+                            <span>{isCanonOnly ? "Scope: Canon Only" : "Scope: Global"}</span>
+                         </button>
+                    </div>
+
+                    <div className="flex gap-2 relative">
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            placeholder={isCanonOnly ? "Consultando Archivos Canónicos..." : "Escribe a la Forja..."}
+                            className={`flex-1 bg-slate-900 text-white placeholder-slate-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
+                                isCanonOnly
+                                ? 'border-cyan-900/50 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
+                                : 'border-slate-700 focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT'
+                            }`}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                            disabled={isSending}
+                            autoFocus
+                        />
+                        <button
+                            onClick={handleSend}
+                            disabled={!input.trim() || isSending}
+                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-lg disabled:opacity-0 disabled:pointer-events-none transition-all shadow-lg ${
+                                isCanonOnly
+                                ? 'bg-cyan-600 hover:bg-cyan-500 text-white hover:shadow-cyan-500/20'
+                                : 'bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 hover:shadow-accent-DEFAULT/20'
+                            }`}
+                        >
+                            <Send size={18} />
+                        </button>
+                    </div>
                 </div>
             </div >
         </div >

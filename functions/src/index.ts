@@ -486,6 +486,9 @@ async function fetchFolderContents(
 
     // 🟢 PRE-FILTER MAPPING
     const processedFilesPromises = validFiles.map(async (file: any): Promise<DriveFile | null> => {
+        // 🟢 PATH CONSTRUCTION
+        const currentPath = parentPath ? `${parentPath}/${file.name}` : file.name;
+
         // 🟢 DETECCIÓN DE CATEGORÍA (CONTEXT MAPPING)
         let fileCategory: 'canon' | 'reference' = currentCategory;
 
@@ -495,8 +498,11 @@ async function fetchFolderContents(
         if (isExplicitCanon) fileCategory = 'canon';
         if (isExplicitResource) fileCategory = 'reference';
 
-        // 🟢 PATH CONSTRUCTION
-        const currentPath = parentPath ? `${parentPath}/${file.name}` : file.name;
+        // 🟢 FORCE CANON FOR 'LIBROS' (Truth Border Logic)
+        // Ensures that any file within a 'Libros' structure is treated as Canon for the filter.
+        if (currentPath.includes('/Libros/') || currentPath.includes('/Books/') || file.name === 'Libros') {
+             fileCategory = 'canon';
+        }
 
         // 🟢 SAGA DETECTION (Context Tagging)
         // If we have a parent path, the "Saga" is the top-level folder of that branch relative to the root scan
@@ -1303,7 +1309,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext } = request.data;
+    const { query, systemInstruction, history, categoryFilter, filterScope, activeFileContent, activeFileName, isFallbackContext } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -1435,6 +1441,12 @@ ${analysis}
       // 3. Recuperar Chunks (Vector Search Nativo)
       const coll = db.collectionGroup("chunks");
       let chunkQuery = coll.where("userId", "==", userId);
+
+      // 🟢 TRUTH BORDER FILTER (CANON ONLY)
+      if (filterScope === 'canon_only') {
+          logger.info("🛡️ TRUTH BORDER ACTIVE: Restricting search to CANON only.");
+          chunkQuery = chunkQuery.where("category", "==", "canon");
+      }
 
       const fetchLimit = isFallbackContext ? 100 : 50;
 
@@ -2098,7 +2110,7 @@ export const addForgeMessage = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { sessionId, role, text, characterId } = request.data;
+    const { sessionId, role, text, characterId, sources } = request.data;
     if (!sessionId || !role || !text) {
       throw new HttpsError("invalid-argument", "Faltan datos del mensaje.");
     }
@@ -2115,7 +2127,8 @@ export const addForgeMessage = onCall(
       await msgRef.set({
         role,
         text,
-        timestamp: now
+        timestamp: now,
+        sources: sources || [] // 🟢 Save Sources
       });
 
       // 2. UPSERT SESSION (The "Upsert Protocol")
@@ -2945,14 +2958,21 @@ export const syncCharacterManifest = onCall(
                                 // 4. Collapse multiple spaces
                                 firstPara = firstPara.replace(/\s+/g, ' ').trim();
 
-                                // 🟢 STRICT TRUNCATION (Inclusive)
-                                const MAX_LEN = 150;
-                                if (firstPara.length > MAX_LEN) {
-                                    resolvedRole = firstPara.slice(0, MAX_LEN - 3) + '...';
-                                } else {
-                                    resolvedRole = firstPara;
-                                }
+                                resolvedRole = firstPara;
                             }
+                        }
+
+                        // 🟢 STRICT SANITIZATION & TRUNCATION (GLOBAL ENFORCEMENT)
+                        // Even if it came from frontmatter, we must clean it.
+                        // 1. Flatten newlines (prevent description leak)
+                        if (resolvedRole) {
+                             resolvedRole = resolvedRole.replace(/[\r\n]+/g, ' ').trim();
+                        }
+
+                        // 2. Strict Truncation
+                        const MAX_ROLE_LEN = 150;
+                        if (resolvedRole && resolvedRole.length > MAX_ROLE_LEN) {
+                            resolvedRole = resolvedRole.slice(0, MAX_ROLE_LEN - 3) + '...';
                         }
 
                         // We only perform the write if it was processed OR if we want to ensure existence.
