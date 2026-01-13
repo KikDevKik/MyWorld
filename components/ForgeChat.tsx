@@ -318,7 +318,7 @@ ${TOOL_INSTRUCTION}`;
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         placeholder="Escribe a la Forja..."
-                        className="flex-1 bg-titanium-950 text-white placeholder-titanium-600 border border-titanium-800 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT transition-all shadow-inner"
+                        className="flex-1 bg-slate-900 text-white placeholder-slate-400 border border-slate-700 rounded-xl px-4 py-4 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT transition-all shadow-inner"
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         disabled={isSending}
                         autoFocus

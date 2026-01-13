@@ -3206,6 +3206,12 @@ export const forgeAnalyzer = onCall(
            - You MAY suggest creating a database entry.
            - You MUST extract the RAW TEXT SNIPPET (Context Window) where they appear.
 
+        NARRATIVE PERSPECTIVE (POV) & DIALOGUE PROTOCOL:
+        - First Person (I/Me) vs Third Person (He/She).
+        - DIFFERENTIATE between Internal Monologue (Thoughts) and Spoken Dialogue (often marked with dashes '-' or quotes).
+        - Do not attribute the Narrator's internal thoughts to other characters as dialogue.
+        - If the text uses dashes for dialogue (e.g. "- Hola - dijo él"), correctly identify the speaker.
+
         CRITICAL DIRECTIVE - LANGUAGE PROTOCOL:
         1. DETECT the language of the provided "MANUSCRIPT TEXT".
         2. ADAPT your persona to that language.
