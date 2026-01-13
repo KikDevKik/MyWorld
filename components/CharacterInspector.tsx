@@ -163,22 +163,31 @@ Materialized from Deep Scan.
              // It's a description leak. Do we have an AI role?
              if (!data.role || data.role.length > 60) {
                  // Even AI role is bad or missing? Truncate the DB one.
-                 displayRole = realData.role.substring(0, 50) + "...";
+                 // FORCE TRUNCATION HERE if both are bad
+                 displayRole = realData.role;
              }
              // Else keep AI role
         }
     }
 
+    // 🛡️ SAFETY CLIPPING: Enforce strict role length for UI Badge
+    // Just in case the logic above leaked a long string
+    if (displayRole && displayRole.length > 50) {
+        displayRole = displayRole.substring(0, 50) + "...";
+    }
+
     // Construct Display Bio
     let displayBio = "";
     if (realData) {
-        // Option A: Use snippets if available
-        if (realData.snippets && realData.snippets.length > 0) {
-            displayBio = realData.snippets[0].text;
-        } else if (realData.bio) {
-            displayBio = realData.bio;
-        } else if (realData.content) {
+        // Option A: Use FULL CONTENT (Markdown) if available - Highest Priority for "Existing"
+        if (realData.content) {
             displayBio = realData.content;
+        } else if (realData.bio) {
+             // Option B: Legacy 'bio' field
+            displayBio = realData.bio;
+        } else if (realData.snippets && realData.snippets.length > 0) {
+             // Option C: Fallback to snippets (RAG Chunks)
+            displayBio = realData.snippets[0].text;
         } else {
              displayBio = "_Ficha cargada, pero sin biografía textual disponible en la base de datos._";
         }
