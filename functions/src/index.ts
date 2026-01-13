@@ -1316,7 +1316,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, filterScope, activeFileContent, activeFileName, isFallbackContext, filterScopeIds, filterScopePath } = request.data;
+    const { query, systemInstruction, history, categoryFilter, filterScope, activeFileContent, activeFileName, isFallbackContext, filterScopeIds, filterScopePath, sessionId } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -1566,10 +1566,10 @@ ${analysis}
         model: "gemini-3-pro-preview",
         temperature: 0.7,
         safetySettings: [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
         ]
       });
 
@@ -1682,9 +1682,9 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
       try {
         const response = await chatModel.invoke(promptFinal);
 
-        // 🛡️ VALIDATION 1: Empty Response
-        if (!response) {
-            throw new Error("La IA devolvió una respuesta vacía (null/undefined).");
+        // 🛡️ VALIDATION 1: Empty Response or Invalid Object
+        if (!response || typeof response !== 'object') {
+             throw new Error("La IA devolvió una respuesta vacía o inválida (null/undefined).");
         }
 
         // 🛡️ VALIDATION 2: Safety Blocks
@@ -1705,8 +1705,8 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         }
 
         // 🛡️ VALIDATION 3: Content Existence
-        if (response.content === undefined || response.content === null) {
-             throw new Error("El contenido de la respuesta es undefined.");
+        if (!response.content || (typeof response.content === 'string' && response.content.trim() === '')) {
+             throw new Error("El contenido de la respuesta es undefined o vacío.");
         }
 
         const finalContent = typeof response.content === 'string'
@@ -1722,12 +1722,30 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         };
 
       } catch (invokeError: any) {
-         logger.error("💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG):", invokeError);
+         logger.error("💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG):", invokeError?.message || invokeError);
+
+         // 🟢 PROTOCOLO DE FALLO: Romper el bucle de UI
+         if (sessionId) {
+            try {
+                await db.collection("users").doc(userId)
+                    .collection("forge_sessions").doc(sessionId)
+                    .collection("messages").add({
+                        role: 'system',
+                        text: "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.",
+                        timestamp: new Date().toISOString(),
+                        type: 'error',
+                        isError: true // Optional flag for UI
+                    });
+                logger.info(`🚨 Error inyectado en sesión ${sessionId} para liberar UI.`);
+            } catch (persistError: any) {
+                logger.error("Error al persistir mensaje de fallo:", persistError?.message);
+            }
+         }
 
          // 🟢 UI RECOVERY PROTOCOL: Return a valid object with the error message
          // This ensures ForgeChat.tsx saves it to the history instead of crashing.
          return {
-             response: "⚠️ Error de Conexión: La Forja de Almas no pudo procesar este fragmento de lore. Reintente en unos momentos.",
+             response: "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.",
              sources: []
          };
       }
