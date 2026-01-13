@@ -195,9 +195,29 @@ ${TOOL_INSTRUCTION}`;
             // 5. Save AI Message
             await addForgeMessage({ sessionId, role: 'model', text: finalText, sources });
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error in chat flow:", error);
-            toast.error("Error al procesar el mensaje.");
+
+            // 🟢 UI RECOVERY (MANUAL SAVE)
+            // If the backend failed entirely (e.g. timeout, network error) and didn't return the controlled error string,
+            // we must manually insert the error message into the chat so the loop is closed.
+
+            const errorText = "⚠️ Error de Conexión: La Forja de Almas no pudo procesar este fragmento de lore. Reintente en unos momentos.";
+
+            // Update UI immediately
+            const errorMsg: Message = { role: 'model', text: errorText };
+            setMessages(prev => [...prev, errorMsg]);
+
+            // Try to persist the error to DB so history is consistent
+            try {
+                const functions = getFunctions();
+                const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
+                await addForgeMessage({ sessionId, role: 'model', text: errorText });
+            } catch (persistErr) {
+                console.error("Failed to persist error message:", persistErr);
+            }
+
+            toast.error("Error de conexión con la Forja.");
         } finally {
             setIsSending(false);
         }
