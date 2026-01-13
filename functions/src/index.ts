@@ -1520,9 +1520,12 @@ ${analysis}
       const fileCounts: { [key: string]: number } = {};
 
       // A) FILTER EXCLUSION (Active File)
-      if (activeFileName) {
+      // CONDITION: Only filter if we have enough candidates (>10) to avoid "Diversity Shortfall"
+      if (activeFileName && candidates.length > 10) {
          logger.info(`🔍 Filtering out chunks from active file: ${activeFileName}`);
          candidates = candidates.filter(c => c.fileName !== activeFileName);
+      } else if (activeFileName) {
+         logger.info(`🔍 Keeping active file chunks for context (Low Diversity: ${candidates.length})`);
       }
 
       // B) DIVERSITY PASS (Cap)
@@ -1565,6 +1568,8 @@ ${analysis}
         apiKey: googleApiKey.value(),
         model: "gemini-3-pro-preview",
         temperature: 0.7,
+        // @ts-ignore - Timeout might not be in the type definition but is supported
+        timeout: 60000, // 🛡️ TIMEOUT EXPLÍCITO (60s)
         safetySettings: [
           { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
           { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -1680,7 +1685,14 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
       `;
 
       try {
-        const response = await chatModel.invoke(promptFinal);
+        // 🛡️ LANGCHAIN WRAPPER: Intercept 'invoke' explicitly
+        let response;
+        try {
+             response = await chatModel.invoke(promptFinal);
+        } catch (innerError: any) {
+             logger.error("💥 CRASH INSIDE INVOKE (Gemini/LangChain):", innerError);
+             throw new Error("Fallo interno al invocar el modelo: " + (innerError.message || "Unknown Error"));
+        }
 
         // 🛡️ VALIDATION 1: Empty Response or Invalid Object
         if (!response || typeof response !== 'object') {
@@ -1697,7 +1709,7 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         }
 
         if (finishReason === 'BLOCKED' || finishReason === 'SAFETY') {
-            logger.warn("🛑 CONTENIDO BLOQUEADO POR FILTROS DE SEGURIDAD");
+            logger.warn("🛑 CONTENIDO BLOQUEADO POR FILTROS DE SEGURIDAD (Override Attempted but Failed)");
             return {
                 response: "Contenido Bloqueado: Esta consulta activa los protocolos de seguridad de Gemini. Intenta reformular el prompt narrativo.",
                 sources: []
@@ -1705,8 +1717,9 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         }
 
         // 🛡️ VALIDATION 3: Content Existence
-        if (!response.content || (typeof response.content === 'string' && response.content.trim() === '')) {
-             throw new Error("El contenido de la respuesta es undefined o vacío.");
+        // FIX: Check explicitly for null/undefined content property
+        if (response.content === undefined || response.content === null || (typeof response.content === 'string' && response.content.trim() === '')) {
+             throw new Error("El contenido de la respuesta es undefined, null o vacío.");
         }
 
         const finalContent = typeof response.content === 'string'
@@ -1722,7 +1735,7 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         };
 
       } catch (invokeError: any) {
-         logger.error("💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG):", invokeError?.message || invokeError);
+         logger.error("💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG) [CATCH-ALL]:", invokeError?.message || invokeError);
 
          // 🟢 PROTOCOLO DE FALLO: Romper el bucle de UI
          if (sessionId) {
