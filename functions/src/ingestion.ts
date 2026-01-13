@@ -123,6 +123,7 @@ export async function ingestFile(
             docId: docId, // Hashed Path ID
             driveId: file.id, // Original Drive ID reference
             folderId: file.parentId || 'unknown',
+            path: file.path, // 👈 New: Full Path for Filtering
             saga: file.saga || 'Global', // 👈 New: Saga Context
             timestamp: now,
             type: 'file',
