@@ -353,7 +353,7 @@ ${TOOL_INSTRUCTION}`;
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
                             placeholder={isCanonOnly ? "Consultando Archivos Canónicos..." : "Escribe a la Forja..."}
-                            className={`flex-1 bg-slate-900 text-white placeholder-slate-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
+                            className={`flex-1 !bg-slate-900 !text-white placeholder-slate-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
                                 isCanonOnly
                                 ? 'border-cyan-900/50 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
                                 : 'border-slate-700 focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT'
@@ -361,6 +361,8 @@ ${TOOL_INSTRUCTION}`;
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                             disabled={isSending}
                             autoFocus
+                            spellCheck={false}
+                            autoComplete="off"
                         />
                         <button
                             onClick={handleSend}
