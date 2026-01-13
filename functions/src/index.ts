@@ -8,7 +8,12 @@ import {
   ChatGoogleGenerativeAI,
   GoogleGenerativeAIEmbeddings
 } from "@langchain/google-genai";
-import { TaskType, GoogleGenerativeAI } from "@google/generative-ai";
+import {
+  TaskType,
+  GoogleGenerativeAI,
+  HarmCategory,
+  HarmBlockThreshold
+} from "@google/generative-ai";
 import { Chunk } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
@@ -1560,6 +1565,12 @@ ${analysis}
         apiKey: googleApiKey.value(),
         model: "gemini-3-pro-preview",
         temperature: 0.7,
+        safetySettings: [
+          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+        ]
       });
 
       let activeCharacterPrompt = "";
@@ -1668,19 +1679,66 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         PREGUNTA DEL USUARIO: "${query}"
       `;
 
-      const response = await chatModel.invoke(promptFinal);
+      try {
+        const response = await chatModel.invoke(promptFinal);
 
-      return {
-        response: response.content,
-        sources: relevantChunks.map(chunk => ({
-          text: chunk.text.substring(0, 200) + "...",
-          fileName: chunk.fileName
-        }))
-      };
+        // 🛡️ VALIDATION 1: Empty Response
+        if (!response) {
+            throw new Error("La IA devolvió una respuesta vacía (null/undefined).");
+        }
+
+        // 🛡️ VALIDATION 2: Safety Blocks
+        // Check standard Google GenAI metadata structure in LangChain
+        const finishReason = response.response_metadata?.finishReason;
+
+        // Log for debugging safety filters
+        if (finishReason) {
+            logger.info(`🛡️ Gemini Finish Reason: ${finishReason}`);
+        }
+
+        if (finishReason === 'BLOCKED' || finishReason === 'SAFETY') {
+            logger.warn("🛑 CONTENIDO BLOQUEADO POR FILTROS DE SEGURIDAD");
+            return {
+                response: "Contenido Bloqueado: Esta consulta activa los protocolos de seguridad de Gemini. Intenta reformular el prompt narrativo.",
+                sources: []
+            };
+        }
+
+        // 🛡️ VALIDATION 3: Content Existence
+        if (response.content === undefined || response.content === null) {
+             throw new Error("El contenido de la respuesta es undefined.");
+        }
+
+        const finalContent = typeof response.content === 'string'
+            ? response.content
+            : JSON.stringify(response.content);
+
+        return {
+          response: finalContent,
+          sources: relevantChunks.map(chunk => ({
+            text: chunk.text.substring(0, 200) + "...",
+            fileName: chunk.fileName
+          }))
+        };
+
+      } catch (invokeError: any) {
+         logger.error("💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG):", invokeError);
+
+         // 🟢 UI RECOVERY PROTOCOL: Return a valid object with the error message
+         // This ensures ForgeChat.tsx saves it to the history instead of crashing.
+         return {
+             response: "⚠️ Error de Conexión: La Forja de Almas no pudo procesar este fragmento de lore. Reintente en unos momentos.",
+             sources: []
+         };
+      }
 
     } catch (error: any) {
-      logger.error("Error en Chat RAG:", error);
-      throw new HttpsError("internal", error.message);
+      logger.error("Error General en Chat RAG (Setup):", error);
+      // Catch-all for errors before the invoke (e.g. Vector Search failure)
+      return {
+          response: "⚠️ Error del Sistema: Fallo en la memoria a largo plazo.",
+          sources: []
+      };
     }
   }
 );
