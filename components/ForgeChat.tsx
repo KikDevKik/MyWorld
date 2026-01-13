@@ -386,10 +386,10 @@ ${TOOL_INSTRUCTION}`;
                             onChange={(e) => setInput(e.target.value)}
                             placeholder={selectedScope.id ? `Consultando ${selectedScope.name}...` : "Escribe a la Forja..."}
                             aria-label="Mensaje"
-                            className={`flex-1 !bg-slate-900 !text-white placeholder-slate-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
+                            className={`flex-1 bg-titanium-800 text-titanium-100 placeholder-titanium-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
                                 selectedScope.id
                                 ? 'border-cyan-900/50 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
-                                : 'border-slate-700 focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT'
+                                : 'border-titanium-700 focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT'
                             }`}
                             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                             disabled={isSending}
