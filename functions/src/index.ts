@@ -1316,7 +1316,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopeIds, filterScopePath, sessionId } = request.data;
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -1451,27 +1451,12 @@ ${analysis}
 
       // 🟢 NEW RECURSIVE SCOPE FILTER
       // ⚠️ IMPORTANT: NO CATEGORY FILTER HERE to match Composite Index (userId, path)
-      if (filterScopeIds && Array.isArray(filterScopeIds) && filterScopeIds.length > 0) {
-          logger.info(`🛡️ RECURSIVE SCOPE ACTIVE: Restricting search to ${filterScopeIds.length} folders.`);
-
-          // OPTIMIZATION: Use PATH PREFIX if available and reliable (Infinite Depth)
-          if (filterScopePath) {
-             logger.info(`   -> Using PATH PREFIX optimization: ${filterScopePath}`);
-             chunkQuery = chunkQuery
-                .where("path", ">=", filterScopePath)
-                .where("path", "<=", filterScopePath + "\uf8ff");
-          } else if (filterScopeIds.length <= 10) {
-             // Use IN operator for small sets
-             logger.info(`   -> Using IN operator for IDs.`);
-             chunkQuery = chunkQuery.where("folderId", "in", filterScopeIds); // Note: chunks store parentFolderId as folderId
-          } else {
-             logger.warn(`   -> Scope too large for 'IN' query (${filterScopeIds.length}). Fallback to post-filter recommended or Path optimization.`);
-             // For now, we will rely on post-filtering if we can't use path or IN.
-             // Best effort: slice 10.
-             const slicedIds = filterScopeIds.slice(0, 10);
-             logger.warn(`   -> Sliced to first 10 IDs for query stability.`);
-             chunkQuery = chunkQuery.where("folderId", "in", slicedIds);
-          }
+      // ⚠️ IMPORTANT: NO folderId FILTER HERE to avoid FAILED_PRECONDITION
+      if (filterScopePath) {
+          logger.info(`🛡️ RECURSIVE SCOPE ACTIVE: Using PATH PREFIX optimization: ${filterScopePath}`);
+          chunkQuery = chunkQuery
+            .where("path", ">=", filterScopePath)
+            .where("path", "<=", filterScopePath + "\uf8ff");
       }
 
       const fetchLimit = isFallbackContext ? 100 : 50;
@@ -1513,7 +1498,7 @@ ${analysis}
       const rejectedCandidates: Chunk[] = [];
       const fileCounts: { [key: string]: number } = {};
 
-      const isScopedSearch = (filterScopePath || (filterScopeIds && filterScopeIds.length > 0));
+      const isScopedSearch = !!filterScopePath;
 
       // A) FILTER EXCLUSION (Active File)
       // CONDITION: Only filter if we have enough candidates (>10) to avoid "Diversity Shortfall"
@@ -1566,7 +1551,7 @@ ${analysis}
       const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
 
       // 🟢 DEBUG SOURCES
-      if (filterScopeIds) {
+      if (filterScopePath) {
          logger.info("📊 Scope Filter Result Sources:", relevantChunks.map(c => `${c.fileName} (${(c as any).path})`));
       }
 
@@ -1695,17 +1680,8 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         // 🛡️ LANGCHAIN WRAPPER: Intercept 'invoke' explicitly
         let response;
         try {
-             // 🟢 FORCE SAFETY SETTINGS (RUNTIME OVERRIDE)
-             const safeModel = (chatModel as any).bind({
-                 safetySettings: [
-                     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                     { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                     { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                 ]
-             });
-
-             response = await safeModel.invoke(promptFinal);
+             // 🟢 DIRECT INVOKE (No .bind, Safety Settings in Constructor)
+             response = await chatModel.invoke(promptFinal);
 
              // 🟢 RAW RESPONSE LOGGING (DEBUGGING 500/UNDEFINED)
              logger.info("🔍 [RAW AI RESPONSE]:", JSON.stringify(response, null, 2));
