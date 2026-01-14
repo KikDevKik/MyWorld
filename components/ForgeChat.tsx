@@ -106,6 +106,36 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
         }
     }, [sessionId]);
 
+    // 🟢 HANDLE PURGE (DESTRUCTIVE RESET)
+    const handlePurgeSession = async () => {
+        if (!sessionId) return;
+
+        // Confirmation dialog to prevent accidental wipes
+        if (!window.confirm("⚠️ PROTOCOLO DE PURGA: ¿Confirmar eliminación total de la memoria de esta sesión? Esto es irreversible.")) {
+            return;
+        }
+
+        const toastId = toast.loading("Purgando memoria de sesión...");
+        try {
+            const functions = getFunctions();
+            const clearSessionMessages = httpsCallable(functions, 'clearSessionMessages');
+
+            await clearSessionMessages({ sessionId });
+
+            // Clear local state immediately
+            setMessages([]);
+
+            toast.success("Memoria purgada. Tabula Rasa.", { id: toastId });
+
+            // Optional: If we wanted to also generate a new ID, we could call onReset(),
+            // but keeping the same (now empty) session is cleaner for the "Purge" concept.
+
+        } catch (error) {
+            console.error("Error purging session:", error);
+            toast.error("Fallo en el protocolo de purga.", { id: toastId });
+        }
+    };
+
     // SEND MESSAGE
     const handleSend = async () => {
         if (!input.trim() || isSending) return;
@@ -270,16 +300,14 @@ ${TOOL_INSTRUCTION}`;
                     </p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                    {onReset && (
-                        <button
-                            onClick={onReset}
-                            className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
-                            title="Nueva Sesión (Limpiar Chat)"
-                            aria-label="Nueva sesión"
-                        >
-                            <RefreshCcw size={20} />
-                        </button>
-                    )}
+                    <button
+                        onClick={handlePurgeSession}
+                        className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-red-400 transition-colors"
+                        title="Purgar Memoria de Sesión (Irreversible)"
+                        aria-label="Purgar Memoria"
+                    >
+                        <RefreshCcw size={20} />
+                    </button>
                     <button
                         onClick={handleForgeToDrive}
                         className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-accent-DEFAULT transition-colors"
@@ -362,7 +390,7 @@ ${TOOL_INSTRUCTION}`;
             </div >
 
             {/* INPUT */}
-            <div className="p-4 border-t border-titanium-800 bg-titanium-900 shrink-0">
+            <div className="p-4 border-t border-titanium-800 bg-titanium-900 shrink-0 z-50 relative">
                 <div className="max-w-4xl mx-auto flex flex-col gap-3">
 
                     {/* 🟢 SCOPE INDICATOR (READ ONLY) */}
@@ -386,7 +414,8 @@ ${TOOL_INSTRUCTION}`;
                             onChange={(e) => setInput(e.target.value)}
                             placeholder={selectedScope.id ? `Consultando ${selectedScope.name}...` : "Escribe a la Forja..."}
                             aria-label="Mensaje"
-                            className={`flex-1 bg-titanium-800 text-titanium-100 placeholder-titanium-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
+                            style={{ backgroundColor: '#18181b', color: '#e4e4e7' }}
+                            className={`flex-1 placeholder-titanium-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner ${
                                 selectedScope.id
                                 ? 'border-cyan-900/50 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
                                 : 'border-titanium-700 focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT'
