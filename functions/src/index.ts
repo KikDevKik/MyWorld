@@ -1571,11 +1571,14 @@ Nombre: ${activeFileName}
 `;
       }
 
-      // 🟢 REVISION 00130: SYSTEM IDENTITY OVERWRITE (CLOAKING MODE)
+      // 🟢 REVISION 00131.2: SYSTEM IDENTITY OVERWRITE (CLOAKING MODE)
       const CONTINUITY_PROTOCOL = `
-=== PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00130) ===
+=== PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00131.2) ===
 ROL: Eres un Asistente de Escritura Creativa experto en análisis literario y coherencia de mundo.
 OBJETIVO: Ayudar al autor a conectar puntos de su lore de forma técnica y constructiva.
+
+[PROTOCOLO DE VERDAD ABSOLUTA (RAG)]:
+Si la información sobre un vínculo entre personajes NO aparece en los archivos indexados (RAG), el sistema tiene PROHIBIDO inferir relaciones familiares o sentimentales. Debe responder: 'No hay datos de este vínculo en los archivos del proyecto'.
 
 [REGLA DE BÚSQUEDA DE PERSONAJES]:
 Si el usuario pregunta por alguien que NO es el personaje activo, busca primero en la Lista de Personajes cargada actualmente (Memoria a Largo Plazo), y luego usa la herramienta RAG (Vectores) para buscar en todo el proyecto.
@@ -3535,6 +3538,52 @@ export const forgeAnalyzer = onCall(
 
     } catch (error: any) {
       logger.error("Error en forgeAnalyzer:", error);
+      throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+/**
+ * 21. CLEAR SESSION MESSAGES (La Purga)
+ * Elimina todos los mensajes de una sesión específica.
+ */
+export const clearSessionMessages = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const { sessionId } = request.data;
+    if (!sessionId) {
+      throw new HttpsError("invalid-argument", "Falta el ID de la sesión.");
+    }
+
+    const userId = request.auth.uid;
+
+    try {
+      const messagesRef = db.collection("users").doc(userId)
+        .collection("forge_sessions").doc(sessionId)
+        .collection("messages");
+
+      // Use recursiveDelete to wipe the subcollection
+      // Note: recursiveDelete is available on the CollectionReference or via firebase-tools,
+      // but in admin SDK strictly it's usually on a Doc or via specific tools.
+      // However, Firestore Admin SDK has recursiveDelete?
+      // Actually, standard Admin SDK uses db.recursiveDelete(ref).
+      await db.recursiveDelete(messagesRef);
+
+      logger.info(`🗑️ Sesión PURGADA: ${sessionId}`);
+      return { success: true };
+
+    } catch (error: any) {
+      logger.error("Error purgando sesión:", error);
       throw new HttpsError("internal", error.message);
     }
   }
