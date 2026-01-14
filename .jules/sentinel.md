@@ -9,3 +9,8 @@
 1.  **DoS/Cost Spike:** Sending massive payloads to AI models (Gemini) which charge by token.
 2.  **Logic Errors:** Passing objects to file save functions could result in `[object Object]` corruption or crashes.
 **Prevention:** Implemented explicit constants `MAX_AI_INPUT_CHARS` (100k) and `MAX_FILE_SAVE_BYTES` (5MB). Added strict `typeof` checks and `.length` validation at the entry point of sensitive Cloud Functions. This ensures we reject malformed or abusive payloads *before* they consume expensive resources.
+
+## 2025-02-18 - [Loop-Based Resource Exhaustion]
+**Vulnerability:** Resource Exhaustion via Unbounded Loop
+**Learning:** While individual file processing was protected (via `MAX_STREAM_SIZE_BYTES`), the `compileManuscript` function iterated through an unbounded user-provided array (`fileIds`). A user could request 1000 files, which, even if individually small, would accumulate in the `contents` array and exceed the function's memory limit (2GiB), causing an OOM crash.
+**Prevention:** Added a strict limit (`MAX_FILES = 50`) on the input array length. Security limits must apply not just to atomic items but also to collections to prevent "death by a thousand cuts".
