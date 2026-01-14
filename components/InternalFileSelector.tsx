@@ -1,0 +1,209 @@
+import React, { useState, useEffect } from 'react';
+import { getFirestore, doc, onSnapshot } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
+import { ChevronRight, ChevronDown, FileText, Folder, Check, X, File, AlertTriangle } from 'lucide-react';
+import { DriveFile } from '../types';
+
+interface InternalFileSelectorProps {
+    onFileSelected: (file: { id: string; name: string; path?: string }) => void;
+    onCancel: () => void;
+    currentFileId?: string | null;
+}
+
+// 🟢 HELPER: Filter Tree
+const filterTree = (nodes: DriveFile[]): DriveFile[] => {
+    return nodes
+        .map(node => {
+            // If folder, recurse
+            if (node.mimeType === 'application/vnd.google-apps.folder') {
+                const filteredChildren = node.children ? filterTree(node.children) : [];
+                // Return folder if it has children (after filter) or if we want to show empty folders?
+                // Let's show folders so user can navigate, even if empty of valid files?
+                // Better: Only show folders that *contain* valid files or other folders with valid files.
+                // For now, simple recursion:
+                if (filteredChildren.length > 0) {
+                    return { ...node, children: filteredChildren };
+                }
+                // If folder is empty after filter, prune it?
+                // Let's keep it simple first: return folder if it has children.
+                return filteredChildren.length > 0 ? { ...node, children: filteredChildren } : null;
+            }
+
+            // If file, check extension
+            const validExtensions = ['.md', '.doc', '.docx', '.txt'];
+            const lowerName = node.name.toLowerCase();
+            const isValid = validExtensions.some(ext => lowerName.endsWith(ext));
+
+            return isValid ? node : null;
+        })
+        .filter(Boolean) as DriveFile[];
+};
+
+// 🟢 COMPONENT: Tree Node
+const SelectorNode: React.FC<{
+    node: DriveFile;
+    depth: number;
+    onSelect: (node: DriveFile) => void;
+    currentId?: string | null;
+}> = ({ node, depth, onSelect, currentId }) => {
+    const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
+    const [isOpen, setIsOpen] = useState(false);
+
+    const handleClick = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isFolder) {
+            setIsOpen(!isOpen);
+        } else {
+            onSelect(node);
+        }
+    };
+
+    return (
+        <div className="select-none">
+            <div
+                onClick={handleClick}
+                className={`
+                    flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer transition-all
+                    ${currentId === node.id
+                        ? 'bg-accent-DEFAULT/20 text-accent-DEFAULT border border-accent-DEFAULT/30'
+                        : 'hover:bg-titanium-800 text-titanium-300 hover:text-white'
+                    }
+                `}
+                style={{ paddingLeft: `${depth * 16 + 12}px` }}
+            >
+                <div className={`shrink-0 ${currentId === node.id ? 'text-accent-DEFAULT' : 'text-titanium-500'}`}>
+                    {isFolder ? (
+                        isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
+                    ) : (
+                        <FileText size={16} />
+                    )}
+                </div>
+
+                <span className="text-sm truncate font-medium flex-1">{node.name}</span>
+
+                {currentId === node.id && <Check size={14} className="text-accent-DEFAULT" />}
+            </div>
+
+            {isOpen && isFolder && node.children && (
+                <div className="animate-fade-in border-l border-titanium-800 ml-[19px]">
+                    {node.children.map(child => (
+                        <SelectorNode
+                            key={child.id}
+                            node={child}
+                            depth={depth + 1}
+                            onSelect={onSelect}
+                            currentId={currentId}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// 🟢 MAIN COMPONENT
+const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelected, onCancel, currentFileId }) => {
+    const [tree, setTree] = useState<DriveFile[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isEmpty, setIsEmpty] = useState(false);
+
+    // Subscribe to TDB_Index
+    useEffect(() => {
+        const auth = getAuth();
+        const user = auth.currentUser;
+        if (!user) return;
+
+        const db = getFirestore();
+        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
+
+        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                if (data && data.tree && Array.isArray(data.tree)) {
+                    // Filter tree immediately
+                    const filtered = filterTree(data.tree);
+                    setTree(filtered);
+                    setIsEmpty(filtered.length === 0);
+                } else {
+                    setTree([]);
+                    setIsEmpty(true);
+                }
+            } else {
+                setTree([]);
+                setIsEmpty(true);
+            }
+            setIsLoading(false);
+        });
+
+        return () => unsubscribe();
+    }, []);
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
+            <div className="w-full max-w-2xl bg-titanium-900 border border-titanium-700 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
+
+                {/* HEADER */}
+                <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-950 shrink-0">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-titanium-900 rounded-lg border border-titanium-800 text-accent-DEFAULT">
+                            <Folder size={20} />
+                        </div>
+                        <div>
+                            <h2 className="font-bold text-lg text-titanium-100">Seleccionar Fuente de Verdad</h2>
+                            <p className="text-[10px] text-titanium-500 font-mono">TDB_INDEX :: READY</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={onCancel}
+                        className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+
+                {/* CONTENT */}
+                <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-titanium-700">
+                    {isLoading ? (
+                        <div className="flex flex-col items-center justify-center h-full text-titanium-500 gap-3">
+                            <div className="w-8 h-8 border-2 border-accent-DEFAULT border-t-transparent rounded-full animate-spin"></div>
+                            <p className="text-sm">Accediendo a la Memoria...</p>
+                        </div>
+                    ) : isEmpty ? (
+                        <div className="flex flex-col items-center justify-center h-full text-titanium-500 gap-4 p-8 text-center">
+                            <div className="p-4 bg-titanium-800 rounded-full text-yellow-500">
+                                <AlertTriangle size={32} />
+                            </div>
+                            <div>
+                                <h3 className="text-titanium-200 font-bold mb-1">Sin Archivos Compatibles</h3>
+                                <p className="text-xs max-w-xs mx-auto">
+                                    No se encontraron archivos .md, .doc o .docx en el índice.
+                                    Asegúrate de haber ejecutado una indexación reciente.
+                                </p>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="space-y-1">
+                            {tree.map(node => (
+                                <SelectorNode
+                                    key={node.id}
+                                    node={node}
+                                    depth={0}
+                                    onSelect={(n) => onFileSelected({ id: n.id, name: n.name, path: (n as any).path })}
+                                    currentId={currentFileId}
+                                />
+                            ))}
+                        </div>
+                    )}
+                </div>
+
+                {/* FOOTER */}
+                <div className="p-4 bg-titanium-950 border-t border-titanium-800 flex justify-between items-center text-xs text-titanium-500">
+                    <span>Formatos: .md, .doc, .docx, .txt</span>
+                    <span className="font-mono text-accent-DEFAULT">V2.INTERNAL_SELECTOR</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default InternalFileSelector;
