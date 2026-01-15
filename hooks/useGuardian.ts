@@ -31,13 +31,25 @@ export interface GuardianLawConflict {
     };
 }
 
+export interface GuardianPersonalityDrift {
+    trigger: "PERSONALITY_DRIFT";
+    status: "CONSISTENT" | "EVOLVED" | "TRAITOR";
+    severity: "CRITICAL" | "WARNING" | "INFO";
+    hater_comment: string;
+    detected_behavior: string;
+    canonical_psychology: string;
+    friccion_score: number;
+    character: string;
+}
+
 export type GuardianStatus = 'idle' | 'scanning' | 'clean' | 'conflict' | 'error';
 
-export function useGuardian(content: string, projectId: string | null) {
+export function useGuardian(content: string, projectId: string | null, fileId?: string) {
     const [status, setStatus] = useState<GuardianStatus>('idle');
     const [facts, setFacts] = useState<GuardianFact[]>([]);
     const [conflicts, setConflicts] = useState<GuardianConflict[]>([]);
     const [lawConflicts, setLawConflicts] = useState<GuardianLawConflict[]>([]);
+    const [personalityDrifts, setPersonalityDrifts] = useState<GuardianPersonalityDrift[]>([]);
 
     // Internal State
     const lastHashRef = useRef<string>("");
@@ -63,22 +75,38 @@ export function useGuardian(content: string, projectId: string | null) {
 
             const result = await auditContent({
                 content: textToAudit,
-                projectId: projectId || 'global'
+                projectId: projectId || 'global',
+                fileId: fileId // Pass FileID for backend cache/history
             });
 
-            const data = result.data as { success: boolean, facts: GuardianFact[], conflicts: GuardianConflict[], world_law_violations?: GuardianLawConflict[] };
+            const data = result.data as {
+                success: boolean,
+                status?: string,
+                facts: GuardianFact[],
+                conflicts: GuardianConflict[],
+                world_law_violations?: GuardianLawConflict[],
+                personality_drift?: GuardianPersonalityDrift[]
+            };
 
             if (data.success) {
-                setFacts(data.facts);
-                setConflicts(data.conflicts);
+                if (data.status === 'skipped_unchanged') {
+                    // Backend says no change (Double Check)
+                    setStatus(conflicts.length > 0 ? 'conflict' : 'clean');
+                    return;
+                }
+
+                setFacts(data.facts || []);
+                setConflicts(data.conflicts || []);
                 const laws = data.world_law_violations || [];
                 setLawConflicts(laws);
+                const drifts = data.personality_drift || [];
+                setPersonalityDrifts(drifts);
 
-                const hasConflict = data.conflicts.length > 0 || laws.length > 0;
+                const hasConflict = (data.conflicts && data.conflicts.length > 0) || laws.length > 0 || drifts.length > 0;
                 setStatus(hasConflict ? 'conflict' : 'clean');
 
                 if (hasConflict) {
-                    toast.error(`⚠️ ${data.conflicts.length + laws.length} conflictos detectados por el Guardián.`);
+                    toast.error(`⚠️ ${data.conflicts.length + laws.length + drifts.length} anomalías detectadas por el Guardián.`);
                 }
             } else {
                 setStatus('error');
@@ -87,7 +115,7 @@ export function useGuardian(content: string, projectId: string | null) {
             console.error("Guardian Audit Failed:", error);
             setStatus('error');
         }
-    }, [projectId]);
+    }, [projectId, fileId]); // Depend on fileId too
 
     // 🟢 DEBOUNCE LOOP (5000ms)
     useEffect(() => {
@@ -132,6 +160,7 @@ export function useGuardian(content: string, projectId: string | null) {
         facts,
         conflicts,
         lawConflicts,
+        personalityDrifts,
         forceAudit
     };
 }

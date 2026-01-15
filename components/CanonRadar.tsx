@@ -1,17 +1,72 @@
 import React from 'react';
-import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap } from 'lucide-react';
-import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict } from '../hooks/useGuardian';
+import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2 } from 'lucide-react';
+import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict, GuardianPersonalityDrift } from '../hooks/useGuardian';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { useState, useMemo } from 'react';
 
 interface CanonRadarProps {
     status: GuardianStatus;
     conflicts: GuardianConflict[];
     lawConflicts: GuardianLawConflict[];
+    personalityDrifts?: GuardianPersonalityDrift[]; // New Prop
     facts: GuardianFact[];
     onClose: () => void;
     onForceAudit: () => void;
 }
 
-const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, lawConflicts = [], facts, onClose, onForceAudit }) => {
+const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = ({ status, conflicts, lawConflicts = [], personalityDrifts = [], facts, onClose, onForceAudit, accessToken }) => {
+    const functions = getFunctions();
+    const updateForgeCharacter = httpsCallable(functions, 'updateForgeCharacter');
+    const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+
+    // 🟢 SORTING LOGIC: TRAITOR (Critical) FIRST, then EVOLVED
+    const sortedDrifts = useMemo(() => {
+        return [...personalityDrifts].sort((a, b) => {
+            if (a.status === 'TRAITOR' && b.status !== 'TRAITOR') return -1;
+            if (a.status !== 'TRAITOR' && b.status === 'TRAITOR') return 1;
+            return 0;
+        });
+    }, [personalityDrifts]);
+
+    const handleSyncCanon = async (drift: GuardianPersonalityDrift) => {
+        if (!accessToken) {
+            alert("Error: No Access Token available for Sync.");
+            return;
+        }
+
+        const charKey = drift.character;
+        setSyncingIds(prev => new Set(prev).add(charKey));
+
+        try {
+            console.log("🔄 Syncing character...", drift);
+            const traits = {
+                // If it's "EVOLVED", the detected behavior is the NEW truth.
+                // We update personality to reflect the new behavior and log it in evolution.
+                evolution: `[Auto-Sync] Demonstrated behavior: ${drift.detected_behavior}`,
+                personality: `[Updated] ${drift.detected_behavior}`
+            };
+
+            await updateForgeCharacter({
+                characterId: drift.character.toLowerCase().replace(/\s+/g, '-'),
+                newTraits: traits,
+                rationale: `CanonRadar Auto-Sync: ${drift.hater_comment}`,
+                accessToken: accessToken
+            });
+
+            // alert("✅ Personaje actualizado en La Forja."); // Too intrusive? Just rely on audit.
+            onForceAudit(); // Re-scan to clear the alert
+        } catch (e: any) {
+            console.error("Sync Failed:", e);
+            alert(`Error sincronizando: ${e.message}`);
+        } finally {
+            setSyncingIds(prev => {
+                const next = new Set(prev);
+                next.delete(charKey);
+                return next;
+            });
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-titanium-950/95 backdrop-blur-xl border-l border-titanium-800 w-96 transition-all duration-300 shadow-2xl z-50">
             {/* HEADER */}
@@ -42,6 +97,75 @@ const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, lawConflicts
 
             {/* CONTENT AREA */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
+
+                {/* 0. THE HATER (TRIGGER 3) - PERSONALITY DRIFTS */}
+                {sortedDrifts.length > 0 && (
+                    <div className="space-y-3">
+                         <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase mb-2 animate-pulse">
+                            <Skull size={14} />
+                            <span>Traición Narrativa ({sortedDrifts.length})</span>
+                        </div>
+
+                        {sortedDrifts.map((drift, idx) => {
+                             const isSyncing = syncingIds.has(drift.character);
+                             return (
+                             <div key={`drift-${idx}`} className={`
+                                border rounded-lg p-3 shadow-lg transition-colors relative overflow-hidden
+                                ${drift.status === 'TRAITOR' ? 'bg-red-950/20 border-red-500/50 shadow-red-900/10' : 'bg-blue-950/20 border-blue-500/50 shadow-blue-900/10'}
+                             `}>
+                                {/* Header */}
+                                <div className="flex justify-between items-start mb-2 relative z-10">
+                                    <span className="text-titanium-100 font-bold text-xs uppercase tracking-wide">{drift.character}</span>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ${
+                                        drift.status === 'TRAITOR' ? 'bg-red-600 text-white' : 'bg-blue-500 text-white'
+                                    }`}>
+                                        {drift.status}
+                                    </span>
+                                </div>
+
+                                {/* Behavior */}
+                                <div className="text-titanium-300 text-xs italic mb-2 border-l-2 border-titanium-700 pl-2">
+                                    "{drift.detected_behavior}"
+                                </div>
+
+                                {/* Hater Comment */}
+                                <div className="bg-black/40 rounded p-2 border border-titanium-800 relative mt-2">
+                                    <div className="flex items-start gap-2">
+                                        <Skull size={14} className="text-titanium-500 mt-0.5 shrink-0" />
+                                        <p className="text-titanium-400 text-[10px] font-mono leading-relaxed">
+                                            {drift.hater_comment}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* SYNC ACTION (If Evolved) */}
+                                {drift.status === 'EVOLVED' && (
+                                    <button
+                                        onClick={() => handleSyncCanon(drift)}
+                                        disabled={isSyncing}
+                                        className={`mt-3 w-full py-1.5 border text-[10px] font-bold uppercase rounded flex items-center justify-center gap-1.5 transition-all
+                                            ${isSyncing
+                                                ? 'bg-blue-950 border-blue-900 text-blue-500 cursor-wait'
+                                                : 'bg-blue-900/30 hover:bg-blue-900/50 border-blue-800 text-blue-300'}
+                                        `}
+                                    >
+                                        {isSyncing ? (
+                                            <>
+                                                <Loader2 size={10} className="animate-spin" />
+                                                <span>Sincronizando...</span>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <RefreshCw size={10} />
+                                                <span>Actualizar Canon</span>
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                             </div>
+                        );})}
+                    </div>
+                )}
 
                 {/* 1. REALITY FRACTURES (TRIGGER 2) */}
                 {lawConflicts.length > 0 && (
@@ -159,7 +283,7 @@ const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, lawConflicts
                 )}
 
                 {/* EMPTY STATE */}
-                {status === 'clean' && conflicts.length === 0 && lawConflicts.length === 0 && facts.length === 0 && (
+                {status === 'clean' && conflicts.length === 0 && lawConflicts.length === 0 && facts.length === 0 && personalityDrifts.length === 0 && (
                     <div className="text-center py-10 opacity-50">
                         <ScanEye size={48} className="mx-auto text-titanium-700 mb-4" />
                         <p className="text-titanium-500 text-xs">El Guardián no detecta anomalías.</p>
