@@ -20,15 +20,8 @@ import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile } from "./ingestion";
 
-// --- SINGLETON APP (Evita reiniciar Firebase mil veces) ---
-let firebaseApp: admin.app.App | undefined;
-
-function initializeFirebase() {
-  if (!firebaseApp) {
-    logger.info("¡Arrancando el 'Cerebro Robot' (admin) por primera vez!");
-    firebaseApp = admin.initializeApp();
-  }
-}
+// --- SINGLETON APP (Arrancando el Cerebro Robot) ---
+admin.initializeApp();
 
 // --- INTERFACES ---
 interface DriveFile {
@@ -596,7 +589,6 @@ export const getDriveFiles = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
 
     const { folderId, folderIds, accessToken } = request.data;
 
@@ -702,7 +694,6 @@ export const enrichCharacterContext = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -870,7 +861,6 @@ export const crystallizeNode = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -956,7 +946,6 @@ export const getProjectConfig = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -1001,7 +990,6 @@ export const saveProjectConfig = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -1040,7 +1028,6 @@ export const getDriveFileContent = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
@@ -1072,7 +1059,6 @@ export const checkIndexStatus = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -1118,7 +1104,6 @@ export const indexTDB = onCall(
   },
   async (request) => {
     console.log('🚀 WORLD ENGINE: Phase 2 - Powered by Gemini 3 - ' + new Date().toISOString());
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -1318,7 +1303,6 @@ export const chatWithGem = onCall(
   },
   async (request) => {
     console.log('🚀 WORLD ENGINE: Phase 2 - Powered by Gemini 3 - ' + new Date().toISOString());
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -2018,7 +2002,6 @@ export const saveDriveFile = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
 
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Debes iniciar sesión para guardar.");
@@ -2078,7 +2061,6 @@ export const saveUserProfile = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2119,7 +2101,6 @@ export const getUserProfile = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2156,7 +2137,6 @@ export const createForgeSession = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2202,7 +2182,6 @@ export const getForgeSessions = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2246,7 +2225,6 @@ export const deleteForgeSession = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2284,7 +2262,6 @@ export const addForgeMessage = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2364,7 +2341,6 @@ export const getForgeHistory = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2411,7 +2387,6 @@ export const forgeToDrive = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2561,7 +2536,6 @@ export const summonTheTribunal = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -2701,7 +2675,6 @@ export const extractTimelineEvents = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -2807,7 +2780,6 @@ export const compileManuscript = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
@@ -2959,7 +2931,6 @@ export const debugGetIndexStats = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -3030,7 +3001,6 @@ export const syncCharacterManifest = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -3286,7 +3256,6 @@ export const forgeToolExecution = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
 
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
@@ -3355,7 +3324,6 @@ export const forgeAnalyzer = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
@@ -3577,7 +3545,6 @@ export const clearSessionMessages = onCall(
     enforceAppCheck: false,
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) {
@@ -3625,7 +3592,6 @@ export const updateForgeCharacter = onCall(
     secrets: [googleApiKey],
   },
   async (request) => {
-    initializeFirebase();
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
