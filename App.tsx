@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from "firebase/app-check"; // 👈 IMPORT
+import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check"; // 👈 IMPORT
 import { getApp } from "firebase/app"; // 👈 IMPORT
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
@@ -525,12 +525,17 @@ function App() {
                 return;
             }
 
-            console.log("🛡️ [SECURITY] Initializing ReCaptcha Enterprise...");
+            console.log("🛡️ [SECURITY] Initializing ReCaptcha V3...");
+
+            // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
+            // Active for Titanium Edition v2.4 Release
+            (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+            console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
 
             try {
-                // Initialize App Check with ReCAPTCHA Enterprise
+                // Initialize App Check with ReCAPTCHA V3
                 const appCheck = initializeAppCheck(app, {
-                    provider: new ReCaptchaEnterpriseProvider(siteKey),
+                    provider: new ReCaptchaV3Provider(siteKey),
                     isTokenAutoRefreshEnabled: true
                 });
                 console.log("✅ [SECURITY] App Check Instance Created.");
