@@ -11,9 +11,10 @@ interface TimelinePanelProps {
     onFileSelect: (fileId: string) => void;
     currentFileId?: string | null;
     accessToken: string | null;
+    isSecurityReady?: boolean; // 👈 Circuit Breaker Prop
 }
 
-const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSelect, currentFileId, accessToken }) => {
+const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSelect, currentFileId, accessToken, isSecurityReady = false }) => {
     const [events, setEvents] = useState<TimelineEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [analyzing, setAnalyzing] = useState(false);
@@ -24,6 +25,13 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
 
     useEffect(() => {
         if (!userId) return;
+
+        // 🟢 CIRCUIT BREAKER: Block Listener
+        if (!isSecurityReady) {
+            console.log("🛡️ [CIRCUIT BREAKER] TimelinePanel waiting for App Check...");
+            setLoading(true);
+            return;
+        }
 
         const db = getFirestore();
         const eventsRef = collection(db, 'TDB_Timeline', userId, 'events');
@@ -46,7 +54,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
         });
 
         return () => unsubscribe();
-    }, [userId]);
+    }, [userId, isSecurityReady]); // 👈 Add dependency
 
     const handleAnalyze = async () => {
         if (!currentFileId) {
@@ -171,8 +179,27 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
             {/* CONTENT */}
             <div className="flex-1 overflow-y-auto p-8 relative">
                 {loading ? (
-                    <div className="flex items-center justify-center h-full text-titanium-500">
-                        <Clock className="animate-spin mr-2" /> Cargando historia...
+                    // 🟢 TITANIUM SKELETON (CIRCUIT BREAKER VISUAL)
+                    <div className="relative max-w-3xl mx-auto h-full flex flex-col justify-center gap-12 py-8 animate-pulse">
+                        <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-titanium-800/50 transform -translate-x-1/2" />
+
+                        {/* Skeleton Item Left */}
+                        <div className="flex items-center w-full flex-row">
+                            <div className="w-[45%] text-right pr-8">
+                                <div className="h-32 bg-titanium-900/50 border border-titanium-800/50 rounded-xl"></div>
+                            </div>
+                            <div className="relative z-10 w-4 h-4 rounded-full bg-titanium-800 flex-shrink-0" />
+                            <div className="w-[45%]" />
+                        </div>
+
+                        {/* Skeleton Item Right */}
+                        <div className="flex items-center w-full flex-row-reverse">
+                            <div className="w-[45%] text-left pl-8">
+                                <div className="h-32 bg-titanium-900/50 border border-titanium-800/50 rounded-xl"></div>
+                            </div>
+                            <div className="relative z-10 w-4 h-4 rounded-full bg-titanium-800 flex-shrink-0" />
+                            <div className="w-[45%]" />
+                        </div>
                     </div>
                 ) : events.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-titanium-600 opacity-50">

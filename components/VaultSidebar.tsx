@@ -19,6 +19,7 @@ interface VaultSidebarProps {
     driveStatus: 'connected' | 'refreshing' | 'error' | 'disconnected';
     onOpenManual: () => void; // 👈 New prop
     isIndexed?: boolean; // 👈 New prop for Index State
+    isSecurityReady?: boolean; // 👈 New prop for Circuit Breaker
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -43,6 +44,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     driveStatus,
     onOpenManual, // 👈 Destructure
     isIndexed = false, // 👈 Default to false
+    isSecurityReady = false, // 👈 Default false for safety
 }) => {
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
@@ -62,6 +64,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             setIndexedTree(null);
             setIsLoadingTree(false);
             return;
+        }
+
+        // 🟢 CIRCUIT BREAKER: Block Listener until Security Handshake is Valid
+        if (!isSecurityReady) {
+             console.log("🛡️ [CIRCUIT BREAKER] VaultSidebar waiting for App Check...");
+             // We keep loading state true to show skeleton
+             setIsLoadingTree(true);
+             return;
         }
 
         const db = getFirestore();
@@ -93,7 +103,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [isSecurityReady]); // 👈 Dependencia crítica para re-ejecutar tras handshake
 
 
     // 🟢 STATUS INDICATOR HELPER
@@ -157,9 +167,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             {/* FILE TREE */}
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
                 {isLoadingTree ? (
-                    <div className="flex flex-col items-center justify-center h-40 text-titanium-500 gap-2">
-                        <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-accent-DEFAULT"></div>
-                        <span className="text-xs">Cargando memoria...</span>
+                    // 🟢 TITANIUM SKELETON (CIRCUIT BREAKER VISUAL)
+                    <div className="flex flex-col gap-3 p-2 animate-pulse">
+                        <div className="h-4 bg-titanium-700/50 rounded w-3/4"></div>
+                        <div className="h-4 bg-titanium-700/30 rounded w-1/2 ml-4"></div>
+                        <div className="h-4 bg-titanium-700/30 rounded w-2/3 ml-4"></div>
+                        <div className="h-4 bg-titanium-700/50 rounded w-5/6"></div>
+                        <div className="h-4 bg-titanium-700/30 rounded w-1/3 ml-4"></div>
                     </div>
                 ) : (
                     <>
