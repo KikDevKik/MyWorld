@@ -60,32 +60,27 @@ export const auditContent = onCall(
     const { content, projectId, fileId } = request.data;
     const userId = request.auth.uid;
 
-    // 1. VALIDATION
-    if (!content) return { success: true, facts: [], conflicts: [], personality_drift: [] };
-    if (content.length > MAX_AI_INPUT_CHARS) {
-        throw new HttpsError("invalid-argument", "Content exceeds limit.");
-    }
-
-    // 2. HASH CHECK (OPTIMIZATION)
-    let currentHash = '';
-    if (fileId) {
-        currentHash = crypto.createHash('sha256').update(content).digest('hex');
-        const auditRef = db.collection("users").doc(userId).collection("audit_cache").doc(fileId);
-        const auditDoc = await auditRef.get();
-
-        if (auditDoc.exists && auditDoc.data()?.hash === currentHash) {
-            logger.info(`⏩ [GUARDIAN] Hash Match for ${fileId}. Skipping Audit.`);
-            // Return cached result if available? For now, just return empty/clean to avoid noise.
-            // Or ideally, we should return the PREVIOUS audit result.
-            // But the UI expects a fresh list. If we return empty, the radar clears.
-            // For now, we return empty to signify "No New Conflicts".
-            return { success: true, status: 'skipped_unchanged', facts: [], conflicts: [] };
+    // 🟢 [TITAN SAFEGUARD] - SYSTEM ERROR HANDLER WRAPPER
+    try {
+        // 1. VALIDATION
+        if (!content) return { success: true, facts: [], conflicts: [], personality_drift: [] };
+        if (content.length > MAX_AI_INPUT_CHARS) {
+            throw new HttpsError("invalid-argument", "Content exceeds limit.");
         }
 
-        // Save new hash immediately (or at end? At end is safer)
-    }
+        // 2. HASH CHECK (OPTIMIZATION)
+        let currentHash = '';
+        if (fileId) {
+            currentHash = crypto.createHash('sha256').update(content).digest('hex');
+            const auditRef = db.collection("users").doc(userId).collection("audit_cache").doc(fileId);
+            const auditDoc = await auditRef.get();
 
-    try {
+            if (auditDoc.exists && auditDoc.data()?.hash === currentHash) {
+                logger.info(`⏩ [GUARDIAN] Hash Match for ${fileId}. Skipping Audit.`);
+                return { success: true, status: 'skipped_unchanged', facts: [], conflicts: [] };
+            }
+        }
+
         const genAI = new GoogleGenerativeAI(googleApiKey.value());
 
         // 3. EXTRACTION STEP (Gemini 2.0 Flash)
@@ -423,8 +418,13 @@ export const auditContent = onCall(
         };
 
     } catch (e: any) {
-        logger.error("Audit Error:", e);
-        throw new HttpsError("internal", e.message);
+        // 🟢 [TITAN SAFEGUARD] - CONTROLLED ERROR RESPONSE
+        logger.error("Audit Error (Captured by Titan Protocol):", e);
+        return {
+            success: false,
+            status: 'system_calibration',
+            message: 'Sistema en Calibración'
+        };
     }
   }
 );

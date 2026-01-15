@@ -68,7 +68,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
     };
 
     return (
-        <div className="flex flex-col h-full bg-titanium-950/95 backdrop-blur-xl border-l border-titanium-800 w-96 transition-all duration-300 shadow-2xl z-50">
+        <div className="flex flex-col h-full w-full bg-titanium-950/95 backdrop-blur-xl transition-all duration-300 shadow-2xl z-50">
             {/* HEADER */}
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
                 <div className="flex items-center gap-2 text-titanium-100">

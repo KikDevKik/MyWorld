@@ -382,11 +382,20 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 />
             )}
 
-            <main className={`flex-1 flex flex-col min-w-0 bg-titanium-950 relative transition-all duration-300 ${isZenMode ? 'ml-0 mr-0' : (activeGemId === 'perforador' || activeGemId === 'forja') ? 'ml-0 mr-16' : 'ml-64 mr-16'}`}>
+            <main className={`flex-1 flex flex-col min-w-0 bg-titanium-950 relative transition-all duration-300 ${isZenMode ? 'ml-0 mr-0' : (activeGemId === 'perforador' || activeGemId === 'forja' || activeGemId === 'guardian') ? 'ml-0 mr-16' : 'ml-64 mr-16'}`}>
                 {activeGemId === 'forja' ? (
                     <ForgePanel
                         onClose={() => setActiveGemId(null)}
                         folderId={folderId}
+                        accessToken={oauthToken}
+                    />
+                ) : activeGemId === 'guardian' ? (
+                    <CanonRadar
+                        status={guardianStatus}
+                        facts={guardianFacts}
+                        conflicts={guardianConflicts}
+                        onClose={() => setActiveGemId(null)}
+                        onForceAudit={forceAudit}
                         accessToken={oauthToken}
                     />
                 ) : activeGemId === 'perforador' ? (
@@ -464,22 +473,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 folderId={folderId} // 👈 PASS PROJECT ID
             />
 
-            {/* 🛡️ GUARDIAN (CANON RADAR) */}
-            {activeGemId === 'guardian' ? (
-                <div className={`
-                    fixed inset-y-0 right-16 z-40 transform transition-transform duration-300 ease-in-out
-                    ${activeGemId === 'guardian' ? 'translate-x-0' : 'translate-x-full'}
-                `}>
-                    <CanonRadar
-                        status={guardianStatus}
-                        facts={guardianFacts}
-                        conflicts={guardianConflicts}
-                        onClose={() => setActiveGemId(null)}
-                        onForceAudit={forceAudit}
-                        accessToken={oauthToken}
-                    />
-                </div>
-            ) : (activeGemId && activeGemId !== 'director' && activeGemId !== 'perforador' && activeGemId !== 'forja' && activeGemId !== 'tribunal' && activeGemId !== 'laboratorio' && activeGemId !== 'cronograma' && activeGemId !== 'imprenta') ? (
+            {/* 🛡️ GUARDIAN (CANON RADAR) - Now inside <main> */}
+            {(activeGemId && activeGemId !== 'director' && activeGemId !== 'perforador' && activeGemId !== 'forja' && activeGemId !== 'tribunal' && activeGemId !== 'laboratorio' && activeGemId !== 'cronograma' && activeGemId !== 'imprenta' && activeGemId !== 'guardian') ? (
                 <ChatPanel
                     isOpen={isChatOpen}
                     onClose={() => {
