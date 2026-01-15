@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check"; // 👈 IMPORT
+import { initializeAppCheck, ReCaptchaEnterpriseProvider, getToken } from "firebase/app-check"; // 👈 IMPORT
 import { getApp } from "firebase/app"; // 👈 IMPORT
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
@@ -25,11 +25,11 @@ import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
 import { GemId, ProjectConfig, ForgeSession } from './types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, AlertTriangle } from 'lucide-react';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 // We need this because we want to use 'useProjectConfig' which requires ProjectConfigProvider
-function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh }: any) {
+function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
     const { config, updateConfig, refreshConfig, loading: configLoading } = useProjectConfig();
 
     // APP STATE
@@ -381,6 +381,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     driveStatus={driveStatus}
                     onOpenManual={() => setIsFieldManualOpen(true)}
                     isIndexed={indexStatus.isIndexed} // 👈 Pass index status
+                    isSecurityReady={isSecurityReady} // 👈 CIRCUIT BREAKER
                 />
             )}
 
@@ -426,6 +427,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onFileSelect={handleTimelineFileSelect}
                         currentFileId={currentFileId}
                         accessToken={oauthToken}
+                        isSecurityReady={isSecurityReady} // 👈 CIRCUIT BREAKER
                     />
                 ) : activeGemId === 'imprenta' ? (
                     <ExportPanel
@@ -506,32 +508,77 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 }
 
 function App() {
+    // 🛡️ SECURITY STATE
+    const [isSecurityReady, setIsSecurityReady] = useState(false);
+    const [securityError, setSecurityError] = useState<string | null>(null);
+
     // 🛡️ APP CHECK INITIALIZATION (SECURITY HANDSHAKE)
     useEffect(() => {
         const initAppCheck = async () => {
             const app = getApp();
-            const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || 'process.env.VITE_RECAPTCHA_SITE_KEY';
+            const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
-            if (siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
-                console.warn("⚠️ [SECURITY] ReCaptcha Site Key MISSING. Using placeholder.");
-            } else {
-                console.log("🛡️ [SECURITY] Initializing ReCaptcha Enterprise...");
+            // 🟢 FAIL FAST PROTOCOL
+            if (!siteKey || siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
+                console.error("🛑 [SECURITY CRITICAL] VITE_RECAPTCHA_SITE_KEY is missing or invalid.");
+                setSecurityError("MISSING_SITE_KEY");
+                return;
             }
+
+            console.log("🛡️ [SECURITY] Initializing ReCaptcha Enterprise...");
 
             try {
                 // Initialize App Check with ReCAPTCHA Enterprise
-                initializeAppCheck(app, {
+                const appCheck = initializeAppCheck(app, {
                     provider: new ReCaptchaEnterpriseProvider(siteKey),
                     isTokenAutoRefreshEnabled: true
                 });
-                console.log("✅ [SECURITY] App Check Initialized.");
+                console.log("✅ [SECURITY] App Check Instance Created.");
+
+                // 🟢 CIRCUIT BREAKER: Force Token Fetch to Confirm Readiness
+                // We await the first token to ensure the handshake is valid before allowing
+                // 'onSnapshot' listeners to fire (via isSecurityReady prop).
+                try {
+                    await getToken(appCheck);
+                    console.log("✅ [SECURITY] Handshake Validated (Token Received).");
+                    setIsSecurityReady(true);
+                } catch (tokenError) {
+                    console.error("⚠️ [SECURITY] Handshake Failed (Token Error):", tokenError);
+                    // We allow the app to load but 'isSecurityReady' remains false,
+                    // so VaultSidebar will show skeleton instead of crashing.
+                }
+
             } catch (error) {
                 console.error("💥 [SECURITY] App Check Initialization Failed:", error);
+                setSecurityError("INIT_FAILED");
             }
         };
 
         initAppCheck();
     }, []);
+
+    // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
+    if (securityError) {
+        return (
+            <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
+                <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
+                     <AlertTriangle className="w-12 h-12" />
+                </div>
+                <div className="text-center max-w-md space-y-2">
+                    <h1 className="text-xl font-bold tracking-widest uppercase">Protocolo de Seguridad Fallido</h1>
+                    <p className="text-sm text-zinc-400 font-mono">
+                        {securityError === 'MISSING_SITE_KEY'
+                            ? "Error Code: ENV_VAR_MISSING (VITE_RECAPTCHA_SITE_KEY)"
+                            : "Error Code: APP_CHECK_INIT_FAILED"}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-4">
+                        El sistema ha bloqueado el inicio para proteger la integridad de los datos.
+                        Verifica las variables de entorno.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     // AUTH LIFTED STATE
     const [user, setUser] = useState<User | null>(null);
@@ -635,6 +682,7 @@ function App() {
                 driveStatus={driveStatus}
                 setDriveStatus={setDriveStatus}
                 handleTokenRefresh={handleTokenRefresh}
+                isSecurityReady={isSecurityReady} // 👈 PASS SECURITY STATE
             />
         </ProjectConfigProvider>
     );
