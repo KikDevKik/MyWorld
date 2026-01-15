@@ -3612,3 +3612,119 @@ export const clearSessionMessages = onCall(
     }
   }
 );
+
+/**
+ * 23. UPDATE FORGE CHARACTER (El Sincronizador)
+ * Actualiza los rasgos de personalidad y evolución en Firestore y reescribe la ficha en Drive.
+ */
+export const updateForgeCharacter = onCall(
+  {
+    region: "us-central1",
+    enforceAppCheck: false,
+    timeoutSeconds: 120,
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    initializeFirebase();
+    const db = getFirestore();
+
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+    const { characterId, newTraits, rationale, accessToken } = request.data;
+    const userId = request.auth.uid;
+
+    if (!characterId) throw new HttpsError("invalid-argument", "Falta characterId.");
+    if (!newTraits) throw new HttpsError("invalid-argument", "Faltan nuevos rasgos.");
+    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    try {
+        const charRef = db.collection("users").doc(userId).collection("characters").doc(characterId);
+        const charDoc = await charRef.get();
+
+        if (!charDoc.exists) {
+            throw new HttpsError("not-found", "Personaje no encontrado.");
+        }
+
+        const charData = charDoc.data();
+        const driveFileId = charData?.masterFileId;
+
+        logger.info(`🔄 SYNC-BACK INITIATED for ${characterId} (File: ${driveFileId})`);
+
+        // 1. ATTEMPT DRIVE UPDATE (PRIMARY TRUTH) - FAIL SAFE
+        // We update Drive FIRST. If this fails, we DO NOT update Firestore.
+        // This ensures the "Physical Bible" is always the bottleneck of truth.
+
+        if (driveFileId) {
+            try {
+                const auth = new google.auth.OAuth2();
+                auth.setCredentials({ access_token: accessToken });
+                const drive = google.drive({ version: "v3", auth });
+
+                // A. Fetch current content
+                const currentContent = await _getDriveFileContentInternal(drive, driveFileId);
+
+                // B. Use AI to surgicaly update
+                const genAI = new GoogleGenerativeAI(googleApiKey.value());
+                const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+
+                const editPrompt = `
+                    ACT AS: Expert Editor.
+                    TASK: Update the Character Sheet Markdown based on NEW DATA, while preserving all other information.
+
+                    NEW DATA (Override these sections):
+                    Personality: "${newTraits.personality || 'No Change'}"
+                    Evolution/Arc: "${newTraits.evolution || 'No Change'}"
+
+                    CURRENT FILE CONTENT:
+                    ${currentContent}
+
+                    INSTRUCTIONS:
+                    1. Locate the "Personality" and "Evolution" (or similar) sections in the Markdown.
+                    2. REWRITE those sections to reflect the NEW DATA.
+                    3. KEEP all other sections (Name, Appearance, Backstory, etc.) EXACTLY AS THEY ARE.
+                    4. If the sections don't exist, create them under appropriate headers.
+                    5. Output ONLY the complete, updated Markdown file.
+                `;
+
+                const result = await model.generateContent(editPrompt);
+                const newFileContent = result.response.text();
+
+                // C. Save back to Drive (Atomic-ish Point)
+                await drive.files.update({
+                    fileId: driveFileId,
+                    media: {
+                        mimeType: "text/markdown",
+                        body: newFileContent
+                    }
+                });
+
+                logger.info(`   ✅ Drive File Updated: ${driveFileId}`);
+
+            } catch (driveError: any) {
+                logger.error(`💥 DRIVE SYNC FAILED for ${characterId}. Aborting Firestore update.`, driveError);
+                throw new HttpsError('data-loss', `Fallo al escribir en Google Drive: ${driveError.message}`);
+            }
+        } else {
+            logger.warn(`   ⚠️ No Master File ID found for ${characterId}. Skipping Drive sync (Data Integrity Risk).`);
+        }
+
+        // 2. UPDATE FIRESTORE (METADATA) - ONLY IF DRIVE SUCCEEDED
+        const updatePayload: any = {
+            lastUpdated: new Date().toISOString(),
+            lastSyncRationale: rationale || "Manual Sync via CanonRadar"
+        };
+
+        if (newTraits.personality) updatePayload.personality = newTraits.personality;
+        if (newTraits.evolution) updatePayload.evolution = newTraits.evolution;
+
+        await charRef.set(updatePayload, { merge: true });
+        logger.info(`   ✅ Firestore Metadata Updated for ${characterId}`);
+
+        return { success: true };
+
+    } catch (error: any) {
+        logger.error("Error in updateForgeCharacter:", error);
+        throw new HttpsError("internal", error.message);
+    }
+  }
+);

@@ -476,6 +476,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         conflicts={guardianConflicts}
                         onClose={() => setActiveGemId(null)}
                         onForceAudit={forceAudit}
+                        accessToken={oauthToken}
                     />
                 </div>
             ) : (activeGemId && activeGemId !== 'director' && activeGemId !== 'perforador' && activeGemId !== 'forja' && activeGemId !== 'tribunal' && activeGemId !== 'laboratorio' && activeGemId !== 'cronograma' && activeGemId !== 'imprenta') ? (
