@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Target, Clock, Type, RefreshCw } from 'lucide-react';
+import { Settings, Target, Clock, Type, RefreshCw, ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
+import { GuardianStatus } from '../hooks/useGuardian';
 
 interface StatusBarProps {
     content: string;
     className?: string;
+    guardianStatus?: GuardianStatus; // 🟢 NEW PROP
+    onGuardianClick?: () => void;    // 🟢 NEW PROP
 }
 
 // HELPERS
@@ -96,8 +99,31 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '' }) => {
     return (
         <div className={`h-8 bg-titanium-950 border-t border-titanium-800 flex items-center justify-between px-4 text-[10px] text-titanium-400 select-none ${className}`}>
 
-            {/* LEFT: METRICS */}
+            {/* LEFT: METRICS & GUARDIAN */}
             <div className="flex items-center gap-4">
+                {/* 🛡️ EYE OF ARGOS (GUARDIAN TRIGGER) */}
+                {guardianStatus && (
+                    <button
+                        onClick={onGuardianClick}
+                        className={`
+                            flex items-center gap-1.5 px-2 py-0.5 rounded transition-all duration-300
+                            ${guardianStatus === 'scanning' ? 'text-amber-400 bg-amber-900/20 animate-pulse' :
+                              guardianStatus === 'conflict' ? 'text-red-400 bg-red-900/20 animate-pulse' :
+                              guardianStatus === 'clean' ? 'text-zinc-500 hover:text-emerald-400' :
+                              'text-zinc-600 hover:text-zinc-400'}
+                        `}
+                        title="Estado del Canon (Clic para forzar auditoría)"
+                    >
+                        <ScanEye size={12} />
+                        <span className="font-bold tracking-wider">
+                            {guardianStatus === 'scanning' ? 'ESCANEO...' :
+                             guardianStatus === 'conflict' ? 'CONFLICTO' : 'ARGOS'}
+                        </span>
+                    </button>
+                )}
+
+                <div className="h-3 w-px bg-titanium-800 mx-1" />
+
                 <div className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors">
                     <Type size={12} />
                     <span>{wordCount.toLocaleString()} palabras</span>
