@@ -19,6 +19,8 @@ import FieldManualModal from './components/FieldManualModal';
 import ProjectSettingsModal from './components/ProjectSettingsModal';
 import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
 import WorldEnginePanel from './components/WorldEnginePanel'; // 👈 IMPORT NEW PANEL
+import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
+import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
 import { GemId, ProjectConfig, ForgeSession } from './types';
 import { Loader2 } from 'lucide-react';
@@ -49,6 +51,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const handleContentChange = (newContent: string) => {
         setSelectedFileContent(newContent);
     };
+
+    // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
+    const effectiveFileContent = selectedFileContent || lastActiveFileContent;
+    const effectiveFileName = currentFileName || lastActiveFileName;
+    const isFallbackContext = !selectedFileContent && !!lastActiveFileContent;
+
+    // 🛡️ GUARDIAN HOOK (ARGOS)
+    const { status: guardianStatus, conflicts: guardianConflicts, facts: guardianFacts, forceAudit } = useGuardian(effectiveFileContent, folderId);
 
     // 🟢 PERSIST LAST ACTIVE CONTEXT
     useEffect(() => {
@@ -301,9 +311,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     }
 
     // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
-    const effectiveFileContent = selectedFileContent || lastActiveFileContent;
-    const effectiveFileName = currentFileName || lastActiveFileName;
-    const isFallbackContext = !selectedFileContent && !!lastActiveFileContent;
+    // (Moved up for Hook Usage)
 
     return (
         <div className="flex h-screen w-screen bg-titanium-900 text-titanium-200 font-sans overflow-hidden">
@@ -456,7 +464,21 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 folderId={folderId} // 👈 PASS PROJECT ID
             />
 
-            {(activeGemId === 'guardian') && (
+            {/* 🛡️ GUARDIAN (CANON RADAR) */}
+            {activeGemId === 'guardian' ? (
+                <div className={`
+                    fixed inset-y-0 right-16 z-40 transform transition-transform duration-300 ease-in-out
+                    ${activeGemId === 'guardian' ? 'translate-x-0' : 'translate-x-full'}
+                `}>
+                    <CanonRadar
+                        status={guardianStatus}
+                        facts={guardianFacts}
+                        conflicts={guardianConflicts}
+                        onClose={() => setActiveGemId(null)}
+                        onForceAudit={forceAudit}
+                    />
+                </div>
+            ) : (activeGemId && activeGemId !== 'director' && activeGemId !== 'perforador' && activeGemId !== 'forja' && activeGemId !== 'tribunal' && activeGemId !== 'laboratorio' && activeGemId !== 'cronograma' && activeGemId !== 'imprenta') ? (
                 <ChatPanel
                     isOpen={isChatOpen}
                     onClose={() => {
@@ -471,7 +493,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     activeFileName={effectiveFileName}     // 👈 Pass Context
                     isFallbackContext={isFallbackContext}  // 👈 Pass Flag
                 />
-            )}
+            ) : null}
         </div>
     );
 }

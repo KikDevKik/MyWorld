@@ -684,6 +684,12 @@ export const getDriveFiles = onCall(
 );
 
 /**
+ * 22. GUARDIAN AUDIT (El Centinela)
+ * Analiza fragmentos de contenido para validar hechos contra la base de datos.
+ */
+export { auditContent } from "./guardian";
+
+/**
  * 20. ENRICH CHARACTER CONTEXT (La Bola de Cristal)
  * Realiza una búsqueda vectorial profunda para analizar un personaje en el contexto de la saga.
  */
