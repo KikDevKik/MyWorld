@@ -6,16 +6,20 @@ import './index.css'
 import { initializeApp } from "firebase/app";
 
 // ¡¡¡TU "TESORO" VA AQUÍ!!!
-// (¡Pega el 'firebaseConfig' que copiaste de Firebase!)
+// (Ahora cargado desde variables de entorno para seguridad)
 const firebaseConfig = {
-  apiKey: "AIzaSyChkUGxtxmczf_AxtB8scRu73Dwk3wh_rc", // ¡PON TU LLAVE REAL AQUÍ!
-  authDomain: "myword-67b03.firebaseapp.com",
-  projectId: "myword-67b03",
-  storageBucket: "myword-67b03.appspot.com",
-  messagingSenderId: "479346922786",
-  appId: "1:479346922786:web:af7d76f5f6f707d75f090b",
-  measurementId: "G-3PEQ1BGFZF"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
+
+// 🟢 TELEMETRÍA DE DIAGNÓSTICO (Protocolo Sutura V8.7)
+console.log("[DEBUG] App Check attempt with ID:", firebaseConfig.appId);
+console.log("[DEBUG] Firebase Project ID:", firebaseConfig.projectId);
 
 // ¡¡¡ARRANCAMOS EL COCHE!!!
 initializeApp(firebaseConfig);
