@@ -433,6 +433,15 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     />
                 ) : (
                     <>
+                        {/* 🟢 LOGIC 5: MAIN SCENARIO SWITCHING */}
+                        {/* When Guardian (CanonRadar) is active, it takes over the main stage completely, unmounting or hiding the Editor. */}
+                        {/* Actually, activeGemId === 'guardian' is handled above in the switch. */}
+                        {/* But wait, the switch above uses `activeGemId === 'guardian'` to render CanonRadar. */}
+                        {/* So when activeGemId is 'guardian', this `else` block (Editor) is NOT rendered. */}
+                        {/* This satisfies the requirement "Delete Editor from <main>... occupy 100%". */}
+                        {/* The logic is already inherent in the conditional rendering structure I set up previously! */}
+                        {/* I just need to verify CanonRadar's container styling in the switch case above. */}
+
                         <Editor
                             fileId={currentFileId}
                             content={selectedFileContent}
