@@ -14,3 +14,10 @@
 **Vulnerability:** Resource Exhaustion via Unbounded Loop
 **Learning:** While individual file processing was protected (via `MAX_STREAM_SIZE_BYTES`), the `compileManuscript` function iterated through an unbounded user-provided array (`fileIds`). A user could request 1000 files, which, even if individually small, would accumulate in the `contents` array and exceed the function's memory limit (2GiB), causing an OOM crash.
 **Prevention:** Added a strict limit (`MAX_FILES = 50`) on the input array length. Security limits must apply not just to atomic items but also to collections to prevent "death by a thousand cuts".
+## 2025-02-18 - [DoS Prevention: Input Validation & Logging Hygiene]
+**Vulnerability:** Unbounded Input Size in User Profile & Chat
+**Learning:** Functions like `saveUserProfile` and `addForgeMessage` lacked input length limits, allowing potentially massive payloads (up to 1MB Firestore limit) to consume bandwidth and storage. Additionally, `chatWithGem` was logging raw massive JSON responses, risking log bloat and PII leakage.
+**Prevention:**
+1. Added `MAX_PROFILE_FIELD_LIMIT` (5000 chars) and `MAX_CHAT_MESSAGE_LIMIT` (30000 chars).
+2. Enforced these limits in `saveUserProfile`, `addForgeMessage`, `updateForgeCharacter`, and `chatWithGem`.
+3. Truncated debug logs in `chatWithGem` to 2000 chars to prevent sensitive data leakage.
