@@ -19,12 +19,25 @@ export interface GuardianConflict {
     type: 'contradiction';
 }
 
+export interface GuardianLawConflict {
+    trigger: "WORLD_LAW_VIOLATION";
+    severity: "CRITICAL" | "WARNING" | "NONE";
+    conflict: {
+        category: "geography" | "chronology" | "system_rules";
+        assertion: string;
+        canonical_rule: string;
+        source_node: string;
+        explanation: string;
+    };
+}
+
 export type GuardianStatus = 'idle' | 'scanning' | 'clean' | 'conflict' | 'error';
 
 export function useGuardian(content: string, projectId: string | null) {
     const [status, setStatus] = useState<GuardianStatus>('idle');
     const [facts, setFacts] = useState<GuardianFact[]>([]);
     const [conflicts, setConflicts] = useState<GuardianConflict[]>([]);
+    const [lawConflicts, setLawConflicts] = useState<GuardianLawConflict[]>([]);
 
     // Internal State
     const lastHashRef = useRef<string>("");
@@ -53,15 +66,19 @@ export function useGuardian(content: string, projectId: string | null) {
                 projectId: projectId || 'global'
             });
 
-            const data = result.data as { success: boolean, facts: GuardianFact[], conflicts: GuardianConflict[] };
+            const data = result.data as { success: boolean, facts: GuardianFact[], conflicts: GuardianConflict[], world_law_violations?: GuardianLawConflict[] };
 
             if (data.success) {
                 setFacts(data.facts);
                 setConflicts(data.conflicts);
-                setStatus(data.conflicts.length > 0 ? 'conflict' : 'clean');
+                const laws = data.world_law_violations || [];
+                setLawConflicts(laws);
 
-                if (data.conflicts.length > 0) {
-                    toast.error(`⚠️ ${data.conflicts.length} conflictos detectados por el Guardián.`);
+                const hasConflict = data.conflicts.length > 0 || laws.length > 0;
+                setStatus(hasConflict ? 'conflict' : 'clean');
+
+                if (hasConflict) {
+                    toast.error(`⚠️ ${data.conflicts.length + laws.length} conflictos detectados por el Guardián.`);
                 }
             } else {
                 setStatus('error');
@@ -114,6 +131,7 @@ export function useGuardian(content: string, projectId: string | null) {
         status,
         facts,
         conflicts,
+        lawConflicts,
         forceAudit
     };
 }
