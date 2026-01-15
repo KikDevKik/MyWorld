@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getFunctions, httpsCallable } from "firebase/functions";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check"; // 👈 IMPORT
+import { getApp } from "firebase/app"; // 👈 IMPORT
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
 import Editor from './components/Editor';
@@ -504,6 +506,33 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 }
 
 function App() {
+    // 🛡️ APP CHECK INITIALIZATION (SECURITY HANDSHAKE)
+    useEffect(() => {
+        const initAppCheck = async () => {
+            const app = getApp();
+            const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || 'process.env.VITE_RECAPTCHA_SITE_KEY';
+
+            if (siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
+                console.warn("⚠️ [SECURITY] ReCaptcha Site Key MISSING. Using placeholder.");
+            } else {
+                console.log("🛡️ [SECURITY] Initializing ReCaptcha Enterprise...");
+            }
+
+            try {
+                // Initialize App Check with ReCAPTCHA Enterprise
+                initializeAppCheck(app, {
+                    provider: new ReCaptchaEnterpriseProvider(siteKey),
+                    isTokenAutoRefreshEnabled: true
+                });
+                console.log("✅ [SECURITY] App Check Initialized.");
+            } catch (error) {
+                console.error("💥 [SECURITY] App Check Initialization Failed:", error);
+            }
+        };
+
+        initAppCheck();
+    }, []);
+
     // AUTH LIFTED STATE
     const [user, setUser] = useState<User | null>(null);
     const [authLoading, setAuthLoading] = useState(true);
