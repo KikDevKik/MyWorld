@@ -527,6 +527,7 @@ function App() {
             }
 
             console.log("🛡️ [SECURITY] Initializing ReCaptcha V3...");
+            console.log("🛡️ [SECURITY] Confirming Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
 
             // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
             // Active for Titanium Edition v2.4 Release
