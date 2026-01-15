@@ -75,6 +75,9 @@ importers:
       autoprefixer:
         specifier: ^10.4.22
         version: 10.4.23(postcss@8.5.6)
+      baseline-browser-mapping:
+        specifier: ^2.9.14
+        version: 2.9.14
       playwright:
         specifier: ^1.57.0
         version: 1.57.0
