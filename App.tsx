@@ -22,6 +22,7 @@ import ProjectSettingsModal from './components/ProjectSettingsModal';
 import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
 import WorldEnginePanel from './components/WorldEnginePanel'; // 👈 IMPORT NEW PANEL
 import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
+import SecurityLockScreen from './components/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
 import { GemId, ProjectConfig, ForgeSession } from './types';
@@ -549,8 +550,7 @@ function App() {
                     setIsSecurityReady(true);
                 } catch (tokenError) {
                     console.error("⚠️ [SECURITY] Handshake Failed (Token Error):", tokenError);
-                    // We allow the app to load but 'isSecurityReady' remains false,
-                    // so VaultSidebar will show skeleton instead of crashing.
+                    setSecurityError("PERIMETER_BREACH"); // 👈 TRIGGER LOCK SCREEN
                 }
 
             } catch (error) {
@@ -563,6 +563,10 @@ function App() {
     }, []);
 
     // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
+    if (securityError === 'PERIMETER_BREACH') {
+        return <SecurityLockScreen />;
+    }
+
     if (securityError) {
         return (
             <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
