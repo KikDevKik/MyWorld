@@ -531,7 +531,7 @@ function App() {
 
             // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
             // Active for Titanium Edition v2.4 Release
-            (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
+            (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = "28d13b43-e427-426e-8d54-ea9fba7ebed2";
             console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
 
             try {
