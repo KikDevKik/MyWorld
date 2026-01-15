@@ -21,7 +21,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
 
     // 🟢 SORTING LOGIC: TRAITOR (Critical) FIRST, then EVOLVED
     const sortedDrifts = useMemo(() => {
-        return [...personalityDrifts].sort((a, b) => {
+        return [...(personalityDrifts || [])].sort((a, b) => {
             if (a.status === 'TRAITOR' && b.status !== 'TRAITOR') return -1;
             if (a.status !== 'TRAITOR' && b.status === 'TRAITOR') return 1;
             return 0;
@@ -99,14 +99,14 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
 
                 {/* 0. THE HATER (TRIGGER 3) - PERSONALITY DRIFTS */}
-                {sortedDrifts.length > 0 && (
+                {(sortedDrifts || []).length > 0 && (
                     <div className="space-y-3">
                          <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase mb-2 animate-pulse">
                             <Skull size={14} title="El Hater: Inconsistencia detectada" aria-label="El Hater: Inconsistencia de Personalidad Detectada" />
-                            <span>Traición Narrativa ({sortedDrifts.length})</span>
+                            <span>Traición Narrativa ({(sortedDrifts || []).length})</span>
                         </div>
 
-                        {sortedDrifts.map((drift, idx) => {
+                        {(sortedDrifts || []).map((drift, idx) => {
                              const isSyncing = syncingIds.has(drift.character);
                              return (
                              <div key={`drift-${idx}`} className={`
@@ -169,14 +169,14 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 )}
 
                 {/* 1. REALITY FRACTURES (TRIGGER 2) */}
-                {lawConflicts.length > 0 && (
+                {(lawConflicts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-amber-500 text-xs font-bold uppercase mb-2 animate-pulse">
                             <Zap size={14} className="fill-amber-500/20" title="Fractura de Realidad" aria-label="Fractura de Realidad: Violación de Leyes del Mundo" />
-                            <span>Fracturas de Realidad ({lawConflicts.length})</span>
+                            <span>Fracturas de Realidad ({(lawConflicts || []).length})</span>
                         </div>
 
-                        {lawConflicts.map((item, idx) => (
+                        {(lawConflicts || []).map((item, idx) => (
                             <div key={`law-${idx}`} className="bg-amber-950/20 border border-amber-500/50 rounded-lg p-3 shadow-lg shadow-amber-900/10 hover:border-amber-400 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 <div className="flex justify-between items-start mb-2">
                                     <span className="text-amber-200 font-bold text-xs uppercase tracking-wide">{item.conflict.category} Violation</span>
@@ -224,14 +224,14 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 )}
 
                 {/* 2. CONFLICTS SECTION */}
-                {conflicts.length > 0 && (
+                {(conflicts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase mb-2">
                             <ShieldAlert size={14} title="Conflicto detectado" aria-label="Conflicto detectado" />
-                            <span>Conflictos Activos ({conflicts.length})</span>
+                            <span>Conflictos Activos ({(conflicts || []).length})</span>
                         </div>
 
-                        {conflicts.map((conflict, idx) => (
+                        {(conflicts || []).map((conflict, idx) => (
                             <div key={idx} className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 shadow-sm hover:border-red-500/50 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 <div className="flex justify-between items-start mb-1">
                                     <span className="text-red-200 font-bold text-sm">{conflict.entity}</span>
@@ -259,14 +259,14 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 )}
 
                 {/* 3. VERIFIED FACTS SECTION */}
-                {facts.length > 0 && (
+                {(facts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase mb-2">
                             <CheckCircle size={14} title="Hecho verificado" aria-label="Hecho verificado" />
-                            <span>Hechos Verificados ({facts.length})</span>
+                            <span>Hechos Verificados ({(facts || []).length})</span>
                         </div>
 
-                        {facts.map((fact, idx) => (
+                        {(facts || []).map((fact, idx) => (
                             <div key={idx} className="bg-titanium-900/40 border border-titanium-800 rounded-lg p-3 flex flex-col gap-1 animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 <div className="flex justify-between items-center">
                                     <span className="text-titanium-200 font-medium text-xs">{fact.entity}</span>
@@ -284,7 +284,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 )}
 
                 {/* EMPTY STATE */}
-                {status === 'clean' && conflicts.length === 0 && lawConflicts.length === 0 && facts.length === 0 && personalityDrifts.length === 0 && (
+                {status === 'clean' && (conflicts || []).length === 0 && (lawConflicts || []).length === 0 && (facts || []).length === 0 && (personalityDrifts || []).length === 0 && (
                     <div className="text-center py-10 opacity-50 flex flex-col items-center animate-in fade-in duration-700">
                         <ScanEye size={48} className="text-emerald-500/50 mb-4 animate-pulse" />
                         <h3 className="text-emerald-500 font-bold text-sm uppercase tracking-wider mb-2">Canon Estable</h3>

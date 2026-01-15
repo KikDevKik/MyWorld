@@ -128,7 +128,19 @@ export const auditContent = onCall(
         `;
 
         const extractionResult = await extractorModel.generateContent(extractionPrompt);
-        const extractedData = parseSecureJSON(extractionResult.response.text(), "FactExtractor");
+        const rawModelOutput = extractionResult.response.text(); // 🟢 CAPTURE RAW OUTPUT
+        const extractedData = parseSecureJSON(rawModelOutput, "FactExtractor");
+
+        // 🟢 [ERROR CHECK] - REVEAL PARSE FAILURES
+        if (extractedData.error) {
+             logger.error(`💥 [GUARDIAN PARSE ERROR] Raw Output:`, rawModelOutput);
+             return {
+                 success: false,
+                 status: 'parse_error',
+                 message: 'Error analizando respuesta de IA.',
+                 raw_debug: rawModelOutput.substring(0, 1000)
+             };
+        }
 
         const facts = extractedData.extracted_facts || [];
         const laws = extractedData.extracted_laws || [];
