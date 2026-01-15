@@ -30,6 +30,7 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
                     onClick={() => setFontFamily('serif')}
                     className={`p-2 rounded-full transition-all ${fontFamily === 'serif' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Serif (Novela)"
+                    aria-label="Fuente Serif (Novela)"
                 >
                     <span className="font-serif font-bold text-xs">Ag</span>
                 </button>
@@ -37,6 +38,7 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
                     onClick={() => setFontFamily('sans')}
                     className={`p-2 rounded-full transition-all ${fontFamily === 'sans' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Sans (Digital)"
+                    aria-label="Fuente Sans (Digital)"
                 >
                     <span className="font-sans font-bold text-xs">Ag</span>
                 </button>
@@ -50,6 +52,7 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
                     onClick={() => setEditorWidth('narrow')}
                     className={`p-2 rounded-full transition-all ${editorWidth === 'narrow' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Ancho Libro"
+                    aria-label="Ancho de texto: Libro"
                 >
                     <AlignCenter size={14} />
                 </button>
@@ -57,6 +60,7 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
                     onClick={() => setEditorWidth('wide')}
                     className={`p-2 rounded-full transition-all ${editorWidth === 'wide' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Ancho Pantalla"
+                    aria-label="Ancho de texto: Pantalla"
                 >
                     <AlignJustify size={14} />
                 </button>
@@ -74,6 +78,7 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
                         : 'text-titanium-400 hover:text-white hover:bg-titanium-800'}
                 `}
                 title={isZenMode ? "Salir del Modo Zen" : "Entrar en Modo Zen"}
+                aria-label={isZenMode ? "Salir del Modo Zen" : "Entrar en Modo Zen"}
             >
                 {isZenMode ? <Minimize size={14} /> : <Maximize size={14} />}
             </button>
