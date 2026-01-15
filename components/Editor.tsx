@@ -9,7 +9,7 @@ import TurndownService from 'turndown';
 import BubbleMenu from './BubbleMenu';
 import StatusBar from './StatusBar';
 import ReadingToolbar from './ReadingToolbar';
-import ResonanceBar from './ResonanceBar';
+import DirectorPanel from './DirectorPanel'; // 👈 NEW PANEL
 
 interface EditorProps {
     fileId: string | null;
@@ -57,6 +57,8 @@ const Editor: React.FC<EditorProps> = ({
 
     // 🟢 RESONANCE STATE
     const [resonanceMatches, setResonanceMatches] = useState<any[]>([]);
+    const [structureAlerts, setStructureAlerts] = useState<any>(null); // 👈 NEW STATE
+    const [midpointAlert, setMidpointAlert] = useState(false); // 👈 THE WALL
     const [lastResonanceWordCount, setLastResonanceWordCount] = useState(0);
 
     // 🟢 REFS
@@ -102,18 +104,12 @@ const Editor: React.FC<EditorProps> = ({
 
             if (result.data?.matches) {
                 setResonanceMatches(result.data.matches);
+                setStructureAlerts(result.data.structure_analysis); // 👈 STORE ANALYSIS
 
-                // 🟢 PRE-TRIGGER 4: DISTRIBUTED INTEGRATION (WHISPERS)
-
-                // 1. SCENE DIRECTOR (Structure Whisper)
-                const advice = result.data.structure_analysis?.advice;
-                if (advice && result.data.structure_analysis?.confidence > 0.7) {
-                    toast.message("Susurro del Director", {
-                        description: advice,
-                        icon: <FileText className="text-cyan-400" size={16} />,
-                        duration: 8000
-                    });
-                }
+                // 1. SCENE DIRECTOR (Structure Whisper) -> Now handled by DirectorPanel, but keep Toast for high confidence?
+                // User instruction: "El DirectorPanel debe emitir una alerta visual sutil".
+                // DirectorPanel handles visual persistence. We can remove the toast or keep it for extra feedback.
+                // Removing toast to avoid clutter, relying on DirectorPanel.
 
                 // 2. WORLD DRILLER (Coherence Alerts)
                 const alerts = result.data.coherence_alerts || [];
@@ -173,8 +169,16 @@ const Editor: React.FC<EditorProps> = ({
             const html = editor.getHTML();
             debouncedUpdate(html);
 
-            // 🟢 RESONANCE TRIGGER (Every ~300 words)
             const wordCount = editor.storage.characterCount?.words?.() || html.split(/\s+/).length;
+
+            // 🟢 MIDPOINT WALL CHECK (5k - 15k words)
+            if (wordCount >= 5000 && wordCount <= 15000) {
+                if (!midpointAlert) setMidpointAlert(true);
+            } else {
+                if (midpointAlert) setMidpointAlert(false);
+            }
+
+            // 🟢 RESONANCE TRIGGER (Every ~300 words)
             if (Math.abs(wordCount - lastResonanceWordCount) > 300) {
                 // Get plain text for analysis
                 const plainText = editor.getText();
@@ -344,8 +348,15 @@ const Editor: React.FC<EditorProps> = ({
                 ${isZenMode ? 'fixed inset-0 z-50 bg-titanium-950' : 'h-full relative'}
             `}
         >
-            {/* 🟢 RESONANCE BAR */}
-            <ResonanceBar matches={resonanceMatches} isZenMode={isZenMode} />
+            {/* 🟢 DIRECTOR PANEL (Replaces Resonance Bar) */}
+            <DirectorPanel
+                isOpen={true}
+                onClose={() => {}}
+                resonanceMatches={resonanceMatches}
+                structureAlerts={structureAlerts}
+                midpointAlert={midpointAlert}
+                isZenMode={isZenMode}
+            />
 
             {/* 🟢 TOP BAR (READING TOOLBAR + META) */}
             <div className={`

@@ -495,9 +495,11 @@ export const checkResonance = onCall(
 
                 GOALS:
                 1. DETECT "RESONANCE": Identify if the draft connects to an existing Idea/Seed (Plot, Vibe, Lore).
+                   - [SEMANTIC RULE / BARDO]: If draft mentions "Megu" AND "Recuerdos/Pasado", AND similarity > 0.82 to any chunk about "Baku-fante" or "Anna", FORCE a 'PLOT_SEED' match titled "Anna rescata al Baku-fante".
                 2. CHECK "FORESHADOWING": Does the draft pay off a setup found in the seeds? Or does it contradict one?
                 3. ANALYZE "STRUCTURE": Based on the draft content, estimate the narrative position (Setup, Midpoint, Climax) using 3-Act Structure logic.
-                4. CHECK "COHERENCE" (The World Driller): If the draft mentions "Worldbuilding" entities, do they clash with the "Triad" (Culture, Politics, Economy) implied in the chunks?
+                4. CHECK "COHERENCE" (The World Driller / Hater): If the draft mentions "Worldbuilding" entities, do they clash with the "Triad" (Culture, Politics, Economy) implied in the chunks?
+                   - [CRITICAL TRIAD CHECK]: If the draft depicts a scene of "PEACE" or "TREATY", you MUST check if it contradicts the node "Inútiles Guerras de los Antepasados". The war should be persistent. If triggered, raise a 'coherence_alert' with issue: "Inconsistencia detectada: El tratado de paz de hace 400 años fue una mentira; la tensión racial debería persistir."
 
                 DRAFT TEXT:
                 "${content.substring(0, 30000)}"

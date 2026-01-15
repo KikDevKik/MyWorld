@@ -98,8 +98,16 @@ export async function ingestFile(
         const chunkText = content.substring(0, 8000);
         const now = new Date().toISOString();
 
+        // 🟢 NARRATIVE INTENT LOGIC (AUTO-CLASSIFIER)
+        let narrativeIntent: string | null = null;
+        if (file.path.endsWith('Ideas.md')) {
+            narrativeIntent = 'TRAMA_PROBABLE';
+        } else if (file.path.endsWith('Que he Aprendido.md')) {
+            narrativeIntent = 'REGLA_ESTILISTICA';
+        }
+
         // Update File Metadata (UPSERT)
-        await fileRef.set({
+        const fileMetadata: any = {
             name: file.name,
             path: file.path,
             saga: file.saga || 'Global',
@@ -109,14 +117,20 @@ export async function ingestFile(
             category: file.category || 'canon',
             timelineDate: null,
             contentHash: currentHash
-        });
+        };
+
+        if (narrativeIntent) {
+            fileMetadata.narrativeIntent = narrativeIntent;
+        }
+
+        await fileRef.set(fileMetadata);
 
         // Embed
         const vector = await embeddingsModel.embedQuery(chunkText);
 
         // Save Chunk
         // Note: chunks now live under the Hashed Path ID, not the Drive ID.
-        await chunksRef.doc("chunk_0").set({
+        const chunkPayload: any = {
             userId: userId,
             fileName: file.name,
             text: chunkText,
@@ -129,7 +143,13 @@ export async function ingestFile(
             type: 'file',
             category: file.category || 'canon',
             embedding: FieldValue.vector(vector)
-        });
+        };
+
+        if (narrativeIntent) {
+            chunkPayload.narrativeIntent = narrativeIntent;
+        }
+
+        await chunksRef.doc("chunk_0").set(chunkPayload);
 
         logger.info(`   ✨ [INGEST] Indexed: ${file.name}`);
 
