@@ -32,7 +32,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
     // Filter relevant matches
-    const activeMatches = resonanceMatches.filter(m => m.similarity_score > 0.80);
+    const activeMatches = (resonanceMatches || []).filter(m => m.similarity_score > 0.80);
 
     // Visibility Logic: Show if (Active Matches OR Midpoint Alert OR Structure Advice)
     // AND NOT completely hidden by Zen Mode (unless hover?)
