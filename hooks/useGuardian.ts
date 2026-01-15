@@ -44,6 +44,9 @@ export interface GuardianPersonalityDrift {
 
 export type GuardianStatus = 'idle' | 'scanning' | 'clean' | 'conflict' | 'error';
 
+// 🛡️ LIMIT: 100k Characters (Client Side Check)
+const MAX_AI_INPUT_CHARS = 100000;
+
 export function useGuardian(content: string, projectId: string | null, fileId?: string) {
     const [status, setStatus] = useState<GuardianStatus>('idle');
     const [facts, setFacts] = useState<GuardianFact[]>([]);
@@ -66,6 +69,18 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
     // 🟢 AUDIT FUNCTION
     const executeAudit = useCallback(async (textToAudit: string) => {
         if (!textToAudit || textToAudit.length < 50) return;
+
+        // 🛡️ CLIENT SIDE GUARD: LENGTH CHECK
+        if (textToAudit.length > MAX_AI_INPUT_CHARS) {
+             console.warn(`🛡️ Guardian: Content exceeds limit (${textToAudit.length}/${MAX_AI_INPUT_CHARS}). Truncating scan.`);
+             // Option A: Abort
+             // setStatus('error');
+             // toast.error("Documento demasiado largo para análisis en tiempo real.");
+             // return;
+
+             // Option B: Scan only the first 100k (Safe Mode)
+             textToAudit = textToAudit.substring(0, MAX_AI_INPUT_CHARS);
+        }
 
         setStatus('scanning');
 
@@ -91,7 +106,16 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             if (data.success) {
                 if (data.status === 'skipped_unchanged') {
                     // Backend says no change (Double Check)
-                    setStatus(conflicts.length > 0 ? 'conflict' : 'clean');
+                    // If we have existing conflicts, stay red. If not, stay clean.
+                    // Important: We shouldn't reset to clean if we had conflicts and just skipped.
+                    // But if it skipped, it means the state hasn't changed.
+                    // So we maintain the current visual state unless it was 'scanning'.
+                    // Actually, if we are in 'scanning', we need to revert to previous state or re-calculate.
+                    // But 'skipped_unchanged' implies the PREVIOUS result is still valid.
+                    // Ideally, we should persist the result state.
+                    // For now, let's assume if we skip, we go back to 'clean' or 'conflict' based on what we have in memory.
+                    const hasExistingIssues = conflicts.length > 0 || lawConflicts.length > 0 || personalityDrifts.length > 0;
+                    setStatus(hasExistingIssues ? 'conflict' : 'clean');
                     return;
                 }
 
@@ -115,9 +139,9 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             console.error("Guardian Audit Failed:", error);
             setStatus('error');
         }
-    }, [projectId, fileId]); // Depend on fileId too
+    }, [projectId, fileId, conflicts.length, lawConflicts.length, personalityDrifts.length]); // Dependencies adjusted
 
-    // 🟢 DEBOUNCE LOOP (5000ms)
+    // 🟢 DEBOUNCE LOOP (3000ms - Adjusted from 5s per plan)
     useEffect(() => {
         // Clear previous timer
         if (timerRef.current) clearTimeout(timerRef.current);
@@ -128,7 +152,12 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             return;
         }
 
-        setStatus('idle'); // Waiting...
+        // Only set to 'idle' if we were 'clean' or 'error' or 'idle'.
+        // If we are 'scanning', we are busy.
+        // If we are 'conflict', we stay there until re-scan starts.
+        // Actually, UI needs to know we are waiting to scan.
+        // Let's not flicker 'idle' too much.
+        // setStatus('idle');
 
         timerRef.current = setTimeout(async () => {
             const currentHash = await computeHash(content);
@@ -139,10 +168,11 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
                 return;
             }
 
+            // Only update hash if we are actually going to scan (or attempt)
             lastHashRef.current = currentHash;
             executeAudit(content);
 
-        }, 5000);
+        }, 3000); // 3 Seconds Debounce
 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
