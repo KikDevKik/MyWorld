@@ -585,7 +585,7 @@ export const getDriveFiles = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 540, // Increased for Deep Extraction
     secrets: [googleApiKey],
   },
@@ -690,7 +690,7 @@ export const enrichCharacterContext = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 300,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -860,7 +860,7 @@ export const crystallizeNode = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -947,7 +947,7 @@ export const getProjectConfig = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -992,7 +992,7 @@ export const saveProjectConfig = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -1031,7 +1031,7 @@ export const getDriveFileContent = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
 
@@ -1063,7 +1063,7 @@ export const checkIndexStatus = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -1105,7 +1105,7 @@ export const indexTDB = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 3600,
     memory: "1GiB",
     secrets: [googleApiKey],
@@ -1305,7 +1305,7 @@ export const chatWithGem = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
     memory: "2GiB",
@@ -1834,7 +1834,7 @@ export const worldEngine = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 1800, // 30 Minutes
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -2018,7 +2018,7 @@ export const saveDriveFile = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -2079,7 +2079,7 @@ export const saveUserProfile = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -2120,7 +2120,7 @@ export const getUserProfile = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -2157,7 +2157,7 @@ export const createForgeSession = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -2203,7 +2203,7 @@ export const getForgeSessions = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -2247,7 +2247,7 @@ export const deleteForgeSession = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -2285,7 +2285,7 @@ export const addForgeMessage = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -2365,7 +2365,7 @@ export const getForgeHistory = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -2410,7 +2410,7 @@ export const forgeToDrive = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
@@ -2559,7 +2559,7 @@ export const summonTheTribunal = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -2700,7 +2700,7 @@ export const extractTimelineEvents = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
@@ -2805,7 +2805,7 @@ export const compileManuscript = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -2960,7 +2960,7 @@ export const debugGetIndexStats = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -3029,7 +3029,7 @@ export const syncCharacterManifest = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
   },
@@ -3292,7 +3292,7 @@ export const forgeToolExecution = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -3359,7 +3359,7 @@ export const forgeAnalyzer = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -3584,7 +3584,7 @@ export const clearSessionMessages = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
   },
   async (request) => {
     const db = getFirestore();
@@ -3630,7 +3630,7 @@ export const updateForgeCharacter = onCall(
   {
     region: "us-central1",
     cors: true,
-    enforceAppCheck: false,
+    enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
