@@ -428,3 +428,116 @@ export const auditContent = onCall(
     }
   }
 );
+
+
+// ==================================================================================
+// TRIGGER 4: RESONANCE & DISTRIBUTED IDE (PRE-TRIGGER 4)
+// ==================================================================================
+export const checkResonance = onCall(
+    {
+      region: "us-central1",
+      enforceAppCheck: false,
+      timeoutSeconds: 60,
+      memory: "1GiB",
+      secrets: [googleApiKey],
+    },
+    async (request) => {
+        const db = getFirestore();
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { content, projectId } = request.data;
+        const userId = request.auth.uid;
+
+        if (!content || content.length < 50) return { matches: [], alerts: [] }; // Too short
+
+        try {
+            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+            const analysisModel = genAI.getGenerativeModel({
+                model: "gemini-1.5-pro", // 🟢 USING PRO MODEL AS REQUESTED (Mapped to 2.5)
+                generationConfig: { responseMimeType: "application/json" }
+            });
+
+            // 1. EMBED CURRENT TEXT
+            const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
+            const queryVector = embeddingResult.embedding.values;
+
+            // 2. VECTOR SEARCH (RESONANCE)
+            // Search global or scoped. User mentioned "Inspiration" is already indexed.
+            // We search broadly in the project or globally if projectId is not specific.
+            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
+
+            // Apply composite filter reqs
+            if (projectId && projectId !== 'global') {
+                vectorQuery = vectorQuery.where("path", ">=", projectId).where("path", "<=", projectId + "\uf8ff");
+            } else {
+                vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
+            }
+
+            const nearestQuery = vectorQuery.findNearest({
+                queryVector: queryVector,
+                limit: 5, // 🟢 LIMIT CONTEXT TO 5 CHUNKS (Protocolo Centinela)
+                distanceMeasure: 'COSINE',
+                vectorField: 'embedding'
+            });
+
+            const snapshot = await nearestQuery.get();
+            const relevantChunks = snapshot.docs.map(d => ({
+                source: d.data().fileName,
+                text: d.data().text,
+                path: d.data().path || ""
+            }));
+
+            // 3. MULTI-DIMENSIONAL ANALYSIS (ONE-SHOT PROMPT)
+            const prompt = `
+                ACT AS: "The Resonator" (Literary Analyst AI).
+                TASK: Analyze the AUTHOR'S DRAFT against retrieved MEMORY CHUNKS ("Seeds").
+
+                GOALS:
+                1. DETECT "RESONANCE": Identify if the draft connects to an existing Idea/Seed (Plot, Vibe, Lore).
+                2. CHECK "FORESHADOWING": Does the draft pay off a setup found in the seeds? Or does it contradict one?
+                3. ANALYZE "STRUCTURE": Based on the draft content, estimate the narrative position (Setup, Midpoint, Climax) using 3-Act Structure logic.
+                4. CHECK "COHERENCE" (The World Driller): If the draft mentions "Worldbuilding" entities, do they clash with the "Triad" (Culture, Politics, Economy) implied in the chunks?
+
+                DRAFT TEXT:
+                "${content.substring(0, 30000)}"
+
+                MEMORY CHUNKS (SEEDS):
+                ${JSON.stringify(relevantChunks)}
+
+                OUTPUT SCHEMA (JSON):
+                {
+                    "matches": [
+                        {
+                            "source_file": "Name of the chunk file",
+                            "type": "PLOT_SEED" | "VIBE_SEED" | "LORE_SEED",
+                            "crumb_text": "A short, poetic summary (max 15 words) explaining the connection. Start with 'Ecos de...'",
+                            "similarity_score": 0.0-1.0 (Perceived relevance)
+                        }
+                    ],
+                    "structure_analysis": {
+                        "detected_phase": "SETUP" | "INCITING_INCIDENT" | "RISING_ACTION" | "MIDPOINT" | "CRISIS" | "CLIMAX" | "RESOLUTION",
+                        "confidence": 0.0-1.0,
+                        "advice": "Brief structural advice (e.g. 'Midpoint requires a shift in goal')."
+                    },
+                    "coherence_alerts": [
+                        {
+                           "entity": "Name",
+                           "issue": "Brief description of the Triad conflict (e.g. 'Economy cannot support this magic')."
+                        }
+                    ]
+                }
+            `;
+
+            const result = await analysisModel.generateContent(prompt);
+            const analysis = parseSecureJSON(result.response.text(), "ResonanceEngine");
+
+            return analysis;
+
+        } catch (error: any) {
+            logger.error("Resonance Check Failed:", error);
+             // Return safe empty state
+            return { matches: [], structure_analysis: { detected_phase: "UNKNOWN" }, coherence_alerts: [] };
+        }
+    }
+);

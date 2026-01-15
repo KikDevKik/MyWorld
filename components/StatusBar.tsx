@@ -6,7 +6,7 @@ import { GuardianStatus } from '../hooks/useGuardian';
 interface StatusBarProps {
     content: string;
     className?: string;
-    guardianStatus?: GuardianStatus; // 🟢 NEW PROP
+    guardianStatus?: string; // 🟢 FIX TYPE
     onGuardianClick?: () => void;    // 🟢 NEW PROP
 }
 
@@ -21,7 +21,7 @@ const getTodayKey = () => {
     return `myword_daily_${date}`;
 };
 
-const StatusBar: React.FC<StatusBarProps> = ({ content, className = '' }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick }) => {
     // METRICS STATE
     // 🟢 FIX: Initialize with current count to avoid "delta = total - 0" on mount
     const [wordCount, setWordCount] = useState(() => countWords(content));
