@@ -2810,9 +2810,27 @@ export const compileManuscript = onCall(
     if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
       throw new HttpsError("invalid-argument", "Falta fileIds (array).");
     }
-    if (!title) throw new HttpsError("invalid-argument", "Falta title.");
-    if (!author) throw new HttpsError("invalid-argument", "Falta author.");
     if (!accessToken) throw new HttpsError("invalid-argument", "Falta accessToken.");
+
+    // 🛡️ SECURITY: INPUT VALIDATION
+    const MAX_MANUSCRIPT_FILES = 50;
+    if (fileIds.length > MAX_MANUSCRIPT_FILES) {
+      throw new HttpsError("invalid-argument", `Exceeded max files limit (${MAX_MANUSCRIPT_FILES}).`);
+    }
+
+    if (!title || typeof title !== 'string') {
+      throw new HttpsError("invalid-argument", "Invalid title.");
+    }
+    if (title.length > 200) {
+      throw new HttpsError("invalid-argument", "Title too long (max 200 chars).");
+    }
+
+    if (!author || typeof author !== 'string') {
+      throw new HttpsError("invalid-argument", "Invalid author.");
+    }
+    if (author.length > 100) {
+      throw new HttpsError("invalid-argument", "Author name too long (max 100 chars).");
+    }
 
     try {
       logger.info(`📚 Compilando manuscrito: ${title} (${fileIds.length} archivos)`);
