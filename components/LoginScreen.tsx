@@ -11,6 +11,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [isLoading, setIsLoading] = useState(false);
 
     const handleLogin = async () => {
+        setIsLoading(true);
+        setError(null);
+
         const auth = getAuth();
         const provider = new GoogleAuthProvider();
         // IMPORTANTE: Este scope es vital para que nos den el token correcto
@@ -31,8 +34,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 localStorage.setItem('google_drive_token', token);
             }
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Login error:", error);
+            if (error.code === 'auth/popup-closed-by-user') {
+                setError("Inicio de sesión cancelado.");
+            } else {
+                setError("Error al iniciar sesión. Intenta nuevamente.");
+            }
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -73,7 +83,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
                     {/* MENSAJE DE ERROR */}
                     {error && (
-                        <div className="flex items-center gap-2 text-red-400 text-xs bg-red-900/10 p-3 rounded-lg border border-red-900/20 w-full justify-center animate-fade-in">
+                        <div
+                            role="alert"
+                            aria-live="assertive"
+                            className="flex items-center gap-2 text-red-400 text-xs bg-red-900/10 p-3 rounded-lg border border-red-900/20 w-full justify-center animate-fade-in"
+                        >
                             <AlertCircle size={14} />
                             <span>{error}</span>
                         </div>
