@@ -9,11 +9,12 @@ import TurndownService from 'turndown';
 import BubbleMenu from './BubbleMenu';
 import StatusBar from './StatusBar';
 import ReadingToolbar from './ReadingToolbar';
+import ResonanceBar from './ResonanceBar';
 
 interface EditorProps {
     fileId: string | null;
     content: string;
-    onContentChange?: (content: string) => void; // 👈 NEW PROP
+    onContentChange?: (content: string) => void;
     onBubbleAction?: (action: string, text: string) => void;
     accessToken: string | null;
     fileName?: string;
@@ -21,6 +22,7 @@ interface EditorProps {
     onFocusChange?: (isFocused: boolean) => void;
     isZenMode: boolean;
     setIsZenMode: (isZen: boolean) => void;
+    projectId?: string; // 👈 NEW PROP FOR CONTEXT
 }
 
 // 🟢 DEBOUNCE UTILITY
@@ -42,7 +44,7 @@ function useDebouncedCallback<T extends (...args: any[]) => void>(
 
 const Editor: React.FC<EditorProps> = ({
     fileId, content, onContentChange, onBubbleAction, accessToken, fileName, onTokenExpired, onFocusChange,
-    isZenMode, setIsZenMode
+    isZenMode, setIsZenMode, projectId
 }) => {
     // 🟢 VISUAL STATE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
@@ -53,8 +55,12 @@ const Editor: React.FC<EditorProps> = ({
     const [isSaving, setIsSaving] = useState(false);
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
+    // 🟢 RESONANCE STATE
+    const [resonanceMatches, setResonanceMatches] = useState<any[]>([]);
+    const [lastResonanceWordCount, setLastResonanceWordCount] = useState(0);
+
     // 🟢 REFS
-    const zenContainerRef = useRef<HTMLDivElement>(null); // Now points to the scrollable content area
+    const zenContainerRef = useRef<HTMLDivElement>(null);
     const editorContentRef = useRef<HTMLDivElement>(null);
 
     // 🟢 BUBBLE MENU STATE
@@ -79,7 +85,52 @@ const Editor: React.FC<EditorProps> = ({
             const markdown = turndownService.turndown(newHtml);
             onContentChange(markdown);
         }
-    }, 1000); // 1 Second Delay
+    }, 1000);
+
+    // 🟢 CHECK RESONANCE (Manual or Triggered)
+    const runResonanceCheck = useCallback(async (currentText: string) => {
+        if (!currentText || currentText.length < 500) return;
+
+        try {
+            const functions = getFunctions();
+            const checkResonance = httpsCallable(functions, 'checkResonance');
+
+            const result: any = await checkResonance({
+                content: currentText,
+                projectId: projectId || 'global'
+            });
+
+            if (result.data?.matches) {
+                setResonanceMatches(result.data.matches);
+
+                // 🟢 PRE-TRIGGER 4: DISTRIBUTED INTEGRATION (WHISPERS)
+
+                // 1. SCENE DIRECTOR (Structure Whisper)
+                const advice = result.data.structure_analysis?.advice;
+                if (advice && result.data.structure_analysis?.confidence > 0.7) {
+                    toast.message("Susurro del Director", {
+                        description: advice,
+                        icon: <FileText className="text-cyan-400" size={16} />,
+                        duration: 8000
+                    });
+                }
+
+                // 2. WORLD DRILLER (Coherence Alerts)
+                const alerts = result.data.coherence_alerts || [];
+                if (alerts.length > 0) {
+                    alerts.forEach((alert: any) => {
+                        toast.warning("Inconsistencia Detectada", {
+                            description: `${alert.entity}: ${alert.issue}`,
+                            icon: <AlertCircle className="text-amber-500" size={16} />,
+                            duration: 10000
+                        });
+                    });
+                }
+            }
+        } catch (error) {
+            console.error("Resonance Check failed", error);
+        }
+    }, [projectId]);
 
     // 🟢 TIPTAP EDITOR
     const editor = useEditor({
@@ -95,8 +146,7 @@ const Editor: React.FC<EditorProps> = ({
                 class: [
                     'prose prose-invert max-w-none focus:outline-none min-h-[calc(100vh-300px)]',
                     'transition-all duration-300',
-                    // TYPOGRAPHY RESET & SPACING (más agresivo)
-                    '[&_p]:mb-6 [&_p]:mt-0',  // Selector directo para párrafos
+                    '[&_p]:mb-6 [&_p]:mt-0',
                     'prose-p:mb-6 prose-p:mt-0 prose-p:leading-relaxed',
                     'prose-headings:mb-4 prose-headings:mt-8 prose-headings:font-bold',
                     'prose-h1:text-4xl prose-h1:leading-tight',
@@ -104,15 +154,13 @@ const Editor: React.FC<EditorProps> = ({
                     'prose-h3:text-2xl',
                     'prose-blockquote:my-6 prose-blockquote:pl-4',
                     'prose-ul:my-6 prose-ol:my-6 prose-li:my-2',
-                    '[&_*]:first:mt-0',  // Primer elemento sin margin-top
-                    // COLORS (Dark Mode)
+                    '[&_*]:first:mt-0',
                     'prose-headings:text-titanium-100',
                     'prose-p:text-titanium-100',
                     'prose-strong:text-white prose-strong:font-semibold',
                     'prose-em:text-titanium-200',
                     'prose-blockquote:border-l-accent-DEFAULT prose-blockquote:text-titanium-400 prose-blockquote:italic',
                     'prose-code:text-accent-DEFAULT prose-code:bg-titanium-900',
-                    // DYNAMIC FONT FAMILY
                     fontFamily === 'serif'
                         ? 'font-serif prose-headings:font-serif prose-p:font-serif prose-p:text-lg prose-p:leading-loose'
                         : 'font-sans prose-headings:font-sans prose-p:font-sans prose-p:text-base prose-p:leading-relaxed'
@@ -122,9 +170,17 @@ const Editor: React.FC<EditorProps> = ({
         onFocus: () => onFocusChange?.(true),
         onBlur: () => onFocusChange?.(false),
         onUpdate: ({ editor }) => {
-            // 🟢 TRIGGER REAL-TIME SYNC
             const html = editor.getHTML();
             debouncedUpdate(html);
+
+            // 🟢 RESONANCE TRIGGER (Every ~300 words)
+            const wordCount = editor.storage.characterCount?.words?.() || html.split(/\s+/).length;
+            if (Math.abs(wordCount - lastResonanceWordCount) > 300) {
+                // Get plain text for analysis
+                const plainText = editor.getText();
+                runResonanceCheck(plainText);
+                setLastResonanceWordCount(wordCount);
+            }
         },
         onSelectionUpdate: ({ editor }) => {
             const { empty } = editor.state.selection;
@@ -171,9 +227,17 @@ const Editor: React.FC<EditorProps> = ({
         if (editor && content) {
             const parseMarkdown = async () => {
                 const html = await marked.parse(content);
-                editor.commands.setContent(html);
+                // Only set if different to avoid cursor jumps on small updates?
+                // For full reload (fileId change), yes.
+                // Assuming content prop only changes on load/save, not local typing.
+                if (Math.abs(content.length - editor.getText().length) > 10) {
+                     editor.commands.setContent(html);
+                }
             };
             parseMarkdown();
+            // Reset resonance on file load
+            setResonanceMatches([]);
+            setLastResonanceWordCount(0);
         }
     }, [content, editor, fileId]);
 
@@ -188,7 +252,6 @@ const Editor: React.FC<EditorProps> = ({
             const html = editor.getHTML();
             const markdown = turndownService.turndown(html);
 
-            // 🛑 SAFETY CHECK: PREVENT SAVING ERROR MESSAGES
             if (markdown.includes("[ERROR: No se pudo cargar el archivo")) {
                 toast.error("ERROR CRÍTICO: No se puede guardar un archivo en estado de error.");
                 setIsSaving(false);
@@ -207,6 +270,9 @@ const Editor: React.FC<EditorProps> = ({
             setSaveStatus('success');
             setTimeout(() => setSaveStatus('idle'), 2000);
             toast.success("Cambios guardados");
+
+            // Trigger Resonance Check on Save as well
+            runResonanceCheck(editor.getText());
 
         } catch (error: any) {
             console.error("Error saving:", error);
@@ -234,7 +300,6 @@ const Editor: React.FC<EditorProps> = ({
                 e.preventDefault();
                 handleSave();
             }
-            // ESC para salir del Zen Mode
             if (e.key === 'Escape' && isZenMode) {
                 setIsZenMode(false);
             }
@@ -254,15 +319,12 @@ const Editor: React.FC<EditorProps> = ({
         setBubbleMenuProps(prev => ({ ...prev, visible: false }));
     };
 
-    // 🟢 CLICK OUTSIDE HANDLER (Zen Mode)
     const handleZenBackgroundClick = (e: React.MouseEvent) => {
-        // Solo cerrar si se hace clic en el fondo oscuro (no en el contenido)
         if (e.target === e.currentTarget) {
             setIsZenMode(false);
         }
     };
 
-    // 🟢 SCROLL TO TOP
     const scrollToTop = () => {
         zenContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
     };
@@ -282,6 +344,8 @@ const Editor: React.FC<EditorProps> = ({
                 ${isZenMode ? 'fixed inset-0 z-50 bg-titanium-950' : 'h-full relative'}
             `}
         >
+            {/* 🟢 RESONANCE BAR */}
+            <ResonanceBar matches={resonanceMatches} isZenMode={isZenMode} />
 
             {/* 🟢 TOP BAR (READING TOOLBAR + META) */}
             <div className={`
@@ -289,13 +353,11 @@ const Editor: React.FC<EditorProps> = ({
                 transition-all duration-500
                 ${isZenMode ? 'bg-titanium-950/90 backdrop-blur-md' : 'bg-titanium-950/95 backdrop-blur-sm border-b border-titanium-800'}
             `}>
-                {/* LEFT: FILE INFO */}
                 <div className={`absolute left-8 flex items-center gap-3 text-titanium-300 transition-opacity ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                     <FileText size={16} className="text-titanium-500" />
                     <span className="text-sm font-medium">{fileName || 'Documento'}</span>
                 </div>
 
-                {/* CENTER: READING TOOLBAR */}
                 <div className={`flex justify-center w-full transition-all duration-500 ${editorWidth === 'narrow' ? 'max-w-3xl' : 'max-w-5xl'}`}>
                     <ReadingToolbar
                         fontFamily={fontFamily}
@@ -307,7 +369,6 @@ const Editor: React.FC<EditorProps> = ({
                     />
                 </div>
 
-                {/* RIGHT: SAVE BUTTON */}
                 <div className={`absolute right-8 transition-opacity ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}`}>
                     <button
                         onClick={handleSave}
@@ -355,7 +416,6 @@ const Editor: React.FC<EditorProps> = ({
                 </div>
             </div>
 
-            {/* 🟢 SCROLL TO TOP BUTTON */}
             {showScrollTop && (
                 <button
                     onClick={scrollToTop}
@@ -366,7 +426,6 @@ const Editor: React.FC<EditorProps> = ({
                 </button>
             )}
 
-            {/* 🟢 BUBBLE MENU */}
             <BubbleMenu
                 visible={bubbleMenuProps.visible}
                 x={bubbleMenuProps.x}
@@ -375,7 +434,6 @@ const Editor: React.FC<EditorProps> = ({
                 editor={editor}
             />
 
-            {/* 🟢 STATUS BAR */}
             <div className={`
                 transition-all duration-500
                 ${isZenMode ? 'fixed bottom-0 left-0 right-0 z-50 opacity-0 hover:opacity-100' : 'relative'}
