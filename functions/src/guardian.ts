@@ -76,7 +76,9 @@ export const auditContent = onCall(
 
         const extractionPrompt = `
             ACT AS: Fact Extractor.
-            TASK: Analyze the text and extract verifiable facts about entities.
+            TASK: Analyze the text and extract:
+            1. Verifiable facts about entities (Characters, Locations).
+            2. "WORLD LAWS" or "ENVIRONMENTAL FACTS" (e.g., Magic systems, Physical limitations, Time rules, Geography distances).
 
             OUTPUT SCHEMA (JSON):
             {
@@ -84,9 +86,16 @@ export const auditContent = onCall(
                 {
                   "entity": "Name",
                   "fact": "Specific claim (e.g. 'is dead', 'lives in X')",
-                  "category": "character" | "location" | "object" | "world_rule",
+                  "category": "character" | "location" | "object",
                   "confidence": 0.0-1.0,
                   "is_new_info": boolean
+                }
+              ],
+              "extracted_laws": [
+                {
+                  "category": "geography" | "chronology" | "system_rules",
+                  "law": "The extracted rule (e.g., 'Magic requires blood', 'Distance to X is 500km')",
+                  "confidence": 0.0-1.0
                 }
               ]
             }
@@ -98,58 +107,44 @@ export const auditContent = onCall(
         const extractionResult = await extractorModel.generateContent(extractionPrompt);
         const extractedData = parseSecureJSON(extractionResult.response.text(), "FactExtractor");
 
-        if (!extractedData.extracted_facts || !Array.isArray(extractedData.extracted_facts)) {
-            logger.warn("No facts extracted or invalid JSON.");
-            return { success: true, facts: [], conflicts: [] };
+        const facts = extractedData.extracted_facts || [];
+        const laws = extractedData.extracted_laws || [];
+
+        if (facts.length === 0 && laws.length === 0) {
+            logger.warn("No facts or laws extracted.");
+            return { success: true, facts: [], conflicts: [], law_violations: [] };
         }
 
-        const facts = extractedData.extracted_facts;
         const conflicts: any[] = [];
         const verifiedFacts: any[] = [];
+        const lawViolations: any[] = [];
 
         // 3. COLLISION DETECTION (Vector + Logic)
         const embeddingModel = genAI.getGenerativeModel({
             model: "text-embedding-004",
         });
 
-        // Limit to top 3 key facts to save latency/tokens
+        // 4. AUDIT LOOP (ENTITIES)
         const factsToAudit = facts.filter((f: any) => f.confidence > 0.7).slice(0, 3);
+        const verifierModel = genAI.getGenerativeModel({
+             model: "gemini-2.0-flash-exp",
+             generationConfig: { responseMimeType: "application/json" }
+        });
 
         for (const item of factsToAudit) {
             // A. Vector Search (Native SDK)
             const embeddingResult = await embeddingModel.embedContent(`${item.entity}: ${item.fact}`);
             const queryVector = embeddingResult.embedding.values;
 
-            // Query TDB_Index (Chunks)
-            // 🟢 PROJECT ISOLATION: Filter by Path Prefix if projectId looks like a folder ID
-            // or just rely on userId if that's the current architecture limit.
-            // Ideally: .where("path", ">=", projectId).where("path", "<=", projectId + "\uf8ff")
-
             let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
 
-            // 🟢 ISOLATION STRATEGY:
-            // If projectId is provided and looks valid, use it as a path prefix filter.
-            // Otherwise, search global (all user files).
+            // 🟢 ISOLATION STRATEGY
             if (projectId && projectId !== 'global') {
-                 // Assumption: projectId maps to a folder ID or root path in the 'path' field
-                 // Ideally we should resolve projectId to a path name, but we don't have that map here easily.
-                 // FALLBACK: Use Global Search but logic check will filter out irrelevant stuff?
-                 // NO, Vector Search needs to be scoped.
-                 // If we cannot scope by path, we scope by 'saga' or similar if available.
-                 // Current Schema: userId, path, embedding.
-                 // We will stick to GLOBAL search for now as resolving ID -> Path requires a DB lookup we want to avoid for speed.
-                 // The composite index requires 'path' anyway.
-                 vectorQuery = vectorQuery
-                    .where("path", ">=", "")
-                    .where("path", "<=", "\uf8ff");
+                 vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
             } else {
-                 // Global Scope
-                 vectorQuery = vectorQuery
-                    .where("path", ">=", "")
-                    .where("path", "<=", "\uf8ff");
+                 vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
             }
 
-            // Execute Vector Search
             const nearestQuery = vectorQuery.findNearest({
                     queryVector: queryVector,
                     limit: 3,
@@ -164,18 +159,12 @@ export const auditContent = onCall(
                 continue;
             }
 
-            // Gather context
             const contextChunks = snapshot.docs.map(d => ({
                 text: d.data().text,
                 source: d.data().fileName
             }));
 
-            // B. Friction Check (Gemini 2.0 Flash - Logic Auditor)
-            const verifierModel = genAI.getGenerativeModel({
-                 model: "gemini-2.0-flash-exp",
-                 generationConfig: { responseMimeType: "application/json" }
-            });
-
+            // B. Friction Check
             const frictionPrompt = `
                 ACT AS: Logic Auditor.
                 TASK: Detect CONTRADICTIONS between the CLAIM and the EVIDENCE.
@@ -187,7 +176,7 @@ export const auditContent = onCall(
 
                 INSTRUCTIONS:
                 - "Dead" vs "Alive" is a CONTRADICTION.
-                - "Location A" vs "Location B" is a CONTRADICTION (unless they moved).
+                - "Location A" vs "Location B" is a CONTRADICTION.
                 - Minor detail differences are NOT contradictions.
 
                 OUTPUT JSON:
@@ -214,12 +203,86 @@ export const auditContent = onCall(
             }
         }
 
-        logger.info(`🛡️ Guardian Scan Complete. Facts: ${facts.length}, Conflicts: ${conflicts.length}`);
+        // 5. REALITY FILTER (WORLD LAWS) - TRIGGER 2
+        // Audit top 3 laws to save time
+        const lawsToAudit = laws.filter((l: any) => l.confidence > 0.7).slice(0, 3);
+
+        for (const item of lawsToAudit) {
+            // A. Vector Search (Lore Focused)
+            const embeddingResult = await embeddingModel.embedContent(`${item.category}: ${item.law}`);
+            const queryVector = embeddingResult.embedding.values;
+
+            // Same Global/Scoped Strategy
+            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId)
+                .where("path", ">=", "").where("path", "<=", "\uf8ff");
+
+            const nearestQuery = vectorQuery.findNearest({
+                    queryVector: queryVector,
+                    limit: 5, // Fetch more for laws to find the "Lore" file
+                    distanceMeasure: 'COSINE',
+                    vectorField: 'embedding'
+            });
+
+            const snapshot = await nearestQuery.get();
+            if (snapshot.empty) continue;
+
+            // B. Smart Filtering (Priority for Worldbuilding/Lore)
+            const contextChunks = snapshot.docs.map(d => {
+                const data = d.data();
+                const path = data.path || "";
+                const isPriority = /Worldbuilding|Lore|Canon|Reglas|System/i.test(path);
+                return {
+                    text: data.text,
+                    source: data.fileName,
+                    isPriority
+                };
+            });
+
+            // C. Reality Check Prompt
+            const realityPrompt = `
+                ACT AS: The Reality Filter (World Logic Guardian).
+                TASK: Verify if the "ASSERTION" violates the "ESTABLISHED RULES" from the database.
+
+                ASSERTION (Text): "${item.law}" (Category: ${item.category})
+
+                ESTABLISHED RULES (Database):
+                ${contextChunks.map(c => `- [${c.source}] ${c.isPriority ? '(⚠️ PRIORITY CANON)' : ''}: ${c.text.substring(0, 400)}...`).join('\n')}
+
+                LOGIC:
+                1. If a chunk is marked (⚠️ PRIORITY CANON), it overrides everything else.
+                2. GEOGRAPHY: Check distances, locations, travel times.
+                3. CHRONOLOGY: Check dates, ages, event order.
+                4. SYSTEM: Check magic rules, power limits, physics.
+
+                OUTPUT JSON:
+                {
+                    "trigger": "WORLD_LAW_VIOLATION",
+                    "severity": "CRITICAL" | "WARNING" | "NONE",
+                    "conflict": {
+                        "category": "${item.category}",
+                        "assertion": "${item.law}",
+                        "canonical_rule": "The exact rule found in database (if any)",
+                        "source_node": "Filename of the rule source",
+                        "explanation": "Why this breaks the world logic."
+                    }
+                }
+            `;
+
+            const realityResult = await verifierModel.generateContent(realityPrompt);
+            const realityAnalysis = parseSecureJSON(realityResult.response.text(), "RealityFilter");
+
+            if (realityAnalysis.severity === "CRITICAL" || realityAnalysis.severity === "WARNING") {
+                lawViolations.push(realityAnalysis);
+            }
+        }
+
+        logger.info(`🛡️ Guardian Scan Complete. Facts: ${facts.length}, Conflicts: ${conflicts.length}, Laws: ${laws.length}, Violations: ${lawViolations.length}`);
 
         return {
             success: true,
             facts: verifiedFacts,
-            conflicts: conflicts
+            conflicts: conflicts,
+            world_law_violations: lawViolations
         };
 
     } catch (e: any) {
