@@ -76,6 +76,8 @@ const GOOGLE_FOLDER_MIMETYPE = 'application/vnd.google-apps.folder';
 // 🛡️ SENTINEL CONSTANTS
 const MAX_AI_INPUT_CHARS = 100000; // 100k chars (~25k tokens) limit for AI analysis
 const MAX_FILE_SAVE_BYTES = 5 * 1024 * 1024; // 5MB limit for text file saves
+const MAX_PROFILE_FIELD_LIMIT = 5000; // 5k chars limit for profile fields (prevent DoS)
+const MAX_CHAT_MESSAGE_LIMIT = 30000; // 30k chars limit for chat messages/queries
 
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
@@ -1320,6 +1322,11 @@ export const chatWithGem = onCall(
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
+    // 🛡️ SENTINEL CHECK: INPUT LIMITS
+    if (query.length > MAX_CHAT_MESSAGE_LIMIT) {
+        throw new HttpsError("resource-exhausted", `La pregunta excede el límite de ${MAX_CHAT_MESSAGE_LIMIT} caracteres.`);
+    }
+
     const userId = request.auth.uid;
     const profileDoc = await db.collection("users").doc(userId).collection("profile").doc("writer_config").get();
     const profile: WriterProfile = profileDoc.exists
@@ -1712,7 +1719,10 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         let finishReason = response.candidates?.[0]?.finishReason;
 
         // 🟢 DEBUG RAW RESPONSE
-        logger.info("🔍 [RAW NATIVE RESPONSE]:", JSON.stringify(result, null, 2));
+        // 🛡️ SENTINEL UPDATE: Truncate log to prevent PII leakage and log bloat
+        const rawResponseStr = JSON.stringify(result, null, 2);
+        const truncatedLog = rawResponseStr.length > 2000 ? rawResponseStr.substring(0, 2000) + "... (TRUNCATED)" : rawResponseStr;
+        logger.info("🔍 [RAW NATIVE RESPONSE]:", truncatedLog);
 
         // --- 3. RETRY LOGIC (SANITIZATION FALLBACK) ---
         // REVISION 00130: If Attempt 1 is blocked, Attempt 2 must STRIP RAG chunks.
@@ -2091,6 +2101,13 @@ export const saveUserProfile = onCall(
     const { style, inspirations, rules } = request.data;
     const userId = request.auth.uid;
 
+    // 🛡️ SENTINEL CHECK: INPUT LIMITS
+    if ((style && style.length > MAX_PROFILE_FIELD_LIMIT) ||
+        (inspirations && inspirations.length > MAX_PROFILE_FIELD_LIMIT) ||
+        (rules && rules.length > MAX_PROFILE_FIELD_LIMIT)) {
+        throw new HttpsError("resource-exhausted", `Uno de los campos del perfil excede el límite de ${MAX_PROFILE_FIELD_LIMIT} caracteres.`);
+    }
+
     logger.info(`💾 Guardando perfil de escritor para usuario: ${userId}`);
 
     try {
@@ -2297,6 +2314,11 @@ export const addForgeMessage = onCall(
     const { sessionId, role, text, characterId, sources } = request.data;
     if (!sessionId || !role || !text) {
       throw new HttpsError("invalid-argument", "Faltan datos del mensaje.");
+    }
+
+    // 🛡️ SENTINEL CHECK: INPUT LIMITS
+    if (text.length > MAX_CHAT_MESSAGE_LIMIT) {
+        throw new HttpsError("resource-exhausted", `El mensaje excede el límite de ${MAX_CHAT_MESSAGE_LIMIT} caracteres.`);
     }
 
     const userId = request.auth.uid;
@@ -3645,6 +3667,13 @@ export const updateForgeCharacter = onCall(
     if (!characterId) throw new HttpsError("invalid-argument", "Falta characterId.");
     if (!newTraits) throw new HttpsError("invalid-argument", "Faltan nuevos rasgos.");
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    // 🛡️ SENTINEL CHECK: INPUT LIMITS
+    if ((newTraits.personality && newTraits.personality.length > MAX_CHAT_MESSAGE_LIMIT) ||
+        (newTraits.evolution && newTraits.evolution.length > MAX_CHAT_MESSAGE_LIMIT) ||
+        (rationale && rationale.length > MAX_PROFILE_FIELD_LIMIT)) {
+        throw new HttpsError("resource-exhausted", `Los datos del personaje exceden los límites de seguridad.`);
+    }
 
     try {
         const charRef = db.collection("users").doc(userId).collection("characters").doc(characterId);
