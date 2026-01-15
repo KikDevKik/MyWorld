@@ -1,16 +1,17 @@
 import React from 'react';
-import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText } from 'lucide-react';
-import { GuardianConflict, GuardianFact, GuardianStatus } from '../hooks/useGuardian';
+import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap } from 'lucide-react';
+import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict } from '../hooks/useGuardian';
 
 interface CanonRadarProps {
     status: GuardianStatus;
     conflicts: GuardianConflict[];
+    lawConflicts: GuardianLawConflict[];
     facts: GuardianFact[];
     onClose: () => void;
     onForceAudit: () => void;
 }
 
-const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, facts, onClose, onForceAudit }) => {
+const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, lawConflicts = [], facts, onClose, onForceAudit }) => {
     return (
         <div className="flex flex-col h-full bg-titanium-950/95 backdrop-blur-xl border-l border-titanium-800 w-96 transition-all duration-300 shadow-2xl z-50">
             {/* HEADER */}
@@ -42,7 +43,62 @@ const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, facts, onClo
             {/* CONTENT AREA */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
 
-                {/* 1. CONFLICTS SECTION */}
+                {/* 1. REALITY FRACTURES (TRIGGER 2) */}
+                {lawConflicts.length > 0 && (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-amber-500 text-xs font-bold uppercase mb-2 animate-pulse">
+                            <Zap size={14} className="fill-amber-500/20" />
+                            <span>Fracturas de Realidad ({lawConflicts.length})</span>
+                        </div>
+
+                        {lawConflicts.map((item, idx) => (
+                            <div key={`law-${idx}`} className="bg-amber-950/20 border border-amber-500/50 rounded-lg p-3 shadow-lg shadow-amber-900/10 hover:border-amber-400 transition-colors">
+                                <div className="flex justify-between items-start mb-2">
+                                    <span className="text-amber-200 font-bold text-xs uppercase tracking-wide">{item.conflict.category} Violation</span>
+                                    <span className={`text-[9px] px-1.5 py-0.5 rounded uppercase font-bold ${
+                                        item.severity === 'CRITICAL' ? 'bg-red-500 text-white' : 'bg-amber-500 text-black'
+                                    }`}>
+                                        {item.severity}
+                                    </span>
+                                </div>
+
+                                <div className="space-y-2">
+                                    {/* The Assertion */}
+                                    <div className="text-titanium-300 text-xs italic border-l-2 border-amber-500/30 pl-2">
+                                        "{item.conflict.assertion}"
+                                    </div>
+
+                                    {/* The Violation Explanation */}
+                                    <div className="bg-black/40 rounded p-2 border border-amber-900/50">
+                                        <div className="flex items-start gap-1.5">
+                                            <AlertTriangle size={12} className="text-amber-500 mt-0.5 shrink-0" />
+                                            <p className="text-titanium-200 text-[11px] leading-relaxed">
+                                                {item.conflict.explanation}
+                                            </p>
+                                        </div>
+                                        {/* Canonical Rule Reference */}
+                                        {item.conflict.canonical_rule && (
+                                            <div className="mt-2 pt-2 border-t border-amber-900/30">
+                                                <span className="text-[9px] text-amber-500/70 uppercase block mb-0.5">Regla Canónica:</span>
+                                                <p className="text-titanium-400 text-[10px] font-mono">
+                                                    {item.conflict.canonical_rule}
+                                                </p>
+                                            </div>
+                                        )}
+                                        {item.conflict.source_node && (
+                                            <div className="mt-1.5 flex items-center gap-1 text-[10px] text-titanium-500 justify-end">
+                                                <FileText size={10} />
+                                                <span>{item.conflict.source_node}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* 2. CONFLICTS SECTION */}
                 {conflicts.length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase mb-2">
@@ -77,7 +133,7 @@ const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, facts, onClo
                     </div>
                 )}
 
-                {/* 2. VERIFIED FACTS SECTION */}
+                {/* 3. VERIFIED FACTS SECTION */}
                 {facts.length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase mb-2">
@@ -103,7 +159,7 @@ const CanonRadar: React.FC<CanonRadarProps> = ({ status, conflicts, facts, onClo
                 )}
 
                 {/* EMPTY STATE */}
-                {status === 'clean' && conflicts.length === 0 && facts.length === 0 && (
+                {status === 'clean' && conflicts.length === 0 && lawConflicts.length === 0 && facts.length === 0 && (
                     <div className="text-center py-10 opacity-50">
                         <ScanEye size={48} className="mx-auto text-titanium-700 mb-4" />
                         <p className="text-titanium-500 text-xs">El Guardián no detecta anomalías.</p>
