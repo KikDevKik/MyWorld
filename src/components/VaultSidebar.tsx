@@ -75,14 +75,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
              return;
         }
 
-        // 🟢 PROJECT IDENTITY SYNC
-        if (folderId && topLevelFolders.length > 0) {
-             const match = topLevelFolders.find(f => f.id === folderId);
-             if (match) {
-                 setProjectIdentity(folderId, match.name);
-             }
-        }
-
         const db = getFirestore();
         // 🟢 LEGACY MODE: Listen to User Index until Backend V2 (Silo) is deployed
         // const targetId = config?.folderId || user.uid; // TODO: Activate in Phase 2
@@ -114,7 +106,17 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         });
 
         return () => unsubscribe();
-    }, [isSecurityReady, config?.folderId]); // 👈 Added config dependency
+    }, [isSecurityReady, config?.folderId]);
+
+    // 🟢 PROJECT IDENTITY SYNC (Dedicated Effect)
+    useEffect(() => {
+        if (folderId && topLevelFolders.length > 0) {
+             const match = topLevelFolders.find(f => f.id === folderId);
+             if (match) {
+                 setProjectIdentity(folderId, match.name);
+             }
+        }
+    }, [folderId, topLevelFolders, setProjectIdentity]);
 
 
     // 🟢 STATUS INDICATOR HELPER
@@ -136,7 +138,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     return (
         <aside className="fixed left-0 top-0 bottom-0 w-64 bg-titanium-800 border-r border-titanium-700/50 flex flex-col z-20 select-none">
 
-            {/* HEADER / SAGA SELECTOR */}
+            {/* HEADER */}
             <div className="px-4 py-4 border-b border-titanium-700/30">
                 <div className="flex items-center gap-2 mb-3">
                     <div className="text-titanium-500">
@@ -155,10 +157,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </button>
                 </div>
 
-                {/* 🟢 PROJECT HUD */}
-                <ProjectHUD />
-
-                <div className="relative mt-3">
+                {/* SAGA SELECTOR */}
+                <div className="relative">
                     <select
                         value={selectedSagaId || ''}
                         onChange={(e) => setSelectedSagaId(e.target.value || null)}
@@ -178,6 +178,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     />
                 </div>
             </div>
+
+            {/* 🟢 PROJECT HUD (Inserted BELOW header, ABOVE FileTree) */}
+            <ProjectHUD />
 
             {/* FILE TREE */}
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">

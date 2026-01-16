@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
@@ -78,11 +78,11 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
-  const setProjectIdentity = (id: string, name: string) => {
+  const setProjectIdentity = useCallback((id: string, name: string) => {
       console.log(`🔒 Project Identity Locked: ${name} (${id})`);
       setCurrentProjectId(id);
       setCurrentProjectName(name);
-  };
+  }, []);
 
   return (
     <ProjectConfigContext.Provider value={{
