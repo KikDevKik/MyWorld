@@ -1,5 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
+import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { google } from "googleapis";
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -578,6 +579,81 @@ function flattenFileTree(nodes: DriveFile[]): DriveFile[] {
 }
 
 // --- CLOUD FUNCTIONS (ENDPOINTS) ---
+
+/**
+ * 0. CHECK SENTINEL INTEGRITY (El Pulso)
+ * Verifica que el sistema tiene acceso a los secretos vitales sin exponerlos.
+ */
+export const checkSentinelIntegrity = onCall(
+  {
+    region: "us-central1",
+    cors: true,
+    enforceAppCheck: true,
+  },
+  async (request) => {
+    // 1. VERIFICAR AUTH (Opcional, pero recomendado para evitar spam)
+    // El frontend llama a esto al inicio, así que puede que el usuario aún no esté logueado si es público.
+    // Pero MyWorld es privado. Asumimos que el usuario debe estar autenticado o al menos App Check debe pasar.
+    // enforceAppCheck: true arriba se encarga de la integridad de la app.
+
+    try {
+      logger.info("🛡️ [SENTINEL] Iniciando comprobación de integridad...");
+
+      // 2. CONECTAR CON SECRET MANAGER
+      const client = new SecretManagerServiceClient();
+
+      // Obtenemos el Project ID del entorno
+      const projectId = process.env.GCLOUD_PROJECT || admin.instanceId().app.options.projectId;
+
+      if (!projectId) {
+         throw new Error("No se pudo determinar el Project ID.");
+      }
+
+      const name = `projects/${projectId}/secrets/BAPTISM_MASTER_KEY/versions/latest`;
+
+      // 3. INTENTO DE ACCESO (Ping)
+      const [version] = await client.accessSecretVersion({
+        name: name,
+      });
+
+      // 4. VALIDACIÓN SILENCIOSA
+      const payload = version.payload?.data?.toString();
+      if (!payload) {
+         throw new Error("El secreto existe pero está vacío.");
+      }
+
+      // 5. RESPUESTA SEGURA (Semaforo Verde)
+      logger.info("✅ [SENTINEL] Integridad verificada. Acceso a Secret Manager correcto.");
+
+      return {
+        status: 'SECURE',
+        connection: true,
+        project: projectId,
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error: any) {
+      logger.error("💥 [SENTINEL] Fallo de integridad:", error);
+
+      // Mapeo de errores comunes
+      let code = 'UNKNOWN_ERROR';
+      if (error.message.includes('Permission denied') || error.code === 7) {
+          code = 'IAM_PERMISSION_DENIED';
+      } else if (error.message.includes('Not found') || error.code === 5) {
+          code = 'SECRET_NOT_FOUND';
+      }
+
+      // NO devolvemos HttpsError para que el frontend pueda manejar el estado 'FAILED' visualmente
+      // en lugar de irse al catch block global.
+      return {
+          status: 'FAILED',
+          connection: false,
+          errorCode: code,
+          details: error.message // Debug info (safe to show admin)
+      };
+    }
+  }
+);
 
 /**
  * HELPER: Double Way Lineage Check (Paranoid Security)
