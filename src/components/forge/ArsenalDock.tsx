@@ -14,6 +14,17 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
     const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'cronograma', 'imprenta'];
 
+    // 🟢 ENGLISH LABELS FOR ACCESSIBILITY
+    const GEM_LABELS: Record<string, string> = {
+        perforador: 'World Engine',
+        forja: 'Forge',
+        guardian: 'Guardian',
+        tribunal: 'Tribunal',
+        laboratorio: 'Laboratory',
+        cronograma: 'Timeline',
+        imprenta: 'Press'
+    };
+
     // Función auxiliar para elegir el icono correcto según la ID de la Gem
     const getIcon = (id: string) => {
         switch (id) {
@@ -42,12 +53,14 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
                             onClick={() => onGemSelect(gemId)}
                             className={`
                                 group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
+                                focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none
                                 ${isActive
                                     ? 'bg-titanium-800 text-titanium-100 shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-titanium-600'
                                     : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}
                                 active:scale-95
                             `}
                             title={GEMS[gemId].name}
+                            aria-label={GEM_LABELS[gemId] || GEMS[gemId].name}
                         >
                             <div className="relative z-10">
                                 {getIcon(gemId)}
@@ -66,8 +79,9 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
             <div className="flex flex-col gap-4 w-full px-2 pb-4">
                  <button
                     onClick={onToggleDirector}
-                    className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700"
+                    className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
                     title="Director de Escena"
+                    aria-label="Director"
                 >
                     <Clapperboard size={20} />
                 </button>
