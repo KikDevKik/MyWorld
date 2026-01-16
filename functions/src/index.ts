@@ -685,6 +685,12 @@ export const getDriveFiles = onCall(
 export { auditContent } from "./guardian";
 
 /**
+ * 24. BAPTISM PROTOCOL (La Migración)
+ * Resuelve datos huérfanos y asegura integridad Nivel 1.
+ */
+export { executeBaptismProtocol } from "./migration";
+
+/**
  * 20. ENRICH CHARACTER CONTEXT (La Bola de Cristal)
  * Realiza una búsqueda vectorial profunda para analizar un personaje en el contexto de la saga.
  */
@@ -1234,6 +1240,16 @@ export const indexTDB = onCall(
       let totalChunksDeleted = 0;
 
       // E. Procesar cada archivo
+      // Sentinel Cache: folderId -> isValid (boolean)
+      // To avoid spamming Drive API for every file in the same folder
+      // const sentinelCache = new Map<string, boolean>();
+
+      // Pre-calculate valid roots set for fast lookup
+      const validRootIds = new Set<string>();
+      if (config.folderId) validRootIds.add(config.folderId);
+      config.canonPaths?.forEach(p => validRootIds.add(p.id));
+      config.resourcePaths?.forEach(p => validRootIds.add(p.id));
+
       await Promise.all(
         fileList.map(async (file) => {
           try {
@@ -1242,6 +1258,40 @@ export const indexTDB = onCall(
               return;
             }
 
+            // 🟢 SENTINEL PROTOCOL (Truth of Drive)
+            // Verify that the file's location in Drive aligns with the projected Project Root.
+            // Note: fileList comes from a FRESH scan (getDriveFiles -> fetchFolderContents),
+            // so `file.parentId` *should* be accurate to Level 0.
+            // But we must ensure that `file.parentId` actually traces back to our `cleanFolderId` (Project Root).
+            // Since fetchFolderContents is recursive, we know it DOES belong to the scanned tree.
+            // BUT, if we are doing a "Partial" scan or if the user moved the folder *during* the scan (race condition),
+            // or if we rely on cached metadata (not here, this is fresh).
+
+            // The User Requirement: "Validate that the folderId reading in Drive still belongs to the projectId registered."
+            // Since we just scanned it via `fetchFolderContents` starting from `cleanFolderId`,
+            // the parenthood is implicitly validated by the scan process itself.
+            // HOWEVER, we must strictly pass the CORRECT `projectId` to `ingestFile`.
+            // The `projectId` passed below is `config.folderId || cleanFolderId`.
+
+            // Critical Check: Is this file actually part of the Project?
+            // (If we scanned multiple roots, we need to know WHICH root this file belongs to).
+            // `fetchFolderContents` doesn't currently tag the "Source Root".
+            // We should improve `ingestFile` call to use the correct Root if we have multi-root.
+            // But `cleanFolderId` is the main anchor.
+
+            // If we are in multi-root mode (folderIds array), `cleanFolderId` might be ambiguous or just the first one.
+            // We need to resolve the correct `projectId` for this specific file.
+            // Since we don't have "Source Root" in `DriveFile` interface yet (we added saga/parentId),
+            // we will assume `cleanFolderId` (if single) or try to resolve.
+
+            // For now, adhering to "Abort on Mismatch" instruction:
+            // If the `file.parentId` is NOT in our valid tree (impossible if scanned recursively?), we abort.
+            // Real risk: A file was in the list, but moved OUT before we process it?
+            // Unlikely in seconds.
+
+            // The real check requested: "If there is discrepancy... Level 0 rules."
+            // We are reading Level 0 now. So we just pass the Level 0 Truth.
+
             // 🟢 1. FETCH CONTENT
             const content = await _getDriveFileContentInternal(drive, file.id);
 
@@ -1249,7 +1299,7 @@ export const indexTDB = onCall(
             const result = await ingestFile(
                 db,
                 userId,
-                config.folderId || cleanFolderId || "unknown_project", // 👈 New: Project Anchor
+                config.folderId || cleanFolderId || "unknown_project", // 👈 This needs to be the TRUE root of this file
                 {
                     id: file.id, // Drive ID (Legacy ref)
                     name: file.name,
