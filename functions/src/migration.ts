@@ -3,6 +3,7 @@ import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldPath } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
+import { cosineSimilarity } from "./similarity";
 
 const baptismMasterKey = defineSecret("BAPTISM_MASTER_KEY");
 
@@ -188,9 +189,20 @@ export const executeBaptismProtocol = onCall(
             throw new HttpsError("permission-denied", "El token no tiene acceso al Project Root.");
         }
 
-        // 4. PREPARE CACHE
+        // 4. PREPARE CACHE & CENTROID
         const folderCache = new Map<string, string | null>(); // folderId -> resolvedRootId
         folderCache.set(targetRootId, targetRootId); // Seed with root
+
+        let centroidVector: number[] | null = null;
+        try {
+            const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
+            if (centroidDoc.exists) {
+                centroidVector = centroidDoc.data()?.vector || null;
+                logger.info("   ⚓ [SENTINEL] Centroid Loaded for Drift Analysis.");
+            }
+        } catch (e) {
+            logger.warn("   ⚠️ [SENTINEL] Could not load Centroid.", e);
+        }
 
         // 5. QUERY (User-Scoped & Orphaned)
         // Filter by userId is MANDATORY per User Instruction, ensuring multi-tenant safety.
@@ -237,6 +249,20 @@ export const executeBaptismProtocol = onCall(
             const resolvedRoot = await resolveProjectRoot(drive, folderId, targetRootId, folderCache);
 
             if (resolvedRoot === targetRootId) {
+
+                // 🟢 DRIFT CALCULATION
+                let driftScore = 0.0;
+                let needsReview = false;
+
+                if (centroidVector && data.embedding) {
+                    const similarity = cosineSimilarity(data.embedding, centroidVector);
+                    driftScore = 1.0 - similarity;
+                    if (driftScore > 0.4) {
+                         needsReview = true;
+                         orphansDetected.push(`DRIFT_ALERT:${doc.id}:${driftScore.toFixed(2)}`);
+                    }
+                }
+
                 // UPDATE
                 batch.set(doc.ref, {
                     projectId: targetRootId,
@@ -244,6 +270,11 @@ export const executeBaptismProtocol = onCall(
                         baptized_at: new Date().toISOString(),
                         method: "SENTINEL_V8",
                         agent: "Jules-Agent"
+                    },
+                    chunk_metadata: { // 🟢 METADATA INJECTION
+                        drift_score: driftScore,
+                        needsReview: needsReview,
+                        analysis_timestamp: new Date().toISOString()
                     }
                 }, { merge: true });
 
