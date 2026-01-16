@@ -165,7 +165,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         <aside className="fixed left-0 top-0 bottom-0 w-64 bg-titanium-800 border-r border-titanium-700/50 flex flex-col z-20 select-none">
 
             {/* HEADER / SAGA SELECTOR */}
-            <div className="px-4 py-4 border-b border-titanium-700/30">
+            <div className="px-4 py-4 border-b border-titanium-700/30 bg-titanium-900/50">
                 <div className="flex items-center gap-2 mb-3">
                     <div className="text-titanium-500">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -192,6 +192,18 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <BrainCircuit size={16} />
                     </button>
                 </div>
+
+                {/* 🟢 CONNECT DRIVE BUTTON (IF NOT CONNECTED) */}
+                {!folderId && (
+                     <button
+                        onClick={onOpenConnectModal}
+                        className="w-full mb-3 flex items-center justify-center gap-2 bg-gradient-to-r from-cyan-600 to-cyan-500 hover:from-cyan-500 hover:to-cyan-400 text-white py-2 rounded-lg text-xs font-bold uppercase tracking-wide shadow-lg hover:shadow-cyan-500/20 transition-all transform hover:scale-[1.02]"
+                    >
+                        <HardDrive size={14} />
+                        Conectar Unidad
+                    </button>
+                )}
+
                 <div className="relative">
                     <select
                         value={selectedSagaId || ''}
@@ -229,7 +241,24 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </div>
                 ) : (
                     <>
-                         {indexedTree && indexedTree.length > 0 ? (
+                         {/* 🟢 EMPTY STATE: NO FOLDER OR NO TREE */}
+                         {!folderId ? (
+                            <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10 animate-fade-in">
+                                 <div className="p-3 bg-titanium-700/30 rounded-full animate-pulse">
+                                     <HardDrive className="text-cyan-500" size={24} />
+                                 </div>
+                                 <h3 className="text-sm font-bold text-titanium-200">Sin Conexión</h3>
+                                 <p className="text-xs text-titanium-400 leading-relaxed">
+                                     Conecta una carpeta de Google Drive para cargar tu proyecto.
+                                 </p>
+                                 <button
+                                     onClick={onOpenConnectModal}
+                                     className="mt-2 text-xs bg-cyan-900/50 hover:bg-cyan-900 border border-cyan-700 text-cyan-100 px-4 py-2 rounded-lg transition-colors"
+                                 >
+                                     Conectar Ahora
+                                 </button>
+                             </div>
+                         ) : indexedTree && indexedTree.length > 0 ? (
                             <FileTree
                                 folderId={folderId} // ⚠️ Ignored if preloadedTree is passed
                                 onFileSelect={onFileSelect}
