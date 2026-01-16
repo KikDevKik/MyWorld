@@ -1249,6 +1249,7 @@ export const indexTDB = onCall(
             const result = await ingestFile(
                 db,
                 userId,
+                config.folderId || cleanFolderId || "unknown_project", // 👈 New: Project Anchor
                 {
                     id: file.id, // Drive ID (Legacy ref)
                     name: file.name,
@@ -3167,6 +3168,7 @@ export const syncCharacterManifest = onCall(
                     const ingestResult = await ingestFile(
                         db,
                         userId,
+                        config.folderId || specificFileId || "unknown_vault", // 👈 New: Project Anchor
                         {
                             id: file.id,
                             name: file.name,
