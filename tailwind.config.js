@@ -25,11 +25,28 @@ export default {
                 accent: {
                     DEFAULT: '#38bdf8',
                     dim: 'rgba(56, 189, 248, 0.1)',
-                }
+                },
+                // MIGRATED FROM INDEX.HTML (Legacy Palette)
+                "primary": "#34E4F4",
+                "primary-login": "#0d46f2",
+                "background-light": "#f5f6f8",
+                "background-dark": "#111218",
+                "background-dark-login": "#101422",
+                "panel-dark": "#1A1B22",
+                "text-primary-dark": "#E0E1E6",
+                "text-secondary-dark": "#7A8291",
+                "border-dark": "#313f68"
             },
             fontFamily: {
                 sans: ['Inter', 'system-ui', 'sans-serif'],
                 serif: ['Merriweather', 'Georgia', 'serif'],
+                "display": ["Space Grotesk", "sans-serif"]
+            },
+            borderRadius: {
+                "DEFAULT": "0.25rem",
+                "lg": "0.5rem",
+                "xl": "0.75rem",
+                "full": "9999px"
             },
             animation: {
                 'fade-in': 'fadeIn 0.2s ease-out',

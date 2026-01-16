@@ -46,6 +46,7 @@ function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): 
 export const auditContent = onCall(
   {
     region: "us-central1",
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: false,
     timeoutSeconds: 60, // Fast execution
     memory: "1GiB",
@@ -571,7 +572,7 @@ export const purgeEcho = onCall(
 export const scanProjectDrift = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 540, // Long running
     memory: "1GiB",
@@ -688,7 +689,7 @@ export const scanProjectDrift = onCall(
 export const rescueEcho = onCall(
     {
         region: "us-central1",
-        cors: true,
+        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
         enforceAppCheck: true,
     },
     async (request) => {

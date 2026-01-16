@@ -145,6 +145,7 @@ ${orphans.length > 0 ? `  - IDs: ${orphans.slice(0, 10).join(', ')}${orphans.len
 export const executeBaptismProtocol = onCall(
     {
         region: "us-central1",
+        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
         timeoutSeconds: 540,
         memory: "1GiB",
         secrets: [baptismMasterKey],
