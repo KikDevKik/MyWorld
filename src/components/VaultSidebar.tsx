@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import FileTree from './FileTree';
 import { useProjectConfig } from './ProjectConfigContext';
-import { getFirestore, doc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 interface VaultSidebarProps {
@@ -55,7 +55,45 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [indexedTree, setIndexedTree] = useState<FileNode[] | null>(null);
     const [isLoadingTree, setIsLoadingTree] = useState(true);
 
-    // 🟢 FIRESTORE LISTENER
+    // 🟢 CONFLICT STATE & FILTER
+    const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
+    const [showOnlyHealthy, setShowOnlyHealthy] = useState(false);
+
+    // 🟢 LISTEN FOR CONFLICTS
+    useEffect(() => {
+        const auth = getAuth();
+        const user = auth.currentUser;
+        if (!user || !isSecurityReady) return;
+
+        const db = getFirestore();
+        // Query TDB_Index/files where isConflicting == true
+        // Note: Ideally we use onSnapshot for real-time updates when rescue happens
+        const q = query(
+            collection(db, "TDB_Index", user.uid, "files"),
+            where("isConflicting", "==", true)
+        );
+
+        console.log("📡 Listening for Conflicting Files...");
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const conflictIds = new Set<string>();
+            snapshot.docs.forEach(doc => {
+                const data = doc.data();
+                // We use driveId if available, or doc ID if it matches file ID structure
+                // ingestFile uses Hashed ID for doc, but stores `driveId`.
+                // FileTree uses `id` which is Drive ID. So we need `driveId` from metadata.
+                if (data.driveId) {
+                    conflictIds.add(data.driveId);
+                }
+            });
+            console.log(`⚠️ Updated Conflicts: ${conflictIds.size} files`);
+            setConflictingFileIds(conflictIds);
+        });
+
+        return () => unsubscribe();
+    }, [isSecurityReady]);
+
+
+    // 🟢 FIRESTORE LISTENER (TREE STRUCTURE)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
@@ -134,10 +172,20 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         </svg>
                     </div>
                     <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Manual de Campo</h2>
+
+                    {/* TOGGLE FILTER */}
+                    <button
+                        onClick={() => setShowOnlyHealthy(!showOnlyHealthy)}
+                        className={`ml-auto p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${showOnlyHealthy ? 'text-emerald-400' : 'text-titanium-500'}`}
+                        title={showOnlyHealthy ? "Mostrando solo archivos sanos" : "Mostrando todo (incluyendo conflictos)"}
+                    >
+                        {showOnlyHealthy ? <EyeOff size={14} /> : <Eye size={14} />}
+                    </button>
+
                     {/* BOTÓN DE INDEXAR */}
                     <button
                         onClick={onIndexRequest}
-                        className={`ml-auto p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
+                        className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
                         title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
                     >
                         <BrainCircuit size={16} />
@@ -185,6 +233,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 rootFilterId={selectedSagaId}
                                 // onLoad is handled by parent subscription now
                                 preloadedTree={indexedTree} // 👈 PASS THE INDEXED TREE
+                                conflictingFileIds={conflictingFileIds} // 👈 PASS CONFLICTS
+                                showOnlyHealthy={showOnlyHealthy} // 👈 PASS FILTER
                             />
                          ) : (
                              <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10">

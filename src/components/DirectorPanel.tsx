@@ -14,7 +14,7 @@ interface DirectorPanelProps {
     activeFileName?: string;
     isFallbackContext?: boolean;
     folderId?: string;
-    driftAlerts?: any[]; // 🟢 New Prop for Drift Injection
+    driftAlerts?: any; // 🟢 Updated Prop: Grouped Object { identity: [], geography: [], ... }
 }
 
 interface Message {
@@ -25,6 +25,7 @@ interface Message {
     isError?: boolean;
     isDriftAlert?: boolean; // 🟢 Flag for Drift UI
     driftData?: any;
+    driftCategory?: string; // 🟢 Store category for display
 }
 
 const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null }> = ({
@@ -47,32 +48,78 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [purgingIds, setPurgingIds] = useState<Set<string>>(new Set()); // 🟢 Purge State
+    const [rescuingIds, setRescuingIds] = useState<Set<string>>(new Set()); // 🟢 Rescue State
 
     const functions = getFunctions();
     const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
     const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
     const createForgeSession = httpsCallable(functions, 'createForgeSession');
     const chatWithGem = httpsCallable(functions, 'chatWithGem');
-    const purgeEcho = httpsCallable(functions, 'purgeEcho'); // 🟢 Purge Function
+    const purgeEcho = httpsCallable(functions, 'purgeEcho');
+    const rescueEcho = httpsCallable(functions, 'rescueEcho'); // 🟢 Rescue Function
 
     // 🟢 INJECT DRIFT ALERTS (The Bridge)
     useEffect(() => {
-        if (driftAlerts && driftAlerts.length > 0) {
-            const alertMessages: Message[] = driftAlerts.map((alert, idx) => ({
-                id: `drift-${Date.now()}-${idx}`,
-                role: 'system',
-                text: "DRIFT DETECTED",
-                timestamp: Date.now(),
-                isDriftAlert: true,
-                driftData: alert
-            }));
+        if (driftAlerts && Object.keys(driftAlerts).length > 0) {
+            const newAlertMessages: Message[] = [];
 
-            // Only add if not already present (simple check to avoid spam)
-            setMessages(prev => {
-                 // Check if we already have this exact alert (by logic or timestamp window)
-                 // Ideally backend sends IDs. For now, we trust the parent won't spam.
-                 return [...prev, ...alertMessages];
+            // Flatten grouped alerts into messages
+            // Categories: identity, geography, continuity, uncategorized
+            Object.entries(driftAlerts).forEach(([category, alerts]) => {
+                if (Array.isArray(alerts) && alerts.length > 0) {
+
+                    // Create a Summary Card first? Or individual cards?
+                    // User asked for: "Director will show: 'Se detectaron 12 Ecos Críticos en 'Personajes'. ¿Desea revisarlos?'"
+                    // But also "Group Echoes".
+                    // The simplest approach is to render individual cards for the *top* alerts, as scanProjectDrift limits to 20.
+                    // Or render a "Group Card" that expands?
+                    // Given current UI structure (chat stream), individual cards for critical items is better,
+                    // maybe grouped visually if possible, but let's stick to simple cards for now.
+                    // Actually, let's create ONE summary card per category if count > 1.
+
+                    if (alerts.length > 1) {
+                         newAlertMessages.push({
+                            id: `drift-group-${category}-${Date.now()}`,
+                            role: 'system',
+                            text: `Se detectaron ${alerts.length} Ecos Críticos en '${category}'.`,
+                            timestamp: Date.now(),
+                            isDriftAlert: true,
+                            driftCategory: category,
+                            driftData: {
+                                isGroup: true,
+                                count: alerts.length,
+                                items: alerts, // Pass all items in this group
+                                category: category
+                            }
+                        });
+                    } else {
+                        // Single item
+                        alerts.forEach((alert: any, idx: number) => {
+                             newAlertMessages.push({
+                                id: `drift-${category}-${Date.now()}-${idx}`,
+                                role: 'system',
+                                text: "DRIFT DETECTED",
+                                timestamp: Date.now(),
+                                isDriftAlert: true,
+                                driftCategory: category,
+                                driftData: alert
+                            });
+                        });
+                    }
+                }
             });
+
+            // Only add if we have something
+            if (newAlertMessages.length > 0) {
+                setMessages(prev => {
+                     // Filter out existing drift alerts to prevent dupes on re-render?
+                     // Or assume parent only sends non-null driftAlerts once.
+                     // A simple de-dupe check:
+                     const existingIds = new Set(prev.map(m => m.id));
+                     const uniqueNew = newAlertMessages.filter(m => !existingIds.has(m.id));
+                     return [...prev, ...uniqueNew];
+                });
+            }
         }
     }, [driftAlerts]);
 
@@ -180,10 +227,55 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
         }
     };
 
-    const handleRescue = (msgId: string) => {
-        // Just remove the alert from the UI for now, effectively "Ignoring" it
-        setMessages(prev => prev.filter(m => m.id !== msgId));
-        toast.info("Eco descartado de la revisión.");
+    const handleRescue = async (drift: any, msgId: string, category: string = 'General') => {
+        if (!drift?.chunkPath) {
+            toast.error("Error: No se puede rescatar (Falta Path).");
+            return;
+        }
+
+        const toastId = toast.loading("Rescatando eco...");
+        setRescuingIds(prev => new Set(prev).add(msgId));
+
+        try {
+            // 🟢 CALL BACKEND RESCUE
+            const result = await rescueEcho({ chunkPath: drift.chunkPath, driftCategory: category });
+            const data = (result.data as any);
+
+            toast.success("Eco rescatado. Archivo marcado como 'En Conflicto'.", { id: toastId });
+
+            // Update UI to show WARNING status instead of alert
+            setMessages(prev => prev.map(m => {
+                if (m.id === msgId) {
+                    return {
+                        ...m,
+                        text: `⚠️ ${data.meta?.warning_code || 'ADVERTENCIA'}: Fragmento rescatado pero inestable.`,
+                        isDriftAlert: false,
+                        role: 'system' // Demote to system message
+                    };
+                }
+                return m;
+            }));
+
+            // Optionally inject the author instruction as a new message from 'assistant'
+            if (data.meta?.author_instruction) {
+                setMessages(prev => [...prev, {
+                    id: `warn-${Date.now()}`,
+                    role: 'assistant',
+                    text: `⚠️ Nota del Arquitecto: ${data.meta.author_instruction}`,
+                    timestamp: Date.now()
+                }]);
+            }
+
+        } catch (e: any) {
+            console.error("Rescue Failed:", e);
+            toast.error(`Error rescatando: ${e.message}`, { id: toastId });
+        } finally {
+            setRescuingIds(prev => {
+                const next = new Set(prev);
+                next.delete(msgId);
+                return next;
+            });
+        }
     };
 
     const handleSendMessage = async (text: string) => {
@@ -278,35 +370,85 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                     </div>
                 ) : (
                     messages.map((msg) => {
-                        // 🟢 RENDER DRIFT ALERT CARD
+                        // 🟢 RENDER DRIFT ALERT CARD (SINGLE OR GROUP)
                         if (msg.isDriftAlert && msg.driftData) {
+
+                            // A) GROUP CARD
+                            if (msg.driftData.isGroup) {
+                                return (
+                                    <div key={msg.id} className="mx-auto w-[95%] bg-amber-950/20 border border-amber-500/50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2">
+                                        <div className="flex items-center gap-2 mb-2 text-amber-400 font-bold text-xs uppercase">
+                                            <AlertTriangle size={14} />
+                                            <span>Grupo de Conflicto: {msg.driftData.category}</span>
+                                            <span className="ml-auto bg-amber-900/50 px-1.5 py-0.5 rounded text-[10px] text-white">
+                                                {msg.driftData.count} Ecos
+                                            </span>
+                                        </div>
+                                        <p className="text-titanium-300 text-xs mb-3">
+                                            {msg.text}
+                                        </p>
+                                        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                            {msg.driftData.items.map((item: any, subIdx: number) => (
+                                                <div key={subIdx} className="bg-titanium-900/50 p-2 rounded border border-titanium-800/50">
+                                                    <div className="flex justify-between items-start mb-1">
+                                                        <span className="text-[10px] text-red-400 font-mono font-bold">Drift: {item.drift_score.toFixed(2)}</span>
+                                                        <span className="text-[10px] text-titanium-500 truncate max-w-[100px]">{item.fileName}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-titanium-400 italic mb-2 line-clamp-2">"{item.snippet}"</p>
+                                                    <div className="flex gap-2">
+                                                        <button
+                                                            onClick={() => handleRescue(item, `${msg.id}-${subIdx}`, msg.driftData.category)}
+                                                            disabled={rescuingIds.has(`${msg.id}-${subIdx}`)}
+                                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase"
+                                                        >
+                                                            {rescuingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Rescatar"}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handlePurge(item, `${msg.id}-${subIdx}`)}
+                                                            disabled={purgingIds.has(`${msg.id}-${subIdx}`)}
+                                                            className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase"
+                                                        >
+                                                            {purgingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Purgar"}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            }
+
+                            // B) SINGLE CARD
                             const isPurging = purgingIds.has(msg.id);
+                            const isRescuing = rescuingIds.has(msg.id);
+
                             return (
                                 <div key={msg.id} className="mx-auto w-[90%] bg-red-950/20 border border-red-500/50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2">
                                     <div className="flex items-center gap-2 mb-2 text-red-400 font-bold text-xs uppercase">
                                         <ShieldAlert size={14} className="animate-pulse" />
-                                        <span>Eco Crítico Detectado</span>
+                                        <span>Eco Crítico: {msg.driftCategory || 'General'}</span>
                                         <span className="ml-auto bg-red-900/50 px-1.5 py-0.5 rounded text-[10px] text-white">
                                             Drift: {msg.driftData.drift_score?.toFixed(2) || '?.??'}
                                         </span>
                                     </div>
 
-                                    <p className="text-titanium-300 text-xs italic mb-3 border-l-2 border-red-800 pl-2">
-                                        "{msg.driftData.reason || 'Incoherencia detectada en análisis vectorial.'}"
+                                    <p className="text-titanium-300 text-xs italic mb-3 border-l-2 border-red-800 pl-2 line-clamp-3">
+                                        "{msg.driftData.snippet || msg.driftData.reason || '...'}"
                                     </p>
 
-                                    {msg.driftData.target_chunk && (
+                                    {msg.driftData.fileName && (
                                         <div className="text-[10px] text-titanium-500 font-mono mb-3 truncate">
-                                            {msg.driftData.target_chunk}
+                                            Archivo: {msg.driftData.fileName}
                                         </div>
                                     )}
 
                                     <div className="flex gap-2">
                                         <button
-                                            onClick={() => handleRescue(msg.id)}
-                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors"
+                                            onClick={() => handleRescue(msg.driftData, msg.id, msg.driftCategory)}
+                                            disabled={isRescuing}
+                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1"
                                         >
-                                            Rescatar
+                                            {isRescuing ? <Loader2 size={10} className="animate-spin" /> : "Rescatar"}
                                         </button>
                                         <button
                                             onClick={() => handlePurge(msg.driftData, msg.id)}

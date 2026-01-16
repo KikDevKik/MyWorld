@@ -284,7 +284,7 @@ export const auditContent = onCall(
                     limit: 3,
                     distanceMeasure: 'COSINE',
                     vectorField: 'embedding'
-            });
+                });
 
             const snapshot = await nearestQuery.get();
             if (snapshot.empty) {
@@ -556,6 +556,196 @@ export const purgeEcho = onCall(
 
         } catch (error: any) {
             logger.error("Error en purgeEcho:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);
+
+/**
+ * 26. SCAN PROJECT DRIFT (El Radar de Largo Alcance)
+ * Escanea la colección de chunks para detectar drift masivo comparado con el Centroide.
+ */
+export const scanProjectDrift = onCall(
+  {
+    region: "us-central1",
+    cors: true,
+    enforceAppCheck: true,
+    timeoutSeconds: 540, // Long running
+    memory: "1GiB",
+  },
+  async (request) => {
+    const db = getFirestore();
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+    const { projectId } = request.data;
+    const userId = request.auth.uid;
+
+    if (!projectId) throw new HttpsError("invalid-argument", "Falta projectId.");
+
+    try {
+        // 1. Fetch Centroid
+        const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
+        if (!centroidDoc.exists) {
+            return { success: false, message: "No Project Centroid found. Please index first." };
+        }
+        const centroidVector = centroidDoc.data()?.vector;
+        if (!centroidVector) return { success: false, message: "Centroid vector is empty." };
+
+        // 2. Fetch All Chunks for Project
+        // Optimization: We could limit or paginate, but for now we scan all (assuming < 10k chunks for typical project)
+        const chunksSnapshot = await db.collectionGroup("chunks")
+            .where("userId", "==", userId)
+            .where("projectId", "==", projectId)
+            .select("embedding", "fileName", "text", "path", "category") // Fetch only necessary fields
+            .get();
+
+        const alerts: any = {
+            identity: [],
+            geography: [],
+            continuity: [],
+            uncategorized: []
+        };
+
+        // 3. Pre-load Context for Classification (Lightweight)
+        // Characters
+        const charsSnap = await db.collection("users").doc(userId).collection("characters").select("name").get();
+        const charNames = charsSnap.docs.map(d => d.data().name.toLowerCase());
+
+        let count = 0;
+        const CRITICAL_THRESHOLD = 0.7;
+
+        for (const doc of chunksSnapshot.docs) {
+            const data = doc.data();
+            const embedding = data.embedding;
+
+            // Skip if no embedding or if already marked as needing no review (optional, but requested rescue sets needsReview=false)
+            // But auditContent is real-time. This is deep scan.
+            // We'll check all.
+            if (!embedding) continue;
+
+            const similarity = cosineSimilarity(embedding, centroidVector);
+            const driftScore = 1.0 - similarity;
+
+            if (driftScore > CRITICAL_THRESHOLD) {
+                // CLASSIFY
+                const textLower = (data.text || "").toLowerCase();
+                const pathLower = (data.path || "").toLowerCase();
+                let category = "uncategorized";
+
+                // Heuristic 1: Identity (Match Names or Path)
+                if ((data.category === 'character') || pathLower.includes("characters") || pathLower.includes("personajes") || charNames.some(n => textLower.includes(n))) {
+                    category = "identity";
+                }
+                // Heuristic 2: Geography (Path or keywords)
+                else if ((data.category === 'location') || pathLower.includes("locations") || pathLower.includes("lugares") || pathLower.includes("world")) {
+                    category = "geography";
+                }
+                // Heuristic 3: Continuity (Timeline, Dates)
+                else if ((data.category === 'timeline') || pathLower.includes("timeline") || /\b(year|año|era)\s+\d+/.test(textLower)) {
+                    category = "continuity";
+                }
+
+                const alertItem = {
+                    chunkId: doc.id,
+                    chunkPath: doc.ref.path,
+                    fileName: data.fileName,
+                    snippet: data.text ? data.text.substring(0, 100) + "..." : "",
+                    drift_score: driftScore,
+                    reason: `High Drift (${driftScore.toFixed(2)}) detected in ${category}.`,
+                    fileId: data.driveId || data.fileId // Assuming we stored this
+                };
+
+                // Limit bucket size
+                if (alerts[category].length < 20) {
+                    alerts[category].push(alertItem);
+                }
+                count++;
+            }
+        }
+
+        logger.info(`📡 [SENTINEL] Drift Scan Complete. Found ${count} critical echoes.`);
+
+        return {
+            success: true,
+            alerts: alerts,
+            total_critical: count
+        };
+
+    } catch (error: any) {
+        logger.error("Error in scanProjectDrift:", error);
+        throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+/**
+ * 27. RESCUE ECHO (La Advertencia)
+ * Marca un chunk como 'Rescatado' y actualiza el archivo padre a 'Conflicto'.
+ */
+export const rescueEcho = onCall(
+    {
+        region: "us-central1",
+        cors: true,
+        enforceAppCheck: true,
+    },
+    async (request) => {
+        const db = getFirestore();
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { chunkPath, driftCategory } = request.data;
+        const userId = request.auth.uid;
+
+        if (!chunkPath) throw new HttpsError("invalid-argument", "Falta chunkPath.");
+
+        try {
+            const chunkRef = db.doc(chunkPath);
+            const chunkSnap = await chunkRef.get();
+
+            if (!chunkSnap.exists) {
+                return { success: false, message: "Fragmento no encontrado." };
+            }
+
+            const data = chunkSnap.data();
+            if (data?.userId !== userId) throw new HttpsError("permission-denied", "Acceso denegado.");
+
+            // 1. Get Parent File ID (The hashed Doc ID, usually stored in chunk as docId or derived)
+            // In ingestFile, we store `docId` (hashed path) in the chunk.
+            const fileDocId = data?.docId;
+
+            if (!fileDocId) {
+                 logger.warn(`⚠️ [RESCUE] Chunk ${chunkPath} missing docId. Cannot tag parent file.`);
+                 // Fallback: Just return success but warn
+            } else {
+                 // 2. Update Parent File in TDB_Index
+                 const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(fileDocId);
+                 await fileRef.set({
+                     isConflicting: true,
+                     driftCategory: driftCategory || 'General',
+                     securityStatus: 'conflict',
+                     lastReview: new Date().toISOString()
+                 }, { merge: true });
+                 logger.info(`🚩 [RESCUE] File ${fileDocId} marked as CONFLICTING.`);
+            }
+
+            // 3. Update Chunk (Optional flag)
+            await chunkRef.set({
+                needsReview: false,
+                isRescued: true,
+                rescuedAt: new Date().toISOString()
+            }, { merge: true });
+
+            return {
+              action: "RESCUE_FRAGMENT",
+              status: "KEEP_IN_INDEX",
+              meta: {
+                isConflicting: true,
+                warning_code: "NARRATIVE_CONFUSION_DETECTED",
+                author_instruction: "El fragmento rescatado presenta una desviación semántica significativa. Corrija el archivo original en Drive para reconciliar el canon."
+              }
+            };
+
+        } catch (error: any) {
+            logger.error("Error in rescueEcho:", error);
             throw new HttpsError("internal", error.message);
         }
     }
