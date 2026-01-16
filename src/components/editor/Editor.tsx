@@ -10,6 +10,7 @@ import BubbleMenu from '../ui/BubbleMenu';
 import StatusBar from '../ui/StatusBar';
 import ReadingToolbar from '../ui/ReadingToolbar';
 import DirectorPanel from '../DirectorPanel'; // 👈 NEW PANEL
+import { useProjectConfig } from '../ProjectConfigContext'; // 👈 IMPORT CONTEXT
 
 interface EditorProps {
     fileId: string | null;
@@ -46,6 +47,10 @@ const Editor: React.FC<EditorProps> = ({
     fileId, content, onContentChange, onBubbleAction, accessToken, fileName, onTokenExpired, onFocusChange,
     isZenMode, setIsZenMode, projectId
 }) => {
+    // 🟢 SENTINEL ALERTS (SIREN)
+    const { technicalError } = useProjectConfig();
+    const isCritical = technicalError.isError;
+
     // 🟢 VISUAL STATE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
     const [editorWidth, setEditorWidth] = useState<'narrow' | 'wide'>('narrow');
@@ -346,6 +351,7 @@ const Editor: React.FC<EditorProps> = ({
             className={`
                 flex flex-col transition-all duration-500
                 ${isZenMode ? 'fixed inset-0 z-50 bg-titanium-950' : 'h-full relative'}
+                ${isCritical ? 'ring-4 ring-orange-500/50 animate-pulse' : ''}
             `}
         >
             {/* 🟢 DIRECTOR PANEL (Replaces Resonance Bar) */}

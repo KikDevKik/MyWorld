@@ -30,7 +30,7 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 // We need this because we want to use 'useProjectConfig' which requires ProjectConfigProvider
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
-    const { config, updateConfig, refreshConfig, loading: configLoading } = useProjectConfig();
+    const { config, updateConfig, refreshConfig, loading: configLoading, technicalError } = useProjectConfig();
 
     // APP STATE
     const [folderId, setFolderId] = useState<string>("");
@@ -172,6 +172,15 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         initApp();
     }, [user, config, configLoading]);
+
+    // 🟢 SENTINEL AUDIO ALERT (THE SIREN)
+    useEffect(() => {
+        if (technicalError.isError) {
+            const audio = new Audio('/alert.mp3');
+            audio.volume = 0.5;
+            audio.play().catch(e => console.warn("Audio Play Blocked:", e));
+        }
+    }, [technicalError.isError]);
 
 
     // HANDLERS

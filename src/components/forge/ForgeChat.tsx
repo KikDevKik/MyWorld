@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
 import MarkdownRenderer from '../ui/MarkdownRenderer';
+import { useProjectConfig } from '../ProjectConfigContext'; // 👈 IMPORT CONTEXT
 
 interface Message {
     id?: string;
@@ -42,6 +43,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     onReset,
     selectedScope
 }) => {
+    const { setTechnicalError } = useProjectConfig(); // 👈 CONSUME CONTEXT
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -189,6 +191,14 @@ ${TOOL_INSTRUCTION}`;
                 filterScopePath: selectedScope.path, // Optimization Hint
                 // Pass activeFileContent if it were available as a prop, currently empty or RAG handles it
             });
+
+            // 🟢 SENTINEL SIGNAL EMISSION
+            if (aiResponse.data.technicalError?.isTechnicalError) {
+                console.warn("🚨 [SENTINEL SIGNAL] Technical Error Received from Backend.");
+                setTechnicalError(aiResponse.data.technicalError);
+                // We do NOT stop here. We proceed to display the "La Forja está calibrando..." message
+                // which is contained in aiResponse.data.response
+            }
 
             const aiText = aiResponse.data.response;
             const sources = aiResponse.data.sources?.map((s: any) => s.fileName) || [];
@@ -350,7 +360,7 @@ ${TOOL_INSTRUCTION}`;
                                         }`}
                                     style={{ overflowWrap: 'anywhere', wordBreak: 'break-word' }}
                                 >
-                                    <MarkdownRenderer content={msg.text} />
+                                    <MarkdownRenderer content={msg.text} mode="full" />
                                 </div>
 
                                 {/* 🟢 SOURCES DISPLAY */}
