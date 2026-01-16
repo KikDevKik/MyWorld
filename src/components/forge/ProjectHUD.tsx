@@ -7,13 +7,13 @@ const ProjectHUD: React.FC = () => {
     if (!currentProjectId) return null;
 
     return (
-        <div className="px-4 pb-4 pt-1 border-b border-titanium-700/30 bg-titanium-800">
-            <div className="bg-titanium-900/50 rounded-lg p-2 border border-titanium-700/50 flex items-center justify-between group hover:border-accent-DEFAULT/30 transition-colors cursor-default">
+        <div className="px-4">
+            <div className="bg-titanium-900/50 rounded-lg p-3 border border-titanium-700/50 flex items-center justify-between group hover:border-cyan-500/30 transition-colors cursor-default shadow-sm">
                 <div className="flex flex-col overflow-hidden">
-                    <span className="text-[10px] text-titanium-500 font-mono tracking-widest uppercase mb-0.5">
-                        Frecuencia Activa
+                    <span className="text-[10px] text-cyan-500/70 font-mono tracking-widest uppercase mb-0.5">
+                        Identidad
                     </span>
-                    <h3 className="text-xs font-bold text-titanium-100 truncate pr-2 group-hover:text-accent-DEFAULT transition-colors">
+                    <h3 className="text-sm font-bold text-cyan-100 truncate pr-2 group-hover:text-cyan-400 transition-colors">
                         {currentProjectName || "Señal Desconocida"}
                     </h3>
                 </div>

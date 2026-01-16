@@ -3,7 +3,7 @@ import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key
 import FileTree from './FileTree';
 import { useProjectConfig } from './ProjectConfigContext';
 import ProjectHUD from './forge/ProjectHUD'; // 👈 Import HUD
-import { getFirestore, doc, onSnapshot } from "firebase/firestore";
+import { getFirestore, doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 interface VaultSidebarProps {
@@ -14,13 +14,13 @@ interface VaultSidebarProps {
     onLogout: () => void;
     onIndexRequest: () => void;
     onOpenSettings: () => void;
-    onOpenProjectSettings: () => void; // 👈 New prop for Project Settings Modal
+    onOpenProjectSettings: () => void;
     accessToken: string | null;
     onRefreshTokens: () => void;
     driveStatus: 'connected' | 'refreshing' | 'error' | 'disconnected';
-    onOpenManual: () => void; // 👈 New prop
-    isIndexed?: boolean; // 👈 New prop for Index State
-    isSecurityReady?: boolean; // 👈 New prop for Circuit Breaker
+    onOpenManual: () => void;
+    isIndexed?: boolean;
+    isSecurityReady?: boolean;
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -43,9 +43,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     accessToken,
     onRefreshTokens,
     driveStatus,
-    onOpenManual, // 👈 Destructure
-    isIndexed = false, // 👈 Default to false
-    isSecurityReady = false, // 👈 Default false for safety
+    onOpenManual,
+    isIndexed = false,
+    isSecurityReady = false,
 }) => {
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
@@ -70,14 +70,12 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         // 🟢 CIRCUIT BREAKER: Block Listener until Security Handshake is Valid
         if (!isSecurityReady) {
              console.log("🛡️ [CIRCUIT BREAKER] VaultSidebar waiting for App Check...");
-             // We keep loading state true to show skeleton
              setIsLoadingTree(true);
              return;
         }
 
         const db = getFirestore();
         // 🟢 LEGACY MODE: Listen to User Index until Backend V2 (Silo) is deployed
-        // const targetId = config?.folderId || user.uid; // TODO: Activate in Phase 2
         const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
 
         console.log("📡 Suscribiéndose a TDB_Index/structure/tree...");
@@ -179,8 +177,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 </div>
             </div>
 
-            {/* 🟢 PROJECT HUD (Inserted BELOW header, ABOVE FileTree) */}
-            <ProjectHUD />
+            {/* 🟢 PROJECT HUD (Inserted BELOW header, ABOVE FileTree, with Spacing) */}
+            <div className="mb-6">
+                <ProjectHUD />
+            </div>
 
             {/* FILE TREE */}
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
@@ -197,12 +197,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     <>
                          {indexedTree && indexedTree.length > 0 ? (
                             <FileTree
-                                folderId={folderId} // ⚠️ Ignored if preloadedTree is passed
+                                folderId={folderId}
                                 onFileSelect={onFileSelect}
                                 accessToken={accessToken}
                                 rootFilterId={selectedSagaId}
-                                // onLoad is handled by parent subscription now
-                                preloadedTree={indexedTree} // 👈 PASS THE INDEXED TREE
+                                preloadedTree={indexedTree}
                             />
                          ) : (
                              <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10">
