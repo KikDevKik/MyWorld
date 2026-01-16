@@ -56,7 +56,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [indexedTree, setIndexedTree] = useState<FileNode[] | null>(null);
     const [isLoadingTree, setIsLoadingTree] = useState(true);
 
-    // 🟢 FIRESTORE LISTENER
+    // 🟢 SENTINEL STATE (Tribunal)
+    const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
+    const [showOnlyHealthy, setShowOnlyHealthy] = useState(false);
+
+    // 🟢 FIRESTORE LISTENER (Merged: Structure + Sentinel)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
@@ -76,34 +80,51 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
         const db = getFirestore();
         // 🟢 LEGACY MODE: Listen to User Index until Backend V2 (Silo) is deployed
-        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
+        const targetIndexId = user.uid; // TODO: Switch to config.folderId in Phase 2
 
+        // A. Structure Listener
+        const structureRef = doc(db, "TDB_Index", targetIndexId, "structure", "tree");
         console.log("📡 Suscribiéndose a TDB_Index/structure/tree...");
 
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        const unsubStructure = onSnapshot(structureRef, (docSnap) => {
             if (docSnap.exists()) {
                 const data = docSnap.data();
                 if (data && data.tree && Array.isArray(data.tree)) {
-                     console.log("🌳 Árbol indexado actualizado:", data.tree.length, "nodos raíz");
                      setIndexedTree(data.tree);
-                     // Update top level folders for dropdown
                      const folders = data.tree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
                      setTopLevelFolders(folders);
                 } else {
                      setIndexedTree([]);
                 }
             } else {
-                console.log("⚠️ No se encontró estructura de árbol (¿Nuclear Re-index requerido?)");
                 setIndexedTree([]);
             }
             setIsLoadingTree(false);
         }, (error) => {
-            console.error("Error escuchando árbol indexado:", error);
-            setIndexedTree([]);
+            console.error("Error escuchando árbol:", error);
             setIsLoadingTree(false);
         });
 
-        return () => unsubscribe();
+        // B. Sentinel Listener (Conflicts)
+        const filesRef = collection(db, "TDB_Index", targetIndexId, "files");
+        const q = query(filesRef, where("isConflicting", "==", true));
+
+        const unsubSentinel = onSnapshot(q, (snapshot) => {
+            const ids = new Set<string>();
+            snapshot.docs.forEach(doc => {
+                // If the doc ID is a hash, we might need the driveId.
+                // But FileTree usually matches by Drive ID.
+                // The 'files' collection stores docs with ID = Hash(Path), but contains 'driveId' field.
+                const d = doc.data();
+                if (d.driveId) ids.add(d.driveId);
+            });
+            setConflictingFileIds(ids);
+        });
+
+        return () => {
+            unsubStructure();
+            unsubSentinel();
+        };
     }, [isSecurityReady, config?.folderId]);
 
     // 🟢 PROJECT IDENTITY SYNC (Dedicated Effect)
@@ -202,6 +223,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 accessToken={accessToken}
                                 rootFilterId={selectedSagaId}
                                 preloadedTree={indexedTree}
+                                conflictingFileIds={conflictingFileIds} // 🟢 RESTORED
+                                showOnlyHealthy={showOnlyHealthy}       // 🟢 RESTORED
                             />
                          ) : (
                              <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10">
