@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check"; // 👈 IMPORT
-import { getApp } from "firebase/app"; // 👈 IMPORT
+import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
 import Editor from './components/editor/Editor';
@@ -117,22 +116,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             // (Handled by parent App component)
 
             // 2. RESTORE PROJECT CONFIG (Folder ID)
-            let currentFolderId = "";
-
+            // 💀 MISSION 2: PURGE GHOST PERSISTENCE (LocalStorage is DEAD)
             if (config?.folderId) {
                 console.log("✅ Folder ID recuperado de Cloud Config:", config.folderId);
-                currentFolderId = config.folderId;
                 setFolderId(config.folderId);
             } else {
-                // FALLBACK: LocalStorage (Migration path)
-                const storedFolderId = localStorage.getItem('myworld_folder_id');
-                if (storedFolderId) {
-                    console.log("⚠️ Migrando Folder ID de LocalStorage a Cloud Config...");
-                    currentFolderId = storedFolderId;
-                    setFolderId(storedFolderId);
-                    // Sync to cloud silently
-                    updateConfig({ ...config!, folderId: storedFolderId }).catch(console.error);
-                }
+                 console.warn("⚠️ No Cloud Config found. Waiting for user input (Drive Connect).");
+                 // Do NOTHING with LocalStorage. Let the user connect cleanly.
             }
 
             // 3. CHECK INDEX STATUS
@@ -336,7 +326,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onClose={() => setIsConnectModalOpen(false)}
                 onSubmit={(id) => {
                     setFolderId(id);
-                    localStorage.setItem('myworld_folder_id', id);
+                    // localStorage.setItem('myworld_folder_id', id); // 💀 REMOVED
                     // 🟢 SYNC TO CLOUD CONFIG
                     if (config) {
                         updateConfig({ ...config, folderId: id });
@@ -515,54 +505,15 @@ function App() {
 
     // 🛡️ APP CHECK INITIALIZATION (SECURITY HANDSHAKE)
     useEffect(() => {
-        const initAppCheck = async () => {
-            const app = getApp();
-            const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-
-            // 🟢 FAIL FAST PROTOCOL
-            if (!siteKey || siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
-                console.error("🛑 [SECURITY CRITICAL] VITE_RECAPTCHA_SITE_KEY is missing or invalid.");
-                setSecurityError("MISSING_SITE_KEY");
-                return;
-            }
-
-            console.log("🛡️ [SECURITY] Initializing ReCaptcha V3...");
-            console.log("🛡️ [SECURITY] Confirming Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
-
-            // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
-            // Active for Titanium Edition v2.4 Release
-            if (import.meta.env.DEV) {
-                (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APP_CHECK_DEBUG_TOKEN;
-                console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
-            }
-
-            try {
-                // Initialize App Check with ReCAPTCHA V3
-                const appCheck = initializeAppCheck(app, {
-                    provider: new ReCaptchaV3Provider(siteKey),
-                    isTokenAutoRefreshEnabled: true
-                });
-                console.log("✅ [SECURITY] App Check Instance Created.");
-
-                // 🟢 CIRCUIT BREAKER: Force Token Fetch to Confirm Readiness
-                // We await the first token to ensure the handshake is valid before allowing
-                // 'onSnapshot' listeners to fire (via isSecurityReady prop).
-                try {
-                    await getToken(appCheck);
-                    console.log("✅ [SECURITY] Handshake Validated (Token Received).");
-                    setIsSecurityReady(true);
-                } catch (tokenError) {
-                    console.error("⚠️ [SECURITY] Handshake Failed (Token Error):", tokenError);
-                    setSecurityError("PERIMETER_BREACH"); // 👈 TRIGGER LOCK SCREEN
-                }
-
-            } catch (error) {
-                console.error("💥 [SECURITY] App Check Initialization Failed:", error);
-                setSecurityError("INIT_FAILED");
+        const init = async () => {
+            const status = await initSecurity();
+            if (status.isReady) {
+                setIsSecurityReady(true);
+            } else {
+                setSecurityError(status.error);
             }
         };
-
-        initAppCheck();
+        init();
     }, []);
 
     // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)

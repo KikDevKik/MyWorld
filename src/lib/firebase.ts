@@ -1,6 +1,7 @@
 // src/lib/firebase.ts
 // ¡¡¡NUESTRA IGNICIÓN!!!
 import { initializeApp, getApp, getApps } from "firebase/app";
+import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check";
 
 // ¡¡¡TU "TESORO" VA AQUÍ!!!
 // (Ahora cargado desde variables de entorno para seguridad)
@@ -32,5 +33,53 @@ console.log("[DEBUG] Firebase Project ID:", firebaseConfig.projectId);
 // ¡¡¡ARRANCAMOS EL COCHE!!!
 // Singleton pattern to prevent re-initialization
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+export interface SecurityStatus {
+    isReady: boolean;
+    error: string | null;
+}
+
+// 🛡️ SECURITY CENTRALIZATION (Mission 4)
+export const initSecurity = async (): Promise<SecurityStatus> => {
+    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+
+    // 🟢 FAIL FAST PROTOCOL
+    if (!siteKey || siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
+        console.error("🛑 [SECURITY CRITICAL] VITE_RECAPTCHA_SITE_KEY is missing or invalid.");
+        return { isReady: false, error: "MISSING_SITE_KEY" };
+    }
+
+    console.log("🛡️ [SECURITY] Initializing ReCaptcha V3...");
+    console.log("🛡️ [SECURITY] Confirming Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
+
+    // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
+    if (import.meta.env.DEV) {
+        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APP_CHECK_DEBUG_TOKEN;
+        console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
+    }
+
+    try {
+        // Initialize App Check with ReCAPTCHA V3
+        const appCheck = initializeAppCheck(app, {
+            provider: new ReCaptchaV3Provider(siteKey),
+            isTokenAutoRefreshEnabled: true
+        });
+        console.log("✅ [SECURITY] App Check Instance Created.");
+
+        // 🟢 CIRCUIT BREAKER: Force Token Fetch to Confirm Readiness
+        try {
+            await getToken(appCheck);
+            console.log("✅ [SECURITY] Handshake Validated (Token Received).");
+            return { isReady: true, error: null };
+        } catch (tokenError) {
+            console.error("⚠️ [SECURITY] Handshake Failed (Token Error):", tokenError);
+            return { isReady: false, error: "PERIMETER_BREACH" };
+        }
+
+    } catch (error) {
+        console.error("💥 [SECURITY] App Check Initialization Failed:", error);
+        return { isReady: false, error: "INIT_FAILED" };
+    }
+};
 
 export default app;

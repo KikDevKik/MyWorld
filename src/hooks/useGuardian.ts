@@ -42,6 +42,20 @@ export interface GuardianPersonalityDrift {
     character: string;
 }
 
+// 🟢 NEW: Resonance Interfaces
+export interface ResonanceMatch {
+    source_file: string;
+    type: 'PLOT_SEED' | 'VIBE_SEED' | 'LORE_SEED';
+    crumb_text: string;
+    similarity_score: number;
+}
+
+export interface StructureAnalysis {
+    detected_phase?: "SETUP" | "INCITING_INCIDENT" | "RISING_ACTION" | "MIDPOINT" | "CRISIS" | "CLIMAX" | "RESOLUTION";
+    confidence?: number;
+    advice?: string;
+}
+
 export type GuardianStatus = 'idle' | 'scanning' | 'clean' | 'conflict' | 'error';
 
 // 🛡️ LIMIT: 100k Characters (Client Side Check)
@@ -53,6 +67,8 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
     const [conflicts, setConflicts] = useState<GuardianConflict[]>([]);
     const [lawConflicts, setLawConflicts] = useState<GuardianLawConflict[]>([]);
     const [personalityDrifts, setPersonalityDrifts] = useState<GuardianPersonalityDrift[]>([]);
+    const [resonanceMatches, setResonanceMatches] = useState<ResonanceMatch[]>([]); // 🟢
+    const [structureAnalysis, setStructureAnalysis] = useState<StructureAnalysis | null>(null); // 🟢
 
     // Internal State
     const lastHashRef = useRef<string>("");
@@ -70,15 +86,8 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
     const executeAudit = useCallback(async (textToAudit: string) => {
         if (!textToAudit || textToAudit.length < 50) return;
 
-        // 🛡️ CLIENT SIDE GUARD: LENGTH CHECK
         if (textToAudit.length > MAX_AI_INPUT_CHARS) {
              console.warn(`🛡️ Guardian: Content exceeds limit (${textToAudit.length}/${MAX_AI_INPUT_CHARS}). Truncating scan.`);
-             // Option A: Abort
-             // setStatus('error');
-             // toast.error("Documento demasiado largo para análisis en tiempo real.");
-             // return;
-
-             // Option B: Scan only the first 100k (Safe Mode)
              textToAudit = textToAudit.substring(0, MAX_AI_INPUT_CHARS);
         }
 
@@ -91,7 +100,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             const result = await auditContent({
                 content: textToAudit,
                 projectId: projectId || 'global',
-                fileId: fileId // Pass FileID for backend cache/history
+                fileId: fileId
             });
 
             const data = result.data as {
@@ -100,20 +109,15 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
                 facts: GuardianFact[],
                 conflicts: GuardianConflict[],
                 world_law_violations?: GuardianLawConflict[],
-                personality_drift?: GuardianPersonalityDrift[]
+                personality_drift?: GuardianPersonalityDrift[],
+                resonance_matches?: ResonanceMatch[], // 🟢
+                structure_analysis?: StructureAnalysis // 🟢
             };
 
             if (data.success) {
                 if (data.status === 'skipped_unchanged') {
-                    // Backend says no change (Double Check)
-                    // If we have existing conflicts, stay red. If not, stay clean.
-                    // Important: We shouldn't reset to clean if we had conflicts and just skipped.
-                    // But if it skipped, it means the state hasn't changed.
-                    // So we maintain the current visual state unless it was 'scanning'.
-                    // Actually, if we are in 'scanning', we need to revert to previous state or re-calculate.
-                    // But 'skipped_unchanged' implies the PREVIOUS result is still valid.
-                    // Ideally, we should persist the result state.
-                    // For now, let's assume if we skip, we go back to 'clean' or 'conflict' based on what we have in memory.
+                    // 🟢 PERSIST CURRENT STATE if skipped
+                    // Just return, assuming state hasn't changed.
                     const hasExistingIssues = conflicts.length > 0 || lawConflicts.length > 0 || personalityDrifts.length > 0;
                     setStatus(hasExistingIssues ? 'conflict' : 'clean');
                     return;
@@ -125,6 +129,8 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
                 setLawConflicts(laws);
                 const drifts = data.personality_drift || [];
                 setPersonalityDrifts(drifts);
+                setResonanceMatches(data.resonance_matches || []); // 🟢
+                setStructureAnalysis(data.structure_analysis || null); // 🟢
 
                 const hasConflict = (data.conflicts && data.conflicts.length > 0) || laws.length > 0 || drifts.length > 0;
                 setStatus(hasConflict ? 'conflict' : 'clean');
@@ -139,40 +145,29 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             console.error("Guardian Audit Failed:", error);
             setStatus('error');
         }
-    }, [projectId, fileId, conflicts.length, lawConflicts.length, personalityDrifts.length]); // Dependencies adjusted
+    }, [projectId, fileId, conflicts.length, lawConflicts.length, personalityDrifts.length]);
 
-    // 🟢 DEBOUNCE LOOP (3000ms - Adjusted from 5s per plan)
+    // 🟢 DEBOUNCE LOOP (3000ms)
     useEffect(() => {
-        // Clear previous timer
         if (timerRef.current) clearTimeout(timerRef.current);
 
-        // Don't scan empty stuff
         if (!content || content.length < 50) {
             setStatus('idle');
             return;
         }
 
-        // Only set to 'idle' if we were 'clean' or 'error' or 'idle'.
-        // If we are 'scanning', we are busy.
-        // If we are 'conflict', we stay there until re-scan starts.
-        // Actually, UI needs to know we are waiting to scan.
-        // Let's not flicker 'idle' too much.
-        // setStatus('idle');
-
         timerRef.current = setTimeout(async () => {
             const currentHash = await computeHash(content);
 
-            // HASH CHECK (Rest Mode)
             if (currentHash === lastHashRef.current) {
                 console.log("🛡️ Guardian: Content unchanged (Hash Match). Skipping.");
                 return;
             }
 
-            // Only update hash if we are actually going to scan (or attempt)
             lastHashRef.current = currentHash;
             executeAudit(content);
 
-        }, 3000); // 3 Seconds Debounce
+        }, 3000);
 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
@@ -191,6 +186,8 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         conflicts,
         lawConflicts,
         personalityDrifts,
+        resonanceMatches, // 🟢
+        structureAnalysis, // 🟢
         forceAudit
     };
 }

@@ -1,20 +1,32 @@
-import React from 'react';
-import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2 } from 'lucide-react';
-import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict, GuardianPersonalityDrift } from '../hooks/useGuardian';
+import React, { useState, useMemo } from 'react';
+import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2, Sparkles, BrainCircuit, Flag } from 'lucide-react';
+import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict, GuardianPersonalityDrift, ResonanceMatch, StructureAnalysis } from '../hooks/useGuardian';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useState, useMemo } from 'react';
 
 interface CanonRadarProps {
     status: GuardianStatus;
     conflicts: GuardianConflict[];
     lawConflicts: GuardianLawConflict[];
-    personalityDrifts?: GuardianPersonalityDrift[]; // New Prop
+    personalityDrifts?: GuardianPersonalityDrift[];
     facts: GuardianFact[];
+    resonanceMatches?: ResonanceMatch[]; // 🟢 NEW PROP
+    structureAnalysis?: StructureAnalysis | null; // 🟢 NEW PROP
     onClose: () => void;
     onForceAudit: () => void;
 }
 
-const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = ({ status, conflicts, lawConflicts = [], personalityDrifts = [], facts, onClose, onForceAudit, accessToken }) => {
+const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = ({
+    status,
+    conflicts,
+    lawConflicts = [],
+    personalityDrifts = [],
+    facts,
+    resonanceMatches = [],
+    structureAnalysis,
+    onClose,
+    onForceAudit,
+    accessToken
+}) => {
     const functions = getFunctions();
     const updateForgeCharacter = httpsCallable(functions, 'updateForgeCharacter');
     const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
@@ -27,6 +39,10 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
             return 0;
         });
     }, [personalityDrifts]);
+
+    const activeResonance = useMemo(() => {
+        return (resonanceMatches || []).filter(m => m.similarity_score > 0.75);
+    }, [resonanceMatches]);
 
     const handleSyncCanon = async (drift: GuardianPersonalityDrift) => {
         if (!accessToken) {
@@ -53,7 +69,6 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 accessToken: accessToken
             });
 
-            // alert("✅ Personaje actualizado en La Forja."); // Too intrusive? Just rely on audit.
             onForceAudit(); // Re-scan to clear the alert
         } catch (e: any) {
             console.error("Sync Failed:", e);
@@ -97,6 +112,78 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
 
             {/* CONTENT AREA */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
+
+                {/* 🟢 TITANIUM SKELETON LOADING STATE */}
+                {status === 'scanning' && (
+                    <div className="space-y-4 animate-pulse">
+                        <div className="flex items-center gap-2 text-titanium-500 text-xs font-bold uppercase mb-2">
+                             <Loader2 size={12} className="animate-spin" />
+                             <span>Buscando anomalías...</span>
+                        </div>
+                        {/* Fake Drift Card */}
+                        <div className="border border-titanium-800 rounded-lg p-3 bg-titanium-900/20">
+                             <div className="h-3 bg-titanium-800 rounded w-1/3 mb-2"></div>
+                             <div className="h-2 bg-titanium-800/50 rounded w-full mb-1"></div>
+                             <div className="h-2 bg-titanium-800/50 rounded w-2/3"></div>
+                        </div>
+                        {/* Fake Conflict Card */}
+                         <div className="border border-titanium-800 rounded-lg p-3 bg-titanium-900/20">
+                             <div className="h-3 bg-titanium-800 rounded w-1/4 mb-2"></div>
+                             <div className="h-2 bg-titanium-800/50 rounded w-3/4"></div>
+                        </div>
+                    </div>
+                )}
+
+                {/* 🟢 RESONANCE SECTION (MOVED FROM DIRECTOR) */}
+                {activeResonance.length > 0 && (
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase mb-2">
+                            <Sparkles size={14} />
+                            <span>Frecuencias de Resonancia ({activeResonance.length})</span>
+                        </div>
+
+                        {activeResonance.map((match, idx) => (
+                             <div key={`res-${idx}`} className="bg-cyan-950/20 border border-cyan-500/30 rounded-lg p-3 hover:bg-cyan-900/20 transition-all">
+                                <div className="flex justify-between items-start mb-1">
+                                    <span className="text-cyan-200 font-bold text-xs tracking-wide">
+                                        {match.type.replace('_SEED', '')}
+                                    </span>
+                                    <span className="text-[10px] text-cyan-500 font-mono">
+                                        {(match.similarity_score * 100).toFixed(0)}%
+                                    </span>
+                                </div>
+                                <p className="text-titanium-300 text-xs italic font-serif leading-relaxed border-l-2 border-cyan-500/50 pl-2 mb-2">
+                                    "{match.crumb_text}"
+                                </p>
+                                <div className="flex items-center gap-1 text-[10px] text-titanium-500">
+                                    <BrainCircuit size={10} />
+                                    <span className="truncate max-w-[200px]">{match.source_file}</span>
+                                </div>
+                             </div>
+                        ))}
+                    </div>
+                )}
+
+                 {/* 🟢 STRUCTURE ANALYSIS */}
+                 {structureAnalysis?.detected_phase && (
+                    <div className="bg-titanium-900/40 border border-titanium-800 rounded-lg p-3 mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 text-titanium-300 font-bold text-xs uppercase">
+                                <Flag size={12} />
+                                <span>Estructura Detectada</span>
+                            </div>
+                            <span className="text-[10px] bg-titanium-800 px-2 py-0.5 rounded text-titanium-400">
+                                {structureAnalysis.detected_phase.replace('_', ' ')}
+                            </span>
+                        </div>
+                        {structureAnalysis.advice && (
+                            <p className="text-[11px] text-titanium-400 italic">
+                                {structureAnalysis.advice}
+                            </p>
+                        )}
+                    </div>
+                )}
+
 
                 {/* 0. THE HATER (TRIGGER 3) - PERSONALITY DRIFTS */}
                 {(sortedDrifts || []).length > 0 && (
@@ -284,7 +371,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 )}
 
                 {/* EMPTY STATE */}
-                {status === 'clean' && (conflicts || []).length === 0 && (lawConflicts || []).length === 0 && (facts || []).length === 0 && (personalityDrifts || []).length === 0 && (
+                {status === 'clean' && (conflicts || []).length === 0 && (lawConflicts || []).length === 0 && (facts || []).length === 0 && (personalityDrifts || []).length === 0 && (activeResonance.length === 0) && (
                     <div className="text-center py-10 opacity-50 flex flex-col items-center animate-in fade-in duration-700">
                         <ScanEye size={48} className="text-emerald-500/50 mb-4 animate-pulse" />
                         <h3 className="text-emerald-500 font-bold text-sm uppercase tracking-wider mb-2">Canon Estable</h3>

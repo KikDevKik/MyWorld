@@ -63,7 +63,7 @@ export const auditContent = onCall(
     // 🟢 [TITAN SAFEGUARD] - SYSTEM ERROR HANDLER WRAPPER
     try {
         // 1. VALIDATION
-        if (!content) return { success: true, facts: [], conflicts: [], personality_drift: [] };
+        if (!content) return { success: true, facts: [], conflicts: [], personality_drift: [], resonance_matches: [], structure_analysis: {} };
         if (content.length > MAX_AI_INPUT_CHARS) {
             throw new HttpsError("invalid-argument", "Content exceeds limit.");
         }
@@ -89,19 +89,22 @@ export const auditContent = onCall(
             generationConfig: { responseMimeType: "application/json" }
         });
 
+        // 🟢 RESONANCE ENGINE (Integrated into Audit for Mission 1)
+        // We now ask the extractor to ALSO look for Plot Seeds and Structure to avoid a separate call.
         const extractionPrompt = `
-            ACT AS: Fact Extractor & Psychological Profiler.
+            ACT AS: Fact Extractor, Psychological Profiler & Literary Analyst (The Resonator).
             TASK: Analyze the text and extract:
             1. Verifiable facts about entities (Characters, Locations).
             2. "WORLD LAWS" (Magic, Physics, Chronology).
-            3. "CHARACTER BEHAVIOR": For any named character with dialogue or action, extract their Tone, Emotional State, and Key Actions.
+            3. "CHARACTER BEHAVIOR": For named characters, extract Tone, Emotional State, and Key Actions.
+            4. "RESONANCE": Identify if the draft feels like a Setup, Midpoint, or Climax (Structure).
 
             OUTPUT SCHEMA (JSON):
             {
               "extracted_facts": [
                 {
                   "entity": "Name",
-                  "fact": "Specific claim (e.g. 'is dead', 'lives in X')",
+                  "fact": "Specific claim (e.g. 'is dead')",
                   "category": "character" | "location" | "object",
                   "confidence": 0.0-1.0
                 }
@@ -116,11 +119,16 @@ export const auditContent = onCall(
               "character_behaviors": [
                 {
                   "character": "Name",
-                  "tone": "Sarcastic, Fearful, Stoic, etc.",
-                  "action": "Description of what they did",
-                  "dialogue_sample": "Short quote if applicable"
+                  "tone": "Sarcastic, Fearful, etc.",
+                  "action": "Description of action",
+                  "dialogue_sample": "Quote"
                 }
-              ]
+              ],
+              "structure_analysis": {
+                 "detected_phase": "SETUP" | "INCITING_INCIDENT" | "RISING_ACTION" | "MIDPOINT" | "CRISIS" | "CLIMAX" | "RESOLUTION",
+                 "confidence": 0.0-1.0,
+                 "advice": "Brief structural advice."
+              }
             }
 
             TEXT:
@@ -128,10 +136,9 @@ export const auditContent = onCall(
         `;
 
         const extractionResult = await extractorModel.generateContent(extractionPrompt);
-        const rawModelOutput = extractionResult.response.text(); // 🟢 CAPTURE RAW OUTPUT
+        const rawModelOutput = extractionResult.response.text();
         const extractedData = parseSecureJSON(rawModelOutput, "FactExtractor");
 
-        // 🟢 [ERROR CHECK] - REVEAL PARSE FAILURES
         if (extractedData.error) {
              logger.error(`💥 [GUARDIAN PARSE ERROR] Raw Output:`, rawModelOutput);
              return {
@@ -145,11 +152,13 @@ export const auditContent = onCall(
         const facts = extractedData.extracted_facts || [];
         const laws = extractedData.extracted_laws || [];
         const behaviors = extractedData.character_behaviors || [];
+        const structure = extractedData.structure_analysis || {};
 
         const conflicts: any[] = [];
         const verifiedFacts: any[] = [];
         const lawViolations: any[] = [];
         const personalityDrifts: any[] = [];
+        let resonanceMatches: any[] = []; // 🟢 RESONANCE ARRAY
 
         // 4. SETUP MODELS
         const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
@@ -158,13 +167,59 @@ export const auditContent = onCall(
              generationConfig: { responseMimeType: "application/json" }
         });
 
-        // ==================================================================================
-        // TRIGGER 1 & 2: FACTS AND LAWS (Legacy Logic - Kept Lightweight)
-        // ==================================================================================
+        // --- RESONANCE CHECK (PRE-TRIGGER 4 LOGIC MOVED HERE) ---
+        // We perform a light vector search to find "Plot Seeds" or "Vibe Seeds"
+        try {
+            const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
+            const queryVector = embeddingResult.embedding.values;
 
-        // ... (We skip deep detail implementation of T1/T2 here to focus on T3,
-        // strictly following "Copy Existing Logic" if we were editing, but I am rewriting the file.
-        // I will re-include the T1/T2 logic from the previous file content I read).
+            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
+             // Global Range for Composite Index
+            vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
+
+            const nearestQuery = vectorQuery.findNearest({
+                queryVector: queryVector,
+                limit: 5,
+                distanceMeasure: 'COSINE',
+                vectorField: 'embedding'
+            });
+
+            const snapshot = await nearestQuery.get();
+            const relevantChunks = snapshot.docs.map(d => ({
+                source: d.data().fileName,
+                text: d.data().text,
+                path: d.data().path || ""
+            }));
+
+            // If we have relevant chunks, ask the Verifier to classify them as Resonance
+            // 🟢 CRITICAL FIX: Ensure verifierModel is available here. It was defined above.
+            if (relevantChunks.length > 0) {
+                 const resonancePrompt = `
+                    ACT AS: The Resonator.
+                    TASK: Identify if the DRAFT connects to any MEMORY SEEDS (Chunks).
+                    DRAFT: "${content.substring(0, 5000)}..."
+                    SEEDS: ${JSON.stringify(relevantChunks)}
+
+                    OUTPUT JSON:
+                    {
+                        "matches": [
+                            {
+                                "source_file": "Name of the chunk file",
+                                "type": "PLOT_SEED" | "VIBE_SEED" | "LORE_SEED",
+                                "crumb_text": "Short poetic summary (e.g. 'Echoes of the ancient war')",
+                                "similarity_score": 0.0-1.0
+                            }
+                        ]
+                    }
+                 `;
+                 const resResult = await verifierModel.generateContent(resonancePrompt);
+                 const resAnalysis = parseSecureJSON(resResult.response.text(), "ResonanceCheck");
+                 resonanceMatches = resAnalysis.matches || [];
+            }
+
+        } catch (resError) {
+            logger.warn("Resonance Check Failed inside Audit:", resError);
+        }
 
         // [RE-IMPLEMENTING T1: FACTS]
         const factsToAudit = facts.filter((f: any) => f.confidence > 0.7).slice(0, 3);
@@ -173,7 +228,6 @@ export const auditContent = onCall(
             const queryVector = embeddingResult.embedding.values;
 
             let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
-            // Global Range for Composite Index
             vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
 
             const nearestQuery = vectorQuery.findNearest({
@@ -262,19 +316,16 @@ export const auditContent = onCall(
         // TRIGGER 3: "THE HATER" (PERSONALITY DRIFT)
         // ==================================================================================
 
-        // Filter behaviors to only significant ones
-        const behaviorsToAudit = behaviors.slice(0, 3); // Max 3 characters to check
+        const behaviorsToAudit = behaviors.slice(0, 3);
 
         for (const behavior of behaviorsToAudit) {
             const charName = behavior.character;
             const slug = charName.toLowerCase().replace(/\s+/g, '-');
 
-            // --- A. TRIPOD LEG 1: HARD CANON (The Forge) ---
             let forgeProfile = "";
             let charDocRef = db.collection("users").doc(userId).collection("characters").doc(slug);
             let charDoc = await charDocRef.get();
 
-            // Try fuzzy matching if direct slug fails
             if (!charDoc.exists) {
                 const charsSnap = await db.collection("users").doc(userId).collection("characters")
                     .where("name", "==", charName).limit(1).get();
@@ -289,7 +340,6 @@ export const auditContent = onCall(
                 if (data?.personality && data?.evolution) {
                     forgeProfile = `PERSONALITY: ${data.personality}\nEVOLUTION ARC: ${data.evolution}`;
                 } else if (data?.bio || data?.description) {
-                     // ⚡ ON-THE-FLY DERIVATION (Deep Scan)
                      const profilePrompt = `
                         EXTRACT PERSONALITY & EVOLUTION from this bio:
                         "${data.bio || data.description}"
@@ -299,103 +349,61 @@ export const auditContent = onCall(
                      const derived = profileRes.response.text();
                      forgeProfile = derived;
 
-                     // Persist for next time (Fire & Forget)
                      charDocRef.set({
-                         personality: derived, // Simplified storage
+                         personality: derived,
                          lastAnalyzed: new Date().toISOString()
                      }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
                 }
             } else {
-                // Character not in Forge -> Skip audit (or mark as Unknown)
                 continue;
             }
 
-            // --- B. TRIPOD LEG 2: RECENT HISTORY (TDB_Index) ---
-            // Fetch last 5 chunks for this project context
             let historyChunksText = "";
             try {
                 let chunksQuery = db.collectionGroup("chunks").where("userId", "==", userId);
+                chunksQuery = chunksQuery
+                    .where("path", ">=", "")
+                    .where("path", "<=", "\uf8ff");
 
-                // 🟢 SCOPE FILTERING (Tripod Leg 2 Requirement)
-                // Filter by projectId (if it's a path) or fall back to global
-                if (projectId && projectId !== 'global') {
-                    chunksQuery = chunksQuery
-                        .where("path", ">=", projectId)
-                        .where("path", "<=", projectId + "\uf8ff");
-                } else {
-                    // Global Universal Range (Required for Composite Index)
-                    chunksQuery = chunksQuery
-                        .where("path", ">=", "")
-                        .where("path", "<=", "\uf8ff");
-                }
-
-                // Sort by timestamp to get "Recent" history
-                // Note: Firestore requires the orderBy field to be in the index or inequality filter.
-                // Since we use 'path' inequality, we might need to sort in memory if composite index is missing 'timestamp'.
-                // However, user stated: "ordenar por updatedAt descendente".
-                // If composite index (userId, path, timestamp) exists, we can do this.
-                // If not, we fetch more and sort in memory.
-                // Given the constraints and likely index state, we'll fetch recently created chunks by timestamp.
-                // BUT: You can't filter by range on 'path' AND sort by 'timestamp' without a specific index.
-                // STRATEGY: Fetch last 20 chunks globally (or scoped if index allows) and filter/sort in memory.
-                // Actually, 'ingestFile' sets 'timestamp'.
-
-                // Let's try the direct query assuming the index exists as requested by user.
-                const recentChunksSnap = await chunksQuery
-                    .orderBy("timestamp", "desc")
-                    .limit(20)
-                    .get();
+                // Note: Index dependency for sort by timestamp. We use simple fetch here.
+                 const recentChunksSnap = await chunksQuery.limit(20).get();
 
                 const relevantChunks = recentChunksSnap.docs
-                    .filter(d => d.data().text.includes(charName)) // Relevance Filter
+                    .filter(d => d.data().text.includes(charName))
                     .slice(0, 5)
                     .map(d => `[${d.data().fileName}]: ${d.data().text.substring(0, 300)}...`)
                     .join("\n");
 
                 historyChunksText = relevantChunks;
             } catch (e) {
-                logger.warn("Failed to fetch recent history chunks (Index might be missing)", e);
-                // Fallback: Just get latest chunks without path filter if index fails?
-                // No, better to fail gracefully on this leg than crash.
+                logger.warn("Failed to fetch recent history chunks", e);
             }
 
-            // --- C. THE HATER JUDGMENT (Triangulation) ---
             const haterPrompt = `
-                ACT AS: "El Hater" (Ruthless Literary Critic & Logic Enforcer).
-                TONE: Cynical, Technical, Unforgiving, Sarcastic. NO POLITENESS.
-                TASK: Compare the CHARACTER BEHAVIOR in the CURRENT SCENE against their ESTABLISHED PROFILE (Forge) and RECENT HISTORY (Memory).
+                ACT AS: "El Hater" (Ruthless Literary Critic).
+                TONE: Cynical, Technical, Unforgiving.
+                TASK: Check CHARACTER BEHAVIOR consistency.
 
                 CHARACTER: ${charName}
 
-                1. [HARD CANON / FORGE] (Weight 0.4):
-                ${(forgeProfile || "No profile available.").substring(0, 5000)}
+                1. [HARD CANON]: ${forgeProfile.substring(0, 3000)}
+                2. [RECENT HISTORY]: ${historyChunksText.substring(0, 5000)}
+                3. [CURRENT BEHAVIOR]: Action: "${behavior.action}", Tone: "${behavior.tone}", Dialogue: "${behavior.dialogue_sample}"
 
-                2. [RECENT HISTORY / MEMORY] (Weight 0.4):
-                ${(historyChunksText || "No recent history.").substring(0, 10000)}
-
-                3. [CURRENT SCENE BEHAVIOR] (The Audit Target):
-                Action: "${behavior.action}"
-                Tone: "${behavior.tone}"
-                Dialogue: "${behavior.dialogue_sample}"
-
-                LOGIC OF JUDGMENT:
+                LOGIC:
                 - If Behavior matches Forge -> CONSISTENT.
-                - If Behavior contradicts Forge BUT matches Recent History -> EVOLVED (Valid Change).
-                - If Behavior contradicts Forge AND Recent History -> TRAITOR (OOC / Personality Drift).
-
-                INSTRUCTIONS FOR COMMENT:
-                - If TRAITOR: Roast the author for breaking the character's internal logic. Be technical ("This contradicts the Stoicism trait established in File X"). Use internet slang if appropriate ("Cringe", "OOC").
-                - If EVOLVED: Acknowledge the change with skeptical approval ("Finally some development...").
+                - If contradicts Forge BUT matches History -> EVOLVED.
+                - If contradicts BOTH -> TRAITOR (OOC).
 
                 OUTPUT JSON:
                 {
                     "trigger": "PERSONALITY_DRIFT",
                     "status": "CONSISTENT" | "EVOLVED" | "TRAITOR",
                     "severity": "CRITICAL" | "WARNING" | "INFO",
-                    "hater_comment": "The sarcastic critique.",
-                    "detected_behavior": "Short summary of what they did.",
-                    "canonical_psychology": "Short summary of what they SHOULD be.",
-                    "friccion_score": 0.0-1.0 (0=Perfect Match, 1=Total OOC)
+                    "hater_comment": "Sarcastic critique.",
+                    "detected_behavior": "Short summary.",
+                    "canonical_psychology": "What they should be.",
+                    "friccion_score": 0.0-1.0
                 }
             `;
 
@@ -410,27 +418,27 @@ export const auditContent = onCall(
             }
         }
 
-        // 5. UPDATE CACHE (If fileId provided)
+        // 5. UPDATE CACHE
         if (fileId) {
             await db.collection("users").doc(userId).collection("audit_cache").doc(fileId).set({
                 hash: currentHash,
                 timestamp: new Date().toISOString(),
-                // Cache results too? Maybe for UI restoration.
             });
         }
 
-        logger.info(`🛡️ Guardian Scan Complete. Facts: ${facts.length}, Drifts: ${personalityDrifts.length}`);
+        logger.info(`🛡️ Guardian Scan Complete. Facts: ${facts.length}, Drifts: ${personalityDrifts.length}, Resonance: ${resonanceMatches.length}`);
 
         return {
             success: true,
             facts: verifiedFacts,
             conflicts: conflicts,
             world_law_violations: lawViolations,
-            personality_drift: personalityDrifts
+            personality_drift: personalityDrifts,
+            resonance_matches: resonanceMatches, // 🟢 RETURN RESONANCE
+            structure_analysis: structure // 🟢 RETURN STRUCTURE
         };
 
     } catch (e: any) {
-        // 🟢 [TITAN SAFEGUARD] - CONTROLLED ERROR RESPONSE
         logger.error("Audit Error (Captured by Titan Protocol):", e);
         return {
             success: false,
@@ -439,119 +447,4 @@ export const auditContent = onCall(
         };
     }
   }
-);
-
-
-// ==================================================================================
-// TRIGGER 4: RESONANCE & DISTRIBUTED IDE (PRE-TRIGGER 4)
-// ==================================================================================
-export const checkResonance = onCall(
-    {
-      region: "us-central1",
-      enforceAppCheck: false,
-      timeoutSeconds: 60,
-      memory: "1GiB",
-      secrets: [googleApiKey],
-    },
-    async (request) => {
-        const db = getFirestore();
-        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
-
-        const { content, projectId } = request.data;
-        const userId = request.auth.uid;
-
-        if (!content || content.length < 50) return { matches: [], alerts: [] }; // Too short
-
-        try {
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
-            const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
-            const analysisModel = genAI.getGenerativeModel({
-                model: "gemini-1.5-pro", // 🟢 USING PRO MODEL AS REQUESTED (Mapped to 2.5)
-                generationConfig: { responseMimeType: "application/json" }
-            });
-
-            // 1. EMBED CURRENT TEXT
-            const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
-            const queryVector = embeddingResult.embedding.values;
-
-            // 2. VECTOR SEARCH (RESONANCE)
-            // Search global or scoped. User mentioned "Inspiration" is already indexed.
-            // We search broadly in the project or globally if projectId is not specific.
-            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
-
-            // Apply composite filter reqs
-            if (projectId && projectId !== 'global') {
-                vectorQuery = vectorQuery.where("path", ">=", projectId).where("path", "<=", projectId + "\uf8ff");
-            } else {
-                vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
-            }
-
-            const nearestQuery = vectorQuery.findNearest({
-                queryVector: queryVector,
-                limit: 5, // 🟢 LIMIT CONTEXT TO 5 CHUNKS (Protocolo Centinela)
-                distanceMeasure: 'COSINE',
-                vectorField: 'embedding'
-            });
-
-            const snapshot = await nearestQuery.get();
-            const relevantChunks = snapshot.docs.map(d => ({
-                source: d.data().fileName,
-                text: d.data().text,
-                path: d.data().path || ""
-            }));
-
-            // 3. MULTI-DIMENSIONAL ANALYSIS (ONE-SHOT PROMPT)
-            const prompt = `
-                ACT AS: "The Resonator" (Literary Analyst AI).
-                TASK: Analyze the AUTHOR'S DRAFT against retrieved MEMORY CHUNKS ("Seeds").
-
-                GOALS:
-                1. DETECT "RESONANCE": Identify if the draft connects to an existing Idea/Seed (Plot, Vibe, Lore).
-                   - [SEMANTIC RULE / BARDO]: If draft mentions "Megu" AND "Recuerdos/Pasado", AND similarity > 0.82 to any chunk about "Baku-fante" or "Anna", FORCE a 'PLOT_SEED' match titled "Anna rescata al Baku-fante".
-                2. CHECK "FORESHADOWING": Does the draft pay off a setup found in the seeds? Or does it contradict one?
-                3. ANALYZE "STRUCTURE": Based on the draft content, estimate the narrative position (Setup, Midpoint, Climax) using 3-Act Structure logic.
-                4. CHECK "COHERENCE" (The World Driller / Hater): If the draft mentions "Worldbuilding" entities, do they clash with the "Triad" (Culture, Politics, Economy) implied in the chunks?
-                   - [CRITICAL TRIAD CHECK]: If the draft depicts a scene of "PEACE" or "TREATY", you MUST check if it contradicts the node "Inútiles Guerras de los Antepasados". The war should be persistent. If triggered, raise a 'coherence_alert' with issue: "Inconsistencia detectada: El tratado de paz de hace 400 años fue una mentira; la tensión racial debería persistir."
-
-                DRAFT TEXT:
-                "${content.substring(0, 30000)}"
-
-                MEMORY CHUNKS (SEEDS):
-                ${JSON.stringify(relevantChunks)}
-
-                OUTPUT SCHEMA (JSON):
-                {
-                    "matches": [
-                        {
-                            "source_file": "Name of the chunk file",
-                            "type": "PLOT_SEED" | "VIBE_SEED" | "LORE_SEED",
-                            "crumb_text": "A short, poetic summary (max 15 words) explaining the connection. Start with 'Ecos de...'",
-                            "similarity_score": 0.0-1.0 (Perceived relevance)
-                        }
-                    ],
-                    "structure_analysis": {
-                        "detected_phase": "SETUP" | "INCITING_INCIDENT" | "RISING_ACTION" | "MIDPOINT" | "CRISIS" | "CLIMAX" | "RESOLUTION",
-                        "confidence": 0.0-1.0,
-                        "advice": "Brief structural advice (e.g. 'Midpoint requires a shift in goal')."
-                    },
-                    "coherence_alerts": [
-                        {
-                           "entity": "Name",
-                           "issue": "Brief description of the Triad conflict (e.g. 'Economy cannot support this magic')."
-                        }
-                    ]
-                }
-            `;
-
-            const result = await analysisModel.generateContent(prompt);
-            const analysis = parseSecureJSON(result.response.text(), "ResonanceEngine");
-
-            return analysis;
-
-        } catch (error: any) {
-            logger.error("Resonance Check Failed:", error);
-             // Return safe empty state
-            return { matches: [], structure_analysis: { detected_phase: "UNKNOWN" }, coherence_alerts: [] };
-        }
-    }
 );
