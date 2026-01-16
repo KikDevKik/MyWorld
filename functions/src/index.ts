@@ -2754,7 +2754,7 @@ export const forgeToDrive = onCall(
         ${historyText}
       `;
 
-      const aiResponse = await synthesisModel.invoke(synthesisPrompt);
+      const aiResponse = await (synthesisModel as any).invoke(synthesisPrompt);
       const markdownContent = aiResponse.content.toString();
 
       let fileName = "";
@@ -2781,7 +2781,7 @@ export const forgeToDrive = onCall(
           ${markdownContent.substring(0, 2000)}
         `;
 
-        const titleResponse = await titleModel.invoke(titlePrompt);
+        const titleResponse = await (titleModel as any).invoke(titlePrompt);
         let rawName = titleResponse.content.toString().trim();
         rawName = rawName.replace(/[^a-zA-Z0-9_\-]/g, "");
         if (rawName.length > 0) {
@@ -2944,7 +2944,7 @@ export const summonTheTribunal = onCall(
         }
       `;
 
-      const response = await chatModel.invoke([
+      const response = await (chatModel as any).invoke([
         ["system", systemPrompt],
         ["human", textToAnalyze]
       ]);
