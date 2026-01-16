@@ -57,10 +57,7 @@ export const auditContent = onCall(
         throw new HttpsError("unauthenticated", "Login requerido.");
     }
 
-    // 🟢 SILO UPDATE: Ensure projectId is available (alias to folderId if needed)
-    const { content, projectId, fileId, folderId } = request.data;
-    const activeProjectId = projectId || folderId; // Unify access
-
+    const { content, projectId, fileId } = request.data;
     const userId = request.auth.uid;
 
     // 🟢 [TITAN SAFEGUARD] - SYSTEM ERROR HANDLER WRAPPER
@@ -176,16 +173,7 @@ export const auditContent = onCall(
             const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
             const queryVector = embeddingResult.embedding.values;
 
-            // 🟢 SILO SEARCH
-            let vectorQuery = db.collectionGroup("chunks");
-            if (activeProjectId) {
-                vectorQuery = vectorQuery.where("projectId", "==", activeProjectId);
-            if (activeProjectId) {
-                vectorQuery = vectorQuery.where("projectId", "==", activeProjectId);
-            } else {
-                vectorQuery = vectorQuery.where("userId", "==", userId);
-            }
-
+            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
              // Global Range for Composite Index
             vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
 
@@ -239,14 +227,7 @@ export const auditContent = onCall(
             const embeddingResult = await embeddingModel.embedContent(`${item.entity}: ${item.fact}`);
             const queryVector = embeddingResult.embedding.values;
 
-            // 🟢 SILO SEARCH
-            let vectorQuery = db.collectionGroup("chunks");
-            if (projectId) {
-                vectorQuery = vectorQuery.where("projectId", "==", projectId);
-            } else {
-                vectorQuery = vectorQuery.where("userId", "==", userId);
-            }
-
+            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
             vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
 
             const nearestQuery = vectorQuery.findNearest({
@@ -297,14 +278,7 @@ export const auditContent = onCall(
              const embeddingResult = await embeddingModel.embedContent(`${item.category}: ${item.law}`);
              const queryVector = embeddingResult.embedding.values;
 
-             let vectorQuery = db.collectionGroup("chunks");
-             if (activeProjectId) {
-                 vectorQuery = vectorQuery.where("projectId", "==", activeProjectId);
-             } else {
-                 vectorQuery = vectorQuery.where("userId", "==", userId);
-             }
-
-             const nearestQuery = vectorQuery
+             const nearestQuery = db.collectionGroup("chunks").where("userId", "==", userId)
                 .where("path", ">=", "").where("path", "<=", "\uf8ff")
                 .findNearest({
                     queryVector: queryVector,
@@ -386,13 +360,7 @@ export const auditContent = onCall(
 
             let historyChunksText = "";
             try {
-                let chunksQuery = db.collectionGroup("chunks");
-                if (activeProjectId) {
-                    chunksQuery = chunksQuery.where("projectId", "==", activeProjectId);
-                } else {
-                    chunksQuery = chunksQuery.where("userId", "==", userId);
-                }
-
+                let chunksQuery = db.collectionGroup("chunks").where("userId", "==", userId);
                 chunksQuery = chunksQuery
                     .where("path", ">=", "")
                     .where("path", "<=", "\uf8ff");
@@ -467,10 +435,7 @@ export const auditContent = onCall(
             world_law_violations: lawViolations,
             personality_drift: personalityDrifts,
             resonance_matches: resonanceMatches, // 🟢 RETURN RESONANCE
-            structure_analysis: structure, // 🟢 RETURN STRUCTURE
-            metadata: {
-                originProjectId: activeProjectId || "legacy_user_scope"
-            }
+            structure_analysis: structure // 🟢 RETURN STRUCTURE
         };
 
     } catch (e: any) {

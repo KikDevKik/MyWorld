@@ -1,5 +1,4 @@
 import React from 'react';
-import { Radio, Wifi } from 'lucide-react';
 import { useProjectConfig } from '../ProjectConfigContext';
 
 const ProjectHUD: React.FC = () => {

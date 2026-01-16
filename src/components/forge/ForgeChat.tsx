@@ -30,9 +30,6 @@ interface ForgeChatProps {
     selectedScope: { id: string | null; name: string; recursiveIds: string[]; path?: string };
 }
 
-// 🟢 HANDSHAKE PROTOCOL
-import { useProjectConfig } from '../ProjectConfigContext';
-
 const ForgeChat: React.FC<ForgeChatProps> = ({
     sessionId,
     sessionName,
@@ -45,7 +42,6 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     onReset,
     selectedScope
 }) => {
-    const { currentProjectId } = useProjectConfig();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
@@ -186,23 +182,13 @@ ${TOOL_INSTRUCTION}`;
                 query: userText,
                 history: historyContext,
                 systemInstruction: systemPrompt,
-                folderId: folderId || undefined, // 👈 STRICT ISOLATION (Mapped to projectId in backend)
+                projectId: folderId || undefined, // 👈 STRICT ISOLATION
                 activeFileName: activeContextFile?.name,
                 // 🟢 PASS NEW SCOPE PARAMS
                 filterScopeIds: selectedScope.id ? selectedScope.recursiveIds : undefined,
                 filterScopePath: selectedScope.path, // Optimization Hint
                 // Pass activeFileContent if it were available as a prop, currently empty or RAG handles it
             });
-
-            // 🟢 SECURITY HANDSHAKE (PROTOCOL: COLLISION CHECK)
-            const metadata = aiResponse.data.metadata;
-            if (metadata?.originProjectId && currentProjectId) {
-                if (metadata.originProjectId !== currentProjectId && metadata.originProjectId !== 'legacy_user_scope') {
-                     console.error(`🚨 SECURITY BREACH: Handshake Failed. Origin: ${metadata.originProjectId}, Local: ${currentProjectId}`);
-                     // Trigger Global Lockout via Custom Event or throwing specific error caught by App boundary
-                     throw new Error(`SECURITY_BREACH_DETECTED:Project Mismatch (${metadata.originProjectId} vs ${currentProjectId})`);
-                }
-            }
 
             const aiText = aiResponse.data.response;
             const sources = aiResponse.data.sources?.map((s: any) => s.fileName) || [];
@@ -247,16 +233,6 @@ ${TOOL_INSTRUCTION}`;
 
         } catch (error: any) {
             console.error("Error in chat flow:", error);
-
-            // 🟢 SECURITY INTERCEPTOR
-            if (error.message && error.message.includes('SECURITY_BREACH_DETECTED')) {
-                // Dispatch Global Event for App.tsx to catch
-                const event = new CustomEvent('security-breach', {
-                    detail: { reason: 'PROJECT_ID_MISMATCH', debug: error.message }
-                });
-                window.dispatchEvent(event);
-                return; // Stop processing, UI will lock
-            }
 
             // 🟢 UI RECOVERY (MANUAL SAVE)
             // If the backend failed entirely (e.g. timeout, network error) and didn't return the controlled error string,

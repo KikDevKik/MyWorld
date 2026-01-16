@@ -44,7 +44,6 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       const data = result.data as ProjectConfig;
       setConfig(data);
 
-      // Initialize identity from config if available
       if (data.folderId) {
           setCurrentProjectId(data.folderId);
       }
@@ -67,7 +66,6 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
         await saveProjectConfig(newConfig);
         setConfig(newConfig);
 
-        // Sync local identity
         if (newConfig.folderId) {
             setCurrentProjectId(newConfig.folderId);
         }

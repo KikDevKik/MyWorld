@@ -84,11 +84,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
 
         const db = getFirestore();
-        // 🟢 SILO UPDATE: Listen to Project Index if available, else User Index (Legacy)
-        const targetId = config?.folderId || user.uid;
-        const docRef = doc(db, "TDB_Index", targetId, "structure", "tree");
+        // 🟢 LEGACY MODE: Listen to User Index until Backend V2 (Silo) is deployed
+        // const targetId = config?.folderId || user.uid; // TODO: Activate in Phase 2
+        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
 
-        console.log(`📡 Suscribiéndose a TDB_Index/${targetId}/structure/tree...`);
+        console.log("📡 Suscribiéndose a TDB_Index/structure/tree...");
 
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {

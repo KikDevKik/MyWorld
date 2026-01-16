@@ -24,11 +24,10 @@ export interface IngestionResult {
  */
 export async function ingestFile(
     db: FirebaseFirestore.Firestore,
-    projectId: string, // 👈 CHANGED: userId -> projectId
+    userId: string,
     file: IngestionFile,
     content: string,
-    embeddingsModel: any,
-    userId: string // 👈 KEPT: For metadata tracking (who indexed it)
+    embeddingsModel: any
 ): Promise<IngestionResult> {
     try {
         // 1. VALIDATION
@@ -44,8 +43,7 @@ export async function ingestFile(
         }
 
         const docId = crypto.createHash('sha256').update(file.path).digest('hex');
-        // 🟢 SILO UPDATE: Using projectId as root
-        const fileRef = db.collection("TDB_Index").doc(projectId).collection("files").doc(docId);
+        const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(docId);
 
         // 2. HASH CHECK (Upsert Logic)
         const currentHash = crypto.createHash('sha256').update(content).digest('hex');
@@ -133,8 +131,7 @@ export async function ingestFile(
         // Save Chunk
         // Note: chunks now live under the Hashed Path ID, not the Drive ID.
         const chunkPayload: any = {
-            userId: userId, // Keep UserID for audit
-            projectId: projectId, // 👈 Add ProjectID for Silo
+            userId: userId,
             fileName: file.name,
             text: chunkText,
             docId: docId, // Hashed Path ID
