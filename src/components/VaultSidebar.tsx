@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import FileTree from './FileTree';
+import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from './ProjectConfigContext';
 import { getFirestore, doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
@@ -211,6 +212,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     />
                 </div>
             </div>
+
+            {/* 🟢 PROJECT IDENTITY HUD (SENTINEL PULSE) */}
+            <ProjectHUD />
 
             {/* FILE TREE */}
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
