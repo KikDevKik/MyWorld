@@ -580,6 +580,39 @@ function flattenFileTree(nodes: DriveFile[]): DriveFile[] {
 // --- CLOUD FUNCTIONS (ENDPOINTS) ---
 
 /**
+ * HELPER: Double Way Lineage Check (Paranoid Security)
+ */
+async function checkLineage(drive: any, folderId: string, requiredRootId: string, cache: Map<string, boolean>): Promise<boolean> {
+  if (folderId === requiredRootId) return true;
+  if (!requiredRootId) return true; // Safety: If no root defined, we can't enforce scope.
+  if (cache.has(folderId)) return cache.get(folderId)!;
+
+  try {
+    const res = await drive.files.get({
+      fileId: folderId,
+      fields: "parents, id",
+      supportsAllDrives: true
+    });
+
+    const parents = res.data.parents;
+    if (!parents || parents.length === 0) {
+      // Reached top of Drive (or Shared Drive Root) without hitting requiredRootId
+      cache.set(folderId, false);
+      return false;
+    }
+
+    // Recursive Check
+    const isGood = await checkLineage(drive, parents[0], requiredRootId, cache);
+    cache.set(folderId, isGood);
+    return isGood;
+  } catch (e: any) {
+    logger.warn(`🛡️ [SENTINEL] Lineage Check Error for ${folderId}:`, e.message);
+    cache.set(folderId, false); // Fail closed
+    return false;
+  }
+}
+
+/**
  * 1. GET DRIVE FILES (El Radar)
  * Escanea y devuelve la estructura del Drive.
  */
@@ -1242,7 +1275,7 @@ export const indexTDB = onCall(
       // E. Procesar cada archivo
       // Sentinel Cache: folderId -> isValid (boolean)
       // To avoid spamming Drive API for every file in the same folder
-      // const sentinelCache = new Map<string, boolean>();
+      const sentinelCache = new Map<string, boolean>();
 
       // Pre-calculate valid roots set for fast lookup
       const validRootIds = new Set<string>();
@@ -1258,39 +1291,37 @@ export const indexTDB = onCall(
               return;
             }
 
-            // 🟢 SENTINEL PROTOCOL (Truth of Drive)
-            // Verify that the file's location in Drive aligns with the projected Project Root.
-            // Note: fileList comes from a FRESH scan (getDriveFiles -> fetchFolderContents),
-            // so `file.parentId` *should* be accurate to Level 0.
-            // But we must ensure that `file.parentId` actually traces back to our `cleanFolderId` (Project Root).
-            // Since fetchFolderContents is recursive, we know it DOES belong to the scanned tree.
-            // BUT, if we are doing a "Partial" scan or if the user moved the folder *during* the scan (race condition),
-            // or if we rely on cached metadata (not here, this is fresh).
+            // 🟢 SENTINEL PROTOCOL: DOUBLE WAY VALIDATION
+            // "Paranoid Security": Verify file is STILL in scope before processing.
+            const rootId = config.folderId || cleanFolderId;
 
-            // The User Requirement: "Validate that the folderId reading in Drive still belongs to the projectId registered."
-            // Since we just scanned it via `fetchFolderContents` starting from `cleanFolderId`,
-            // the parenthood is implicitly validated by the scan process itself.
-            // HOWEVER, we must strictly pass the CORRECT `projectId` to `ingestFile`.
-            // The `projectId` passed below is `config.folderId || cleanFolderId`.
+            if (file.id && rootId) {
+                try {
+                    // 1. Get Current Parent (Live Truth)
+                    const currentMeta = await drive.files.get({ fileId: file.id, fields: 'parents' });
+                    const currentParents = currentMeta.data.parents;
 
-            // Critical Check: Is this file actually part of the Project?
-            // (If we scanned multiple roots, we need to know WHICH root this file belongs to).
-            // `fetchFolderContents` doesn't currently tag the "Source Root".
-            // We should improve `ingestFile` call to use the correct Root if we have multi-root.
-            // But `cleanFolderId` is the main anchor.
+                    if (currentParents && currentParents.length > 0) {
+                         const currentParentId = currentParents[0];
 
-            // If we are in multi-root mode (folderIds array), `cleanFolderId` might be ambiguous or just the first one.
-            // We need to resolve the correct `projectId` for this specific file.
-            // Since we don't have "Source Root" in `DriveFile` interface yet (we added saga/parentId),
-            // we will assume `cleanFolderId` (if single) or try to resolve.
+                         // 2. Trace Lineage
+                         const isValid = await checkLineage(drive, currentParentId, rootId, sentinelCache);
 
-            // For now, adhering to "Abort on Mismatch" instruction:
-            // If the `file.parentId` is NOT in our valid tree (impossible if scanned recursively?), we abort.
-            // Real risk: A file was in the list, but moved OUT before we process it?
-            // Unlikely in seconds.
+                         if (!isValid) {
+                             logger.warn(`🛡️ [SENTINEL] OUT_OF_SCOPE: ${file.name} is NOT in Root ${rootId}`);
+                             throw new HttpsError('aborted', 'OUT_OF_SCOPE');
+                         }
 
-            // The real check requested: "If there is discrepancy... Level 0 rules."
-            // We are reading Level 0 now. So we just pass the Level 0 Truth.
+                         // Update parentId to current truth
+                         file.parentId = currentParentId;
+                    }
+                } catch (sentinelErr: any) {
+                    if (sentinelErr.code === 'aborted' || sentinelErr.message === 'OUT_OF_SCOPE') throw sentinelErr;
+                    // If validation fails due to network/permissions, we fail closed.
+                    logger.warn(`🛡️ [SENTINEL] Verification failed for ${file.name}. Fail Closed.`);
+                    throw new HttpsError('aborted', 'OUT_OF_SCOPE');
+                }
+            }
 
             // 🟢 1. FETCH CONTENT
             const content = await _getDriveFileContentInternal(drive, file.id);
@@ -1318,6 +1349,7 @@ export const indexTDB = onCall(
             }
 
           } catch (err: any) {
+            if (err.message === 'OUT_OF_SCOPE' || err.code === 'aborted') throw err;
             logger.error(`Error indexando ${file.name}:`, err);
           }
         })

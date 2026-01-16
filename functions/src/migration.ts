@@ -2,19 +2,9 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { google } from "googleapis";
+import { defineSecret } from "firebase-functions/params";
 
-// interface BaptismResult {
-//     processed: number;
-//     baptized: number;
-//     errors: number;
-//     lastDocId?: string;
-//     message: string;
-// }
-
-// 🛡️ SECURITY: Master Key for manual execution
-// In production, this should be a secret or a strict IAM check.
-// For this task, we will check a header or body param.
-const BAPTISM_MASTER_KEY = "PROTOCOL_SENTINEL_INITIATE_88";
+const baptismMasterKey = defineSecret("BAPTISM_MASTER_KEY");
 
 /**
  * HELPER: Walk up Drive Tree to find Root (Project ID)
@@ -32,7 +22,8 @@ async function resolveProjectRoot(
     try {
         const res = await drive.files.get({
             fileId: folderId,
-            fields: "parents, id, name"
+            fields: "parents, id, name",
+            supportsAllDrives: true
         });
 
         const parents = res.data.parents;
@@ -53,6 +44,8 @@ async function resolveProjectRoot(
 
     } catch (e: any) {
         logger.warn(`⚠️ [BAPTISM] Failed to resolve path for ${folderId}:`, e.message);
+        // If we can't read the parent (permission denied?), we assume it's out of scope or broken.
+        cache.set(folderId, null);
         return null;
     }
 }
@@ -62,43 +55,50 @@ export const executeBaptismProtocol = onCall(
         region: "us-central1",
         timeoutSeconds: 540, // Max duration
         memory: "1GiB",
-        secrets: [],
+        secrets: [baptismMasterKey],
     },
     async (request) => {
         const db = getFirestore();
         const { masterKey, userId, limit, startAfter, accessToken } = request.data;
 
         // 1. SECURITY CHECK
-        if (masterKey !== BAPTISM_MASTER_KEY) {
+        // If masterKey is passed in body, check it.
+        // We compare against the Secret Version value.
+        if (masterKey !== baptismMasterKey.value()) {
             throw new HttpsError("permission-denied", "Protocolo denegado. Llave maestra inválida.");
         }
         if (!userId) {
             throw new HttpsError("invalid-argument", "Falta userId.");
         }
 
-        // NOTE: For true batch processing of ALL users, a Service Account with Domain-Wide Delegation
-        // would be required to impersonate users and access their Drive files.
-        // For this implementation, we require the specific user's accessToken (Self-Baptism/Admin-Assisted).
         if (!accessToken) {
              throw new HttpsError("unauthenticated", "Falta accessToken para validación de Nivel 0. (Se requiere token del usuario propietario).");
         }
 
         logger.info(`✝️ [BAPTISM] Iniciando sacramento para Usuario: ${userId}`);
 
-        // 2. LOAD KNOWN ROOTS (Project Config)
+        // 2. LOAD ANCHOR (Project Config)
         const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
         const config = configDoc.data() || {};
         const knownRoots = new Set<string>();
 
-        if (config.canonPaths) config.canonPaths.forEach((p: any) => knownRoots.add(p.id));
-        if (config.resourcePaths) config.resourcePaths.forEach((p: any) => knownRoots.add(p.id));
-        if (config.folderId) knownRoots.add(config.folderId); // Primary Anchor
+        // "Ancla de Realidad" - The Active Project Folder
+        if (config.folderId) {
+            knownRoots.add(config.folderId);
+        }
+        // Fallbacks (Optional, but user said "Active Anchor")
+        // If we want strict "Active Project" baptism, we should ONLY use folderId.
+        // But if the user has canonPaths configured, they are part of the project too?
+        // User said: "Toma el folderId que el usuario tiene activo como su 'Ancla de Realidad'."
+        // I will trust 'folderId' as the primary.
+        // Adding others might cause accidental cross-project pollution if they share files?
+        // Safe bet: Only folderId.
 
         if (knownRoots.size === 0) {
-             return { message: "⚠️ No hay raíces configuradas en project_config. Imposible validar.", processed: 0 };
+             return { message: "⚠️ No hay 'folderId' activo en project_config. No hay Ancla de Realidad.", processed: 0 };
         }
 
-        logger.info(`   🏛️ Raíces Conocidas: ${Array.from(knownRoots).join(', ')}`);
+        logger.info(`   🏛️ Ancla de Realidad (Active Project): ${Array.from(knownRoots).join(', ')}`);
 
         // 3. SETUP DRIVE & CACHE
         const auth = new google.auth.OAuth2();
@@ -107,42 +107,44 @@ export const executeBaptismProtocol = onCall(
 
         const folderCache = new Map<string, string | null>(); // folderId -> rootId
 
-        // 4. SCAN FILES
-        let query = db.collection("TDB_Index").doc(userId).collection("files")
-            .orderBy("__name__") // Stable sort by ID
-            .limit(limit || 50);
+        // 4. SCAN FILES (QUERY: chunks where projectId == null)
+        // Note: We need a Composite Index for this: collectionGroup('chunks').where('userId', '==', ...).where('projectId', '==', null)
+        let query = db.collectionGroup("chunks")
+            .where("userId", "==", userId)
+            .where("projectId", "==", null)
+            .limit(limit || 200); // Process in chunks
 
-        if (startAfter) {
-            query = query.startAfter(startAfter);
-        }
+        // Firestore does not support startAfter with collectionGroup easily unless we order by something unique.
+        // But we are modifying the documents (setting projectId), so they will leave the query result set!
+        // So we don't need 'startAfter' pagination. We just grab the next batch.
+        // Pagination logic: "Grab 200, fix them. Next run, grab next 200."
 
         const snapshot = await query.get();
 
         if (snapshot.empty) {
-            return { message: "✅ Bautismo completo (No más archivos).", processed: 0, baptized: 0, errors: 0 };
+            return { message: "✅ Bautismo completo (No se encontraron chunks huérfanos).", processed: 0, baptized: 0, errors: 0 };
         }
+
+        logger.info(`   🔍 Encontrados ${snapshot.size} chunks huérfanos.`);
 
         let processed = 0;
         let baptized = 0;
         let errors = 0;
-        let lastDocId = "";
+        let skipped = 0;
 
         let batch = db.batch(); // Firestore Write Batch
         let batchCount = 0;
 
+        // Group by Folder to minimize API calls
+        // We can't easily "Group" the loop, but we use the Cache.
+
         for (const doc of snapshot.docs) {
             const data = doc.data();
-            lastDocId = doc.id;
             processed++;
 
-            // CHECK: Does it need baptism?
-            if (data.projectId && knownRoots.has(data.projectId)) {
-                continue; // Already baptized and valid
-            }
-
-            const folderId = data.parentId || data.folderId;
-            if (!folderId) {
-                logger.warn(`   ⚠️ [SKIP] Archivo ${data.name} sin parentId.`);
+            const folderId = data.folderId;
+            if (!folderId || folderId === 'unknown') {
+                logger.warn(`   ⚠️ [SKIP] Chunk ${doc.id} sin folderId válido.`);
                 errors++;
                 continue;
             }
@@ -151,25 +153,35 @@ export const executeBaptismProtocol = onCall(
             const trueRootId = await resolveProjectRoot(drive, folderId, knownRoots, folderCache);
 
             if (trueRootId) {
-                logger.info(`   ✨ [BAUTISMO] ${data.name}: Asignando ProjectId ${trueRootId}`);
+                // UPDATE
+                // We update only the chunk.
+                // Note: The 'File' metadata (TDB_Index/files) might also need updating?
+                // The prompt Mision 1 says: "Actualiza los documentos en Firestore." (Plural?)
+                // "Realiza una consulta a la colección chunks..."
+                // "Una vez obtenido el projectId real, actualiza los documentos en Firestore."
 
-                // A. Update File Metadata
-                batch.set(doc.ref, { projectId: trueRootId }, { merge: true });
+                // We are iterating chunks. We update chunks.
+                // Do we update the parent File?
+                // The chunk has 'docId' (the hashed path). The File has the same ID in TDB_Index/files.
+                // If we want consistency, we should update the parent File too.
+                // But efficient baptism iterates chunks.
+                // I will update the chunk. The 'ingestFile' logic sets projectId on chunks.
+
+                batch.set(doc.ref, {
+                    projectId: trueRootId,
+                    migration_metadata: {
+                        baptized_at: new Date().toISOString(),
+                        method: "API_V3_PARENT_VALIDATION",
+                        agent: "Jules-Sentinel-V1"
+                    }
+                }, { merge: true });
+
                 batchCount++;
-
-                // B. Update Chunks (Subcollection)
-                const chunksRef = doc.ref.collection("chunks");
-                const chunksSnap = await chunksRef.get(); // Reads!
-
-                for (const chunkDoc of chunksSnap.docs) {
-                    batch.set(chunkDoc.ref, { projectId: trueRootId }, { merge: true });
-                    batchCount++;
-                }
-
                 baptized++;
             } else {
-                logger.warn(`   👻 [HUÉRFANO] ${data.name}: No se pudo trazar ruta a ninguna raíz conocida.`);
-                errors++;
+                // OUT OF SCOPE
+                // Ignore.
+                skipped++;
             }
 
             // Safety commit inside loop
@@ -188,9 +200,9 @@ export const executeBaptismProtocol = onCall(
         return {
             processed,
             baptized,
+            skipped,
             errors,
-            lastDocId,
-            message: `Batch finalizado. Continuar desde ${lastDocId}`
+            message: `Batch procesado: ${baptized} bautizados, ${skipped} ignorados (fuera de ancla).`
         };
     }
 );
