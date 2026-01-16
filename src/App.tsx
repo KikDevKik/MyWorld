@@ -38,10 +38,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [currentFileId, setCurrentFileId] = useState<string | null>(null);
     const [currentFileName, setCurrentFileName] = useState<string>('');
 
-    // 🟢 COLD START FALLBACK STATE
-    const [lastActiveFileContent, setLastActiveFileContent] = useState<string>("");
-    const [lastActiveFileId, setLastActiveFileId] = useState<string | null>(null);
-    const [lastActiveFileName, setLastActiveFileName] = useState<string>("");
+    // 🟢 COLD START FALLBACK STATE (NOW CLOUD DRIVEN)
+    // Removed LocalStorage persistence here. We rely on ProjectConfigContext for folderId.
+    // For file content, we might start empty or implement Cloud Persistence later.
+    // For now, we clear the ghosts.
 
     const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -59,25 +59,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
-    const effectiveFileContent = selectedFileContent || lastActiveFileContent;
-    const effectiveFileName = currentFileName || lastActiveFileName;
-    const isFallbackContext = !selectedFileContent && !!lastActiveFileContent;
+    // Without LocalStorage, we default to empty if no file selected.
+    const effectiveFileContent = selectedFileContent;
+    const effectiveFileName = currentFileName;
+    const isFallbackContext = false; // Always live now.
 
     // 🛡️ GUARDIAN HOOK (ARGOS)
     const { status: guardianStatus, conflicts: guardianConflicts, facts: guardianFacts, forceAudit } = useGuardian(effectiveFileContent, folderId);
-
-    // 🟢 PERSIST LAST ACTIVE CONTEXT
-    useEffect(() => {
-        if (currentFileId && selectedFileContent && currentFileName) {
-            setLastActiveFileContent(selectedFileContent);
-            setLastActiveFileId(currentFileId);
-            setLastActiveFileName(currentFileName);
-
-            localStorage.setItem('lastActiveFileContent', selectedFileContent);
-            localStorage.setItem('lastActiveFileId', currentFileId);
-            localStorage.setItem('lastActiveFileName', currentFileName);
-        }
-    }, [currentFileId, selectedFileContent, currentFileName]);
 
     // 🟢 TRIGGER DRIFT SCAN WHEN DIRECTOR OPENS (ONCE PER OPEN)
     useEffect(() => {
@@ -130,14 +118,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
 
             if (configLoading) return; // Wait for config context to be ready
-
-            // Restore Last Active Context
-            const storedContent = localStorage.getItem('lastActiveFileContent');
-            const storedId = localStorage.getItem('lastActiveFileId');
-            const storedName = localStorage.getItem('lastActiveFileName');
-            if (storedContent) setLastActiveFileContent(storedContent);
-            if (storedId) setLastActiveFileId(storedId);
-            if (storedName) setLastActiveFileName(storedName);
 
             console.log("🚀 INICIANDO HYDRATION DEL PROYECTO...");
             const functions = getFunctions();

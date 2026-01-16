@@ -14,3 +14,8 @@ Handles Error 9 (Firestore Index) by triggering global UI ring and HUD button.
 - **Backend:** Detects `FAILED_PRECONDITION` (Index missing) and logs `[SENTINEL_ALERTA_CRITICA]`. Returns `technicalError` object.
 - **Frontend:** `ForgeChat` intercepts the error and updates `ProjectConfigContext`.
 - **UI:** `ProjectHUD` turns orange with a repair button. `Editor` pulses with an orange ring. Audio alert triggers once.
+
+## SENTINEL_DEPENDENCY_PROTOCOL
+Cualquier función que acceda a SecretManagerServiceClient REQUIERE la presencia de @google-cloud/secret-manager en functions/package.json.
+
+Registro de Incidente: "Resolución de Error TS2307 (2026-01-XX): Se forzó la inclusión de dependencias de Google Cloud para el Health Check de Sentinel".
