@@ -40,8 +40,10 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
                         <button
                             key={gemId}
                             onClick={() => onGemSelect(gemId)}
+                            aria-label={GEMS[gemId].name}
                             className={`
                                 group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
+                                focus-visible:ring-2 focus-visible:ring-accent-DEFAULT focus-visible:outline-none
                                 ${isActive
                                     ? 'bg-titanium-800 text-titanium-100 shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-titanium-600'
                                     : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}
@@ -66,7 +68,8 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
             <div className="flex flex-col gap-4 w-full px-2 pb-4">
                  <button
                     onClick={onToggleDirector}
-                    className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700"
+                    aria-label="Director de Escena"
+                    className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700 focus-visible:ring-2 focus-visible:ring-accent-DEFAULT focus-visible:outline-none"
                     title="Director de Escena"
                 >
                     <Clapperboard size={20} />
