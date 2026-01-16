@@ -82,6 +82,13 @@ const MAX_CHAT_MESSAGE_LIMIT = 30000; // 30k chars limit for chat messages/queri
 
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
+// 🛡️ SENTINEL: Log Sanitizer (PII Protection)
+function maskLog(text: string, maxLength: number = 50): string {
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength) + `... [TRUNCATED ${text.length - maxLength} chars]`;
+}
+
 // 🟢 NEW: JSON SANITIZER (ANTI-CRASH)
 function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
   try {
@@ -200,7 +207,8 @@ async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN", 
       }
 
       if (text) {
-        logger.debug(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${text.substring(0, 100).replace(/\n/g, ' ')}...`);
+        // 🛡️ SENTINEL: Use maskLog for consistency
+        logger.debug(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${maskLog(text.replace(/\n/g, ' '), 100)}`);
       } else {
         logger.warn(`📉 [STREAM DEBUG] Preview (${debugLabel}): [EMPTY OR NULL CONTENT]`);
       }
@@ -1661,7 +1669,8 @@ ${analysis}
           .join(" ");
 
         searchQuery = `Contexto: ${userHistory} \n Pregunta: ${query}`;
-        logger.info("🔍 Búsqueda Vectorial Enriquecida:", searchQuery);
+        // 🛡️ SENTINEL: Mask sensitive query data in logs
+        logger.info(`🔍 Búsqueda Vectorial Enriquecida (Length: ${searchQuery.length}):`, maskLog(query, 100));
       }
 
       if (history && Array.isArray(history) && history.length > 20) {
