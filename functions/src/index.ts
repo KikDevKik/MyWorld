@@ -715,7 +715,7 @@ export const getDriveFiles = onCall(
  * 22. GUARDIAN AUDIT (El Centinela)
  * Analiza fragmentos de contenido para validar hechos contra la base de datos.
  */
-export { auditContent } from "./guardian";
+export { auditContent, scanProjectDrift, rescueEcho } from "./guardian";
 
 /**
  * 24. BAPTISM PROTOCOL (La Migración)

@@ -49,6 +49,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
     const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // 👈 DIRECTOR HANDOFF
 
+    // 🟢 DRIFT STATE
+    const [driftAlerts, setDriftAlerts] = useState<any>(null); // 👈 STORE GROUPED ALERTS
+    const [isScanningDrift, setIsScanningDrift] = useState(false);
+
     // 🟢 REAL-TIME CONTENT SYNC (DEBOUNCED FROM EDITOR)
     const handleContentChange = (newContent: string) => {
         setSelectedFileContent(newContent);
@@ -74,6 +78,32 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             localStorage.setItem('lastActiveFileName', currentFileName);
         }
     }, [currentFileId, selectedFileContent, currentFileName]);
+
+    // 🟢 TRIGGER DRIFT SCAN WHEN DIRECTOR OPENS (ONCE PER OPEN)
+    useEffect(() => {
+        if (isDirectorOpen && !driftAlerts && !isScanningDrift && folderId) {
+            const scan = async () => {
+                setIsScanningDrift(true);
+                try {
+                    console.log("📡 [SENTINEL] Triggering Deep Drift Scan...");
+                    const functions = getFunctions();
+                    const scanProjectDrift = httpsCallable(functions, 'scanProjectDrift');
+                    const result = await scanProjectDrift({ projectId: folderId });
+                    const data = result.data as any;
+
+                    if (data.success && data.alerts) {
+                        console.log("📡 [SENTINEL] Scan Results:", data.alerts);
+                        setDriftAlerts(data.alerts);
+                    }
+                } catch (error) {
+                    console.error("Drift Scan Error:", error);
+                } finally {
+                    setIsScanningDrift(false);
+                }
+            };
+            scan();
+        }
+    }, [isDirectorOpen, folderId]);
 
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
@@ -475,6 +505,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 activeFileName={effectiveFileName}     // 👈 Pass Effective Name
                 isFallbackContext={isFallbackContext}  // 👈 Pass Flag
                 folderId={folderId} // 👈 PASS PROJECT ID
+                driftAlerts={driftAlerts} // 👈 PASS DRIFT DATA
             />
 
             {/* 🛡️ GUARDIAN (CANON RADAR) - Now inside <main> */}
@@ -499,6 +530,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 }
 
 function App() {
+    console.log("🚀 App Mounting...");
+    console.log("👻 JULES MODE:", import.meta.env.VITE_JULES_MODE);
+    console.log("🛠️ DEV MODE:", import.meta.env.DEV);
+
     // 🛡️ SECURITY STATE
     const [isSecurityReady, setIsSecurityReady] = useState(false);
     const [securityError, setSecurityError] = useState<string | null>(null);
