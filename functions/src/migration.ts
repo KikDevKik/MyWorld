@@ -13,10 +13,10 @@ const baptismMasterKey = defineSecret("BAPTISM_MASTER_KEY");
 async function resolveProjectRoot(
     drive: any,
     folderId: string,
-    knownRoots: Set<string>,
+    targetRootId: string,
     cache: Map<string, string | null>
 ): Promise<string | null> {
-    if (knownRoots.has(folderId)) return folderId;
+    if (folderId === targetRootId) return targetRootId;
     if (cache.has(folderId)) return cache.get(folderId)!;
 
     try {
@@ -35,25 +35,116 @@ async function resolveProjectRoot(
 
         const parentId = parents[0]; // Drive files usually have one parent
 
-        // Recursive Step
-        const rootId = await resolveProjectRoot(drive, parentId, knownRoots, cache);
+        // Optimization: Check if parent is already known
+        if (parentId === targetRootId) {
+             cache.set(folderId, targetRootId);
+             return targetRootId;
+        }
 
-        // Update Cache for this node too (optimization)
+        // Recursive Step
+        const rootId = await resolveProjectRoot(drive, parentId, targetRootId, cache);
+
+        // Update Cache for this node
         cache.set(folderId, rootId);
         return rootId;
 
     } catch (e: any) {
         logger.warn(`⚠️ [BAPTISM] Failed to resolve path for ${folderId}:`, e.message);
-        // If we can't read the parent (permission denied?), we assume it's out of scope or broken.
         cache.set(folderId, null);
         return null;
+    }
+}
+
+/**
+ * HELPER: Generate and Write Manifest to Drive
+ */
+async function writeManifestToDrive(
+    drive: any,
+    targetRootId: string,
+    stats: any,
+    orphans: string[]
+): Promise<void> {
+    const today = new Date().toISOString().split('T')[0];
+    const filename = `SYSTEM_LOG_BAPTISM_${today}.md`;
+
+    // 1. Prepare Content Block
+    const timestamp = new Date().toISOString();
+    const logBlock = `
+### Execution Log: ${timestamp}
+- **Status:** ${stats.status}
+- **Processed:** ${stats.processed}
+- **Baptized (Success):** ${stats.baptized}
+- **Errors/Skipped:** ${stats.errors}
+- **Orphans Detected:** ${orphans.length}
+${orphans.length > 0 ? `  - IDs: ${orphans.slice(0, 10).join(', ')}${orphans.length > 10 ? '...' : ''}` : ''}
+--------------------------------------------------
+`;
+
+    try {
+        // 2. Search for existing file today
+        const listRes = await drive.files.list({
+            q: `name = '${filename}' and '${targetRootId}' in parents and trashed = false`,
+            fields: 'files(id, name)',
+            pageSize: 1
+        });
+
+        const files = listRes.data.files;
+        let fileId = null;
+        let currentContent = "";
+
+        if (files && files.length > 0) {
+            fileId = files[0].id;
+            // 3. Append Mode
+            try {
+                const getRes = await drive.files.get({
+                    fileId: fileId,
+                    alt: 'media'
+                });
+                // Ensure we handle different return types (string or object)
+                currentContent = typeof getRes.data === 'string' ? getRes.data : JSON.stringify(getRes.data);
+            } catch (err) {
+                // If empty or new, ignore
+                currentContent = "";
+            }
+        }
+
+        const finalContent = fileId ? (currentContent + logBlock) : (`# SENTINEL PROTOCOL - MIGRATION REPORT\n**Project Root:** ${targetRootId}\n**Date:** ${today}\n` + logBlock);
+
+        const media = {
+            mimeType: 'text/markdown',
+            body: finalContent
+        };
+
+        if (fileId) {
+            // Update
+            await drive.files.update({
+                fileId: fileId,
+                media: media
+            });
+            logger.info(`📝 [MANIFEST] Updated log ${filename} (${fileId})`);
+        } else {
+            // Create
+            await drive.files.create({
+                resource: {
+                    name: filename,
+                    parents: [targetRootId],
+                    mimeType: 'text/markdown'
+                },
+                media: media
+            });
+            logger.info(`📝 [MANIFEST] Created new log ${filename}`);
+        }
+
+    } catch (e: any) {
+        logger.error(`❌ [MANIFEST] Failed to write log: ${e.message}`);
+        // We do not throw here to avoid failing the whole function if logging fails
     }
 }
 
 export const executeBaptismProtocol = onCall(
     {
         region: "us-central1",
-        timeoutSeconds: 540, // Max duration
+        timeoutSeconds: 540,
         memory: "1GiB",
         secrets: [baptismMasterKey],
     },
@@ -61,144 +152,113 @@ export const executeBaptismProtocol = onCall(
         const db = getFirestore();
         const { masterKey, userId, limit, startAfter, accessToken } = request.data;
 
-        // 1. SECURITY CHECK
-        // If masterKey is passed in body, check it.
-        // We compare against the Secret Version value.
+        // 1. SECURITY CHECK (Hard Handshake)
         if (masterKey !== baptismMasterKey.value()) {
             throw new HttpsError("permission-denied", "Protocolo denegado. Llave maestra inválida.");
         }
-        if (!userId) {
-            throw new HttpsError("invalid-argument", "Falta userId.");
+        if (!userId || !accessToken) {
+             throw new HttpsError("invalid-argument", "Falta userId o accessToken.");
         }
 
-        if (!accessToken) {
-             throw new HttpsError("unauthenticated", "Falta accessToken para validación de Nivel 0. (Se requiere token del usuario propietario).");
-        }
+        logger.info(`✝️ [BAPTISM] Iniciando operación para: ${userId}`);
 
-        logger.info(`✝️ [BAPTISM] Iniciando sacramento para Usuario: ${userId}`);
-
-        // 2. LOAD ANCHOR (Project Config)
+        // 2. LOAD ANCHOR
         const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
         const config = configDoc.data() || {};
-        const knownRoots = new Set<string>();
+        const targetRootId = config.folderId;
 
-        // "Ancla de Realidad" - The Active Project Folder
-        if (config.folderId) {
-            knownRoots.add(config.folderId);
-        }
-        // Fallbacks (Optional, but user said "Active Anchor")
-        // If we want strict "Active Project" baptism, we should ONLY use folderId.
-        // But if the user has canonPaths configured, they are part of the project too?
-        // User said: "Toma el folderId que el usuario tiene activo como su 'Ancla de Realidad'."
-        // I will trust 'folderId' as the primary.
-        // Adding others might cause accidental cross-project pollution if they share files?
-        // Safe bet: Only folderId.
-
-        if (knownRoots.size === 0) {
-             return { message: "⚠️ No hay 'folderId' activo en project_config. No hay Ancla de Realidad.", processed: 0 };
+        if (!targetRootId) {
+             return { message: "⚠️ No hay 'folderId' activo (Ancla de Realidad).", processed: 0 };
         }
 
-        logger.info(`   🏛️ Ancla de Realidad (Active Project): ${Array.from(knownRoots).join(', ')}`);
-
-        // 3. SETUP DRIVE & CACHE
+        // 3. SENTINEL PROTOCOL: DRIVE HANDSHAKE
         const auth = new google.auth.OAuth2();
         auth.setCredentials({ access_token: accessToken });
         const drive = google.drive({ version: "v3", auth });
 
-        // 3.1 SENTINEL PROTOCOL: ACCESS VALIDATION (Real-Time Handshake)
         try {
+            // Validate Access to the Project Root
             await drive.files.get({
-                fileId: config.folderId || 'root',
+                fileId: targetRootId,
                 fields: 'id, capabilities'
             });
-            logger.info("   🛡️ [SENTINEL] Access Token validado. Permiso de lectura confirmado.");
+            logger.info("   🛡️ [SENTINEL] Token validado contra Ancla de Realidad.");
         } catch (e: any) {
-            logger.error("   ⛔ [SENTINEL] Fallo de seguridad. Token inválido o sin acceso.", e.message);
-            throw new HttpsError("permission-denied", "Protocolo denegado. El token no tiene acceso al Ancla de Realidad.");
+            logger.error("   ⛔ [SENTINEL] Acceso denegado al Ancla.", e.message);
+            throw new HttpsError("permission-denied", "El token no tiene acceso al Project Root.");
         }
 
-        const folderCache = new Map<string, string | null>(); // folderId -> rootId
+        // 4. PREPARE CACHE
+        const folderCache = new Map<string, string | null>(); // folderId -> resolvedRootId
+        folderCache.set(targetRootId, targetRootId); // Seed with root
 
-        // 4. SCAN FILES (QUERY: chunks where projectId == null)
-        // Note: We need a Composite Index for this: collectionGroup('chunks').where('userId', '==', ...).where('projectId', '==', null)
+        // 5. QUERY (User-Scoped & Orphaned)
+        // Filter by userId is MANDATORY per User Instruction, ensuring multi-tenant safety.
         let query = db.collectionGroup("chunks")
+            .where("userId", "==", userId)
             .where("projectId", "==", null)
-            .orderBy(FieldPath.documentId()) // Required for stable pagination
-            .limit(limit || 200); // Process in chunks
+            .orderBy(FieldPath.documentId())
+            .limit(limit || 100);
 
         if (startAfter) {
-            query = query.startAfter(startAfter); // startAfter is the full path string
+            // startAfter is the Full Document Path string
+            query = query.startAfter(startAfter);
         }
 
         const snapshot = await query.get();
 
         if (snapshot.empty) {
-            return { message: "✅ Bautismo completo (No se encontraron chunks huérfanos).", processed: 0, baptized: 0, errors: 0 };
+            return { message: "✅ Bautismo completo (Sin huérfanos).", processed: 0 };
         }
 
-        logger.info(`   🔍 Encontrados ${snapshot.size} chunks huérfanos.`);
+        logger.info(`   🔍 Procesando batch de ${snapshot.size} chunks.`);
 
         let processed = 0;
         let baptized = 0;
-        let errors = 0;
-        let skipped = 0;
+        let errors = 0; // Treated as "Skipped/Orphan"
+        const orphansDetected: string[] = [];
 
-        let batch = db.batch(); // Firestore Write Batch
+        let batch = db.batch();
         let batchCount = 0;
 
-        // Group by Folder to minimize API calls
-        // We can't easily "Group" the loop, but we use the Cache.
-
+        // 6. ITERATION
         for (const doc of snapshot.docs) {
             const data = doc.data();
             processed++;
 
             const folderId = data.folderId;
             if (!folderId || folderId === 'unknown') {
-                logger.warn(`   ⚠️ [SKIP] Chunk ${doc.id} sin folderId válido.`);
                 errors++;
+                orphansDetected.push(doc.id);
                 continue;
             }
 
-            // RESOLVE TRUTH
-            const trueRootId = await resolveProjectRoot(drive, folderId, knownRoots, folderCache);
+            // CHECK CACHE / RESOLVE
+            const resolvedRoot = await resolveProjectRoot(drive, folderId, targetRootId, folderCache);
 
-            if (trueRootId) {
+            if (resolvedRoot === targetRootId) {
                 // UPDATE
-                // We update only the chunk.
-                // Note: The 'File' metadata (TDB_Index/files) might also need updating?
-                // The prompt Mision 1 says: "Actualiza los documentos en Firestore." (Plural?)
-                // "Realiza una consulta a la colección chunks..."
-                // "Una vez obtenido el projectId real, actualiza los documentos en Firestore."
-
-                // We are iterating chunks. We update chunks.
-                // Do we update the parent File?
-                // The chunk has 'docId' (the hashed path). The File has the same ID in TDB_Index/files.
-                // If we want consistency, we should update the parent File too.
-                // But efficient baptism iterates chunks.
-                // I will update the chunk. The 'ingestFile' logic sets projectId on chunks.
-
                 batch.set(doc.ref, {
-                    projectId: trueRootId,
+                    projectId: targetRootId,
                     migration_metadata: {
                         baptized_at: new Date().toISOString(),
-                        method: "API_V3_PARENT_VALIDATION",
-                        agent: "Jules-Sentinel-V1"
+                        method: "SENTINEL_V8",
+                        agent: "Jules-Agent"
                     }
                 }, { merge: true });
 
                 batchCount++;
                 baptized++;
             } else {
-                // OUT OF SCOPE
-                // Ignore.
-                skipped++;
+                // ORPHAN (Out of Scope)
+                errors++;
+                orphansDetected.push(doc.id);
             }
 
-            // Safety commit inside loop
+            // Safety Commit
             if (batchCount >= 400) {
                 await batch.commit();
-                batch = db.batch(); // Renew batch
+                batch = db.batch();
                 batchCount = 0;
             }
         }
@@ -208,17 +268,24 @@ export const executeBaptismProtocol = onCall(
             await batch.commit();
         }
 
-        // Get last doc for pagination cursor
+        // 7. MANIFEST GENERATION (Mission 4 & 5)
+        await writeManifestToDrive(drive, targetRootId, {
+            status: "Success",
+            processed,
+            baptized,
+            errors
+        }, orphansDetected);
+
+        // Cursor for Next Page
         const lastDoc = snapshot.docs[snapshot.docs.length - 1];
         const lastDocPath = lastDoc ? lastDoc.ref.path : null;
 
         return {
             processed,
             baptized,
-            skipped,
             errors,
-            lastDocPath, // 👈 Cursor for next page
-            message: `Batch procesado: ${baptized} bautizados, ${skipped} ignorados (fuera de ancla).`
+            lastDocPath,
+            message: `Batch complete: ${baptized} baptized, ${errors} orphans/skipped.`
         };
     }
 );
