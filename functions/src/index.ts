@@ -1327,8 +1327,6 @@ export const chatWithGem = onCall(
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
     // 🟢 SILO CHECK: Project ID Required
-    // If no folderId, we can try to fall back to user context (Legacy), but ideally we enforce project context.
-    // For now, let's log and warn.
     const projectId = folderId;
 
     if (!projectId) {
@@ -1466,7 +1464,6 @@ ${analysis}
 
       // 3. Recuperar Chunks (Vector Search Nativo)
       // 🟢 SILO UPDATE: Query specific Project Chunks (using collectionGroup with projectId filter)
-      // Note: We stored `projectId` in the chunks in Step 2.
       const coll = db.collectionGroup("chunks");
 
       // If we have a projectId, we use it. Otherwise fallback to userId (Legacy)

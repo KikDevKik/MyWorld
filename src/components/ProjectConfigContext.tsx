@@ -47,7 +47,6 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       // Initialize identity from config if available
       if (data.folderId) {
           setCurrentProjectId(data.folderId);
-          // Name might not be in config yet, will be set by Sidebar/Picker
       }
     } catch (error) {
       console.error('Error fetching project config:', error);

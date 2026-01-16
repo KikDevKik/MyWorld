@@ -57,7 +57,10 @@ export const auditContent = onCall(
         throw new HttpsError("unauthenticated", "Login requerido.");
     }
 
-    const { content, projectId, fileId } = request.data;
+    // 🟢 SILO UPDATE: Ensure projectId is available (alias to folderId if needed)
+    const { content, projectId, fileId, folderId } = request.data;
+    const activeProjectId = projectId || folderId; // Unify access
+
     const userId = request.auth.uid;
 
     // 🟢 [TITAN SAFEGUARD] - SYSTEM ERROR HANDLER WRAPPER
@@ -175,8 +178,10 @@ export const auditContent = onCall(
 
             // 🟢 SILO SEARCH
             let vectorQuery = db.collectionGroup("chunks");
-            if (projectId) {
-                vectorQuery = vectorQuery.where("projectId", "==", projectId);
+            if (activeProjectId) {
+                vectorQuery = vectorQuery.where("projectId", "==", activeProjectId);
+            if (activeProjectId) {
+                vectorQuery = vectorQuery.where("projectId", "==", activeProjectId);
             } else {
                 vectorQuery = vectorQuery.where("userId", "==", userId);
             }
@@ -293,8 +298,8 @@ export const auditContent = onCall(
              const queryVector = embeddingResult.embedding.values;
 
              let vectorQuery = db.collectionGroup("chunks");
-             if (projectId) {
-                 vectorQuery = vectorQuery.where("projectId", "==", projectId);
+             if (activeProjectId) {
+                 vectorQuery = vectorQuery.where("projectId", "==", activeProjectId);
              } else {
                  vectorQuery = vectorQuery.where("userId", "==", userId);
              }
@@ -382,8 +387,8 @@ export const auditContent = onCall(
             let historyChunksText = "";
             try {
                 let chunksQuery = db.collectionGroup("chunks");
-                if (projectId) {
-                    chunksQuery = chunksQuery.where("projectId", "==", projectId);
+                if (activeProjectId) {
+                    chunksQuery = chunksQuery.where("projectId", "==", activeProjectId);
                 } else {
                     chunksQuery = chunksQuery.where("userId", "==", userId);
                 }
@@ -464,7 +469,7 @@ export const auditContent = onCall(
             resonance_matches: resonanceMatches, // 🟢 RETURN RESONANCE
             structure_analysis: structure, // 🟢 RETURN STRUCTURE
             metadata: {
-                originProjectId: projectId || "legacy_user_scope"
+                originProjectId: activeProjectId || "legacy_user_scope"
             }
         };
 

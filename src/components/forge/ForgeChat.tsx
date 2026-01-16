@@ -32,7 +32,6 @@ interface ForgeChatProps {
 
 // 🟢 HANDSHAKE PROTOCOL
 import { useProjectConfig } from '../ProjectConfigContext';
-import { useSecurityContext } from '../../App'; // Wait, security context logic is in App.tsx
 
 const ForgeChat: React.FC<ForgeChatProps> = ({
     sessionId,
