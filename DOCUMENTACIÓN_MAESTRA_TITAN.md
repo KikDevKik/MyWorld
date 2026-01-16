@@ -116,8 +116,6 @@ FECHA REVISIÓN: 2026-01-16
 AGENTE: JULES
 ================================================================================
 
-A continuación se detalla el estado de las anomalías detectadas en la auditoría previa:
-
 1. DIAGNÓSTICO GENERAL
 --------------------------------------------------------------------------------
 * **Problema Original:** Desconexión Funcional y `VaultSidebar` visualmente rota.
@@ -154,3 +152,42 @@ Las siguientes funciones existen en el backend pero carecen de UI dedicada:
 1. **Refinamiento Visual:** Estandarizar paleta de colores en Sidebar (Titanium Dark).
 2. **Integración de Herramientas:** Añadir botones para `forgeAnalyzer` en el panel del Director.
 3. **Limpieza de Código:** Eliminar vestigios de localStorage y completar migración a Firestore Config.
+
+================================================================================
+ANEXO B: REPORTE DE FUNCIONES INVISIBLES (SENTINEL PROTOCOL)
+# FECHA: 2026-01-XX
+# PRIORIDAD: ALTA (Roadmap V3.2)
+# ESTADO: PENDIENTE DE DESARROLLO
+================================================================================
+
+Comandante, estas son las herramientas "Fantasma" que existen en la lógica del sistema pero aún no tienen interfaz gráfica. Deben ser implementadas para completar la Visión Sentinel.
+
+---
+
+## 1. El Manifiesto de Migración (Sentinel Logs)
+- **Concepto:** Historial de sistema en el IDE.
+- **Estado Actual:** Jules genera reportes .md en Drive, pero el usuario debe salir de la app para verlos.
+- **Requerimiento:** Panel o pestaña "Logs" dentro de `DirectorPanel` o `Tribunal` que muestre los últimos bautizos y errores sin salir de la Forja.
+
+## 2. El ADN del Proyecto (Mapa de Constelación)
+- **Concepto:** Visualización del "Centroide" del proyecto.
+- **Estado Actual:** El backend calcula el vector promedio (Centroide) y lo guarda en `TDB_Index/stats/centroid`. Es un número invisible.
+- **Requerimiento:** Un gráfico (radar o nube de puntos 2D) en el Dashboard que muestre dónde está el proyecto en relación a conceptos clave (e.g. Fantasía vs Sci-Fi, Oscuro vs Luminoso). "Resonancia Global".
+
+## 3. Mapa de Calor de Drift (Editor Heatmap)
+- **Concepto:** Resaltado de texto conflictivo en tiempo real.
+- **Estado Actual:** El archivo entero se marca en naranja en el FileTree, pero no sabemos qué párrafo específico causó la alerta.
+- **Requerimiento:** Integrar en el `Editor` un resaltado (subrayado naranja) sobre las líneas exactas que contradicen el Canon, basado en los chunks devueltos por `scanProjectDrift`.
+
+## 4. Estado de Salud de "Sentinel" (Security Dashboard)
+- **Concepto:** LED de Seguridad en tiempo real.
+- **Estado Actual:** Tenemos `ProjectHUD` con un punto verde/rojo, pero es básico.
+- **Requerimiento:** Un icono de escudo más detallado que al hacer hover muestre: "AppCheck: OK", "ReCAPTCHA: V3", "Secret Manager: Linked". Dar certeza de que el búnker está sellado.
+
+## 5. Contador de "Ecos" y Huérfanos
+- **Concepto:** Gamificación de la limpieza.
+- **Estado Actual:** Sabemos que existen archivos huérfanos (sin padre en Drive) y ecos (fragmentos con drift), pero no hay métricas.
+- **Requerimiento:** Un widget numérico en el Dashboard principal: "15 Ecos pendientes de juicio", "3 Huérfanos detectados". Motivar al usuario a limpiar su proyecto ("Buscamos Sangre").
+
+---
+FIN DEL REPORTE
