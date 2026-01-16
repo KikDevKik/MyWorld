@@ -587,7 +587,7 @@ function flattenFileTree(nodes: DriveFile[]): DriveFile[] {
 export const checkSentinelIntegrity = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -695,7 +695,7 @@ async function checkLineage(drive: any, folderId: string, requiredRootId: string
 export const getDriveFiles = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 540, // Increased for Deep Extraction
     secrets: [googleApiKey],
@@ -806,7 +806,7 @@ export { executeBaptismProtocol } from "./migration";
 export const enrichCharacterContext = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 300,
     memory: "2GiB",
@@ -996,7 +996,7 @@ export const enrichCharacterContext = onCall(
 export const crystallizeNode = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     secrets: [googleApiKey],
   },
@@ -1083,7 +1083,7 @@ export const crystallizeNode = onCall(
 export const getProjectConfig = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1128,7 +1128,7 @@ export const getProjectConfig = onCall(
 export const saveProjectConfig = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1167,7 +1167,7 @@ export const saveProjectConfig = onCall(
 export const getDriveFileContent = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1199,7 +1199,7 @@ export const getDriveFileContent = onCall(
 export const checkIndexStatus = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1241,7 +1241,7 @@ export const checkIndexStatus = onCall(
 export const indexTDB = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 3600,
     memory: "1GiB",
@@ -1534,7 +1534,7 @@ export const indexTDB = onCall(
 export const chatWithGem = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
@@ -2097,7 +2097,7 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
 export const worldEngine = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 1800, // 30 Minutes
     memory: "2GiB",
@@ -2281,7 +2281,7 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
 export const saveDriveFile = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     secrets: [googleApiKey],
   },
@@ -2342,7 +2342,7 @@ export const saveDriveFile = onCall(
 export const saveUserProfile = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2390,7 +2390,7 @@ export const saveUserProfile = onCall(
 export const getUserProfile = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2427,7 +2427,7 @@ export const getUserProfile = onCall(
 export const createForgeSession = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2473,7 +2473,7 @@ export const createForgeSession = onCall(
 export const getForgeSessions = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2517,7 +2517,7 @@ export const getForgeSessions = onCall(
 export const deleteForgeSession = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2555,7 +2555,7 @@ export const deleteForgeSession = onCall(
 export const addForgeMessage = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2640,7 +2640,7 @@ export const addForgeMessage = onCall(
 export const getForgeHistory = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2685,7 +2685,7 @@ export const getForgeHistory = onCall(
 export const forgeToDrive = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
@@ -2834,7 +2834,7 @@ export const forgeToDrive = onCall(
 export const summonTheTribunal = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
@@ -2975,7 +2975,7 @@ export const summonTheTribunal = onCall(
 export const extractTimelineEvents = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
@@ -3080,7 +3080,7 @@ export const extractTimelineEvents = onCall(
 export const compileManuscript = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
@@ -3235,7 +3235,7 @@ export const compileManuscript = onCall(
 export const debugGetIndexStats = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -3304,7 +3304,7 @@ export const debugGetIndexStats = onCall(
 export const syncCharacterManifest = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
@@ -3568,7 +3568,7 @@ export const syncCharacterManifest = onCall(
 export const forgeToolExecution = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     secrets: [googleApiKey],
   },
@@ -3635,7 +3635,7 @@ export const forgeToolExecution = onCall(
 export const forgeAnalyzer = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
@@ -3860,7 +3860,7 @@ export const forgeAnalyzer = onCall(
 export const clearSessionMessages = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
   },
   async (request) => {
@@ -3906,7 +3906,7 @@ export const clearSessionMessages = onCall(
 export const updateForgeCharacter = onCall(
   {
     region: "us-central1",
-    cors: true,
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
     enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
