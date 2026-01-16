@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle } from 'lucide-react';
 import FileTree from './FileTree';
 import { useProjectConfig } from './ProjectConfigContext';
+import ProjectHUD from './forge/ProjectHUD'; // 👈 Import HUD
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
@@ -49,7 +50,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
-    const { config } = useProjectConfig();
+    const { config, setProjectIdentity } = useProjectConfig();
 
     // 🟢 INDEXED TREE STATE
     const [indexedTree, setIndexedTree] = useState<FileNode[] | null>(null);
@@ -74,10 +75,39 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
              return;
         }
 
-        const db = getFirestore();
-        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
+        // 🟢 PROJECT IDENTITY SYNC
+        // If we have a folderId, we should try to find its name in the cached tree or props
+        // to update the global identity context.
+        if (folderId && topLevelFolders.length > 0) {
+             const match = topLevelFolders.find(f => f.id === folderId);
+             if (match) {
+                 setProjectIdentity(folderId, match.name);
+             } else if (indexedTree && indexedTree.length > 0) {
+                 // Try deep search if needed, or just default to ID if name unknown yet
+                 // But wait, the folderId passed to Sidebar is usually the ROOT of the project?
+                 // Actually, folderId here is the "Active Folder" for the file tree.
+                 // The "Project ID" is the config.folderId.
+                 // Let's assume the Config Context handles the Project ID, but we might know the Name here if we scanned it.
+             }
+        }
 
-        console.log("📡 Suscribiéndose a TDB_Index/structure/tree...");
+        const db = getFirestore();
+        // 🟢 CRITICAL: We still listen to user-based index for now, OR should we listen to Project-based?
+        // Step 2 will move this to TDB_Index/{projectId}.
+        // For now, let's keep the listener as is but be ready to change the path in Step 2.
+        // Wait, if Step 2 changes the backend, the frontend MUST update its listener path too!
+        // The plan says "Vector Silo Implementation (Backend)".
+        // BUT if I change the backend to write to TDB_Index/{projectId}, the frontend won't see it if it listens to TDB_Index/{uid}.
+        // I should update the listener path HERE in Step 2 or 3.
+        // Since I'm in Step 1 (Frontend), I will prepare the listener to use the project-based path if available.
+
+        // 🟢 SILO UPDATE: Listen to Project Index if available, else User Index (Legacy)
+        const targetId = config?.folderId || user.uid;
+
+        // Note: The backend now writes to `TDB_Index/{projectId}/structure/tree`
+        const docRef = doc(db, "TDB_Index", targetId, "structure", "tree");
+
+        console.log(`📡 Suscribiéndose a TDB_Index/${targetId}/structure/tree...`);
 
         const unsubscribe = onSnapshot(docRef, (docSnap) => {
             if (docSnap.exists()) {
@@ -88,6 +118,16 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                      // Update top level folders for dropdown
                      const folders = data.tree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
                      setTopLevelFolders(folders);
+
+                     // 🟢 HUD SYNC: Try to find project name
+                     if (config?.folderId) {
+                         // If the root of the tree corresponds to the project ID, we can get the name.
+                         // Usually the tree IS the content of the project folder.
+                         // But we don't always have the root folder metadata in the tree array itself (it contains children).
+                         // However, getDriveFiles (backend) returns a flattened list or tree.
+                         // If the tree root is the project folder, it might be the parent of the items?
+                         // Let's leave identity setting to the `onFolderIdChange` or initial load logic.
+                     }
                 } else {
                      setIndexedTree([]);
                 }
@@ -103,7 +143,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         });
 
         return () => unsubscribe();
-    }, [isSecurityReady]); // 👈 Dependencia crítica para re-ejecutar tras handshake
+    }, [isSecurityReady, config?.folderId]); // 👈 Added config dependency
 
 
     // 🟢 STATUS INDICATOR HELPER
@@ -143,7 +183,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <BrainCircuit size={16} />
                     </button>
                 </div>
-                <div className="relative">
+
+                {/* 🟢 PROJECT HUD */}
+                <ProjectHUD />
+
+                <div className="relative mt-3">
                     <select
                         value={selectedSagaId || ''}
                         onChange={(e) => setSelectedSagaId(e.target.value || null)}

@@ -7,8 +7,11 @@ import { ProjectConfig } from '../types';
 interface ProjectConfigContextType {
   config: ProjectConfig | null;
   loading: boolean;
+  currentProjectId: string | null;
+  currentProjectName: string | null;
   updateConfig: (newConfig: ProjectConfig) => Promise<void>;
   refreshConfig: () => Promise<void>;
+  setProjectIdentity: (id: string, name: string) => void;
 }
 
 export const ProjectConfigContext = createContext<ProjectConfigContextType | undefined>(undefined);
@@ -24,6 +27,8 @@ export const useProjectConfig = () => {
 export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<ProjectConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  const [currentProjectName, setCurrentProjectName] = useState<string | null>(null);
 
   const fetchConfig = async () => {
     const auth = getAuth();
@@ -36,7 +41,14 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       const functions = getFunctions();
       const getProjectConfig = httpsCallable(functions, 'getProjectConfig');
       const result = await getProjectConfig();
-      setConfig(result.data as ProjectConfig);
+      const data = result.data as ProjectConfig;
+      setConfig(data);
+
+      // Initialize identity from config if available
+      if (data.folderId) {
+          setCurrentProjectId(data.folderId);
+          // Name might not be in config yet, will be set by Sidebar/Picker
+      }
     } catch (error) {
       console.error('Error fetching project config:', error);
       toast.error('Error al cargar la configuración del proyecto.');
@@ -55,6 +67,12 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
         const saveProjectConfig = httpsCallable(functions, 'saveProjectConfig');
         await saveProjectConfig(newConfig);
         setConfig(newConfig);
+
+        // Sync local identity
+        if (newConfig.folderId) {
+            setCurrentProjectId(newConfig.folderId);
+        }
+
         toast.success('Configuración guardada correctamente.');
     } catch (error) {
         console.error('Error saving project config:', error);
@@ -63,8 +81,22 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  const setProjectIdentity = (id: string, name: string) => {
+      console.log(`🔒 Project Identity Locked: ${name} (${id})`);
+      setCurrentProjectId(id);
+      setCurrentProjectName(name);
+  };
+
   return (
-    <ProjectConfigContext.Provider value={{ config, loading, updateConfig, refreshConfig: fetchConfig }}>
+    <ProjectConfigContext.Provider value={{
+        config,
+        loading,
+        currentProjectId,
+        currentProjectName,
+        updateConfig,
+        refreshConfig: fetchConfig,
+        setProjectIdentity
+    }}>
       {children}
     </ProjectConfigContext.Provider>
   );

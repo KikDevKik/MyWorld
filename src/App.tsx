@@ -514,6 +514,17 @@ function App() {
             }
         };
         init();
+
+        // 🟢 GLOBAL BREACH LISTENER (HANDSHAKE COLLISION)
+        const handleBreach = (event: Event) => {
+            const detail = (event as CustomEvent).detail;
+            console.error("🚨 GLOBAL SECURITY LOCKOUT TRIGGERED:", detail);
+            setSecurityError('PERIMETER_BREACH'); // Triggers SecurityLockScreen
+            setIsSecurityReady(false);
+        };
+
+        window.addEventListener('security-breach', handleBreach);
+        return () => window.removeEventListener('security-breach', handleBreach);
     }, []);
 
     // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)

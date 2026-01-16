@@ -1146,11 +1146,11 @@ export const indexTDB = onCall(
 
       // 🟢 NUCLEAR OPTION: TABULA RASA
       if (forceFullReindex) {
-        logger.warn(`☢️ NUCLEAR OPTION DETECTED: Wiping memory for user ${userId}`);
-        const userIndexRef = db.collection("TDB_Index").doc(userId);
-        // Explicitly delete subcollections if recursiveDelete fails? No, recursiveDelete is powerful.
-        // We will trust it but log extensively.
-        await db.recursiveDelete(userIndexRef);
+        // 🟢 SILO UPDATE: Wipe Project Index, not just User
+        const targetId = cleanFolderId || userId; // Fallback to UserID if no FolderID (should not happen)
+        logger.warn(`☢️ NUCLEAR OPTION DETECTED: Wiping memory for Project ${targetId}`);
+        const projectIndexRef = db.collection("TDB_Index").doc(targetId);
+        await db.recursiveDelete(projectIndexRef);
         logger.info("   ☢️ Memory wiped clean. Starting fresh.");
       }
 
@@ -1195,13 +1195,16 @@ export const indexTDB = onCall(
       }
 
       // 🟢 C. SAVE FILE TREE STRUCTURE (SNAPSHOT)
+      // 🟢 SILO UPDATE: Save to Project ID
+      const targetIndexId = cleanFolderId || userId;
+
       try {
         const treePayload = JSON.parse(JSON.stringify(fileTree));
-        await db.collection("TDB_Index").doc(userId).collection("structure").doc("tree").set({
+        await db.collection("TDB_Index").doc(targetIndexId).collection("structure").doc("tree").set({
           tree: treePayload,
           updatedAt: new Date().toISOString()
         });
-        logger.info("🌳 Árbol de archivos guardado en TDB_Index/structure/tree");
+        logger.info(`🌳 Árbol de archivos guardado en TDB_Index/${targetIndexId}/structure/tree`);
       } catch (treeError) {
         logger.error("⚠️ Error guardando estructura del árbol:", treeError);
       }
@@ -1210,7 +1213,7 @@ export const indexTDB = onCall(
 
       // 🟢 GHOST FILE PRUNING
       logger.info("👻 Iniciando protocolo de detección de fantasmas...");
-      const filesCollectionRef = db.collection("TDB_Index").doc(userId).collection("files");
+      const filesCollectionRef = db.collection("TDB_Index").doc(targetIndexId).collection("files");
 
       const dbFilesSnapshot = await filesCollectionRef.select().get();
       const dbFileIds = new Set(dbFilesSnapshot.docs.map(doc => doc.id));
@@ -1248,7 +1251,7 @@ export const indexTDB = onCall(
             // 🟢 2. INGEST (HASH, CLEAN, VECTORIZE, SAVE)
             const result = await ingestFile(
                 db,
-                userId,
+                targetIndexId, // 👈 projectId
                 {
                     id: file.id, // Drive ID (Legacy ref)
                     name: file.name,
@@ -1258,7 +1261,8 @@ export const indexTDB = onCall(
                     category: file.category
                 },
                 content,
-                embeddings
+                embeddings,
+                userId // 👈 Pass userId for audit
             );
 
             if (result.status === 'processed') {
@@ -1318,9 +1322,18 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId } = request.data;
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId, folderId } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
+
+    // 🟢 SILO CHECK: Project ID Required
+    // If no folderId, we can try to fall back to user context (Legacy), but ideally we enforce project context.
+    // For now, let's log and warn.
+    const projectId = folderId;
+
+    if (!projectId) {
+         logger.warn(`⚠️ [SILO WARNING] chatWithGem called without 'folderId'. Context may be lost.`);
+    }
 
     // 🛡️ SENTINEL CHECK: INPUT LIMITS
     if (query.length > MAX_CHAT_MESSAGE_LIMIT) {
@@ -1350,15 +1363,14 @@ RULES: ${profile.rules || 'Not specified'}
     try {
       // 🟢 0. DEEP TRACE: CONNECTIVITY CHECK
       try {
-        const traceColl = db.collectionGroup("chunks");
-        const traceQuery = traceColl.where("userId", "==", userId).limit(1);
-        const traceSnapshot = await traceQuery.get();
+        // 🟢 SILO UPDATE: Check Project Silo
+        const traceColl = db.collection("TDB_Index").doc(projectId || 'unknown').collection("files");
+        const traceSnapshot = await traceColl.limit(1).get();
 
         if (!traceSnapshot.empty) {
-          const traceDoc = traceSnapshot.docs[0].data();
-          logger.info(`[DEEP TRACE] Connectivity Check: ✅ SUCCESS. Found chunk from file: "${traceDoc.fileName}" (ID: ${traceSnapshot.docs[0].id})`);
+          logger.info(`[DEEP TRACE] Connectivity Check: ✅ SUCCESS. Found files in Project Silo: ${projectId}`);
         } else {
-          logger.warn(`[DEEP TRACE] Connectivity Check: ⚠️ FAILED/EMPTY. No chunks found for user ${userId}. Index might be empty.`);
+          logger.warn(`[DEEP TRACE] Connectivity Check: ⚠️ FAILED/EMPTY. No files found in Project Silo ${projectId}.`);
         }
       } catch (traceError: any) {
         logger.warn(`[DEEP TRACE] Connectivity Check SKIPPED/FAILED: ${traceError.message}`);
@@ -1453,10 +1465,21 @@ ${analysis}
       const queryVector = await embeddings.embedQuery(searchQuery);
 
       // 3. Recuperar Chunks (Vector Search Nativo)
+      // 🟢 SILO UPDATE: Query specific Project Chunks (using collectionGroup with projectId filter)
+      // Note: We stored `projectId` in the chunks in Step 2.
       const coll = db.collectionGroup("chunks");
-      let chunkQuery = coll.where("userId", "==", userId);
 
-      // 🟢 PRECONDITION FIX: ALWAYS USE PATH FILTER (Composite Index: userId + path + embedding)
+      // If we have a projectId, we use it. Otherwise fallback to userId (Legacy)
+      let chunkQuery;
+      if (projectId) {
+          chunkQuery = coll.where("projectId", "==", projectId);
+          logger.info(`🔍 [SILO SEARCH] Querying chunks for Project: ${projectId}`);
+      } else {
+          chunkQuery = coll.where("userId", "==", userId);
+          logger.info(`🔍 [LEGACY SEARCH] Querying chunks for User: ${userId}`);
+      }
+
+      // 🟢 PRECONDITION FIX: ALWAYS USE PATH FILTER (Composite Index: projectId + path + embedding)
       if (filterScopePath) {
           logger.info(`🛡️ SCOPED SEARCH: Using PATH PREFIX optimization: ${filterScopePath}`);
           chunkQuery = chunkQuery
@@ -1785,7 +1808,10 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
           sources: relevantChunks.map(chunk => ({
             text: chunk.text.substring(0, 200) + "...",
             fileName: chunk.fileName
-          }))
+          })),
+          metadata: {
+              originProjectId: projectId || "legacy_user_scope"
+          }
         };
 
       } catch (invokeError: any) {
@@ -1856,6 +1882,7 @@ export const worldEngine = onCall(
     // 1. DATA RECEPTION
     const { prompt, agentId, chaosLevel, context, interrogationDepth, clarifications, sessionId, sessionHistory, accessToken, folderId } = request.data;
     const { canon_dump, timeline_dump } = context || {};
+    const projectId = folderId; // Alias for Silo Logic
 
     const currentDepth = interrogationDepth || 0;
 
@@ -1993,6 +2020,12 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
       if (parsedResult.error === "JSON_PARSE_FAILED") {
           throw new HttpsError('internal', `AI JSON Corruption: ${parsedResult.details}`);
       }
+
+      // 🟢 SILO HANDSHAKE
+      parsedResult.metadata = {
+          ...parsedResult.metadata,
+          originProjectId: projectId || "legacy_user_scope"
+      };
 
       // 🟢 PHASE 4.3: ASYNC LOGGING (FIRE AND FORGET OR AWAIT)
       // We await to ensure persistence, even if it adds 1-2s latency. Reliability > Speed here.
@@ -2188,21 +2221,34 @@ export const createForgeSession = onCall(
       throw new HttpsError("invalid-argument", "Falta el nombre de la sesión.");
     }
 
+    const { name, type, folderId } = request.data;
+    if (!name) {
+      throw new HttpsError("invalid-argument", "Falta el nombre de la sesión.");
+    }
+
+    // 🟢 SILO UPDATE: Project ID Required
+    const projectId = folderId;
+    if (!projectId) {
+         throw new HttpsError("invalid-argument", "Falta el ID del Proyecto (folderId).");
+    }
+
     const userId = request.auth.uid;
-    const sessionId = db.collection("users").doc(userId).collection("forge_sessions").doc().id;
+    // 🟢 SILO UPDATE: New Path: projects/{projectId}/sessions/{sessionId}
+    const sessionId = db.collection("projects").doc(projectId).collection("sessions").doc().id;
     const now = new Date().toISOString();
 
     const sessionType = type || 'forge';
 
     try {
-      await db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId).set({
+      await db.collection("projects").doc(projectId).collection("sessions").doc(sessionId).set({
         name,
         type: sessionType,
         createdAt: now,
         updatedAt: now,
+        userId: userId // Track ownership
       });
 
-      logger.info(`🔨 Sesión de Forja (${sessionType}) creada: ${sessionId} (${name})`);
+      logger.info(`🔨 Sesión de Forja (${sessionType}) creada en Proyecto ${projectId}: ${sessionId}`);
       return { id: sessionId, sessionId, name, type: sessionType, createdAt: now, updatedAt: now };
 
     } catch (error: any) {
@@ -2230,10 +2276,20 @@ export const getForgeSessions = onCall(
     }
 
     const userId = request.auth.uid;
-    const { type } = request.data;
+    const { type, folderId } = request.data;
+
+    // 🟢 SILO UPDATE: Project ID Required
+    const projectId = folderId;
+    if (!projectId) {
+         // Fallback to legacy or return empty? Let's return empty to enforce new UI.
+         logger.warn("⚠️ getForgeSessions called without folderId. Returning empty list.");
+         return [];
+    }
 
     try {
-      let query = db.collection("users").doc(userId).collection("forge_sessions")
+      // 🟢 SILO UPDATE: Query projects/{projectId}/sessions
+      let query = db.collection("projects").doc(projectId).collection("sessions")
+        .where("userId", "==", userId) // Ensure user isolation even within project
         .orderBy("updatedAt", "desc");
 
       if (type) {
@@ -2273,18 +2329,31 @@ export const deleteForgeSession = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { sessionId } = request.data;
+    const { sessionId, folderId } = request.data;
     if (!sessionId) {
       throw new HttpsError("invalid-argument", "Falta el ID de la sesión.");
+    }
+
+    // 🟢 SILO UPDATE: Project ID Required
+    const projectId = folderId;
+    if (!projectId) {
+         throw new HttpsError("invalid-argument", "Falta el ID del Proyecto (folderId).");
     }
 
     const userId = request.auth.uid;
 
     try {
-      const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId);
+      const sessionRef = db.collection("projects").doc(projectId).collection("sessions").doc(sessionId);
+
+      // Verify ownership
+      const doc = await sessionRef.get();
+      if (doc.exists && doc.data()?.userId !== userId) {
+          throw new HttpsError("permission-denied", "No tienes permiso para borrar esta sesión.");
+      }
+
       await db.recursiveDelete(sessionRef);
 
-      logger.info(`🗑️ Sesión de Forja eliminada recursivamente: ${sessionId}`);
+      logger.info(`🗑️ Sesión de Forja eliminada recursivamente: ${sessionId} (Proyecto: ${projectId})`);
       return { success: true };
 
     } catch (error: any) {
@@ -2311,9 +2380,15 @@ export const addForgeMessage = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { sessionId, role, text, characterId, sources } = request.data;
+    const { sessionId, role, text, characterId, sources, folderId } = request.data;
     if (!sessionId || !role || !text) {
       throw new HttpsError("invalid-argument", "Faltan datos del mensaje.");
+    }
+
+    // 🟢 SILO UPDATE: Project ID Required
+    const projectId = folderId;
+    if (!projectId) {
+         throw new HttpsError("invalid-argument", "Falta el ID del Proyecto (folderId).");
     }
 
     // 🛡️ SENTINEL CHECK: INPUT LIMITS
@@ -2325,9 +2400,11 @@ export const addForgeMessage = onCall(
     const now = new Date().toISOString();
 
     try {
+      // 🟢 SILO UPDATE: projects/{projectId}/sessions/{sessionId}/messages
+
       // 1. SAVE MESSAGE (Always succeeds as new doc)
-      const msgRef = db.collection("users").doc(userId)
-        .collection("forge_sessions").doc(sessionId)
+      const msgRef = db.collection("projects").doc(projectId)
+        .collection("sessions").doc(sessionId)
         .collection("messages").doc();
 
       await msgRef.set({
@@ -2338,7 +2415,7 @@ export const addForgeMessage = onCall(
       });
 
       // 2. UPSERT SESSION (The "Upsert Protocol")
-      const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId);
+      const sessionRef = db.collection("projects").doc(projectId).collection("sessions").doc(sessionId);
       const sessionDoc = await sessionRef.get();
 
       if (!sessionDoc.exists) {
@@ -2360,7 +2437,7 @@ export const addForgeMessage = onCall(
              lastUpdated: FieldValue.serverTimestamp() // 🟢 MANDATORY
          });
 
-         logger.info(`🔨 [AUTO-CREATE] Session created via addForgeMessage: ${sessionId}`);
+         logger.info(`🔨 [AUTO-CREATE] Session created via addForgeMessage in Project ${projectId}: ${sessionId}`);
 
       } else {
          // B) EXISTING SESSION (Update Timestamps)
@@ -2396,16 +2473,23 @@ export const getForgeHistory = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { sessionId } = request.data;
+    const { sessionId, folderId } = request.data;
     if (!sessionId) {
       throw new HttpsError("invalid-argument", "Falta el ID de la sesión.");
+    }
+
+    // 🟢 SILO UPDATE: Project ID Required
+    const projectId = folderId;
+    if (!projectId) {
+         throw new HttpsError("invalid-argument", "Falta el ID del Proyecto (folderId).");
     }
 
     const userId = request.auth.uid;
 
     try {
-      const snapshot = await db.collection("users").doc(userId)
-        .collection("forge_sessions").doc(sessionId)
+      // 🟢 SILO UPDATE: projects/{projectId}/sessions
+      const snapshot = await db.collection("projects").doc(projectId)
+        .collection("sessions").doc(sessionId)
         .collection("messages")
         .orderBy("timestamp", "asc")
         .get();
@@ -2456,11 +2540,16 @@ export const forgeToDrive = onCall(
     if (!folderId) throw new HttpsError("invalid-argument", "Falta el ID de la carpeta.");
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
+    // 🟢 SILO UPDATE: We assume the 'folderId' passed here IS the Project ID
+    // (since we save to the project root folder usually).
+    const projectId = folderId;
+
     const userId = request.auth.uid;
 
     try {
-      const snapshot = await db.collection("users").doc(userId)
-        .collection("forge_sessions").doc(sessionId)
+      // 🟢 SILO UPDATE: projects/{projectId}/sessions
+      const snapshot = await db.collection("projects").doc(projectId)
+        .collection("sessions").doc(sessionId)
         .collection("messages")
         .orderBy("timestamp", "asc")
         .get();
@@ -3615,16 +3704,23 @@ export const clearSessionMessages = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { sessionId } = request.data;
+    const { sessionId, folderId } = request.data;
     if (!sessionId) {
       throw new HttpsError("invalid-argument", "Falta el ID de la sesión.");
+    }
+
+    // 🟢 SILO UPDATE: Project ID Required
+    const projectId = folderId;
+    if (!projectId) {
+         throw new HttpsError("invalid-argument", "Falta el ID del Proyecto (folderId).");
     }
 
     const userId = request.auth.uid;
 
     try {
-      const messagesRef = db.collection("users").doc(userId)
-        .collection("forge_sessions").doc(sessionId)
+      // 🟢 SILO UPDATE: projects/{projectId}/sessions
+      const messagesRef = db.collection("projects").doc(projectId)
+        .collection("sessions").doc(sessionId)
         .collection("messages");
 
       // Use recursiveDelete to wipe the subcollection
