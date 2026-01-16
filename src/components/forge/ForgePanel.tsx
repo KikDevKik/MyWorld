@@ -4,10 +4,10 @@ import { Hammer, X, FolderInput, RefreshCw, Book, FolderPlus } from 'lucide-reac
 import { toast } from 'sonner';
 import useDrivePicker from 'react-google-drive-picker';
 
-import { useProjectConfig } from './ProjectConfigContext';
+import { useProjectConfig } from '../ProjectConfigContext';
 import ForgeDashboard from './ForgeDashboard';
-import { ProjectConfig } from '../types';
-import ScopeTreeSelector from './ScopeTreeSelector';
+import { ProjectConfig } from '../../types';
+import ScopeTreeSelector from '../ScopeTreeSelector';
 
 interface ForgePanelProps {
     onClose: () => void;

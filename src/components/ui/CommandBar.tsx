@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, ArrowUp, Clapperboard, ShieldCheck } from 'lucide-react';
-import { GemId } from '../types';
+import { GemId } from '../../types';
 
 // Interfaz de props para comunicarse con App.tsx
 interface CommandBarProps {

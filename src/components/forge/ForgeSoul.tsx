@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { FileText, ArrowUpCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import Editor from './Editor';
+import Editor from '../editor/Editor';
 
 interface Character {
     id: string;

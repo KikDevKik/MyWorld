@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Sparkles, Database, Loader2, BrainCircuit } from 'lucide-react';
-import { Character } from '../types';
+import { Character } from '../../types';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
-import MarkdownRenderer from './MarkdownRenderer';
+import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Define a unified interface for display (Now Compatible with Character type)

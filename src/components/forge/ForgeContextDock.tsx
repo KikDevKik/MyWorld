@@ -1,5 +1,5 @@
 import React from 'react';
-import { Character } from '../types';
+import { Character } from '../../types';
 import { Users, Ghost, User, BookOpen, RefreshCw } from 'lucide-react';
 
 export interface DetectedEntity {

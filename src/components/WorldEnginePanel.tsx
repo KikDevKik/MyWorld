@@ -12,9 +12,9 @@ import {
 } from 'lucide-react';
 import { GemId } from '../types';
 import { useProjectConfig } from '../components/ProjectConfigContext';
-import InterrogationModal from './InterrogationModal';
-import CrystallizeModal from './CrystallizeModal';
-import MarkdownRenderer from './MarkdownRenderer';
+import InterrogationModal from './ui/InterrogationModal';
+import CrystallizeModal from './ui/CrystallizeModal';
+import MarkdownRenderer from './ui/MarkdownRenderer';
 
 interface WorldEnginePanelProps {
     isOpen: boolean;

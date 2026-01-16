@@ -4,7 +4,7 @@ import { ArrowLeft, Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield } from 
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
-import MarkdownRenderer from './MarkdownRenderer';
+import MarkdownRenderer from '../ui/MarkdownRenderer';
 
 interface Message {
     id?: string;
