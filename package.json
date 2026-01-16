@@ -9,15 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google-cloud/secret-manager": "^6.1.1",
     "@tiptap/react": "^3.11.0",
     "@tiptap/starter-kit": "^3.11.0",
     "@types/marked": "^5.0.2",
     "@types/turndown": "^5.0.6",
     "firebase": "^10.12.3",
-    "firebase-admin": "^13.6.0",
     "framer-motion": "^12.24.12",
-    "googleapis": "^170.1.0",
     "lucide-react": "^0.554.0",
     "marked": "^17.0.1",
     "react": "^18.3.1",
