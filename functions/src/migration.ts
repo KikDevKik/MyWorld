@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldPath } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
 
@@ -105,19 +105,30 @@ export const executeBaptismProtocol = onCall(
         auth.setCredentials({ access_token: accessToken });
         const drive = google.drive({ version: "v3", auth });
 
+        // 3.1 SENTINEL PROTOCOL: ACCESS VALIDATION (Real-Time Handshake)
+        try {
+            await drive.files.get({
+                fileId: config.folderId || 'root',
+                fields: 'id, capabilities'
+            });
+            logger.info("   🛡️ [SENTINEL] Access Token validado. Permiso de lectura confirmado.");
+        } catch (e: any) {
+            logger.error("   ⛔ [SENTINEL] Fallo de seguridad. Token inválido o sin acceso.", e.message);
+            throw new HttpsError("permission-denied", "Protocolo denegado. El token no tiene acceso al Ancla de Realidad.");
+        }
+
         const folderCache = new Map<string, string | null>(); // folderId -> rootId
 
         // 4. SCAN FILES (QUERY: chunks where projectId == null)
         // Note: We need a Composite Index for this: collectionGroup('chunks').where('userId', '==', ...).where('projectId', '==', null)
         let query = db.collectionGroup("chunks")
-            .where("userId", "==", userId)
             .where("projectId", "==", null)
+            .orderBy(FieldPath.documentId()) // Required for stable pagination
             .limit(limit || 200); // Process in chunks
 
-        // Firestore does not support startAfter with collectionGroup easily unless we order by something unique.
-        // But we are modifying the documents (setting projectId), so they will leave the query result set!
-        // So we don't need 'startAfter' pagination. We just grab the next batch.
-        // Pagination logic: "Grab 200, fix them. Next run, grab next 200."
+        if (startAfter) {
+            query = query.startAfter(startAfter); // startAfter is the full path string
+        }
 
         const snapshot = await query.get();
 
@@ -197,11 +208,16 @@ export const executeBaptismProtocol = onCall(
             await batch.commit();
         }
 
+        // Get last doc for pagination cursor
+        const lastDoc = snapshot.docs[snapshot.docs.length - 1];
+        const lastDocPath = lastDoc ? lastDoc.ref.path : null;
+
         return {
             processed,
             baptized,
             skipped,
             errors,
+            lastDocPath, // 👈 Cursor for next page
             message: `Batch procesado: ${baptized} bautizados, ${skipped} ignorados (fuera de ancla).`
         };
     }
