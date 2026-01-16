@@ -1,117 +1,278 @@
-import React, { useState } from 'react';
-import { Sparkles, BrainCircuit, Flag, Lightbulb, Zap } from 'lucide-react';
-
-interface ResonanceMatch {
-    source_file: string;
-    type: 'PLOT_SEED' | 'VIBE_SEED' | 'LORE_SEED';
-    crumb_text: string;
-    similarity_score: number;
-}
-
-interface StructureAlert {
-    detected_phase?: string;
-    advice?: string;
-    confidence?: number;
-}
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Send, User, Bot, Loader2, RefreshCw } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { toast } from 'sonner';
 
 interface DirectorPanelProps {
     isOpen: boolean;
     onClose: () => void;
-    resonanceMatches: ResonanceMatch[];
-    structureAlerts?: StructureAlert; // From Resonance Check
-    midpointAlert?: boolean; // From Editor Word Count (The Wall)
-    isZenMode: boolean;
+    activeSessionId: string | null;
+    onSessionSelect: (id: string | null) => void;
+    pendingMessage: string | null;
+    onClearPendingMessage: () => void;
+    activeFileContent?: string;
+    activeFileName?: string;
+    isFallbackContext?: boolean;
+    folderId?: string;
 }
 
-const DirectorPanel: React.FC<DirectorPanelProps> = ({
-    resonanceMatches,
-    structureAlerts,
-    midpointAlert,
-    isZenMode
+interface Message {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    text: string;
+    timestamp: any;
+    isError?: boolean;
+}
+
+const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null }> = ({
+    isOpen,
+    onClose,
+    activeSessionId,
+    onSessionSelect,
+    pendingMessage,
+    onClearPendingMessage,
+    activeFileContent,
+    activeFileName,
+    isFallbackContext,
+    folderId,
+    accessToken
 }) => {
-    const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [inputValue, setInputValue] = useState('');
+    const [isThinking, setIsThinking] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
-    // Filter relevant matches
-    const activeMatches = (resonanceMatches || []).filter(m => m.similarity_score > 0.80);
+    const functions = getFunctions();
+    const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
+    const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
+    const createForgeSession = httpsCallable(functions, 'createForgeSession');
+    // We use chatWithGem for AI response (since Director is effectively a specialized chat)
+    const chatWithGem = httpsCallable(functions, 'chatWithGem');
 
-    // Visibility Logic: Show if (Active Matches OR Midpoint Alert OR Structure Advice)
-    // AND NOT completely hidden by Zen Mode (unless hover?)
-    // Actually, user spec says "DirectorPanel now is the main container of echoes".
-    // Zen Mode usually hides everything, but if there is a Resonance, we might show a subtle indicator.
+    // 🟢 LOAD HISTORY
+    useEffect(() => {
+        if (!isOpen) return;
 
-    const hasContent = activeMatches.length > 0 || midpointAlert || (structureAlerts?.advice && structureAlerts.confidence && structureAlerts.confidence > 0.7);
+        const loadHistory = async () => {
+            if (activeSessionId) {
+                setIsLoadingHistory(true);
+                try {
+                    const result = await getForgeHistory({ sessionId: activeSessionId });
+                    const history = result.data as any[];
+                    // Map backend history to UI format
+                    const formatted: Message[] = history.map(h => ({
+                        id: h.id || Math.random().toString(),
+                        role: h.role === 'ia' ? 'assistant' : (h.role === 'user' ? 'user' : 'system'),
+                        text: h.text,
+                        timestamp: h.timestamp
+                    }));
+                    setMessages(formatted);
+                } catch (error) {
+                    console.error("Failed to load history:", error);
+                    toast.error("Error cargando historial.");
+                } finally {
+                    setIsLoadingHistory(false);
+                }
+            } else {
+                // No session? Create one or show intro
+                setMessages([{
+                    id: 'intro',
+                    role: 'assistant',
+                    text: 'Director de Escena en línea. ¿En qué puedo ayudarte con la estructura o el tono de la escena actual?',
+                    timestamp: Date.now()
+                }]);
+            }
+        };
 
-    if (!hasContent) return null;
+        loadHistory();
+    }, [isOpen, activeSessionId]);
+
+    // 🟢 HANDLE PENDING MESSAGE (HANDOFF)
+    useEffect(() => {
+        if (pendingMessage && isOpen) {
+            handleSendMessage(pendingMessage);
+            onClearPendingMessage();
+        }
+    }, [pendingMessage, isOpen]);
+
+    // 🟢 AUTO-SCROLL
+    useEffect(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [messages, isThinking, isLoadingHistory]);
+
+    // 🟢 INIT SESSION (IF NEEDED)
+    const ensureSession = async (): Promise<string | null> => {
+        if (activeSessionId) return activeSessionId;
+
+        try {
+            const result = await createForgeSession({ name: `Director ${new Date().toLocaleDateString()}`, type: 'director' });
+            const data = result.data as { sessionId: string };
+            onSessionSelect(data.sessionId);
+            return data.sessionId;
+        } catch (error) {
+            console.error("Failed to create session:", error);
+            toast.error("Error iniciando sesión del Director.");
+            return null;
+        }
+    };
+
+    const handleSendMessage = async (text: string) => {
+        if (!text.trim()) return;
+
+        const currentSessionId = await ensureSession();
+        if (!currentSessionId) return;
+
+        // Optimistic Update
+        const tempId = Date.now().toString();
+        const newUserMsg: Message = {
+            id: tempId,
+            role: 'user',
+            text: text,
+            timestamp: Date.now()
+        };
+
+        setMessages(prev => [...prev, newUserMsg]);
+        setInputValue('');
+        setIsThinking(true);
+
+        try {
+            // 1. Save User Message
+            await addForgeMessage({
+                sessionId: currentSessionId,
+                role: 'user',
+                text: text
+            });
+
+            // 2. Call AI (Director Persona)
+            const result = await chatWithGem({
+                query: text,
+                sessionId: currentSessionId,
+                activeFileContent, // Context
+                activeFileName,
+                isFallbackContext,
+                systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable."
+            });
+
+            const data = result.data as { response: string };
+
+            // 3. Save AI Response
+            await addForgeMessage({
+                sessionId: currentSessionId,
+                role: 'ia', // Backend uses 'ia' or 'assistant'
+                text: data.response
+            });
+
+            // 4. Update UI
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                text: data.response,
+                timestamp: Date.now()
+            }]);
+
+        } catch (error) {
+            console.error("Director Error:", error);
+            toast.error("Error del Director.");
+            setMessages(prev => [...prev, {
+                id: 'err-' + Date.now(),
+                role: 'system',
+                text: 'Error de conexión con el Director.',
+                timestamp: Date.now(),
+                isError: true
+            }]);
+        } finally {
+            setIsThinking(false);
+        }
+    };
+
+    if (!isOpen) return null;
 
     return (
-        <div className={`
-            fixed right-16 top-1/2 -translate-y-1/2 z-50 flex flex-col items-end gap-6 p-4
-            transition-all duration-700 ease-in-out pointer-events-none
-            ${isZenMode ? 'opacity-0 hover:opacity-100 pointer-events-auto' : 'opacity-100 pointer-events-auto'}
-        `}>
-            {/* 🟢 MIDPOINT WALL ALERT (STRUCTURE) */}
-            {midpointAlert && (
-                <div className="relative group flex items-center justify-end animate-in slide-in-from-right duration-700">
-                    <div className="bg-amber-950/90 border border-amber-500/50 backdrop-blur-md shadow-[0_0_30px_rgba(245,158,11,0.2)] p-4 rounded-xl max-w-xs text-right">
-                        <div className="flex items-center justify-end gap-2 mb-1 text-amber-500 font-bold uppercase tracking-widest text-xs">
-                            <span>Alerta de Estructura</span>
-                            <Flag size={14} className="fill-amber-500/20" />
-                        </div>
-                        <p className="text-titanium-100 text-sm font-medium leading-relaxed">
-                            ¿Se ha alcanzado el Midpoint? <br/>
-                            <span className="text-amber-200/70 text-xs italic">Revisa el giro de trama. (Muro de pág. 20-60)</span>
-                        </p>
-                    </div>
-                    {/* Icon Indicator */}
-                    <div className="w-1 h-12 bg-amber-500 rounded-full ml-4 shadow-[0_0_10px_rgba(245,158,11,0.5)]"></div>
+        <div className="fixed right-4 top-20 bottom-4 w-96 bg-titanium-950/95 backdrop-blur-xl border border-titanium-800 rounded-xl shadow-2xl flex flex-col overflow-hidden z-50 animate-in slide-in-from-right duration-300">
+            {/* HEADER */}
+            <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
+                <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100">Director</h2>
                 </div>
-            )}
+                <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors">
+                    <X size={16} />
+                </button>
+            </div>
 
-            {/* 🟢 RESONANCE ECHOES (BARD) */}
-            {activeMatches.map((match, idx) => (
-                <div
-                    key={`${match.source_file}-${idx}`}
-                    className="relative group flex items-center justify-end"
-                    onMouseEnter={() => setHoveredIndex(idx)}
-                    onMouseLeave={() => setHoveredIndex(null)}
+            {/* MESSAGES AREA */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                {isLoadingHistory ? (
+                    <div className="flex justify-center items-center h-full text-titanium-500">
+                        <Loader2 className="animate-spin" />
+                    </div>
+                ) : (
+                    messages.map((msg) => (
+                        <div
+                            key={msg.id}
+                            className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                        >
+                            <div className={`
+                                w-8 h-8 rounded-full flex items-center justify-center shrink-0
+                                ${msg.role === 'user' ? 'bg-cyan-900/50 text-cyan-400' :
+                                  msg.role === 'system' ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/50 text-emerald-400'}
+                            `}>
+                                {msg.role === 'user' ? <User size={14} /> : msg.role === 'system' ? <X size={14} /> : <Bot size={14} />}
+                            </div>
+                            <div className={`
+                                p-3 rounded-xl text-sm max-w-[85%] leading-relaxed
+                                ${msg.role === 'user'
+                                    ? 'bg-cyan-950/30 border border-cyan-900/50 text-cyan-100'
+                                    : msg.role === 'system'
+                                      ? 'bg-red-950/30 border border-red-900/50 text-red-200'
+                                      : 'bg-titanium-900/50 border border-titanium-800 text-titanium-200'}
+                            `}>
+                                {msg.text}
+                            </div>
+                        </div>
+                    ))
+                )}
+
+                {isThinking && (
+                    <div className="flex gap-3">
+                        <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center shrink-0">
+                             <Loader2 size={14} className="animate-spin text-emerald-400" />
+                        </div>
+                        <div className="bg-titanium-900/50 border border-titanium-800 rounded-xl p-3 text-xs text-titanium-500 italic">
+                            Analizando estructura...
+                        </div>
+                    </div>
+                )}
+                <div ref={messagesEndRef} />
+            </div>
+
+            {/* INPUT AREA */}
+            <div className="p-4 border-t border-titanium-800 bg-titanium-900/30">
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        handleSendMessage(inputValue);
+                    }}
+                    className="flex gap-2"
                 >
-                    {/* CRUMB TOOLTIP */}
-                    <div className={`
-                        absolute right-6 top-1/2 -translate-y-1/2 w-72 p-4 rounded-xl
-                        bg-titanium-900/95 border border-cyan-500/30 backdrop-blur-xl shadow-2xl
-                        text-right transition-all duration-500 origin-right
-                        ${hoveredIndex === idx ? 'opacity-100 scale-100 translate-x-0' : 'opacity-0 scale-90 translate-x-8 pointer-events-none'}
-                    `}>
-                        <div className="flex items-center justify-end gap-2 mb-2">
-                             <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">
-                                {match.type.replace('_SEED', '')}
-                            </span>
-                            <Sparkles size={12} className="text-cyan-400" />
-                        </div>
-
-                        <p className="text-sm text-titanium-100 italic font-serif leading-relaxed border-r-2 border-cyan-500/50 pr-3">
-                            "{match.crumb_text}"
-                        </p>
-
-                        <div className="mt-3 flex items-center justify-end gap-2 text-[10px] text-titanium-500">
-                             <BrainCircuit size={10} />
-                             <span className="truncate max-w-[150px]">{match.source_file}</span>
-                        </div>
-                    </div>
-
-                    {/* INDICATOR ORB */}
-                    <button
-                        aria-label={`Resonancia: ${match.type} en ${match.source_file}`}
-                        className={`
-                            w-3 h-3 rounded-full transition-all duration-500 shadow-[0_0_15px_transparent] ml-4 ring-2 ring-offset-2 ring-offset-titanium-950
-                            ${match.type === 'PLOT_SEED' ? 'bg-red-500 ring-red-900/50 hover:shadow-[0_0_20px_rgba(248,113,113,0.6)]' :
-                              match.type === 'VIBE_SEED' ? 'bg-purple-500 ring-purple-900/50 hover:shadow-[0_0_20px_rgba(192,132,252,0.6)]' :
-                              'bg-emerald-500 ring-emerald-900/50 hover:shadow-[0_0_20px_rgba(52,211,153,0.6)]'}
-                            ${hoveredIndex === idx ? 'scale-150' : 'opacity-60 hover:opacity-100 hover:scale-125'}
-                        `}
+                    <input
+                        type="text"
+                        value={inputValue}
+                        onChange={(e) => setInputValue(e.target.value)}
+                        placeholder="Escribe al director..."
+                        className="flex-1 bg-titanium-950 border border-titanium-800 rounded-lg px-4 py-2 text-sm text-titanium-200 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                        autoFocus
                     />
-                </div>
-            ))}
+                    <button
+                        type="submit"
+                        disabled={!inputValue.trim() || isThinking}
+                        className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Send size={16} />
+                    </button>
+                </form>
+            </div>
         </div>
     );
 };
