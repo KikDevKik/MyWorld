@@ -15,7 +15,7 @@ import {
   HarmBlockThreshold,
   FinishReason
 } from "@google/generative-ai";
-import { Chunk } from "./similarity";
+import { Chunk, addVectors, divideVector } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile } from "./ingestion";
@@ -1354,6 +1354,55 @@ export const indexTDB = onCall(
           }
         })
       );
+
+      // 🟢 3.5. CALCULATE PROJECT CENTROID (THE ANCHOR)
+      try {
+        const rootId = config.folderId || cleanFolderId;
+        if (rootId) {
+            logger.info("⚓ Calculating Project Centroid for Root:", rootId);
+
+            // Query all chunks for this project
+            const allChunksSnapshot = await db.collectionGroup("chunks")
+                .where("userId", "==", userId)
+                .where("projectId", "==", rootId)
+                .select("embedding") // Only fetch vectors
+                .get();
+
+            if (!allChunksSnapshot.empty) {
+                let sumVector: number[] = [];
+                let count = 0;
+
+                allChunksSnapshot.forEach(doc => {
+                    const emb = doc.data().embedding;
+                    if (emb && Array.isArray(emb) && emb.length > 0) {
+                        if (sumVector.length === 0) {
+                            sumVector = [...emb];
+                        } else {
+                            // Helper defined in similarity.ts
+                            sumVector = addVectors(sumVector, emb);
+                        }
+                        count++;
+                    }
+                });
+
+                if (count > 0 && sumVector.length > 0) {
+                    const meanVector = divideVector(sumVector, count);
+
+                    // Save Centroid
+                    await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").set({
+                         vector: meanVector,
+                         projectId: rootId,
+                         updatedAt: new Date().toISOString(),
+                         sampleSize: count
+                    });
+                    logger.info(`⚓ Project Centroid Saved. Samples: ${count}.`);
+                }
+            }
+        }
+      } catch (centroidError) {
+          logger.error("⚠️ Failed to calculate Project Centroid:", centroidError);
+          // Non-blocking error
+      }
 
       // 🟢 4. UPDATE PROJECT CONFIG
       const now = new Date().toISOString();

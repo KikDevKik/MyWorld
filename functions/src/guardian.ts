@@ -4,6 +4,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as crypto from 'crypto';
+import { cosineSimilarity } from "./similarity";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
@@ -170,11 +171,47 @@ export const auditContent = onCall(
              generationConfig: { responseMimeType: "application/json" }
         });
 
+        // 🟢 DRIFT CALCULATION (THE ANCHOR CHECK)
+        let driftScore = 0.0;
+        let driftStatus = 'STABLE';
+        let queryVector: number[] = [];
+
+        try {
+            const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
+            queryVector = embeddingResult.embedding.values;
+
+            // Fetch Centroid
+            const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
+            if (centroidDoc.exists) {
+                const centroidVector = centroidDoc.data()?.vector;
+                if (centroidVector) {
+                    const similarity = cosineSimilarity(queryVector, centroidVector);
+                    driftScore = 1.0 - similarity;
+
+                    // Thresholds (User Config)
+                    // 0.3 = Yellow Alert, 0.5 = Red Alert (Updated to 0.4 and 0.7 by user preference in later prompts)
+                    if (driftScore > 0.6) driftStatus = 'CRITICAL_INCOHERENCE';
+                    else if (driftScore > 0.4) driftStatus = 'DRIFTING';
+
+                    logger.info(`⚓ [SENTINEL] Drift Analysis: ${driftScore.toFixed(2)} (${driftStatus})`);
+                }
+            } else {
+                logger.info("⚓ [SENTINEL] No Centroid found. Skipping Drift Calculation.");
+            }
+
+        } catch (embError) {
+            logger.warn("Embedding/Drift Calculation Failed:", embError);
+        }
+
+
         // --- RESONANCE CHECK (PRE-TRIGGER 4 LOGIC MOVED HERE) ---
         // We perform a light vector search to find "Plot Seeds" or "Vibe Seeds"
         try {
-            const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
-            const queryVector = embeddingResult.embedding.values;
+            if (queryVector.length === 0) {
+                 // Retry embedding if failed above (unlikely but safe)
+                 const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
+                 queryVector = embeddingResult.embedding.values;
+            }
 
             // 🟢 COMPOSITE INDEX TRIGGER: .where("projectId", "==", projectId)
             // This query structure forces the need for the Composite Index:
@@ -452,7 +489,13 @@ export const auditContent = onCall(
             world_law_violations: lawViolations,
             personality_drift: personalityDrifts,
             resonance_matches: resonanceMatches, // 🟢 RETURN RESONANCE
-            structure_analysis: structure // 🟢 RETURN STRUCTURE
+            structure_analysis: structure, // 🟢 RETURN STRUCTURE
+            guardian_report: { // 🟢 RETURN DRIFT REPORT
+                module: "CanonRadar",
+                drift_score: driftScore,
+                status: driftStatus,
+                is_blocking: false
+            }
         };
 
     } catch (e: any) {
@@ -464,4 +507,56 @@ export const auditContent = onCall(
         };
     }
   }
+);
+
+/**
+ * 25. PURGE ECHO (El Ejecutor)
+ * Elimina un fragmento específico de Firestore (Nivel 1) sin tocar Drive.
+ */
+export const purgeEcho = onCall(
+    {
+        region: "us-central1",
+        cors: true,
+        enforceAppCheck: true,
+    },
+    async (request) => {
+        const db = getFirestore();
+
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Login requerido.");
+        }
+
+        const { chunkPath } = request.data;
+        const userId = request.auth.uid;
+
+        if (!chunkPath) {
+            throw new HttpsError("invalid-argument", "Falta chunkPath.");
+        }
+
+        try {
+            // 1. VERIFY OWNERSHIP (Security Check)
+            const docRef = db.doc(chunkPath);
+            const docSnap = await docRef.get();
+
+            if (!docSnap.exists) {
+                return { success: false, message: "Fragmento no encontrado o ya eliminado." };
+            }
+
+            const data = docSnap.data();
+            if (data?.userId !== userId) {
+                logger.warn(`🛑 [SECURITY] Unauthorized Purge Attempt by ${userId} on ${chunkPath}`);
+                throw new HttpsError("permission-denied", "No tienes permiso para purgar este fragmento.");
+            }
+
+            // 2. EXECUTE PURGE (Level 1 Only)
+            await docRef.delete();
+            logger.info(`🗑️ [PURGE] Fragmento eliminado: ${chunkPath}`);
+
+            return { success: true, message: "Eco eliminado del índice." };
+
+        } catch (error: any) {
+            logger.error("Error en purgeEcho:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
 );

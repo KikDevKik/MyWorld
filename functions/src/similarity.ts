@@ -27,6 +27,24 @@ export function cosineSimilarity(vecA: number[], vecB: number[]): number {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+/**
+ * Suma dos vectores componente a componente.
+ */
+export function addVectors(vecA: number[], vecB: number[]): number[] {
+    if (vecA.length !== vecB.length) {
+        throw new Error("Los vectores deben tener la misma longitud para sumarse.");
+    }
+    return vecA.map((val, i) => val + vecB[i]);
+}
+
+/**
+ * Divide un vector por un escalar.
+ */
+export function divideVector(vec: number[], scalar: number): number[] {
+    if (scalar === 0) throw new Error("No se puede dividir por cero.");
+    return vec.map(val => val / scalar);
+}
+
 export interface Chunk {
     text: string;
     embedding: number[];

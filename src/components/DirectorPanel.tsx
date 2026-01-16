@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, User, Bot, Loader2, RefreshCw } from 'lucide-react';
+import { X, Send, User, Bot, Loader2, RefreshCw, AlertTriangle, ShieldAlert } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
@@ -14,6 +14,7 @@ interface DirectorPanelProps {
     activeFileName?: string;
     isFallbackContext?: boolean;
     folderId?: string;
+    driftAlerts?: any[]; // 🟢 New Prop for Drift Injection
 }
 
 interface Message {
@@ -22,6 +23,8 @@ interface Message {
     text: string;
     timestamp: any;
     isError?: boolean;
+    isDriftAlert?: boolean; // 🟢 Flag for Drift UI
+    driftData?: any;
 }
 
 const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null }> = ({
@@ -35,20 +38,43 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     activeFileName,
     isFallbackContext,
     folderId,
-    accessToken
+    accessToken,
+    driftAlerts
 }) => {
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isThinking, setIsThinking] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+    const [purgingIds, setPurgingIds] = useState<Set<string>>(new Set()); // 🟢 Purge State
 
     const functions = getFunctions();
     const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
     const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
     const createForgeSession = httpsCallable(functions, 'createForgeSession');
-    // We use chatWithGem for AI response (since Director is effectively a specialized chat)
     const chatWithGem = httpsCallable(functions, 'chatWithGem');
+    const purgeEcho = httpsCallable(functions, 'purgeEcho'); // 🟢 Purge Function
+
+    // 🟢 INJECT DRIFT ALERTS (The Bridge)
+    useEffect(() => {
+        if (driftAlerts && driftAlerts.length > 0) {
+            const alertMessages: Message[] = driftAlerts.map((alert, idx) => ({
+                id: `drift-${Date.now()}-${idx}`,
+                role: 'system',
+                text: "DRIFT DETECTED",
+                timestamp: Date.now(),
+                isDriftAlert: true,
+                driftData: alert
+            }));
+
+            // Only add if not already present (simple check to avoid spam)
+            setMessages(prev => {
+                 // Check if we already have this exact alert (by logic or timestamp window)
+                 // Ideally backend sends IDs. For now, we trust the parent won't spam.
+                 return [...prev, ...alertMessages];
+            });
+        }
+    }, [driftAlerts]);
 
     // 🟢 LOAD HISTORY
     useEffect(() => {
@@ -117,6 +143,49 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
         }
     };
 
+    const handlePurge = async (drift: any, msgId: string) => {
+        if (!drift?.chunkPath) {
+             toast.error("Error: No se puede purgar (Falta Path).");
+             return;
+        }
+
+        if(!confirm("¿CONFIRMAS LA PURGA? Esto eliminará el fragmento del índice vectorial (Nivel 1). El archivo original en Drive NO será tocado.")) {
+            return;
+        }
+
+        const toastId = toast.loading("Purgando eco...");
+        setPurgingIds(prev => new Set(prev).add(msgId));
+
+        try {
+             await purgeEcho({ chunkPath: drift.chunkPath });
+             toast.success("Eco purgado correctamente.", { id: toastId });
+
+             // Update UI to show "PURGED" status
+             setMessages(prev => prev.map(m => {
+                 if (m.id === msgId) {
+                     return { ...m, text: "Eco eliminado del Canon.", isDriftAlert: false, role: 'system' };
+                 }
+                 return m;
+             }));
+
+        } catch (e: any) {
+             console.error("Purge Failed:", e);
+             toast.error(`Error purgando: ${e.message}`, { id: toastId });
+        } finally {
+             setPurgingIds(prev => {
+                 const next = new Set(prev);
+                 next.delete(msgId);
+                 return next;
+             });
+        }
+    };
+
+    const handleRescue = (msgId: string) => {
+        // Just remove the alert from the UI for now, effectively "Ignoring" it
+        setMessages(prev => prev.filter(m => m.id !== msgId));
+        toast.info("Eco descartado de la revisión.");
+    };
+
     const handleSendMessage = async (text: string) => {
         if (!text.trim()) return;
 
@@ -151,7 +220,7 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                 activeFileContent, // Context
                 activeFileName,
                 isFallbackContext,
-                systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable."
+                systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable. If you see a Drift Alert in history, address it professionally."
             });
 
             const data = result.data as { response: string };
@@ -208,7 +277,52 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                         <Loader2 className="animate-spin" />
                     </div>
                 ) : (
-                    messages.map((msg) => (
+                    messages.map((msg) => {
+                        // 🟢 RENDER DRIFT ALERT CARD
+                        if (msg.isDriftAlert && msg.driftData) {
+                            const isPurging = purgingIds.has(msg.id);
+                            return (
+                                <div key={msg.id} className="mx-auto w-[90%] bg-red-950/20 border border-red-500/50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2">
+                                    <div className="flex items-center gap-2 mb-2 text-red-400 font-bold text-xs uppercase">
+                                        <ShieldAlert size={14} className="animate-pulse" />
+                                        <span>Eco Crítico Detectado</span>
+                                        <span className="ml-auto bg-red-900/50 px-1.5 py-0.5 rounded text-[10px] text-white">
+                                            Drift: {msg.driftData.drift_score?.toFixed(2) || '?.??'}
+                                        </span>
+                                    </div>
+
+                                    <p className="text-titanium-300 text-xs italic mb-3 border-l-2 border-red-800 pl-2">
+                                        "{msg.driftData.reason || 'Incoherencia detectada en análisis vectorial.'}"
+                                    </p>
+
+                                    {msg.driftData.target_chunk && (
+                                        <div className="text-[10px] text-titanium-500 font-mono mb-3 truncate">
+                                            {msg.driftData.target_chunk}
+                                        </div>
+                                    )}
+
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => handleRescue(msg.id)}
+                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors"
+                                        >
+                                            Rescatar
+                                        </button>
+                                        <button
+                                            onClick={() => handlePurge(msg.driftData, msg.id)}
+                                            disabled={isPurging}
+                                            className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1"
+                                        >
+                                            {isPurging ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />}
+                                            Purgar Eco
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        }
+
+                        // STANDARD MESSAGE
+                        return (
                         <div
                             key={msg.id}
                             className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
@@ -231,7 +345,7 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                                 {msg.text}
                             </div>
                         </div>
-                    ))
+                    );})
                 )}
 
                 {isThinking && (
