@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Target, Clock, Type, RefreshCw, ScanEye } from 'lucide-react';
 import { toast } from 'sonner';
-import { GuardianStatus } from '../hooks/useGuardian';
+import { GuardianStatus } from '../../hooks/useGuardian';
 
 interface StatusBarProps {
     content: string;

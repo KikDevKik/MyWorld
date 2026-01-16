@@ -5,24 +5,24 @@ import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-
 import { getApp } from "firebase/app"; // 👈 IMPORT
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
-import Editor from './components/Editor';
+import Editor from './components/editor/Editor';
 import ChatPanel from './components/ChatPanel';
-import ForgePanel from './components/ForgePanel';
-import ArsenalDock from './components/ArsenalDock';
+import ForgePanel from './components/forge/ForgePanel';
+import ArsenalDock from './components/forge/ArsenalDock';
 import TribunalPanel from './components/TribunalPanel';
 import LaboratoryPanel from './components/LaboratoryPanel';
 import TimelinePanel from './components/TimelinePanel';
 import ExportPanel from './components/ExportPanel';
-import CommandBar from './components/CommandBar';
-import LoginScreen from './components/LoginScreen';
-import ConnectDriveModal from './components/ConnectDriveModal';
-import SettingsModal from './components/SettingsModal';
-import FieldManualModal from './components/FieldManualModal';
-import ProjectSettingsModal from './components/ProjectSettingsModal';
+import CommandBar from './components/ui/CommandBar';
+import LoginScreen from './pages/LoginScreen';
+import ConnectDriveModal from './components/ui/ConnectDriveModal';
+import SettingsModal from './components/ui/SettingsModal';
+import FieldManualModal from './components/ui/FieldManualModal';
+import ProjectSettingsModal from './components/ui/ProjectSettingsModal';
 import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
 import WorldEnginePanel from './components/WorldEnginePanel'; // 👈 IMPORT NEW PANEL
 import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
-import SecurityLockScreen from './components/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
+import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
 import { GemId, ProjectConfig, ForgeSession } from './types';
@@ -531,8 +531,10 @@ function App() {
 
             // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
             // Active for Titanium Edition v2.4 Release
-            (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = "28d13b43-e427-426e-8d54-ea9fba7ebed2";
-            console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
+            if (import.meta.env.DEV) {
+                (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APP_CHECK_DEBUG_TOKEN;
+                console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
+            }
 
             try {
                 // Initialize App Check with ReCAPTCHA V3

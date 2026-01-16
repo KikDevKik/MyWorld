@@ -9,7 +9,7 @@ import ForgeSourceSelector from './ForgeSourceSelector';
 import ForgeContextDock from './ForgeContextDock';
 import CharacterInspector from './CharacterInspector';
 import ForgeChat from './ForgeChat';
-import { Character } from '../types';
+import { Character } from '../../types';
 
 interface ForgeDashboardProps {
     folderId: string;

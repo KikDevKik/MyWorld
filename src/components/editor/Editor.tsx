@@ -6,10 +6,10 @@ import { Save, Loader2, CheckCircle, AlertCircle, FileText, ArrowUp } from 'luci
 import { toast } from 'sonner';
 import { marked } from 'marked';
 import TurndownService from 'turndown';
-import BubbleMenu from './BubbleMenu';
-import StatusBar from './StatusBar';
-import ReadingToolbar from './ReadingToolbar';
-import DirectorPanel from './DirectorPanel'; // 👈 NEW PANEL
+import BubbleMenu from '../ui/BubbleMenu';
+import StatusBar from '../ui/StatusBar';
+import ReadingToolbar from '../ui/ReadingToolbar';
+import DirectorPanel from '../DirectorPanel'; // 👈 NEW PANEL
 
 interface EditorProps {
     fileId: string | null;

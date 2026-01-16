@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FileText, Play } from 'lucide-react';
-import InternalFileSelector from './InternalFileSelector';
+import InternalFileSelector from '../InternalFileSelector';
 
 interface ForgeSourceSelectorProps {
     onSourceSelected: (fileId: string, fileName: string) => void;

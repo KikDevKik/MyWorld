@@ -1,7 +1,7 @@
 import React from 'react';
 import { Clapperboard, Globe2, Hammer, ShieldCheck, Image as ImageIcon, Scale, FlaskConical, CalendarClock, Printer } from 'lucide-react';
-import { GEMS } from '../constants';
-import { GemId } from '../types';
+import { GEMS } from '../../constants';
+import { GemId } from '../../types';
 
 interface ArsenalDockProps {
     activeGemId: GemId | null;
