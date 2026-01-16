@@ -157,11 +157,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
             // 3. CHECK INDEX STATUS
             try {
-                const checkIndexStatus = httpsCallable(functions, 'checkIndexStatus');
-                const result = await checkIndexStatus();
-                const status = result.data as { isIndexed: boolean, lastIndexedAt: string | null };
-                console.log("🧠 Estado de Memoria:", status);
-                setIndexStatus(status);
+                // 🟢 GHOST MODE BYPASS
+                if (import.meta.env.VITE_JULES_MODE === 'true') {
+                    console.log("👻 GHOST MODE: Bypassing Index Check");
+                    setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
+                } else {
+                    const checkIndexStatus = httpsCallable(functions, 'checkIndexStatus');
+                    const result = await checkIndexStatus();
+                    const status = result.data as { isIndexed: boolean, lastIndexedAt: string | null };
+                    console.log("🧠 Estado de Memoria:", status);
+                    setIndexStatus(status);
+                }
             } catch (error) {
                 console.error("Error checking index status:", error);
             }

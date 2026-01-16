@@ -162,10 +162,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const status = getStatusConfig();
 
     return (
-        <aside className="fixed left-0 top-0 bottom-0 w-64 bg-titanium-800 border-r border-titanium-700/50 flex flex-col z-20 select-none">
+        <aside className="fixed left-0 top-0 bottom-0 w-64 bg-titanium-900 border-r border-titanium-800 flex flex-col z-20 select-none">
 
             {/* HEADER / SAGA SELECTOR */}
-            <div className="px-4 py-4 border-b border-titanium-700/30 bg-titanium-900/50">
+            <div className="px-4 py-4 border-b border-titanium-800 bg-titanium-900/50">
                 <div className="flex items-center gap-2 mb-3">
                     <div className="text-titanium-500">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -292,11 +292,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             </div>
 
             {/* FOOTER */}
-            <div className="p-3 border-t border-titanium-700/30 bg-titanium-800">
+            <div className="p-3 border-t border-titanium-800 bg-titanium-900">
                 <div className="flex flex-col gap-1">
                     <button
                         onClick={onOpenManual}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-titanium-700/50 transition-all text-xs font-medium group"
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <HelpCircle size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
                         <span>Manual de Campo</span>
@@ -304,24 +304,24 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
                     <button
                         onClick={onOpenProjectSettings}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-titanium-700/50 transition-all text-xs font-medium group"
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
-                        <FolderCog size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
+                        <FolderCog size={16} className="group-hover:text-cyan-500 transition-colors" />
                         <span>Proyecto</span>
                     </button>
 
                     <button
                         onClick={onOpenSettings}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-titanium-700/50 transition-all text-xs font-medium group"
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
-                        <Settings size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
+                        <Settings size={16} className="group-hover:text-cyan-500 transition-colors" />
                         <span>Preferencias</span>
                     </button>
 
                     {/* 🟢 STATUS INDICATOR BUTTON */}
                     <button
                         onClick={onRefreshTokens}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-titanium-700/50 transition-all text-xs font-medium group ${status.color}`}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium group ${status.color}`}
                         title="Click para renovar manualmente"
                     >
                         <status.icon size={16} className="transition-colors" />
