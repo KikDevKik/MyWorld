@@ -543,9 +543,17 @@ function App() {
     console.log("👻 JULES MODE:", import.meta.env.VITE_JULES_MODE);
     console.log("🛠️ DEV MODE:", import.meta.env.DEV);
 
+    // 1. ALL HOOKS FIRST (Unconditional)
+
     // 🛡️ SECURITY STATE
     const [isSecurityReady, setIsSecurityReady] = useState(false);
     const [securityError, setSecurityError] = useState<string | null>(null);
+
+    // AUTH LIFTED STATE
+    const [user, setUser] = useState<User | null>(null);
+    const [authLoading, setAuthLoading] = useState(true);
+    const [oauthToken, setOauthToken] = useState<string | null>(null);
+    const [driveStatus, setDriveStatus] = useState<'connected' | 'refreshing' | 'error' | 'disconnected'>('disconnected');
 
     // 🛡️ APP CHECK INITIALIZATION (SECURITY HANDSHAKE)
     useEffect(() => {
@@ -559,39 +567,6 @@ function App() {
         };
         init();
     }, []);
-
-    // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
-    if (securityError === 'PERIMETER_BREACH') {
-        return <SecurityLockScreen />;
-    }
-
-    if (securityError) {
-        return (
-            <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
-                <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
-                     <AlertTriangle className="w-12 h-12" />
-                </div>
-                <div className="text-center max-w-md space-y-2">
-                    <h1 className="text-xl font-bold tracking-widest uppercase">Protocolo de Seguridad Fallido</h1>
-                    <p className="text-sm text-zinc-400 font-mono">
-                        {securityError === 'MISSING_SITE_KEY'
-                            ? "Error Code: ENV_VAR_MISSING (VITE_RECAPTCHA_SITE_KEY)"
-                            : "Error Code: APP_CHECK_INIT_FAILED"}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-4">
-                        El sistema ha bloqueado el inicio para proteger la integridad de los datos.
-                        Verifica las variables de entorno.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    // AUTH LIFTED STATE
-    const [user, setUser] = useState<User | null>(null);
-    const [authLoading, setAuthLoading] = useState(true);
-    const [oauthToken, setOauthToken] = useState<string | null>(null);
-    const [driveStatus, setDriveStatus] = useState<'connected' | 'refreshing' | 'error' | 'disconnected'>('disconnected');
 
     // AUTH LISTENER
     useEffect(() => {
@@ -675,6 +650,35 @@ function App() {
 
         return () => clearInterval(intervalId);
     }, [oauthToken]);
+
+    // 2. CONDITIONAL RETURNS (Guard Clauses)
+
+    // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
+    if (securityError === 'PERIMETER_BREACH') {
+        return <SecurityLockScreen />;
+    }
+
+    if (securityError) {
+        return (
+            <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
+                <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
+                     <AlertTriangle className="w-12 h-12" />
+                </div>
+                <div className="text-center max-w-md space-y-2">
+                    <h1 className="text-xl font-bold tracking-widest uppercase">Protocolo de Seguridad Fallido</h1>
+                    <p className="text-sm text-zinc-400 font-mono">
+                        {securityError === 'MISSING_SITE_KEY'
+                            ? "Error Code: ENV_VAR_MISSING (VITE_RECAPTCHA_SITE_KEY)"
+                            : "Error Code: APP_CHECK_INIT_FAILED"}
+                    </p>
+                    <p className="text-xs text-zinc-500 mt-4">
+                        El sistema ha bloqueado el inicio para proteger la integridad de los datos.
+                        Verifica las variables de entorno.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     if (authLoading) return <div className="h-screen w-screen bg-titanium-950" />;
     if (!user) return <LoginScreen onLoginSuccess={(u, t) => { setUser(u); setOauthToken(t); }} />;
