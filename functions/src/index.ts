@@ -845,7 +845,27 @@ export const enrichCharacterContext = onCall(
         vectorField: 'embedding'
       });
 
-      const vectorSnapshot = await vectorQuery.get();
+      // 🟢 [SENTINEL] SAFE VECTOR SEARCH
+      let vectorSnapshot;
+      try {
+          vectorSnapshot = await vectorQuery.get();
+      } catch (vectorError: any) {
+           if (vectorError.message?.includes('index') || vectorError.code === 9) {
+              logger.error(`[SENTINEL_ALERTA_CRITICA]: Fallo de Precondición en Firestore. El índice vectorial no existe o está inactivo. LINK DE ACTIVACIÓN: [LINK_DE_ERROR_9]`);
+
+              // 🟢 RETURN DUAL PAYLOAD FOR ENRICHMENT
+              // Note: enrichCharacterContext has a specific return type structure.
+              // We return a failure but attach technical details for frontend handling if it evolves.
+              // For now, we mainly want to log the critical alert.
+
+              return {
+                  success: false,
+                  message: "La Forja está calibrando sus lentes. (Índice Vectorial Faltante)"
+              };
+          }
+          throw vectorError;
+      }
+
       // 🟢 SOURCE TRANSPARENCY
       const chunksData = vectorSnapshot.docs.map(doc => ({
           text: doc.data().text,
@@ -1690,7 +1710,33 @@ ${analysis}
         vectorField: 'embedding'
       });
 
-      const vectorSnapshot = await vectorQuery.get();
+      // 🟢 [SENTINEL] SAFE VECTOR SEARCH
+      let vectorSnapshot;
+      try {
+          vectorSnapshot = await vectorQuery.get();
+      } catch (vectorError: any) {
+          if (vectorError.message?.includes('index') || vectorError.code === 9) {
+              logger.error(`[SENTINEL_ALERTA_CRITICA]: Fallo de Precondición en Firestore. El índice vectorial no existe o está inactivo. LINK DE ACTIVACIÓN: [LINK_DE_ERROR_9]`);
+
+              // 🟢 RETURN DUAL PAYLOAD
+              return {
+                  response: "La Forja está calibrando sus lentes. Reintenta en 5 minutos.",
+                  sources: [],
+                  technicalError: {
+                      isTechnicalError: true,
+                      status: "error",
+                      error_code: "MISSING_VECTOR_INDEX",
+                      metadata: {
+                          collection: "TDB_Index",
+                          required_fields: ["userId", "path", "embedding"],
+                          action_url: "https://console.firebase.google.com/"
+                      },
+                      ui_hint: "ALERTA_NARANJA_SENTINEL"
+                  }
+              };
+          }
+          throw vectorError;
+      }
 
       console.log('🔢 Vectors Found (Raw):', vectorSnapshot.docs.length);
       if (vectorSnapshot.docs.length > 0) {

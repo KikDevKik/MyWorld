@@ -9,6 +9,8 @@ interface ProjectConfigContextType {
   loading: boolean;
   updateConfig: (newConfig: ProjectConfig) => Promise<void>;
   refreshConfig: () => Promise<void>;
+  technicalError: { isError: boolean; details: any };
+  setTechnicalError: (error: { isError: boolean; details: any }) => void;
 }
 
 export const ProjectConfigContext = createContext<ProjectConfigContextType | undefined>(undefined);
@@ -24,6 +26,7 @@ export const useProjectConfig = () => {
 export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<ProjectConfig | null>(null);
   const [loading, setLoading] = useState(true);
+  const [technicalError, setTechnicalError] = useState<{ isError: boolean; details: any }>({ isError: false, details: null });
 
   const fetchConfig = async () => {
     const auth = getAuth();
@@ -64,7 +67,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   return (
-    <ProjectConfigContext.Provider value={{ config, loading, updateConfig, refreshConfig: fetchConfig }}>
+    <ProjectConfigContext.Provider value={{ config, loading, updateConfig, refreshConfig: fetchConfig, technicalError, setTechnicalError }}>
       {children}
     </ProjectConfigContext.Provider>
   );

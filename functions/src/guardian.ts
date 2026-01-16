@@ -263,7 +263,10 @@ export const auditContent = onCall(
                  resonanceMatches = resAnalysis.matches || [];
             }
 
-        } catch (resError) {
+        } catch (resError: any) {
+             if (resError.message?.includes('index') || resError.code === 9) {
+                 logger.error(`[SENTINEL_ALERTA_CRITICA]: Fallo de Precondición en Firestore. El índice vectorial no existe o está inactivo. LINK DE ACTIVACIÓN: [LINK_DE_ERROR_9]`);
+             }
             logger.warn("Resonance Check Failed inside Audit:", resError);
         }
 
