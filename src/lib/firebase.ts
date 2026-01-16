@@ -12,7 +12,8 @@ export const fallbackConfig = {
     storageBucket: "myword-67b03.firebasestorage.app",
     messagingSenderId: "479346922706",
     appId: "1:479346922706:web:af7d76f5f6f707d75f090b",
-    measurementId: "G-3PEQ1BGFZF"
+    measurementId: "G-3PEQ1BGFZF",
+    siteKey: "6LeBFk0sAAAAAGHkzwAi71U7RLIjJazekWzjUEdL"
 };
 
 const firebaseConfig = {
@@ -41,7 +42,7 @@ export interface SecurityStatus {
 
 // 🛡️ SECURITY CENTRALIZATION (Mission 4)
 export const initSecurity = async (): Promise<SecurityStatus> => {
-    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || fallbackConfig.siteKey;
 
     // 🟢 FAIL FAST PROTOCOL
     if (!siteKey || siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
