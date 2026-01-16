@@ -49,6 +49,20 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
+    // 🟢 GHOST MODE BYPASS FOR DEV
+    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
+        console.warn("👻 GHOST MODE: Bypassing Config Fetch (User: jules-dev)");
+        setConfig({
+            canonPaths: [],
+            resourcePaths: [],
+            chronologyPath: null,
+            activeBookContext: "Prototipo Titanium",
+            folderId: "" // Empty to trigger "Connect Drive" button for testing
+        });
+        setLoading(false);
+        return;
+    }
+
     fetchConfig();
   }, []);
 
