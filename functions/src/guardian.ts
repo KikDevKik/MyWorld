@@ -176,6 +176,9 @@ export const auditContent = onCall(
             const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
             const queryVector = embeddingResult.embedding.values;
 
+            // 🟢 COMPOSITE INDEX TRIGGER: .where("projectId", "==", projectId)
+            // This query structure forces the need for the Composite Index:
+            // userId (ASC) + projectId (ASC) + path (ASC) + embedding (VECTOR)
             let vectorQuery = db.collectionGroup("chunks")
                 .where("userId", "==", userId)
                 .where("projectId", "==", projectId); // 👈 SCOPE FILTER
