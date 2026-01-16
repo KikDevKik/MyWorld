@@ -25,6 +25,7 @@ export interface IngestionResult {
 export async function ingestFile(
     db: FirebaseFirestore.Firestore,
     userId: string,
+    projectId: string, // 👈 New: Project Anchor
     file: IngestionFile,
     content: string,
     embeddingsModel: any
@@ -132,6 +133,7 @@ export async function ingestFile(
         // Note: chunks now live under the Hashed Path ID, not the Drive ID.
         const chunkPayload: any = {
             userId: userId,
+            projectId: projectId, // 👈 New: Strict Project Scoping
             fileName: file.name,
             text: chunkText,
             docId: docId, // Hashed Path ID

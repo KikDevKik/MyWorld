@@ -64,6 +64,9 @@ export const auditContent = onCall(
     try {
         // 1. VALIDATION
         if (!content) return { success: true, facts: [], conflicts: [], personality_drift: [], resonance_matches: [], structure_analysis: {} };
+        if (!projectId) {
+            logger.warn("⚠️ [GUARDIAN] No Project ID provided. Audit scope might be ambiguous.");
+        }
         if (content.length > MAX_AI_INPUT_CHARS) {
             throw new HttpsError("invalid-argument", "Content exceeds limit.");
         }
@@ -173,7 +176,10 @@ export const auditContent = onCall(
             const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
             const queryVector = embeddingResult.embedding.values;
 
-            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
+            let vectorQuery = db.collectionGroup("chunks")
+                .where("userId", "==", userId)
+                .where("projectId", "==", projectId); // 👈 SCOPE FILTER
+
              // Global Range for Composite Index
             vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
 
@@ -227,7 +233,10 @@ export const auditContent = onCall(
             const embeddingResult = await embeddingModel.embedContent(`${item.entity}: ${item.fact}`);
             const queryVector = embeddingResult.embedding.values;
 
-            let vectorQuery = db.collectionGroup("chunks").where("userId", "==", userId);
+            let vectorQuery = db.collectionGroup("chunks")
+                .where("userId", "==", userId)
+                .where("projectId", "==", projectId); // 👈 SCOPE FILTER
+
             vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
 
             const nearestQuery = vectorQuery.findNearest({
@@ -278,7 +287,9 @@ export const auditContent = onCall(
              const embeddingResult = await embeddingModel.embedContent(`${item.category}: ${item.law}`);
              const queryVector = embeddingResult.embedding.values;
 
-             const nearestQuery = db.collectionGroup("chunks").where("userId", "==", userId)
+             const nearestQuery = db.collectionGroup("chunks")
+                .where("userId", "==", userId)
+                .where("projectId", "==", projectId) // 👈 SCOPE FILTER
                 .where("path", ">=", "").where("path", "<=", "\uf8ff")
                 .findNearest({
                     queryVector: queryVector,
@@ -360,7 +371,10 @@ export const auditContent = onCall(
 
             let historyChunksText = "";
             try {
-                let chunksQuery = db.collectionGroup("chunks").where("userId", "==", userId);
+                let chunksQuery = db.collectionGroup("chunks")
+                    .where("userId", "==", userId)
+                    .where("projectId", "==", projectId); // 👈 SCOPE FILTER
+
                 chunksQuery = chunksQuery
                     .where("path", ">=", "")
                     .where("path", "<=", "\uf8ff");
