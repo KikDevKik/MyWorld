@@ -582,6 +582,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onOpenManual={() => setIsFieldManualOpen(true)}
                         isIndexed={indexStatus.isIndexed}
                         isSecurityReady={isSecurityReady}
+                        activeFileId={currentFileId}
                     />
                 }
                 editor={renderZoneBContent()}
