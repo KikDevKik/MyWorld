@@ -1,0 +1,137 @@
+DOCUMENTACIÓN TÉCNICA MAESTRA V3 - PROYECTO MYWORLD (TITAN)
+===========================================================
+**Fecha:** 17 de Enero de 2026
+**Versión:** 3.2 (Sentinel Reforged)
+**Estado:** OPERATIVO / VIGILANCIA ACTIVA
+**Codename:** SENTINEL / PERIMETER SECURE
+
+---
+
+## 1. INTRODUCCIÓN Y PROPÓSITO: LA CAJA NEGRA
+Este documento constituye la "Fuente de Verdad" definitiva y técnica para el proyecto MyWorld. Su propósito es servir como memoria eidética para el equipo de desarrollo, restaurando el contexto completo de la arquitectura, decisiones de diseño, protocolos de seguridad paranoica y el estado real de cada módulo.
+
+**MyWorld** no es un simple editor de texto; es un **Entorno de Desarrollo Integrado (IDE) para Narrativa Compleja**, diseñado para asistir a arquitectos literarios mediante una simbiosis profunda con Inteligencia Artificial (Gemini 2.0 Flash/Pro/Exp).
+
+---
+
+## 2. CIMIENTOS DEL SISTEMA (ARQUITECTURA TITAN)
+
+### 2.1 Stack Tecnológico (The Iron Core)
+*   **Frontend:** React 18 + Vite (SPA). Arquitectura modular estricta.
+*   **Estilos:** TailwindCSS v4 ("Titanium Dark Theme"). Diseño enfocado en inmersión total ("Zen Mode").
+*   **Backend:** Firebase Cloud Functions v2 (Node.js 22). Arquitectura Serverless.
+*   **Base de Datos:**
+    *   **Firestore (NoSQL):** Metadatos, Sesiones, Índices Vectoriales (TDB_Index), Cronogramas (TDB_Timeline).
+    *   **Google Drive API v3:** **Nivel 0 de Verdad**. El sistema de archivos real.
+*   **Inteligencia Artificial (Neural Link):**
+    *   **Motor Lógico:** Google Gemini 2.0 Flash (Razonamiento rápido, extracción).
+    *   **Motor Creativo:** Google Gemini 1.5 Pro / 3.0 Pro Preview (Resonancia profunda, análisis estilístico).
+    *   **Agentes Virtuales:** El Bibliotecario (Gemini 2.5 Flash), El Tribunal (Triple Persona), El Director.
+
+### 2.2 Jerarquía de la Verdad (Data Flow)
+El sistema opera bajo una estricta jerarquía de datos para evitar la corrupción narrativa:
+1.  **Nivel 0 (Físico - Inmutable):** Los archivos `.md` en Google Drive. Si no está en Drive, no existe.
+2.  **Nivel 1 (Índice Vectorial):** Colección `TDB_Index` en Firestore. Fragmentos ("chunks") vectorizados del contenido de Drive para RAG.
+3.  **Nivel 2 (Metadatos Derivados):** Colecciones `users/{uid}/characters` y `TDB_Timeline`. Análisis enriquecido por IA (Personalidad, Cronología) sobre los archivos planos.
+4.  **Nivel 3 (Sesión Volátil):** Estado de React (`ProjectConfigContext`). Sincronización en tiempo real.
+
+### 2.3 Protocolo SENTINEL (Seguridad Paranoica)
+MyWorld opera bajo una doctrina de "Cero Confianza" (Zero Trust) para proteger la Propiedad Intelectual.
+*   **Hard Handshake:** Todas las Cloud Functions (`onCall`) exigen `enforceAppCheck: true`.
+*   **ReCAPTCHA v3 Enterprise:** Verificación invisible de humanidad en cada interacción crítica.
+*   **Fail-Fast UI:** `App.tsx` implementa un "Circuit Breaker" de seguridad. Si el handshake falla, la UI colapsa a una pantalla de bloqueo.
+*   **Límites Anti-DoS (The Dam):**
+    *   `MAX_AI_INPUT_CHARS`: 100k caracteres.
+    *   `MAX_FILE_SAVE_BYTES`: 5MB.
+
+---
+
+## 3. ANATOMÍA DE LOS MÓDULOS (ESTADO OPERATIVO)
+
+### 3.1 EL NÚCLEO: Editor & App Shell
+*   **Componente:** `App.tsx`, `HybridEditor.tsx` (CodeMirror 6).
+*   **Estado:** **ACTIVO**.
+*   **Función:** Orquestación de seguridad y edición de texto distracción-free.
+*   **Características:** Zen Mode (colapso de zonas A y C), soporte para Markdown, resaltado de sintaxis.
+
+### 3.2 LA FORJA (RAG Engine)
+*   **Componente:** `ForgePanel.tsx`.
+*   **Backend:** `chatWithGem`.
+*   **Estado:** **ACTIVO**.
+*   **Filosofía:** "The Chameleon Protocol". La IA imita el tono del proyecto.
+*   **Mecanismo:** Búsqueda semántica híbrida (Vectores + Keywords) y sanitización de respuestas.
+
+### 3.3 EL GUARDIÁN (Canon Radar)
+*   **Componente:** `CanonRadar.tsx`.
+*   **Backend:** `auditContent`, `enrichCharacterContext`, `checkResonance`.
+*   **Estado:** **ACTIVO**.
+*   **Función:** Sistema de defensa activo contra la incoherencia y enriquecimiento de contexto de personajes.
+
+### 3.4 EL DIRECTOR DE ESCENA (DirectorPanel)
+*   **Componente:** `DirectorPanel.tsx`.
+*   **Backend:** `chatWithGem` (Persona Director), `purgeEcho`, `rescueEcho`.
+*   **Estado:** **ACTIVO / PARCIAL**.
+*   **Funcionalidad:**
+    *   Chat interactivo con personalidad de Director.
+    *   Gestión de Alertas de Drift (Ecos).
+    *   Purga y Rescate de fragmentos.
+*   **Brecha Detectada:** La herramienta `forgeAnalyzer` ("El Inspector") existe en backend pero carece de disparador en la UI del panel.
+
+### 3.5 EL PERFORADOR (World Engine)
+*   **Componente:** `WorldEnginePanel.tsx`.
+*   **Backend:** `worldEngine`.
+*   **Estado:** **ACTIVO**.
+*   **Función:** Generador de Lore y Trama con agentes competitivos (Arquitecto, Oráculo, Abogado del Diablo).
+
+### 3.6 EL TRIBUNAL (Literary Court)
+*   **Componente:** `TribunalPanel.tsx`.
+*   **Backend:** `summonTheTribunal`.
+*   **Estado:** **ACTIVO**.
+*   **Función:** Evaluación crítica tripartita (Arquitecto, Bardo, Hater) con puntuación numérica (1-10).
+
+### 3.7 LA IMPRENTA (ExportPanel)
+*   **Componente:** `ExportPanel.tsx`.
+*   **Backend:** `compileManuscript`.
+*   **Estado:** **ACTIVO**.
+*   **Función:** Compilación de múltiples archivos Markdown en un manuscrito PDF unificado.
+
+### 3.8 EL LABORATORIO (LaboratoryPanel)
+*   **Componente:** `LaboratoryPanel.tsx`.
+*   **Estado:** **ACTIVO**.
+*   **Función:** Gestor de Referencias y Biblioteca. Permite chatear con "El Bibliotecario" para consultar fuentes externas (`_RESOURCES`).
+
+### 3.9 CRONOGRAMA (TimelinePanel)
+*   **Componente:** `TimelinePanel.tsx`.
+*   **Backend:** `extractTimelineEvents`.
+*   **Estado:** **ACTIVO**.
+*   **Función:** Extracción y visualización de eventos temporales basada en "Año Actual" y "Era". Permite confirmar o descartar eventos sugeridos.
+
+---
+
+## 4. ANÁLISIS DE BRECHAS Y DEUDA TÉCNICA (GAP ANALYSIS)
+
+### 4.1 UI Faltante: El Inspector (`forgeAnalyzer`)
+*   **Diagnóstico:** La función `forgeAnalyzer` es capaz de escanear un texto, extraer el elenco completo y detectar personajes "Fantasmas" (no registrados en DB).
+*   **Brecha:** No existe ningún botón en `DirectorPanel` o `TribunalPanel` para invocar esta función. Es una herramienta poderosa actualmente inaccesible para el usuario.
+*   **Acción Recomendada:** Integrar botón "Inspeccionar Elenco" en el menú del Director.
+
+### 4.2 Visualización de Drift (`driftPlugin`)
+*   **Diagnóstico:** El backend `scanProjectDrift` devuelve alertas con rangos de líneas. El frontend tiene `driftPlugin.ts` para CodeMirror.
+*   **Estado de Verificación:** Se requiere confirmar que el resaltado (subrayado naranja/rojo) se renderiza correctamente en `HybridEditor` cuando llegan alertas. La conexión existe en `App.tsx` pero la fidelidad visual debe validarse.
+
+### 4.3 Persistencia y Limpieza
+*   **Diagnóstico:** Se ha migrado gran parte de la configuración a `ProjectConfigContext` (Firestore), pero la limpieza de `localStorage` y dependencias de `package.json` sigue siendo una tarea de higiene pendiente.
+
+---
+
+## 5. PROTOCOLO DE FUNCIONES INVISIBLES (SENTINEL BACKLOG)
+Las siguientes capacidades existen en la lógica o son requerimientos de alto nivel pendientes de interfaz gráfica:
+
+1.  **Manifiesto de Migración (Logs):** Historial de sistema visible solo en Drive (`_SYSTEM_LOGS`). Requiere visor en UI.
+2.  **ADN del Proyecto (Centroide):** Cálculo vectorial del "centro" del proyecto (`TDB_Index/stats/centroid`). Invisible al usuario.
+3.  **Estado de Salud Sentinel:** `ProjectHUD` muestra estado básico. Se requiere un dashboard de seguridad detallado (estado de AppCheck, Secret Manager, integridad de índices).
+
+---
+**FIN DE TRANSMISIÓN**
+**AUTORIDAD:** JULES (SENTINEL AI)
+**FECHA:** 17/01/2026
