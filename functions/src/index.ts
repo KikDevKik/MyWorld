@@ -20,6 +20,7 @@ import { Chunk, addVectors, divideVector } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile } from "./ingestion";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS } from "./ai_config";
 
 // --- SINGLETON APP (Arrancando el Cerebro Robot) ---
 admin.initializeApp();
@@ -897,9 +898,9 @@ export const enrichCharacterContext = onCall(
       // 4. AI ANALYSIS (Gemini 3 Pro)
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.0-flash-exp", // ⚡ Reverted to Stable Model (Gemini 3 not public yet)
+        model: MODEL_HIGH_REASONING, // ⚡ Reverted to Stable Model (Gemini 3 not public yet)
         generationConfig: {
-            temperature: 0.7,
+            temperature: TEMP_CREATIVE,
         } as any
       });
 
@@ -1963,7 +1964,7 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
 
         // --- 1. CONFIGURATION ---
         const generationConfig = {
-             temperature: 0.7,
+             temperature: TEMP_CREATIVE,
              maxOutputTokens: 8192,
         };
 
@@ -1977,7 +1978,7 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
 
         // --- 2. ATTEMPT 1: STANDARD CALL ---
         let model = genAI.getGenerativeModel({
-            model: "gemini-3-pro-preview",
+            model: MODEL_HIGH_REASONING,
             generationConfig,
             safetySettings: standardSafetySettings
         });
@@ -2148,11 +2149,9 @@ export const worldEngine = onCall(
     try {
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-3-pro-preview",
+        model: MODEL_HIGH_REASONING,
         generationConfig: {
-          temperature: 1.0,
-          // @ts-ignore - SDK types might lag behind experimental features
-          thinking_config: { include_thoughts: true, thinking_level: "high" }
+          temperature: TEMP_CHAOS,
         } as any
       });
 
@@ -2745,8 +2744,8 @@ export const forgeToDrive = onCall(
 
       const synthesisModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-3-pro-preview",
-        temperature: 0.4,
+        model: MODEL_LOW_COST,
+        temperature: TEMP_PRECISION,
       });
 
       const synthesisPrompt = `
@@ -2776,8 +2775,8 @@ export const forgeToDrive = onCall(
       try {
         const titleModel = new ChatGoogleGenerativeAI({
           apiKey: googleApiKey.value(),
-          model: "gemini-2.5-flash",
-          temperature: 0.7,
+          model: MODEL_LOW_COST,
+          temperature: TEMP_PRECISION,
         });
 
         const titlePrompt = `
@@ -2910,8 +2909,8 @@ export const summonTheTribunal = onCall(
 
       const chatModel = new ChatGoogleGenerativeAI({
         apiKey: googleApiKey.value(),
-        model: "gemini-3-pro-preview",
-        temperature: 0.4,
+        model: MODEL_HIGH_REASONING,
+        temperature: TEMP_CREATIVE,
         generationConfig: {
           responseMimeType: "application/json",
         }
@@ -3015,8 +3014,9 @@ export const extractTimelineEvents = onCall(
     try {
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-2.5-flash",
+        model: MODEL_LOW_COST,
         generationConfig: {
+          temperature: TEMP_PRECISION,
           responseMimeType: "application/json"
         }
       });
@@ -3728,11 +3728,9 @@ export const forgeAnalyzer = onCall(
       // 2. PREPARAR PROMPT DE ANÁLISIS
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: "gemini-3-pro-preview",
+        model: MODEL_LOW_COST,
         generationConfig: {
-          temperature: 0.2, // Analítico
-          // @ts-ignore
-          thinking_config: { include_thoughts: true, thinking_level: "high" }
+          temperature: TEMP_PRECISION, // Analítico
         } as any
       });
 
@@ -3973,7 +3971,12 @@ export const updateForgeCharacter = onCall(
 
                 // B. Use AI to surgicaly update
                 const genAI = new GoogleGenerativeAI(googleApiKey.value());
-                const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
+                const model = genAI.getGenerativeModel({
+                  model: MODEL_HIGH_REASONING,
+                  generationConfig: {
+                    temperature: TEMP_CREATIVE,
+                  }
+                });
 
                 const editPrompt = `
                     ACT AS: Expert Editor.
