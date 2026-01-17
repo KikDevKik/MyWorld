@@ -7,9 +7,10 @@ interface ArsenalDockProps {
     activeGemId: GemId | null;
     onGemSelect: (id: GemId) => void;
     onToggleDirector: () => void; // 👈 Add prop
+    onSimulateDrift?: () => void; // 🟢 SMOKE TEST
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onToggleDirector }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onToggleDirector, onSimulateDrift }) => {
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
     const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'cronograma', 'imprenta'];
@@ -77,6 +78,17 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
 
             {/* 🟢 ACCESOS DIRECTOS FLOTANTES (Director) */}
             <div className="flex flex-col gap-4 w-full px-2 pb-4">
+                {/* 🧪 DRIFT SIMULATION BUTTON (DEV ONLY) */}
+                {onSimulateDrift && (
+                    <button
+                        onClick={onSimulateDrift}
+                        className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-red-500 hover:text-red-400 hover:bg-red-950/20 border border-transparent hover:border-red-900/50"
+                        title="Simular Drift (DEV)"
+                    >
+                        <FlaskConical size={20} />
+                    </button>
+                )}
+
                  <button
                     onClick={onToggleDirector}
                     className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"

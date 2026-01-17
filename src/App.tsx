@@ -5,6 +5,8 @@ import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURI
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
 import Editor from './components/editor/Editor';
+import HybridEditor from './editor/HybridEditor'; // 👈 IMPORT NEW EDITOR
+import { DriftMarker } from './editor/extensions/driftPlugin';
 import ChatPanel from './components/ChatPanel';
 import ForgePanel from './components/forge/ForgePanel';
 import ArsenalDock from './components/forge/ArsenalDock';
@@ -48,6 +50,24 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 DRIFT STATE
     const [driftAlerts, setDriftAlerts] = useState<any>(null); // 👈 STORE GROUPED ALERTS
     const [isScanningDrift, setIsScanningDrift] = useState(false);
+
+    // 🧪 DRIFT SIMULATION (PHASE 3)
+    const [driftMarkers, setDriftMarkers] = useState<DriftMarker[]>([]);
+
+    const handleSimulateDrift = () => {
+        console.log("🧪 Simulating Drift...");
+        // Paint lines 2-5 red
+        // Since we need exact positions, and I don't know them easily without the editor state,
+        // I'll just guess some offsets for the smoke test.
+        // Ideally we'd use line numbers but the marker needs `from` index.
+        // Assuming the user types *something*.
+        // If empty, this won't show much.
+        setDriftMarkers([
+            { from: 0, to: 10, level: 'high' },
+            { from: 50, to: 60, level: 'low' }
+        ]);
+        toast.info("Simulación de Drift Activada (Líneas marcadas)");
+    };
 
     // 🟢 REAL-TIME CONTENT SYNC (DEBOUNCED FROM EDITOR)
     const handleContentChange = (newContent: string) => {
@@ -339,6 +359,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 activeGemId={activeGemId}
                 onGemSelect={handleGemSelect}
                 onToggleDirector={() => setIsDirectorOpen(prev => !prev)}
+                onSimulateDrift={handleSimulateDrift} // 🧪 PASS SIMULATOR
             />
         );
 
@@ -468,6 +489,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         // Default: Editor
         return (
             <>
+                {/*
+                    🔴 PHASE 3: HYBRID CORE IMPLANT
+                    Replacing Legacy Tiptap Editor with CodeMirror 6 HybridEditor
+                */}
+                <HybridEditor
+                    content={selectedFileContent}
+                    onContentChange={handleContentChange}
+                    driftMarkers={driftMarkers}
+                    className="h-full"
+                />
+                {/*
                 <Editor
                     fileId={currentFileId}
                     content={selectedFileContent}
@@ -480,6 +512,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     isZenMode={isZenMode}
                     setIsZenMode={setIsZenMode}
                 />
+                */}
                 {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isDirectorOpen && (
                     <CommandBar onExecute={handleCommandExecution} />
                 )}

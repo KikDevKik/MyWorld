@@ -50,3 +50,12 @@ body {
     -ms-overflow-style: none;
     scrollbar-width: none;
 }
+
+/* --- DRIFT PROTOCOL (CODE MIRROR) --- */
+.cm-drift-high {
+    background-color: rgba(127, 29, 29, 0.2) !important; /* Red 900 / 20% */
+}
+
+.cm-drift-low {
+    background-color: rgba(6, 78, 59, 0.2) !important; /* Emerald 900 / 20% */
+}
