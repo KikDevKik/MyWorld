@@ -41,7 +41,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
     };
 
     return (
-        <aside className="fixed right-0 top-0 bottom-0 w-16 bg-titanium-950 border-l border-titanium-800 flex flex-col items-center py-6 gap-6 shadow-2xl z-30">
+        <div className="w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0">
 
             {/* GEMS (Las Herramientas Principales) */}
             <div className="flex flex-col gap-4 w-full px-2">
@@ -87,7 +87,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
                 </button>
             </div>
 
-        </aside>
+        </div>
     );
 };
 

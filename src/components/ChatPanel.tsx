@@ -113,14 +113,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   };
 
   // 🟢 LOGIC FOR STYLING
-  const baseClasses = "bg-titanium-950 border-l border-titanium-700 flex flex-col shadow-2xl transition-all duration-300 z-40";
-  // Fixed: Side panel mode
-  const fixedClasses = `fixed top-0 bottom-0 right-16 w-[400px] transform ${isOpen ? 'translate-x-0' : 'translate-x-full'}`;
-  // Full Width: Main stage mode
-  const fullWidthClasses = "w-full h-full border-none";
+  // Simplified for SentinelShell: Just fill container.
+  const baseClasses = "flex flex-col h-full w-full bg-titanium-950 border-l border-titanium-800 transition-all duration-300";
+
+  if (!isOpen && !isFullWidth) return null; // Don't render if closed and not full width (redundant check but safe)
 
   return (
-    <div className={`${baseClasses} ${isFullWidth ? fullWidthClasses : fixedClasses}`}>
+    <div className={baseClasses}>
 
       {/* HEADER */}
       <div className="p-4 border-b border-titanium-800 flex items-center justify-between bg-titanium-900/50 backdrop-blur-sm">

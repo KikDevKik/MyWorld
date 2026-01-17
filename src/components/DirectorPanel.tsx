@@ -350,7 +350,7 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     if (!isOpen) return null;
 
     return (
-        <div className="fixed right-4 top-20 bottom-4 w-96 bg-titanium-950/95 backdrop-blur-xl border border-titanium-800 rounded-xl shadow-2xl flex flex-col overflow-hidden z-50 animate-in slide-in-from-right duration-300">
+        <div className="w-full h-full bg-titanium-950/95 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
             {/* HEADER */}
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
                 <div className="flex items-center gap-2">
