@@ -808,6 +808,12 @@ export { auditContent, scanProjectDrift, rescueEcho } from "./guardian";
 export { executeBaptismProtocol } from "./migration";
 
 /**
+ * 25. JANITOR PROTOCOL (Operación Limpieza)
+ * Mantiene la integridad del baúl eliminando fantasmas y artefactos vacíos.
+ */
+export { scanVaultHealth, purgeArtifacts } from "./janitor";
+
+/**
  * 20. ENRICH CHARACTER CONTEXT (La Bola de Cristal)
  * Realiza una búsqueda vectorial profunda para analizar un personaje en el contexto de la saga.
  */

@@ -4,7 +4,6 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
-import Editor from './components/editor/Editor';
 import HybridEditor from './editor/HybridEditor'; // 👈 IMPORT NEW EDITOR
 import { DriftMarker } from './editor/extensions/driftPlugin';
 import ChatPanel from './components/ChatPanel';
@@ -501,30 +500,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         // Default: Editor
         return (
             <>
-                {/*
-                    🔴 PHASE 3: HYBRID CORE IMPLANT
-                    Replacing Legacy Tiptap Editor with CodeMirror 6 HybridEditor
-                */}
+                {/* 🔴 PHASE 3: HYBRID CORE IMPLANT */}
                 <HybridEditor
                     content={selectedFileContent}
                     onContentChange={handleContentChange}
                     driftMarkers={driftMarkers}
                     className="h-full"
                 />
-                {/*
-                <Editor
-                    fileId={currentFileId}
-                    content={selectedFileContent}
-                    onContentChange={handleContentChange}
-                    onBubbleAction={handleEditorAction}
-                    accessToken={oauthToken}
-                    fileName={currentFileName}
-                    onTokenExpired={handleTokenRefresh}
-                    onFocusChange={setIsEditorFocused}
-                    isZenMode={isZenMode}
-                    setIsZenMode={setIsZenMode}
-                />
-                */}
                 {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isDirectorOpen && (
                     <CommandBar onExecute={handleCommandExecution} />
                 )}

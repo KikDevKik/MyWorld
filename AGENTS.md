@@ -1,21 +1,50 @@
-# AGENTS.MD
+# MANUAL OPERATIVO DE AGENTES (v3.2 - FASE 5)
 
-## Protocolo de Seguridad del Gensakusha
+Este archivo documenta los roles activos de la IA y los protocolos de mantenimiento del sistema.
 
-Este proyecto requiere inyección manual de variables de entorno para App Check y Firebase debido a políticas de seguridad del Gensakusha.
+## 🟢 1. ROLES OPERATIVOS (THE TRINITY)
 
-- El archivo `.env.local` debe estar presente en la raíz.
-- Se debe asegurar que `projectId` y `apiKey` nunca sean undefined.
-- Se ha implementado un mecanismo de fallback en `src/index.tsx` para garantizar la estabilidad del sistema.
+### A. SENTINEL (El Guardián)
+*   **Misión:** Seguridad, Integridad y UI Shell.
+*   **Dominio:** `SentinelShell`, `VaultSidebar`, `SentinelStatus`.
+*   **Responsabilidades:**
+    *   Gestionar el "Titanium Shell" (Layout Zones A/B/C).
+    *   Monitorizar la conexión con Google Drive y Firestore.
+    *   Alertar sobre fallos de integridad (Missing Index, Auth Failures).
 
-## Sentinel_Alert_System
+### B. DRIFTER (El Analista)
+*   **Misión:** Coherencia y Detección de Desvíos.
+*   **Dominio:** `HybridEditor` (CodeMirror), `DirectorPanel`.
+*   **Responsabilidades:**
+    *   Analizar el texto en tiempo real mediante `driftPlugin` (CodeMirror Extension).
+    *   Pintar "Decorations" en el editor (Líneas rojas/naranjas) cuando la IA detecta inconsistencias.
+    *   Comunicarse con el `DirectorPanel` para ofrecer soluciones ("Rescue").
 
-Handles Error 9 (Firestore Index) by triggering global UI ring and HUD button.
-- **Backend:** Detects `FAILED_PRECONDITION` (Index missing) and logs `[SENTINEL_ALERTA_CRITICA]`. Returns `technicalError` object.
-- **Frontend:** `ForgeChat` intercepts the error and updates `ProjectConfigContext`.
-- **UI:** `ProjectHUD` turns orange with a repair button. `Editor` pulses with an orange ring. Audio alert triggers once.
+### C. JANITOR (El Limpiador)
+*   **Misión:** Mantenimiento e Higiene de Datos.
+*   **Dominio:** `functions/src/janitor.ts`, `SentinelStatus`.
+*   **Responsabilidades:**
+    *   **Ghost Detection:** Escanear Drive en busca de archivos vacíos (< 10 bytes) o corruptos.
+    *   **The Purge:** Ejecutar borrado duro (Hard Delete) en Drive y Firestore para eliminar artefactos.
+    *   Mantener la salud del baúl al 100%.
 
-## SENTINEL_DEPENDENCY_PROTOCOL
-Cualquier función que acceda a SecretManagerServiceClient REQUIERE la presencia de @google-cloud/secret-manager en functions/package.json.
+## 🔵 2. PROTOCOLOS TÉCNICOS
 
-Registro de Incidente: "Resolución de Error TS2307 (2026-01-XX): Se forzó la inclusión de dependencias de Google Cloud para el Health Check de Sentinel".
+### PROTOCOLO DE ESTADO (Single Source of Truth)
+*   El árbol de archivos (`fileTree`) se gestiona exclusivamente en `ProjectConfigContext`.
+*   `VaultSidebar` (Zona A) y `SentinelStatus` (Zona C) consumen este mismo contexto.
+*   Cualquier cambio en la estructura (Borrado, Creación) debe reflejarse instantáneamente en ambos paneles gracias a la suscripción a Firestore `TDB_Index`.
+
+### PROTOCOLO DE EDITOR (Hybrid Core)
+*   Se ha eliminado Tiptap. El único editor activo es **CodeMirror 6** (`HybridEditor`).
+*   Los agentes (`DirectorPanel`, `TribunalPanel`) leen el contenido a través del estado `selectedFileContent` en `App.tsx`, el cual se sincroniza en tiempo real con `HybridEditor`.
+
+### PROTOCOLO DE SEGURIDAD (Sentinel Pulse)
+*   El sistema verifica la integridad al inicio (`checkSentinelIntegrity`).
+*   Si falla, se bloquea el acceso a funciones críticas (Indexado, Chat) y se muestra una alerta en `SentinelStatus`.
+
+## 🟠 3. MEMORIA Y PERSISTENCIA
+*   **Nivel 0:** Google Drive (Archivos físicos .md). La verdad absoluta.
+*   **Nivel 1:** Firestore `TDB_Index` (Metadatos y Vectores). La memoria de trabajo.
+*   **Nivel 2:** Firestore `users/{uid}/profile` (Configuración y Preferencias).
+*   **Purga:** Cuando el Janitor elimina un archivo, debe hacerlo en Nivel 0 y Nivel 1 simultáneamente.
