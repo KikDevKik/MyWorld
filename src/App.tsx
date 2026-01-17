@@ -24,6 +24,7 @@ import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
 import WorldEnginePanel from './components/WorldEnginePanel'; // 👈 IMPORT NEW PANEL
 import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
 import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
+import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
 import { GemId, ProjectConfig, ForgeSession } from './types';
@@ -44,6 +45,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isDirectorOpen, setIsDirectorOpen] = useState(false); // 👈 NEW STATE
+    const [isSentinelOpen, setIsSentinelOpen] = useState(false); // 🟢 SENTINEL STATE
     const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
     const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // 👈 DIRECTOR HANDOFF
 
@@ -349,7 +351,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const SIDE_PANEL_GEMS: GemId[] = ['tribunal']; // Director is handled by isDirectorOpen
     const isSidePanelGemActive = activeGemId && SIDE_PANEL_GEMS.includes(activeGemId);
 
-    const isToolsExpanded = Boolean(isChatOpen || isDirectorOpen || isSidePanelGemActive);
+    const isToolsExpanded = Boolean(isChatOpen || isDirectorOpen || isSidePanelGemActive || isSentinelOpen);
 
     // 2. Render Panel C Content
     const renderZoneCContent = () => {
@@ -360,6 +362,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onGemSelect={handleGemSelect}
                 onToggleDirector={() => setIsDirectorOpen(prev => !prev)}
                 onSimulateDrift={handleSimulateDrift} // 🧪 PASS SIMULATOR
+                isSecurityReady={isSecurityReady}
+                onToggleSentinel={() => setIsSentinelOpen(prev => !prev)}
             />
         );
 
@@ -367,7 +371,15 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         let expandedContent: React.ReactNode = null;
 
         if (isToolsExpanded) {
-            if (isDirectorOpen) {
+            if (isSentinelOpen) {
+                 expandedContent = (
+                    <SentinelStatus
+                        onClose={() => setIsSentinelOpen(false)}
+                        isSecurityReady={isSecurityReady}
+                        isOffline={!driveStatus || driveStatus === 'disconnected' || driveStatus === 'error' || !isSecurityReady}
+                    />
+                );
+            } else if (isDirectorOpen) {
                 expandedContent = (
                     <DirectorPanel
                         isOpen={true} // Always true if rendered here
@@ -713,11 +725,14 @@ function App() {
     // 2. CONDITIONAL RETURNS (Guard Clauses)
 
     // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
-    if (securityError === 'PERIMETER_BREACH') {
+    // 🟢 OPTIMISTIC DEV MODE: Bypass Lock Screen in Localhost to debug AppCheck Tokens
+    const isDev = import.meta.env.DEV;
+
+    if (securityError === 'PERIMETER_BREACH' && !isDev) {
         return <SecurityLockScreen />;
     }
 
-    if (securityError) {
+    if (securityError && !isDev) {
         return (
             <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
                 <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
