@@ -145,7 +145,7 @@ const Editor: React.FC<EditorProps> = ({
         editorProps: {
             attributes: {
                 class: [
-                    'prose prose-invert max-w-none focus:outline-none min-h-[calc(100vh-300px)]',
+                    'prose prose-invert max-w-none focus:outline-none min-h-[50vh]',
                     'transition-all duration-300',
                     '[&_p]:mb-6 [&_p]:mt-0',
                     'prose-p:mb-6 prose-p:mt-0 prose-p:leading-relaxed',

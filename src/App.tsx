@@ -26,6 +26,7 @@ import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
 import { GemId, ProjectConfig, ForgeSession } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
+import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 // We need this because we want to use 'useProjectConfig' which requires ProjectConfigProvider
@@ -37,11 +38,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [selectedFileContent, setSelectedFileContent] = useState<string>("");
     const [currentFileId, setCurrentFileId] = useState<string | null>(null);
     const [currentFileName, setCurrentFileName] = useState<string>('');
-
-    // 🟢 COLD START FALLBACK STATE (NOW CLOUD DRIVEN)
-    // Removed LocalStorage persistence here. We rely on ProjectConfigContext for folderId.
-    // For file content, we might start empty or implement Cloud Persistence later.
-    // For now, we clear the ghosts.
 
     const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
@@ -59,7 +55,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
-    // Without LocalStorage, we default to empty if no file selected.
     const effectiveFileContent = selectedFileContent;
     const effectiveFileName = currentFileName;
     const isFallbackContext = false; // Always live now.
@@ -328,11 +323,172 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         );
     }
 
-    // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
-    // (Moved up for Hook Usage)
+    // --- SENTINEL SHELL LOGIC ---
+
+    // 1. Determine Zone C Content (Side Panel Gems)
+    const SIDE_PANEL_GEMS: GemId[] = ['tribunal']; // Director is handled by isDirectorOpen
+    const isSidePanelGemActive = activeGemId && SIDE_PANEL_GEMS.includes(activeGemId);
+
+    const isToolsExpanded = Boolean(isChatOpen || isDirectorOpen || isSidePanelGemActive);
+
+    // 2. Render Panel C Content
+    const renderZoneCContent = () => {
+        // A) Arsenal Dock (Always Visible, Layout handled by Shell)
+        const dock = (
+            <ArsenalDock
+                activeGemId={activeGemId}
+                onGemSelect={handleGemSelect}
+                onToggleDirector={() => setIsDirectorOpen(prev => !prev)}
+            />
+        );
+
+        // B) Expanded Content (Only if Open)
+        let expandedContent: React.ReactNode = null;
+
+        if (isToolsExpanded) {
+            if (isDirectorOpen) {
+                expandedContent = (
+                    <DirectorPanel
+                        isOpen={true} // Always true if rendered here
+                        onClose={() => setIsDirectorOpen(false)}
+                        activeSessionId={activeDirectorSessionId}
+                        onSessionSelect={setActiveDirectorSessionId}
+                        pendingMessage={directorPendingMessage}
+                        onClearPendingMessage={() => setDirectorPendingMessage(null)}
+                        activeFileContent={effectiveFileContent}
+                        activeFileName={effectiveFileName}
+                        isFallbackContext={isFallbackContext}
+                        folderId={folderId}
+                        driftAlerts={driftAlerts}
+                    />
+                );
+            } else if (activeGemId === 'tribunal') {
+                expandedContent = (
+                    <TribunalPanel
+                        onClose={() => setActiveGemId(null)}
+                        initialText={selectedFileContent}
+                        currentFileId={currentFileId}
+                        accessToken={oauthToken}
+                    />
+                );
+            } else if (isChatOpen) {
+                // Generic Chat or Gem Chat
+                expandedContent = (
+                    <ChatPanel
+                        isOpen={true}
+                        onClose={() => {
+                            setIsChatOpen(false);
+                            setActiveGemId(null);
+                        }}
+                        activeGemId={activeGemId}
+                        initialMessage={pendingMessage}
+                        isFullWidth={true} // Fill the container
+                        folderId={folderId}
+                        activeFileContent={effectiveFileContent}
+                        activeFileName={effectiveFileName}
+                        isFallbackContext={isFallbackContext}
+                    />
+                );
+            }
+        }
+
+        return (
+            <>
+                {dock}
+                <div className="flex-1 min-w-0 h-full overflow-hidden">
+                    {expandedContent}
+                </div>
+            </>
+        );
+    };
+
+    // 3. Render Zone B Content (Main Stage)
+    const renderZoneBContent = () => {
+        if (activeGemId === 'forja') {
+            return (
+                <ForgePanel
+                    onClose={() => setActiveGemId(null)}
+                    folderId={folderId}
+                    accessToken={oauthToken}
+                />
+            );
+        }
+        if (activeGemId === 'guardian') {
+            return (
+                <CanonRadar
+                    status={guardianStatus}
+                    facts={guardianFacts}
+                    conflicts={guardianConflicts}
+                    onClose={() => setActiveGemId(null)}
+                    onForceAudit={forceAudit}
+                    accessToken={oauthToken}
+                />
+            );
+        }
+        if (activeGemId === 'perforador') {
+            return (
+                <WorldEnginePanel
+                    isOpen={true}
+                    onClose={() => setActiveGemId(null)}
+                    activeGemId={activeGemId}
+                />
+            );
+        }
+        if (activeGemId === 'laboratorio') {
+            return (
+                <LaboratoryPanel
+                    onClose={() => setActiveGemId(null)}
+                    folderId={folderId}
+                    accessToken={oauthToken}
+                />
+            );
+        }
+        if (activeGemId === 'cronograma') {
+            return (
+                <TimelinePanel
+                    onClose={() => setActiveGemId(null)}
+                    userId={user?.uid || null}
+                    onFileSelect={handleTimelineFileSelect}
+                    currentFileId={currentFileId}
+                    accessToken={oauthToken}
+                    isSecurityReady={isSecurityReady}
+                />
+            );
+        }
+        if (activeGemId === 'imprenta') {
+            return (
+                <ExportPanel
+                    onClose={() => setActiveGemId(null)}
+                    folderId={folderId}
+                    accessToken={oauthToken}
+                />
+            );
+        }
+
+        // Default: Editor
+        return (
+            <>
+                <Editor
+                    fileId={currentFileId}
+                    content={selectedFileContent}
+                    onContentChange={handleContentChange}
+                    onBubbleAction={handleEditorAction}
+                    accessToken={oauthToken}
+                    fileName={currentFileName}
+                    onTokenExpired={handleTokenRefresh}
+                    onFocusChange={setIsEditorFocused}
+                    isZenMode={isZenMode}
+                    setIsZenMode={setIsZenMode}
+                />
+                {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isDirectorOpen && (
+                    <CommandBar onExecute={handleCommandExecution} />
+                )}
+            </>
+        );
+    };
 
     return (
-        <div className="flex h-screen w-screen bg-titanium-900 text-titanium-200 font-sans overflow-hidden">
+        <>
             <Toaster
                 theme="dark"
                 position="bottom-right"
@@ -351,8 +507,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onClose={() => setIsConnectModalOpen(false)}
                 onSubmit={(id) => {
                     setFolderId(id);
-                    // localStorage.setItem('myworld_folder_id', id); // 💀 REMOVED
-                    // 🟢 SYNC TO CLOUD CONFIG
                     if (config) {
                         updateConfig({ ...config, folderId: id });
                     }
@@ -378,149 +532,35 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 <FieldManualModal onClose={() => setIsFieldManualOpen(false)} />
             )}
 
-            {!isZenMode && activeGemId !== 'perforador' && activeGemId !== 'forja' && (
-                <VaultSidebar
-                    folderId={folderId}
-                    onFolderIdChange={setFolderId}
-                    onFileSelect={(id, content, name) => {
-                        setCurrentFileId(id);
-                        setSelectedFileContent(content);
-                        setCurrentFileName(name || 'Documento');
-                    }}
-                    onOpenConnectModal={() => setIsConnectModalOpen(true)}
-                    onLogout={handleLogout}
-                    onIndexRequest={handleIndex}
-                    onOpenSettings={() => setIsSettingsModalOpen(true)}
-                    onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
-                    accessToken={oauthToken}
-                    onRefreshTokens={handleTokenRefresh}
-                    driveStatus={driveStatus}
-                    onOpenManual={() => setIsFieldManualOpen(true)}
-                    isIndexed={indexStatus.isIndexed} // 👈 Pass index status
-                    isSecurityReady={isSecurityReady} // 👈 CIRCUIT BREAKER
-                />
-            )}
-
-            <main className={`flex-1 flex flex-col min-w-0 bg-titanium-950 relative transition-all duration-300 ${isZenMode ? 'ml-0 mr-0' : (activeGemId === 'perforador' || activeGemId === 'forja' || activeGemId === 'guardian') ? 'ml-0 mr-16' : 'ml-64 mr-16'}`}>
-                {activeGemId === 'forja' ? (
-                    <ForgePanel
-                        onClose={() => setActiveGemId(null)}
+            <SentinelShell
+                isZenMode={isZenMode}
+                isToolsExpanded={isToolsExpanded}
+                sidebar={
+                    <VaultSidebar
                         folderId={folderId}
+                        onFolderIdChange={setFolderId}
+                        onFileSelect={(id, content, name) => {
+                            setCurrentFileId(id);
+                            setSelectedFileContent(content);
+                            setCurrentFileName(name || 'Documento');
+                        }}
+                        onOpenConnectModal={() => setIsConnectModalOpen(true)}
+                        onLogout={handleLogout}
+                        onIndexRequest={handleIndex}
+                        onOpenSettings={() => setIsSettingsModalOpen(true)}
+                        onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
                         accessToken={oauthToken}
+                        onRefreshTokens={handleTokenRefresh}
+                        driveStatus={driveStatus}
+                        onOpenManual={() => setIsFieldManualOpen(true)}
+                        isIndexed={indexStatus.isIndexed}
+                        isSecurityReady={isSecurityReady}
                     />
-                ) : activeGemId === 'guardian' ? (
-                    <CanonRadar
-                        status={guardianStatus}
-                        facts={guardianFacts}
-                        conflicts={guardianConflicts}
-                        onClose={() => setActiveGemId(null)}
-                        onForceAudit={forceAudit}
-                        accessToken={oauthToken}
-                    />
-                ) : activeGemId === 'perforador' ? (
-                    <WorldEnginePanel
-                        isOpen={true}
-                        onClose={() => setActiveGemId(null)}
-                        activeGemId={activeGemId}
-                    />
-                ) : activeGemId === 'tribunal' ? (
-                    <TribunalPanel
-                        onClose={() => setActiveGemId(null)}
-                        initialText={selectedFileContent}
-                        currentFileId={currentFileId}
-                        accessToken={oauthToken}
-                    />
-                ) : activeGemId === 'laboratorio' ? (
-                    <LaboratoryPanel
-                        onClose={() => setActiveGemId(null)}
-                        folderId={folderId}
-                        accessToken={oauthToken}
-                    />
-                ) : activeGemId === 'cronograma' ? (
-                    <TimelinePanel
-                        onClose={() => setActiveGemId(null)}
-                        userId={user?.uid || null}
-                        onFileSelect={handleTimelineFileSelect}
-                        currentFileId={currentFileId}
-                        accessToken={oauthToken}
-                        isSecurityReady={isSecurityReady} // 👈 CIRCUIT BREAKER
-                    />
-                ) : activeGemId === 'imprenta' ? (
-                    <ExportPanel
-                        onClose={() => setActiveGemId(null)}
-                        folderId={folderId}
-                        accessToken={oauthToken}
-                    />
-                ) : (
-                    <>
-                        {/* 🟢 LOGIC 5: MAIN SCENARIO SWITCHING */}
-                        {/* When Guardian (CanonRadar) is active, it takes over the main stage completely, unmounting or hiding the Editor. */}
-                        {/* Actually, activeGemId === 'guardian' is handled above in the switch. */}
-                        {/* But wait, the switch above uses `activeGemId === 'guardian'` to render CanonRadar. */}
-                        {/* So when activeGemId is 'guardian', this `else` block (Editor) is NOT rendered. */}
-                        {/* This satisfies the requirement "Delete Editor from <main>... occupy 100%". */}
-                        {/* The logic is already inherent in the conditional rendering structure I set up previously! */}
-                        {/* I just need to verify CanonRadar's container styling in the switch case above. */}
-
-                        <Editor
-                            fileId={currentFileId}
-                            content={selectedFileContent}
-                            onContentChange={handleContentChange} // 👈 SYNC STATE
-                            onBubbleAction={handleEditorAction}
-                            accessToken={oauthToken}
-                            fileName={currentFileName}
-                            onTokenExpired={handleTokenRefresh}
-                            onFocusChange={setIsEditorFocused}
-                            isZenMode={isZenMode}
-                            setIsZenMode={setIsZenMode}
-                        />
-                        {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isDirectorOpen && (
-                            <CommandBar onExecute={handleCommandExecution} />
-                        )}
-                    </>
-                )}
-            </main>
-
-            {!isZenMode && (
-                <ArsenalDock
-                    activeGemId={activeGemId}
-                    onGemSelect={handleGemSelect}
-                    onToggleDirector={() => setIsDirectorOpen(prev => !prev)} // 👈 TOGGLE
-                />
-            )}
-
-            <DirectorPanel
-                isOpen={isDirectorOpen}
-                onClose={() => setIsDirectorOpen(false)}
-                activeSessionId={activeDirectorSessionId}
-                onSessionSelect={setActiveDirectorSessionId}
-                pendingMessage={directorPendingMessage}
-                onClearPendingMessage={() => setDirectorPendingMessage(null)}
-                activeFileContent={effectiveFileContent} // 👈 Pass Effective Context
-                activeFileName={effectiveFileName}     // 👈 Pass Effective Name
-                isFallbackContext={isFallbackContext}  // 👈 Pass Flag
-                folderId={folderId} // 👈 PASS PROJECT ID
-                driftAlerts={driftAlerts} // 👈 PASS DRIFT DATA
+                }
+                editor={renderZoneBContent()}
+                tools={renderZoneCContent()}
             />
-
-            {/* 🛡️ GUARDIAN (CANON RADAR) - Now inside <main> */}
-            {(activeGemId && activeGemId !== 'director' && activeGemId !== 'perforador' && activeGemId !== 'forja' && activeGemId !== 'tribunal' && activeGemId !== 'laboratorio' && activeGemId !== 'cronograma' && activeGemId !== 'imprenta' && activeGemId !== 'guardian') ? (
-                <ChatPanel
-                    isOpen={isChatOpen}
-                    onClose={() => {
-                        setIsChatOpen(false);
-                        setActiveGemId(null);
-                    }}
-                    activeGemId={activeGemId}
-                    initialMessage={pendingMessage}
-                    isFullWidth={false}
-                    folderId={folderId} // 👈 PASS PROJECT ID
-                    activeFileContent={effectiveFileContent} // 👈 Pass Context
-                    activeFileName={effectiveFileName}     // 👈 Pass Context
-                    isFallbackContext={isFallbackContext}  // 👈 Pass Flag
-                />
-            ) : null}
-        </div>
+        </>
     );
 }
 

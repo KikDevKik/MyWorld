@@ -84,10 +84,10 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
             </div>
 
             {/* CONTENT */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden">
 
                 {/* LEFT COLUMN: INPUT */}
-                <div className="w-1/2 flex flex-col p-6 gap-4 border-r border-titanium-800 bg-titanium-950/50">
+                <div className="flex-1 flex flex-col p-6 gap-4 border-b border-titanium-800 bg-titanium-950/50 overflow-y-auto">
 
                     {/* 🟢 MODE TOGGLE */}
                     <div className="flex bg-titanium-900 p-1 rounded-lg border border-titanium-800">
@@ -178,7 +178,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 </div>
 
                 {/* RIGHT COLUMN: VERDICTS */}
-                <div className="w-1/2 p-6 overflow-y-auto bg-titanium-900/30">
+                <div className="flex-1 p-6 overflow-y-auto bg-titanium-900/30">
                     {!result ? (
                         <div className="h-full flex flex-col items-center justify-center text-titanium-600 opacity-50">
                             <Scale size={64} className="mb-4" />

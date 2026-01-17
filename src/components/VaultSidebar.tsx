@@ -162,7 +162,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const status = getStatusConfig();
 
     return (
-        <aside className="fixed left-0 top-0 bottom-0 w-64 bg-titanium-900 border-r border-titanium-800 flex flex-col z-20 select-none">
+        <div className="w-full h-full bg-titanium-900 flex flex-col z-20 select-none">
 
             {/* HEADER / SAGA SELECTOR */}
             <div className="px-4 py-4 border-b border-titanium-800 bg-titanium-900/50">
@@ -292,7 +292,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             </div>
 
             {/* FOOTER */}
-            <div className="p-3 border-t border-titanium-800 bg-titanium-900">
+            <div className="p-3 border-t border-titanium-800 bg-titanium-900 mt-auto">
                 <div className="flex flex-col gap-1">
                     <button
                         onClick={onOpenManual}
@@ -339,7 +339,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </button>
                 </div>
             </div>
-        </aside >
+        </div>
     );
 };
 
