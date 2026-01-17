@@ -1,9 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono&family=Merriweather:wght@300;400;700&display=swap');
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
 
-:root {
-    color-scheme: dark;
+@theme {
+  --color-titanium-900: #1c1c1e;
+  --color-titanium-800: #292928;
+  --color-titanium-500: #878681;
+  --color-titanium-surface: #3A3937;
+  --color-text-primary: #E0E0E0;
+  --color-text-secondary: #8D918D;
+  --color-drift-high: #7f1d1d;
+
+  --font-display: "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --font-serif: "Merriweather", serif;
+}
+
+body {
+  @apply bg-titanium-900 text-text-primary;
 }
 
 /* --- SCROLLBAR TITANIUM (PROTOCOL PALETTE) --- */
