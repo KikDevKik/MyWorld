@@ -8,9 +8,11 @@ interface ArsenalDockProps {
     onGemSelect: (id: GemId) => void;
     onToggleDirector: () => void; // 👈 Add prop
     onSimulateDrift?: () => void; // 🟢 SMOKE TEST
+    isSecurityReady?: boolean; // 🟢 NEW PROP
+    onToggleSentinel?: () => void; // 🟢 NEW PROP
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onToggleDirector, onSimulateDrift }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onToggleDirector, onSimulateDrift, isSecurityReady, onToggleSentinel }) => {
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
     const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'cronograma', 'imprenta'];
@@ -43,6 +45,22 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
 
     return (
         <div className="w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0">
+
+            {/* 🛡️ SENTINEL STATUS SHIELD */}
+            <button
+                onClick={onToggleSentinel}
+                className={`
+                    group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
+                    focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none mb-2
+                    ${isSecurityReady
+                        ? 'text-emerald-500 hover:text-emerald-400 bg-emerald-950/20 border border-transparent hover:border-emerald-900/50'
+                        : 'text-red-500 hover:text-red-400 bg-red-950/20 border border-transparent hover:border-red-900/50'}
+                `}
+                title={isSecurityReady ? "Sentinel System: Active" : "Sentinel System: Offline / Error"}
+                aria-label="Sentinel Status"
+            >
+                <ShieldCheck size={20} className={isSecurityReady ? "" : "animate-pulse"} />
+            </button>
 
             {/* GEMS (Las Herramientas Principales) */}
             <div className="flex flex-col gap-4 w-full px-2">

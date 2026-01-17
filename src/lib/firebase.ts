@@ -55,7 +55,7 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
 
     // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
     if (import.meta.env.DEV) {
-        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = import.meta.env.VITE_APP_CHECK_DEBUG_TOKEN;
+        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
         console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
 
         // 👻 GHOST BYPASS
