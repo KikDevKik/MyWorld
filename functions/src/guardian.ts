@@ -5,6 +5,7 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as crypto from 'crypto';
 import { cosineSimilarity } from "./similarity";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
@@ -90,8 +91,11 @@ export const auditContent = onCall(
 
         // 3. EXTRACTION STEP (Gemini 2.0 Flash)
         const extractorModel = genAI.getGenerativeModel({
-            model: "gemini-2.0-flash-exp",
-            generationConfig: { responseMimeType: "application/json" }
+            model: MODEL_LOW_COST,
+            generationConfig: {
+              responseMimeType: "application/json",
+              temperature: TEMP_PRECISION
+            }
         });
 
         // 🟢 RESONANCE ENGINE (Integrated into Audit for Mission 1)
@@ -168,8 +172,11 @@ export const auditContent = onCall(
         // 4. SETUP MODELS
         const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
         const verifierModel = genAI.getGenerativeModel({
-             model: "gemini-2.0-flash-exp",
-             generationConfig: { responseMimeType: "application/json" }
+             model: MODEL_HIGH_REASONING,
+             generationConfig: {
+               responseMimeType: "application/json",
+               temperature: TEMP_CREATIVE
+             }
         });
 
         // 🟢 DRIFT CALCULATION (THE ANCHOR CHECK)
