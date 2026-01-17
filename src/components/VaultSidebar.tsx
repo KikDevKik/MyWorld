@@ -3,7 +3,7 @@ import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from './ProjectConfigContext';
-import { getFirestore, doc, onSnapshot, collection, query, where, getDocs } from "firebase/firestore";
+import { getFirestore, onSnapshot, collection, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 
 interface VaultSidebarProps {
@@ -50,17 +50,15 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
-    const { config } = useProjectConfig();
 
-    // 🟢 INDEXED TREE STATE
-    const [indexedTree, setIndexedTree] = useState<FileNode[] | null>(null);
-    const [isLoadingTree, setIsLoadingTree] = useState(true);
+    // 🟢 CONSUME GLOBAL CONTEXT
+    const { fileTree, isFileTreeLoading } = useProjectConfig();
 
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
     const [showOnlyHealthy, setShowOnlyHealthy] = useState(false);
 
-    // 🟢 LISTEN FOR CONFLICTS
+    // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
@@ -68,7 +66,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
         const db = getFirestore();
         // Query TDB_Index/files where isConflicting == true
-        // Note: Ideally we use onSnapshot for real-time updates when rescue happens
         const q = query(
             collection(db, "TDB_Index", user.uid, "files"),
             where("isConflicting", "==", true)
@@ -79,9 +76,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             const conflictIds = new Set<string>();
             snapshot.docs.forEach(doc => {
                 const data = doc.data();
-                // We use driveId if available, or doc ID if it matches file ID structure
-                // ingestFile uses Hashed ID for doc, but stores `driveId`.
-                // FileTree uses `id` which is Drive ID. So we need `driveId` from metadata.
                 if (data.driveId) {
                     conflictIds.add(data.driveId);
                 }
@@ -94,55 +88,15 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     }, [isSecurityReady]);
 
 
-    // 🟢 FIRESTORE LISTENER (TREE STRUCTURE)
+    // 🟢 UPDATE TOP LEVEL FOLDERS WHEN TREE CHANGES
     useEffect(() => {
-        const auth = getAuth();
-        const user = auth.currentUser;
-
-        if (!user) {
-            setIndexedTree(null);
-            setIsLoadingTree(false);
-            return;
+        if (fileTree && Array.isArray(fileTree)) {
+             const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
+             setTopLevelFolders(folders);
+        } else {
+             setTopLevelFolders([]);
         }
-
-        // 🟢 CIRCUIT BREAKER: Block Listener until Security Handshake is Valid
-        if (!isSecurityReady) {
-             console.log("🛡️ [CIRCUIT BREAKER] VaultSidebar waiting for App Check...");
-             // We keep loading state true to show skeleton
-             setIsLoadingTree(true);
-             return;
-        }
-
-        const db = getFirestore();
-        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
-
-        console.log("📡 Suscribiéndose a TDB_Index/structure/tree...");
-
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data && data.tree && Array.isArray(data.tree)) {
-                     console.log("🌳 Árbol indexado actualizado:", data.tree.length, "nodos raíz");
-                     setIndexedTree(data.tree);
-                     // Update top level folders for dropdown
-                     const folders = data.tree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
-                     setTopLevelFolders(folders);
-                } else {
-                     setIndexedTree([]);
-                }
-            } else {
-                console.log("⚠️ No se encontró estructura de árbol (¿Nuclear Re-index requerido?)");
-                setIndexedTree([]);
-            }
-            setIsLoadingTree(false);
-        }, (error) => {
-            console.error("Error escuchando árbol indexado:", error);
-            setIndexedTree([]);
-            setIsLoadingTree(false);
-        });
-
-        return () => unsubscribe();
-    }, [isSecurityReady]); // 👈 Dependencia crítica para re-ejecutar tras handshake
+    }, [fileTree]);
 
 
     // 🟢 STATUS INDICATOR HELPER
@@ -209,7 +163,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         value={selectedSagaId || ''}
                         onChange={(e) => setSelectedSagaId(e.target.value || null)}
                         className="w-full appearance-none bg-titanium-950 hover:bg-titanium-900 text-sm font-medium text-titanium-100 focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT/50 cursor-pointer py-2 px-3 pr-8 rounded-md border border-titanium-700 transition-all"
-                        disabled={!indexedTree || indexedTree.length === 0}
+                        disabled={!fileTree || fileTree.length === 0}
                     >
                         <option value="" className="bg-titanium-950 text-titanium-100">Vista Global</option>
                         {topLevelFolders.map(folder => (
@@ -230,7 +184,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
             {/* FILE TREE */}
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
-                {isLoadingTree ? (
+                {isFileTreeLoading ? (
                     // 🟢 TITANIUM SKELETON (CIRCUIT BREAKER VISUAL)
                     <div className="flex flex-col gap-3 p-2 animate-pulse">
                         <div className="h-4 bg-titanium-700/50 rounded w-3/4"></div>
@@ -258,14 +212,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                      Conectar Ahora
                                  </button>
                              </div>
-                         ) : indexedTree && indexedTree.length > 0 ? (
+                         ) : fileTree && fileTree.length > 0 ? (
                             <FileTree
                                 folderId={folderId} // ⚠️ Ignored if preloadedTree is passed
                                 onFileSelect={onFileSelect}
                                 accessToken={accessToken}
                                 rootFilterId={selectedSagaId}
                                 // onLoad is handled by parent subscription now
-                                preloadedTree={indexedTree} // 👈 PASS THE INDEXED TREE
+                                preloadedTree={fileTree} // 👈 PASS THE INDEXED TREE FROM CONTEXT
                                 conflictingFileIds={conflictingFileIds} // 👈 PASS CONFLICTS
                                 showOnlyHealthy={showOnlyHealthy} // 👈 PASS FILTER
                             />
