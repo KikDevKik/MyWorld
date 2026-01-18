@@ -21,3 +21,8 @@
 1. Added `MAX_PROFILE_FIELD_LIMIT` (5000 chars) and `MAX_CHAT_MESSAGE_LIMIT` (30000 chars).
 2. Enforced these limits in `saveUserProfile`, `addForgeMessage`, `updateForgeCharacter`, and `chatWithGem`.
 3. Truncated debug logs in `chatWithGem` to 2000 chars to prevent sensitive data leakage.
+
+## 2025-02-19 - [DoS Prevention: Unbounded Batch Operations]
+**Vulnerability:** Resource Exhaustion via Unbounded Batch Loop
+**Learning:** The `purgeArtifacts` function (Janitor Protocol) iterated through an unbounded user-provided array (`fileIds`) to perform deletions on Drive and Firestore. A massive payload could trigger thousands of API calls, leading to function timeout, quota exhaustion, and service degradation.
+**Prevention:** Implemented `MAX_PURGE_LIMIT = 50`. Enforced strict batch size limits on all bulk operations to ensure predictable resource consumption and fail-fast behavior.
