@@ -132,7 +132,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           )}
           {!activeGem && <span className="text-titanium-500 text-sm">Sistema Inactivo</span>}
         </div>
-        <button onClick={onClose} className="text-titanium-500 hover:text-white transition-colors">
+        <button
+          onClick={onClose}
+          className="text-titanium-500 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none rounded"
+          aria-label="Close Chat"
+        >
           <X size={20} />
         </button>
       </div>
@@ -200,7 +204,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           <button
             onClick={() => handleSendMessage(input)}
             disabled={!input.trim() || !activeGem || isLoading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-titanium-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-titanium-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+            aria-label="Send message"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
