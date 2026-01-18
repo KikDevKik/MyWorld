@@ -15,9 +15,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const { config, updateConfig } = useProjectConfig(); // 🟢 Use Context
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
     const [profile, setProfile] = useState({
-        style: '',
-        inspirations: '',
-        rules: ''
+        style: ''
     });
     const [isLoading, setIsLoading] = useState(false);
     const [isAuditing, setIsAuditing] = useState(false);
@@ -73,7 +71,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             // Save writer profile
             const functions = getFunctions();
             const saveUserProfile = httpsCallable(functions, 'saveUserProfile');
-            await saveUserProfile(profile);
+
+            // 🟢 ZERO WASTE: Only send what we manage.
+            // The backend handles missing fields by defaulting to empty strings, effectively clearing them.
+            await saveUserProfile({
+                style: profile.style
+            });
 
             toast.success('Configuración guardada correctamente');
             onClose();
@@ -378,7 +381,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 Define tu identidad narrativa. La IA usará esto para personalizar todas sus respuestas.
                             </p>
 
-                            <div className="flex flex-col gap-2">
+                            <div className="flex flex-col gap-2 h-full">
                                 <div className="flex items-center justify-between">
                                     <label className="text-sm font-medium text-titanium-100">Estilo y Tono</label>
                                     <button
@@ -393,31 +396,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     value={profile.style}
                                     onChange={(e) => setProfile({ ...profile, style: e.target.value })}
                                     className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none"
-                                    placeholder="Ej: Humor seco, fantasía oscura..."
-                                    rows={3}
+                                    placeholder="Describe tu voz narrativa. ¿Eres cínico? ¿Poético? ¿Usas arcaísmos? Escribe aquí tus 'Reglas de Oro' para que la IA las siga."
+                                    rows={12}
                                 />
                             </div>
 
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-titanium-100">Inspiraciones</label>
-                                <textarea
-                                    value={profile.inspirations}
-                                    onChange={(e) => setProfile({ ...profile, inspirations: e.target.value })}
-                                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none"
-                                    placeholder="Ej: Brandon Sanderson, Cyberpunk..."
-                                    rows={3}
-                                />
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-titanium-100">Reglas de Oro</label>
-                                <textarea
-                                    value={profile.rules}
-                                    onChange={(e) => setProfile({ ...profile, rules: e.target.value })}
-                                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none"
-                                    placeholder="Ej: Sin subtramas románticas..."
-                                    rows={3}
-                                />
+                            {/* 📂 READ ONLY NOTE */}
+                            <div className="mt-2 p-3 bg-titanium-900/50 border border-titanium-800 rounded-lg flex items-start gap-3">
+                                <HardDrive size={16} className="text-titanium-400 shrink-0 mt-0.5" />
+                                <p className="text-xs text-titanium-400">
+                                    <strong className="text-titanium-200">Gestión de Inspiraciones:</strong> La IA se inspira leyendo directamente tus archivos.
+                                    Gestiona tu carpeta de <strong>Recursos</strong> en la pestaña <span className="text-accent-DEFAULT font-medium">Proyecto</span>.
+                                </p>
                             </div>
                         </div>
                     )}
