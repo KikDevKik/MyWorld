@@ -6,6 +6,9 @@ import { getFirestore } from "firebase-admin/firestore";
 
 // --- JANITOR PROTOCOL (Phase 5) ---
 
+// 🛡️ SENTINEL CONSTANT
+const MAX_PURGE_LIMIT = 50;
+
 /**
  * SCAN VAULT HEALTH (The Auditor)
  * Scans Drive for "Ghost Files" (Empty or < 10 bytes).
@@ -126,6 +129,11 @@ export const purgeArtifacts = onCall(
     const { fileIds, accessToken } = request.data;
     if (!fileIds || !Array.isArray(fileIds)) throw new HttpsError("invalid-argument", "Faltan fileIds.");
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    // 🛡️ SENTINEL CHECK: DoS Protection
+    if (fileIds.length > MAX_PURGE_LIMIT) {
+        throw new HttpsError("invalid-argument", `Batch size exceeds limit of ${MAX_PURGE_LIMIT} files.`);
+    }
 
     const userId = request.auth.uid;
     const db = getFirestore();
