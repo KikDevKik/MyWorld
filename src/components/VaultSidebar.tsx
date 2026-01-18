@@ -21,6 +21,7 @@ interface VaultSidebarProps {
     onOpenManual: () => void; // 👈 New prop
     isIndexed?: boolean; // 👈 New prop for Index State
     isSecurityReady?: boolean; // 👈 New prop for Circuit Breaker
+    activeFileId?: string | null; // 👈 New prop
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -46,6 +47,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     onOpenManual, // 👈 Destructure
     isIndexed = false, // 👈 Default to false
     isSecurityReady = false, // 👈 Default false for safety
+    activeFileId, // 👈 Destructure
 }) => {
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
@@ -222,6 +224,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 preloadedTree={fileTree} // 👈 PASS THE INDEXED TREE FROM CONTEXT
                                 conflictingFileIds={conflictingFileIds} // 👈 PASS CONFLICTS
                                 showOnlyHealthy={showOnlyHealthy} // 👈 PASS FILTER
+                                activeFileId={activeFileId} // 👈 PASS ACTIVE ID
                             />
                          ) : (
                              <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10">

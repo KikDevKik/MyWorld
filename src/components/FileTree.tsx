@@ -20,6 +20,7 @@ interface FileTreeProps {
     preloadedTree?: FileNode[]; // 👈 NUEVO: Árbol estático
     conflictingFileIds?: Set<string>; // 👈 NEW: Conflicting Files
     showOnlyHealthy?: boolean; // 👈 NEW: Filter
+    activeFileId?: string | null; // 👈 NEW: Active File Highlighting
 }
 
 // --- HELPER PARA EXTRAER DATOS DE FORMA SEGURA ---
@@ -40,7 +41,8 @@ const FileTreeNode: React.FC<{
     isPreloaded?: boolean;
     conflictingFileIds?: Set<string>;
     showOnlyHealthy?: boolean;
-}> = ({ node, depth, onFileSelect, accessToken, isPreloaded, conflictingFileIds, showOnlyHealthy }) => {
+    activeFileId?: string | null;
+}> = ({ node, depth, onFileSelect, accessToken, isPreloaded, conflictingFileIds, showOnlyHealthy, activeFileId }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [children, setChildren] = useState<FileNode[]>(node.children || []);
     const [isLoading, setIsLoading] = useState(false);
@@ -56,6 +58,7 @@ const FileTreeNode: React.FC<{
 
     // Detectar carpetas de forma segura
     const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
+    const isActive = node.id === activeFileId;
 
     // 🟢 CONFLICT LOGIC
     // We assume node.id is the Drive ID (legacy) or we check node.driveId if available.
@@ -119,36 +122,60 @@ const FileTreeNode: React.FC<{
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleToggle();
+        }
+        if (e.key === 'ArrowRight' && isFolder && !isOpen) {
+            e.preventDefault();
+            handleToggle();
+        }
+        if (e.key === 'ArrowLeft' && isFolder && isOpen) {
+            e.preventDefault();
+            handleToggle();
+        }
+    };
+
     return (
-        <div className="select-none">
+        <div className="select-none" role="treeitem" aria-selected={isActive} aria-expanded={isFolder ? isOpen : undefined}>
             <div
                 className={`
-                    flex items-center gap-2 py-1.5 px-2 rounded-lg cursor-pointer transition-colors
-                    ${isConflicting ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-900/20' : 'text-titanium-300 hover:text-titanium-100 hover:bg-titanium-800/50'}
+                    flex items-center gap-2 py-1.5 px-2 rounded-lg cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
+                    ${isActive
+                        ? 'bg-cyan-900/20 text-cyan-400 font-medium'
+                        : isConflicting
+                            ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-900/20'
+                            : 'text-titanium-300 hover:text-titanium-100 hover:bg-cyan-900/20'
+                    }
                     ${!isFolder && isLoading ? 'animate-pulse' : ''}
                 `}
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
                 onClick={handleToggle}
+                onKeyDown={handleKeyDown}
+                tabIndex={0}
                 title={isConflicting ? "Divergencia Narrativa detectada por el Guardián. Revisión pendiente." : undefined}
             >
                 <div className="shrink-0 flex items-center justify-center w-4 h-4">
                     {isLoading ? (
-                        <Loader2 size={14} className="animate-spin text-titanium-500" />
+                        <Loader2 size={14} className="animate-spin text-cyan-500" />
                     ) : isConflicting ? (
                         <AlertTriangle size={14} className="animate-pulse" />
                     ) : isFolder ? (
-                        isOpen ? <ChevronDown size={14} className="text-titanium-500"/> : <ChevronRight size={14} className="text-titanium-500"/>
+                        <div className="text-cyan-500">
+                             {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                        </div>
                     ) : (
-                        <FileText size={14} className="text-titanium-500"/>
+                        <FileText size={14} className={isActive ? "text-cyan-500" : "text-titanium-500"}/>
                     )}
                 </div>
 
-                <span className={`text-xs truncate font-medium ${isConflicting ? 'font-bold' : ''}`}>{node.name}</span>
+                <span className={`text-xs truncate ${isConflicting ? 'font-bold' : ''}`}>{node.name}</span>
             </div>
 
             {/* 🛡️ BLINDAJE: (children || []).map */}
             {isOpen && isFolder && (
-                <div className="animate-slide-down">
+                <div className="animate-slide-down" role="group">
                     {(children || []).map(child => (
                         <FileTreeNode
                             key={child.id}
@@ -159,6 +186,7 @@ const FileTreeNode: React.FC<{
                             isPreloaded={isPreloaded}
                             conflictingFileIds={conflictingFileIds} // Pass Down
                             showOnlyHealthy={showOnlyHealthy} // Pass Down
+                            activeFileId={activeFileId} // Pass Down
                         />
                     ))}
                     {children.length === 0 && !isLoading && (
@@ -175,7 +203,7 @@ const FileTreeNode: React.FC<{
     );
 };
 
-const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy }) => {
+const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId }) => {
     const [rootFiles, setRootFiles] = useState<FileNode[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -220,7 +248,7 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
     if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-titanium-500 gap-2">
-                <Loader2 size={20} className="animate-spin" />
+                <Loader2 size={20} className="animate-spin text-cyan-500" />
                 <span className="text-xs">Escaneando neuro-enlaces...</span>
             </div>
         );
@@ -228,7 +256,7 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
 
     // 🛡️ BLINDAJE: (displayedFiles || []).map
     return (
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-0.5" role="tree">
             {(displayedFiles || []).map(file => (
                 <FileTreeNode
                     key={file.id}
@@ -239,6 +267,7 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
                     isPreloaded={!!preloadedTree} // Pass flag down
                     conflictingFileIds={conflictingFileIds} // Pass Down
                     showOnlyHealthy={showOnlyHealthy} // Pass Down
+                    activeFileId={activeFileId} // Pass Down
                 />
             ))}
         </div>
