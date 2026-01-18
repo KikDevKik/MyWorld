@@ -357,7 +357,11 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                     <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100">Director</h2>
                 </div>
-                <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors">
+                <button
+                    onClick={onClose}
+                    className="text-titanium-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none rounded"
+                    aria-label="Close Director"
+                >
                     <X size={16} />
                 </button>
             </div>
@@ -399,14 +403,14 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                                                         <button
                                                             onClick={() => handleRescue(item, `${msg.id}-${subIdx}`, msg.driftData.category)}
                                                             disabled={rescuingIds.has(`${msg.id}-${subIdx}`)}
-                                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase"
+                                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
                                                         >
                                                             {rescuingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Rescatar"}
                                                         </button>
                                                         <button
                                                             onClick={() => handlePurge(item, `${msg.id}-${subIdx}`)}
                                                             disabled={purgingIds.has(`${msg.id}-${subIdx}`)}
-                                                            className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase"
+                                                            className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
                                                         >
                                                             {purgingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Purgar"}
                                                         </button>
@@ -446,14 +450,14 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                                         <button
                                             onClick={() => handleRescue(msg.driftData, msg.id, msg.driftCategory)}
                                             disabled={isRescuing}
-                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1"
+                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
                                         >
                                             {isRescuing ? <Loader2 size={10} className="animate-spin" /> : "Rescatar"}
                                         </button>
                                         <button
                                             onClick={() => handlePurge(msg.driftData, msg.id)}
                                             disabled={isPurging}
-                                            className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1"
+                                            className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
                                         >
                                             {isPurging ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />}
                                             Purgar Eco
@@ -523,7 +527,8 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                     <button
                         type="submit"
                         disabled={!inputValue.trim() || isThinking}
-                        className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                        aria-label="Send message"
                     >
                         <Send size={16} />
                     </button>
