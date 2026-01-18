@@ -12,7 +12,7 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
-    const { config, refreshConfig } = useProjectConfig(); // 🟢 Use Context
+    const { config, updateConfig } = useProjectConfig(); // 🟢 Use Context
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
     const [profile, setProfile] = useState({
         style: '',
@@ -43,22 +43,43 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         loadData();
     }, [config]); // 🟢 Re-run when config changes
 
+
+    // 🟢 NEW: Project Name Local State (for input binding)
+    const [localProjectName, setLocalProjectName] = useState('');
+
+    useEffect(() => {
+        if (config?.projectName) {
+            setLocalProjectName(config.projectName);
+        } else if (config?.activeBookContext && config.activeBookContext !== "Just Megu") {
+             // Fallback initialization if projectName is empty but we have a context
+            setLocalProjectName(config.activeBookContext);
+        }
+    }, [config]);
+
     const handleSave = async () => {
         setIsLoading(true);
         try {
             // Save Drive URL (existing functionality) - Allow clearing it
             onSave('');
 
+            // 🟢 NEW: Save Project Config (Project Name)
+            if (config) {
+                 await updateConfig({
+                     ...config,
+                     projectName: localProjectName
+                 });
+            }
+
             // Save writer profile
             const functions = getFunctions();
             const saveUserProfile = httpsCallable(functions, 'saveUserProfile');
             await saveUserProfile(profile);
 
-            toast.success('Perfil guardado correctamente');
+            toast.success('Configuración guardada correctamente');
             onClose();
         } catch (error) {
             console.error('Error saving profile:', error);
-            toast.error('Error al guardar el perfil');
+            toast.error('Error al guardar la configuración');
         } finally {
             setIsLoading(false);
         }
@@ -323,7 +344,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 <Brain size={18} className="text-accent-DEFAULT" />
                                 <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">Configuración General</h4>
                             </div>
-                            <p className="text-sm text-titanium-400">
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-medium text-titanium-100">Nombre del Proyecto (Universo)</label>
+                                <input
+                                    type="text"
+                                    value={localProjectName}
+                                    onChange={(e) => setLocalProjectName(e.target.value)}
+                                    className="w-full bg-slate-800 text-white placeholder-gray-500 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none"
+                                    placeholder="Ej: Crónicas de la Eternidad"
+                                />
+                                <p className="text-xs text-titanium-400">
+                                    Este nombre aparecerá en la interfaz y definirá la identidad global del universo.
+                                </p>
+                            </div>
+
+                            <div className="h-px bg-titanium-800 my-2" />
+
+                            <p className="text-sm text-titanium-400 italic">
                                 La configuración de carpetas se ha movido a la sección "Proyecto".
                             </p>
                         </div>
@@ -341,7 +379,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             </p>
 
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-titanium-100">Estilo y Tono</label>
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-titanium-100">Estilo y Tono</label>
+                                    <button
+                                        onClick={() => toast.info("🛠️ Módulo en construcción: El Inspector estará disponible en la próxima actualización.")}
+                                        className="text-xs flex items-center gap-1.5 px-2 py-1 border border-accent-DEFAULT/30 rounded text-accent-DEFAULT hover:bg-accent-DEFAULT/10 transition-colors"
+                                    >
+                                        <Sparkles size={12} />
+                                        Detectar Automáticamente
+                                    </button>
+                                </div>
                                 <textarea
                                     value={profile.style}
                                     onChange={(e) => setProfile({ ...profile, style: e.target.value })}

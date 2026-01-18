@@ -84,6 +84,15 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   }, []);
 
   const updateConfig = async (newConfig: ProjectConfig) => {
+    // 🟢 GHOST MODE BYPASS
+    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
+        console.warn("👻 GHOST MODE: Mocking Save Config");
+        setConfig(newConfig);
+        await new Promise(resolve => setTimeout(resolve, 500)); // Fake delay
+        toast.success('Configuración guardada (GHOST MODE).');
+        return;
+    }
+
     try {
         const functions = getFunctions();
         const saveProjectConfig = httpsCallable(functions, 'saveProjectConfig');
