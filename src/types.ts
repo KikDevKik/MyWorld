@@ -56,6 +56,7 @@ export interface ProjectPath {
 }
 
 export interface ProjectConfig {
+  projectName?: string; // 👈 Identity
   canonPaths: ProjectPath[];
   primaryCanonPathId?: string | null; // 👈 SINGLE SOURCE OF TRUTH
   resourcePaths: ProjectPath[];
