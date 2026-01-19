@@ -69,7 +69,8 @@ export const scanVaultHealth = onCall(
         // The UI usually executes this in the context of the sidebar (root).
         // Let's check direct children of the root folder.
 
-        const query = `'${folderId}' in parents and trashed = false and size < 10 and mimeType != 'application/vnd.google-apps.folder'`;
+        // 🟢 FASE 6.8 FIX: Simplify Query (Remove 'size' check to avoid API Error 400)
+        const query = `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
 
         const res = await drive.files.list({
             q: query,
@@ -77,14 +78,20 @@ export const scanVaultHealth = onCall(
             pageSize: 100 // 🟢 USER MANDATE: Hard Limit 100
         });
 
-        const rawGhosts = res.data.files || [];
+        const allFiles = res.data.files || [];
 
-        // 🟢 SANITIZATION: Map to primitives only (Paranoid Check)
-        const ghosts = rawGhosts.map((g: any) => ({
-            id: g.id || 'unknown_id',
-            name: g.name || 'Sin Nombre',
-            size: g.size ? Number(g.size) : 0 // Force Number
-        }));
+        // 🟢 POST-PROCESSING: Filter Ghosts in Memory (Size < 10)
+        // We fetch up to 100 files, then identify which ones are empty.
+        const ghosts = allFiles
+            .filter((f: any) => {
+                const size = parseInt(f.size, 10) || 0;
+                return size < 10;
+            })
+            .map((g: any) => ({
+                id: g.id || 'unknown_id',
+                name: g.name || 'Sin Nombre',
+                size: g.size ? parseInt(g.size, 10) : 0
+            }));
 
         const ghostCount = ghosts.length;
         // Simple heuristic: -5 health per ghost
