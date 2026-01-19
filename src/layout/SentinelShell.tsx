@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLayoutStore } from '../stores/useLayoutStore';
 
 interface SentinelShellProps {
     sidebar: React.ReactNode;
@@ -7,7 +8,6 @@ interface SentinelShellProps {
     isZenMode: boolean;
     isToolsExpanded: boolean;
     toolsMode?: 'standard' | 'hidden' | 'overlay';
-    isWideMode?: boolean; // 🟢 NEW PROP: Strategist Mode
 }
 
 const SentinelShell: React.FC<SentinelShellProps> = ({
@@ -17,8 +17,10 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     isZenMode,
     isToolsExpanded,
     toolsMode = 'standard',
-    isWideMode = false
 }) => {
+    // 🟢 GLOBAL STATE: Arsenal Width
+    const isArsenalWide = useLayoutStore((state) => state.isArsenalWide);
+
     // Determine Zone C classes based on mode
     let zoneCClasses = "bg-titanium-950 border-l border-titanium-800 transition-all duration-300 ease-in-out flex flex-row";
 
@@ -28,12 +30,12 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
         zoneCClasses += " w-0 opacity-0 overflow-hidden border-none";
     } else if (toolsMode === 'overlay') {
         // 🟢 WIDE MODE SUPPORT IN OVERLAY (Rare but possible)
-        const widthClass = isWideMode ? "w-[50vw] max-w-3xl" : "w-[26rem]";
+        const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
         zoneCClasses += ` absolute right-0 h-full z-50 shadow-2xl ${widthClass}`;
     } else {
         // Standard mode
         // 🟢 WIDE MODE LOGIC
-        const expandedWidth = isWideMode ? "w-[50vw] max-w-3xl" : "w-[26rem]";
+        const expandedWidth = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
         zoneCClasses += " flex-shrink-0 " + (isToolsExpanded ? expandedWidth : "w-16");
     }
 
