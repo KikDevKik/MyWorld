@@ -113,6 +113,7 @@ export const analyzeStyleDNA = onCall(
         }
 
         logger.info(`🧬 [STYLE DNA] Analyzing ${fileIds.length} files for User ${request.auth.uid}`);
+        logger.info("Auth initialized with token length:", accessToken?.length);
 
         try {
             const auth = new google.auth.OAuth2();
