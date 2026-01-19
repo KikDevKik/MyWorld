@@ -5,6 +5,7 @@
 @theme {
   --color-titanium-900: #1c1c1e;
   --color-titanium-800: #292928;
+  --color-titanium-600: #63625e;
   --color-titanium-500: #878681;
   --color-titanium-surface: #3A3937;
   --color-text-primary: #E0E0E0;
@@ -27,18 +28,18 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: #09090b; /* Titanium 950 */
+    background: #1c1c1e; /* Titanium 900 */
     opacity: 0.5;
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: #3f3f46; /* Titanium 700 */
+    background-color: #63625e; /* Titanium 600 */
     border-radius: 9999px; /* Fully Rounded */
     border: none; /* No border for stealth look */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: #52525b; /* Titanium 600 (Feedback) */
+    background-color: #878681; /* Titanium 500 */
 }
 
 /* Ocultar scrollbar pero permitir scroll */

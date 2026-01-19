@@ -19,7 +19,7 @@ interface AnalysisCardProps {
 
 export const AnalysisCard: React.FC<AnalysisCardProps> = ({ data }) => {
     return (
-        <div className="mx-auto w-[95%] bg-amber-950/10 border border-amber-500/50 rounded-lg p-4 animate-in fade-in slide-in-from-bottom-2 shadow-lg shadow-amber-900/10">
+        <div className="mx-auto w-[95%] bg-amber-950/10 backdrop-blur-sm border border-amber-500/50 rounded-lg p-4 animate-in fade-in slide-in-from-bottom-2 shadow-lg shadow-amber-900/10">
             {/* HEADER */}
             <div className="flex items-center gap-2 mb-3 text-amber-400 font-bold text-xs uppercase tracking-wider border-b border-amber-500/20 pb-2">
                 <Search size={14} />

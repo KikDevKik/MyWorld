@@ -28,10 +28,10 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
     };
 
     return (
-        <div className="mx-auto w-[98%] bg-purple-950/10 border border-purple-500/50 rounded-lg p-0 overflow-hidden animate-in fade-in slide-in-from-bottom-2 shadow-lg shadow-purple-900/10">
+        <div className="mx-auto w-[98%] bg-red-950/10 backdrop-blur-sm border border-red-500/50 rounded-lg p-0 overflow-hidden animate-in fade-in slide-in-from-bottom-2 shadow-lg shadow-red-900/10">
             {/* HEADER */}
-            <div className="flex items-center justify-between p-3 bg-purple-900/20 border-b border-purple-500/30">
-                <div className="flex items-center gap-2 text-purple-400 font-bold text-xs uppercase tracking-wider">
+            <div className="flex items-center justify-between p-3 bg-red-900/20 border-b border-red-500/30">
+                <div className="flex items-center gap-2 text-red-400 font-bold text-xs uppercase tracking-wider">
                     <Gavel size={16} />
                     <span>Veredicto del Tribunal</span>
                 </div>
@@ -42,7 +42,7 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
             </div>
 
             {/* COLUMNS GRID */}
-            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-purple-500/20">
+            <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-red-500/20">
 
                 {/* ARCHITECT */}
                 <div className="p-3 bg-titanium-900/30">

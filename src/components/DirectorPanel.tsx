@@ -72,7 +72,16 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
 
     const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
+
+    // 🟢 AUTO-GROW TEXTAREA
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
+        }
+    }, [inputValue]);
 
     // 🟢 DRIFT SCORE CALCULATION (UI ONLY)
     const [driftScore, setDriftScore] = useState(100);
@@ -191,11 +200,11 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 </div>
             </div>
 
-            <div className={`flex-1 flex overflow-hidden relative ${isWarRoomMode ? 'grid grid-cols-[250px_1fr_250px]' : ''}`}>
+            <div className={`flex-1 h-full overflow-hidden relative ${isWarRoomMode ? 'grid grid-cols-[250px_1fr_250px]' : 'flex flex-col'}`}>
 
                 {/* COL 1: SESSIONS (WAR ROOM ONLY) */}
                 {isWarRoomMode && (
-                    <div className="border-r border-titanium-800 bg-titanium-900/30 flex flex-col min-w-0">
+                    <div className="h-full border-r border-titanium-800 bg-titanium-900/30 flex flex-col min-w-0 overflow-hidden">
                         <div className="p-3 border-b border-titanium-800 text-xs font-bold text-titanium-400 uppercase tracking-wider bg-titanium-900/50">
                             Archivos
                         </div>
@@ -215,9 +224,9 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 )}
 
                 {/* COL 2: CHAT STREAM (CENTER) */}
-                <div className="flex-1 flex flex-col min-w-0 relative">
+                <div className="flex-1 h-full flex flex-col min-w-0 overflow-hidden relative">
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
                         {isLoadingHistory ? (
                             <div className="flex justify-center items-center h-full text-titanium-500">
                                 <Loader2 className="animate-spin" />
@@ -248,27 +257,39 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         <div ref={messagesEndRef} />
                     </div>
 
-                    <div className="pt-4 px-4 pb-10 border-t border-titanium-800 bg-titanium-900/30 flex flex-col gap-3">
+                    <div className="pt-4 px-4 pb-10 border-t border-titanium-800 bg-titanium-900/30 shrink-0">
                         <form
                             onSubmit={(e) => {
                                 e.preventDefault();
-                                handleSendMessage(inputValue);
-                                setInputValue('');
+                                if (!e.shiftKey) {
+                                    handleSendMessage(inputValue);
+                                    setInputValue('');
+                                    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+                                }
                             }}
-                            className="flex gap-2"
+                            className="flex gap-2 items-end"
                         >
-                            <input
-                                type="text"
+                            <textarea
+                                ref={textareaRef}
                                 value={inputValue}
                                 onChange={(e) => setInputValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                        e.preventDefault();
+                                        handleSendMessage(inputValue);
+                                        setInputValue('');
+                                        if (textareaRef.current) textareaRef.current.style.height = 'auto';
+                                    }
+                                }}
                                 placeholder="Escribe al director..."
-                                className="flex-1 bg-titanium-950 border border-titanium-800 rounded-lg px-4 py-2 text-sm text-titanium-200 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                                className="flex-1 bg-titanium-950 border border-titanium-800 rounded-lg px-4 py-3 text-sm text-titanium-200 focus:outline-none focus:border-emerald-500/50 transition-colors resize-none overflow-y-auto min-h-[46px] max-h-[150px]"
+                                rows={1}
                                 autoFocus
                             />
                             <button
                                 type="submit"
                                 disabled={!inputValue.trim() || isThinking}
-                                className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none mb-[1px]"
                             >
                                 <Send size={16} />
                             </button>
@@ -279,9 +300,9 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 {/* COL 3 / SIDEBAR: TOOLS (STRATEGIST & WAR ROOM) */}
                 {(isStrategistMode || isWarRoomMode) && (
                     <div className={`
-                        ${isWarRoomMode ? 'border-l border-titanium-800 bg-titanium-900/30' : 'absolute right-0 top-0 bottom-0 z-10 py-14 pr-2 pointer-events-none'}
+                        ${isWarRoomMode ? 'h-full border-l border-titanium-800 bg-titanium-900/30 overflow-hidden' : 'absolute right-0 top-0 bottom-0 z-10 py-14 pr-2 pointer-events-none'}
                     `}>
-                        <div className={`${isWarRoomMode ? 'h-full flex flex-col' : 'pointer-events-auto'}`}>
+                        <div className={`${isWarRoomMode ? 'h-full flex flex-col overflow-hidden' : 'pointer-events-auto'}`}>
                             {isWarRoomMode && (
                                 <div className="p-3 border-b border-titanium-800 text-xs font-bold text-titanium-400 uppercase tracking-wider bg-titanium-900/50">
                                     Herramientas
