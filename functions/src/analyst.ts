@@ -28,36 +28,61 @@ async function streamToString(stream: Readable): Promise<string> {
  * Fetch text content from a list of Drive File IDs.
  * Skips non-text files or failures gracefully.
  */
-async function fetchAggregatedContent(drive: any, fileIds: string[]): Promise<string> {
+async function fetchAggregatedContent(drive: any, fileIds: string[]): Promise<{ text: string, netLength: number }> {
     let combinedText = "";
+    let netLength = 0;
 
     // Limit files to prevent timeout
     const safeFileIds = fileIds.slice(0, 5);
+    const ALLOWED_MIME_TYPES = [
+        'text/plain',
+        'text/markdown',
+        'text/x-markdown',
+        'application/json',
+        'text/html'
+    ];
 
     for (const fileId of safeFileIds) {
         try {
             // Check mimeType first
             const meta = await drive.files.get({ fileId, fields: 'name, mimeType' });
-            const mimeType = meta.data.mimeType;
-            let res;
+            const mimeType = meta.data.mimeType || '';
+            const fileName = meta.data.name || 'Unknown';
 
-            if (mimeType === 'application/vnd.google-apps.document') {
+            logger.info(`Analizando archivo: ${fileId} Mime: ${mimeType}`);
+
+            let res;
+            let fileText = "";
+
+            // 1. CASE A: Google Docs (Export)
+            if (mimeType.includes('google-apps.document')) {
                  res = await drive.files.export({ fileId, mimeType: 'text/plain' }, { responseType: 'stream' });
-            } else if (mimeType === 'text/plain' || mimeType === 'text/markdown' || meta.data.name?.endsWith('.md')) {
+                 fileText = await streamToString(res.data);
+            }
+            // 2. CASE B: Whitelisted Text (Get Media)
+            else if (ALLOWED_MIME_TYPES.includes(mimeType)) {
                  res = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
-            } else {
+                 fileText = await streamToString(res.data);
+            }
+            else {
                 logger.warn(`Skipping unsupported file type: ${mimeType} (${fileId})`);
                 continue;
             }
 
-            const text = await streamToString(res.data);
-            combinedText += `\n\n--- FILE: ${meta.data.name} ---\n${text.substring(0, 50000)}`; // Cap per file
+            const cleanText = fileText.trim();
+            logger.info(`Texto extraído (longitud): ${cleanText.length}`);
+
+            if (cleanText.length > 0) {
+                netLength += cleanText.length;
+                combinedText += `\n\n--- FILE: ${fileName} ---\n${cleanText.substring(0, 50000)}`; // Cap per file
+            }
+
         } catch (e: any) {
             logger.error(`Failed to fetch file ${fileId}:`, e.message);
         }
     }
 
-    return combinedText;
+    return { text: combinedText, netLength };
 }
 
 
@@ -95,10 +120,10 @@ export const analyzeStyleDNA = onCall(
             const drive = google.drive({ version: "v3", auth });
 
             // 1. Fetch Text
-            const aggregatedText = await fetchAggregatedContent(drive, fileIds);
+            const { text: aggregatedText, netLength } = await fetchAggregatedContent(drive, fileIds);
 
-            if (!aggregatedText || aggregatedText.length < 100) {
-                 return { styleIdentity: "No se pudo extraer suficiente texto de los archivos seleccionados." };
+            if (netLength < 50) {
+                 return { styleIdentity: "No se pudo extraer suficiente texto de los archivos seleccionados (Mínimo 50 caracteres)." };
             }
 
             // 2. AI Analysis
