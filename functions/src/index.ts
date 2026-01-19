@@ -2643,6 +2643,59 @@ export const addForgeMessage = onCall(
              lastMessageSnippet: snippet,
              messageCount: FieldValue.increment(1)
          }, { merge: true });
+
+         // 🟢 3. AUTO-TITLING INTELLIGENCE (Inline Logic)
+         // Directiva: "Al recibir un mensaje: if (session.messageCount === 4 && session.title === 'Nueva Sesión') { await generateTitle(...) }"
+         const currentData = sessionDoc.data();
+         const currentCount = (currentData?.messageCount || 0) + 1; // +1 because we just incremented
+         const currentName = currentData?.name || '';
+         const isDefaultName = currentName.startsWith('Director ') || currentName === 'Nueva Sesión' || currentName.includes('Untitled');
+
+         // Trigger at message 4 if name is generic
+         if (currentCount === 4 && isDefaultName) {
+             logger.info(`🧠 [AUTO-TITLE] Triggering intelligence for Session ${sessionId}`);
+
+             try {
+                // Fetch recent messages to understand context
+                const histSnapshot = await db.collection("users").doc(userId)
+                    .collection("forge_sessions").doc(sessionId)
+                    .collection("messages")
+                    .orderBy("timestamp", "asc")
+                    .limit(6)
+                    .get();
+
+                const conversation = histSnapshot.docs.map(d => `${d.data().role}: ${d.data().text}`).join('\n');
+
+                const titleModel = new ChatGoogleGenerativeAI({
+                    apiKey: googleApiKey.value(),
+                    model: MODEL_LOW_COST, // Flash is fast and cheap
+                    temperature: 0.4,
+                });
+
+                const titlePrompt = `
+                    TASK: Generate a concise title (3-5 words) for this session.
+                    LANGUAGE: Detect the language of the conversation and use it.
+                    STYLE: Professional, descriptive, cinematic.
+                    NO QUOTES.
+
+                    CONVERSATION:
+                    ${conversation}
+                `;
+
+                const aiTitleRes = await (titleModel as any).invoke(titlePrompt);
+                let newTitle = aiTitleRes.content.toString().trim();
+                newTitle = newTitle.replace(/["']/g, ''); // Remove quotes
+
+                if (newTitle) {
+                    await sessionRef.set({ name: newTitle }, { merge: true });
+                    logger.info(`🧠 [AUTO-TITLE] Updated Session ${sessionId} to "${newTitle}"`);
+                }
+
+             } catch (titleError) {
+                 logger.warn("⚠️ [AUTO-TITLE] Failed to generate title:", titleError);
+                 // Non-blocking
+             }
+         }
       }
 
       return { success: true, id: msgRef.id };

@@ -23,7 +23,36 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     isZenMode,
 }) => {
     // 🟢 GLOBAL STATE
-    const { activeView, isDirectorMaximized, isArsenalWide } = useLayoutStore();
+    const { activeView, isDirectorMaximized, isArsenalWide, directorWidth, setDirectorWidth } = useLayoutStore();
+
+    // 🟢 DRAG HANDLE LOGIC
+    const handleMouseDown = (e: React.MouseEvent) => {
+        e.preventDefault();
+
+        const startX = e.clientX;
+        const startWidth = directorWidth;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+             // Calculate delta from Right Edge?
+             // Zone C is on the right.
+             // If I drag LEFT, width increases.
+             // If I drag RIGHT, width decreases.
+             const delta = startX - moveEvent.clientX;
+             const newWidth = Math.max(350, Math.min(window.innerWidth, startWidth + delta));
+
+             setDirectorWidth(newWidth);
+        };
+
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = 'default';
+        };
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = 'col-resize';
+    };
 
     // 1. CALCULATE SIDEBAR VISIBILITY (Zone A)
     // Truth Table:
@@ -54,37 +83,28 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     // The user said: "Director lives in ArsenalDock (right)... ensure... opening logic updates activeView to 'director'".
 
     // Logic for Zone C classes:
-    let zoneCClasses = "bg-titanium-950 border-l border-titanium-800 transition-all duration-300 ease-in-out flex flex-row";
+    let zoneCClasses = "bg-titanium-950 border-l border-titanium-800 transition-all duration-300 ease-in-out flex flex-row relative";
+    let zoneCStyle: React.CSSProperties = {};
 
     if (!isZoneCVisible) {
-         // Collapsed (only Arsenal Dock width handled by the Dock itself? No, Shell handles container)
-         // Wait, ArsenalDock is ALWAYS visible?
-         // "Excepción del Director: El Director suele vivir en el ArsenalDock".
-         // ArsenalDock is the column of icons. That should ALWAYS be visible?
-         // In previous code, ArsenalDock was passed as part of `tools`.
-         // `tools` prop contained BOTH ArsenalDock AND the Expanded Content.
-         // If I hide Zone C, I hide the Dock!
-
-         // 🟢 CORRECTION: Zone C contains ArsenalDock + ExpandedPanel.
-         // ArsenalDock should always be visible (unless Zen?).
-         // The "Expanded" part depends on `activeView`.
-
-         // Let's assume `tools` passed from App contains everything (Dock + Panel).
-         // So Zone C must accommodate the Dock width at minimum.
-
          zoneCClasses += " w-16"; // Minimum width for Dock
     } else {
         // Active View is a Side Tool -> Expanded
 
-        // Check for Overlay Mode (if requested, but user said "Director... coexiste con el Editor").
-        // "Coexiste" implies Split View (Flex), NOT Overlay.
-        // However, previous memory said "Full Focus... triggers Overlay".
-        // User request: "Director es la única herramienta... que coexiste... [Sidebar] + [Editor] + [Director]".
-        // This implies 3-column layout.
-
-        // Strategist Mode (isArsenalWide) logic:
-        const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
-        zoneCClasses += ` ${widthClass}`;
+        if (activeView === 'director') {
+             // 🟢 DIRECTOR ELASTIC MODE
+             // We use inline style for granular width
+             zoneCStyle = { width: `${directorWidth}px` };
+             // Note: Remove transition if dragging to avoid lag? For now, we keep it but it might jitter.
+             // Usually, when dragging, we should disable transition.
+             // We can check if mouse is down but simpler to just set transition-none via style if needed.
+        } else {
+             // Legacy Modes for other tools (Tribunal, Chat history?)
+             // Or maybe all side tools should share the width?
+             // User instruction: "Scope limitado al Director... por ahora".
+             const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
+             zoneCClasses += ` ${widthClass}`;
+        }
     }
 
     // Special Case: Zen Mode hides EVERYTHING except Editor?
@@ -113,8 +133,17 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
                 {editor}
             </main>
 
+            {/* 🟢 DRAG HANDLE (Only for Director, inserted between Zones) */}
+            {activeView === 'director' && (
+                <div
+                    onMouseDown={handleMouseDown}
+                    className="w-1 hover:w-2 bg-titanium-900 hover:bg-cyan-500 cursor-col-resize z-50 flex-shrink-0 transition-colors delay-150"
+                    title="Arrastrar para redimensionar"
+                />
+            )}
+
             {/* ZONA C: INTELIGENCIA (DOCK + SIDE PANELS) */}
-            <aside className={zoneCClasses}>
+            <aside className={zoneCClasses} style={zoneCStyle}>
                {tools}
             </aside>
         </div>
