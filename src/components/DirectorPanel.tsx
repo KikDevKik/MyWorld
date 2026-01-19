@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, User, Bot, Loader2, RefreshCw, AlertTriangle, ShieldAlert, History, LayoutTemplate, Zap, Search, BrainCircuit, ChevronRight } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
+import { useLayoutStore } from '../stores/useLayoutStore';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -15,8 +16,6 @@ interface DirectorPanelProps {
     isFallbackContext?: boolean;
     folderId?: string;
     driftAlerts?: any; // 🟢 Updated Prop: Grouped Object { identity: [], geography: [], ... }
-    onToggleWide?: () => void;
-    isWide?: boolean;
 }
 
 interface ForgeSession {
@@ -51,6 +50,9 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     accessToken,
     driftAlerts
 }) => {
+    // 🟢 GLOBAL STORE
+    const { isArsenalWide, toggleArsenalWidth } = useLayoutStore();
+
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isThinking, setIsThinking] = useState(false);
@@ -553,15 +555,13 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                     </button>
 
                     {/* WIDE MODE TOGGLE */}
-                    {onToggleWide && (
-                        <button
-                            onClick={onToggleWide}
-                            className={`p-1.5 transition-colors rounded hover:bg-titanium-800 ${isWide ? 'text-cyan-400' : 'text-titanium-400 hover:text-white'}`}
-                            title="Modo Estratega (Expandir)"
-                        >
-                            <LayoutTemplate size={16} />
-                        </button>
-                    )}
+                    <button
+                        onClick={toggleArsenalWidth}
+                        className={`p-1.5 transition-colors rounded hover:bg-titanium-800 ${isArsenalWide ? 'text-cyan-400' : 'text-titanium-400 hover:text-white'}`}
+                        title="Modo Estratega (Expandir)"
+                    >
+                        <LayoutTemplate size={16} />
+                    </button>
 
                     <button
                         onClick={onClose}
