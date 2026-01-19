@@ -26,3 +26,18 @@
 **Vulnerability:** Resource Exhaustion via Unbounded Batch Loop
 **Learning:** The `purgeArtifacts` function (Janitor Protocol) iterated through an unbounded user-provided array (`fileIds`) to perform deletions on Drive and Firestore. A massive payload could trigger thousands of API calls, leading to function timeout, quota exhaustion, and service degradation.
 **Prevention:** Implemented `MAX_PURGE_LIMIT = 50`. Enforced strict batch size limits on all bulk operations to ensure predictable resource consumption and fail-fast behavior.
+
+## 2024-05-24 - [CRITICAL] Wildcard CORS on Destructive Endpoint
+**Vulnerability:** The `purgeEcho` function in `functions/src/guardian.ts` was configured with `cors: true` (wildcard), allowing any origin to invoke it.
+**Learning:** This likely existed because `purgeEcho` was copied from a template or another function (`scanProjectDrift`) where wildcard access was intentionally enabled for beta testing/external tools. Destructive functions must always have strict origin controls.
+**Prevention:**
+- Enforce strict CORS lists for all `onCall` functions, especially those that modify or delete data.
+- Do not copy-paste configuration objects without review.
+- Add a linter rule or CI check to flag `cors: true`.
+
+## 2024-05-24 - [WARNING] Hardcoded Origins
+**Vulnerability:** The CORS configuration relies on hardcoded URLs (`https://myword-67b03.web.app`, etc.) scattered across multiple files.
+**Learning:** This makes the codebase brittle and environment-dependent. Changing the deployment domain requires finding and replacing strings in multiple files.
+**Prevention:**
+- Centralize CORS configuration in a constant file (e.g., `functions/src/config.ts`).
+- Use Environment Variables (`defineString`) to manage allowed origins dynamically per environment.
