@@ -1,5 +1,7 @@
 import React from 'react';
 import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { AnalysisCard } from './AnalysisCard';
 import { VerdictCard } from './VerdictCard';
 
@@ -154,7 +156,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
         );
     }
 
-    // 5. STANDARD MESSAGE (Text)
+    // 5. STANDARD MESSAGE (Text with Markdown)
     return (
         <div className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
             <div className={`
@@ -165,14 +167,27 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 {message.role === 'user' ? <User size={14} /> : message.role === 'system' ? <X size={14} /> : <Bot size={14} />}
             </div>
             <div className={`
-                p-3 rounded-xl text-sm max-w-[85%] leading-relaxed
+                p-3 rounded-xl text-sm max-w-[85%] leading-relaxed overflow-hidden
                 ${message.role === 'user'
                     ? 'bg-cyan-950/30 border border-cyan-900/50 text-cyan-100'
                     : message.role === 'system'
                     ? 'bg-red-950/30 border border-red-900/50 text-red-200'
                     : 'bg-titanium-900/50 border border-titanium-800 text-titanium-200'}
             `}>
-                {message.text}
+                <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words"
+                    components={{
+                        // Optional: Custom renderer overrides if needed for specific aesthetic
+                        code({node, inline, className, children, ...props}: any) {
+                             return inline
+                               ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
+                               : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>
+                        }
+                    }}
+                >
+                    {message.text}
+                </ReactMarkdown>
             </div>
         </div>
     );
