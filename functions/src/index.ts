@@ -812,7 +812,7 @@ export { executeBaptismProtocol } from "./migration";
  * 25. JANITOR PROTOCOL (Operación Limpieza)
  * Mantiene la integridad del baúl eliminando fantasmas y artefactos vacíos.
  */
-export { scanVaultHealth, purgeArtifacts } from "./janitor";
+export { scanVaultHealth, purgeArtifacts, purgeEmptySessions } from "./janitor";
 
 /**
  * 20. ENRICH CHARACTER CONTEXT (La Bola de Cristal)
@@ -2605,9 +2605,12 @@ export const addForgeMessage = onCall(
         sources: sources || [] // 🟢 Save Sources
       });
 
-      // 2. UPSERT SESSION (The "Upsert Protocol")
+      // 2. UPSERT SESSION (The "Upsert Protocol" + Metadata)
       const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId);
       const sessionDoc = await sessionRef.get();
+
+      // Snippet logic: First 100 chars
+      const snippet = text.length > 100 ? text.substring(0, 97) + '...' : text;
 
       if (!sessionDoc.exists) {
          // A) NEW SESSION (Auto-Creation)
@@ -2623,18 +2626,22 @@ export const addForgeMessage = onCall(
              characterId: targetCharId || 'unknown',
              name: targetCharId || sessionId, // Fallback name
              type: 'forge',
-             createdAt: FieldValue.serverTimestamp(), // 🟢 MANDATORY
+             createdAt: FieldValue.serverTimestamp(),
              updatedAt: FieldValue.serverTimestamp(),
-             lastUpdated: FieldValue.serverTimestamp() // 🟢 MANDATORY
+             lastUpdated: FieldValue.serverTimestamp(),
+             lastMessageSnippet: snippet,
+             messageCount: 1
          });
 
          logger.info(`🔨 [AUTO-CREATE] Session created via addForgeMessage: ${sessionId}`);
 
       } else {
-         // B) EXISTING SESSION (Update Timestamps)
+         // B) EXISTING SESSION (Update Timestamps & Metadata)
          await sessionRef.set({
              updatedAt: FieldValue.serverTimestamp(),
-             lastUpdated: FieldValue.serverTimestamp()
+             lastUpdated: FieldValue.serverTimestamp(),
+             lastMessageSnippet: snippet,
+             messageCount: FieldValue.increment(1)
          }, { merge: true });
       }
 
