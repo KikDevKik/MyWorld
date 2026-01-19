@@ -4,6 +4,8 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { SessionManagerModal } from './SessionManagerModal';
+import { DirectorTools } from './DirectorTools';
+import { SessionList } from './ui/SessionList';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -26,8 +28,10 @@ interface Message {
     timestamp: any;
     isError?: boolean;
     isDriftAlert?: boolean; // 🟢 Flag for Drift UI
+    isInspectorReport?: boolean; // 🟢 Flag for Inspector UI
     driftData?: any;
     driftCategory?: string; // 🟢 Store category for display
+    inspectorData?: any; // 🟢 Store inspector JSON
 }
 
 const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null }> = ({
@@ -45,7 +49,12 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     driftAlerts
 }) => {
     // 🟢 GLOBAL STORE
-    const { isArsenalWide, toggleArsenalWidth } = useLayoutStore();
+    const { isArsenalWide, toggleArsenalWidth, directorWidth } = useLayoutStore();
+
+    // 🟢 RESPONSIVE LAYOUT MODES
+    const isSentinelMode = directorWidth < 500;
+    const isStrategistMode = directorWidth >= 500 && directorWidth < 900;
+    const isWarRoomMode = directorWidth >= 900;
 
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -101,15 +110,6 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
             Object.entries(driftAlerts).forEach(([category, alerts]) => {
                 if (Array.isArray(alerts) && alerts.length > 0) {
 
-                    // Create a Summary Card first? Or individual cards?
-                    // User asked for: "Director will show: 'Se detectaron 12 Ecos Críticos en 'Personajes'. ¿Desea revisarlos?'"
-                    // But also "Group Echoes".
-                    // The simplest approach is to render individual cards for the *top* alerts, as scanProjectDrift limits to 20.
-                    // Or render a "Group Card" that expands?
-                    // Given current UI structure (chat stream), individual cards for critical items is better,
-                    // maybe grouped visually if possible, but let's stick to simple cards for now.
-                    // Actually, let's create ONE summary card per category if count > 1.
-
                     if (alerts.length > 1) {
                          newAlertMessages.push({
                             id: `drift-group-${category}-${Date.now()}`,
@@ -145,9 +145,6 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
             // Only add if we have something
             if (newAlertMessages.length > 0) {
                 setMessages(prev => {
-                     // Filter out existing drift alerts to prevent dupes on re-render?
-                     // Or assume parent only sends non-null driftAlerts once.
-                     // A simple de-dupe check:
                      const existingIds = new Set(prev.map(m => m.id));
                      const uniqueNew = newAlertMessages.filter(m => !existingIds.has(m.id));
                      return [...prev, ...uniqueNew];
@@ -156,7 +153,10 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
         }
     }, [driftAlerts]);
 
-    // 🟢 LOAD HISTORY
+    // 🟢 LOAD HISTORY & WAR ROOM LIST
+    const [embeddedSessions, setEmbeddedSessions] = useState<any[]>([]);
+    const [isSessionsLoading, setIsSessionsLoading] = useState(false);
+
     useEffect(() => {
         if (!isOpen) return;
 
@@ -191,8 +191,27 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
             }
         };
 
+        // If War Room, fetch sessions list for the side panel
+        if (isWarRoomMode) {
+            const loadSessions = async () => {
+                setIsSessionsLoading(true);
+                try {
+                    // Call backend for session list
+                    // Reuse the same function call as Modal but direct
+                    const getSessions = httpsCallable(functions, 'getForgeSessions');
+                    const result = await getSessions({ type: 'director' });
+                    const fetched = (result.data as any[]).sort((a, b) =>
+                        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+                    );
+                    setEmbeddedSessions(fetched);
+                } catch (e) { console.error("WR Session List Error", e); }
+                finally { setIsSessionsLoading(false); }
+            };
+            loadSessions();
+        }
+
         loadHistory();
-    }, [isOpen, activeSessionId]);
+    }, [isOpen, activeSessionId, isWarRoomMode]); // Reload if War Mode toggles
 
     // 🟢 HANDLE PENDING MESSAGE (HANDOFF)
     useEffect(() => {
@@ -256,28 +275,73 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
         }
     };
 
-    // 🟢 QUICK ACTION: ANALYZE SCENE
-    const handleAnalyzeScene = async () => {
+    // 🟢 TOOL ACTION: INSPECTOR (Forge Analyzer)
+    const handleInspector = async () => {
         if (!activeFileContent) {
-             toast.warning("Abre una escena para analizar.");
+             toast.warning("No hay escena activa para inspeccionar.");
              return;
         }
 
-        // Only works if file is saved in Drive (needs fileId).
-        // We have 'activeFileContent' passed from Editor, but 'fileId' might be needed.
-        // Actually, 'forgeAnalyzer' takes 'fileId'.
-        // Does DirectorPanel know 'currentFileId'?
-        // It receives 'folderId', 'activeFileName', 'activeFileContent'.
-        // It doesn't seem to receive 'activeFileId' explicitly in props!
-        // Wait, 'DirectorPanelProps' has 'activeFileContent' and 'activeFileName'.
-        // It does NOT have 'activeFileId'.
+        setIsThinking(true);
+        const tempId = Date.now().toString();
+        setMessages(prev => [...prev, {
+            id: tempId,
+            role: 'system',
+            text: "🔍 Ejecutando análisis de elenco (Forge Analyzer)...",
+            timestamp: Date.now()
+        }]);
 
-        // WORKAROUND: We can't use forgeAnalyzer on *unsaved* content easily unless we change the cloud function.
-        // Or we pass the fileId prop.
-        // Assuming user saves. But I can't call forgeAnalyzer without fileId.
+        try {
+            const inspectorPrompt = `
+                ACT AS: Forge Inspector.
+                TASK: Analyze the provided text and output a JSON report of characters.
+                FORMAT:
+                {
+                    "report_summary": "Short briefing...",
+                    "entities": [
+                        { "name": "...", "role": "...", "status": "DETECTED" }
+                    ]
+                }
+                TEXT:
+                ${activeFileContent.substring(0, 5000)}
+            `;
 
-        // Alternative: Ask the Director (Chat) to analyze the *text* provided in context.
-        handleSendMessage("🔍 Analiza la escena actual (Contexto Activo). Identifica tono, ritmo y conflictos latentes.");
+            const result = await chatWithGem({
+                query: inspectorPrompt,
+                sessionId: await ensureSession(),
+                activeFileContent: "", // Already in prompt
+            });
+
+            const rawJson = (result.data as any).response;
+
+            // Try parse
+            let parsedData;
+            try {
+                parsedData = JSON.parse(rawJson.replace(/```json/g, '').replace(/```/g, ''));
+            } catch (e) {
+                parsedData = { report_summary: rawJson, entities: [] };
+            }
+
+            // Replace loading message
+            setMessages(prev => prev.map(m => {
+                if (m.id === tempId) {
+                    return {
+                        ...m,
+                        text: "Reporte de Inspector Generado",
+                        isInspectorReport: true,
+                        inspectorData: parsedData
+                    };
+                }
+                return m;
+            }));
+
+        } catch (e) {
+            console.error(e);
+            toast.error("Fallo del Inspector.");
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+        } finally {
+            setIsThinking(false);
+        }
     };
 
     const handlePurge = async (drift: any, msgId: string) => {
@@ -505,194 +569,284 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                 </div>
             </div>
 
-            {/* MESSAGES AREA */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                {isLoadingHistory ? (
-                    <div className="flex justify-center items-center h-full text-titanium-500">
-                        <Loader2 className="animate-spin" />
+            {/* 🟢 LAYOUT BODY (GRID OR FLEX) */}
+            <div className={`flex-1 flex overflow-hidden relative ${isWarRoomMode ? 'grid grid-cols-[250px_1fr_250px]' : ''}`}>
+
+                {/* COL 1: SESSIONS (WAR ROOM ONLY) */}
+                {isWarRoomMode && (
+                    <div className="border-r border-titanium-800 bg-titanium-900/30 flex flex-col min-w-0">
+                        <div className="p-3 border-b border-titanium-800 text-xs font-bold text-titanium-400 uppercase tracking-wider bg-titanium-900/50">
+                            Archivos
+                        </div>
+                        <div className="flex-1 overflow-hidden p-2">
+                            {isSessionsLoading ? (
+                                <div className="flex justify-center py-10"><Loader2 className="animate-spin text-titanium-600" /></div>
+                            ) : (
+                                <SessionList
+                                    sessions={embeddedSessions}
+                                    activeSessionId={activeSessionId}
+                                    onSessionSelect={onSessionSelect}
+                                    embedded={true}
+                                />
+                            )}
+                        </div>
                     </div>
-                ) : (
-                    messages.map((msg) => {
-                        // 🟢 RENDER DRIFT ALERT CARD (SINGLE OR GROUP)
-                        if (msg.isDriftAlert && msg.driftData) {
+                )}
 
-                            // A) GROUP CARD
-                            if (msg.driftData.isGroup) {
-                                return (
-                                    <div key={msg.id} className="mx-auto w-[95%] bg-amber-950/20 border border-amber-500/50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2">
-                                        <div className="flex items-center gap-2 mb-2 text-amber-400 font-bold text-xs uppercase">
-                                            <AlertTriangle size={14} />
-                                            <span>Grupo de Conflicto: {msg.driftData.category}</span>
-                                            <span className="ml-auto bg-amber-900/50 px-1.5 py-0.5 rounded text-[10px] text-white">
-                                                {msg.driftData.count} Ecos
-                                            </span>
-                                        </div>
-                                        <p className="text-titanium-300 text-xs mb-3">
-                                            {msg.text}
-                                        </p>
-                                        <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
-                                            {msg.driftData.items.map((item: any, subIdx: number) => (
-                                                <div key={subIdx} className="bg-titanium-900/50 p-2 rounded border border-titanium-800/50">
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <span className="text-[10px] text-red-400 font-mono font-bold">Drift: {item.drift_score.toFixed(2)}</span>
-                                                        <span className="text-[10px] text-titanium-500 truncate max-w-[100px]">{item.fileName}</span>
-                                                    </div>
-                                                    <p className="text-[10px] text-titanium-400 italic mb-2 line-clamp-2">"{item.snippet}"</p>
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            onClick={() => handleRescue(item, `${msg.id}-${subIdx}`, msg.driftData.category)}
-                                                            disabled={rescuingIds.has(`${msg.id}-${subIdx}`)}
-                                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
-                                                        >
-                                                            {rescuingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Rescatar"}
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handlePurge(item, `${msg.id}-${subIdx}`)}
-                                                            disabled={purgingIds.has(`${msg.id}-${subIdx}`)}
-                                                            className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
-                                                        >
-                                                            {purgingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Purgar"}
-                                                        </button>
-                                                    </div>
+                {/* COL 2: CHAT STREAM (CENTER) */}
+                <div className="flex-1 flex flex-col min-w-0 relative">
+
+                    {/* MESSAGES AREA */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                        {isLoadingHistory ? (
+                            <div className="flex justify-center items-center h-full text-titanium-500">
+                                <Loader2 className="animate-spin" />
+                            </div>
+                        ) : (
+                            messages.map((msg) => {
+                                // 🟢 RENDER INSPECTOR REPORT
+                                if (msg.isInspectorReport && msg.inspectorData) {
+                                    return (
+                                        <div key={msg.id} className="mx-auto w-[95%] bg-amber-950/10 border border-amber-500/50 rounded-lg p-4 animate-in fade-in slide-in-from-bottom-2">
+                                            <div className="flex items-center gap-2 mb-3 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                                                <Search size={14} />
+                                                <span>Reporte de Inspector</span>
+                                            </div>
+
+                                            <div className="text-titanium-300 text-xs mb-4 italic leading-relaxed border-l-2 border-amber-500/30 pl-3">
+                                                {msg.inspectorData.report_summary}
+                                            </div>
+
+                                            {msg.inspectorData.entities && msg.inspectorData.entities.length > 0 && (
+                                                <div className="flex flex-col gap-2">
+                                                    {msg.inspectorData.entities.map((ent: any, i: number) => (
+                                                        <div key={i} className="flex justify-between items-center bg-titanium-900/50 p-2 rounded border border-titanium-800">
+                                                            <div className="flex flex-col">
+                                                                <span className={`text-xs font-bold ${ent.status === 'DETECTED' ? 'text-cyan-400' : 'text-titanium-300'}`}>
+                                                                    {ent.name}
+                                                                </span>
+                                                                <span className="text-[10px] text-titanium-500">{ent.role}</span>
+                                                            </div>
+                                                            {ent.status === 'DETECTED' && (
+                                                                <span className="px-1.5 py-0.5 bg-cyan-900/30 text-cyan-400 text-[9px] rounded uppercase font-bold tracking-wider">
+                                                                    Nuevo
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    ))}
                                                 </div>
-                                            ))}
+                                            )}
                                         </div>
-                                    </div>
-                                );
-                            }
+                                    );
+                                }
 
-                            // B) SINGLE CARD
-                            const isPurging = purgingIds.has(msg.id);
-                            const isRescuing = rescuingIds.has(msg.id);
+                                // 🟢 RENDER DRIFT ALERT CARD (SINGLE OR GROUP)
+                                if (msg.isDriftAlert && msg.driftData) {
+                                    if (msg.driftData.isGroup) {
+                                        return (
+                                            <div key={msg.id} className="mx-auto w-[95%] bg-amber-950/20 border border-amber-500/50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2">
+                                                <div className="flex items-center gap-2 mb-2 text-amber-400 font-bold text-xs uppercase">
+                                                    <AlertTriangle size={14} />
+                                                    <span>Grupo de Conflicto: {msg.driftData.category}</span>
+                                                    <span className="ml-auto bg-amber-900/50 px-1.5 py-0.5 rounded text-[10px] text-white">
+                                                        {msg.driftData.count} Ecos
+                                                    </span>
+                                                </div>
+                                                <p className="text-titanium-300 text-xs mb-3">
+                                                    {msg.text}
+                                                </p>
+                                                <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
+                                                    {msg.driftData.items.map((item: any, subIdx: number) => (
+                                                        <div key={subIdx} className="bg-titanium-900/50 p-2 rounded border border-titanium-800/50">
+                                                            <div className="flex justify-between items-start mb-1">
+                                                                <span className="text-[10px] text-red-400 font-mono font-bold">Drift: {item.drift_score.toFixed(2)}</span>
+                                                                <span className="text-[10px] text-titanium-500 truncate max-w-[100px]">{item.fileName}</span>
+                                                            </div>
+                                                            <p className="text-[10px] text-titanium-400 italic mb-2 line-clamp-2">"{item.snippet}"</p>
+                                                            <div className="flex gap-2">
+                                                                <button
+                                                                    onClick={() => handleRescue(item, `${msg.id}-${subIdx}`, msg.driftData.category)}
+                                                                    disabled={rescuingIds.has(`${msg.id}-${subIdx}`)}
+                                                                    className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                                                >
+                                                                    {rescuingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Rescatar"}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handlePurge(item, `${msg.id}-${subIdx}`)}
+                                                                    disabled={purgingIds.has(`${msg.id}-${subIdx}`)}
+                                                                    className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                                                >
+                                                                    {purgingIds.has(`${msg.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Purgar"}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    }
 
-                            return (
-                                <div key={msg.id} className="mx-auto w-[90%] bg-red-950/20 border border-red-500/50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2">
-                                    <div className="flex items-center gap-2 mb-2 text-red-400 font-bold text-xs uppercase">
-                                        <ShieldAlert size={14} className="animate-pulse" />
-                                        <span>Eco Crítico: {msg.driftCategory || 'General'}</span>
-                                        <span className="ml-auto bg-red-900/50 px-1.5 py-0.5 rounded text-[10px] text-white">
-                                            Drift: {msg.driftData.drift_score?.toFixed(2) || '?.??'}
-                                        </span>
-                                    </div>
+                                    const isPurging = purgingIds.has(msg.id);
+                                    const isRescuing = rescuingIds.has(msg.id);
 
-                                    <p className="text-titanium-300 text-xs italic mb-3 border-l-2 border-red-800 pl-2 line-clamp-3">
-                                        "{msg.driftData.snippet || msg.driftData.reason || '...'}"
-                                    </p>
+                                    return (
+                                        <div key={msg.id} className="mx-auto w-[90%] bg-red-950/20 border border-red-500/50 rounded-lg p-3 animate-in fade-in slide-in-from-bottom-2">
+                                            <div className="flex items-center gap-2 mb-2 text-red-400 font-bold text-xs uppercase">
+                                                <ShieldAlert size={14} className="animate-pulse" />
+                                                <span>Eco Crítico: {msg.driftCategory || 'General'}</span>
+                                                <span className="ml-auto bg-red-900/50 px-1.5 py-0.5 rounded text-[10px] text-white">
+                                                    Drift: {msg.driftData.drift_score?.toFixed(2) || '?.??'}
+                                                </span>
+                                            </div>
 
-                                    {msg.driftData.fileName && (
-                                        <div className="text-[10px] text-titanium-500 font-mono mb-3 truncate">
-                                            Archivo: {msg.driftData.fileName}
+                                            <p className="text-titanium-300 text-xs italic mb-3 border-l-2 border-red-800 pl-2 line-clamp-3">
+                                                "{msg.driftData.snippet || msg.driftData.reason || '...'}"
+                                            </p>
+
+                                            {msg.driftData.fileName && (
+                                                <div className="text-[10px] text-titanium-500 font-mono mb-3 truncate">
+                                                    Archivo: {msg.driftData.fileName}
+                                                </div>
+                                            )}
+
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={() => handleRescue(msg.driftData, msg.id, msg.driftCategory)}
+                                                    disabled={isRescuing}
+                                                    className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                                >
+                                                    {isRescuing ? <Loader2 size={10} className="animate-spin" /> : "Rescatar"}
+                                                </button>
+                                                <button
+                                                    onClick={() => handlePurge(msg.driftData, msg.id)}
+                                                    disabled={isPurging}
+                                                    className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                                >
+                                                    {isPurging ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />}
+                                                    Purgar Eco
+                                                </button>
+                                            </div>
                                         </div>
-                                    )}
+                                    );
+                                }
 
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => handleRescue(msg.driftData, msg.id, msg.driftCategory)}
-                                            disabled={isRescuing}
-                                            className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
-                                        >
-                                            {isRescuing ? <Loader2 size={10} className="animate-spin" /> : "Rescatar"}
-                                        </button>
-                                        <button
-                                            onClick={() => handlePurge(msg.driftData, msg.id)}
-                                            disabled={isPurging}
-                                            className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
-                                        >
-                                            {isPurging ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />}
-                                            Purgar Eco
-                                        </button>
+                                // STANDARD MESSAGE
+                                return (
+                                <div
+                                    key={msg.id}
+                                    className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                                >
+                                    <div className={`
+                                        w-8 h-8 rounded-full flex items-center justify-center shrink-0
+                                        ${msg.role === 'user' ? 'bg-cyan-900/50 text-cyan-400' :
+                                        msg.role === 'system' ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/50 text-emerald-400'}
+                                    `}>
+                                        {msg.role === 'user' ? <User size={14} /> : msg.role === 'system' ? <X size={14} /> : <Bot size={14} />}
+                                    </div>
+                                    <div className={`
+                                        p-3 rounded-xl text-sm max-w-[85%] leading-relaxed
+                                        ${msg.role === 'user'
+                                            ? 'bg-cyan-950/30 border border-cyan-900/50 text-cyan-100'
+                                            : msg.role === 'system'
+                                            ? 'bg-red-950/30 border border-red-900/50 text-red-200'
+                                            : 'bg-titanium-900/50 border border-titanium-800 text-titanium-200'}
+                                    `}>
+                                        {msg.text}
                                     </div>
                                 </div>
-                            );
-                        }
+                            );})
+                        )}
 
-                        // STANDARD MESSAGE
-                        return (
-                        <div
-                            key={msg.id}
-                            className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}
+                        {isThinking && (
+                            <div className="flex gap-3">
+                                <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center shrink-0">
+                                    <Loader2 size={14} className="animate-spin text-emerald-400" />
+                                </div>
+                                <div className="bg-titanium-900/50 border border-titanium-800 rounded-xl p-3 text-xs text-titanium-500 italic">
+                                    Analizando estructura...
+                                </div>
+                            </div>
+                        )}
+                        <div ref={messagesEndRef} />
+                    </div>
+
+                    {/* INPUT AREA */}
+                    <div className="pt-4 px-4 pb-10 border-t border-titanium-800 bg-titanium-900/30 flex flex-col gap-3">
+
+                        {/* 🟢 QUICK ACTIONS BAR (Only in Sentinel/Standard Mode) */}
+                        {!isWarRoomMode && !isStrategistMode && (
+                            <div className="flex gap-2 mb-3">
+                                <button
+                                    onClick={handleInspector}
+                                    disabled={isThinking}
+                                    className="flex-1 bg-titanium-800/50 hover:bg-titanium-800 text-titanium-300 py-1.5 px-3 rounded text-[10px] uppercase font-bold border border-titanium-700/50 hover:border-cyan-500/30 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Search size={12} /> Analizar
+                                </button>
+                                <button
+                                    onClick={handleRecallContext}
+                                    disabled={isThinking}
+                                    className="flex-1 bg-titanium-800/50 hover:bg-titanium-800 text-titanium-300 py-1.5 px-3 rounded text-[10px] uppercase font-bold border border-titanium-700/50 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <BrainCircuit size={12} /> Contexto
+                                </button>
+                            </div>
+                        )}
+
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                handleSendMessage(inputValue);
+                            }}
+                            className="flex gap-2"
                         >
-                            <div className={`
-                                w-8 h-8 rounded-full flex items-center justify-center shrink-0
-                                ${msg.role === 'user' ? 'bg-cyan-900/50 text-cyan-400' :
-                                  msg.role === 'system' ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/50 text-emerald-400'}
-                            `}>
-                                {msg.role === 'user' ? <User size={14} /> : msg.role === 'system' ? <X size={14} /> : <Bot size={14} />}
-                            </div>
-                            <div className={`
-                                p-3 rounded-xl text-sm max-w-[85%] leading-relaxed
-                                ${msg.role === 'user'
-                                    ? 'bg-cyan-950/30 border border-cyan-900/50 text-cyan-100'
-                                    : msg.role === 'system'
-                                      ? 'bg-red-950/30 border border-red-900/50 text-red-200'
-                                      : 'bg-titanium-900/50 border border-titanium-800 text-titanium-200'}
-                            `}>
-                                {msg.text}
-                            </div>
-                        </div>
-                    );})
-                )}
+                            <input
+                                type="text"
+                                value={inputValue}
+                                onChange={(e) => setInputValue(e.target.value)}
+                                placeholder="Escribe al director..."
+                                className="flex-1 bg-titanium-950 border border-titanium-800 rounded-lg px-4 py-2 text-sm text-titanium-200 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                                autoFocus
+                            />
+                            <button
+                                type="submit"
+                                disabled={!inputValue.trim() || isThinking}
+                                className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                aria-label="Send message"
+                            >
+                                <Send size={16} />
+                            </button>
+                        </form>
+                    </div>
+                </div> {/* END OF COL 2 */}
 
-                {isThinking && (
-                    <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center shrink-0">
-                             <Loader2 size={14} className="animate-spin text-emerald-400" />
-                        </div>
-                        <div className="bg-titanium-900/50 border border-titanium-800 rounded-xl p-3 text-xs text-titanium-500 italic">
-                            Analizando estructura...
+                {/* COL 3 / SIDEBAR: TOOLS (STRATEGIST & WAR ROOM) */}
+                {(isStrategistMode || isWarRoomMode) && (
+                    <div className={`
+                        ${isWarRoomMode ? 'border-l border-titanium-800 bg-titanium-900/30' : 'absolute right-0 top-0 bottom-0 z-10 py-14 pr-2 pointer-events-none'}
+                    `}>
+                        <div className={`${isWarRoomMode ? 'h-full flex flex-col' : 'pointer-events-auto'}`}>
+                            {isWarRoomMode && (
+                                <div className="p-3 border-b border-titanium-800 text-xs font-bold text-titanium-400 uppercase tracking-wider bg-titanium-900/50">
+                                    Herramientas
+                                </div>
+                            )}
+
+                            <div className={`${isWarRoomMode ? 'p-2' : ''}`}>
+                                <DirectorTools
+                                    mode={isWarRoomMode ? 'war-room' : 'strategist'}
+                                    onInspector={handleInspector}
+                                    onTribunal={() => toast("Tribunal: Coming Soon (Use Modal for now)")}
+                                    onContext={handleRecallContext}
+                                    isThinking={isThinking}
+                                />
+                            </div>
                         </div>
                     </div>
                 )}
-                <div ref={messagesEndRef} />
-            </div>
 
-            {/* INPUT AREA */}
-            <div className="pt-4 px-4 pb-10 border-t border-titanium-800 bg-titanium-900/30 flex flex-col gap-3">
-
-                {/* 🟢 QUICK ACTIONS BAR */}
-                <div className="flex gap-2 mb-3">
-                    <button
-                        onClick={handleAnalyzeScene}
-                        disabled={isThinking}
-                        className="flex-1 bg-titanium-800/50 hover:bg-titanium-800 text-titanium-300 py-1.5 px-3 rounded text-[10px] uppercase font-bold border border-titanium-700/50 hover:border-cyan-500/30 transition-all flex items-center justify-center gap-2"
-                    >
-                        <Search size={12} /> Analizar Escena
-                    </button>
-                    <button
-                        onClick={handleRecallContext}
-                        disabled={isThinking}
-                        className="flex-1 bg-titanium-800/50 hover:bg-titanium-800 text-titanium-300 py-1.5 px-3 rounded text-[10px] uppercase font-bold border border-titanium-700/50 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-2"
-                    >
-                        <BrainCircuit size={12} /> Recordar Contexto
-                    </button>
-                </div>
-
-                <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        handleSendMessage(inputValue);
-                    }}
-                    className="flex gap-2"
-                >
-                    <input
-                        type="text"
-                        value={inputValue}
-                        onChange={(e) => setInputValue(e.target.value)}
-                        placeholder="Escribe al director..."
-                        className="flex-1 bg-titanium-950 border border-titanium-800 rounded-lg px-4 py-2 text-sm text-titanium-200 focus:outline-none focus:border-emerald-500/50 transition-colors"
-                        autoFocus
-                    />
-                    <button
-                        type="submit"
-                        disabled={!inputValue.trim() || isThinking}
-                        className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-2 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
-                        aria-label="Send message"
-                    >
-                        <Send size={16} />
-                    </button>
-                </form>
-            </div>
-        </div>
+            </div> // END OF MAIN CONTAINER (Wait, this is the layout div)
+        </div> // END OF OUTERMOST DIV
     );
 };
 
