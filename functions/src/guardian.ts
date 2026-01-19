@@ -600,6 +600,7 @@ export const scanProjectDrift = onCall(
         // 🟢 SAFETY CHECK: Return "skipped" instead of error if no centroid
         if (!centroidDoc.exists || !centroidDoc.data()?.vector) {
              logger.info(`⚓ [SENTINEL] No Centroid found for project ${projectId}. Skipping Drift Scan.`);
+             // 🟢 RETURN SKIPPED STATUS (PREVENT CRASH)
              return {
                  success: true,
                  status: 'skipped',
