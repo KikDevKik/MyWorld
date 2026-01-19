@@ -3165,7 +3165,8 @@ export const compileManuscript = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { fileIds, title, author, accessToken } = request.data;
+    const { fileIds, title, author, subtitle, options, accessToken } = request.data;
+    const { smartBreaks, includeCover, includeToc, pageBreakPerFile } = options || {};
 
     if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
       throw new HttpsError("invalid-argument", "Falta fileIds (array).");
@@ -3193,7 +3194,7 @@ export const compileManuscript = onCall(
     }
 
     try {
-      logger.info(`📚 Compilando manuscrito: ${title} (${fileIds.length} archivos)`);
+      logger.info(`📚 Compilando manuscrito: ${title} (${fileIds.length} archivos) | SmartBreaks: ${smartBreaks}`);
 
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
@@ -3222,48 +3223,156 @@ export const compileManuscript = onCall(
 
       const printer = new PdfPrinter(fonts);
 
-      const docDefinition: any = {
-        content: [
-          {
-            text: title,
-            style: "title",
-            alignment: "center",
-            margin: [0, 100, 0, 20]
-          },
-          {
-            text: `por ${author}`,
-            style: "author",
-            alignment: "center",
-            margin: [0, 0, 0, 0]
-          },
-          { text: "", pageBreak: "after" },
+      // --- HELPER: PARSE MARKDOWN TO PDFMAKE NODES ---
+      const parseContentToNodes = (text: string, isSmartBreakEnabled: boolean) => {
+          if (!isSmartBreakEnabled) {
+              return [{ text: text, style: "body", margin: [0, 0, 0, 20] }];
+          }
 
-          ...contents.map((content, index) => {
-            return [
+          const lines = text.split('\n');
+          const nodes: any[] = [];
+          let buffer: string[] = [];
+
+          const flushBuffer = () => {
+              if (buffer.length > 0) {
+                  // Collapse consecutive newlines for flow, but keep paragraphs
+                  const joined = buffer.join('\n');
+                  if (joined.trim()) {
+                      nodes.push({ text: joined, style: "body", margin: [0, 0, 0, 10] });
+                  }
+                  buffer = [];
+              }
+          };
+
+          for (const line of lines) {
+              const trimmed = line.trimEnd();
+
+              // H1 (#) -> Page Break Before + Header Style
+              if (trimmed.startsWith('# ')) {
+                  flushBuffer();
+                  const headerText = trimmed.replace(/^#\s*/, '');
+                  nodes.push({
+                      text: headerText,
+                      style: "header1",
+                      pageBreak: 'before',
+                      margin: [0, 20, 0, 10]
+                  });
+              }
+              // H2 (##) -> Page Break Before (Simulated Chapter) + Subheader Style
+              else if (trimmed.startsWith('## ')) {
+                  flushBuffer();
+                  const headerText = trimmed.replace(/^##\s*/, '');
+                  nodes.push({
+                      text: headerText,
+                      style: "header2",
+                      pageBreak: 'before',
+                      margin: [0, 15, 0, 10]
+                  });
+              }
+              else {
+                  buffer.push(trimmed);
+              }
+          }
+          flushBuffer();
+          return nodes;
+      };
+
+      const docContent: any[] = [];
+
+      // 1. COVER PAGE (Portada)
+      if (includeCover) {
+          docContent.push(
               {
-                text: content,
-                style: "body",
-                margin: [0, 0, 0, 20]
+                  text: title,
+                  style: "title",
+                  alignment: "center",
+                  margin: [0, 200, 0, 20]
               },
-              ...(index < contents.length - 1 ? [{ text: "", pageBreak: "after" }] : [])
-            ];
-          }).flat()
-        ],
+              subtitle ? {
+                  text: subtitle,
+                  style: "subtitle",
+                  alignment: "center",
+                  margin: [0, 0, 0, 40]
+              } : {},
+              {
+                  text: `por ${author}`,
+                  style: "author",
+                  alignment: "center",
+                  margin: [0, 0, 0, 0],
+                  pageBreak: "after"
+              }
+          );
+      } else {
+          // Simple Header if no cover
+          docContent.push(
+            { text: title, style: "title", alignment: "center", margin: [0, 50, 0, 10] },
+            { text: `por ${author}`, style: "author", alignment: "center", margin: [0, 0, 0, 40] }
+          );
+      }
+
+      // 2. TOC (Índice) - Placeholder logic, pdfmake has explicit TOC support but it's complex.
+      // We will skip auto-TOC for now or add a simple placeholder if requested.
+      if (includeToc) {
+         docContent.push({ text: "Índice", style: "header1", margin: [0, 0, 0, 20] });
+         docContent.push({ text: "(Índice autogenerado no disponible en esta versión)", italics: true, margin: [0, 0, 0, 40], pageBreak: "after" });
+      }
+
+      // 3. BODY CONTENT
+      contents.forEach((content, index) => {
+          const fileNodes = parseContentToNodes(content, smartBreaks);
+
+          // Force page break between files if requested OR if not already handled by smart logic
+          // But smart logic handles H1/H2 inside.
+          // If pageBreakPerFile is true, we force it.
+          // Exception: First file (index 0) doesn't need 'before' unless cover exists (handled above).
+
+          if (index > 0 && pageBreakPerFile) {
+             // Inject a break if the first node of this file isn't already a break
+             const firstNode = fileNodes[0];
+             if (firstNode && !firstNode.pageBreak) {
+                 firstNode.pageBreak = 'before';
+             }
+          }
+
+          docContent.push(...fileNodes);
+      });
+
+      const docDefinition: any = {
+        content: docContent,
         styles: {
           title: {
             fontSize: 28,
             bold: true,
             font: "Roboto"
           },
+          subtitle: {
+             fontSize: 18,
+             italics: true,
+             font: "Roboto",
+             color: '#666666'
+          },
           author: {
             fontSize: 16,
             italics: true,
             font: "Roboto"
           },
+          header1: {
+            fontSize: 24,
+            bold: true,
+            font: "Roboto",
+            color: '#222222'
+          },
+          header2: {
+            fontSize: 20,
+            bold: true,
+            font: "Roboto",
+            color: '#444444'
+          },
           body: {
             fontSize: 12,
             font: "Roboto",
-            lineHeight: 1.5
+            lineHeight: 1.5,
+            alignment: 'justify'
           }
         },
         defaultStyle: {
