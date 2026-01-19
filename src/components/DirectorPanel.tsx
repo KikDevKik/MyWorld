@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, User, Bot, Loader2, RefreshCw, AlertTriangle, ShieldAlert, History, LayoutTemplate, Zap, Search, BrainCircuit, ChevronRight } from 'lucide-react';
+import { X, Send, User, Bot, Loader2, RefreshCw, AlertTriangle, ShieldAlert, History, Archive, LayoutTemplate, Zap, Search, BrainCircuit, ChevronRight } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { useLayoutStore } from '../stores/useLayoutStore';
@@ -548,10 +548,10 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                     {/* HISTORY BUTTON */}
                     <button
                         onClick={() => setIsSessionDrawerOpen(true)}
-                        className="p-1.5 text-titanium-400 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
-                        title="Historial de Sesiones"
+                        className="p-1.5 text-titanium-300 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
+                        title="Archivos de Sesión"
                     >
-                        <History size={16} />
+                        <Archive size={16} />
                     </button>
 
                     {/* WIDE MODE TOGGLE */}
@@ -715,10 +715,10 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
             </div>
 
             {/* INPUT AREA */}
-            <div className="p-4 border-t border-titanium-800 bg-titanium-900/30 flex flex-col gap-3">
+            <div className="pt-4 px-4 pb-10 border-t border-titanium-800 bg-titanium-900/30 flex flex-col gap-3">
 
                 {/* 🟢 QUICK ACTIONS BAR */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-3">
                     <button
                         onClick={handleAnalyzeScene}
                         disabled={isThinking}
