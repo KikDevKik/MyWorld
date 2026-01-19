@@ -78,6 +78,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 return;
             }
 
+            // 🟢 SECURITY PATCH: FORCE FRESH TOKEN
+            let safeToken = accessToken;
+            if (onGetFreshToken) {
+                try {
+                    console.log("🔐 Refrescando credenciales para análisis profundo...");
+                    const fresh = await onGetFreshToken();
+                    if (fresh) safeToken = fresh;
+                } catch (e) {
+                    console.warn("Could not refresh token, trying with cached one.");
+                }
+            }
+
+            if (!safeToken) {
+                 toast.error("Error de credenciales. Por favor recarga la página.");
+                 setIsAnalyzing(false);
+                 return;
+            }
+
             const fileIds = selectedFiles.map(f => f.id);
             const functions = getFunctions();
             const analyzeStyleDNA = httpsCallable(functions, 'analyzeStyleDNA');
@@ -86,7 +104,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
             const result = await analyzeStyleDNA({
                 fileIds,
-                accessToken // Pass user token
+                accessToken: safeToken // 👈 USE FRESH TOKEN
             });
 
             const data = result.data as any;
