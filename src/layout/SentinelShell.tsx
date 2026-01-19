@@ -25,9 +25,13 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     // 🟢 GLOBAL STATE
     const { activeView, isDirectorMaximized, isArsenalWide, directorWidth, setDirectorWidth } = useLayoutStore();
 
+    // 🟢 DRAG STATE TO DISABLE TRANSITIONS
+    const [isDragging, setIsDragging] = React.useState(false);
+
     // 🟢 DRAG HANDLE LOGIC
     const handleMouseDown = (e: React.MouseEvent) => {
         e.preventDefault();
+        setIsDragging(true);
 
         const startX = e.clientX;
         const startWidth = directorWidth;
@@ -47,6 +51,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
             document.body.style.cursor = 'default';
+            setIsDragging(false);
         };
 
         document.addEventListener('mousemove', onMouseMove);
@@ -83,7 +88,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     // The user said: "Director lives in ArsenalDock (right)... ensure... opening logic updates activeView to 'director'".
 
     // Logic for Zone C classes:
-    let zoneCClasses = "bg-titanium-950 border-l border-titanium-800 transition-all duration-300 ease-in-out flex flex-row relative";
+    let zoneCClasses = `bg-titanium-950 border-l border-titanium-800 flex flex-row relative ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-in-out'}`;
     let zoneCStyle: React.CSSProperties = {};
 
     if (!isZoneCVisible) {
@@ -95,9 +100,6 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
              // 🟢 DIRECTOR ELASTIC MODE
              // We use inline style for granular width
              zoneCStyle = { width: `${directorWidth}px` };
-             // Note: Remove transition if dragging to avoid lag? For now, we keep it but it might jitter.
-             // Usually, when dragging, we should disable transition.
-             // We can check if mouse is down but simpler to just set transition-none via style if needed.
         } else {
              // Legacy Modes for other tools (Tribunal, Chat history?)
              // Or maybe all side tools should share the width?

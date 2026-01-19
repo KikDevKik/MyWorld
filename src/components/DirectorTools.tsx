@@ -29,7 +29,7 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
                         ? 'p-4 bg-titanium-800/20 hover:bg-amber-900/20 border border-titanium-700/50 hover:border-amber-500/50 gap-3 justify-start'
                         : 'w-10 h-10 hover:bg-amber-900/20 text-titanium-400 hover:text-amber-400'}
                 `}
-                title="Inspector (Forge Analyzer)"
+                title="Analizar (Inspector)"
             >
                 <Search size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-amber-500' : ''} />
                 {mode === 'war-room' && (
@@ -50,7 +50,7 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
                         ? 'p-4 bg-titanium-800/20 hover:bg-purple-900/20 border border-titanium-700/50 hover:border-purple-500/50 gap-3 justify-start'
                         : 'w-10 h-10 hover:bg-purple-900/20 text-titanium-400 hover:text-purple-400'}
                 `}
-                title="Tribunal (Juicio Literario)"
+                title="Juzgar (Tribunal)"
             >
                 <Gavel size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-purple-500' : ''} />
                 {mode === 'war-room' && (
@@ -71,7 +71,7 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
                         ? 'p-4 bg-titanium-800/20 hover:bg-cyan-900/20 border border-titanium-700/50 hover:border-cyan-500/50 gap-3 justify-start'
                         : 'w-10 h-10 hover:bg-cyan-900/20 text-titanium-400 hover:text-cyan-400'}
                 `}
-                title="Refrescar Contexto"
+                title="Contexto (Memoria)"
             >
                 <BrainCircuit size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-cyan-500' : ''} />
                 {mode === 'war-room' && (

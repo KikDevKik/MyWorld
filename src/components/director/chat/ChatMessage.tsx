@@ -52,7 +52,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     // 3. SYSTEM ALERT (Client Side Context)
     if (message.type === 'system_alert') {
         return (
-            <div className="mx-auto w-[90%] bg-cyan-950/20 border border-cyan-500/30 rounded-lg p-3 animate-in zoom-in-95 duration-200">
+            <div className="mx-auto w-[90%] bg-cyan-950/20 backdrop-blur-sm border border-cyan-500/30 rounded-lg p-3 animate-in zoom-in-95 duration-200">
                 <div className="flex items-center gap-2 text-cyan-400 font-bold text-xs uppercase mb-1">
                     <AlertCircle size={14} />
                     <span>Sistema</span>
