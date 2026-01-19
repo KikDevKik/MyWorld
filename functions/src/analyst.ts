@@ -7,7 +7,7 @@ import { Readable } from 'stream';
 
 // --- CONFIG ---
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
-const MODEL_HIGH_REASONING = "gemini-1.5-pro"; // Using standard robust model
+const MODEL_HIGH_REASONING = "gemini-2.0-flash"; // Using standard robust model
 
 // --- HELPERS ---
 
