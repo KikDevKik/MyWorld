@@ -375,9 +375,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onClearPendingMessage={() => setDirectorPendingMessage(null)}
                     activeFileContent={effectiveFileContent}
                     activeFileName={effectiveFileName}
+                    activeFileId={currentFileId}
                     isFallbackContext={isFallbackContext}
                     folderId={folderId}
                     driftAlerts={driftAlerts}
+                    accessToken={oauthToken}
                 />
             );
         } else if (activeView === 'tribunal') {
