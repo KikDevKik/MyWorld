@@ -1,0 +1,138 @@
+import { onCall, HttpsError } from "firebase-functions/v2/https";
+import * as logger from "firebase-functions/logger";
+import { google } from "googleapis";
+import { defineSecret } from "firebase-functions/params";
+import { GoogleGenerativeAI } from "@google-generative-ai";
+import { Readable } from 'stream';
+
+// --- CONFIG ---
+const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const MODEL_HIGH_REASONING = "gemini-1.5-pro"; // Using standard robust model
+
+// --- HELPERS ---
+
+/**
+ * Helper to convert a Drive stream to a string.
+ * Reuses logic similar to ingestion but simplified for text analysis.
+ */
+async function streamToString(stream: Readable): Promise<string> {
+    const chunks: Buffer[] = [];
+    return new Promise((resolve, reject) => {
+        stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+        stream.on('error', (err) => reject(err));
+        stream.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    });
+}
+
+/**
+ * Fetch text content from a list of Drive File IDs.
+ * Skips non-text files or failures gracefully.
+ */
+async function fetchAggregatedContent(drive: any, fileIds: string[]): Promise<string> {
+    let combinedText = "";
+
+    // Limit files to prevent timeout
+    const safeFileIds = fileIds.slice(0, 5);
+
+    for (const fileId of safeFileIds) {
+        try {
+            // Check mimeType first
+            const meta = await drive.files.get({ fileId, fields: 'name, mimeType' });
+            const mimeType = meta.data.mimeType;
+            let res;
+
+            if (mimeType === 'application/vnd.google-apps.document') {
+                 res = await drive.files.export({ fileId, mimeType: 'text/plain' }, { responseType: 'stream' });
+            } else if (mimeType === 'text/plain' || mimeType === 'text/markdown' || meta.data.name?.endsWith('.md')) {
+                 res = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'stream' });
+            } else {
+                logger.warn(`Skipping unsupported file type: ${mimeType} (${fileId})`);
+                continue;
+            }
+
+            const text = await streamToString(res.data);
+            combinedText += `\n\n--- FILE: ${meta.data.name} ---\n${text.substring(0, 50000)}`; // Cap per file
+        } catch (e: any) {
+            logger.error(`Failed to fetch file ${fileId}:`, e.message);
+        }
+    }
+
+    return combinedText;
+}
+
+
+/**
+ * ANALYZE STYLE DNA
+ * Extracts tone, style, and implicit rules from selected files.
+ */
+export const analyzeStyleDNA = onCall(
+    {
+        region: "us-central1",
+        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+        enforceAppCheck: true,
+        timeoutSeconds: 300,
+        memory: "2GiB",
+        secrets: [googleApiKey],
+    },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+        }
+
+        const { fileIds, accessToken } = request.data;
+        if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+            throw new HttpsError("invalid-argument", "Falta fileIds.");
+        }
+        if (!accessToken) {
+            throw new HttpsError("unauthenticated", "Falta accessToken.");
+        }
+
+        logger.info(`🧬 [STYLE DNA] Analyzing ${fileIds.length} files for User ${request.auth.uid}`);
+
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            // 1. Fetch Text
+            const aggregatedText = await fetchAggregatedContent(drive, fileIds);
+
+            if (!aggregatedText || aggregatedText.length < 100) {
+                 return { styleIdentity: "No se pudo extraer suficiente texto de los archivos seleccionados." };
+            }
+
+            // 2. AI Analysis
+            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const model = genAI.getGenerativeModel({
+                model: MODEL_HIGH_REASONING,
+                generationConfig: {
+                    temperature: 0.7, // Creative but grounded
+                }
+            });
+
+            const prompt = `
+                Actúa como un analista literario experto.
+                Analiza el siguiente texto y genera una 'Definición de Identidad Narrativa' compacta.
+
+                Describe el Tono (ej: atmósfera, emoción) y el Estilo Técnico (ej: sintaxis, ritmo, vocabulario) en un solo párrafo denso y directivo.
+                Este párrafo estará diseñado para instruir a otra IA sobre cómo imitar a este autor exactamente.
+
+                No uses listas ni JSON. Solo un bloque de texto descriptivo y potente.
+                Si el texto está en Español, responde en Español.
+
+                TEXTO A ANALIZAR:
+                ${aggregatedText.substring(0, 100000)}
+            `;
+
+            const result = await model.generateContent(prompt);
+            const styleIdentity = result.response.text();
+
+            logger.info("🧬 [STYLE DNA] Analysis complete.");
+            return { styleIdentity };
+
+        } catch (error: any) {
+            logger.error("Error in analyzeStyleDNA:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);

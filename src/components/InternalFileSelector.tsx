@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { ChevronRight, ChevronDown, FileText, Folder, Check, X, File, AlertTriangle } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Folder, Check, X, File, AlertTriangle, ListChecks } from 'lucide-react';
 import { DriveFile } from '../types';
 
 interface InternalFileSelectorProps {
-    onFileSelected: (file: { id: string; name: string; path?: string }) => void;
+    onFileSelected: (files: { id: string; name: string; path?: string } | { id: string; name: string; path?: string }[]) => void;
     onCancel: () => void;
     currentFileId?: string | null;
+    multiSelect?: boolean; // 👈 New Prop
 }
 
 // 🟢 HELPER: Filter Tree
@@ -45,9 +46,16 @@ const SelectorNode: React.FC<{
     depth: number;
     onSelect: (node: DriveFile) => void;
     currentId?: string | null;
-}> = ({ node, depth, onSelect, currentId }) => {
+    multiSelect?: boolean;
+    selectedIds?: Set<string>;
+}> = ({ node, depth, onSelect, currentId, multiSelect, selectedIds }) => {
     const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
     const [isOpen, setIsOpen] = useState(false);
+
+    // Determine selection state
+    const isSelected = multiSelect
+        ? selectedIds?.has(node.id)
+        : currentId === node.id;
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -64,24 +72,31 @@ const SelectorNode: React.FC<{
                 onClick={handleClick}
                 className={`
                     flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer transition-all
-                    ${currentId === node.id
+                    ${isSelected
                         ? 'bg-accent-DEFAULT/20 text-accent-DEFAULT border border-accent-DEFAULT/30'
                         : 'hover:bg-titanium-800 text-titanium-300 hover:text-white'
                     }
                 `}
                 style={{ paddingLeft: `${depth * 16 + 12}px` }}
             >
-                <div className={`shrink-0 ${currentId === node.id ? 'text-accent-DEFAULT' : 'text-titanium-500'}`}>
+                {/* Checkbox for MultiSelect */}
+                {multiSelect && !isFolder && (
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-accent-DEFAULT border-accent-DEFAULT' : 'border-titanium-600'}`}>
+                        {isSelected && <Check size={12} className="text-titanium-950" strokeWidth={3} />}
+                    </div>
+                )}
+
+                <div className={`shrink-0 ${isSelected ? 'text-accent-DEFAULT' : 'text-titanium-500'}`}>
                     {isFolder ? (
                         isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />
                     ) : (
-                        <FileText size={16} />
+                        !multiSelect && <FileText size={16} />
                     )}
                 </div>
 
                 <span className="text-sm truncate font-medium flex-1">{node.name}</span>
 
-                {currentId === node.id && <Check size={14} className="text-accent-DEFAULT" />}
+                {!multiSelect && isSelected && <Check size={14} className="text-accent-DEFAULT" />}
             </div>
 
             {isOpen && isFolder && node.children && (
@@ -93,6 +108,8 @@ const SelectorNode: React.FC<{
                             depth={depth + 1}
                             onSelect={onSelect}
                             currentId={currentId}
+                            multiSelect={multiSelect}
+                            selectedIds={selectedIds}
                         />
                     ))}
                 </div>
@@ -102,10 +119,14 @@ const SelectorNode: React.FC<{
 };
 
 // 🟢 MAIN COMPONENT
-const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelected, onCancel, currentFileId }) => {
+const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelected, onCancel, currentFileId, multiSelect = false }) => {
     const [tree, setTree] = useState<DriveFile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEmpty, setIsEmpty] = useState(false);
+
+    // Multi-Select State
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [selectedFiles, setSelectedFiles] = useState<DriveFile[]>([]);
 
     // Subscribe to TDB_Index
     useEffect(() => {
@@ -138,6 +159,35 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
         return () => unsubscribe();
     }, []);
 
+    // Handle Node Selection
+    const handleNodeSelect = (node: DriveFile) => {
+        if (multiSelect) {
+            const newSet = new Set(selectedIds);
+            const newFiles = [...selectedFiles];
+
+            if (newSet.has(node.id)) {
+                newSet.delete(node.id);
+                const idx = newFiles.findIndex(f => f.id === node.id);
+                if (idx > -1) newFiles.splice(idx, 1);
+            } else {
+                newSet.add(node.id);
+                newFiles.push(node);
+            }
+
+            setSelectedIds(newSet);
+            setSelectedFiles(newFiles);
+        } else {
+            // Single Mode: Immediate Return
+            onFileSelected({ id: node.id, name: node.name, path: (node as any).path });
+        }
+    };
+
+    // Handle Confirm (Multi Only)
+    const handleConfirm = () => {
+        const result = selectedFiles.map(f => ({ id: f.id, name: f.name, path: (f as any).path }));
+        onFileSelected(result);
+    };
+
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in">
             <div className="w-full max-w-2xl bg-titanium-900 border border-titanium-700 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
@@ -149,7 +199,9 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                             <Folder size={20} />
                         </div>
                         <div>
-                            <h2 className="font-bold text-lg text-titanium-100">Seleccionar Fuente de Verdad</h2>
+                            <h2 className="font-bold text-lg text-titanium-100">
+                                {multiSelect ? 'Selección Múltiple' : 'Seleccionar Fuente de Verdad'}
+                            </h2>
                             <p className="text-[10px] text-titanium-500 font-mono">TDB_INDEX :: READY</p>
                         </div>
                     </div>
@@ -188,8 +240,10 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                                     key={node.id}
                                     node={node}
                                     depth={0}
-                                    onSelect={(n) => onFileSelected({ id: n.id, name: n.name, path: (n as any).path })}
+                                    onSelect={handleNodeSelect}
                                     currentId={currentFileId}
+                                    multiSelect={multiSelect}
+                                    selectedIds={selectedIds}
                                 />
                             ))}
                         </div>
@@ -198,8 +252,26 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
 
                 {/* FOOTER */}
                 <div className="p-4 bg-titanium-950 border-t border-titanium-800 flex justify-between items-center text-xs text-titanium-500">
-                    <span>Formatos: .md, .doc, .docx, .txt</span>
-                    <span className="font-mono text-accent-DEFAULT">V2.INTERNAL_SELECTOR</span>
+                    {multiSelect ? (
+                        <div className="flex items-center justify-between w-full">
+                            <span className="text-titanium-400">
+                                {selectedIds.size} archivo(s) seleccionado(s)
+                            </span>
+                            <button
+                                onClick={handleConfirm}
+                                disabled={selectedIds.size === 0}
+                                className="flex items-center gap-2 px-4 py-2 bg-accent-DEFAULT hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-titanium-950 font-bold rounded-lg transition-colors"
+                            >
+                                <ListChecks size={16} />
+                                Confirmar Selección
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <span>Formatos: .md, .doc, .docx, .txt</span>
+                            <span className="font-mono text-accent-DEFAULT">V2.INTERNAL_SELECTOR</span>
+                        </>
+                    )}
                 </div>
             </div>
         </div>

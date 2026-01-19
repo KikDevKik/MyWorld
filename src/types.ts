@@ -65,6 +65,7 @@ export interface ProjectConfig {
   folderId?: string;
   characterVaultId?: string | null;
   lastIndexed?: string;
+  styleIdentity?: string; // 👈 Auto-detected Style DNA
 }
 
 export interface ForgeSession {

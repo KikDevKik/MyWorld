@@ -818,6 +818,12 @@ export { executeBaptismProtocol } from "./migration";
 export { scanVaultHealth, purgeArtifacts, purgeEmptySessions } from "./janitor";
 
 /**
+ * 26. ANALYST PROTOCOL (El Crítico Literario)
+ * Analiza archivos para extraer ADN de estilo y tono.
+ */
+export { analyzeStyleDNA } from "./analyst";
+
+/**
  * 20. ENRICH CHARACTER CONTEXT (La Bola de Cristal)
  * Realiza una búsqueda vectorial profunda para analizar un personaje en el contexto de la saga.
  */

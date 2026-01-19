@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna } from 'lucide-react';
 import { useProjectConfig } from '../ProjectConfigContext';
+import InternalFileSelector from '../InternalFileSelector';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -14,43 +15,29 @@ interface SettingsModalProps {
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
     const { config, updateConfig } = useProjectConfig(); // 🟢 Use Context
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
-    const [profile, setProfile] = useState({
-        style: ''
-    });
+
+    // 🟢 STYLE IDENTITY STATE
+    const [styleIdentity, setStyleIdentity] = useState('');
+
+    // 🟢 ANALYZER STATE
+    const [isAnalyzerOpen, setIsAnalyzerOpen] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+
     const [isLoading, setIsLoading] = useState(false);
     const [isAuditing, setIsAuditing] = useState(false);
     const [isReindexing, setIsReindexing] = useState(false);
     const [isRefreshingAuth, setIsRefreshingAuth] = useState(false);
 
-    // Load data on mount
-    useEffect(() => {
-        const loadData = async () => {
-            const functions = getFunctions();
-
-            // 1. Load Writer Profile
-            try {
-                const getUserProfile = httpsCallable(functions, 'getUserProfile');
-                const result = await getUserProfile();
-                if (result.data) {
-                    setProfile(result.data as any);
-                }
-            } catch (error) {
-                console.error('Error loading profile:', error);
-            }
-        };
-        loadData();
-    }, [config]); // 🟢 Re-run when config changes
-
-
     // 🟢 NEW: Project Name Local State (for input binding)
     const [localProjectName, setLocalProjectName] = useState('');
 
     useEffect(() => {
-        if (config?.projectName) {
-            setLocalProjectName(config.projectName);
-        } else if (config?.activeBookContext && config.activeBookContext !== "Just Megu") {
-             // Fallback initialization if projectName is empty but we have a context
-            setLocalProjectName(config.activeBookContext);
+        if (config) {
+            setLocalProjectName(config.projectName || config.activeBookContext || '');
+            // Load Style from Config
+            if (config.styleIdentity) {
+                setStyleIdentity(config.styleIdentity);
+            }
         }
     }, [config]);
 
@@ -60,23 +47,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             // Save Drive URL (existing functionality) - Allow clearing it
             onSave('');
 
-            // 🟢 NEW: Save Project Config (Project Name)
+            // 🟢 NEW: Save Project Config (Project Name + Style Identity)
             if (config) {
                  await updateConfig({
                      ...config,
-                     projectName: localProjectName
+                     projectName: localProjectName,
+                     styleIdentity: styleIdentity // 👈 Persist Style DNA
                  });
             }
-
-            // Save writer profile
-            const functions = getFunctions();
-            const saveUserProfile = httpsCallable(functions, 'saveUserProfile');
-
-            // 🟢 ZERO WASTE: Only send what we manage.
-            // The backend handles missing fields by defaulting to empty strings, effectively clearing them.
-            await saveUserProfile({
-                style: profile.style
-            });
 
             toast.success('Configuración guardada correctamente');
             onClose();
@@ -85,6 +63,43 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             toast.error('Error al guardar la configuración');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+    // 🟢 ANALYZE STYLE HANDLER
+    const handleAnalyzeStyle = async (selectedFiles: { id: string }[]) => {
+        setIsAnalyzerOpen(false); // Close selector
+        setIsAnalyzing(true);
+
+        try {
+            if (selectedFiles.length === 0) {
+                toast.error("Selecciona al menos un archivo.");
+                setIsAnalyzing(false);
+                return;
+            }
+
+            const fileIds = selectedFiles.map(f => f.id);
+            const functions = getFunctions();
+            const analyzeStyleDNA = httpsCallable(functions, 'analyzeStyleDNA');
+
+            toast.info("🧬 Extrayendo ADN Narrativo... (Esto puede tardar unos segundos)");
+
+            const result = await analyzeStyleDNA({
+                fileIds,
+                accessToken // Pass user token
+            });
+
+            const data = result.data as any;
+            if (data.styleIdentity) {
+                setStyleIdentity(data.styleIdentity);
+                toast.success("¡ADN Narrativo extraído con éxito!");
+            }
+
+        } catch (error: any) {
+            console.error("Style Analysis Error:", error);
+            toast.error(`Error en análisis: ${error.message}`);
+        } finally {
+            setIsAnalyzing(false);
         }
     };
 
@@ -375,28 +390,36 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Sparkles size={18} className="text-accent-DEFAULT" />
-                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">Perfil de Escritor</h4>
+                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">Identidad Narrativa</h4>
                             </div>
                             <p className="text-xs text-titanium-400 -mt-2 mb-2">
-                                Define tu identidad narrativa. La IA usará esto para personalizar todas sus respuestas.
+                                El ADN de tu escritura. La IA imitará este estilo en todas sus generaciones.
                             </p>
 
                             <div className="flex flex-col gap-2 h-full">
                                 <div className="flex items-center justify-between">
-                                    <label className="text-sm font-medium text-titanium-100">Estilo y Tono</label>
+                                    <label className="text-sm font-medium text-titanium-100 flex items-center gap-2">
+                                        <Dna size={14} className="text-purple-400" />
+                                        Definición de Estilo
+                                    </label>
                                     <button
-                                        onClick={() => toast.info("🛠️ Módulo en construcción: El Inspector estará disponible en la próxima actualización.")}
-                                        className="text-xs flex items-center gap-1.5 px-2 py-1 border border-accent-DEFAULT/30 rounded text-accent-DEFAULT hover:bg-accent-DEFAULT/10 transition-colors"
+                                        onClick={() => setIsAnalyzerOpen(true)}
+                                        disabled={isAnalyzing}
+                                        className="text-xs flex items-center gap-1.5 px-3 py-1.5 border border-accent-DEFAULT/30 rounded-md text-accent-DEFAULT hover:bg-accent-DEFAULT/10 transition-colors disabled:opacity-50"
                                     >
-                                        <Sparkles size={12} />
-                                        Detectar Automáticamente
+                                        {isAnalyzing ? (
+                                            <RefreshCw className="animate-spin" size={12} />
+                                        ) : (
+                                            <Sparkles size={12} />
+                                        )}
+                                        {isAnalyzing ? 'Analizando...' : 'Extraer ADN de Archivo'}
                                     </button>
                                 </div>
                                 <textarea
-                                    value={profile.style}
-                                    onChange={(e) => setProfile({ ...profile, style: e.target.value })}
-                                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none"
-                                    placeholder="Describe tu voz narrativa. ¿Eres cínico? ¿Poético? ¿Usas arcaísmos? Escribe aquí tus 'Reglas de Oro' para que la IA las siga."
+                                    value={styleIdentity}
+                                    onChange={(e) => setStyleIdentity(e.target.value)}
+                                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none resize-none font-mono text-sm leading-relaxed"
+                                    placeholder="Ej: Narrativa cínica en primera persona, atmósfera Noir, oraciones cortas y directas. Uso frecuente de metáforas tecnológicas..."
                                     rows={12}
                                 />
                             </div>
@@ -405,8 +428,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             <div className="mt-2 p-3 bg-titanium-900/50 border border-titanium-800 rounded-lg flex items-start gap-3">
                                 <HardDrive size={16} className="text-titanium-400 shrink-0 mt-0.5" />
                                 <p className="text-xs text-titanium-400">
-                                    <strong className="text-titanium-200">Gestión de Inspiraciones:</strong> La IA se inspira leyendo directamente tus archivos.
-                                    Gestiona tu carpeta de <strong>Recursos</strong> en la pestaña <span className="text-accent-DEFAULT font-medium">Proyecto</span>.
+                                    <strong className="text-titanium-200">Nota:</strong> Este perfil sobrescribe cualquier instrucción previa. Úsalo para definir la "Voz" del proyecto.
                                 </p>
                             </div>
                         </div>
@@ -512,6 +534,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                     </button>
                 </div>
             </div>
+
+            {/* 🟢 FILE SELECTOR MODAL FOR ANALYSIS */}
+            {isAnalyzerOpen && (
+                <InternalFileSelector
+                    onFileSelected={(files) => {
+                         // Type assertion to handle single vs multi return, though we expect array from multi-select
+                         const list = Array.isArray(files) ? files : [files];
+                         handleAnalyzeStyle(list);
+                    }}
+                    onCancel={() => setIsAnalyzerOpen(false)}
+                    multiSelect={true} // 👈 Enable Multi-Select
+                />
+            )}
         </div>
     );
 };
