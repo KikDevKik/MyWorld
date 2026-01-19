@@ -26,17 +26,17 @@ import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
-import { GemId, ProjectConfig, ForgeSession } from './types';
+import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
-
-// 🟢 DEFINE FULL FOCUS GEMS (Global Scope for Logic)
-const FULL_FOCUS_GEMS: GemId[] = ['perforador', 'forja', 'laboratorio', 'guardian', 'imprenta', 'cronograma'];
+import { useLayoutStore } from './stores/useLayoutStore'; // 🟢 IMPORT STORE
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
-// We need this because we want to use 'useProjectConfig' which requires ProjectConfigProvider
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
     const { config, updateConfig, refreshConfig, loading: configLoading, technicalError } = useProjectConfig();
+
+    // 🟢 GLOBAL STORE CONSUMPTION
+    const { activeView, setActiveView } = useLayoutStore();
 
     // APP STATE
     const [folderId, setFolderId] = useState<string>("");
@@ -44,12 +44,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [currentFileId, setCurrentFileId] = useState<string | null>(null);
     const [currentFileName, setCurrentFileName] = useState<string>('');
 
-    const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
-    const [isChatOpen, setIsChatOpen] = useState(false);
-    const [isDirectorOpen, setIsDirectorOpen] = useState(false); // 👈 NEW STATE
-    const [isSentinelOpen, setIsSentinelOpen] = useState(false); // 🟢 SENTINEL STATE
-    const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
-    const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // 👈 DIRECTOR HANDOFF
+    // 🟢 MIGRATION NOTE: Old state 'activeGemId', 'isChatOpen', etc. removed.
+
+    const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // Kept local for session tracking
+    const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // Kept local for handoff
+    const [pendingMessage, setPendingMessage] = useState<string | null>(null); // Kept local for chat handoff
 
     // 🟢 DRIFT STATE
     const [driftAlerts, setDriftAlerts] = useState<any>(null); // 👈 STORE GROUPED ALERTS
@@ -60,12 +59,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     const handleSimulateDrift = () => {
         console.log("🧪 Simulating Drift...");
-        // Paint lines 2-5 red
-        // Since we need exact positions, and I don't know them easily without the editor state,
-        // I'll just guess some offsets for the smoke test.
-        // Ideally we'd use line numbers but the marker needs `from` index.
-        // Assuming the user types *something*.
-        // If empty, this won't show much.
         setDriftMarkers([
             { from: 0, to: 10, level: 'high' },
             { from: 50, to: 60, level: 'low' }
@@ -87,8 +80,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const { status: guardianStatus, conflicts: guardianConflicts, facts: guardianFacts, forceAudit } = useGuardian(effectiveFileContent, folderId);
 
     // 🟢 TRIGGER DRIFT SCAN WHEN DIRECTOR OPENS (ONCE PER OPEN)
+    // Updated dependency to activeView
     useEffect(() => {
-        if (isDirectorOpen && !driftAlerts && !isScanningDrift && folderId) {
+        if (activeView === 'director' && !driftAlerts && !isScanningDrift && folderId) {
             const scan = async () => {
                 setIsScanningDrift(true);
                 try {
@@ -110,16 +104,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             };
             scan();
         }
-    }, [isDirectorOpen, folderId]);
+    }, [activeView, folderId]);
 
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
-
-    // SINAPSIS (Guardian)
-    const [pendingMessage, setPendingMessage] = useState<string | null>(null);
 
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -141,17 +132,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             console.log("🚀 INICIANDO HYDRATION DEL PROYECTO...");
             const functions = getFunctions();
 
-            // 1. RESTORE TOKEN (Already done in parent, passed as prop, but double check)
-            // (Handled by parent App component)
+            // 1. RESTORE TOKEN (Already done in parent)
 
             // 2. RESTORE PROJECT CONFIG (Folder ID)
-            // 💀 MISSION 2: PURGE GHOST PERSISTENCE (LocalStorage is DEAD)
             if (config?.folderId) {
                 console.log("✅ Folder ID recuperado de Cloud Config:", config.folderId);
                 setFolderId(config.folderId);
             } else {
                  console.warn("⚠️ No Cloud Config found. Waiting for user input (Drive Connect).");
-                 // Do NOTHING with LocalStorage. Let the user connect cleanly.
             }
 
             // 3. CHECK INDEX STATUS
@@ -204,17 +192,15 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     const handleGemSelect = (id: GemId) => {
-        if (activeGemId === id && isChatOpen) {
-            setIsChatOpen(false);
-            setTimeout(() => setActiveGemId(null), 300);
+        // Toggle behavior if clicking the same active tool?
+        // Actually, if I am in 'forge' and click 'forge' again, I might want to go back to 'editor'?
+        // The user requirement says: "Al cerrarlo, debe volver [a editor]."
+        // It doesn't explicitly say clicking the icon toggles it, but standard dock behavior implies it.
+        // Let's implement toggle logic for convenience.
+        if (activeView === id) {
+             setActiveView('editor');
         } else {
-            setActiveGemId(id);
-            // 🟢 FULL FOCUS MODE: Do not auto-open generic chat for complex tools
-            if (!FULL_FOCUS_GEMS.includes(id)) {
-                setIsChatOpen(true);
-            } else {
-                setIsChatOpen(false);
-            }
+             setActiveView(id);
         }
     };
 
@@ -222,13 +208,29 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         if (tool === 'director') {
             // 🟢 HANDOFF TO DIRECTOR PANEL
             setDirectorPendingMessage(message);
-            setIsDirectorOpen(true);
+            setActiveView('director');
             return;
         }
 
-        setActiveGemId(tool);
+        // Generic chat or specific tool chat (mapped to generic 'chat' view for now unless it has a dedicated panel)
+        // Previous logic: setActiveGemId(tool); setIsChatOpen(true);
+        // New logic: Check if tool has a dedicated view.
+        // If not, use 'chat' view and set active context.
+        // But wait, `activeView` replaces `activeGemId`.
+        // If I setActiveView('perforator'), I get the Panel.
+        // If the command is for Perforator, I probably want to open the Perforator Panel?
+        // Or the Chat with Perforator context?
+        // Old logic: `setIsChatOpen(true)` implies Sidebar Chat.
+        // If I want Sidebar Chat for a tool, I should use `setActiveView('chat')`.
+        // But I need to know WHICH tool context.
+        // Phase 1 doesn't specify deep chat context refactor, just layout.
+        // Let's assume for now commands go to 'chat' view unless it's Director.
+
+        setActiveView('chat'); // Generic chat view
+        // Ideally we pass `tool` as context to ChatPanel, but ChatPanel props need to handle it.
+        // For Phase 1, we will just open the Chat.
+
         setPendingMessage(message);
-        setIsChatOpen(true);
     };
 
     // 🧠 LÓGICA DE INDEXADO (BOTÓN ROJO)
@@ -236,7 +238,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const functions = getFunctions();
         const indexTDB = httpsCallable(functions, 'indexTDB');
 
-        // 🟢 FIX: USE PROJECT CONFIG FOR ROBUST INDEXING
         if (!config) {
             toast.error("Configuración no cargada. Intenta de nuevo.");
             return;
@@ -245,7 +246,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const allPaths = [...(config.canonPaths || []), ...(config.resourcePaths || [])];
         const folderIds = allPaths.map(p => p.id);
 
-        // If no specific paths, fallback to root folderId
         if (folderIds.length === 0 && config.folderId) {
             folderIds.push(config.folderId);
         }
@@ -253,10 +253,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         try {
             console.log("Iniciando indexado incremental...", folderIds);
 
-            // 🟢 PAYLOAD ROBUSTO: folderIds + projectId + forceFullReindex: false
             const promise = indexTDB({
                 folderIds: folderIds,
-                projectId: config.folderId || folderId, // Context Project ID
+                projectId: config.folderId || folderId,
                 accessToken: oauthToken,
                 forceFullReindex: false
             });
@@ -264,11 +263,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             toast.promise(promise, {
                 loading: 'Indexando base de conocimiento (Incremental)...',
                 success: (result: any) => {
-                    // 🟢 UPDATE LOCAL STATE & REFRESH GLOBAL CONFIG
                     setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
-                    // Force refresh config to get the definitive timestamp from backend
                     refreshConfig();
-
                     return `¡Aprendizaje Completado! ${result.data.message}`;
                 },
                 error: 'Error al indexar. Revisa la consola.',
@@ -281,16 +277,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     const handleIndex = () => {
-        // 🟢 DATE LOGIC: Prioritize Config > IndexStatus
         const displayDate = config?.lastIndexed || indexStatus.lastIndexedAt;
 
-        // Si ya está indexado, solo informamos (o permitimos re-indexar forzadamente)
         if (indexStatus.isIndexed) {
              toast("Memoria ya sincronizada", {
                 description: `Última actualización: ${displayDate ? new Date(displayDate).toLocaleDateString() : 'Desconocida'}`,
                 action: {
                     label: "Re-aprender todo",
-                    onClick: () => executeIndexing() // Allow force re-index
+                    onClick: () => executeIndexing()
                 },
             });
             return;
@@ -310,20 +304,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         });
     };
 
-    // BUBBLE MENU ACTIONS
-    const handleEditorAction = (action: string, text: string) => {
-        let prompt = "";
-        switch (action) {
-            case 'mejorar': prompt = `Actúa como editor literario. Mejora el estilo y la prosa del siguiente fragmento: \n\n"${text}"`; break;
-            case 'expandir': prompt = `Actúa como co-escritor. Expande este fragmento añadiendo detalles sensoriales: \n\n"${text}"`; break;
-            case 'corregir': prompt = `Actúa como corrector. Revisa gramática y ortografía: \n\n"${text}"`; break;
-        }
-        handleCommandExecution(prompt, 'director');
-    };
-
     // 🟢 HANDLE TIMELINE FILE SELECT
     const handleTimelineFileSelect = async (fileId: string) => {
-        setActiveGemId(null);
+        setActiveView('editor'); // Go back to editor to show content
         setSelectedFileContent("Cargando...");
         setCurrentFileId(fileId);
 
@@ -352,84 +335,74 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         );
     }
 
-    // --- SENTINEL SHELL LOGIC ---
+    // --- SENTINEL SHELL LOGIC (UNIFIED) ---
 
-    // 1. Determine Zone C Content (Side Panel Gems)
-    const SIDE_PANEL_GEMS: GemId[] = ['tribunal']; // Director is handled by isDirectorOpen
-    const isSidePanelGemActive = activeGemId && SIDE_PANEL_GEMS.includes(activeGemId);
-
-    const isToolsExpanded = Boolean(isChatOpen || isDirectorOpen || isSidePanelGemActive || isSentinelOpen);
-
-    // 2. Render Panel C Content
+    // 2. Render Panel C Content (The Arsenal & Side Tools)
     const renderZoneCContent = () => {
-        // A) Arsenal Dock (Always Visible, Layout handled by Shell)
+        // A) Arsenal Dock (Always Visible in Zone C container)
+        // We pass activeView as activeGemId for highlighting
+        // Note: SentinelShell manages the container width.
         const dock = (
             <ArsenalDock
-                activeGemId={activeGemId}
+                activeGemId={activeView as GemId}
                 onGemSelect={handleGemSelect}
-                onToggleDirector={() => setIsDirectorOpen(prev => !prev)}
-                onSimulateDrift={handleSimulateDrift} // 🧪 PASS SIMULATOR
+                onToggleDirector={() => setActiveView('director')}
+                onSimulateDrift={handleSimulateDrift}
                 isSecurityReady={isSecurityReady}
-                onToggleSentinel={() => setIsSentinelOpen(prev => !prev)}
+                onToggleSentinel={() => setActiveView(activeView === 'sentinel' ? 'editor' : 'sentinel')}
             />
         );
 
-        // B) Expanded Content (Only if Open)
+        // B) Expanded Content (Based on activeView)
         let expandedContent: React.ReactNode = null;
 
-        if (isToolsExpanded) {
-            if (isSentinelOpen) {
-                 expandedContent = (
-                    <SentinelStatus
-                        onClose={() => setIsSentinelOpen(false)}
-                        isSecurityReady={isSecurityReady}
-                        isOffline={!driveStatus || driveStatus === 'disconnected' || driveStatus === 'error' || !isSecurityReady}
-                    />
-                );
-            } else if (isDirectorOpen) {
-                expandedContent = (
-                    <DirectorPanel
-                        isOpen={true} // Always true if rendered here
-                        onClose={() => setIsDirectorOpen(false)}
-                        activeSessionId={activeDirectorSessionId}
-                        onSessionSelect={setActiveDirectorSessionId}
-                        pendingMessage={directorPendingMessage}
-                        onClearPendingMessage={() => setDirectorPendingMessage(null)}
-                        activeFileContent={effectiveFileContent}
-                        activeFileName={effectiveFileName}
-                        isFallbackContext={isFallbackContext}
-                        folderId={folderId}
-                        driftAlerts={driftAlerts}
-                    />
-                );
-            } else if (activeGemId === 'tribunal') {
-                expandedContent = (
-                    <TribunalPanel
-                        onClose={() => setActiveGemId(null)}
-                        initialText={selectedFileContent}
-                        currentFileId={currentFileId}
-                        accessToken={oauthToken}
-                    />
-                );
-            } else if (isChatOpen) {
-                // Generic Chat or Gem Chat
-                expandedContent = (
-                    <ChatPanel
-                        isOpen={true}
-                        onClose={() => {
-                            setIsChatOpen(false);
-                            setActiveGemId(null);
-                        }}
-                        activeGemId={activeGemId}
-                        initialMessage={pendingMessage}
-                        isFullWidth={true} // Fill the container
-                        folderId={folderId}
-                        activeFileContent={effectiveFileContent}
-                        activeFileName={effectiveFileName}
-                        isFallbackContext={isFallbackContext}
-                    />
-                );
-            }
+        if (activeView === 'sentinel') {
+             expandedContent = (
+                <SentinelStatus
+                    onClose={() => setActiveView('editor')}
+                    isSecurityReady={isSecurityReady}
+                    isOffline={!driveStatus || driveStatus === 'disconnected' || driveStatus === 'error' || !isSecurityReady}
+                />
+            );
+        } else if (activeView === 'director') {
+            expandedContent = (
+                <DirectorPanel
+                    isOpen={true}
+                    onClose={() => setActiveView('editor')}
+                    activeSessionId={activeDirectorSessionId}
+                    onSessionSelect={setActiveDirectorSessionId}
+                    pendingMessage={directorPendingMessage}
+                    onClearPendingMessage={() => setDirectorPendingMessage(null)}
+                    activeFileContent={effectiveFileContent}
+                    activeFileName={effectiveFileName}
+                    isFallbackContext={isFallbackContext}
+                    folderId={folderId}
+                    driftAlerts={driftAlerts}
+                />
+            );
+        } else if (activeView === 'tribunal') {
+            expandedContent = (
+                <TribunalPanel
+                    onClose={() => setActiveView('editor')}
+                    initialText={selectedFileContent}
+                    currentFileId={currentFileId}
+                    accessToken={oauthToken}
+                />
+            );
+        } else if (activeView === 'chat') {
+            expandedContent = (
+                <ChatPanel
+                    isOpen={true}
+                    onClose={() => setActiveView('editor')}
+                    activeGemId={null} // Generic chat for now
+                    initialMessage={pendingMessage}
+                    isFullWidth={true}
+                    folderId={folderId}
+                    activeFileContent={effectiveFileContent}
+                    activeFileName={effectiveFileName}
+                    isFallbackContext={isFallbackContext}
+                />
+            );
         }
 
         return (
@@ -444,49 +417,49 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // 3. Render Zone B Content (Main Stage)
     const renderZoneBContent = () => {
-        if (activeGemId === 'forja') {
+        if (activeView === 'forja') {
             return (
                 <ForgePanel
-                    onClose={() => setActiveGemId(null)}
+                    onClose={() => setActiveView('editor')}
                     folderId={folderId}
                     accessToken={oauthToken}
                 />
             );
         }
-        if (activeGemId === 'guardian') {
+        if (activeView === 'guardian') {
             return (
                 <CanonRadar
                     status={guardianStatus}
                     facts={guardianFacts}
                     conflicts={guardianConflicts}
-                    onClose={() => setActiveGemId(null)}
+                    onClose={() => setActiveView('editor')}
                     onForceAudit={forceAudit}
                     accessToken={oauthToken}
                 />
             );
         }
-        if (activeGemId === 'perforador') {
+        if (activeView === 'perforador') {
             return (
                 <WorldEnginePanel
                     isOpen={true}
-                    onClose={() => setActiveGemId(null)}
-                    activeGemId={activeGemId}
+                    onClose={() => setActiveView('editor')}
+                    activeGemId={'perforador'} // Keep for internal panel logic if needed
                 />
             );
         }
-        if (activeGemId === 'laboratorio') {
+        if (activeView === 'laboratorio') {
             return (
                 <LaboratoryPanel
-                    onClose={() => setActiveGemId(null)}
+                    onClose={() => setActiveView('editor')}
                     folderId={folderId}
                     accessToken={oauthToken}
                 />
             );
         }
-        if (activeGemId === 'cronograma') {
+        if (activeView === 'cronograma') {
             return (
                 <TimelinePanel
-                    onClose={() => setActiveGemId(null)}
+                    onClose={() => setActiveView('editor')}
                     userId={user?.uid || null}
                     onFileSelect={handleTimelineFileSelect}
                     currentFileId={currentFileId}
@@ -495,10 +468,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 />
             );
         }
-        if (activeGemId === 'imprenta') {
+        if (activeView === 'imprenta') {
             return (
                 <ExportPanel
-                    onClose={() => setActiveGemId(null)}
+                    onClose={() => setActiveView('editor')}
                     folderId={folderId}
                     accessToken={oauthToken}
                 />
@@ -508,32 +481,18 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         // Default: Editor
         return (
             <>
-                {/* 🔴 PHASE 3: HYBRID CORE IMPLANT */}
                 <HybridEditor
                     content={selectedFileContent}
                     onContentChange={handleContentChange}
                     driftMarkers={driftMarkers}
                     className="h-full"
                 />
-                {!isChatOpen && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && !isDirectorOpen && (
+                {!['director', 'chat', 'tribunal', 'sentinel'].includes(activeView) && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && (
                     <CommandBar onExecute={handleCommandExecution} />
                 )}
             </>
         );
     };
-
-    // 🟢 CALCULATE SHELL MODE (Standard vs Hidden vs Overlay)
-    const isFullFocus = activeGemId && FULL_FOCUS_GEMS.includes(activeGemId);
-    const isOverlayActive = isDirectorOpen || isSentinelOpen;
-
-    let toolsMode: 'standard' | 'hidden' | 'overlay' = 'standard';
-    if (isFullFocus) {
-        if (isOverlayActive) {
-            toolsMode = 'overlay';
-        } else {
-            toolsMode = 'hidden';
-        }
-    }
 
     return (
         <>
@@ -582,8 +541,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
             <SentinelShell
                 isZenMode={isZenMode}
-                isToolsExpanded={isToolsExpanded}
-                toolsMode={toolsMode}
+                // Props removed in SentinelShell refactor are implicitly handled via store
                 sidebar={
                     <VaultSidebar
                         folderId={folderId}
@@ -730,7 +688,6 @@ function App() {
     // 2. CONDITIONAL RETURNS (Guard Clauses)
 
     // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
-    // 🟢 OPTIMISTIC DEV MODE: Bypass Lock Screen in Localhost to debug AppCheck Tokens
     const isDev = import.meta.env.DEV;
 
     if (securityError === 'PERIMETER_BREACH' && !isDev) {

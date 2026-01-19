@@ -6,7 +6,7 @@ import { GemId } from '../../types';
 interface ArsenalDockProps {
     activeGemId: GemId | null;
     onGemSelect: (id: GemId) => void;
-    onToggleDirector: () => void; // 👈 Add prop
+    onToggleDirector: () => void; // 👈 Keep prop name, but implementation changes in parent
     onSimulateDrift?: () => void; // 🟢 SMOKE TEST
     isSecurityReady?: boolean; // 🟢 NEW PROP
     onToggleSentinel?: () => void; // 🟢 NEW PROP
@@ -109,7 +109,15 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
 
                  <button
                     onClick={onToggleDirector}
-                    className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                    // Highlight if Director is active (activeGemId comes from activeView in parent)
+                    className={`
+                        group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
+                        focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none
+                        ${activeGemId === 'director'
+                            ? 'bg-titanium-800 text-titanium-100 shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-titanium-600'
+                            : 'text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700'
+                        }
+                    `}
                     title="Director de Escena"
                     aria-label="Director"
                 >
