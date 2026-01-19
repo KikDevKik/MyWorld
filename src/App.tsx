@@ -47,6 +47,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [activeGemId, setActiveGemId] = useState<GemId | null>(null);
     const [isChatOpen, setIsChatOpen] = useState(false);
     const [isDirectorOpen, setIsDirectorOpen] = useState(false); // 👈 NEW STATE
+    const [isDirectorWide, setIsDirectorWide] = useState(false); // 🟢 DIRECTOR WIDE MODE
     const [isSentinelOpen, setIsSentinelOpen] = useState(false); // 🟢 SENTINEL STATE
     const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // 👈 NEW STATE
     const [directorPendingMessage, setDirectorPendingMessage] = useState<string | null>(null); // 👈 DIRECTOR HANDOFF
@@ -400,6 +401,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         isFallbackContext={isFallbackContext}
                         folderId={folderId}
                         driftAlerts={driftAlerts}
+                        onToggleWide={() => setIsDirectorWide(prev => !prev)}
+                        isWide={isDirectorWide}
                     />
                 );
             } else if (activeGemId === 'tribunal') {
@@ -584,6 +587,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 isZenMode={isZenMode}
                 isToolsExpanded={isToolsExpanded}
                 toolsMode={toolsMode}
+                isWideMode={isDirectorWide} // 🟢 PASS WIDE MODE
                 sidebar={
                     <VaultSidebar
                         folderId={folderId}

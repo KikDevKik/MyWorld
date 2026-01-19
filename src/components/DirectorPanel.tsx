@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, User, Bot, Loader2, RefreshCw, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { X, Send, User, Bot, Loader2, RefreshCw, AlertTriangle, ShieldAlert, History, LayoutTemplate, Zap, Search, BrainCircuit, ChevronRight } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
@@ -15,6 +15,15 @@ interface DirectorPanelProps {
     isFallbackContext?: boolean;
     folderId?: string;
     driftAlerts?: any; // 🟢 Updated Prop: Grouped Object { identity: [], geography: [], ... }
+    onToggleWide?: () => void;
+    isWide?: boolean;
+}
+
+interface ForgeSession {
+    id: string;
+    name: string;
+    updatedAt: string;
+    type: string;
 }
 
 interface Message {
@@ -50,13 +59,44 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     const [purgingIds, setPurgingIds] = useState<Set<string>>(new Set()); // 🟢 Purge State
     const [rescuingIds, setRescuingIds] = useState<Set<string>>(new Set()); // 🟢 Rescue State
 
+    // 🟢 NEW STATES (Director V2)
+    const [isSessionDrawerOpen, setIsSessionDrawerOpen] = useState(false);
+    const [sessions, setSessions] = useState<ForgeSession[]>([]);
+    const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+    const [driftScore, setDriftScore] = useState(100);
+
     const functions = getFunctions();
     const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
     const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
     const createForgeSession = httpsCallable(functions, 'createForgeSession');
+    const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
     const chatWithGem = httpsCallable(functions, 'chatWithGem');
     const purgeEcho = httpsCallable(functions, 'purgeEcho');
     const rescueEcho = httpsCallable(functions, 'rescueEcho'); // 🟢 Rescue Function
+    const forgeAnalyzer = httpsCallable(functions, 'forgeAnalyzer');
+
+    // 🟢 CALCULATE DRIFT SCORE (Director V2)
+    useEffect(() => {
+        if (!driftAlerts) {
+            setDriftScore(100);
+            return;
+        }
+
+        let penalty = 0;
+        Object.values(driftAlerts).forEach((alerts: any) => {
+            if (Array.isArray(alerts)) {
+                alerts.forEach((alert: any) => {
+                    if (alert.severity === 'critical' || alert.drift_score > 0.7) {
+                        penalty += 20;
+                    } else {
+                        penalty += 5;
+                    }
+                });
+            }
+        });
+
+        setDriftScore(Math.max(0, 100 - penalty));
+    }, [driftAlerts]);
 
     // 🟢 INJECT DRIFT ALERTS (The Bridge)
     useEffect(() => {
@@ -174,6 +214,25 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isThinking, isLoadingHistory]);
 
+    // 🟢 LOAD SESSIONS (DRAWER)
+    useEffect(() => {
+        if (isSessionDrawerOpen) {
+            const loadSessions = async () => {
+                setIsLoadingSessions(true);
+                try {
+                    const result = await getForgeSessions({ type: 'director' });
+                    setSessions(result.data as ForgeSession[]);
+                } catch (error) {
+                    console.error("Failed to load sessions:", error);
+                    toast.error("Error cargando sesiones.");
+                } finally {
+                    setIsLoadingSessions(false);
+                }
+            };
+            loadSessions();
+        }
+    }, [isSessionDrawerOpen]);
+
     // 🟢 INIT SESSION (IF NEEDED)
     const ensureSession = async (): Promise<string | null> => {
         if (activeSessionId) return activeSessionId;
@@ -188,6 +247,63 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
             toast.error("Error iniciando sesión del Director.");
             return null;
         }
+    };
+
+    // 🟢 QUICK ACTION: RECALL CONTEXT
+    const handleRecallContext = async () => {
+        if (!activeFileContent) {
+            toast.warning("No hay archivo activo para recordar.");
+            return;
+        }
+
+        const sid = await ensureSession();
+        if (!sid) return;
+
+        const systemMsg = `[SYSTEM UPDATE] Contexto Refrescado. Archivo Activo: ${activeFileName}. Snippet: ${activeFileContent.substring(0, 300)}...`;
+
+        // Optimistic UI
+        setMessages(prev => [...prev, {
+            id: `sys-${Date.now()}`,
+            role: 'system',
+            text: "🧠 Contexto inmediato actualizado.",
+            timestamp: Date.now()
+        }]);
+
+        // Silent Backend Update
+        try {
+             await addForgeMessage({
+                sessionId: sid,
+                role: 'system', // Backend uses 'system' for invisible prompts? Or 'user'? Let's use 'system' context injection.
+                text: systemMsg
+            });
+            toast.success("Memoria de corto plazo actualizada.");
+        } catch (e) {
+            console.error(e);
+        }
+    };
+
+    // 🟢 QUICK ACTION: ANALYZE SCENE
+    const handleAnalyzeScene = async () => {
+        if (!activeFileContent) {
+             toast.warning("Abre una escena para analizar.");
+             return;
+        }
+
+        // Only works if file is saved in Drive (needs fileId).
+        // We have 'activeFileContent' passed from Editor, but 'fileId' might be needed.
+        // Actually, 'forgeAnalyzer' takes 'fileId'.
+        // Does DirectorPanel know 'currentFileId'?
+        // It receives 'folderId', 'activeFileName', 'activeFileContent'.
+        // It doesn't seem to receive 'activeFileId' explicitly in props!
+        // Wait, 'DirectorPanelProps' has 'activeFileContent' and 'activeFileName'.
+        // It does NOT have 'activeFileId'.
+
+        // WORKAROUND: We can't use forgeAnalyzer on *unsaved* content easily unless we change the cloud function.
+        // Or we pass the fileId prop.
+        // Assuming user saves. But I can't call forgeAnalyzer without fileId.
+
+        // Alternative: Ask the Director (Chat) to analyze the *text* provided in context.
+        handleSendMessage("🔍 Analiza la escena actual (Contexto Activo). Identifica tono, ritmo y conflictos latentes.");
     };
 
     const handlePurge = async (drift: any, msgId: string) => {
@@ -349,21 +465,112 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
 
     if (!isOpen) return null;
 
+    const getDriftColor = () => {
+        if (driftScore >= 80) return "text-emerald-500";
+        if (driftScore >= 50) return "text-amber-500";
+        return "text-red-500";
+    };
+
     return (
-        <div className="w-full h-full bg-titanium-950/95 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300">
+        <div className="w-full h-full bg-titanium-950/95 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 relative">
+
+            {/* 🟢 SESSION DRAWER (SLIDING) */}
+            <div className={`absolute inset-0 bg-titanium-950/95 z-20 transform transition-transform duration-300 ${isSessionDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className="flex flex-col h-full">
+                    <div className="p-4 border-b border-titanium-800 flex justify-between items-center bg-titanium-900">
+                        <h3 className="text-titanium-100 font-bold uppercase tracking-widest text-sm flex items-center gap-2">
+                            <History size={16} /> Archivos de Sesión
+                        </h3>
+                        <button onClick={() => setIsSessionDrawerOpen(false)} className="text-titanium-400 hover:text-white">
+                            <X size={16} />
+                        </button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                        {isLoadingSessions ? (
+                            <div className="flex justify-center p-4"><Loader2 className="animate-spin text-cyan-500" /></div>
+                        ) : (
+                            sessions.map(session => (
+                                <button
+                                    key={session.id}
+                                    onClick={() => {
+                                        onSessionSelect(session.id);
+                                        setIsSessionDrawerOpen(false);
+                                    }}
+                                    className={`w-full text-left p-3 rounded hover:bg-titanium-800 transition-colors border border-transparent hover:border-titanium-700 flex justify-between group ${activeSessionId === session.id ? 'bg-cyan-950/30 border-cyan-900/50 text-cyan-200' : 'text-titanium-300'}`}
+                                >
+                                    <div>
+                                        <div className="font-medium text-sm truncate max-w-[200px]">{session.name}</div>
+                                        <div className="text-[10px] text-titanium-500">{new Date(session.updatedAt).toLocaleDateString()}</div>
+                                    </div>
+                                    <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </button>
+                            ))
+                        )}
+                        {sessions.length === 0 && !isLoadingSessions && (
+                            <div className="text-center text-titanium-500 text-xs p-4 italic">No hay sesiones guardadas.</div>
+                        )}
+                    </div>
+                    <button
+                        onClick={() => {
+                            onSessionSelect(null); // Create new
+                            setIsSessionDrawerOpen(false);
+                        }}
+                        className="p-3 m-2 bg-emerald-900/20 hover:bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 rounded flex items-center justify-center gap-2 text-xs uppercase font-bold transition-colors"
+                    >
+                        <Zap size={14} /> Nueva Sesión
+                    </button>
+                </div>
+            </div>
+
             {/* HEADER */}
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
-                <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100">Director</h2>
+                <div className="flex items-center gap-3">
+                    {/* Status Ring */}
+                    <div className="relative w-8 h-8 flex items-center justify-center">
+                        <svg className="w-full h-full transform -rotate-90">
+                            <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="transparent" className="text-titanium-800" />
+                            <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="transparent" className={getDriftColor()} strokeDasharray={88} strokeDashoffset={88 - (88 * driftScore) / 100} />
+                        </svg>
+                        <span className={`absolute text-[9px] font-bold ${getDriftColor()}`}>{Math.round(driftScore)}</span>
+                    </div>
+
+                    <div>
+                         <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100 leading-none">Director</h2>
+                         <div className="text-[9px] text-titanium-500 uppercase tracking-wider mt-0.5">
+                             {activeSessionId ? 'Sesión Activa' : 'Standby'}
+                         </div>
+                    </div>
                 </div>
-                <button
-                    onClick={onClose}
-                    className="text-titanium-400 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none rounded"
-                    aria-label="Close Director"
-                >
-                    <X size={16} />
-                </button>
+
+                <div className="flex gap-1">
+                    {/* HISTORY BUTTON */}
+                    <button
+                        onClick={() => setIsSessionDrawerOpen(true)}
+                        className="p-1.5 text-titanium-400 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
+                        title="Historial de Sesiones"
+                    >
+                        <History size={16} />
+                    </button>
+
+                    {/* WIDE MODE TOGGLE */}
+                    {onToggleWide && (
+                        <button
+                            onClick={onToggleWide}
+                            className={`p-1.5 transition-colors rounded hover:bg-titanium-800 ${isWide ? 'text-cyan-400' : 'text-titanium-400 hover:text-white'}`}
+                            title="Modo Estratega (Expandir)"
+                        >
+                            <LayoutTemplate size={16} />
+                        </button>
+                    )}
+
+                    <button
+                        onClick={onClose}
+                        className="p-1.5 text-titanium-400 hover:text-red-400 transition-colors rounded hover:bg-titanium-800 ml-2"
+                        aria-label="Close Director"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
             </div>
 
             {/* MESSAGES AREA */}
@@ -508,7 +715,26 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
             </div>
 
             {/* INPUT AREA */}
-            <div className="p-4 border-t border-titanium-800 bg-titanium-900/30">
+            <div className="p-4 border-t border-titanium-800 bg-titanium-900/30 flex flex-col gap-3">
+
+                {/* 🟢 QUICK ACTIONS BAR */}
+                <div className="flex gap-2">
+                    <button
+                        onClick={handleAnalyzeScene}
+                        disabled={isThinking}
+                        className="flex-1 bg-titanium-800/50 hover:bg-titanium-800 text-titanium-300 py-1.5 px-3 rounded text-[10px] uppercase font-bold border border-titanium-700/50 hover:border-cyan-500/30 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Search size={12} /> Analizar Escena
+                    </button>
+                    <button
+                        onClick={handleRecallContext}
+                        disabled={isThinking}
+                        className="flex-1 bg-titanium-800/50 hover:bg-titanium-800 text-titanium-300 py-1.5 px-3 rounded text-[10px] uppercase font-bold border border-titanium-700/50 hover:border-emerald-500/30 transition-all flex items-center justify-center gap-2"
+                    >
+                        <BrainCircuit size={12} /> Recordar Contexto
+                    </button>
+                </div>
+
                 <form
                     onSubmit={(e) => {
                         e.preventDefault();

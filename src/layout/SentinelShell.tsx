@@ -7,6 +7,7 @@ interface SentinelShellProps {
     isZenMode: boolean;
     isToolsExpanded: boolean;
     toolsMode?: 'standard' | 'hidden' | 'overlay';
+    isWideMode?: boolean; // 🟢 NEW PROP: Strategist Mode
 }
 
 const SentinelShell: React.FC<SentinelShellProps> = ({
@@ -15,7 +16,8 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     tools,
     isZenMode,
     isToolsExpanded,
-    toolsMode = 'standard'
+    toolsMode = 'standard',
+    isWideMode = false
 }) => {
     // Determine Zone C classes based on mode
     let zoneCClasses = "bg-titanium-950 border-l border-titanium-800 transition-all duration-300 ease-in-out flex flex-row";
@@ -25,10 +27,14 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     } else if (toolsMode === 'hidden') {
         zoneCClasses += " w-0 opacity-0 overflow-hidden border-none";
     } else if (toolsMode === 'overlay') {
-        zoneCClasses += " absolute right-0 h-full z-50 shadow-2xl w-[26rem]";
+        // 🟢 WIDE MODE SUPPORT IN OVERLAY (Rare but possible)
+        const widthClass = isWideMode ? "w-[50vw] max-w-3xl" : "w-[26rem]";
+        zoneCClasses += ` absolute right-0 h-full z-50 shadow-2xl ${widthClass}`;
     } else {
         // Standard mode
-        zoneCClasses += " flex-shrink-0 " + (isToolsExpanded ? "w-[26rem]" : "w-16");
+        // 🟢 WIDE MODE LOGIC
+        const expandedWidth = isWideMode ? "w-[50vw] max-w-3xl" : "w-[26rem]";
+        zoneCClasses += " flex-shrink-0 " + (isToolsExpanded ? expandedWidth : "w-16");
     }
 
     return (
