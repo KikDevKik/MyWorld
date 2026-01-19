@@ -3,6 +3,7 @@ import { X, Send, User, Bot, Loader2, RefreshCw, AlertTriangle, ShieldAlert, His
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { useLayoutStore } from '../stores/useLayoutStore';
+import { SessionManagerModal } from './SessionManagerModal';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -16,13 +17,6 @@ interface DirectorPanelProps {
     isFallbackContext?: boolean;
     folderId?: string;
     driftAlerts?: any; // 🟢 Updated Prop: Grouped Object { identity: [], geography: [], ... }
-}
-
-interface ForgeSession {
-    id: string;
-    name: string;
-    updatedAt: string;
-    type: string;
 }
 
 interface Message {
@@ -62,16 +56,13 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     const [rescuingIds, setRescuingIds] = useState<Set<string>>(new Set()); // 🟢 Rescue State
 
     // 🟢 NEW STATES (Director V2)
-    const [isSessionDrawerOpen, setIsSessionDrawerOpen] = useState(false);
-    const [sessions, setSessions] = useState<ForgeSession[]>([]);
-    const [isLoadingSessions, setIsLoadingSessions] = useState(false);
+    const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
     const [driftScore, setDriftScore] = useState(100);
 
     const functions = getFunctions();
     const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
     const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
     const createForgeSession = httpsCallable(functions, 'createForgeSession');
-    const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
     const chatWithGem = httpsCallable(functions, 'chatWithGem');
     const purgeEcho = httpsCallable(functions, 'purgeEcho');
     const rescueEcho = httpsCallable(functions, 'rescueEcho'); // 🟢 Rescue Function
@@ -215,25 +206,6 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isThinking, isLoadingHistory]);
-
-    // 🟢 LOAD SESSIONS (DRAWER)
-    useEffect(() => {
-        if (isSessionDrawerOpen) {
-            const loadSessions = async () => {
-                setIsLoadingSessions(true);
-                try {
-                    const result = await getForgeSessions({ type: 'director' });
-                    setSessions(result.data as ForgeSession[]);
-                } catch (error) {
-                    console.error("Failed to load sessions:", error);
-                    toast.error("Error cargando sesiones.");
-                } finally {
-                    setIsLoadingSessions(false);
-                }
-            };
-            loadSessions();
-        }
-    }, [isSessionDrawerOpen]);
 
     // 🟢 INIT SESSION (IF NEEDED)
     const ensureSession = async (): Promise<string | null> => {
@@ -476,53 +448,13 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
     return (
         <div className="w-full h-full bg-titanium-950/95 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 relative">
 
-            {/* 🟢 SESSION DRAWER (SLIDING) */}
-            <div className={`absolute inset-0 bg-titanium-950/95 z-20 transform transition-transform duration-300 ${isSessionDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="flex flex-col h-full">
-                    <div className="p-4 border-b border-titanium-800 flex justify-between items-center bg-titanium-900">
-                        <h3 className="text-titanium-100 font-bold uppercase tracking-widest text-sm flex items-center gap-2">
-                            <History size={16} /> Archivos de Sesión
-                        </h3>
-                        <button onClick={() => setIsSessionDrawerOpen(false)} className="text-titanium-400 hover:text-white">
-                            <X size={16} />
-                        </button>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {isLoadingSessions ? (
-                            <div className="flex justify-center p-4"><Loader2 className="animate-spin text-cyan-500" /></div>
-                        ) : (
-                            sessions.map(session => (
-                                <button
-                                    key={session.id}
-                                    onClick={() => {
-                                        onSessionSelect(session.id);
-                                        setIsSessionDrawerOpen(false);
-                                    }}
-                                    className={`w-full text-left p-3 rounded hover:bg-titanium-800 transition-colors border border-transparent hover:border-titanium-700 flex justify-between group ${activeSessionId === session.id ? 'bg-cyan-950/30 border-cyan-900/50 text-cyan-200' : 'text-titanium-300'}`}
-                                >
-                                    <div>
-                                        <div className="font-medium text-sm truncate max-w-[200px]">{session.name}</div>
-                                        <div className="text-[10px] text-titanium-500">{new Date(session.updatedAt).toLocaleDateString()}</div>
-                                    </div>
-                                    <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                                </button>
-                            ))
-                        )}
-                        {sessions.length === 0 && !isLoadingSessions && (
-                            <div className="text-center text-titanium-500 text-xs p-4 italic">No hay sesiones guardadas.</div>
-                        )}
-                    </div>
-                    <button
-                        onClick={() => {
-                            onSessionSelect(null); // Create new
-                            setIsSessionDrawerOpen(false);
-                        }}
-                        className="p-3 m-2 bg-emerald-900/20 hover:bg-emerald-900/40 text-emerald-400 border border-emerald-900/50 rounded flex items-center justify-center gap-2 text-xs uppercase font-bold transition-colors"
-                    >
-                        <Zap size={14} /> Nueva Sesión
-                    </button>
-                </div>
-            </div>
+            {/* 🟢 SESSION MANAGER MODAL */}
+            <SessionManagerModal
+                isOpen={isSessionManagerOpen}
+                onClose={() => setIsSessionManagerOpen(false)}
+                activeSessionId={activeSessionId}
+                onSessionSelect={onSessionSelect}
+            />
 
             {/* HEADER */}
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
@@ -547,7 +479,7 @@ const DirectorPanel: React.FC<DirectorPanelProps & { accessToken?: string | null
                 <div className="flex gap-1">
                     {/* HISTORY BUTTON */}
                     <button
-                        onClick={() => setIsSessionDrawerOpen(true)}
+                        onClick={() => setIsSessionManagerOpen(true)}
                         className="p-1.5 text-titanium-300 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
                         title="Archivos de Sesión"
                     >

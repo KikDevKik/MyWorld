@@ -186,3 +186,60 @@ export const purgeArtifacts = onCall(
     }
   }
 );
+
+/**
+ * PURGE EMPTY SESSIONS (The Ghostbuster Protocol)
+ * Hard deletes empty sessions from Firestore.
+ */
+export const purgeEmptySessions = onCall(
+  {
+    region: "us-central1",
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    enforceAppCheck: true,
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+
+    const userId = request.auth.uid;
+    const db = getFirestore();
+
+    logger.info(`👻 [GHOSTBUSTER] Iniciando purga de sesiones vacías para: ${userId}`);
+
+    try {
+        const sessionsRef = db.collection("users").doc(userId).collection("forge_sessions");
+        const snapshot = await sessionsRef.get();
+        let deletedCount = 0;
+
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            let isEmpty = false;
+
+            // 1. CHECK METADATA (Optimized Path)
+            if (data.messageCount === 0) {
+                isEmpty = true;
+            } else if (data.messageCount === undefined) {
+                // 2. CHECK SUBCOLLECTION (Legacy Path - Expensive)
+                // If no metadata, check if 'messages' subcollection has any docs
+                const messagesSnap = await sessionsRef.doc(doc.id).collection("messages").limit(1).get();
+                if (messagesSnap.empty) {
+                    isEmpty = true;
+                }
+            }
+
+            if (isEmpty) {
+                // HARD DELETE (Recursive to ensure subcollections die if any exist - e.g. orphaned stats)
+                await db.recursiveDelete(sessionsRef.doc(doc.id));
+                deletedCount++;
+                logger.info(`   🗑️ Purged Empty Session: ${doc.id}`);
+            }
+        }
+
+        logger.info(`👻 [GHOSTBUSTER] Purga completada. ${deletedCount} sesiones eliminadas.`);
+        return { success: true, deletedCount, message: `Se eliminaron ${deletedCount} sesiones vacías.` };
+
+    } catch (error: any) {
+        logger.error("Error en purgeEmptySessions:", error);
+        throw new HttpsError("internal", error.message);
+    }
+  }
+);
