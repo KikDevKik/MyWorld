@@ -180,6 +180,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         onClick={() => setIsSessionManagerOpen(true)}
                         className="p-1.5 text-titanium-300 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
                         title="Archivos de Sesión"
+                        aria-label="Archivos de Sesión"
                     >
                         <Archive size={16} />
                     </button>
@@ -187,6 +188,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         onClick={toggleArsenalWidth}
                         className={`p-1.5 transition-colors rounded hover:bg-titanium-800 ${isArsenalWide ? 'text-cyan-400' : 'text-titanium-400 hover:text-white'}`}
                         title="Modo Estratega (Expandir)"
+                        aria-label="Modo Estratega"
                     >
                         <LayoutTemplate size={16} />
                     </button>
@@ -290,8 +292,9 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                 type="submit"
                                 disabled={!inputValue.trim() || isThinking}
                                 className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none mb-[1px]"
+                                aria-label="Enviar mensaje"
                             >
-                                <Send size={16} />
+                                {isThinking ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                             </button>
                         </form>
                     </div>

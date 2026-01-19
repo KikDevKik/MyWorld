@@ -102,6 +102,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
                         onClick={onSimulateDrift}
                         className="group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 text-red-500 hover:text-red-400 hover:bg-red-950/20 border border-transparent hover:border-red-900/50"
                         title="Simular Drift (DEV)"
+                        aria-label="Simular Drift"
                     >
                         <FlaskConical size={20} />
                     </button>
