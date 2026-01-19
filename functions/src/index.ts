@@ -21,6 +21,9 @@ import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile } from "./ingestion";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS } from "./ai_config";
+import { marked } from 'marked';
+const htmlToPdfmake = require('html-to-pdfmake');
+const { JSDOM } = require('jsdom');
 
 // --- SINGLETON APP (Arrancando el Cerebro Robot) ---
 admin.initializeApp();
@@ -3223,58 +3226,51 @@ export const compileManuscript = onCall(
 
       const printer = new PdfPrinter(fonts);
 
-      // --- HELPER: PARSE MARKDOWN TO PDFMAKE NODES ---
+      // --- HELPER: PARSE MARKDOWN TO PDFMAKE NODES (VIA HTML) ---
       const parseContentToNodes = (text: string, isSmartBreakEnabled: boolean) => {
-          if (!isSmartBreakEnabled) {
-              return [{ text: text, style: "body", margin: [0, 0, 0, 20] }];
-          }
+        // 1. Markdown -> HTML
+        const html = marked.parse(text);
 
-          const lines = text.split('\n');
-          const nodes: any[] = [];
-          let buffer: string[] = [];
+        // 2. HTML -> PDFMake
+        const { window } = new JSDOM("");
+        // Ensure default styles are mapped if needed, or rely on global docDefinition styles
+        const converted = htmlToPdfmake(html, { window: window });
 
-          const flushBuffer = () => {
-              if (buffer.length > 0) {
-                  // Collapse consecutive newlines for flow, but keep paragraphs
-                  const joined = buffer.join('\n');
-                  if (joined.trim()) {
-                      nodes.push({ text: joined, style: "body", margin: [0, 0, 0, 10] });
-                  }
-                  buffer = [];
+        // 3. Post-Process for Smart Breaks (Recursive)
+        // We look for 'html-h1' and 'html-h2' styles to inject page breaks
+        if (isSmartBreakEnabled) {
+          const injectPageBreaks = (nodes: any[]) => {
+            if (!nodes || !Array.isArray(nodes)) return;
+
+            nodes.forEach(node => {
+              if (node.style) {
+                 const s = node.style;
+                 // Check if style is h1/h2 (html-to-pdfmake uses 'html-h1', 'html-h2')
+                 const isH1 = s === 'html-h1' || (Array.isArray(s) && s.includes('html-h1'));
+                 const isH2 = s === 'html-h2' || (Array.isArray(s) && s.includes('html-h2'));
+
+                 if (isH1 || isH2) {
+                   node.pageBreak = 'before';
+                 }
               }
+
+              // Recursion for stacks/columns/nested arrays
+              if (node.stack) injectPageBreaks(node.stack);
+              if (node.ul) injectPageBreaks(node.ul);
+              if (node.ol) injectPageBreaks(node.ol);
+              // Sometimes html-to-pdfmake returns nested arrays directly?
+              if (Array.isArray(node)) injectPageBreaks(node);
+            });
           };
 
-          for (const line of lines) {
-              const trimmed = line.trimEnd();
-
-              // H1 (#) -> Page Break Before + Header Style
-              if (trimmed.startsWith('# ')) {
-                  flushBuffer();
-                  const headerText = trimmed.replace(/^#\s*/, '');
-                  nodes.push({
-                      text: headerText,
-                      style: "header1",
-                      pageBreak: 'before',
-                      margin: [0, 20, 0, 10]
-                  });
-              }
-              // H2 (##) -> Page Break Before (Simulated Chapter) + Subheader Style
-              else if (trimmed.startsWith('## ')) {
-                  flushBuffer();
-                  const headerText = trimmed.replace(/^##\s*/, '');
-                  nodes.push({
-                      text: headerText,
-                      style: "header2",
-                      pageBreak: 'before',
-                      margin: [0, 15, 0, 10]
-                  });
-              }
-              else {
-                  buffer.push(trimmed);
-              }
+          if (Array.isArray(converted)) {
+             injectPageBreaks(converted);
+          } else if (converted.stack) {
+             injectPageBreaks(converted.stack);
           }
-          flushBuffer();
-          return nodes;
+        }
+
+        return Array.isArray(converted) ? converted : [converted];
       };
 
       const docContent: any[] = [];
@@ -3356,23 +3352,50 @@ export const compileManuscript = onCall(
             italics: true,
             font: "Roboto"
           },
-          header1: {
+          // Standard styles (Legacy)
+          header1: { fontSize: 24, bold: true, font: "Roboto", color: '#222222' },
+          header2: { fontSize: 20, bold: true, font: "Roboto", color: '#444444' },
+          body: { fontSize: 12, font: "Roboto", lineHeight: 1.5, alignment: 'justify' },
+
+          // HTML-to-PDFMake Styles Mappings
+          'html-h1': {
             fontSize: 24,
             bold: true,
             font: "Roboto",
-            color: '#222222'
+            color: '#222222',
+            margin: [0, 20, 0, 10]
           },
-          header2: {
+          'html-h2': {
             fontSize: 20,
             bold: true,
             font: "Roboto",
-            color: '#444444'
+            color: '#444444',
+            margin: [0, 15, 0, 10]
           },
-          body: {
-            fontSize: 12,
-            font: "Roboto",
-            lineHeight: 1.5,
-            alignment: 'justify'
+          'html-h3': {
+             fontSize: 16,
+             bold: true,
+             font: "Roboto",
+             color: '#666666',
+             margin: [0, 10, 0, 5]
+          },
+          'html-p': {
+             fontSize: 12,
+             font: "Roboto",
+             lineHeight: 1.5,
+             alignment: 'justify',
+             margin: [0, 0, 0, 10]
+          },
+          'html-ul': {
+             margin: [0, 0, 0, 10]
+          },
+          'html-ol': {
+             margin: [0, 0, 0, 10]
+          },
+          'html-blockquote': {
+             italics: true,
+             margin: [20, 10, 20, 10],
+             color: '#555555'
           }
         },
         defaultStyle: {
