@@ -527,7 +527,8 @@ export const auditContent = onCall(
 export const purgeEcho = onCall(
     {
         region: "us-central1",
-        cors: true,
+        // TODO: Refactor hardcoded CORS origins to environment variables for better portability.
+        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
         enforceAppCheck: true,
     },
     async (request) => {
