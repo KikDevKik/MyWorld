@@ -1,0 +1,86 @@
+================================================================================
+REPORTE TÉCNICO Y FUNCIONAL: ESTADO DEL DIRECTOR DE ESCENA (V3.3)
+FECHA: 20 Enero 2026
+AUTOR: Jules (Sistemas)
+PARA: Arquitecto del Proyecto
+================================================================================
+
+1. ANÁLISIS DE SITUACIÓN ACTUAL
+--------------------------------------------------------------------------------
+Usted percibe al Director de Escena como "solo un chatbot" porque, en efecto, el 90% de su interfaz visible actual es la ventana de chat (`DirectorPanel.tsx`). Sin embargo, bajo el capó existe una arquitectura diseñada para ser mucho más que eso, pero que actualmente está "dormida" o es invisible al usuario por decisiones de diseño UI.
+
+A continuación detallo cómo funciona realmente y por qué no está viendo el resto.
+
+1.1 FUNCIONAMIENTO TÉCNICO ACTUAL (LO QUE EL CÓDIGO HACE)
+El componente `DirectorPanel.tsx` opera bajo dos modalidades:
+
+A. MODALIDAD ACTIVA (CHAT):
+   - Conecta con la Cloud Function `chatWithGem`.
+   - Inyecta un "System Instruction" específico: "ACT AS: Director of Photography and Narrative Structure".
+   - Tiene memoria de sesión (guarda el historial en Firestore `users/{uid}/forge_sessions`).
+   - Es reactivo: Solo hace algo si usted le escribe.
+
+B. MODALIDAD PASIVA (MONITOR DE DRIFT / ECOS):
+   - Cuando usted abre el panel, `App.tsx` dispara silenciosamente la función `scanProjectDrift`.
+   - Esta función compara los vectores de su proyecto actual con un "Centroide" (el promedio matemático de su estilo y trama).
+   - SI (y solo si) detecta una desviación grave (> 70% de incoherencia), devuelve una lista de "Alertas de Drift".
+   - El Director recibe estas alertas vía `props` (`driftAlerts`) e inyecta tarjetas rojas en el chat con botones "Purgar" (Borrar memoria) o "Rescatar" (Marcar conflicto).
+
+1.2 ¿POR QUÉ "SOLO VEO UN CHAT"? (EL DIAGNÓSTICO)
+Existen tres razones técnicas por las que no ve la funcionalidad avanzada:
+1. **Silencio por Estabilidad:** Si su proyecto es coherente (Drift < 0.7), el sistema no devuelve nada. No hay un mensaje de "Todo en orden, Director monitoreando". El panel se ve vacío.
+2. **Dependencia del Centroide:** Si no ha ejecutado una indexación completa recientemente (`indexTDB`), no existe un "Centroide" contra el cual comparar. El escáner falla silenciosamente y no muestra nada.
+3. **Desconexión de Herramientas:** El Director no tiene botones para invocar las herramientas que ya existen en el backend (El Inspector, El Tribunal, La Bola de Cristal). Están aisladas en otros paneles o sin interfaz.
+
+--------------------------------------------------------------------------------
+2. INVENTARIO DE CAPACIDADES "DORMIDAS" (BACKEND)
+--------------------------------------------------------------------------------
+He analizado `index.ts` y `guardian.ts`. Su backend tiene superpoderes que el Director no está usando. Estas funciones están listas para conectarse:
+
+A. `forgeAnalyzer` (EL INSPECTOR)
+   - **Qué hace:** Lee un capítulo, extrae automáticamente todos los personajes, detecta si son nuevos ("Ghosts") o existentes, y genera un reporte de continuidad.
+   - **Estado:** ✅ Backend listo / ❌ Sin botón en el Director.
+   - **Potencial:** El Director podría tener un botón "Analizar Elenco del Capítulo" que ejecute esto y le diga: "Oye, mencionaste a 'Zorg' pero no tiene ficha. ¿La creo?".
+
+B. `enrichCharacterContext` (LA BOLA DE CRISTAL)
+   - **Qué hace:** Realiza una búsqueda profunda (RAG) sobre un personaje para reconstruir su vida entera basada en fragmentos dispersos.
+   - **Estado:** ✅ Backend listo / ❌ Oculto en lógica interna.
+   - **Potencial:** Usted podría preguntar al Director: "¿Qué sabemos realmente de Ana?" y él usaría esto para darle un dossier psicológico completo, no solo chatear.
+
+C. `summonTheTribunal` (EL JUICIO RÁPIDO)
+   - **Qué hace:** Invoca a tres IAs (Arquitecto, Bardo, Hater) para criticar un texto.
+   - **Estado:** ✅ Tiene su propio panel / ❌ Desconectado del Director.
+   - **Potencial:** El Director podría tener un "Modo Crítico" que use esta función para darle feedback inmediato sobre el párrafo seleccionado sin salir del chat.
+
+D. `rescueEcho` / `purgeEcho` (GESTIÓN DE MEMORIA)
+   - **Qué hace:** Micro-cirugía en la base de datos vectorial.
+   - **Estado:** ✅ Implementado en UI de Drift.
+   - **Problema:** Solo aparece en emergencias. Debería poder invocarse manualmente para limpiar "alucinaciones" de la IA.
+
+--------------------------------------------------------------------------------
+3. SUGERENCIAS DE EVOLUCIÓN (ROADMAP TÉCNICO)
+--------------------------------------------------------------------------------
+Para transformar al Director de un "Chatbot" a un verdadero "Gerente de Escena", sugiero implementar los siguientes cambios en el código (`DirectorPanel.tsx`):
+
+3.1 UX: VISIBILIDAD DE ESTADO (MONITOR ACTIVO)
+   - **Cambio:** Añadir una barra de estado superior ("HUD") en el panel.
+   - **Función:** Mostrar visualmente el nivel de "Drift" actual (ej: un medidor de 0% a 100%) incluso si es bajo.
+   - **Efecto:** Usted verá que el Director está "trabajando" y vigilando, no solo esperando texto. Si el Centroide falta, mostrará una alerta amarilla "Calibración Necesaria".
+
+3.2 UX: COMANDOS RÁPIDOS (SLASH COMMANDS O BOTONES)
+   - Integrar las funciones dormidas directamente en el input del chat o como botones sobre él:
+   - `[🔍 Analizar Escena]`: Invoca a `forgeAnalyzer` sobre el texto visible. Muestra reporte de personajes en el chat.
+   - `[⚖️ Juicio Rápido]`: Invoca a `summonTheTribunal` para el párrafo actual.
+   - `[🧠 Recordar Contexto]`: Fuerza una actualización de la memoria inmediata.
+
+3.3 INTELIGENCIA PROACTIVA (EL "SEGUNDO CEREBRO")
+   - Modificar `scanProjectDrift` para que no solo busque errores, sino "Oportunidades".
+   - Ejemplo: Si detecta que un personaje no ha aparecido en 10 capítulos, el Director debería sugerir: "Nota: El personaje X lleva mucho tiempo inactivo. ¿Es intencional?".
+
+3.4 INTEGRACIÓN CON EL EDITOR
+   - Permitir que el Director subraye texto en el editor (`HybridEditor`) cuando detecta un problema (usando los `driftMarkers` que ya vi en `App.tsx` pero que solo son simulados actualmente).
+
+--------------------------------------------------------------------------------
+CONCLUSIÓN
+--------------------------------------------------------------------------------
+El Director no está "roto", está **incompleto en su interfaz**. El cerebro (Backend) es de nivel Titan, pero el cuerpo (Frontend) es de nivel Básico. Conectar las tuberías existentes (`forgeAnalyzer`, `enrichCharacterContext`) a la UI del Director cambiará radicalmente la experiencia de "Chat pasivo" a "Centro de Mando Activo".
