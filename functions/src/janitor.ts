@@ -69,46 +69,34 @@ export const scanVaultHealth = onCall(
 
         const res = await drive.files.list({
             q: query,
-            fields: "files(id, name, size, mimeType)",
-            pageSize: 100 // Limit to 100 ghosts to prevent overwhelming UI
+            fields: "files(id, name, size)",
+            pageSize: 100 // 🟢 USER MANDATE: Hard Limit 100
         });
 
-        const ghosts = res.data.files || [];
+        const rawGhosts = res.data.files || [];
 
-        // 2. CALCULATE HEALTH
-        // We need total files count to calc %?
-        // We can do a separate quick query for total count "in parents".
-        const totalRes = await drive.files.list({
-             q: `'${folderId}' in parents and trashed = false`,
-             pageSize: 1, // We only need count
-             fields: "files(id)" // Minimize data
-             // Note: Drive API v3 doesn't give total count easily without iterating, unless we use Approx?
-             // We'll skip precise % if hard. Or just 100 - (ghosts * 5).
-        });
-        // Wait, list does not return totalSize unless requested?
-        // Actually, let's just use a heuristic.
-        // If 0 ghosts -> 100%.
-        // If > 0 -> 100 - (count * 2). Min 0.
+        // 🟢 SANITIZATION: Map to primitives only
+        const ghosts = rawGhosts.map((g: any) => ({
+            id: g.id,
+            name: g.name,
+            size: g.size ? Number(g.size) : 0 // Ensure number
+        }));
 
         const ghostCount = ghosts.length;
-        const health = Math.max(0, 100 - (ghostCount * 5)); // 5% penalty per ghost
+        // Simple heuristic: -5 health per ghost
+        const health = Math.max(0, 100 - (ghostCount * 5));
 
         logger.info(`🧹 [JANITOR] Report: ${ghostCount} ghosts found. Health: ${health}%`);
 
         return {
             health,
             ghostCount,
-            ghosts: ghosts.map(g => ({
-                id: g.id,
-                name: g.name,
-                size: g.size,
-                mimeType: g.mimeType
-            }))
+            ghosts
         };
 
     } catch (error: any) {
         logger.error("Error en scanVaultHealth:", error);
-        throw new HttpsError("internal", error.message);
+        throw new HttpsError("internal", "Error en scanVaultHealth: " + error.message);
     }
   }
 );

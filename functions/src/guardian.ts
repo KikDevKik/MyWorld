@@ -579,7 +579,7 @@ export const purgeEcho = onCall(
 export const scanProjectDrift = onCall(
   {
     region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    cors: true, // 🟢 USER MANDATE: Wildcard CORS for Beta
     enforceAppCheck: true,
     timeoutSeconds: 540, // Long running
     memory: "1GiB",
@@ -596,11 +596,24 @@ export const scanProjectDrift = onCall(
     try {
         // 1. Fetch Centroid
         const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
-        if (!centroidDoc.exists) {
-            return { success: false, message: "No Project Centroid found. Please index first." };
+
+        // 🟢 SAFETY CHECK: Return "skipped" instead of error if no centroid
+        if (!centroidDoc.exists || !centroidDoc.data()?.vector) {
+             logger.info(`⚓ [SENTINEL] No Centroid found for project ${projectId}. Skipping Drift Scan.`);
+             return {
+                 success: true,
+                 status: 'skipped',
+                 alerts: {
+                     identity: [],
+                     geography: [],
+                     continuity: [],
+                     uncategorized: []
+                 },
+                 message: "El proyecto aún no tiene estadísticas de centroide (Indexado requerido)."
+             };
         }
+
         const centroidVector = centroidDoc.data()?.vector;
-        if (!centroidVector) return { success: false, message: "Centroid vector is empty." };
 
         // 2. Fetch All Chunks for Project
         // Optimization: We could limit or paginate, but for now we scan all (assuming < 10k chunks for typical project)

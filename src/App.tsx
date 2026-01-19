@@ -13,7 +13,6 @@ import TribunalPanel from './components/TribunalPanel';
 import LaboratoryPanel from './components/LaboratoryPanel';
 import TimelinePanel from './components/TimelinePanel';
 import ExportPanel from './components/ExportPanel';
-import CommandBar from './components/ui/CommandBar';
 import LoginScreen from './pages/LoginScreen';
 import ConnectDriveModal from './components/ui/ConnectDriveModal';
 import SettingsModal from './components/ui/SettingsModal';
@@ -489,9 +488,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     driftMarkers={driftMarkers}
                     className="h-full"
                 />
-                {!['director', 'chat', 'tribunal', 'sentinel'].includes(activeView) && !isEditorFocused && !isSettingsModalOpen && !isProjectSettingsOpen && !isFieldManualOpen && !isConnectModalOpen && (
-                    <CommandBar onExecute={handleCommandExecution} />
-                )}
             </>
         );
     };
