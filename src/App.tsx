@@ -30,6 +30,9 @@ import { GemId, ProjectConfig, ForgeSession } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
 
+// 🟢 DEFINE FULL FOCUS GEMS (Global Scope for Logic)
+const FULL_FOCUS_GEMS: GemId[] = ['perforador', 'forja', 'laboratorio', 'guardian', 'imprenta', 'cronograma'];
+
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 // We need this because we want to use 'useProjectConfig' which requires ProjectConfigProvider
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
@@ -206,7 +209,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setTimeout(() => setActiveGemId(null), 300);
         } else {
             setActiveGemId(id);
-            setIsChatOpen(true);
+            // 🟢 FULL FOCUS MODE: Do not auto-open generic chat for complex tools
+            if (!FULL_FOCUS_GEMS.includes(id)) {
+                setIsChatOpen(true);
+            } else {
+                setIsChatOpen(false);
+            }
         }
     };
 
@@ -514,6 +522,19 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         );
     };
 
+    // 🟢 CALCULATE SHELL MODE (Standard vs Hidden vs Overlay)
+    const isFullFocus = activeGemId && FULL_FOCUS_GEMS.includes(activeGemId);
+    const isOverlayActive = isDirectorOpen || isSentinelOpen;
+
+    let toolsMode: 'standard' | 'hidden' | 'overlay' = 'standard';
+    if (isFullFocus) {
+        if (isOverlayActive) {
+            toolsMode = 'overlay';
+        } else {
+            toolsMode = 'hidden';
+        }
+    }
+
     return (
         <>
             <Toaster
@@ -562,6 +583,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             <SentinelShell
                 isZenMode={isZenMode}
                 isToolsExpanded={isToolsExpanded}
+                toolsMode={toolsMode}
                 sidebar={
                     <VaultSidebar
                         folderId={folderId}

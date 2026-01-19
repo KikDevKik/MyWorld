@@ -6,6 +6,7 @@ interface SentinelShellProps {
     tools: React.ReactNode;
     isZenMode: boolean;
     isToolsExpanded: boolean;
+    toolsMode?: 'standard' | 'hidden' | 'overlay';
 }
 
 const SentinelShell: React.FC<SentinelShellProps> = ({
@@ -13,10 +14,25 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     editor,
     tools,
     isZenMode,
-    isToolsExpanded
+    isToolsExpanded,
+    toolsMode = 'standard'
 }) => {
+    // Determine Zone C classes based on mode
+    let zoneCClasses = "bg-titanium-950 border-l border-titanium-800 transition-all duration-300 ease-in-out flex flex-row";
+
+    if (isZenMode) {
+        zoneCClasses += " w-0 opacity-0 overflow-hidden border-none";
+    } else if (toolsMode === 'hidden') {
+        zoneCClasses += " w-0 opacity-0 overflow-hidden border-none";
+    } else if (toolsMode === 'overlay') {
+        zoneCClasses += " absolute right-0 h-full z-50 shadow-2xl w-[26rem]";
+    } else {
+        // Standard mode
+        zoneCClasses += " flex-shrink-0 " + (isToolsExpanded ? "w-[26rem]" : "w-16");
+    }
+
     return (
-        <div className="h-screen w-screen overflow-hidden bg-titanium-900 text-titanium-100 flex flex-row">
+        <div className="h-screen w-screen overflow-hidden bg-titanium-900 text-titanium-100 flex flex-row relative">
             {/* ZONA A: MEMORIA */}
             <aside
                 className={`
@@ -33,12 +49,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             </main>
 
             {/* ZONA C: INTELIGENCIA */}
-            <aside
-                className={`
-                    bg-titanium-950 border-l border-titanium-800 flex-shrink-0 transition-all duration-300 ease-in-out flex flex-row
-                    ${isZenMode ? 'w-0 opacity-0 overflow-hidden border-none' : (isToolsExpanded ? 'w-[26rem]' : 'w-16')}
-                `}
-            >
+            <aside className={zoneCClasses}>
                {tools}
             </aside>
         </div>
