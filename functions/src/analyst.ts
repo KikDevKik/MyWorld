@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI } from "@google-generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Readable } from 'stream';
 
 // --- CONFIG ---
