@@ -25,8 +25,8 @@ export const scanVaultHealth = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    const { accessToken, folderId } = request.data;
-    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+    const { folderId } = request.data;
+    // Note: accessToken is no longer required as we use the Robot (Service Account)
 
     // If no folderId provided, we can't scan effectively without scanning root?
     // We will assume the user wants to scan the Project Root (folderId).
@@ -36,8 +36,12 @@ export const scanVaultHealth = onCall(
     logger.info(`🧹 [JANITOR] Iniciando escaneo de salud para: ${folderId}`);
 
     try {
-        const auth = new google.auth.OAuth2();
-        auth.setCredentials({ access_token: accessToken });
+        // 🟢 MODO ROBOT: SERVICE ACCOUNT AUTH (Application Default Credentials)
+        // This ensures the "Janitor" process works independently of the user session,
+        // provided the user has shared the folder with the Service Account email.
+        const auth = new google.auth.GoogleAuth({
+            scopes: ['https://www.googleapis.com/auth/drive']
+        });
         const drive = google.drive({ version: "v3", auth });
 
         // 1. QUERY DRIVE
@@ -75,11 +79,11 @@ export const scanVaultHealth = onCall(
 
         const rawGhosts = res.data.files || [];
 
-        // 🟢 SANITIZATION: Map to primitives only
+        // 🟢 SANITIZATION: Map to primitives only (Paranoid Check)
         const ghosts = rawGhosts.map((g: any) => ({
-            id: g.id,
-            name: g.name,
-            size: g.size ? Number(g.size) : 0 // Ensure number
+            id: g.id || 'unknown_id',
+            name: g.name || 'Sin Nombre',
+            size: g.size ? Number(g.size) : 0 // Force Number
         }));
 
         const ghostCount = ghosts.length;
@@ -96,6 +100,12 @@ export const scanVaultHealth = onCall(
 
     } catch (error: any) {
         logger.error("Error en scanVaultHealth:", error);
+
+        // 🟢 MANEJO DE ERROR 403/401 (ROBOT ACCESS DENIED)
+        if (error.code === 403 || error.code === 401 || (error.message && error.message.includes('insufficient authentication'))) {
+             throw new HttpsError('permission-denied', "El Robot de Limpieza no tiene acceso. Comparte la carpeta con la Service Account del proyecto.");
+        }
+
         throw new HttpsError("internal", "Error en scanVaultHealth: " + error.message);
     }
   }
