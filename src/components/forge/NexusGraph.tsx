@@ -17,6 +17,7 @@ interface GraphData {
 }
 
 const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
+    console.log("NEXUS DEBUG: ProjectID recibido:", projectId);
     const [entities, setEntities] = useState<GraphNode[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
