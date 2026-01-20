@@ -1,0 +1,89 @@
+REPORTE TÉCNICO: EL LABORATORIO DE IDEAS (PROJECT MYWORLD)
+===========================================================
+FECHA DE ANÁLISIS: 20 de Enero de 2026
+VERSIÓN ANALIZADA: 3.1 (Commit: 1d2e822 - 19/01/2026)
+ESTADO: OPERATIVO / BETA (Revisión de estatus Zombie)
+AUTOR DEL REPORTE: Jules (AI Agent)
+
+1. RESUMEN EJECUTIVO
+--------------------------------------------------------------------------------
+"El Laboratorio de Ideas" (LaboratoryPanel) ha evolucionado de ser un módulo obsoleto ("Candidato a Eliminación" según la Documentación Maestra) a una herramienta funcional de gestión de conocimiento (Knowledge Management).
+
+Su función principal es actuar como un **Explorador de Archivos Bimodal** que separa el contenido del usuario en dos dominios cognitivos:
+1.  **El Proyecto (Canon):** Archivos narrativos activos (Borradores, Capítulos).
+2.  **La Biblioteca (Referencia):** Material de investigación, libros PDF, notas externas.
+
+A diferencia del "Director" (que ayuda a escribir), el Laboratorio está diseñado para **investigar y consultar** fuentes sin alterar el texto creativo.
+
+2. HISTORIA Y CAMBIOS RECIENTES
+--------------------------------------------------------------------------------
+*   **Muerte y Resurrección:** Históricamente, este módulo fue marcado como deprecated por falta de uso. Sin embargo, el código actual refleja una reescritura completa realizada alrededor del **19 de Enero de 2026**.
+*   **Arquitectura Moderna:** El código actual ya no utiliza lógica heredada; está construido puramente con React Hooks y TailwindCSS bajo la estética "Titanium" del proyecto.
+*   **Cambio de Enfoque:** Pasó de ser un simple visor de archivos a un entorno RAG (Retrieval-Augmented Generation) dedicado, integrando un chat contextual específico ("El Bibliotecario").
+
+3. ANÁLISIS TÉCNICO PROFUNDO (CÓDIGO FUENTE)
+--------------------------------------------------------------------------------
+
+### A. ARQUITECTURA FRONTEND (`LaboratoryPanel.tsx`)
+El panel opera como un componente independiente que gestiona su propio estado de datos, desacoplado del store global `useLayoutStore` para la carga de archivos.
+
+*   **Ingesta de Datos (`getDriveFiles`):**
+    Al montarse, invoca la Cloud Function `getDriveFiles` con el parámetro `{ recursive: true }`. Esto descarga el árbol completo de archivos del proyecto en una sola petición.
+
+*   **Lógica de Clasificación (`flattenAndCategorize`):**
+    El corazón lógico del componente es una función recursiva que procesa el árbol de archivos en el cliente (navegador).
+    *   **Algoritmo:** Recorre cada nodo del árbol de archivos.
+    *   **Detector de Referencias:** Si encuentra una carpeta que comience con `_RESOURCES` (underscore resources), marca automáticamente todo su contenido y subcontenidos como `category: 'reference'`.
+    *   **Resultado:** Genera dos arrays planos (`canonFiles` y `referenceFiles`) que alimentan las pestañas de la UI.
+
+*   **Gem Virtual ("El Bibliotecario"):**
+    A diferencia de las herramientas globales (Director, Perforador) que tienen configuraciones estáticas en `constants.ts`, el Laboratorio define su propia IA "al vuelo" (`librarianGem`).
+    *   **Modelo:** `gemini-2.5-flash` (Optimizado para velocidad y lectura de contexto).
+    *   **System Prompt:** Inyecta una instrucción estricta para forzar el comportamiento RAG: *"Responde basándote EXCLUSIVAMENTE en el material de referencia proporcionado"*.
+
+### B. INTEGRACIÓN DE CHAT (`ChatPanel.tsx` Overlay)
+El Laboratorio reutiliza el componente genérico `ChatPanel` pero lo instancia en un modo especial:
+*   **Aislamiento de Contexto:** Pasa la prop `categoryFilter="reference"`. Esto indica al backend (`chatWithGem`) que, al realizar la búsqueda vectorial en Firestore, **solo** debe recuperar fragmentos ('chunks') que pertenezcan a archivos clasificados como referencias, ignorando los borradores del usuario. Esto es crucial para evitar alucinaciones cruzadas.
+
+### C. BACKEND (`functions/src/index.ts`)
+El Laboratorio depende pesadamente de dos funciones:
+1.  **`getDriveFiles`:** Es el cuello de botella potencial. Al pedir recursividad completa, si el proyecto tiene miles de archivos, esta función podría tardar o exceder el tiempo de ejecución.
+2.  **`chatWithGem`:** El backend respeta el `categoryFilter`. Si recibe 'reference', inyecta instrucciones adicionales al LLM para que actúe como un tutor académico y cite fuentes.
+
+4. FUNCIONALIDAD NARRATIVA Y DE USUARIO
+--------------------------------------------------------------------------------
+Desde la perspectiva del escritor, el Laboratorio resuelve el problema de la **"Contaminación de Contexto"**.
+
+*   **Escenario de Uso:** Un escritor está trabajando en una novela de fantasía (Canon) pero necesita consultar un libro de historia medieval (Referencia) para describir una armadura.
+*   **Flujo:**
+    1.  Abre el Laboratorio.
+    2.  Sube el libro PDF a la carpeta `_RESOURCES` en Drive.
+    3.  Abre la pestaña "BIBLIOTECA".
+    4.  Invoca a "El Bibliotecario" y pregunta: *"¿Cómo se llamaban las piezas de hombro en el siglo XV?"*.
+    5.  La IA responde usando solo el PDF, sin intentar inventar datos basados en la novela de fantasía.
+
+5. LIMITACIONES Y PROBLEMAS DETECTADOS
+--------------------------------------------------------------------------------
+
+### 1. Eficiencia de Carga (Critical)
+*   **Problema:** La función `fetchFiles` carga **todo** el árbol de archivos cada vez que se abre el panel. No hay caché en el cliente.
+*   **Impacto:** En proyectos grandes (500+ archivos), abrir el Laboratorio será lento y consumirá cuota de lectura de la API de Google Drive innecesariamente.
+
+### 2. Amnesia de Sesión
+*   **Problema:** El estado del chat (`messages`) vive dentro del componente `LaboratoryPanel`.
+*   **Impacto:** Si el usuario cierra el panel (botón X) y lo vuelve a abrir, **el chat se pierde**. No hay persistencia en Firestore para las conversaciones del Laboratorio, a diferencia del Director que guarda sesiones.
+
+### 3. Búsqueda Limitada
+*   **Problema:** La UI solo muestra una rejilla (Grid) de archivos. No hay una barra de búsqueda para filtrar archivos por nombre dentro del panel. Si tienes 100 referencias, encontrar una específica visualmente es difícil.
+
+### 4. Dependencia de Nombres Mágicos
+*   **Problema:** La clasificación depende estrictamente de que la carpeta se llame `_RESOURCES`. Si el usuario la llama "Referencias" o "Bibliografía", el sistema no la reconocerá como tal y la mezclará con el Canon.
+
+6. RECOMENDACIONES TÉCNICAS
+--------------------------------------------------------------------------------
+1.  **Implementar Persistencia:** Guardar el historial del chat del Bibliotecario en una colección `forge_sessions` con `type: 'laboratory'` para que no se pierda al cerrar.
+2.  **Optimizar Fetch:** Usar el `ProjectConfigContext` global (que ya tiene el árbol de archivos) en lugar de hacer un `fetchFiles` manual, para que la carga sea instantánea.
+3.  **Buscador UI:** Añadir un input de texto simple para filtrar el array `currentFiles` por nombre.
+
+--------------------------------------------------------------------------------
+FIN DEL REPORTE
