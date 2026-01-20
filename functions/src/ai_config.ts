@@ -1,4 +1,4 @@
-export const MODEL_HIGH_REASONING = "gemini-2.0-flash-exp";
+export const MODEL_HIGH_REASONING = "gemini-3-pro-preview";
 export const MODEL_LOW_COST = "gemini-2.5-flash";
 
 export const TEMP_PRECISION = 0.3;
