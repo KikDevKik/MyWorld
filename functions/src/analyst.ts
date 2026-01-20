@@ -4,10 +4,10 @@ import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Readable } from 'stream';
+import { MODEL_HIGH_REASONING } from "./ai_config";
 
 // --- CONFIG ---
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
-const MODEL_HIGH_REASONING = "gemini-2.5-pro"; // Using standard robust model
 
 // --- HELPERS ---
 
