@@ -1,0 +1,70 @@
+# Reporte Técnico: El Tribunal Literario
+
+**Fecha de Análisis:** 19/02/2026
+**Módulo:** `El Tribunal` (The Literary Court)
+**Versión del Reporte:** 1.0
+**Agente:** Jules
+
+---
+
+## 1. Resumen Narrativo
+El Tribunal Literario no es una herramienta de edición ortográfica, sino un sistema de **crítica literaria simulada**. Invoca a tres personalidades artificiales distintas ("Agentes Virtuales") que juzgan un texto simultáneamente, ofreciendo perspectivas contrastadas para ayudar al autor a refinar su obra:
+
+*   **El Arquitecto:** Analítico, frío y lógico. Busca agujeros de trama, problemas de estructura y fallos en la causalidad. ("La estructura es el esqueleto").
+*   **El Bardo:** Emocional, poético y estético. Se centra en la prosa, el ritmo, las metáforas y la resonancia emocional. ("Las palabras deben cantar").
+*   **El Hater:** Cínico, brutal y comercial. Representa al lector impaciente de internet. Busca clichés, aburrimiento y "cringe". ("Dejé de leer en el segundo párrafo").
+
+---
+
+## 2. Evolución Técnica
+
+La herramienta ha pasado por una evolución significativa dentro del ecosistema "Titan":
+
+*   **Fase Inicial (Standalone):** Originalmente concebido como un panel modal independiente (`TribunalPanel.tsx`) que vivía fuera del flujo de trabajo principal. Requería que el usuario copiara y pegara texto manualmente o seleccionara un archivo.
+*   **Integración en el Dock:** Se añadió al `ArsenalDock` como una herramienta de "Heavy Duty" (Icono de Mazo/Gavel), accesible globalmente.
+*   **Estado Actual (Híbrido):**
+    *   Mantiene su interfaz dedicada (`TribunalPanel`) que ahora soporta dos modos: **Manual** (input de texto) y **Archivo** (lectura directa de Drive).
+    *   Se ha empezado a integrar conceptualmente dentro del "Director de Escena" como una "Carta de Veredicto" (`VerdictCard`), aunque la funcionalidad completa y visualización rica sigue residiendo principalmente en su propio panel.
+
+---
+
+## 3. Arquitectura Actual
+
+### Backend (`functions/src/index.ts`)
+La lógica reside en la Cloud Function `summonTheTribunal`.
+
+1.  **Modelo de IA:** Utiliza **`gemini-2.0-flash-exp`** (referenciado internamente como `MODEL_HIGH_REASONING`). Esto difiere de la documentación antigua que sugería modelos más básicos, indicando una actualización para mayor capacidad de razonamiento.
+2.  **Entrada de Datos:** Acepta `text` (string crudo) o `fileId` (lectura directa de Google Drive).
+    *   *Nota:* Si se usa `fileId`, el sistema descarga el contenido usando `google.drive.files.export` (para Docs) o `get` (para texto plano/markdown).
+3.  **Prompt Engineering:**
+    *   Inyecta el **Perfil de Escritor** del usuario (Estilo, Inspiraciones, Reglas) para personalizar la crítica.
+    *   Impone una estructura estricta de 3 personas (Arquitecto, Bardo, Hater).
+    *   **Detección de Idioma:** Instruye a la IA para detectar el idioma del texto y responder *estrictamente* en ese mismo idioma.
+4.  **Salida:** JSON estricto parseado con `parseSecureJSON` para evitar errores de formato, devolviendo:
+    ```json
+    {
+      "architect": { "verdict": "...", "critique": "...", "score": 0 },
+      "bard": { "verdict": "...", "critique": "...", "score": 0 },
+      "hater": { "verdict": "...", "critique": "...", "score": 0 }
+    }
+    ```
+
+### Frontend (`src/components/TribunalPanel.tsx`)
+1.  **Interfaz:** Panel lateral con estética "Titanium" (oscuro).
+2.  **Modos de Uso:**
+    *   **Texto Manual:** Área de texto libre para pegar fragmentos.
+    *   **Archivo Actual:** Detecta el archivo activo en el editor (`currentFileId`) y lo envía al backend para lectura directa.
+3.  **Visualización:** Renderiza 3 tarjetas separadas con iconos temáticos (Balanza, Pluma, Calavera) y puntuación de colores (Verde/Amarillo/Rojo). Usa `react-markdown` para formatear la crítica.
+
+---
+
+## 4. Limitaciones y Deuda Técnica
+
+A pesar de ser operativo, el módulo presenta limitaciones claras:
+
+1.  **Timeout Extendido:** La función tiene un timeout hardcodeado de **9 minutos** (`540s`). Esto indica que el proceso de lectura de Drive + Análisis profundo es lento y susceptible a fallos en textos muy largos.
+2.  **Límite de Caracteres:** El backend impone un límite estricto de **100,000 caracteres** (`MAX_AI_INPUT_CHARS`). Textos superiores (novelas completas) fallarán automáticamente.
+3.  **Falta de "Memoria":** El Tribunal es **amnésico**. Cada juicio es aislado; no recuerda veredictos anteriores ni si el autor corrigió los errores señalados en una sesión previa.
+4.  **UX de Espera:** Aunque hay un spinner (`Loader2`), el usuario queda bloqueado esperando hasta 9 minutos sin feedback de progreso real (e.g., "Leyendo archivo...", "Analizando estructura...").
+5.  **Duplicidad de Código:** Existe lógica de invocación en `TribunalPanel.tsx` y parcialmente en `useDirectorChat.ts`, lo que sugiere una migración incompleta hacia el chat del Director.
+6.  **Dependencia de `fileId`:** En modo "Archivo", depende de que el archivo esté guardado y sincronizado en Google Drive. Cambios locales no guardados en el editor no serán vistos por el Tribunal hasta que se persistan.
