@@ -660,6 +660,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         return [...canonNodes, ...mappedIdeas];
     }, [canonNodes, nodes, config]);
 
+    // 🟢 TELEMETRY (SANITY CHECK)
+    useEffect(() => {
+        if (isOpen) {
+            console.log(`[Nexus Fusion] Total Render: ${unifiedNodes.length} | Canon (DB): ${canonNodes.length} | Ideas (RAM): ${nodes.length}`);
+        }
+    }, [unifiedNodes.length, canonNodes.length, nodes.length, isOpen]);
+
     // CRYSTALLIZATION
     const handleCrystallize = (node: Node) => {
         setCrystallizeModal({ isOpen: true, node, isProcessing: false });
@@ -752,7 +759,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     return (
         <div
-            className="relative w-full h-full bg-titanium-950 overflow-hidden font-sans text-titanium-100 flex flex-col touch-none"
+            className="relative w-full h-full bg-transparent overflow-hidden font-sans text-titanium-100 flex flex-col touch-none pointer-events-none"
         >
             {/* 🟢 LOADER OVERLAY */}
             <AnimatePresence>
@@ -769,16 +776,19 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             </AnimatePresence>
 
             {/* LAYER 0: NEXUS GRAPH (The Living Background) */}
-            <NexusGraph
-                projectId={config?.folderId || ''}
-                accessToken={localStorage.getItem('google_drive_token')}
-                onClose={() => {}} // We don't close the background
-                nodes={unifiedNodes} // 🟢 UNIFIED PROP
-                onNodeClick={handleNodeClick}
-                onNodeDoubleClick={handleNodeDoubleClick}
-                onNodeDragEnd={handleNodeDragEnd}
-                onLinkCreate={handleLinkCreate}
-            />
+            {/* 🟢 INTERACTION GATE: Wrapper ensures clicks reach the graph despite parent pointer-events-none */}
+            <div className="absolute inset-0 z-0 pointer-events-auto touch-auto">
+                <NexusGraph
+                    projectId={config?.folderId || ''}
+                    accessToken={localStorage.getItem('google_drive_token')}
+                    onClose={() => {}} // We don't close the background
+                    nodes={unifiedNodes} // 🟢 UNIFIED PROP
+                    onNodeClick={handleNodeClick}
+                    onNodeDoubleClick={handleNodeDoubleClick}
+                    onNodeDragEnd={handleNodeDragEnd}
+                    onLinkCreate={handleLinkCreate}
+                />
+            </div>
 
             {/* LAYER 0.5: CANON DRAWER (Lifted State) */}
             <div
@@ -819,10 +829,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
             {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
             <motion.div
-                className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit pointer-events-auto"
+                className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit pointer-events-auto touch-auto"
                 animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? -20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
             >
-                <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
+                <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl pointer-events-auto">
                     {Object.values(AGENTS).map((agent) => (
                         <button
                             key={agent.id}
@@ -917,7 +927,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                {/* EXPANDED CARD */}
                                <motion.div
                                    layoutId={`node-${node.id}`}
-                                   className={`fixed inset-0 m-auto w-[60vw] h-[80vh] bg-slate-900 border rounded-xl z-[100] overflow-hidden flex flex-col shadow-2xl touch-auto ${style.border}`}
+                                   className={`fixed inset-0 m-auto w-[60vw] h-[80vh] bg-slate-900 border rounded-xl z-[100] overflow-hidden flex flex-col shadow-2xl touch-auto pointer-events-auto ${style.border}`}
                                    transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
                                >
                                     {/* Expanded Header */}
@@ -990,7 +1000,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             {/* LAYER 3: COMMAND DECK (OPERATION MONOLITH) */}
             {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
             <motion.div
-                className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px] pointer-events-auto"
+                className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px] pointer-events-auto touch-auto"
                 animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? 20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
             >
                 {/* Row 1: The Input */}
