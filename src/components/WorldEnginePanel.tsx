@@ -703,10 +703,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const unifiedNodes = useMemo(() => {
         const unifiedMap = new Map<string, GraphNode>();
         const nameToCanonId = new Map<string, string>(); // lowercase name -> canonId
-        const idMapping = new Map<string, string>(); // HashID -> CanonID
+        const idMapping = new Map<string, string>(); // Entity HashID -> CanonID
 
         // PHASE 1: LOAD CANON (Master Source)
-        // Convert Character objects to GraphNode objects
+        // Authority on: IDENTITY (Name, Type, Avatar)
         canonCharacters.forEach(char => {
             const canonNode: GraphNode = {
                 id: char.id, // Slug ID (e.g., 'megu')
@@ -718,7 +718,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     tier: char.tier === 'MAIN' ? 'protagonist' : 'secondary',
                     avatarUrl: undefined // Add if available
                 },
-                relations: [] // Start empty, will fill from entities
+                relations: [], // Will be hydrated from Entities
+                foundInFiles: [] // Will be hydrated from Entities
             };
 
             unifiedMap.set(char.id, canonNode);
@@ -727,64 +728,74 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             }
         });
 
-        // PHASE 2: FUSE ENTITIES (AI Source)
+        // PHASE 2: FUSE ENTITIES (Sidecar Source)
+        // Authority on: POSITION (fx, fy), CONNECTIONS (relations, foundInFiles)
         entityNodes.forEach(entity => {
             const normName = entity.name?.toLowerCase();
-            const canonId = normName ? nameToCanonId.get(normName) : null;
-            const shadowTarget = unifiedMap.get(entity.id); // Check if this entity is actually a shadow of a Canon node (same ID)
 
-            if (shadowTarget) {
-                // CASE A: SHADOW RECORD (Position Data for Canon)
-                // If entity.id matches a Canon ID, it's likely a shadow record containing fx/fy
-                shadowTarget.fx = entity.fx;
-                shadowTarget.fy = entity.fy;
-                // Merge relations if any exist in the shadow
-                if (entity.relations) {
-                    shadowTarget.relations = [...(shadowTarget.relations || []), ...entity.relations];
-                }
-            } else if (canonId) {
-                // CASE B: NAME MATCH (AI found "Megu", we have "Megu" in Canon)
-                const canonNode = unifiedMap.get(canonId);
-                if (canonNode) {
-                    // Merge Relations
-                    if (entity.relations) {
-                        // Avoid duplicates? Simple concat for now.
-                        canonNode.relations = [...(canonNode.relations || []), ...entity.relations];
-                    }
-                    // Map Hash ID to Canon ID for rewiring
+            // ATTEMPT MATCH
+            // 1. Direct ID Match (Shadow Record)
+            let canonTarget = unifiedMap.get(entity.id);
+
+            // 2. Name Match (AI Detection)
+            if (!canonTarget && normName) {
+                const canonId = nameToCanonId.get(normName);
+                if (canonId) {
+                    canonTarget = unifiedMap.get(canonId);
+                    // Record Redirect: Any link to this Entity Hash must point to the Canon ID
                     idMapping.set(entity.id, canonId);
-
-                    // If the Entity has position data (maybe user dragged the AI node before it was merged), adopt it if Canon has none
-                    if (canonNode.fx === undefined && entity.fx !== undefined) {
-                        canonNode.fx = entity.fx;
-                        canonNode.fy = entity.fy;
-                    }
                 }
+            }
+
+            if (canonTarget) {
+                // --- SIDECAR MERGE PROTOCOL ---
+
+                // 1. POSITION (Entities Wins)
+                if (entity.fx !== undefined) canonTarget.fx = entity.fx;
+                if (entity.fy !== undefined) canonTarget.fy = entity.fy;
+
+                // 2. RELATIONS (Union)
+                if (entity.relations && entity.relations.length > 0) {
+                    // We append. De-duplication happens naturally or isn't critical visually.
+                    canonTarget.relations = [...(canonTarget.relations || []), ...entity.relations];
+                }
+
+                // 3. CO-OCCURRENCE (Union - Critical for Grey Web)
+                if (entity.foundInFiles && entity.foundInFiles.length > 0) {
+                     // Check for duplicates based on fileId to avoid massive arrays
+                     const existingFiles = new Set(canonTarget.foundInFiles?.map(f => f.fileId));
+                     const newFiles = entity.foundInFiles.filter(f => !existingFiles.has(f.fileId));
+                     canonTarget.foundInFiles = [...(canonTarget.foundInFiles || []), ...newFiles];
+                }
+
+                // 4. METADATA (Enrichment only)
+                // We do NOT overwrite Name or Type.
+                // But we can verify if we need to add 'tier' info if missing.
+                if (!canonTarget.meta.tier && entity.meta?.tier) {
+                    canonTarget.meta.tier = entity.meta.tier;
+                }
+
             } else {
-                // CASE C: NEW ENTITY (AI Detected something new)
-                // Mark as detected
-                const newNode: GraphNode = {
+                // --- GHOST PROTOCOL ---
+                // Entity exists in AI Graph but not in Canon File.
+                // Action: SHOW IT.
+
+                const ghostNode: GraphNode = {
                     ...entity,
-                    meta: {
-                        ...entity.meta,
-                        tier: 'background' // Visual cue handled in NexusGraph by checking this or adding a flag
-                    },
-                    // Add a flag for styling "Detected"
-                    description: entity.description || "Entidad detectada por IA (No verificada)."
+                    // Ensure it has visual styling distinct from Canon
+                    isGhost: true,
+                    description: entity.description || "Entidad inferida (Nodo Fantasma)",
+                    projectId: config?.folderId || '',
+                    // Ensure arrays exist
+                    relations: entity.relations || [],
+                    foundInFiles: entity.foundInFiles || []
                 };
-                // We'll trust the type from the entity (could be location, object, etc.)
-                unifiedMap.set(entity.id, newNode);
+
+                unifiedMap.set(entity.id, ghostNode);
             }
         });
 
-        // PHASE 3: REWIRING (Link redirection)
-        // If an edge points to a HashID that was merged into a CanonID, redirect it.
-        // We also need to process "Local Ideas" here to include them in the map or just append later.
-        // Let's append Local Ideas to the map so they can participate in linking.
-
-        const nodesArray = Array.from(unifiedMap.values());
-
-        // Process Local Ideas (RAM)
+        // PHASE 3: LOCAL IDEAS (RAM)
         const mappedIdeas: GraphNode[] = nodes.map(n => ({
             id: n.id,
             name: n.title,
@@ -794,22 +805,33 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             fy: n.fy,
             meta: { brief: n.content.substring(0, 50) },
             agentId: n.agentId,
-            isLocal: true
+            isLocal: true,
+            relations: n.metadata?.pending_relations?.map(r => ({
+                targetId: r.targetId,
+                targetName: "Unknown",
+                targetType: 'concept',
+                relation: r.relationType as any,
+                context: "Local Idea Link",
+                sourceFileId: "session"
+            })) || []
         } as any));
 
-        const finalNodes = [...nodesArray, ...mappedIdeas];
+        // Add Ideas to the pool
+        mappedIdeas.forEach(idea => {
+            unifiedMap.set(idea.id, idea);
+        });
 
-        // Rewire Logic
-        // We can't easily mutate the relations inside the loop without cloning,
-        // but NexusGraph derives links from these nodes.
-        // We need to update `relations` arrays in `finalNodes`.
+        // PHASE 4: GLOBAL REWIRING (The Weaver)
+        // Fix all relations to point to the correct IDs (Canonical IDs)
+        const finalNodes = Array.from(unifiedMap.values());
 
         finalNodes.forEach(node => {
-            if (node.relations) {
+            if (node.relations && node.relations.length > 0) {
                 node.relations = node.relations.map(rel => {
-                    const mappedTarget = idMapping.get(rel.targetId);
-                    if (mappedTarget) {
-                        return { ...rel, targetId: mappedTarget };
+                    // Check if the target was a HashID that got merged into a CanonID
+                    const redirectedId = idMapping.get(rel.targetId);
+                    if (redirectedId) {
+                        return { ...rel, targetId: redirectedId };
                     }
                     return rel;
                 });
