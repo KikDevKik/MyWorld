@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirestore, doc, updateDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, collection, onSnapshot, query } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import {
     LayoutTemplate,
     Sparkles,
@@ -9,9 +10,11 @@ import {
     X,
     Zap,
     Disc,
-    Diamond
+    Diamond,
+    Loader2
 } from 'lucide-react';
 import { GemId } from '../types';
+import { GraphNode } from '../types/graph';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import InterrogationModal from './ui/InterrogationModal';
 import CrystallizeModal from './ui/CrystallizeModal';
@@ -249,6 +252,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
 
+    // 🟢 CANON STATE (Elevated)
+    const [canonNodes, setCanonNodes] = useState<GraphNode[]>([]);
+    const [loadingCanon, setLoadingCanon] = useState(true);
+    const [selectedCanonId, setSelectedCanonId] = useState<string | null>(null);
+
     // 🟢 KINETIC STATE
     const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
 
@@ -277,6 +285,37 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // 🟢 COHERENCY MONITOR
     const latestNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
     const activeAlert = latestNode?.coherency_report;
+
+    // --- 0. DATA SUBSCRIPTION (LIFTED STATE) ---
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const folderId = config?.folderId || config?.characterVaultId;
+        const auth = getAuth();
+
+        if (!folderId || !auth.currentUser) {
+            setLoadingCanon(false);
+            return;
+        }
+
+        setLoadingCanon(true);
+        const db = getFirestore();
+        const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", folderId, "entities");
+
+        const unsubscribe = onSnapshot(query(entitiesRef), (snapshot) => {
+            const loadedEntities: GraphNode[] = [];
+            snapshot.forEach((doc) => {
+                loadedEntities.push(doc.data() as GraphNode);
+            });
+            setCanonNodes(loadedEntities);
+            setLoadingCanon(false);
+        }, (error) => {
+            console.error("Failed to subscribe to Canon:", error);
+            setLoadingCanon(false);
+        });
+
+        return () => unsubscribe();
+    }, [isOpen, config?.folderId, config?.characterVaultId]);
 
     // --- HARVESTER (FRONTEND LOGIC) ---
     const harvestWorldContext = async (): Promise<{ canon_dump: string; timeline_dump: string }> => {
@@ -502,20 +541,29 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     // 🟢 NEXUS INTEGRATION HANDLERS
 
-    // 1. SELECT NODE (Open Macro-Card)
-    const handleNodeSelect = (nodeId: string, isLocal: boolean) => {
+    // 1. SELECT NODE (Single Click)
+    const handleNodeClick = (nodeId: string, isLocal: boolean) => {
+        // Just highlight or log. We do NOT open modals on single click.
+        console.log(`[WorldEngine] Selected ${isLocal ? 'Idea' : 'Canon'}:`, nodeId);
+    };
+
+    // 2. OPEN NODE (Double Click)
+    const handleNodeDoubleClick = (nodeId: string, isLocal: boolean) => {
         if (isLocal) {
-            setExpandedNodeId(nodeId);
+            setExpandedNodeId(nodeId); // Open Macro Card
+            setSelectedCanonId(null);
         } else {
-             // For canon nodes, we might want to just show the drawer (handled inside NexusGraph currently)
-             // OR open a read-only modal. For now, we only "Expand" ideas.
-             // If the user wants to see Canon details, the NexusGraph Drawer is sufficient.
-             // But if we want to EDIT canon nodes, that's a different feature.
-             console.log("Selected Canon Node:", nodeId);
+            // Open Canon Drawer (Lifted State)
+            // Find the node in canonNodes
+            const canonNode = canonNodes.find(n => n.id === nodeId);
+            if (canonNode) {
+                setSelectedCanonId(nodeId);
+                setExpandedNodeId(null);
+            }
         }
     };
 
-    // 2. PERSISTENCE (Drag End)
+    // 3. PERSISTENCE (Drag End)
     const handleNodeDragEnd = async (node: any) => {
         if (node.isLocal) {
             // Update local state so it doesn't snap back
@@ -526,23 +574,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             ));
         } else {
             // Update Firestore for Canon Nodes
-            // Path: users/{uid}/projects/{projectId}/entities/{entityId}
-            if (!config?.folderId) return; // folderId is used as projectId here
+            if (!config?.folderId) return;
 
-            // Note: node.entityData contains the raw firestore data including ID
             const entityId = node.id;
-
-            // We need auth uid.
-            // Since we don't have direct access to 'auth' context here easily,
-            // we'll use the imported 'updateDoc' but we need the full path.
-            // Let's rely on NexusGraph having access or construct path carefully.
-            // Actually, we can assume typical Firebase setup.
-
-            // Ideally, we'd have a service, but inline for now:
             try {
-                // We need to import auth/db or pass it.
-                // We imported getFirestore/updateDoc. We need current user.
-                const auth = (await import('firebase/auth')).getAuth();
+                const auth = getAuth();
                 const db = getFirestore();
 
                 if (auth.currentUser) {
@@ -559,7 +595,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
-    // 3. LINKING (Red Thread)
+    // 4. LINKING (Red Thread)
     const handleLinkCreate = (sourceId: string, targetId: string) => {
         // Find source and target
         const sourceNode = nodes.find(n => n.id === sourceId);
@@ -606,6 +642,23 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
+    // 🟢 UNIFIED NODE BUILDER
+    const unifiedNodes = useMemo(() => {
+        // 1. Map Local Ideas to GraphNode format
+        const mappedIdeas: GraphNode[] = nodes.map(n => ({
+            id: n.id,
+            name: n.title,
+            type: 'idea', // Ensure it's typed as idea
+            projectId: config?.folderId || '',
+            fx: n.fx,
+            fy: n.fy,
+            // Carry metadata in a way NexusGraph understands (it checks .type for color/shape)
+            meta: { brief: n.content.substring(0, 50) },
+            agentId: n.agentId // Custom field we added to GraphNode/entityData handling in Nexus
+        } as any)); // Force cast if strict typing complains about extra props, but GraphNode allows extras? Check Nexus usage.
+
+        return [...canonNodes, ...mappedIdeas];
+    }, [canonNodes, nodes, config]);
 
     // CRYSTALLIZATION
     const handleCrystallize = (node: Node) => {
@@ -694,21 +747,74 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     if (!isOpen) return null;
 
+    // Helper for Canon Drawer Selection
+    const selectedCanonNode = selectedCanonId ? canonNodes.find(n => n.id === selectedCanonId) : null;
+
     return (
         <div
             className="relative w-full h-full bg-titanium-950 overflow-hidden font-sans text-titanium-100 flex flex-col touch-none"
         >
+            {/* 🟢 LOADER OVERLAY */}
+            <AnimatePresence>
+                {loadingCanon && (
+                    <motion.div
+                        initial={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 z-[100] bg-titanium-950 flex flex-col items-center justify-center gap-4"
+                    >
+                        <Loader2 className="animate-spin text-cyan-500" size={48} />
+                        <span className="text-xs font-mono tracking-widest text-titanium-400">CONNECTING TO CANON VAULT...</span>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* LAYER 0: NEXUS GRAPH (The Living Background) */}
             <NexusGraph
                 projectId={config?.folderId || ''}
                 accessToken={localStorage.getItem('google_drive_token')}
                 onClose={() => {}} // We don't close the background
-                localNodes={nodes}
-                onNodeSelect={handleNodeSelect}
+                nodes={unifiedNodes} // 🟢 UNIFIED PROP
+                onNodeClick={handleNodeClick}
+                onNodeDoubleClick={handleNodeDoubleClick}
                 onNodeDragEnd={handleNodeDragEnd}
                 onLinkCreate={handleLinkCreate}
             />
+
+            {/* LAYER 0.5: CANON DRAWER (Lifted State) */}
+            <div
+                className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col
+                    ${selectedCanonNode ? 'translate-x-0' : 'translate-x-full'}
+                `}
+            >
+                {selectedCanonNode && (
+                    <div className="flex flex-col h-full pointer-events-auto">
+                        <div className="p-6 border-b border-titanium-800 bg-titanium-900/50">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded border
+                                    ${selectedCanonNode.type === 'character' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
+                                    selectedCanonNode.type === 'location' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
+                                    selectedCanonNode.type === 'event' ? 'text-red-400 border-red-900 bg-red-950/30' :
+                                    'text-amber-400 border-amber-900 bg-amber-950/30'}
+                                `}>
+                                    {selectedCanonNode.type}
+                                </span>
+                                <button onClick={() => setSelectedCanonId(null)} className="text-titanium-500 hover:text-white">
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <h2 className="text-2xl font-bold text-white leading-tight">{selectedCanonNode.name}</h2>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-bold text-titanium-500 uppercase">Descripción</h4>
+                                <p className="text-titanium-300 text-sm leading-relaxed">
+                                    {selectedCanonNode.description || "Sin descripción registrada en el Nexus."}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
 
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
             {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
@@ -735,7 +841,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                 size={14}
                                 className={`relative z-10 transition-colors ${activeAgent === agent.id ? `text-${agent.color}-400` : 'text-titanium-500 group-hover:text-titanium-300'}`}
                             />
-                            <span className={`relative z-10 text-xs font-bold tracking-widest transition-colors ${activeAgent === agent.id ? 'text-white' : 'text-titanium-500 group-hover:text-titanium-300'}`}>
+                            <span className={`relative z-10 text-xs font-bold tracking-widest transition-colors ${activeAgent === agent.id ? 'text-white' : 'text-titanium-500 group-hover:text-titanium-300'}`}
+                            >
                                 {agent.name}
                             </span>
                         </button>

@@ -2,29 +2,18 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { getFirestore, collection, onSnapshot, query } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { X, Network, BookOpen, AlertTriangle } from 'lucide-react';
+import { X } from 'lucide-react';
 import { EntityType, GraphNode } from '../../types/graph';
-
-// Simplified Node interface from WorldEnginePanel
-interface LocalIdeaNode {
-    id: string;
-    title: string;
-    type: string;
-    content: string;
-    x?: number;
-    y?: number;
-    fx?: number;
-    fy?: number;
-    metadata?: any;
-    agentId?: string;
-}
 
 interface NexusGraphProps {
     projectId: string; // This is the folderId (Root)
     onClose: () => void;
     accessToken: string | null;
-    localNodes?: LocalIdeaNode[]; // "Ideas" (Micro-Cards)
-    onNodeSelect?: (nodeId: string, isLocal: boolean) => void;
+    nodes?: GraphNode[]; // 🟢 Unified Nodes (Canon + Ideas) - PREFERRED
+    /** @deprecated Use nodes prop instead */
+    localNodes?: any[];
+    onNodeClick?: (nodeId: string, isLocal: boolean) => void; // Single Click (Select)
+    onNodeDoubleClick?: (nodeId: string, isLocal: boolean) => void; // Double Click (Open)
     onNodeDragEnd?: (node: any) => void; // For persistence
     onLinkCreate?: (sourceId: string, targetId: string) => void; // For "Red Thread"
 }
@@ -37,16 +26,18 @@ interface GraphData {
 const NexusGraph: React.FC<NexusGraphProps> = ({
     projectId,
     onClose,
+    nodes: propNodes,
     localNodes = [],
-    onNodeSelect,
+    onNodeClick,
+    onNodeDoubleClick,
     onNodeDragEnd,
     onLinkCreate
 }) => {
-    console.log("NEXUS DEBUG: ProjectID recibido:", projectId);
     const [entities, setEntities] = useState<GraphNode[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
     const graphRef = useRef<any>(null);
+    const clickTimeoutRef = useRef<any>(null);
 
     // Interaction State
     const [hoveredNode, setHoveredNode] = useState<any>(null);
@@ -54,8 +45,14 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         active: false, source: null, currentPos: null
     });
 
-    // --- 1. DATA FETCHING ---
+    // --- 1. DATA FETCHING (CONDITIONAL) ---
+    // Only fetch if propNodes is NOT provided (Backward Compatibility / Fallback)
     useEffect(() => {
+        if (propNodes) {
+            setLoading(false);
+            return;
+        }
+
         const auth = getAuth();
         if (!auth.currentUser || !projectId) {
             setLoading(false);
@@ -63,7 +60,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         }
 
         const db = getFirestore();
-        // PATH: users/{uid}/projects/{projectId}/entities
         const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", projectId, "entities");
 
         const unsubscribe = onSnapshot(query(entitiesRef), (snapshot) => {
@@ -76,7 +72,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         });
 
         return () => unsubscribe();
-    }, [projectId]);
+    }, [projectId, propNodes]);
 
     // --- 2. GRAPH DATA PROCESSING (MEMOIZED) ---
     const graphData = useMemo<GraphData>(() => {
@@ -85,6 +81,12 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         const fileMap = new Map<string, string[]>(); // fileId -> [entityIds]
         const existingNodeIds = new Set<string>();
         const semanticPairs = new Set<string>(); // "idA-idB" (sorted) to track semantic overrides
+
+        // DETERMINE SOURCE: Props vs Internal State
+        // If propNodes is present, we assume it contains EVERYTHING (Canon + Ideas)
+        // If not, we use internal `entities` + legacy `localNodes`
+        const sourceNodes: GraphNode[] = propNodes || entities;
+        const legacyIdeas = propNodes ? [] : localNodes;
 
         // HELPER: Color Coding
         const getTypeColor = (type: EntityType) => {
@@ -100,12 +102,16 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             }
         };
 
-        // A. PROCESS FIRESTORE ENTITIES
-        entities.forEach(entity => {
+        // A. PROCESS NODES
+        sourceNodes.forEach(entity => {
+            if (existingNodeIds.has(entity.id)) return;
             existingNodeIds.add(entity.id);
-            // Size based on appearances
+
+            const isIdea = entity.type === 'idea';
+
+            // Size based on appearances (or fixed for ideas)
             const appearanceCount = entity.foundInFiles?.length || 0;
-            const val = Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3));
+            const val = isIdea ? 5 : Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3));
 
             nodes.push({
                 id: entity.id,
@@ -116,10 +122,11 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 entityData: entity,
                 fx: entity.fx, // Spatial Persistence
                 fy: entity.fy,
-                isLocal: false
+                isLocal: isIdea, // Use type to distinguish
+                agentId: (entity as any).agentId // Carry over agentId if present
             });
 
-            // Index Files for Co-occurrence
+            // Index Files for Co-occurrence (only for Canon usually, but safely check)
             if (entity.foundInFiles) {
                 entity.foundInFiles.forEach(file => {
                     if (!fileMap.has(file.fileId)) {
@@ -130,9 +137,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             }
         });
 
-        // B. PROCESS LOCAL IDEAS (Micro-Cards)
-        localNodes.forEach(idea => {
-            // Avoid ID collision (though unlikely with timestamps)
+        // B. PROCESS LEGACY LOCAL IDEAS (If applicable)
+        legacyIdeas.forEach(idea => {
             if (existingNodeIds.has(idea.id)) return;
             existingNodeIds.add(idea.id);
 
@@ -141,19 +147,17 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 name: idea.title,
                 type: 'idea',
                 color: getTypeColor('idea'),
-                val: 5, // Fixed size for ideas
+                val: 5,
                 entityData: idea,
-                fx: idea.fx, // Spatial Persistence (from Drag)
+                fx: idea.fx,
                 fy: idea.fy,
                 isLocal: true,
                 agentId: idea.agentId
             });
-
-            // TODO: Process local idea connections if stored in metadata
         });
 
         // C. PROCESS SEMANTIC RELATIONS & GHOST NODES
-        entities.forEach(entity => {
+        sourceNodes.forEach(entity => {
             if (entity.relations && Array.isArray(entity.relations)) {
                 entity.relations.forEach(rel => {
                     const targetId = rel.targetId;
@@ -245,11 +249,39 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         });
 
         return { nodes, links };
-    }, [entities, localNodes]);
+    }, [entities, localNodes, propNodes]);
 
-    // --- 3. INTERACTION HANDLERS (LINK DRAG) ---
+    // --- 3. INTERACTION HANDLERS ---
+
+    // CLICK HANDLER (Single vs Double)
+    const handleNodeClick = (node: any) => {
+        if (clickTimeoutRef.current) {
+            // DOUBLE CLICK DETECTED
+            clearTimeout(clickTimeoutRef.current);
+            clickTimeoutRef.current = null;
+
+            if (onNodeDoubleClick) {
+                onNodeDoubleClick(node.id, node.isLocal);
+            } else {
+                // Default: Open Internal Drawer
+                setSelectedNode(node.entityData);
+                graphRef.current?.centerAt(node.x, node.y, 1000);
+                graphRef.current?.zoom(4, 2000);
+            }
+        } else {
+            // SINGLE CLICK INITIATED
+            clickTimeoutRef.current = setTimeout(() => {
+                clickTimeoutRef.current = null;
+                // Executed only if second click didn't happen
+                if (onNodeClick) {
+                    onNodeClick(node.id, node.isLocal);
+                }
+            }, 300); // 300ms window
+        }
+    };
+
     const handlePointerDown = (e: React.PointerEvent) => {
-        // Right Click (2) or Shift Key
+        // Right Click (2) or Shift Key for Link Dragging
         if ((e.button === 2 || e.shiftKey) && hoveredNode && onLinkCreate) {
             e.preventDefault();
             e.stopPropagation(); // Stop pan
@@ -278,7 +310,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         }
     };
 
-    // Disable context menu for right-drag
     const handleContextMenu = (e: React.MouseEvent) => {
         if (e.shiftKey || hoveredNode) {
             e.preventDefault();
@@ -298,9 +329,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             onPointerUp={handlePointerUp}
             onContextMenu={handleContextMenu}
         >
-            {/* HEADER / CONTROLS - Only show close if NOT embedded (checked via localNodes presence as proxy for now, or just keep it) */}
-            {/* If embedded in WorldEngine, we might hide the close button or handle it differently.
-                For now, we keep it as 'onClose' is passed. */}
+            {/* HEADER / CONTROLS */}
             <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-between px-8 z-50 pointer-events-none">
                 <div className="pointer-events-auto flex items-center gap-4">
                      <div className="px-4 py-2 bg-black/50 backdrop-blur-md rounded-full border border-titanium-800 text-titanium-300 text-xs font-mono flex items-center gap-3">
@@ -333,7 +362,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     linkDirectionalArrowLength={3.5}
                     linkDirectionalArrowRelPos={1}
                     linkCurvature={0.2}
-                    linkLabel="label" // Shows "ENEMY: Stabbed..." on hover
+                    linkLabel="label"
 
                     // Node Styling
                     nodeCanvasObject={(node, ctx, globalScale) => {
@@ -343,7 +372,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
                         // MICRO-CARD (IDEA) RENDER
                         if (node.type === 'idea') {
-                            const size = 20 / globalScale; // Base size
+                            const size = 20 / globalScale;
 
                             ctx.fillStyle = 'rgba(20, 20, 20, 0.8)';
                             ctx.strokeStyle = '#94a3b8'; // Slate 400
@@ -389,19 +418,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
                     // Interaction Hooks
                     onNodeHover={(node) => setHoveredNode(node)}
-                    onNodeClick={(node) => {
-                        if (onNodeSelect) {
-                            // Trigger Macro Card
-                            onNodeSelect(node.id, node.isLocal);
-                        } else {
-                            // Fallback to internal drawer
-                            setSelectedNode(node.entityData);
-                            graphRef.current?.centerAt(node.x, node.y, 1000);
-                            graphRef.current?.zoom(4, 2000);
-                        }
-                    }}
+                    onNodeClick={handleNodeClick}
                     onNodeDragEnd={(node) => {
-                        // Persistence Hook
                         node.fx = node.x;
                         node.fy = node.y;
                         if (onNodeDragEnd) onNodeDragEnd(node);
@@ -426,44 +444,45 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 />
             </div>
 
-            {/* DRAWER (DETAILS PANEL) - Only if not using external select */}
-            {!onNodeSelect && (
+            {/* DRAWER (DETAILS PANEL) - Only if internal drawer is active */}
+            {/* Logic: If onNodeSelect (single click) AND onNodeDoubleClick (double click) are provided,
+                we might NOT want the internal drawer at all.
+                However, for backward compat or manual mode, we show it if selectedNode is set.
+                selectedNode is set in handleNodeClick -> default double click behavior.
+            */}
+            {selectedNode && (
                 <div
-                    className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col
-                        ${selectedNode ? 'translate-x-0' : 'translate-x-full'}
-                    `}
+                    className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col translate-x-0`}
                 >
-                    {selectedNode && (
-                        <div className="flex flex-col h-full">
-                            {/* Drawer Header */}
-                            <div className="p-6 border-b border-titanium-800 bg-titanium-900/50">
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded border
-                                        ${selectedNode.type === 'character' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
-                                        selectedNode.type === 'location' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
-                                        selectedNode.type === 'event' ? 'text-red-400 border-red-900 bg-red-950/30' :
-                                        'text-amber-400 border-amber-900 bg-amber-950/30'}
-                                    `}>
-                                        {selectedNode.type}
-                                    </span>
-                                    <button onClick={() => setSelectedNode(null)} className="text-titanium-500 hover:text-white">
-                                        <X size={18} />
-                                    </button>
-                                </div>
-                                <h2 className="text-2xl font-bold text-white leading-tight">{selectedNode.name}</h2>
+                    <div className="flex flex-col h-full">
+                        {/* Drawer Header */}
+                        <div className="p-6 border-b border-titanium-800 bg-titanium-900/50">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded border
+                                    ${selectedNode.type === 'character' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
+                                    selectedNode.type === 'location' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
+                                    selectedNode.type === 'event' ? 'text-red-400 border-red-900 bg-red-950/30' :
+                                    'text-amber-400 border-amber-900 bg-amber-950/30'}
+                                `}>
+                                    {selectedNode.type}
+                                </span>
+                                <button onClick={() => setSelectedNode(null)} className="text-titanium-500 hover:text-white">
+                                    <X size={18} />
+                                </button>
                             </div>
+                            <h2 className="text-2xl font-bold text-white leading-tight">{selectedNode.name}</h2>
+                        </div>
 
-                            {/* Drawer Content */}
-                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                                <div className="space-y-2">
-                                    <h4 className="text-xs font-bold text-titanium-500 uppercase">Descripción</h4>
-                                    <p className="text-titanium-300 text-sm leading-relaxed">
-                                        {selectedNode.description || "Sin descripción registrada en el Nexus."}
-                                    </p>
-                                </div>
+                        {/* Drawer Content */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-bold text-titanium-500 uppercase">Descripción</h4>
+                                <p className="text-titanium-300 text-sm leading-relaxed">
+                                    {selectedNode.description || "Sin descripción registrada en el Nexus."}
+                                </p>
                             </div>
                         </div>
-                    )}
+                    </div>
                 </div>
             )}
         </div>
