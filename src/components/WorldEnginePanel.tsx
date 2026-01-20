@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirestore, doc, updateDoc, collection, onSnapshot, query } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, collection, onSnapshot, query, setDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import {
     LayoutTemplate,
@@ -14,6 +14,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { GemId } from '../types';
+import { Character } from '../types/core';
 import { GraphNode } from '../types/graph';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import InterrogationModal from './ui/InterrogationModal';
@@ -253,7 +254,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
 
     // 🟢 CANON STATE (Elevated)
-    const [canonNodes, setCanonNodes] = useState<GraphNode[]>([]);
+    const [canonCharacters, setCanonCharacters] = useState<Character[]>([]);
+    const [entityNodes, setEntityNodes] = useState<GraphNode[]>([]);
     const [loadingCanon, setLoadingCanon] = useState(true);
     const [selectedCanonId, setSelectedCanonId] = useState<string | null>(null);
 
@@ -300,21 +302,58 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
         setLoadingCanon(true);
         const db = getFirestore();
-        const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", folderId, "entities");
 
-        const unsubscribe = onSnapshot(query(entitiesRef), (snapshot) => {
+        // 1. SOURCE: CANON (Manual Truth)
+        const charactersRef = collection(db, "users", auth.currentUser.uid, "characters");
+        const unsubscribeCharacters = onSnapshot(query(charactersRef), (snapshot) => {
+            const loadedChars: Character[] = [];
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+                loadedChars.push({
+                    ...data,
+                    id: doc.id, // FORCE ID FROM DOC
+                    name: data.name || "Unknown Character"
+                } as Character);
+            });
+            setCanonCharacters(loadedChars);
+        });
+
+        // 2. SOURCE: ENTITIES (AI/Hash Truth)
+        const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", folderId, "entities");
+        const unsubscribeEntities = onSnapshot(query(entitiesRef), (snapshot) => {
             const loadedEntities: GraphNode[] = [];
             snapshot.forEach((doc) => {
-                loadedEntities.push(doc.data() as GraphNode);
+                const data = doc.data();
+                // 🟢 EXACT MAPPING DIRECTIVE
+                // ID: doc.id
+                // Label: data.meta.name ?? data.name ?? data.aliases
+                // Type: data.type
+                const name = data.meta?.name || data.name || (data.aliases && data.aliases[0]) || "Unknown Entity";
+
+                loadedEntities.push({
+                    ...data,
+                    id: doc.id,
+                    name: name,
+                    type: data.type || 'concept', // Default to concept if type missing
+                    projectId: folderId,
+                    relations: data.relations || [],
+                    meta: {
+                        ...data.meta,
+                        brief: data.description || ""
+                    }
+                } as GraphNode);
             });
-            setCanonNodes(loadedEntities);
+            setEntityNodes(loadedEntities);
             setLoadingCanon(false);
         }, (error) => {
-            console.error("Failed to subscribe to Canon:", error);
+            console.error("Failed to subscribe to Entities:", error);
             setLoadingCanon(false);
         });
 
-        return () => unsubscribe();
+        return () => {
+            unsubscribeCharacters();
+            unsubscribeEntities();
+        };
     }, [isOpen, config?.folderId, config?.characterVaultId]);
 
     // --- HARVESTER (FRONTEND LOGIC) ---
@@ -554,9 +593,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             setSelectedCanonId(null);
         } else {
             // Open Canon Drawer (Lifted State)
-            // Find the node in canonNodes
-            const canonNode = canonNodes.find(n => n.id === nodeId);
-            if (canonNode) {
+            // Find the node in canonNodes (mapped)
+            const mappedCanon = unifiedNodes.find(n => n.id === nodeId && !n.isLocal);
+            if (mappedCanon) {
                 setSelectedCanonId(nodeId);
                 setExpandedNodeId(null);
             }
@@ -573,21 +612,28 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 : n
             ));
         } else {
-            // Update Firestore for Canon Nodes
+            // Update Firestore for Canon Nodes OR Entities
             if (!config?.folderId) return;
 
-            const entityId = node.id;
+            const entityId = node.id; // This is either a Canon Slug (megu) or Entity Hash
+
             try {
                 const auth = getAuth();
                 const db = getFirestore();
 
                 if (auth.currentUser) {
+                    // ALWAYS write position to 'entities' collection (Project Scope Shadow)
+                    // If it's a Canon character, we create/update a shadow entity with the same ID.
                     const entityRef = doc(db, "users", auth.currentUser.uid, "projects", config.folderId, "entities", entityId);
-                    await updateDoc(entityRef, {
+
+                    // Use setDoc with merge to ensure we don't overwrite other data if it exists,
+                    // but create it if it doesn't (Shadow creation).
+                    await setDoc(entityRef, {
                         fx: node.x,
                         fy: node.y
-                    });
-                    console.log(`Saved position for ${node.name}: ${node.x}, ${node.y}`);
+                    }, { merge: true });
+
+                    console.log(`Saved position for ${node.name} (${entityId}): ${node.x}, ${node.y}`);
                 }
             } catch (e) {
                 console.error("Failed to save node position", e);
@@ -627,45 +673,139 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
              }));
              alert(`Linked Idea to ${targetId} as ${relType}. Will persist on crystallization.`);
         } else {
-            // Source is Canon. Target might be anything.
-            // If Source is Canon, we should ideally write to Firestore immediately as per prompt.
-            // But we need to check if Target is Idea.
-            const targetIsIdea = nodes.find(n => n.id === targetId);
-
-            if (targetIsIdea) {
-                alert("Cannot link Canon Source to Temporary Idea yet. Please crystallize the Idea first.");
-            } else {
-                // Canon -> Canon
-                // TODO: Implement immediate Firestore write for relationships
-                alert("Canon-to-Canon linking not yet implemented in this phase.");
-            }
+            // Canon -> Canon
+            // TODO: Implement immediate Firestore write for relationships
+            alert("Canon-to-Canon linking not yet implemented in this phase.");
         }
     };
 
-    // 🟢 UNIFIED NODE BUILDER
+    // 🟢 UNIFIED NODE BUILDER (THE MERGER)
     const unifiedNodes = useMemo(() => {
-        // 1. Map Local Ideas to GraphNode format
+        const unifiedMap = new Map<string, GraphNode>();
+        const nameToCanonId = new Map<string, string>(); // lowercase name -> canonId
+        const idMapping = new Map<string, string>(); // HashID -> CanonID
+
+        // PHASE 1: LOAD CANON (Master Source)
+        // Convert Character objects to GraphNode objects
+        canonCharacters.forEach(char => {
+            const canonNode: GraphNode = {
+                id: char.id, // Slug ID (e.g., 'megu')
+                name: char.name,
+                type: 'character', // Canon is always character for now
+                projectId: config?.folderId || '',
+                description: char.description || char.bio,
+                meta: {
+                    tier: char.tier === 'MAIN' ? 'protagonist' : 'secondary',
+                    avatarUrl: undefined // Add if available
+                },
+                relations: [] // Start empty, will fill from entities
+            };
+
+            unifiedMap.set(char.id, canonNode);
+            if (char.name) {
+                nameToCanonId.set(char.name.toLowerCase(), char.id);
+            }
+        });
+
+        // PHASE 2: FUSE ENTITIES (AI Source)
+        entityNodes.forEach(entity => {
+            const normName = entity.name?.toLowerCase();
+            const canonId = normName ? nameToCanonId.get(normName) : null;
+            const shadowTarget = unifiedMap.get(entity.id); // Check if this entity is actually a shadow of a Canon node (same ID)
+
+            if (shadowTarget) {
+                // CASE A: SHADOW RECORD (Position Data for Canon)
+                // If entity.id matches a Canon ID, it's likely a shadow record containing fx/fy
+                shadowTarget.fx = entity.fx;
+                shadowTarget.fy = entity.fy;
+                // Merge relations if any exist in the shadow
+                if (entity.relations) {
+                    shadowTarget.relations = [...(shadowTarget.relations || []), ...entity.relations];
+                }
+            } else if (canonId) {
+                // CASE B: NAME MATCH (AI found "Megu", we have "Megu" in Canon)
+                const canonNode = unifiedMap.get(canonId);
+                if (canonNode) {
+                    // Merge Relations
+                    if (entity.relations) {
+                        // Avoid duplicates? Simple concat for now.
+                        canonNode.relations = [...(canonNode.relations || []), ...entity.relations];
+                    }
+                    // Map Hash ID to Canon ID for rewiring
+                    idMapping.set(entity.id, canonId);
+
+                    // If the Entity has position data (maybe user dragged the AI node before it was merged), adopt it if Canon has none
+                    if (canonNode.fx === undefined && entity.fx !== undefined) {
+                        canonNode.fx = entity.fx;
+                        canonNode.fy = entity.fy;
+                    }
+                }
+            } else {
+                // CASE C: NEW ENTITY (AI Detected something new)
+                // Mark as detected
+                const newNode: GraphNode = {
+                    ...entity,
+                    meta: {
+                        ...entity.meta,
+                        tier: 'background' // Visual cue handled in NexusGraph by checking this or adding a flag
+                    },
+                    // Add a flag for styling "Detected"
+                    description: entity.description || "Entidad detectada por IA (No verificada)."
+                };
+                // We'll trust the type from the entity (could be location, object, etc.)
+                unifiedMap.set(entity.id, newNode);
+            }
+        });
+
+        // PHASE 3: REWIRING (Link redirection)
+        // If an edge points to a HashID that was merged into a CanonID, redirect it.
+        // We also need to process "Local Ideas" here to include them in the map or just append later.
+        // Let's append Local Ideas to the map so they can participate in linking.
+
+        const nodesArray = Array.from(unifiedMap.values());
+
+        // Process Local Ideas (RAM)
         const mappedIdeas: GraphNode[] = nodes.map(n => ({
             id: n.id,
             name: n.title,
-            type: 'idea', // Ensure it's typed as idea
+            type: 'idea',
             projectId: config?.folderId || '',
             fx: n.fx,
             fy: n.fy,
-            // Carry metadata in a way NexusGraph understands (it checks .type for color/shape)
             meta: { brief: n.content.substring(0, 50) },
-            agentId: n.agentId // Custom field we added to GraphNode/entityData handling in Nexus
-        } as any)); // Force cast if strict typing complains about extra props, but GraphNode allows extras? Check Nexus usage.
+            agentId: n.agentId,
+            isLocal: true
+        } as any));
 
-        return [...canonNodes, ...mappedIdeas];
-    }, [canonNodes, nodes, config]);
+        const finalNodes = [...nodesArray, ...mappedIdeas];
+
+        // Rewire Logic
+        // We can't easily mutate the relations inside the loop without cloning,
+        // but NexusGraph derives links from these nodes.
+        // We need to update `relations` arrays in `finalNodes`.
+
+        finalNodes.forEach(node => {
+            if (node.relations) {
+                node.relations = node.relations.map(rel => {
+                    const mappedTarget = idMapping.get(rel.targetId);
+                    if (mappedTarget) {
+                        return { ...rel, targetId: mappedTarget };
+                    }
+                    return rel;
+                });
+            }
+        });
+
+        return finalNodes;
+
+    }, [canonCharacters, entityNodes, nodes, config]);
 
     // 🟢 TELEMETRY (SANITY CHECK)
     useEffect(() => {
         if (isOpen) {
-            console.log(`[Nexus Fusion] Total Render: ${unifiedNodes.length} | Canon (DB): ${canonNodes.length} | Ideas (RAM): ${nodes.length}`);
+            console.log(`[Nexus Fusion] Total Render: ${unifiedNodes.length} | Canon (DB): ${canonCharacters.length} | Entities (Hash): ${entityNodes.length} | Ideas (RAM): ${nodes.length}`);
         }
-    }, [unifiedNodes.length, canonNodes.length, nodes.length, isOpen]);
+    }, [unifiedNodes.length, canonCharacters.length, entityNodes.length, nodes.length, isOpen]);
 
     // CRYSTALLIZATION
     const handleCrystallize = (node: Node) => {
@@ -755,7 +895,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     if (!isOpen) return null;
 
     // Helper for Canon Drawer Selection
-    const selectedCanonNode = selectedCanonId ? canonNodes.find(n => n.id === selectedCanonId) : null;
+    // We use unifiedNodes to find it, so we can display details even for merged entities
+    const selectedCanonNode = selectedCanonId ? unifiedNodes.find(n => n.id === selectedCanonId) : null;
 
     return (
         <div
