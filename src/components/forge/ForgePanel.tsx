@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Hammer, X, FolderInput, RefreshCw, Book, FolderPlus, Globe } from 'lucide-react';
+import { Hammer, X, FolderInput, RefreshCw, Book, FolderPlus, Globe, Network } from 'lucide-react';
 import { toast } from 'sonner';
 import useDrivePicker from 'react-google-drive-picker';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import ForgeDashboard from './ForgeDashboard';
+import NexusGraph from './NexusGraph';
 import { ProjectConfig } from '../../types';
 import ScopeTreeSelector from '../ScopeTreeSelector';
 
@@ -20,6 +21,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
     const [openPicker] = useDrivePicker();
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSyncingNexus, setIsSyncingNexus] = useState(false);
+    const [showGraph, setShowGraph] = useState(false);
 
     // 🟢 SCOPE STATE (REPLACED BREADCRUMB)
     const [selectedScope, setSelectedScope] = useState<{ id: string | null; name: string; recursiveIds: string[]; path?: string }>({
@@ -264,6 +266,16 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                    {/* TOGGLE GRAPH */}
+                    <button
+                        onClick={() => setShowGraph(true)}
+                        className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 hover:text-cyan-400 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-titanium-700 mr-2 group"
+                        title="View Nexus Graph"
+                    >
+                        <Network size={16} className="group-hover:text-cyan-400" />
+                        <span className="hidden sm:inline">VER GRAFO</span>
+                    </button>
+
                     {/* NEXUS SYNC BUTTON */}
                     <button
                         onClick={() => handleSyncNexus()}
@@ -296,7 +308,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
             </div>
 
             {/* DASHBOARD */}
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-hidden relative">
                 <ForgeDashboard
                     folderId={folderId}
                     accessToken={accessToken}
@@ -304,6 +316,15 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                     selectedScope={selectedScope} // 🟢 Pass Scope Down
                 />
             </div>
+
+            {/* NEXUS GRAPH OVERLAY */}
+            {showGraph && (
+                <NexusGraph
+                    projectId={folderId}
+                    onClose={() => setShowGraph(false)}
+                    accessToken={accessToken}
+                />
+            )}
         </div>
     );
 };
