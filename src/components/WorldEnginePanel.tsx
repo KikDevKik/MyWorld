@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, doc, updateDoc } from 'firebase/firestore';
 import {
     LayoutTemplate,
     Sparkles,
@@ -15,6 +16,7 @@ import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import InterrogationModal from './ui/InterrogationModal';
 import CrystallizeModal from './ui/CrystallizeModal';
 import MarkdownRenderer from './ui/MarkdownRenderer';
+import NexusGraph from './forge/NexusGraph';
 
 interface WorldEnginePanelProps {
     isOpen: boolean;
@@ -38,13 +40,20 @@ interface Node {
     title: string;
     content: string;
     agentId: AgentType;
-    x?: number; // Position X (percentage)
-    y?: number; // Position Y (percentage)
+    x?: number; // Graph Coordinate X
+    y?: number; // Graph Coordinate Y
+    fx?: number; // Fixed Position X
+    fy?: number; // Fixed Position Y
     metadata?: {
         suggested_filename?: string;
         suggested_folder_category?: string;
         node_type?: string;
         related_node_ids?: string[];
+        // Pending relationships to be created on crystallization
+        pending_relations?: {
+            targetId: string;
+            relationType: string;
+        }[];
     };
     coherency_report?: {
         warning: string;
@@ -241,10 +250,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
 
     // 🟢 KINETIC STATE
-    const containerRef = useRef<HTMLDivElement>(null);
-    const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
     const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
-    const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
 
     const [interrogation, setInterrogation] = useState<InterrogationState>({
         isOpen: false,
@@ -447,14 +453,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             }
 
             // STANDARD NODE (SUCCESS)
+            // Note: New nodes start without position (NexusGraph will assign center/force)
             const newNode: Node = {
                 id: Date.now().toString(),
                 type: data.type || 'idea',
                 title: data.title || 'Unknown',
                 content: data.content || 'No content received.',
                 agentId: activeAgent,
-                x: Math.random() * 60 + 20,
-                y: Math.random() * 60 + 20,
                 metadata: data.metadata,
                 coherency_report: data.coherency_report || undefined // 👈 Fixed Mapping with Safety Gate
             };
@@ -495,60 +500,110 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         runSimulation(interrogation.pendingPrompt, interrogation.depth + 1, newHistory);
     };
 
-    // 🟢 KINETIC HANDLERS
-    const handleNodeDragStart = (e: React.PointerEvent, node: Node) => {
-        e.stopPropagation(); // Prevent triggering other clicks
-        e.preventDefault(); // Prevent text selection
+    // 🟢 NEXUS INTEGRATION HANDLERS
 
-        if (expandedNodeId === node.id) return; // Disable drag if expanded
-
-        if (containerRef.current && node.x !== undefined && node.y !== undefined) {
-            const rect = containerRef.current.getBoundingClientRect();
-            // Calculate mouse offset relative to the node's current visual position
-            // node.x is %, so we convert to px
-            const nodeX = (node.x / 100) * rect.width;
-            const nodeY = (node.y / 100) * rect.height;
-
-            // Mouse position relative to container
-            const mouseX = e.clientX - rect.left;
-            const mouseY = e.clientY - rect.top;
-
-            setDragOffset({
-                x: mouseX - nodeX,
-                y: mouseY - nodeY
-            });
-            setDraggingNodeId(node.id);
+    // 1. SELECT NODE (Open Macro-Card)
+    const handleNodeSelect = (nodeId: string, isLocal: boolean) => {
+        if (isLocal) {
+            setExpandedNodeId(nodeId);
+        } else {
+             // For canon nodes, we might want to just show the drawer (handled inside NexusGraph currently)
+             // OR open a read-only modal. For now, we only "Expand" ideas.
+             // If the user wants to see Canon details, the NexusGraph Drawer is sufficient.
+             // But if we want to EDIT canon nodes, that's a different feature.
+             console.log("Selected Canon Node:", nodeId);
         }
     };
 
-    const handleContainerMouseMove = (e: React.PointerEvent) => {
-        if (!draggingNodeId || !containerRef.current) return;
+    // 2. PERSISTENCE (Drag End)
+    const handleNodeDragEnd = async (node: any) => {
+        if (node.isLocal) {
+            // Update local state so it doesn't snap back
+            setNodes(prev => prev.map(n =>
+                n.id === node.id
+                ? { ...n, fx: node.x, fy: node.y, x: node.x, y: node.y }
+                : n
+            ));
+        } else {
+            // Update Firestore for Canon Nodes
+            // Path: users/{uid}/projects/{projectId}/entities/{entityId}
+            if (!config?.folderId) return; // folderId is used as projectId here
 
-        e.preventDefault();
-        const rect = containerRef.current.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
+            // Note: node.entityData contains the raw firestore data including ID
+            const entityId = node.id;
 
-        // Calculate new node position by subtracting the initial offset
-        let newX_px = mouseX - dragOffset.x;
-        let newY_px = mouseY - dragOffset.y;
+            // We need auth uid.
+            // Since we don't have direct access to 'auth' context here easily,
+            // we'll use the imported 'updateDoc' but we need the full path.
+            // Let's rely on NexusGraph having access or construct path carefully.
+            // Actually, we can assume typical Firebase setup.
 
-        // Clamp to safe boundaries (0% to ~90% to keep header visible)
-        // Converting back to percentage
-        let newX = (newX_px / rect.width) * 100;
-        let newY = (newY_px / rect.height) * 100;
+            // Ideally, we'd have a service, but inline for now:
+            try {
+                // We need to import auth/db or pass it.
+                // We imported getFirestore/updateDoc. We need current user.
+                const auth = (await import('firebase/auth')).getAuth();
+                const db = getFirestore();
 
-        // Clamp
-        newX = Math.max(0, Math.min(newX, 90));
-        newY = Math.max(0, Math.min(newY, 90));
-
-        setNodes(prev => prev.map(n =>
-            n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n
-        ));
+                if (auth.currentUser) {
+                    const entityRef = doc(db, "users", auth.currentUser.uid, "projects", config.folderId, "entities", entityId);
+                    await updateDoc(entityRef, {
+                        fx: node.x,
+                        fy: node.y
+                    });
+                    console.log(`Saved position for ${node.name}: ${node.x}, ${node.y}`);
+                }
+            } catch (e) {
+                console.error("Failed to save node position", e);
+            }
+        }
     };
 
-    const handleContainerMouseUp = () => {
-        setDraggingNodeId(null);
+    // 3. LINKING (Red Thread)
+    const handleLinkCreate = (sourceId: string, targetId: string) => {
+        // Find source and target
+        const sourceNode = nodes.find(n => n.id === sourceId);
+        // Target could be local or canon (not in 'nodes' array if canon)
+
+        console.log(`Link Request: ${sourceId} -> ${targetId}`);
+
+        // UX: Ask for relation type?
+        // Simple prompt for now (MVP)
+        const relation = prompt("Define Relation (ENEMY, ALLY, MENTOR, FAMILY, NEUTRAL, CAUSE):", "ENEMY");
+        if (!relation) return;
+
+        const relType = relation.toUpperCase();
+
+        if (sourceNode) {
+             // If source is Local Idea, store pending relation
+             setNodes(prev => prev.map(n => {
+                 if (n.id === sourceId) {
+                     const existing = n.metadata?.pending_relations || [];
+                     return {
+                         ...n,
+                         metadata: {
+                             ...n.metadata,
+                             pending_relations: [...existing, { targetId, relationType: relType }]
+                         }
+                     };
+                 }
+                 return n;
+             }));
+             alert(`Linked Idea to ${targetId} as ${relType}. Will persist on crystallization.`);
+        } else {
+            // Source is Canon. Target might be anything.
+            // If Source is Canon, we should ideally write to Firestore immediately as per prompt.
+            // But we need to check if Target is Idea.
+            const targetIsIdea = nodes.find(n => n.id === targetId);
+
+            if (targetIsIdea) {
+                alert("Cannot link Canon Source to Temporary Idea yet. Please crystallize the Idea first.");
+            } else {
+                // Canon -> Canon
+                // TODO: Implement immediate Firestore write for relationships
+                alert("Canon-to-Canon linking not yet implemented in this phase.");
+            }
+        }
     };
 
 
@@ -581,18 +636,43 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 finalContent = warningHeader + finalContent;
             }
 
-            await crystallizeNode({
+            // 🟢 INJECT POSITION DATA
+            // We pass fx/fy in frontmatter so the parser/backend can (optionally) use it
+            // or so we can retrieve it later if we re-parse.
+            if (crystallizeModal.node.fx !== undefined) {
+                finalFrontmatter.nexus = {
+                    ...(finalFrontmatter.nexus || {}),
+                    fx: crystallizeModal.node.fx,
+                    fy: crystallizeModal.node.fy
+                };
+            }
+
+            // 🟢 INJECT PENDING RELATIONS
+            if (crystallizeModal.node.metadata?.pending_relations) {
+                finalFrontmatter.relations = crystallizeModal.node.metadata.pending_relations;
+            }
+
+            const result = await crystallizeNode({
                 accessToken,
                 folderId: data.folderId,
                 fileName: data.fileName,
                 content: finalContent,
                 frontmatter: finalFrontmatter
-            });
+            }) as any;
 
-            // Success Animation or Notification here
-            // Removing node from canvas after crystallization? Or keep it? keeping it for now.
+            // Note: The backend creates the file. The listener in NexusGraph updates the graph.
+            // However, we need to ensure the position persists.
+            // If the backend doesn't write to Firestore 'entities' with fx/fy immediately,
+            // the new node will pop to 0,0.
+            // We might need to manually update the entity position once it appears?
+            // Or assume the backend handles 'nexus' frontmatter to entity mapping.
+            // (Assuming backend handles it for now, else we'd need a post-hook).
+
+            // Remove from local nodes (Transmutation)
+            setNodes(prev => prev.filter(n => n.id !== crystallizeModal.node!.id));
 
             setCrystallizeModal({ isOpen: false, node: null, isProcessing: false });
+            setExpandedNodeId(null); // Close modal if open
 
         } catch (e) {
             console.error("Crystallization Failed", e);
@@ -600,71 +680,40 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
+    // SAFETY: Warn on exit if ideas exist
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (nodes.length > 0) {
+                e.preventDefault();
+                e.returnValue = ''; // Chrome requires this
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [nodes]);
+
     if (!isOpen) return null;
 
     return (
         <div
-            ref={containerRef}
             className="relative w-full h-full bg-titanium-950 overflow-hidden font-sans text-titanium-100 flex flex-col touch-none"
-            onPointerMove={handleContainerMouseMove}
-            onPointerUp={handleContainerMouseUp}
-            onPointerLeave={handleContainerMouseUp}
         >
 
-            {/* LAYER 0: INFINITE GRID */}
-            <div className="absolute inset-0 z-0 pointer-events-none">
-                <div
-                    className="absolute inset-0 opacity-20 transition-all duration-700"
-                    style={{
-                        backgroundImage: `radial-gradient(${combatMode ? '#7f1d1d' : '#334155'} 1px, transparent 1px)`,
-                        backgroundSize: '24px 24px'
-                    }}
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-titanium-950 via-transparent to-titanium-950 opacity-80" />
-            </div>
-
-            {/* LAYER 0.5: SVG CONNECTIONS */}
-            <svg className="absolute inset-0 w-full h-full z-0 pointer-events-none overflow-visible">
-                {nodes.map((node) => {
-                    if (!node.metadata?.related_node_ids) return null;
-
-                    return node.metadata.related_node_ids.map((relId, idx) => {
-                        // Try to find target by ID or Title (fuzzy match for AI suggestions)
-                        const target = nodes.find(n => n.id === relId || n.title.toLowerCase() === relId.toLowerCase());
-
-                        if (!target || !node.x || !node.y || !target.x || !target.y) return null;
-
-                        // Center offsets (Cards are roughly 18rem wide => ~12-15% of screen width)
-                        const x1 = node.x + 8;
-                        const y1 = node.y + 10;
-                        const x2 = target.x + 8;
-                        const y2 = target.y + 10;
-
-                        // Determine style based on node type
-                        const isConflict = node.metadata?.node_type === 'conflict' || target.metadata?.node_type === 'conflict';
-
-                        return (
-                            <line
-                                key={`${node.id}-${target.id}-${idx}`}
-                                x1={`${x1}%`}
-                                y1={`${y1}%`}
-                                x2={`${x2}%`}
-                                y2={`${y2}%`}
-                                stroke={isConflict ? "#ef4444" : "#94a3b8"}
-                                strokeWidth="2"
-                                strokeDasharray={isConflict ? "5,5" : "none"}
-                                opacity="0.3"
-                            />
-                        );
-                    });
-                })}
-            </svg>
-
+            {/* LAYER 0: NEXUS GRAPH (The Living Background) */}
+            <NexusGraph
+                projectId={config?.folderId || ''}
+                accessToken={localStorage.getItem('google_drive_token')}
+                onClose={() => {}} // We don't close the background
+                localNodes={nodes}
+                onNodeSelect={handleNodeSelect}
+                onNodeDragEnd={handleNodeDragEnd}
+                onLinkCreate={handleLinkCreate}
+            />
 
             {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
             {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
             <motion.div
-                className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit"
+                className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit pointer-events-auto"
                 animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? -20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
             >
                 <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl">
@@ -736,7 +785,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 </AnimatePresence>
             </div>
 
-            {/* LAYER 1: DYNAMIC NODES & EXPANSION OVERLAY */}
+            {/* LAYER 1: DYNAMIC NODES & EXPANSION OVERLAY (Only for Expanded Modal now) */}
             <AnimatePresence>
                 {nodes.map(node => {
                    const agent = AGENTS[node.agentId];
@@ -746,7 +795,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                    const isExpanded = expandedNodeId === node.id;
 
                    if (isExpanded) {
-                       // 🟢 DATAPAD: EXPANDED MODE
+                       // 🟢 DATAPAD: EXPANDED MODE (Macro-Card)
                        return (
                            <React.Fragment key={node.id}>
                                {/* BACKDROP */}
@@ -806,59 +855,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                        );
                    }
 
-                   // 🟢 STANDARD MODE
-                   return (
-                    <motion.div
-                        layoutId={`node-${node.id}`}
-                        key={node.id}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.9 }}
-                        whileHover={{ scale: 1.02, zIndex: 10 }}
-                        transition={{ duration: 0.5 }}
-                        className={`absolute w-72 p-0 bg-black/80 border rounded-lg backdrop-blur-sm ${style.border} ${style.shadow} ${draggingNodeId === node.id ? 'cursor-grabbing z-50' : 'cursor-default z-10'}`}
-                        style={{
-                            top: `${node.y}%`,
-                            left: `${node.x}%`
-                        }}
-                    >
-                        {/* Header (Drag Handle) */}
-                        <div
-                            className="flex items-center justify-between p-3 border-b border-white/10 cursor-grab active:cursor-grabbing"
-                            onPointerDown={(e) => handleNodeDragStart(e, node)}
-                        >
-                            <div className={`flex items-center gap-2 ${style.text}`}>
-                                <Diamond size={12} className="rotate-45" />
-                                <span className="text-[10px] font-bold tracking-widest uppercase">{node.metadata?.node_type || node.type}</span>
-                            </div>
-                            <div className="opacity-50">
-                                <agent.icon size={12} className={`text-${agent.color}-400`} />
-                            </div>
-                        </div>
-
-                        {/* Content (Click to Expand) */}
-                        <div
-                            className="p-4 cursor-pointer hover:bg-white/5 transition-colors"
-                            onClick={() => setExpandedNodeId(node.id)}
-                        >
-                             <div className="text-sm font-bold text-white mb-2">{node.title}</div>
-                             <div className="text-xs text-titanium-300 font-serif leading-relaxed line-clamp-6 pointer-events-none">
-                                <MarkdownRenderer content={node.content} mode="compact" />
-                             </div>
-                        </div>
-
-                        {/* Footer / Actions */}
-                        <div className="p-2 border-t border-white/10 bg-black/40 flex justify-end">
-                            <button
-                                onClick={(e) => { e.stopPropagation(); handleCrystallize(node); }}
-                                className="flex items-center gap-2 px-3 py-1.5 rounded hover:bg-white/10 transition-colors group"
-                            >
-                                <span className="text-[10px] font-bold text-titanium-400 group-hover:text-cyan-400 transition-colors">💎 CRISTALIZAR</span>
-                            </button>
-                        </div>
-
-                    </motion.div>
-                   );
+                   // Note: Standard Micro-Card is now rendered by NexusGraph (Canvas)
+                   return null;
                 })}
             </AnimatePresence>
 
@@ -885,7 +883,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             {/* LAYER 3: COMMAND DECK (OPERATION MONOLITH) */}
             {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
             <motion.div
-                className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px]"
+                className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px] pointer-events-auto"
                 animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? 20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
             >
                 {/* Row 1: The Input */}

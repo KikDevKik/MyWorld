@@ -1,6 +1,6 @@
 
 // El "Qué" o "Quién" (Unifica Characters, Locations, Objects, Events)
-export type EntityType = 'character' | 'location' | 'object' | 'event' | 'faction' | 'concept';
+export type EntityType = 'character' | 'location' | 'object' | 'event' | 'faction' | 'concept' | 'idea';
 
 export interface NodeRelation {
   targetId: string;
@@ -39,6 +39,10 @@ export interface GraphNode {
     // Campos específicos por tipo pueden ir aquí o extenderse
     // locationType?: 'city' | 'region' | 'room'
   };
+
+  // Posición Espacial Persistente (Tablero de Detectives)
+  fx?: number; // Fixed X (si existe, anula la simulación física en este eje)
+  fy?: number; // Fixed Y
 }
 
 // La Conexión ("El Tejido") - Append-Only Strategy (Historial Completo)
