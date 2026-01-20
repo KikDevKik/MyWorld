@@ -23,6 +23,29 @@ interface GraphData {
     links: any[];
 }
 
+// 📐 SHAPE HELPERS
+const drawHexagon = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+        const angle_deg = 60 * i;
+        const angle_rad = Math.PI / 180 * angle_deg;
+        const px = x + size * Math.cos(angle_rad);
+        const py = y + size * Math.sin(angle_rad);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+};
+
+const drawDiamond = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
+    ctx.beginPath();
+    ctx.moveTo(x, y - size);
+    ctx.lineTo(x + size, y);
+    ctx.lineTo(x, y + size);
+    ctx.lineTo(x - size, y);
+    ctx.closePath();
+};
+
 const NexusGraph: React.FC<NexusGraphProps> = ({
     projectId,
     onClose,
@@ -110,10 +133,11 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             existingNodeIds.add(entity.id);
 
             const isIdea = entity.type === 'idea';
+            const isConcept = entity.type === 'concept';
 
-            // Size based on appearances (or fixed for ideas)
+            // Size based on appearances (or fixed for ideas/concepts)
             const appearanceCount = entity.foundInFiles?.length || 0;
-            const val = isIdea ? 5 : Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3));
+            const val = (isIdea || isConcept) ? 5 : Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3));
 
             nodes.push({
                 id: entity.id,
@@ -180,7 +204,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                                     name: rel.targetName,
                                     type: rel.targetType,
                                     description: "Entidad inferida (Nodo Fantasma)",
-                                    isGhost: true
+                                    isGhost: true,
+                                    meta: { tier: 'background' } // Implicit ghost tier
                                 },
                                 isLocal: false
                             });
@@ -195,6 +220,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         case 'MENTOR': linkColor = '#3b82f6'; break; // Blue
                         case 'FAMILY': linkColor = '#10b981'; break; // Emerald/Green variant
                         case 'NEUTRAL': linkColor = '#6b7280'; break; // Gray
+                        case 'CAUSE': linkColor = '#eab308'; break; // Yellow
                     }
 
                     links.push({
@@ -336,8 +362,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 <div className="pointer-events-auto flex items-center gap-4">
                      <div className="px-4 py-2 bg-black/50 backdrop-blur-md rounded-full border border-titanium-800 text-titanium-300 text-xs font-mono flex items-center gap-3">
                         <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div> CHAR</span>
-                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-400 border border-slate-600 border-dashed"></div> IDEA</span>
-                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div> ENEMY</span>
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 border border-purple-500 bg-purple-500/20"></div> CONCEPT</span>
+                        <span className="flex items-center gap-1"><div className="w-0 h-0 border-l-[4px] border-l-transparent border-b-[6px] border-b-amber-500 border-r-[4px] border-r-transparent"></div> LOC</span>
                      </div>
                 </div>
 
@@ -371,20 +397,27 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         const label = node.name;
                         const fontSize = 12/globalScale;
                         ctx.font = `${fontSize}px Sans-Serif`;
+                        ctx.lineWidth = 1.5 / globalScale;
 
-                        // MICRO-CARD (IDEA) RENDER
-                        if (node.type === 'idea') {
+                        // 1. CONCEPTS / IDEAS -> SQUARE
+                        if (node.type === 'idea' || node.type === 'concept') {
                             const size = 20 / globalScale;
 
-                            ctx.fillStyle = 'rgba(20, 20, 20, 0.8)';
-                            ctx.strokeStyle = '#94a3b8'; // Slate 400
-                            ctx.lineWidth = 2 / globalScale;
+                            ctx.fillStyle = node.type === 'concept' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(20, 20, 20, 0.8)'; // Purple vs Slate
+                            ctx.strokeStyle = node.color; // From helper
 
                             // Draw Square
                             ctx.beginPath();
                             ctx.rect(node.x - size/2, node.y - size/2, size, size);
                             ctx.fill();
-                            ctx.setLineDash([4/globalScale, 2/globalScale]); // Dashed
+
+                            // Dashed if it's a detected entity or local idea
+                            if (node.isLocal || node.entityData?.meta?.tier === 'background' || node.isGhost) {
+                                ctx.setLineDash([4/globalScale, 2/globalScale]);
+                            } else {
+                                ctx.setLineDash([]);
+                            }
+
                             ctx.stroke();
                             ctx.setLineDash([]); // Reset
 
@@ -396,14 +429,59 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                             return;
                         }
 
-                        // STANDARD NODE RENDER
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-                        if (node.isGhost) {
+                        // 2. LOCATIONS -> HEXAGON or TRIANGLE
+                        if (node.type === 'location') {
+                            const size = 8 / globalScale; // Radius
+                            ctx.fillStyle = 'rgba(168, 85, 247, 0.1)'; // Faint Violet
                             ctx.strokeStyle = node.color;
-                            ctx.lineWidth = 1 / globalScale;
+
+                            drawHexagon(ctx, node.x, node.y, size);
+                            ctx.fill();
+
+                            if (node.entityData?.meta?.tier === 'background' || node.isGhost) {
+                                ctx.setLineDash([4/globalScale, 2/globalScale]);
+                            }
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = node.color;
+                            ctx.fillText(label, node.x, node.y + size + 8/globalScale);
+                            return;
+                        }
+
+                        // 3. OBJECTS -> DIAMOND
+                        if (node.type === 'object') {
+                            const size = 8 / globalScale;
+                            ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
+                            ctx.strokeStyle = node.color;
+
+                            drawDiamond(ctx, node.x, node.y, size);
+                            ctx.fill();
+
+                            if (node.entityData?.meta?.tier === 'background' || node.isGhost) {
+                                ctx.setLineDash([4/globalScale, 2/globalScale]);
+                            }
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = node.color;
+                            ctx.fillText(label, node.x, node.y + size + 8/globalScale);
+                            return;
+                        }
+
+                        // 4. CHARACTERS (DEFAULT) -> CIRCLE
+                        ctx.fillStyle = 'rgba(6, 182, 212, 0.1)'; // Cyan tint
+                        if (node.isGhost || node.entityData?.meta?.tier === 'background') {
+                            ctx.strokeStyle = node.color;
+                            ctx.setLineDash([4/globalScale, 2/globalScale]);
                             ctx.beginPath();
                             ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
                             ctx.stroke();
+                            ctx.setLineDash([]);
                         } else {
                             ctx.fillStyle = node.color;
                             ctx.beginPath();
