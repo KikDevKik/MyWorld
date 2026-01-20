@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Check, Folder, FileText, Tag, Loader2 } from 'lucide-react';
-import { useProjectConfig } from '../ProjectConfigContext';
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 
 interface CrystallizeModalProps {
     isOpen: boolean;

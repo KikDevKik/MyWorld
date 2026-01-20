@@ -14,7 +14,7 @@ import {
     BookOpen
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { useProjectConfig } from './ProjectConfigContext';
+import { useProjectConfig } from "../contexts/ProjectConfigContext";
 
 interface ExportPanelProps {
     onClose: () => void;

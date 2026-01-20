@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { X, FlaskConical, Book, FileText, Image as ImageIcon, Link as LinkIcon, Loader2, FolderOpen, RefreshCw, BookOpen, MessageSquare } from 'lucide-react';
 import { DriveFile, Gem } from '../types';
 import { toast } from 'sonner';
 import ChatPanel from './ChatPanel';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 
 interface LaboratoryPanelProps {
     onClose: () => void;
@@ -12,64 +12,52 @@ interface LaboratoryPanelProps {
 }
 
 const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, accessToken }) => {
+    const { fileTree, isFileTreeLoading, refreshConfig } = useProjectConfig(); // 🟢 USE GLOBAL CONTEXT
     const [activeTab, setActiveTab] = useState<'canon' | 'reference'>('canon');
     const [canonFiles, setCanonFiles] = useState<DriveFile[]>([]);
     const [referenceFiles, setReferenceFiles] = useState<DriveFile[]>([]);
-    const [loading, setLoading] = useState(false);
 
     // 🟢 CHAT STATE
     const [isResearchChatOpen, setIsResearchChatOpen] = useState(false);
     const [chatInitialMessage, setChatInitialMessage] = useState<string | null>(null);
 
-    // 🟢 FETCH FILES ON MOUNT
+    // 🟢 FILTER FILES ON TREE CHANGE (CLIENT SIDE ONLY)
     useEffect(() => {
-        if (folderId && accessToken) {
-            fetchFiles();
-        }
-    }, [folderId, accessToken]);
+        if (fileTree) {
+            // Note: The fileTree in context might use a different type definition (FileNode vs DriveFile).
+            // We need to ensure compatibility or mapping.
+            // The context defines FileNode, but here we use DriveFile.
+            // Let's assume the context's tree is rich enough or we adapt.
+            // Actually, getDriveFiles returns DriveFile, and Indexer saves DriveFile structure.
+            // So we can cast safely if the backend structure matches.
 
-    const fetchFiles = async () => {
-        setLoading(true);
-        const functions = getFunctions();
-        const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
-
-        try {
-            const response = await getDriveFiles({ folderId, accessToken, recursive: true });
-            const allFiles = response.data as DriveFile[];
-
-            // Flatten and categorize
-            const { canon, reference } = flattenAndCategorize(allFiles);
+            const { canon, reference } = flattenAndCategorize(fileTree as any[]);
             setCanonFiles(canon);
             setReferenceFiles(reference);
-
-        } catch (error) {
-            console.error("Error fetching files:", error);
-            toast.error("Error al cargar el laboratorio.");
-        } finally {
-            setLoading(false);
         }
-    };
+    }, [fileTree]);
 
-    // Helper to flatten the tree and categorize
-    const flattenAndCategorize = (nodes: DriveFile[], isResourceFolder = false): { canon: DriveFile[], reference: DriveFile[] } => {
+    // Helper to flatten the tree and categorize based on EXISTING category property
+    const flattenAndCategorize = (nodes: any[]): { canon: DriveFile[], reference: DriveFile[] } => {
         let canon: DriveFile[] = [];
         let reference: DriveFile[] = [];
 
         for (const node of nodes) {
-            const currentIsResource = isResourceFolder || (node.type === 'folder' && node.name.startsWith('_RESOURCES'));
+            // If the node already has a category from the indexer, trust it.
+            // Otherwise default to canon.
+            const category = node.category || 'canon';
 
             if (node.type === 'file') {
-                const fileWithCategory = { ...node, category: currentIsResource ? 'reference' : 'canon' } as DriveFile;
-
-                if (currentIsResource) {
-                    reference.push(fileWithCategory);
+                const file = node as DriveFile;
+                if (category === 'reference') {
+                    reference.push(file);
                 } else {
-                    canon.push(fileWithCategory);
+                    canon.push(file);
                 }
             }
 
-            if (node.children) {
-                const childrenResult = flattenAndCategorize(node.children, currentIsResource);
+            if (node.children && Array.isArray(node.children)) {
+                const childrenResult = flattenAndCategorize(node.children);
                 canon.push(...childrenResult.canon);
                 reference.push(...childrenResult.reference);
             }
@@ -160,11 +148,11 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                     )}
 
                     <button
-                        onClick={fetchFiles}
+                        onClick={() => refreshConfig()}
                         className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
-                        title="Recargar"
+                        title="Recargar Árbol"
                     >
-                        <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+                        <RefreshCw size={20} className={isFileTreeLoading ? 'animate-spin' : ''} />
                     </button>
                     <button
                         onClick={onClose}
@@ -177,10 +165,10 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
 
             {/* CONTENT */}
             <div className="flex-1 overflow-y-auto p-8 bg-titanium-950/50">
-                {loading && currentFiles.length === 0 ? (
+                {isFileTreeLoading && currentFiles.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-titanium-500 gap-4">
                         <Loader2 size={48} className="animate-spin text-emerald-500" />
-                        <p className="animate-pulse">Analizando muestras...</p>
+                        <p className="animate-pulse">Sincronizando con el Núcleo...</p>
                     </div>
                 ) : currentFiles.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-titanium-600 opacity-50">
