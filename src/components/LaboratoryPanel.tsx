@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, FlaskConical, Book, FileText, Image as ImageIcon, Link as LinkIcon, Loader2, FolderOpen, RefreshCw, BookOpen, MessageSquare, Database } from 'lucide-react';
-import { getFirestore, collection, query, limit, getDocs } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { X, FlaskConical, Book, FileText, Image as ImageIcon, Link as LinkIcon, Loader2, FolderOpen, RefreshCw, BookOpen, MessageSquare } from 'lucide-react';
 import { DriveFile, Gem } from '../types';
 import { toast } from 'sonner';
 import ChatPanel from './ChatPanel';
@@ -87,80 +85,6 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
         setIsResearchChatOpen(true);
     };
 
-    // 🟢 SCHEMA DUMP TOOL
-    const handleDumpSchema = async () => {
-        const auth = getAuth();
-        const user = auth.currentUser;
-        if (!user) {
-            toast.error("No hay usuario autenticado");
-            return;
-        }
-
-        const db = getFirestore();
-        const projectId = folderId; // Confirmed: folderId IS the Project Root ID
-        const uid = user.uid;
-
-        toast.info("Iniciando análisis de esquema...");
-
-        const collections = {
-            "A_Characters": `users/${uid}/characters`,
-            "B_Entities": `users/${uid}/projects/${projectId}/entities`,
-            "C_Timeline": `TDB_Timeline/${uid}/events`,
-            "D_IndexFiles": `TDB_Index/${projectId}/files`
-        };
-
-        const report: Record<string, any> = {};
-
-        const extractSchema = (data: any): any => {
-            if (!data || typeof data !== 'object') return typeof data;
-            const schema: any = {};
-            for (const [key, value] of Object.entries(data)) {
-                if (Array.isArray(value)) {
-                    schema[key] = "array";
-                } else if (value && typeof value === 'object') {
-                    // Check for Firestore Timestamp-like objects (seconds/nanoseconds)
-                    if ('seconds' in value && 'nanoseconds' in value) {
-                        schema[key] = "timestamp";
-                    } else {
-                        schema[key] = "object";
-                    }
-                } else {
-                    schema[key] = typeof value;
-                }
-            }
-            return schema;
-        };
-
-        try {
-            for (const [label, path] of Object.entries(collections)) {
-                try {
-                    // console.log(`Reading: ${path}`);
-                    const q = query(collection(db, path), limit(1));
-                    const snapshot = await getDocs(q);
-
-                    if (!snapshot.empty) {
-                        const data = snapshot.docs[0].data();
-                        report[label] = {
-                            _sampleId: snapshot.docs[0].id,
-                            schema: extractSchema(data)
-                        };
-                    } else {
-                        report[label] = "EMPTY_COLLECTION";
-                    }
-                } catch (err: any) {
-                    console.error(`Error reading ${path}:`, err);
-                    report[label] = `ERROR: ${err.message}`;
-                }
-            }
-
-            console.log("🔍 [SCHEMA DUMP] RESULTADO FINAL:", JSON.stringify(report, null, 2));
-            toast.success("Dump generado. Revisa la Consola (F12).");
-        } catch (error) {
-            console.error("Fatal error in dump:", error);
-            toast.error("Error crítico generando dump");
-        }
-    };
-
     // 🟢 VIRTUAL GEM: THE LIBRARIAN
     const librarianGem: Gem = {
         id: 'laboratorio', // Reusing ID or could be 'bibliotecario' if added to types
@@ -223,13 +147,6 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                         </button>
                     )}
 
-                    <button
-                        onClick={handleDumpSchema}
-                        className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-amber-400 transition-colors"
-                        title="Dump DB Schema (Debug)"
-                    >
-                        <Database size={20} />
-                    </button>
                     <button
                         onClick={() => refreshConfig()}
                         className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
