@@ -1,0 +1,98 @@
+================================================================================
+REPORTE TÉCNICO: MÓDULO "FORJA DE ALMAS" (PROJECT TITAN)
+FECHA: 20 de Enero de 2026
+AUTOR: JULES (SISTEMA)
+================================================================================
+
+1. EVOLUCIÓN Y ESTADO ACTUAL
+--------------------------------------------------------------------------------
+El módulo "Forja de Almas" ha evolucionado de ser un simple gestor de archivos a un motor complejo de RAG (Retrieval-Augmented Generation) y análisis de personajes.
+
+*   **Versión Actual:** OPERATIONAL / BETA
+*   **Hitos de Evolución (Detectados en Código):**
+    *   **Alpha Fixes:** Implementación de mecanismos de refresco forzado en `ForgeDashboard` para evitar datos obsoletos en la UI.
+    *   **Revision 00130:** Endurecimiento de los protocolos de seguridad de IA. Se introdujeron configuraciones de seguridad "Enterprise" hardcodeadas y un "Protocolo de Sanitización" que reintenta las llamadas a la IA sin contexto RAG si la primera llamada es bloqueada por filtros de seguridad.
+    *   **Revision 00131.2 (Chameleon Update):** Implementación del "System Identity Overwrite", permitiendo que la IA mimetice el idioma y tono del material fuente, en lugar de usar una personalidad genérica.
+    *   **Beta Analyzer:** El `forgeAnalyzer` incluye instrumentación de logs intensiva ("BETA DEBUG") para monitorear el conteo de tokens y la precisión en la extracción de entidades.
+
+2. ANATOMÍA TÉCNICA
+--------------------------------------------------------------------------------
+El módulo se divide estrictamente entre un Frontend React (UI) y un Backend Firebase (Lógica).
+
+A. FRONTEND (La Interfaz)
+Ubicación: `src/components/forge/`
+
+1.  **`ForgePanel.tsx` (El Contenedor):**
+    *   Gestiona la conexión inicial con Google Drive (`useDrivePicker`).
+    *   Maneja la selección de "Scope" (Alcance) mediante `ScopeTreeSelector`, permitiendo a la Forja enfocar su atención en carpetas específicas o en todo el proyecto.
+    *   Orquesta la sincronización manual (`handleSyncSouls`) que invoca a `syncCharacterManifest`.
+
+2.  **`ForgeDashboard.tsx` (El Cerebro de UI):**
+    *   Máquina de estados: `SELECT_SOURCE` -> `ANALYZING` -> `IDE`.
+    *   Gestión de Layout: Panel dividido redimensionable (Chat vs. Contexto).
+    *   Manejo de Sesiones: Controla versiones de sesión (`sessionVersion`) para forzar limpiezas de contexto cuando el usuario cambia de foco.
+
+3.  **`ForgeChat.tsx` (El Comunicador):**
+    *   Interfaz de chat que consume la función `chatWithGem`.
+    *   Renderiza mensajes enriquecidos (Markdown) y gestiona estados de carga/error.
+    *   Permite "Materializar" el chat a un archivo Markdown en Drive.
+
+4.  **`CharacterInspector.tsx` & `ForgeContextDock.tsx`:**
+    *   Visualizadores de datos de personajes. El Inspector permite editar y "cristalizar" entidades detectadas (Ghosts) en personajes reales.
+
+B. BACKEND (El Motor - Cloud Functions)
+Ubicación: `functions/src/index.ts`
+
+1.  **`chatWithGem` (El Núcleo RAG):**
+    *   **Modelos:** Utiliza `gemini-2.5-pro` (definido como `MODEL_HIGH_REASONING`) para razonamiento complejo y `gemini-2.0-flash` (`MODEL_LOW_COST`) para tareas rápidas.
+    *   **Lógica RAG:**
+        1.  Recibe la consulta (`query`) y el historial.
+        2.  Ejecuta una búsqueda vectorial (`findNearest`) en Firestore (`chunks`) basada en embeddings.
+        3.  Aplica filtros de diversidad para no saturar el contexto con un solo archivo.
+        4.  Construye un prompt masivo ("GOD TIER") que inyecta: Perfil del Escritor, Reglas del Mundo, Cronología y Contexto RAG.
+        5.  **Fail-Safe:** Si Gemini bloquea la respuesta, reintenta con un prompt "Sanitizado" (sin RAG) para evitar errores fatales.
+
+2.  **`syncCharacterManifest` (El Recolector de Almas):**
+    *   Escanea recursivamente la carpeta "Bóveda de Personajes" en Google Drive.
+    *   Vectoriza el contenido de cada archivo (`ingestFile`).
+    *   Extrae metadatos (Nombre, Rol, Tier) usando `gray-matter` y regex.
+    *   Sincroniza esta información con la colección `users/{uid}/characters` en Firestore.
+    *   **Protocolo Anti-Tabula Rasa:** Si el escaneo no encuentra archivos, aborta la operación para evitar borrar la base de datos por error.
+
+3.  **`forgeAnalyzer` (El Inspector):**
+    *   Lee un archivo de texto completo.
+    *   Usa IA para extraer una lista de personajes ("Elenco").
+    *   Cruza esta lista con la base de datos existente para clasificar entidades como `EXISTING` o `DETECTED` (Ghosts).
+    *   Genera un reporte narrativo en el idioma detectado del texto.
+
+4.  **`enrichCharacterContext` (La Bola de Cristal):**
+    *   Realiza una búsqueda vectorial profunda específica para un personaje.
+    *   Usa `gemini-2.5-pro` para generar un psicoanálisis y resumen de rol basado en toda la saga.
+
+3. FUNCIONAMIENTO Y FLUJO DE DATOS
+--------------------------------------------------------------------------------
+1.  **Ingesta:** El usuario conecta una carpeta de Drive. `syncCharacterManifest` lee los archivos `.md`, los fragmenta (chunks), genera vectores (embeddings) y los guarda en Firestore (`TDB_Index`).
+2.  **Consulta:** En el chat, el usuario pregunta algo. `chatWithGem` convierte la pregunta en vector, busca los chunks más similares en Firestore, y se los pasa a Gemini como "Memoria a Largo Plazo".
+3.  **Respuesta:** Gemini genera la respuesta imitando el estilo del usuario y respetando las reglas extraídas.
+4.  **Persistencia:** La sesión de chat se guarda en Firestore (`users/{uid}/forge_sessions`). Si el usuario lo desea, `forgeToDrive` convierte el chat en un documento Markdown y lo guarda en Drive.
+
+4. LIMITACIONES Y PROBLEMAS DETECTADOS
+--------------------------------------------------------------------------------
+1.  **Dependencia Crítica de Índices Vectoriales:**
+    *   El sistema falla (`MISSING_VECTOR_INDEX`) si los índices compuestos de Firestore no están perfectamente configurados. Aunque hay manejo de errores, esto detiene la funcionalidad principal.
+
+2.  **Fragilidad en Parsing JSON:**
+    *   Las respuestas de la IA a veces vienen con formato Markdown (` ```json ... ``` `) o caracteres de control que rompen `JSON.parse`. Se ha implementado un `parseSecureJSON` personalizado para mitigar esto, pero sigue siendo un punto de fallo potencial.
+
+3.  **Latencia en "Deep Scan":**
+    *   La función `forgeAnalyzer` procesa archivos completos. Para novelas o capítulos largos, esto puede exceder el tiempo de espera (timeout) de la Cloud Function (540s) o consumir mucha memoria.
+
+4.  **Sincronización Unidireccional (Parcial):**
+    *   La "verdad" está en Drive. Si se edita un personaje en la UI (`updateForgeCharacter`), el sistema intenta escribir en Drive. Si Drive falla, la operación se cancela. Esto es seguro pero puede resultar en desincronización si la UI muestra datos "optimistas".
+
+5.  **Costo de Tokens:**
+    *   El "Prompt del Sistema" en `chatWithGem` es masivo. Cada interacción consume una cantidad significativa de tokens de entrada, lo cual podría escalar costos rápidamente.
+
+5. RESUMEN NARRATIVO
+--------------------------------------------------------------------------------
+La "Forja de Almas" funciona como un bibliotecario con memoria eidética y capacidades de médium. No se limita a leer tus archivos; los "digiere", fragmentando cada párrafo de tus historias para crear un mapa mental (índice vectorial) de tu universo. Cuando interactúas con ella, no estás hablando con una IA genérica, sino con una entidad que ha adoptado la "máscara" de tu narrativa, recuperando instantáneamente recuerdos específicos (fragmentos de texto) para responder con tu mismo tono, estilo y reglas. Actúa simultáneamente como guardián de la continuidad —detectando si contradices hechos pasados— y como arquitecto creativo, permitiéndote materializar conversaciones efímeras en documentos tangibles dentro de tu Google Drive, cerrando así el ciclo entre la ideación y la escritura formal.
