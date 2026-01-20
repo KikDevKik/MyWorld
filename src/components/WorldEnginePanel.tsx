@@ -21,6 +21,20 @@ import InterrogationModal from './ui/InterrogationModal';
 import CrystallizeModal from './ui/CrystallizeModal';
 import MarkdownRenderer from './ui/MarkdownRenderer';
 import NexusGraph from './forge/NexusGraph';
+import { generateId } from '../utils/sha256';
+
+// 🟢 VISUAL EXO-SKELETON (Interface Extension)
+// Allows UI-specific props (physics, selection state) without polluting the Database Schema.
+interface VisualGraphNode extends GraphNode {
+    x?: number;
+    y?: number;
+    vx?: number;
+    vy?: number;
+    isGhost?: boolean;
+    isEphemeral?: boolean;
+    isLocal?: boolean;
+    agentId?: AgentType;
+}
 
 interface WorldEnginePanelProps {
     isOpen: boolean;
@@ -318,12 +332,24 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             setCanonCharacters(loadedChars);
         });
 
-        // 2. SOURCE: ENTITIES (AI/Hash Truth)
+        // 2. SOURCE: ENTITIES (AI/Hash Truth - The Rich Collection)
         const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", folderId, "entities");
         const unsubscribeEntities = onSnapshot(query(entitiesRef), (snapshot) => {
             const loadedEntities: GraphNode[] = [];
             snapshot.forEach((doc) => {
                 const data = doc.data();
+
+                // 🟢 DIAGNOSTIC: Check if we are reading the Rich Collection
+                // We expect 'relations' array to be present.
+                if (loadedEntities.length === 0) {
+                     console.log("[WorldEngine] First Entity Sample:", {
+                         id: doc.id,
+                         hasRelations: !!data.relations,
+                         relationCount: data.relations?.length || 0,
+                         keys: Object.keys(data)
+                     });
+                }
+
                 // 🟢 EXACT MAPPING DIRECTIVE
                 // ID: doc.id
                 // Label: data.meta.name ?? data.name ?? data.aliases
@@ -337,6 +363,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     type: data.type || 'concept', // Default to concept if type missing
                     projectId: folderId,
                     relations: data.relations || [],
+                    foundInFiles: data.foundInFiles || [], // Ensure we carry this over
                     meta: {
                         ...data.meta,
                         brief: data.description || ""
@@ -603,19 +630,19 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     };
 
     // 3. PERSISTENCE (Drag End)
-    const handleNodeDragEnd = async (node: any) => {
-        if (node.isLocal) {
-            // Update local state so it doesn't snap back
+    const handleNodeDragEnd = async (node: VisualGraphNode) => {
+        if (node.isLocal && !node.isGhost && !node.isEphemeral) {
+             // True Local Idea (RAM only)
             setNodes(prev => prev.map(n =>
                 n.id === node.id
                 ? { ...n, fx: node.x, fy: node.y, x: node.x, y: node.y }
                 : n
             ));
         } else {
-            // Update Firestore for Canon Nodes OR Entities
+            // Update Firestore for: Canon, Rich Entities, or Ephemeral Ghosts becoming Real
             if (!config?.folderId) return;
 
-            const entityId = node.id; // This is either a Canon Slug (megu) or Entity Hash
+            const entityId = node.id;
 
             try {
                 const auth = getAuth();
@@ -624,36 +651,49 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 if (auth.currentUser) {
                     const entityRef = doc(db, "users", auth.currentUser.uid, "projects", config.folderId, "entities", entityId);
 
-                    // 🟢 HYBRID SAVE STRATEGY
-                    const isCanon = canonCharacters.some(c => c.id === entityId);
+                    // CHECK: Is this an Ephemeral Ghost? (No DB record yet)
+                    // We check if it was missing from entityNodes at render time, but simpler to check the node flag
+                    // Note: 'node' here comes from D3/ReactForceGraph, it wraps our data in 'entityData' usually,
+                    // OR it merges properties. 'node.isEphemeral' should be preserved if we passed it.
 
-                    let payload: any = {
-                        fx: node.x,
-                        fy: node.y
-                    };
+                    // The 'node' object from the graph usually has top-level props from our data object.
+                    // ⚠️ SAFETY CAST: The incoming node from graph might have extra D3 props.
+                    const isEphemeral = node.isEphemeral;
 
-                    if (!isCanon && node.entityData) {
-                        // GHOST NODE: Must persist IDENTITY + RELATIONS to survive reload
-                        const data = node.entityData as GraphNode;
-                        payload = {
-                            ...payload,
-                            name: data.name,
-                            label: data.name, // Mapping as requested
-                            type: data.type || 'concept',
-                            relations: data.relations || [], // CRITICAL: Save connections
-                            meta: data.meta || {},
-                            description: data.description || "",
-                            // Persist foundInFiles if available to track provenance
-                            foundInFiles: data.foundInFiles || []
-                        };
-                        console.log(`[Ghost Persistence] Saving full payload for ${data.name}`);
+                    if (isEphemeral) {
+                         // 🟢 GENESIS PROTOCOL: Ghost -> Real Entity
+                         // We must save the FULL payload because it doesn't exist in DB yet.
+                         // ⚠️ CLEANING PROTOCOL: Strip UI flags before saving to DB
+                         const payload: any = {
+                            id: entityId, // Persistence ID
+                            name: node.name,
+                            type: node.type || 'concept',
+                            projectId: config.folderId,
+                            relations: node.relations || [],
+                            foundInFiles: node.foundInFiles || [],
+                            meta: node.meta || {},
+                            description: node.description || "Entidad materializada desde el Nexus.",
+                            fx: node.x,
+                            fy: node.y,
+                            createdFromGhost: true
+                         };
+
+                         // Explicitly remove UI flags if they leaked into the object (though construction above prevents it)
+                         // This is just double safety.
+
+                         console.log(`[Genesis] Materializing Ghost Node: ${node.name}`);
+                         await setDoc(entityRef, payload, { merge: true });
+
                     } else {
-                        console.log(`[Canon Shadow] Saving position for ${node.name}`);
+                        // 🟢 UPDATE PROTOCOL: Just update position
+                        // This applies to Canon Shadows AND Rich Entities.
+                        // We do NOT overwrite name/relations/etc.
+                        console.log(`[Persistence] Updating position for: ${node.name}`);
+                        await setDoc(entityRef, {
+                            fx: node.x,
+                            fy: node.y
+                        }, { merge: true });
                     }
-
-                    // Use setDoc with merge to ensure we don't overwrite other data if it exists,
-                    // but create it if it doesn't.
-                    await setDoc(entityRef, payload, { merge: true });
                 }
             } catch (e) {
                 console.error("Failed to save node position", e);
@@ -699,146 +739,160 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
-    // 🟢 UNIFIED NODE BUILDER (THE MERGER)
+    // 🟢 UNIFIED NODE BUILDER (THE MERGER v2 - INVERSE STRATEGY)
     const unifiedNodes = useMemo(() => {
-        const unifiedMap = new Map<string, GraphNode>();
-        const nameToCanonId = new Map<string, string>(); // lowercase name -> canonId
-        const idMapping = new Map<string, string>(); // Entity HashID -> CanonID
+        const unifiedMap = new Map<string, VisualGraphNode>();
+        const nameToCanonMap = new Map<string, Character>();
 
-        // PHASE 1: LOAD CANON (Master Source)
-        // Authority on: IDENTITY (Name, Type, Avatar)
-        canonCharacters.forEach(char => {
-            const canonNode: GraphNode = {
-                id: char.id, // Slug ID (e.g., 'megu')
-                name: char.name,
-                type: 'character', // Canon is always character for now
-                projectId: config?.folderId || '',
-                description: char.description || char.bio,
-                meta: {
-                    tier: char.tier === 'MAIN' ? 'protagonist' : 'secondary',
-                    avatarUrl: undefined // Add if available
-                },
-                relations: [], // Will be hydrated from Entities
-                foundInFiles: [] // Will be hydrated from Entities
-            };
-
-            unifiedMap.set(char.id, canonNode);
-            if (char.name) {
-                nameToCanonId.set(char.name.toLowerCase(), char.id);
-            }
+        // PREPARE CANON LOOKUP
+        canonCharacters.forEach(c => {
+            if (c.name) nameToCanonMap.set(c.name.toLowerCase(), c);
+            if (c.id) nameToCanonMap.set(c.id, c); // Also lookup by ID
         });
 
-        // PHASE 2: FUSE ENTITIES (Sidecar Source)
-        // Authority on: POSITION (fx, fy), CONNECTIONS (relations, foundInFiles)
+        // PHASE 1: ENTITIES (The Base Reality)
+        // We iterate Rich Entities first.
         entityNodes.forEach(entity => {
+            // Clone to avoid mutation and cast to Visual Type
+            const node: VisualGraphNode = { ...entity };
+
+            // ENRICH: Does this match a Canon Character?
             const normName = entity.name?.toLowerCase();
+            const canonMatch = nameToCanonMap.get(entity.id) || (normName ? nameToCanonMap.get(normName) : null);
 
-            // ATTEMPT MATCH
-            // 1. Direct ID Match (Shadow Record)
-            let canonTarget = unifiedMap.get(entity.id);
-
-            // 2. Name Match (AI Detection)
-            if (!canonTarget && normName) {
-                const canonId = nameToCanonId.get(normName);
-                if (canonId) {
-                    canonTarget = unifiedMap.get(canonId);
-                    // Record Redirect: Any link to this Entity Hash must point to the Canon ID
-                    idMapping.set(entity.id, canonId);
-                }
-            }
-
-            if (canonTarget) {
-                // --- SIDECAR MERGE PROTOCOL ---
-
-                // 1. POSITION (Entities Wins)
-                if (entity.fx !== undefined) canonTarget.fx = entity.fx;
-                if (entity.fy !== undefined) canonTarget.fy = entity.fy;
-
-                // 2. RELATIONS (Union)
-                if (entity.relations && entity.relations.length > 0) {
-                    // We append. De-duplication happens naturally or isn't critical visually.
-                    canonTarget.relations = [...(canonTarget.relations || []), ...entity.relations];
-                }
-
-                // 3. CO-OCCURRENCE (Union - Critical for Grey Web)
-                if (entity.foundInFiles && entity.foundInFiles.length > 0) {
-                     // Check for duplicates based on fileId to avoid massive arrays
-                     const existingFiles = new Set(canonTarget.foundInFiles?.map(f => f.fileId));
-                     const newFiles = entity.foundInFiles.filter(f => !existingFiles.has(f.fileId));
-                     canonTarget.foundInFiles = [...(canonTarget.foundInFiles || []), ...newFiles];
-                }
-
-                // 4. METADATA (Enrichment only)
-                // We do NOT overwrite Name or Type.
-                // But we can verify if we need to add 'tier' info if missing.
-                if (!canonTarget.meta.tier && entity.meta?.tier) {
-                    canonTarget.meta.tier = entity.meta.tier;
-                }
-
-            } else {
-                // --- GHOST PROTOCOL ---
-                // Entity exists in AI Graph but not in Canon File.
-                // Action: SHOW IT.
-
-                const ghostNode: GraphNode = {
-                    ...entity,
-                    // Ensure it has visual styling distinct from Canon
-                    isGhost: true,
-                    description: entity.description || "Entidad inferida (Nodo Fantasma)",
-                    projectId: config?.folderId || '',
-                    // Ensure arrays exist
-                    relations: entity.relations || [],
-                    foundInFiles: entity.foundInFiles || []
+            if (canonMatch) {
+                // Merge Canon Data (Avatar, Tier, Bio) into Entity
+                node.meta = {
+                    ...node.meta,
+                    tier: canonMatch.tier === 'MAIN' ? 'protagonist' : 'secondary',
+                    avatarUrl: undefined // Add if available in future
                 };
-
-                unifiedMap.set(entity.id, ghostNode);
+                if (!node.description && canonMatch.description) {
+                    node.description = canonMatch.description;
+                }
+                // Canon ID overrides Hash ID if they differ (to link to file)
+                // However, if we change ID, we must update all relations pointing to it.
+                // For safety in this phase, we keep Entity ID as the graph node ID,
+                // but we might tag it as linked to Canon.
+                // Ideally, we want the node ID to match the Firestore Entity ID.
             }
+
+            unifiedMap.set(node.id, node);
         });
 
-        // PHASE 3: LOCAL IDEAS (RAM)
-        const mappedIdeas: GraphNode[] = nodes.map(n => ({
-            id: n.id,
-            name: n.title,
-            type: 'idea',
-            projectId: config?.folderId || '',
-            fx: n.fx,
-            fy: n.fy,
-            meta: { brief: n.content.substring(0, 50) },
-            agentId: n.agentId,
-            isLocal: true,
-            relations: n.metadata?.pending_relations?.map(r => ({
-                targetId: r.targetId,
-                targetName: "Unknown",
-                targetType: 'concept',
-                relation: r.relationType as any,
-                context: "Local Idea Link",
-                sourceFileId: "session"
-            })) || []
-        } as any));
+        // PHASE 2: ORPHAN CANON (The Missing)
+        // If a Canon Character exists but has NO Entity document, we still want to show it.
+        canonCharacters.forEach(char => {
+            // Check if we already have a node for this char (by ID or Name)
+            const existsById = unifiedMap.has(char.id);
+            const existsByName = Array.from(unifiedMap.values()).some(n => n.name?.toLowerCase() === char.name?.toLowerCase());
 
-        // Add Ideas to the pool
-        mappedIdeas.forEach(idea => {
-            unifiedMap.set(idea.id, idea);
-        });
-
-        // PHASE 4: GLOBAL REWIRING (The Weaver)
-        // Fix all relations to point to the correct IDs (Canonical IDs)
-        const finalNodes = Array.from(unifiedMap.values());
-
-        finalNodes.forEach(node => {
-            if (node.relations && node.relations.length > 0) {
-                node.relations = node.relations.map(rel => {
-                    // Check if the target was a HashID that got merged into a CanonID
-                    const redirectedId = idMapping.get(rel.targetId);
-                    if (redirectedId) {
-                        return { ...rel, targetId: redirectedId };
-                    }
-                    return rel;
+            if (!existsById && !existsByName) {
+                // Create a basic node for the Canon character
+                unifiedMap.set(char.id, {
+                    id: char.id,
+                    name: char.name,
+                    type: 'character',
+                    projectId: config?.folderId || '',
+                    description: char.description,
+                    meta: { tier: char.tier === 'MAIN' ? 'protagonist' : 'secondary' },
+                    relations: [],
+                    foundInFiles: []
                 });
             }
         });
 
-        return finalNodes;
+        // PHASE 3: RECURSIVE EXPANSION (The Ghosts - Level 1)
+        // Iterate existing nodes and find missing targets
+        const currentNodes = Array.from(unifiedMap.values());
+
+        currentNodes.forEach(sourceNode => {
+            if (!sourceNode.relations) return;
+
+            sourceNode.relations.forEach(rel => {
+                const targetId = rel.targetId;
+                const targetName = rel.targetName;
+
+                // Check if target already exists in our map
+                // We check ID first, then try to match by Name just in case
+                let exists = unifiedMap.has(targetId);
+                if (!exists && targetName) {
+                     exists = Array.from(unifiedMap.values()).some(n => n.name?.toLowerCase() === targetName.toLowerCase());
+                }
+
+                if (!exists) {
+                    // 👻 GHOST DETECTED
+                    // We need to generate a valid ID.
+                    // If targetId looks like a hash (32+ chars), use it.
+                    // If it's short or missing, generate one.
+                    let ghostId = targetId;
+                    if (!ghostId || ghostId.length < 10) {
+                         ghostId = generateId(config?.folderId || '', targetName);
+                    }
+
+                    // Double check if generated ID exists
+                    if (unifiedMap.has(ghostId)) return;
+
+                    // ORBITAL POSITIONING
+                    // Radius: 50-100px
+                    // Angle: Random
+                    const angle = Math.random() * 2 * Math.PI;
+                    const radius = 50 + Math.random() * 50;
+                    const parentX = sourceNode.fx || sourceNode.x || 0; // x/y might be 0 if not rendered yet
+                    const parentY = sourceNode.fy || sourceNode.y || 0;
+
+                    const ghostX = parentX + radius * Math.cos(angle);
+                    const ghostY = parentY + radius * Math.sin(angle);
+
+                    const ghostNode: VisualGraphNode = {
+                        id: ghostId,
+                        name: targetName,
+                        type: rel.targetType || 'concept', // Default
+                        projectId: config?.folderId || '',
+                        description: "Entidad inferida (Nodo Fantasma)",
+                        relations: [], // Level 1 Limit: No recursion
+                        foundInFiles: [],
+                        meta: { tier: 'background' },
+
+                        // EPHEMERAL FLAGS
+                        isGhost: true,
+                        isEphemeral: true, // Needs persistence on move
+
+                        // INITIAL POSITION
+                        fx: ghostX,
+                        fy: ghostY
+                    };
+
+                    unifiedMap.set(ghostId, ghostNode);
+                }
+            });
+        });
+
+        // PHASE 4: LOCAL IDEAS (RAM)
+        // Add manual ideas
+        nodes.forEach(n => {
+            unifiedMap.set(n.id, {
+                id: n.id,
+                name: n.title,
+                type: 'idea',
+                projectId: config?.folderId || '',
+                fx: n.fx,
+                fy: n.fy,
+                meta: { brief: n.content.substring(0, 50) },
+                agentId: n.agentId,
+                isLocal: true,
+                relations: n.metadata?.pending_relations?.map(r => ({
+                    targetId: r.targetId,
+                    targetName: "Unknown",
+                    targetType: 'concept',
+                    relation: r.relationType as any,
+                    context: "Local Idea Link",
+                    sourceFileId: "session"
+                })) || []
+            } as VisualGraphNode);
+        });
+
+        return Array.from(unifiedMap.values());
 
     }, [canonCharacters, entityNodes, nodes, config]);
 
