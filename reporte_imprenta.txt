@@ -1,0 +1,97 @@
+# 🖨️ REPORTE TÉCNICO: LA IMPRENTA (MÓDULO DE EXPORTACIÓN)
+**Proyecto:** MyWord (Titanium Engine)
+**Versión Actual:** v3.3 TITAN
+**Fecha de Análisis:** 19/01/2026 (Según Documentación Maestra)
+**Estado:** OPERATIONAL / BETA STABLE
+
+---
+
+## 1. RESUMEN EJECUTIVO
+"La Imprenta" es el motor de compilación y exportación de manuscritos del sistema. Su función principal es transformar una colección dispersa de archivos Markdown (nodos narrativos) almacenados en Google Drive en un único documento PDF tipográficamente coherente y listo para lectura o revisión.
+
+A diferencia de los exportadores tradicionales que simplemente concatenan texto, La Imprenta actúa como un **compositor inteligente**: entiende la estructura narrativa (capítulos, escenas), interpreta el formato Markdown y aplica reglas de maquetación dinámica en el servidor (Cloud Functions) para evitar sobrecargar el navegador del cliente.
+
+---
+
+## 2. ARQUITECTURA TÉCNICA
+
+### A. Frontend (`src/components/ExportPanel.tsx`)
+El panel de control actúa como una interfaz de mando para el "Tipógrafo". No procesa el PDF directamente, sino que prepara la "Orden de Trabajo".
+
+*   **Interfaz de Usuario:** Diseño de doble panel (Split-Pane).
+    *   **Zona A (Composición):** Un árbol de archivos recursivo (`CheckableTreeNode`) que permite seleccionar qué escenas incluir. Aplana la estructura jerárquica para crear una lista lineal de reproducción (compile order).
+    *   **Zona B (Ajustes):** Configuración de metadatos (Título, Autor) y reglas de impresión.
+*   **Gestión de Estado:** Utiliza `useState` local para el formulario y consume el `ProjectConfigContext` para acceder al árbol de archivos global (`fileTree`).
+*   **Comunicación:** Invoca la Cloud Function `compileManuscript` pasando un payload ligero (IDs de archivos + Token de Auth + Opciones). Recibe un string Base64 que convierte a `Blob URL` para la descarga inmediata.
+
+### B. Backend (`functions/src/index.ts` -> `compileManuscript`)
+El cerebro de la operación. Se ejecuta en un entorno Node.js gestionado por Firebase Functions.
+
+*   **Stack Tecnológico:**
+    *   `pdfmake`: Motor de generación de PDFs (Server-side).
+    *   `marked`: Convierte el Markdown crudo de los archivos a HTML.
+    *   `html-to-pdfmake`: Transforma el HTML en definiciones de objetos JSON que `pdfmake` entiende (estilos, márgenes, pilas).
+    *   `jsdom`: Simula un entorno DOM en el servidor, necesario para que `html-to-pdfmake` pueda parsear el HTML.
+    *   `gray-matter`: Limpia el "Frontmatter" (metadatos YAML) de los archivos Markdown para que no aparezcan en el libro final.
+
+---
+
+## 3. LÓGICA FUNCIONAL (NARRATIVA)
+
+Imagina que La Imprenta es un taller editorial automatizado. El proceso sigue estos pasos:
+
+1.  **La Recolección (The Gathering):**
+    El usuario selecciona las escenas en el Frontend. El backend recibe esta lista de IDs y usa las credenciales del usuario (`accessToken`) para "impersonar" al autor y descargar el contenido fresco directamente desde Google Drive. Esto garantiza que siempre se imprime la última versión, sin problemas de caché local.
+
+2.  **La Purificación:**
+    Cada archivo pasa por un filtro (`gray-matter`) que elimina las notas técnicas del sistema (etiquetas, IDs, fechas) que suelen estar al principio de los archivos Markdown, dejando solo la prosa narrativa.
+
+3.  **La Traducción (Markdown -> HTML -> PDF):**
+    El texto plano se convierte primero en HTML (entendiendo negritas, cursivas, listas) y luego en un mapa de objetos vectoriales para el PDF.
+
+4.  **La Inteligencia de Corte (Smart Breaks):**
+    Aquí reside la magia de la v3.3. El sistema no solo pega el texto. Analiza recursivamente el contenido. Si detecta un Título Principal (H1) o Secundario (H2) dentro del texto, inserta automáticamente un "Salto de Página" (`pageBreak: 'before'`) antes de ese título. Esto permite que el autor escriba varios capítulos en un solo archivo y que La Imprenta sepa separarlos correctamente en el papel.
+
+---
+
+## 4. HISTORIAL DE CAMBIOS Y EVOLUCIÓN (RECONSTRUIDO)
+
+Basado en el análisis forense del código y comentarios:
+
+*   **v1.x (Inferencia):** Probablemente una exportación simple de texto plano o concatenación básica en el cliente.
+*   **v2.x (Migración a Cloud):** Se movió la lógica al servidor para soportar archivos grandes, pero dependía de librerías más simples o no tenía soporte para imágenes/estilos complejos.
+*   **v3.0 (Titanium Integration):** Integración con el sistema de autenticación de Google Drive (`accessToken`) para soportar archivos privados y seguros.
+*   **v3.3 (Versión Actual):**
+    *   **Smart Breaks:** Implementación del algoritmo de detección de capítulos (Headers H1/H2).
+    *   **Recursive Checkboxes:** Mejora en el frontend para seleccionar carpetas enteras con un solo clic.
+    *   **Sanitización:** Mejor manejo de errores de codificación y caracteres nulos.
+
+---
+
+## 5. LIMITACIONES Y PROBLEMAS DETECTADOS
+
+A pesar de ser funcional, el análisis de código revela varias limitaciones técnicas (Technical Debt) y restricciones:
+
+1.  **Límite Duro de Archivos (Hard Cap):**
+    El código impone un límite de **50 archivos** por compilación (`MAX_MANUSCRIPT_FILES = 50`). Esto es una protección contra el *timeout* de las Cloud Functions (máx 9 minutos), pero impide compilar novelas enteras si están muy fragmentadas (ej. 100 escenas cortas).
+
+2.  **Índice (TOC) Inoperativo:**
+    Aunque existe la opción en el frontend, el backend tiene un placeholder explícito: `{ text: "(Índice autogenerado no disponible en esta versión)", ... }`. La librería `pdfmake` soporta TOC, pero la implementación actual es compleja debido a la conversión intermedia HTML->PDFMake y no se ha completado.
+
+3.  **Fuentes Estándar:**
+    El sistema usa fuentes predeterminadas (Helvetica/Roboto). No hay soporte para incrustar fuentes personalizadas (ej. Garamond, Merriweather) para darle un aspecto más "novelesco", ya que requeriría cargar los archivos de fuente en el servidor, lo cual aumenta la latencia y el uso de memoria.
+
+4.  **Memoria y Rendimiento:**
+    La compilación ocurre completamente en memoria RAM (`Buffer`). Si se intenta compilar un libro con muchas imágenes o texto extremadamente largo, la función podría colapsar por "Out of Memory" (OOM), ya que las instancias estándar de Firebase suelen tener 256MB o 512MB de RAM (aunque la config solicita `2GiB`, esto depende del plan de facturación).
+
+5.  **Dependencia de `jsdom`:**
+    El uso de `jsdom` en el servidor es pesado y lento. Es un "hack" necesario para que `html-to-pdfmake` funcione en Node.js, pero añade un overhead significativo al tiempo de arranque de la función (Cold Start).
+
+---
+
+## 6. CONCLUSIÓN
+
+La Imprenta v3.3 es una herramienta robusta para "Drafting" (borradores) y revisión. Cumple perfectamente su función de sacar el texto del editor para leerlo en otro medio. Sin embargo, **no es una herramienta de maquetación final** (Desktop Publishing). Para publicar un libro real, el autor aún necesitaría exportar el texto y llevarlo a software especializado (InDesign, Vellum).
+
+**Recomendación Inmediata:**
+Si el usuario necesita compilar obras más largas, se debería priorizar la implementación de un sistema de "Streaming" o "Colas" para evitar el límite de 50 archivos y el riesgo de timeout.
