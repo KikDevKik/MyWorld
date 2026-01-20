@@ -622,18 +622,38 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 const db = getFirestore();
 
                 if (auth.currentUser) {
-                    // ALWAYS write position to 'entities' collection (Project Scope Shadow)
-                    // If it's a Canon character, we create/update a shadow entity with the same ID.
                     const entityRef = doc(db, "users", auth.currentUser.uid, "projects", config.folderId, "entities", entityId);
 
-                    // Use setDoc with merge to ensure we don't overwrite other data if it exists,
-                    // but create it if it doesn't (Shadow creation).
-                    await setDoc(entityRef, {
+                    // 🟢 HYBRID SAVE STRATEGY
+                    const isCanon = canonCharacters.some(c => c.id === entityId);
+
+                    let payload: any = {
                         fx: node.x,
                         fy: node.y
-                    }, { merge: true });
+                    };
 
-                    console.log(`Saved position for ${node.name} (${entityId}): ${node.x}, ${node.y}`);
+                    if (!isCanon && node.entityData) {
+                        // GHOST NODE: Must persist IDENTITY + RELATIONS to survive reload
+                        const data = node.entityData as GraphNode;
+                        payload = {
+                            ...payload,
+                            name: data.name,
+                            label: data.name, // Mapping as requested
+                            type: data.type || 'concept',
+                            relations: data.relations || [], // CRITICAL: Save connections
+                            meta: data.meta || {},
+                            description: data.description || "",
+                            // Persist foundInFiles if available to track provenance
+                            foundInFiles: data.foundInFiles || []
+                        };
+                        console.log(`[Ghost Persistence] Saving full payload for ${data.name}`);
+                    } else {
+                        console.log(`[Canon Shadow] Saving position for ${node.name}`);
+                    }
+
+                    // Use setDoc with merge to ensure we don't overwrite other data if it exists,
+                    // but create it if it doesn't.
+                    await setDoc(entityRef, payload, { merge: true });
                 }
             } catch (e) {
                 console.error("Failed to save node position", e);
