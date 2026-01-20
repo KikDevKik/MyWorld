@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Hammer, X, FolderInput, RefreshCw, Book, FolderPlus } from 'lucide-react';
+import { Hammer, X, FolderInput, RefreshCw, Book, FolderPlus, Globe } from 'lucide-react';
 import { toast } from 'sonner';
 import useDrivePicker from 'react-google-drive-picker';
 
@@ -19,6 +19,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
     const { config, updateConfig } = useProjectConfig();
     const [openPicker] = useDrivePicker();
     const [isSyncing, setIsSyncing] = useState(false);
+    const [isSyncingNexus, setIsSyncingNexus] = useState(false);
 
     // 🟢 SCOPE STATE (REPLACED BREADCRUMB)
     const [selectedScope, setSelectedScope] = useState<{ id: string | null; name: string; recursiveIds: string[]; path?: string }>({
@@ -103,6 +104,31 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
             toast.error("Failed to sync character manifest.");
         } finally {
             setIsSyncing(false);
+        }
+    };
+
+    // --- SYNC WORLD MANIFEST (NEXUS) ---
+    const handleSyncNexus = async () => {
+        if (!config?.characterVaultId) return;
+
+        setIsSyncingNexus(true);
+        toast.info("Escaneando el Omniverso... Esto puede tomar un momento.");
+
+        const functions = getFunctions();
+        const syncWorldManifest = httpsCallable(functions, 'syncWorldManifest');
+
+        try {
+            const result = await syncWorldManifest({
+                masterVaultId: config.characterVaultId,
+                accessToken
+            });
+            const data = result.data as any;
+            toast.success(`NEXUS actualizado. ${data.nodesUpserted || 0} entidades detectadas.`);
+        } catch (error) {
+            console.error("Error syncing nexus:", error);
+            toast.error("Error al sincronizar el Omniverso.");
+        } finally {
+            setIsSyncingNexus(false);
         }
     };
 
@@ -238,6 +264,17 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                    {/* NEXUS SYNC BUTTON */}
+                    <button
+                        onClick={() => handleSyncNexus()}
+                        disabled={isSyncingNexus}
+                        className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-titanium-700 mr-2"
+                        title="Sync World Manifest (Omniverso)"
+                    >
+                        <Globe size={14} className={isSyncingNexus ? "animate-spin" : ""} />
+                        <span>{isSyncingNexus ? "ESCANEA..." : "NEXUS"}</span>
+                    </button>
+
                     {/* SYNC BUTTON */}
                     <button
                         onClick={() => handleSyncSouls()}
