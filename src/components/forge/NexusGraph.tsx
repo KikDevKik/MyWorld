@@ -5,10 +5,28 @@ import { getAuth } from 'firebase/auth';
 import { X, Network, BookOpen, AlertTriangle } from 'lucide-react';
 import { EntityType, GraphNode } from '../../types/graph';
 
+// Simplified Node interface from WorldEnginePanel
+interface LocalIdeaNode {
+    id: string;
+    title: string;
+    type: string;
+    content: string;
+    x?: number;
+    y?: number;
+    fx?: number;
+    fy?: number;
+    metadata?: any;
+    agentId?: string;
+}
+
 interface NexusGraphProps {
     projectId: string; // This is the folderId (Root)
     onClose: () => void;
     accessToken: string | null;
+    localNodes?: LocalIdeaNode[]; // "Ideas" (Micro-Cards)
+    onNodeSelect?: (nodeId: string, isLocal: boolean) => void;
+    onNodeDragEnd?: (node: any) => void; // For persistence
+    onLinkCreate?: (sourceId: string, targetId: string) => void; // For "Red Thread"
 }
 
 interface GraphData {
@@ -16,12 +34,25 @@ interface GraphData {
     links: any[];
 }
 
-const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
+const NexusGraph: React.FC<NexusGraphProps> = ({
+    projectId,
+    onClose,
+    localNodes = [],
+    onNodeSelect,
+    onNodeDragEnd,
+    onLinkCreate
+}) => {
     console.log("NEXUS DEBUG: ProjectID recibido:", projectId);
     const [entities, setEntities] = useState<GraphNode[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
     const graphRef = useRef<any>(null);
+
+    // Interaction State
+    const [hoveredNode, setHoveredNode] = useState<any>(null);
+    const [linkDragState, setLinkDragState] = useState<{ active: boolean, source: any, currentPos: { x: number, y: number } | null }>({
+        active: false, source: null, currentPos: null
+    });
 
     // --- 1. DATA FETCHING ---
     useEffect(() => {
@@ -49,12 +80,10 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
 
     // --- 2. GRAPH DATA PROCESSING (MEMOIZED) ---
     const graphData = useMemo<GraphData>(() => {
-        if (entities.length === 0) return { nodes: [], links: [] };
-
         const nodes: any[] = [];
         const links: any[] = [];
         const fileMap = new Map<string, string[]>(); // fileId -> [entityIds]
-        const existingNodeIds = new Set(entities.map(e => e.id));
+        const existingNodeIds = new Set<string>();
         const semanticPairs = new Set<string>(); // "idA-idB" (sorted) to track semantic overrides
 
         // HELPER: Color Coding
@@ -66,12 +95,14 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
                 case 'event': return '#ef4444'; // Crimson
                 case 'faction': return '#10b981'; // Emerald
                 case 'concept': return '#ec4899'; // Pink
+                case 'idea': return '#94a3b8'; // Slate (Ideas)
                 default: return '#9ca3af'; // Gray
             }
         };
 
-        // A. BUILD REAL NODES & INDEX FILES
+        // A. PROCESS FIRESTORE ENTITIES
         entities.forEach(entity => {
+            existingNodeIds.add(entity.id);
             // Size based on appearances
             const appearanceCount = entity.foundInFiles?.length || 0;
             const val = Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3));
@@ -82,7 +113,10 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
                 type: entity.type,
                 color: getTypeColor(entity.type),
                 val: val,
-                entityData: entity
+                entityData: entity,
+                fx: entity.fx, // Spatial Persistence
+                fy: entity.fy,
+                isLocal: false
             });
 
             // Index Files for Co-occurrence
@@ -96,7 +130,29 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
             }
         });
 
-        // B. PROCESS SEMANTIC RELATIONS & GHOST NODES
+        // B. PROCESS LOCAL IDEAS (Micro-Cards)
+        localNodes.forEach(idea => {
+            // Avoid ID collision (though unlikely with timestamps)
+            if (existingNodeIds.has(idea.id)) return;
+            existingNodeIds.add(idea.id);
+
+            nodes.push({
+                id: idea.id,
+                name: idea.title,
+                type: 'idea',
+                color: getTypeColor('idea'),
+                val: 5, // Fixed size for ideas
+                entityData: idea,
+                fx: idea.fx, // Spatial Persistence (from Drag)
+                fy: idea.fy,
+                isLocal: true,
+                agentId: idea.agentId
+            });
+
+            // TODO: Process local idea connections if stored in metadata
+        });
+
+        // C. PROCESS SEMANTIC RELATIONS & GHOST NODES
         entities.forEach(entity => {
             if (entity.relations && Array.isArray(entity.relations)) {
                 entity.relations.forEach(rel => {
@@ -119,7 +175,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
                                     type: rel.targetType,
                                     description: "Entidad inferida (Nodo Fantasma)",
                                     isGhost: true
-                                }
+                                },
+                                isLocal: false
                             });
                         }
                     }
@@ -150,7 +207,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
             }
         });
 
-        // C. BUILD EDGES (CO-OCCURRENCE) - WITH OVERRIDE
+        // D. BUILD EDGES (CO-OCCURRENCE) - WITH OVERRIDE
         const linkMap = new Map<string, number>();
 
         fileMap.forEach((entityIds) => {
@@ -188,48 +245,68 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
         });
 
         return { nodes, links };
-    }, [entities]);
+    }, [entities, localNodes]);
+
+    // --- 3. INTERACTION HANDLERS (LINK DRAG) ---
+    const handlePointerDown = (e: React.PointerEvent) => {
+        // Right Click (2) or Shift Key
+        if ((e.button === 2 || e.shiftKey) && hoveredNode && onLinkCreate) {
+            e.preventDefault();
+            e.stopPropagation(); // Stop pan
+            setLinkDragState({
+                active: true,
+                source: hoveredNode,
+                currentPos: { x: hoveredNode.x, y: hoveredNode.y }
+            });
+        }
+    };
+
+    const handlePointerMove = (e: React.PointerEvent) => {
+        if (linkDragState.active && graphRef.current) {
+            const coords = graphRef.current.screen2GraphCoords(e.clientX, e.clientY);
+            setLinkDragState(prev => ({ ...prev, currentPos: coords }));
+        }
+    };
+
+    const handlePointerUp = (e: React.PointerEvent) => {
+        if (linkDragState.active) {
+            if (hoveredNode && hoveredNode.id !== linkDragState.source.id && onLinkCreate) {
+                // Success: Create Link
+                onLinkCreate(linkDragState.source.id, hoveredNode.id);
+            }
+            setLinkDragState({ active: false, source: null, currentPos: null });
+        }
+    };
+
+    // Disable context menu for right-drag
+    const handleContextMenu = (e: React.MouseEvent) => {
+        if (e.shiftKey || hoveredNode) {
+            e.preventDefault();
+        }
+    };
+
 
     // --- GUARD CLAUSE ---
     if (!projectId) return null;
 
-    // --- 3. ZERO STATE ---
-    if (!loading && entities.length === 0) {
-        return (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-sm animate-fade-in">
-                <button
-                    onClick={onClose}
-                    className="absolute top-6 right-6 p-3 bg-titanium-800/50 hover:bg-red-500/20 text-titanium-400 hover:text-red-400 rounded-full transition-all border border-titanium-700 hover:border-red-500/50 z-50"
-                >
-                    <X size={32} />
-                </button>
-
-                <div className="text-center max-w-lg p-8 border border-titanium-800 rounded-3xl bg-titanium-900/50">
-                    <div className="w-20 h-20 mx-auto bg-titanium-950 rounded-full flex items-center justify-center border border-titanium-800 mb-6 text-titanium-600">
-                        <Network size={40} />
-                    </div>
-                    <h2 className="text-3xl font-bold text-titanium-100 mb-4 tracking-tight">Universo no Cartografiado</h2>
-                    <p className="text-titanium-400 text-lg mb-8">
-                        No se detectaron entidades en el sistema Nexus.
-                        <br/><span className="text-sm opacity-70 mt-2 block">Ejecuta "NEXUS SYNC" en La Forja para escanear tus archivos y visualizar la red.</span>
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
     // --- 4. RENDER GRAPH ---
     return (
-        <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md animate-fade-in overflow-hidden">
-            {/* HEADER / CONTROLS */}
+        <div
+            className="absolute inset-0 z-0 bg-black/90 backdrop-blur-md overflow-hidden"
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onContextMenu={handleContextMenu}
+        >
+            {/* HEADER / CONTROLS - Only show close if NOT embedded (checked via localNodes presence as proxy for now, or just keep it) */}
+            {/* If embedded in WorldEngine, we might hide the close button or handle it differently.
+                For now, we keep it as 'onClose' is passed. */}
             <div className="absolute top-0 left-0 right-0 h-20 flex items-center justify-between px-8 z-50 pointer-events-none">
                 <div className="pointer-events-auto flex items-center gap-4">
                      <div className="px-4 py-2 bg-black/50 backdrop-blur-md rounded-full border border-titanium-800 text-titanium-300 text-xs font-mono flex items-center gap-3">
                         <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div> CHAR</span>
-                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></div> LOC</span>
-                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]"></div> OBJ</span>
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-slate-400 border border-slate-600 border-dashed"></div> IDEA</span>
                         <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]"></div> ENEMY</span>
-                        <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]"></div> ALLY</span>
                      </div>
                 </div>
 
@@ -263,9 +340,32 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
                         const label = node.name;
                         const fontSize = 12/globalScale;
                         ctx.font = `${fontSize}px Sans-Serif`;
-                        const textWidth = ctx.measureText(label).width;
-                        const bckgDimensions = [textWidth, fontSize].map(n => n + fontSize * 0.2);
 
+                        // MICRO-CARD (IDEA) RENDER
+                        if (node.type === 'idea') {
+                            const size = 20 / globalScale; // Base size
+
+                            ctx.fillStyle = 'rgba(20, 20, 20, 0.8)';
+                            ctx.strokeStyle = '#94a3b8'; // Slate 400
+                            ctx.lineWidth = 2 / globalScale;
+
+                            // Draw Square
+                            ctx.beginPath();
+                            ctx.rect(node.x - size/2, node.y - size/2, size, size);
+                            ctx.fill();
+                            ctx.setLineDash([4/globalScale, 2/globalScale]); // Dashed
+                            ctx.stroke();
+                            ctx.setLineDash([]); // Reset
+
+                            // Label
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = '#e2e8f0';
+                            ctx.fillText(label, node.x, node.y + size/2 + 8/globalScale);
+                            return;
+                        }
+
+                        // STANDARD NODE RENDER
                         ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
                         if (node.isGhost) {
                             ctx.strokeStyle = node.color;
@@ -273,7 +373,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
                             ctx.beginPath();
                             ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
                             ctx.stroke();
-                            // Dotted effect simulation (canvas primitive) not easy, sticking to outline
                         } else {
                             ctx.fillStyle = node.color;
                             ctx.beginPath();
@@ -288,85 +387,85 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
                         ctx.fillText(label, node.x, node.y + 8);
                     }}
 
-                    backgroundColor="rgba(0,0,0,0)"
+                    // Interaction Hooks
+                    onNodeHover={(node) => setHoveredNode(node)}
                     onNodeClick={(node) => {
-                        setSelectedNode(node.entityData);
-                        graphRef.current?.centerAt(node.x, node.y, 1000);
-                        graphRef.current?.zoom(4, 2000);
+                        if (onNodeSelect) {
+                            // Trigger Macro Card
+                            onNodeSelect(node.id, node.isLocal);
+                        } else {
+                            // Fallback to internal drawer
+                            setSelectedNode(node.entityData);
+                            graphRef.current?.centerAt(node.x, node.y, 1000);
+                            graphRef.current?.zoom(4, 2000);
+                        }
+                    }}
+                    onNodeDragEnd={(node) => {
+                        // Persistence Hook
+                        node.fx = node.x;
+                        node.fy = node.y;
+                        if (onNodeDragEnd) onNodeDragEnd(node);
                     }}
                     onBackgroundClick={() => setSelectedNode(null)}
+
+                    // Render Temp Link
+                    onRenderFramePost={(ctx, globalScale) => {
+                        if (linkDragState.active && linkDragState.source && linkDragState.currentPos) {
+                            ctx.beginPath();
+                            ctx.moveTo(linkDragState.source.x, linkDragState.source.y);
+                            ctx.lineTo(linkDragState.currentPos.x, linkDragState.currentPos.y);
+                            ctx.strokeStyle = '#ef4444'; // Red Thread
+                            ctx.lineWidth = 2 / globalScale;
+                            ctx.setLineDash([5/globalScale, 5/globalScale]);
+                            ctx.stroke();
+                            ctx.setLineDash([]);
+                        }
+                    }}
+
                     cooldownTicks={100}
                 />
             </div>
 
-            {/* DRAWER (DETAILS PANEL) */}
-            <div
-                className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col
-                    ${selectedNode ? 'translate-x-0' : 'translate-x-full'}
-                `}
-            >
-                {selectedNode && (
-                    <div className="flex flex-col h-full">
-                        {/* Drawer Header */}
-                        <div className="p-6 border-b border-titanium-800 bg-titanium-900/50">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded border
-                                    ${selectedNode.type === 'character' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
-                                      selectedNode.type === 'location' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
-                                      selectedNode.type === 'event' ? 'text-red-400 border-red-900 bg-red-950/30' :
-                                      'text-amber-400 border-amber-900 bg-amber-950/30'}
-                                `}>
-                                    {selectedNode.type}
-                                </span>
-                                <button onClick={() => setSelectedNode(null)} className="text-titanium-500 hover:text-white">
-                                    <X size={18} />
-                                </button>
-                            </div>
-                            <h2 className="text-2xl font-bold text-white leading-tight">{selectedNode.name}</h2>
-                        </div>
-
-                        {/* Drawer Content */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                            {/* Description */}
-                            <div className="space-y-2">
-                                <h4 className="text-xs font-bold text-titanium-500 uppercase">Descripción</h4>
-                                <p className="text-titanium-300 text-sm leading-relaxed">
-                                    {selectedNode.description || "Sin descripción registrada en el Nexus."}
-                                </p>
+            {/* DRAWER (DETAILS PANEL) - Only if not using external select */}
+            {!onNodeSelect && (
+                <div
+                    className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col
+                        ${selectedNode ? 'translate-x-0' : 'translate-x-full'}
+                    `}
+                >
+                    {selectedNode && (
+                        <div className="flex flex-col h-full">
+                            {/* Drawer Header */}
+                            <div className="p-6 border-b border-titanium-800 bg-titanium-900/50">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded border
+                                        ${selectedNode.type === 'character' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
+                                        selectedNode.type === 'location' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
+                                        selectedNode.type === 'event' ? 'text-red-400 border-red-900 bg-red-950/30' :
+                                        'text-amber-400 border-amber-900 bg-amber-950/30'}
+                                    `}>
+                                        {selectedNode.type}
+                                    </span>
+                                    <button onClick={() => setSelectedNode(null)} className="text-titanium-500 hover:text-white">
+                                        <X size={18} />
+                                    </button>
+                                </div>
+                                <h2 className="text-2xl font-bold text-white leading-tight">{selectedNode.name}</h2>
                             </div>
 
-                            {/* Appearances */}
-                            <div className="space-y-3">
-                                <h4 className="text-xs font-bold text-titanium-500 uppercase flex items-center gap-2">
-                                    <BookOpen size={12} />
-                                    Apariciones ({selectedNode.foundInFiles?.length || 0})
-                                </h4>
-                                <div className="space-y-1">
-                                    {selectedNode.foundInFiles?.slice(0, 20).map((file, idx) => (
-                                        <div key={`${file.fileId}-${idx}`} className="flex items-center gap-3 p-3 rounded-lg bg-titanium-900/50 border border-titanium-800/50 hover:border-titanium-700 transition-colors group cursor-default">
-                                            <div className="w-1 h-8 bg-titanium-800 group-hover:bg-accent-DEFAULT transition-colors rounded-full" />
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-titanium-200 truncate">{file.fileName}</p>
-                                                <p className="text-[10px] text-titanium-500">{new Date(file.lastSeen).toLocaleDateString()}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {(selectedNode.foundInFiles?.length || 0) > 20 && (
-                                        <p className="text-xs text-center text-titanium-600 pt-2 italic">
-                                            + {(selectedNode.foundInFiles?.length || 0) - 20} más...
-                                        </p>
-                                    )}
+                            {/* Drawer Content */}
+                            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                                <div className="space-y-2">
+                                    <h4 className="text-xs font-bold text-titanium-500 uppercase">Descripción</h4>
+                                    <p className="text-titanium-300 text-sm leading-relaxed">
+                                        {selectedNode.description || "Sin descripción registrada en el Nexus."}
+                                    </p>
                                 </div>
                             </div>
                         </div>
-
-                        {/* Drawer Footer */}
-                         <div className="p-4 border-t border-titanium-800 bg-titanium-900/30 text-[10px] text-center text-titanium-600 font-mono">
-                            ID: {selectedNode.id.substring(0, 8)}...
-                        </div>
-                    </div>
-                )}
-            </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 };
