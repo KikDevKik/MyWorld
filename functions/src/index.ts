@@ -23,6 +23,9 @@ import { ingestFile } from "./ingestion";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS } from "./ai_config";
 import { marked } from 'marked';
 import JSON5 from 'json5';
+import { generateDeterministicId } from "./utils/idGenerator";
+import { GraphNode, EntityType } from "./types/graph";
+
 const htmlToPdfmake = require('html-to-pdfmake');
 const { JSDOM } = require('jsdom');
 
@@ -694,6 +697,243 @@ export const checkSentinelIntegrity = onCall(
           errorCode: code,
           details: error.message // Debug info (safe to show admin)
       };
+    }
+  }
+);
+
+// --- WORLD MANIFEST LOGIC (NEXUS NODE CREATION) ---
+
+/**
+ * PHASE 6.0: MANIFEST GENERATOR (EVOLVED)
+ * Escanea Drive y genera un grafo de entidades (GraphNodes) en Firestore.
+ * Reemplaza y expande la lógica de syncCharacterManifest.
+ */
+export const syncWorldManifest = onCall(
+  {
+    region: "us-central1",
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    enforceAppCheck: true,
+    timeoutSeconds: 540,
+    secrets: [googleApiKey],
+    memory: "2GiB",
+  },
+  async (request) => {
+    const db = getFirestore();
+
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
+    }
+
+    const { masterVaultId, accessToken, specificFileId } = request.data;
+    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    // DIRECTIVA 2.2: masterVaultId ES el projectId para segregación de datos
+    const projectId = masterVaultId;
+
+    if (!projectId) {
+         logger.info("ℹ️ Sin Bóveda Maestra configurada (masterVaultId). Sincronización omitida.");
+         return { success: true, count: 0, message: "No master vault configured." };
+    }
+
+    const userId = request.auth.uid;
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: accessToken });
+    const drive = google.drive({ version: "v3", auth });
+
+    logger.info(`🌍 NEXUS NODE CREATION: Scanning for User ${userId} in Project ${projectId}`);
+
+    try {
+        // --- STEP A: RECURSIVE SCAN ---
+        let candidates: DriveFile[] = [];
+        const config = await _getProjectConfigInternal(userId);
+
+        if (specificFileId) {
+             logger.info(`🎯 Surgical Strike: Syncing single file ${specificFileId}`);
+             try {
+                 const meta = await drive.files.get({ fileId: specificFileId, fields: 'name, parents, mimeType' });
+                 candidates = [{
+                     id: specificFileId,
+                     name: meta.data.name,
+                     path: meta.data.name, // Simplified path for single file
+                     saga: 'Global',
+                     type: 'file',
+                     mimeType: meta.data.mimeType,
+                     parentId: meta.data.parents?.[0]
+                 }];
+             } catch (e: any) {
+                 logger.error(`Error fetching specific file ${specificFileId}:`, e);
+                 throw new HttpsError("not-found", "Could not find specific file.");
+             }
+        } else {
+             logger.info(`📡 Full Scan: Scanning ${projectId}`);
+             const tree = await fetchFolderContents(drive, projectId, config, true);
+             const flatFiles = flattenFileTree(tree);
+             candidates = flatFiles.filter(f =>
+                f.mimeType === 'application/vnd.google-apps.document' ||
+                f.name.endsWith('.md') ||
+                f.name.endsWith('.txt')
+            );
+            logger.info(`   -> Files Found: ${candidates.length}`);
+        }
+
+        // --- STEP B: BATCH PROCESS (AI EXTRACTION + SEQUENTIAL UPSERT) ---
+        // Refactored to avoid Race Conditions in DB Write
+        const BATCH_SIZE = 3;
+        let processedCount = 0;
+        let nodesUpserted = 0;
+
+        // Model setup (Flash for high throughput)
+        const genAI = new GoogleGenerativeAI(googleApiKey.value());
+        const model = genAI.getGenerativeModel({
+             model: MODEL_LOW_COST, // gemini-2.0-flash
+             generationConfig: {
+                 responseMimeType: "application/json",
+                 temperature: TEMP_PRECISION,
+             } as any
+        });
+
+        for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
+            const batch = candidates.slice(i, i + BATCH_SIZE);
+            const batchResults: Array<{ file: DriveFile, entities: any[] }> = [];
+
+            // PHASE 1: PARALLEL EXTRACTION (AI)
+            await Promise.all(batch.map(async (file) => {
+                try {
+                    // 1. Fetch Content
+                    const content = await _getDriveFileContentInternal(drive, file.id);
+                    if (!content || content.length < 50) return;
+
+                    // 2. AI Extraction
+                    const prompt = `
+                      ACT AS: Expert Taxonomist & Knowledge Graph Architect.
+                      TASK: Analyze the provided text and extract semantic entities (Nodes).
+
+                      STRICT TAXONOMY (Do not invent types):
+                      - 'character': Person, being, or sentient AI.
+                      - 'location': Place, region, city, room, planet.
+                      - 'object': Item, artifact, weapon, vehicle, tool.
+                      - 'event': Specific historical or plot event (e.g. "The Great War").
+                      - 'faction': Group, organization, family, guild, army.
+                      - 'concept': Magic system, law, philosophy, species, technology.
+
+                      AMBIGUITY RESOLUTION:
+                      - If ambiguous, choose the CLOSEST type from the list.
+                      - Example: "The Force" -> 'concept'. "Excalibur" -> 'object'.
+
+                      OUTPUT FORMAT (JSON Array):
+                      [
+                        {
+                          "name": "Exact Name",
+                          "type": "character",
+                          "description": "Brief definition based ONLY on this text (max 30 words).",
+                          "aliases": ["Alias1", "Nickname"]
+                        }
+                      ]
+
+                      TEXT CONTENT:
+                      ${content.substring(0, 30000)}
+                    `;
+
+                    const result = await model.generateContent(prompt);
+                    const responseText = result.response.text();
+                    const parsedEntities = parseSecureJSON(responseText, "NexusNodeParser");
+
+                    if (parsedEntities.error || !Array.isArray(parsedEntities)) {
+                        logger.warn(`   ⚠️ Extraction failed for ${file.name}: Malformed JSON.`);
+                        return;
+                    }
+
+                    // Store result for sequential processing
+                    batchResults.push({ file, entities: parsedEntities });
+                    processedCount++;
+
+                } catch (fileError) {
+                    logger.error(`   ❌ Failed to process ${file.name}:`, fileError);
+                }
+            }));
+
+            // PHASE 2: SEQUENTIAL UPSERT (DB)
+            // Critical to avoid "Last Write Wins" race conditions if same entity appears in multiple files in batch
+            const entitiesRef = db.collection("users").doc(userId).collection("projects").doc(projectId).collection("entities");
+
+            for (const res of batchResults) {
+                const { file, entities } = res;
+                // Note: We use a batch write per file or small groups, but we must await the READ before WRITE for each entity
+                // Since firestore batch doesn't support "update based on read" atomically without transaction,
+                // and transactions limit 500 ops... iterating sequentially with individual transactions or simple atomic merges is safest.
+                // Given "Upsert" logic requires reading `foundInFiles`, we must read first.
+
+                // Optimization: Group by Entity ID within this file result?
+                // Actually, just process sequentially. Speed < Integrity here.
+
+                for (const entity of entities) {
+                    if (!entity.name || !entity.type) continue;
+
+                    const rawName = entity.name.trim();
+                    const rawType = entity.type.toLowerCase().trim();
+                    const validTypes = ['character', 'location', 'object', 'event', 'faction', 'concept'];
+                    const finalType = validTypes.includes(rawType) ? rawType : 'concept';
+
+                    const nodeId = generateDeterministicId(projectId, rawName, finalType);
+                    const nodeRef = entitiesRef.doc(nodeId);
+
+                    try {
+                        await db.runTransaction(async (transaction) => {
+                            const docSnap = await transaction.get(nodeRef);
+                            const existingData = docSnap.exists ? docSnap.data() as GraphNode : undefined;
+
+                            const fileEntry = {
+                                fileId: file.id,
+                                fileName: file.name,
+                                lastSeen: new Date().toISOString()
+                            };
+
+                            // MERGE LOGIC (Inside Transaction = Safe)
+                            let newFoundInFiles = [fileEntry];
+                            if (existingData?.foundInFiles) {
+                                const others = existingData.foundInFiles.filter(f => f.fileId !== file.id);
+                                newFoundInFiles = [...others, fileEntry];
+                            }
+
+                            let finalDescription = entity.description;
+                            if (existingData?.locked) {
+                                finalDescription = existingData.description;
+                            }
+
+                            const newAliases = Array.isArray(entity.aliases) ? entity.aliases : [];
+                            const existingAliases = existingData?.aliases || [];
+                            const mergedAliases = Array.from(new Set([...existingAliases, ...newAliases]));
+
+                            const payload: any = {
+                                id: nodeId,
+                                name: rawName,
+                                type: finalType,
+                                projectId: projectId,
+                                description: finalDescription,
+                                aliases: mergedAliases,
+                                foundInFiles: newFoundInFiles,
+                                lastUpdated: new Date().toISOString()
+                            };
+
+                            if (existingData?.locked) payload.locked = true;
+                            if (!existingData?.meta) payload.meta = { tier: 'secondary' };
+
+                            transaction.set(nodeRef, payload, { merge: true });
+                        });
+                        nodesUpserted++;
+                    } catch (txError) {
+                        logger.error(`   💥 Transaction failed for node ${rawName}:`, txError);
+                    }
+                }
+            }
+        }
+
+        logger.info(`✅ World Manifest Synced: ${processedCount} files scanned, ${nodesUpserted} node operations committed.`);
+        return { success: true, filesProcessed: processedCount, nodesUpserted: nodesUpserted };
+
+    } catch (error: any) {
+        logger.error("Error en syncWorldManifest:", error);
+        throw new HttpsError("internal", error.message);
     }
   }
 );
