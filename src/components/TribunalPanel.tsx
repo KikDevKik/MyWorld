@@ -80,6 +80,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 <button
                     onClick={onClose}
                     className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
+                    aria-label="Cerrar tribunal"
                 >
                     <X size={24} />
                 </button>
@@ -92,9 +93,14 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 <div className="flex-1 flex flex-col p-6 gap-4 border-b border-titanium-800 bg-titanium-950/50 overflow-y-auto">
 
                     {/* 🟢 MODE TOGGLE */}
-                    <div className="flex bg-titanium-900 p-1 rounded-lg border border-titanium-800">
+                    <div
+                        className="flex bg-titanium-900 p-1 rounded-lg border border-titanium-800"
+                        role="group"
+                        aria-label="Selector de modo de entrada"
+                    >
                         <button
                             onClick={() => setMode('manual')}
+                            aria-pressed={mode === 'manual'}
                             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'manual'
                                     ? 'bg-titanium-800 text-white shadow-sm'
                                     : 'text-titanium-400 hover:text-titanium-200'
@@ -105,6 +111,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                         </button>
                         <button
                             onClick={() => setMode('file')}
+                            aria-pressed={mode === 'file'}
                             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'file'
                                     ? 'bg-titanium-800 text-white shadow-sm'
                                     : 'text-titanium-400 hover:text-titanium-200'
@@ -126,6 +133,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                 onChange={(e) => setText(e.target.value)}
                                 placeholder="Pega aquí tu escena, capítulo o fragmento..."
                                 className="flex-1 bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl p-4 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all resize-none font-mono text-sm leading-relaxed"
+                                aria-label="Texto a juzgar"
                             />
                         ) : (
                             <div className="flex-1 bg-titanium-900 border border-titanium-700 rounded-xl p-8 flex flex-col items-center justify-center text-center gap-4">
@@ -180,7 +188,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 </div>
 
                 {/* RIGHT COLUMN: VERDICTS */}
-                <div className="flex-1 p-6 overflow-y-auto bg-titanium-900/30">
+                <div className="flex-1 p-6 overflow-y-auto bg-titanium-900/30" aria-live="polite">
                     {!result ? (
                         <div className="h-full flex flex-col items-center justify-center text-titanium-600 opacity-50">
                             <Scale size={64} className="mb-4" />
