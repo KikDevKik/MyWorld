@@ -14,6 +14,7 @@ export interface NodeRelation {
 export interface GraphNode {
   id: string;            // DETERMINISTIC ID: sha256(projectId + name_normalized)
   name: string;
+  label?: string;        // Mapped from name for UI/DB compatibility
   type: EntityType;      // Discriminador para la colección unificada 'entities'
   projectId: string;
 
