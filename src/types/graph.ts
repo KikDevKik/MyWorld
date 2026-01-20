@@ -2,6 +2,15 @@
 // El "Qué" o "Quién" (Unifica Characters, Locations, Objects, Events)
 export type EntityType = 'character' | 'location' | 'object' | 'event' | 'faction' | 'concept';
 
+export interface NodeRelation {
+  targetId: string;
+  targetName: string;
+  targetType: EntityType; // Vital for Ghost Nodes
+  relation: 'ENEMY' | 'ALLY' | 'MENTOR' | 'FAMILY' | 'NEUTRAL';
+  context: string; // The "Why" (snippet)
+  sourceFileId: string; // For updates/overwrites
+}
+
 export interface GraphNode {
   id: string;            // DETERMINISTIC ID: sha256(projectId + name_normalized)
   name: string;
@@ -12,6 +21,8 @@ export interface GraphNode {
   description?: string;
   aliases?: string[];
   locked?: boolean;      // True = Un humano ha verificado esto. La IA no debe sobrescribir description/type.
+
+  relations?: NodeRelation[];
 
   // Evidencia de origen (Unión de todos los archivos donde aparece)
   foundInFiles?: Array<{

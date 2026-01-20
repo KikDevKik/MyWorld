@@ -806,7 +806,7 @@ export const syncWorldManifest = onCall(
                     // 2. AI Extraction
                     const prompt = `
                       ACT AS: Expert Taxonomist & Knowledge Graph Architect.
-                      TASK: Analyze the provided text and extract semantic entities (Nodes).
+                      TASK: Analyze the provided text and extract semantic entities (Nodes) AND their relationships.
 
                       STRICT TAXONOMY (Do not invent types):
                       - 'character': Person, being, or sentient AI.
@@ -816,9 +816,18 @@ export const syncWorldManifest = onCall(
                       - 'faction': Group, organization, family, guild, army.
                       - 'concept': Magic system, law, philosophy, species, technology.
 
-                      AMBIGUITY RESOLUTION:
-                      - If ambiguous, choose the CLOSEST type from the list.
-                      - Example: "The Force" -> 'concept'. "Excalibur" -> 'object'.
+                      RELATIONSHIP TAXONOMY (Strict):
+                      - 'ENEMY': Hate, conflict, rival, victim/killer.
+                      - 'ALLY': Friend, partner, support, ally.
+                      - 'MENTOR': Teacher, master, guide, boss.
+                      - 'FAMILY': Relative, spouse, sibling, parent/child.
+                      - 'NEUTRAL': Co-worker, neighbor, acquaintance, location link.
+
+                      INSTRUCTIONS:
+                      1. Extract entities as before.
+                      2. Extract relationships found EXPLICITLY in the text.
+                      3. INFER 'targetType' for relationships (Best Guess).
+                      4. 'context' must be a short snippet (max 15 words) proving the link.
 
                       OUTPUT FORMAT (JSON Array):
                       [
@@ -826,7 +835,15 @@ export const syncWorldManifest = onCall(
                           "name": "Exact Name",
                           "type": "character",
                           "description": "Brief definition based ONLY on this text (max 30 words).",
-                          "aliases": ["Alias1", "Nickname"]
+                          "aliases": ["Alias1", "Nickname"],
+                          "relationships": [
+                             {
+                               "target": "Target Name",
+                               "type": "ENEMY",
+                               "targetType": "character",
+                               "context": "Stabbed him in the back."
+                             }
+                          ]
                         }
                       ]
 
@@ -914,6 +931,26 @@ export const syncWorldManifest = onCall(
                                 foundInFiles: newFoundInFiles,
                                 lastUpdated: new Date().toISOString()
                             };
+
+                            // MERGE RELATIONS (Robust)
+                            if (entity.relationships && Array.isArray(entity.relationships)) {
+                                const newRelations = entity.relationships.map((rel: any) => ({
+                                    targetId: generateDeterministicId(projectId, rel.target || "Unknown", rel.targetType || "concept"),
+                                    targetName: rel.target || "Unknown Entity",
+                                    targetType: rel.targetType || 'concept',
+                                    relation: rel.type || 'NEUTRAL',
+                                    context: rel.context || "No context provided.",
+                                    sourceFileId: file.id
+                                }));
+
+                                let finalRelations = newRelations;
+                                if (existingData?.relations) {
+                                    // Remove old relations from this file to prevent duplicates, keep others
+                                    const others = existingData.relations.filter((r: any) => r.sourceFileId !== file.id);
+                                    finalRelations = [...others, ...newRelations];
+                                }
+                                payload.relations = finalRelations;
+                            }
 
                             if (existingData?.locked) payload.locked = true;
                             if (!existingData?.meta) payload.meta = { tier: 'secondary' };

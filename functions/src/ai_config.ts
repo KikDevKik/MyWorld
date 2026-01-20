@@ -1,5 +1,5 @@
 export const MODEL_HIGH_REASONING = "gemini-2.0-flash-exp";
-export const MODEL_LOW_COST = "gemini-2.0-flash";
+export const MODEL_LOW_COST = "gemini-2.5-flash";
 
 export const TEMP_PRECISION = 0.3;
 export const TEMP_CREATIVE = 0.7;
