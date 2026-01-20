@@ -24,6 +24,7 @@ import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TE
 import { marked } from 'marked';
 import JSON5 from 'json5';
 import { generateDeterministicId } from "./utils/idGenerator";
+import { sanitizeHtml } from "./utils/sanitizer";
 import { GraphNode, EntityType } from "./types/graph";
 
 const htmlToPdfmake = require('html-to-pdfmake');
@@ -3635,9 +3636,12 @@ export const compileManuscript = onCall(
       // --- HELPER: PARSE MARKDOWN TO PDFMAKE NODES (VIA HTML) ---
       const parseContentToNodes = (text: string, isSmartBreakEnabled: boolean) => {
         // 1. Markdown -> HTML
-        const html = marked.parse(text);
+        const rawHtml = marked.parse(text);
 
-        // 2. HTML -> PDFMake
+        // 2. Sanitize HTML (Security Fix)
+        const html = sanitizeHtml(rawHtml as string);
+
+        // 3. HTML -> PDFMake
         const { window } = new JSDOM("");
         // Ensure default styles are mapped if needed, or rely on global docDefinition styles
         const converted = htmlToPdfmake(html, { window: window });
