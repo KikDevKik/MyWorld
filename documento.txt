@@ -1,0 +1,73 @@
+================================================================================
+REPORTE TÉCNICO Y FUNCIONAL: ESTADO DEL DIRECTOR DE ESCENA (V4.0)
+FECHA: 21 Enero 2026
+AUTOR: Jules (Sistemas)
+PARA: Arquitecto del Proyecto
+================================================================================
+1. ANÁLISIS DE SITUACIÓN ACTUAL: OPERATIVO
+--------------------------------------------------------------------------------
+El Director de Escena ha dejado de ser "solo un chatbot". La arquitectura que antes estaba "dormida" ha sido despertada y conectada. La interfaz `DirectorPanel.tsx` ahora funciona como un verdadero Puente de Mando, integrando las herramientas de análisis y gestión de memoria que antes eran invisibles.
+
+1.1 FUNCIONAMIENTO TÉCNICO ACTUAL (ESTADO REAL)
+El componente `DirectorPanel.tsx` ahora opera con una arquitectura de "Tres Cerebros":
+
+A. CEREBRO ACTIVO (STRATEGIST / WAR ROOM):
+- **Interfaz Expandida:** El panel responde al ancho de la ventana. En modos 'Strategist' (>500px) y 'War Room' (>900px), despliega una barra lateral de herramientas (`DirectorTools.tsx`).
+- **Comandos Visuales:** Ya no es necesario saber "prompts". Existen botones físicos para invocar a los agentes especializados:
+  - `[🔍 Inspector]`: Ejecuta `forgeAnalyzer` sobre el archivo activo (requiere ID de Drive).
+  - `[⚖️ Tribunal]`: Convoca a `summonTheTribunal` para juzgar el texto.
+  - `[🧠 Memoria]`: Fuerza una sincronización de contexto cliente-servidor (`handleContextSync`).
+
+B. CEREBRO PASIVO (EL RADAR DE DRIFT):
+- **HUD de Estado:** La parte superior del panel ahora muestra un indicador circular de "Integridad del Canon" (Drift Score).
+- **Visualización de Alertas:** Los resultados de `scanProjectDrift` ya no son invisibles. Si el sistema detecta incoherencias (> 0.7 Drift), inyecta "Tarjetas de Alerta" directamente en el flujo del chat.
+- **Acción Inmediata:** Cada alerta incluye botones funcionales:
+  - `[PURGAR]`: Ejecuta `purgeEcho` para eliminar la alucinación de la base de datos vectorial.
+  - `[RESCATAR]`: Ejecuta `rescueEcho` para marcar el conflicto y avisar al autor.
+
+C. GESTIÓN DE SESIONES:
+- **Memoria Persistente:** El panel lateral en modo 'War Room' permite navegar por el historial de conversaciones anteriores (`getForgeSessions`), convirtiendo al Director en una bitácora de desarrollo.
+
+--------------------------------------------------------------------------------
+2. INVENTARIO DE CAPACIDADES "DESPERTADAS"
+--------------------------------------------------------------------------------
+Las funciones que en el reporte V3.3 estaban marcadas como "Dormidas" ahora tienen estatus: **CONECTADO**.
+
+A. `forgeAnalyzer` (EL INSPECTOR)
+- **Estado:** ✅ ACTIVO EN UI.
+- **Implementación:** Botón `<Search />` en la barra de herramientas.
+- **Resultado:** Genera una `AnalysisCard` dentro del chat con el desglose de personajes y detección de entidades.
+
+B. `summonTheTribunal` (EL JUICIO)
+- **Estado:** ✅ ACTIVO EN UI.
+- **Implementación:** Botón `<Gavel />` en la barra de herramientas.
+- **Resultado:** Genera una `VerdictCard` con la crítica de los tres jueces (Arquitecto, Bardo, Hater).
+
+C. `scanProjectDrift` (MONITOR DE DRIFT)
+- **Estado:** ✅ VISIBLE.
+- **Implementación:** El "HUD" superior muestra el puntaje global. Las alertas críticas aparecen como mensajes del sistema tipo "DRIFT DETECTED" con desglose por categoría (Identidad, Geografía, Continuidad).
+
+D. `rescueEcho` / `purgeEcho` (MICRO-CIRUGÍA)
+- **Estado:** ✅ ACCESIBLES.
+- **Implementación:** Botones integrados en cada tarjeta de alerta de Drift dentro del chat.
+
+--------------------------------------------------------------------------------
+3. OBSERVACIONES Y LIMITACIONES ACTUALES
+--------------------------------------------------------------------------------
+Aunque el sistema es funcional, existen matices respecto al "Roadmap" original:
+
+3.1 INTELIGENCIA PROACTIVA (OPORTUNIDADES)
+- **Situación:** `scanProjectDrift` sigue enfocado estrictamente en la detección de errores (Drift negativo). No existe aún la lógica para sugerir "Oportunidades" (ej: "Personaje inactivo por 10 capítulos").
+- **Mitigación:** El Prompt del Sistema (`useDirectorChat`) instruye al Director a manejar las alertas de Drift profesionalmente, pero la iniciativa de "sugerencias creativas" depende del modelo de chat (`chatWithGem`), no del escáner vectorial.
+
+3.2 INTEGRACIÓN CON EDITOR
+- **Situación:** La integración visual en el `HybridEditor` (subrayado de texto conflictivo) sigue siendo una deuda técnica. El Director detecta el problema y lo muestra en el chat, pero no "pinta" el editor de texto.
+
+--------------------------------------------------------------------------------
+CONCLUSIÓN
+--------------------------------------------------------------------------------
+El Director de Escena ha evolucionado a su versión **V4.0 (Operativa)**. Ya no es un chat ciego; es una consola de mando que permite invocar a todos los agentes del backend y gestionar la salud de la memoria del proyecto. El usuario tiene control total para Auditar (Inspector), Juzgar (Tribunal) y Limpiar (Drift) sin salir de la interfaz.
+
+**PRÓXIMOS PASOS RECOMENDADOS:**
+1. Desarrollar la lógica de "Oportunidades" en `guardian.ts`.
+2. Implementar los marcadores visuales en `HybridEditor` para cerrar el ciclo de feedback visual.
