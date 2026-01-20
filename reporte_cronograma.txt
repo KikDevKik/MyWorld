@@ -1,0 +1,70 @@
+REPORTE TÉCNICO: EL CRONOGRAMA (THE CHRONICLER)
+=================================================
+Fecha: 24/02/2026
+Sistema: MyWorld / Titan Engine
+Componente: TimelinePanel (GemId: 'cronograma')
+Backend: Cloud Function 'extractTimelineEvents'
+
+1. INTRODUCCIÓN
+-------------------------------------------------
+"El Cronograma" es una de las "Herramientas Pesadas" (Heavy Tools) del ecosistema MyWorld, diseñada para asistir a los escritores en la gestión de la continuidad temporal de sus historias. A diferencia de herramientas de edición de texto, esta función actúa como un extractor de metadatos, utilizando Inteligencia Artificial para leer narrativa y convertir referencias temporales vagas (ej: "hace tres inviernos") en datos estructurados y visualizables.
+
+2. EVOLUCIÓN Y CAMBIOS (HISTORIAL)
+-------------------------------------------------
+La herramienta ha sufrido varias transformaciones arquitectónicas para alinearse con la infraestructura "Titan V4":
+
+A. Migración de Estado UI (Arquitectura Flux/Zustand):
+   Originalmente, la visibilidad del panel dependía de lógica dispersa en `App.tsx` (props como `activeGemId`). En la versión actual, se ha migrado completamente a `useLayoutStore`. Esto centraliza el control de la interfaz, permitiendo que el Cronograma se comporte como una vista exclusiva (`activeView === 'cronograma'`) que oculta la barra lateral para maximizar el espacio de trabajo.
+
+B. Integración con SentinelShell:
+   Se ha incorporado al layout unificado `SentinelShell`. Ahora coexiste con otras herramientas pesadas (Forja, Laboratorio) bajo una estructura común de renderizado condicional en la "Zona B" (Main Stage), eliminando código duplicado de modales antiguos.
+
+C. Hardening de Seguridad (Circuit Breakers):
+   Se ha implementado el prop `isSecurityReady`. El componente ahora se niega a cargar datos o escuchar cambios en tiempo real hasta que el sistema "Sentinel" confirma que el App Check de Firebase ha validado la integridad del cliente. Esto previene fugas de datos si la app se ejecuta en entornos no autorizados.
+
+D. Optimización de IA (Gemini Flash):
+   El backend ha transicionado al uso de `MODEL_LOW_COST` (Gemini 1.5 Flash). Originalmente se usaban modelos más pesados, pero dado que la extracción de fechas requiere alta velocidad y baja latencia más que razonamiento profundo, este cambio ha mejorado drásticamente la velocidad de análisis ("Analizando..." ahora es casi instantáneo).
+
+3. FUNCIONALIDAD ACTUAL (CÓMO FUNCIONA)
+-------------------------------------------------
+El flujo de trabajo se divide en dos capas: Cliente (React) y Servidor (Node.js/Firebase).
+
+A. Interfaz de Usuario (TimelinePanel.tsx):
+   - Configuración de Ancla: El usuario define manualmente un `currentYear` (Año Actual de la narración) y un `eraName`. Esto es crucial porque la IA necesita un punto de referencia "cero" para calcular fechas relativas.
+   - Disparador Manual: La herramienta no es pasiva. El usuario debe abrir un archivo en el editor y pulsar explícitamente "Analizar Archivo".
+   - Visualización: Los eventos se renderizan en una línea de tiempo vertical (izquierda/derecha alternada).
+   - Gestión de Estados:
+     * Sugerido (Amarillo): Eventos recién detectados por la IA. Requieren validación humana.
+     * Confirmado (Naranja/Titanio): Eventos aprobados por el usuario.
+   - Navegación: Cada tarjeta de evento incluye un enlace ("Ver Fuente") que permite reabrir el archivo original donde se detectó el evento.
+
+B. Lógica de Backend (extractTimelineEvents):
+   - Entrada: Recibe `content` (texto plano del archivo), `currentYear` y `eraName`.
+   - Procesamiento AI: Se envía un prompt a Gemini instruyéndole actuar como "Cronista".
+   - Cálculo Absoluto: La IA detecta frases como "cuando tenía 5 años" (sabiendo que el personaje tiene 20 en el año actual 3050) y calcula `absoluteYear: 3035`.
+   - Persistencia: Los resultados se guardan en Firestore bajo la colección `TDB_Timeline/{userId}/events`. No se tocan los archivos físicos en Google Drive.
+
+4. LIMITACIONES Y PROBLEMAS DETECTADOS
+-------------------------------------------------
+A pesar de ser funcional, la herramienta presenta deudas técnicas y limitaciones de diseño significativas:
+
+A. Alcance Fragmentado (Silo por Archivo):
+   El problema más crítico es que analiza **un archivo a la vez**. No existe un botón de "Analizar Bóveda Completa". Para construir una línea de tiempo global, el usuario debe abrir manualmente cada capítulo y ejecutar el análisis, lo cual es tedioso para proyectos grandes.
+
+B. Dependencia del "Año Actual" (Riesgo de Datos):
+   Si el usuario cambia el `currentYear` en el panel y analiza un archivo que ocurre en el pasado (Flashback) sin ajustar ese input, la IA calculará mal todas las fechas absolutas. El sistema asume que el texto que se le pasa ocurre en el "Año Actual" definido en la UI, careciendo de detección automática de contexto temporal del archivo.
+
+C. Aislamiento de Datos (Firestore vs Drive):
+   Los eventos se viven exclusivamente en Firestore (`TDB_Timeline`).
+   - Problema: Si el usuario borra su base de datos o migra de cuenta, pierde la cronología.
+   - Inconsistencia: El proyecto define una `chronologyPath` en la configuración global (`ProjectConfig`), lo que sugiere la intención de guardar un "Archivo Maestro de Cronología" en Google Drive, pero la implementación actual **ignora completamente** esta configuración. La cronología no se "materializa" en un archivo físico.
+
+D. Falta de Sincronización Automática (Drift):
+   Si el usuario edita el texto y cambia "hace diez años" por "hace veinte años", el evento en la línea de tiempo **no se actualiza**. Se queda obsoleto hasta que el usuario vuelva a pulsar "Analizar" y, peor aún, podría generar duplicados si no se gestiona bien la limpieza previa.
+
+E. Alucinaciones de Contexto:
+   Al analizar fragmentos aislados, la IA puede malinterpretar "el día del accidente" como un evento único, creando múltiples eventos separados para lo mismo si se menciona en varios capítulos, sin capacidad de deduplicación inteligente global.
+
+5. CONCLUSIÓN
+-------------------------------------------------
+El "Cronograma" actual es una herramienta Beta Funcional eficiente para análisis micro (capítulo a capítulo), pero carece de la visión macro (Global World State) necesaria para ser un verdadero gestor de continuidad. Su evolución futura debería apuntar a utilizar la `chronologyPath` para persistencia física y permitir escaneos masivos en segundo plano (vía el sistema "Janitor" o "Guardian") en lugar de depender de la interacción manual archivo por archivo.
