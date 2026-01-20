@@ -48,7 +48,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     // --- 1. DATA FETCHING (CONDITIONAL) ---
     // Only fetch if propNodes is NOT provided (Backward Compatibility / Fallback)
     useEffect(() => {
+        console.log("NexusGraph Mounting...");
         if (propNodes) {
+            console.log("Nodes received:", propNodes.length);
             setLoading(false);
             return;
         }
@@ -323,7 +325,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     // --- 4. RENDER GRAPH ---
     return (
         <div
-            className="absolute inset-0 z-0 bg-black/90 backdrop-blur-md overflow-hidden"
+            className="absolute inset-0 z-0 bg-black/90 backdrop-blur-md overflow-hidden pointer-events-auto touch-auto"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
