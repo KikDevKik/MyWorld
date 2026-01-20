@@ -24,7 +24,7 @@ import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
 import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
-import { ProjectConfigProvider, useProjectConfig } from './components/ProjectConfigContext';
+import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfigContext";
 import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL

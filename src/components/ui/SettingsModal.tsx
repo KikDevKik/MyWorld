@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna } from 'lucide-react';
-import { useProjectConfig } from '../ProjectConfigContext';
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
 
 interface SettingsModalProps {

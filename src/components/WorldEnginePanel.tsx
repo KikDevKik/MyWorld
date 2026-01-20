@@ -11,7 +11,7 @@ import {
     Diamond
 } from 'lucide-react';
 import { GemId } from '../types';
-import { useProjectConfig } from '../components/ProjectConfigContext';
+import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import InterrogationModal from './ui/InterrogationModal';
 import CrystallizeModal from './ui/CrystallizeModal';
 import MarkdownRenderer from './ui/MarkdownRenderer';

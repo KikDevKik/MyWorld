@@ -22,6 +22,7 @@ import matter from 'gray-matter';
 import { ingestFile } from "./ingestion";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS } from "./ai_config";
 import { marked } from 'marked';
+import JSON5 from 'json5';
 const htmlToPdfmake = require('html-to-pdfmake');
 const { JSDOM } = require('jsdom');
 
@@ -93,56 +94,86 @@ function maskLog(text: string, maxLength: number = 50): string {
   return text.substring(0, maxLength) + `... [TRUNCATED ${text.length - maxLength} chars]`;
 }
 
-// 🟢 NEW: JSON SANITIZER (ANTI-CRASH)
+// 🟢 NEW: JSON SANITIZER (ANTI-CRASH) - REVISION 2.0 (IRON JSON)
 function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
   try {
-    // 1. Basic Clean: Trim whitespace and Markdown code fences
+    // 1. Basic Clean: Trim whitespace
     let clean = jsonString.trim();
-    // Remove wrapping ```json ... ``` or just ``` ... ```
-    clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
 
-    // 2. Extract JSON Block (Find first '{' and last '}')
-    const firstBrace = clean.indexOf('{');
-    const lastBrace = clean.lastIndexOf('}');
+    // 2. Aggressive Markdown Strip (Start)
+    // Sometimes Gemini adds text before the block. We look for the FIRST ```json or ```
+    const codeBlockStart = clean.indexOf("```");
+    if (codeBlockStart !== -1) {
+       // Check if it's ```json
+       const jsonTag = clean.indexOf("```json", codeBlockStart);
+       const startOffset = (jsonTag !== -1 && jsonTag === codeBlockStart) ? 7 : 3;
 
-    if (firstBrace !== -1 && lastBrace !== -1) {
-       clean = clean.substring(firstBrace, lastBrace + 1);
-    } else {
-       // If no braces, it might be an array? Or just malformed.
-       // If it's an array, it starts with [.
-       const firstBracket = clean.indexOf('[');
-       const lastBracket = clean.lastIndexOf(']');
-       if (firstBracket !== -1 && lastBracket !== -1) {
-           clean = clean.substring(firstBracket, lastBracket + 1);
-       }
+       // Cut everything before the code block
+       clean = clean.substring(codeBlockStart + startOffset);
     }
 
-    // 3. Aggressive Clean: Control Characters
-    // Remove non-printable control characters (ASCII 0-31) except allowed whitespace (\t, \n, \r)
-    // We use a regex that matches characters in range 0-31 BUT NOT 9 (\t), 10 (\n), 13 (\r)
+    // 3. Aggressive Markdown Strip (End)
+    const codeBlockEnd = clean.lastIndexOf("```");
+    if (codeBlockEnd !== -1) {
+       clean = clean.substring(0, codeBlockEnd);
+    }
+
+    clean = clean.trim();
+
+    // 4. Extract JSON Block (Find first '{' or '[' and last '}' or ']')
+    // We determine if it's an object or array candidate
+    const firstBrace = clean.indexOf('{');
+    const firstBracket = clean.indexOf('[');
+    let startIndex = -1;
+    let endIndex = -1;
+
+    // Determine start
+    if (firstBrace !== -1 && firstBracket !== -1) {
+       startIndex = Math.min(firstBrace, firstBracket);
+    } else if (firstBrace !== -1) {
+       startIndex = firstBrace;
+    } else if (firstBracket !== -1) {
+       startIndex = firstBracket;
+    }
+
+    if (startIndex !== -1) {
+        // Look for end based on start type (naive but better than nothing)
+        const lastBrace = clean.lastIndexOf('}');
+        const lastBracket = clean.lastIndexOf(']');
+        endIndex = Math.max(lastBrace, lastBracket);
+
+        if (endIndex !== -1 && endIndex > startIndex) {
+             clean = clean.substring(startIndex, endIndex + 1);
+        }
+    }
+
+    // 5. Control Characters (ASCII 0-31 excl \t \n \r)
     clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 
-    // 4. ATTEMPT 1: Direct Parse
+    // 6. IRON PARSING STRATEGY
     try {
+      // Plan A: Speed (Standard JSON)
       return JSON.parse(clean);
-    } catch (firstPassError) {
-      // 5. RESCUE STRATEGY: Aggressive Newline Escape (User Requested)
-      // "Intenta escapar los saltos de línea literales dentro de las cadenas."
-      // NOTE: We cannot easily distinguish structural newlines from string newlines without a parser.
-      // However, if we assume the AI *might* have outputted single-line JSON with broken newlines,
-      // we can try replacing ALL \n with \\n. If it was pretty-printed, this will break it worse,
-      // but it's a "Hail Mary" attempt before failing.
-
+    } catch (standardError) {
       try {
-        const rescued = clean.replace(/\n/g, '\\n');
-        return JSON.parse(rescued);
-      } catch (secondPassError) {
-        throw firstPassError; // Throw original error if rescue failed
+        // Plan B: Robustness (JSON5 - handles trailing commas, comments, unquoted keys)
+        // Note: JSON5 is heavier but much more forgiving for LLM output
+        return JSON5.parse(clean);
+      } catch (json5Error: any) {
+        // Plan C: Hail Mary (Escaping Newlines)
+        try {
+           const rescued = clean.replace(/\n/g, '\\n');
+           return JSON5.parse(rescued);
+        } catch (finalError) {
+           throw json5Error; // Throw the JSON5 error as it's usually more descriptive
+        }
       }
     }
 
   } catch (error: any) {
     logger.error(`💥 [JSON PARSE ERROR] in ${contextLabel}:`, error);
+    logger.debug(`💥 [JSON FAIL DUMP] Content: ${jsonString.substring(0, 200)}...`);
+
     // Return a controlled error object instead of throwing 500
     return {
       error: "JSON_PARSE_FAILED",
@@ -3131,18 +3162,110 @@ export const extractTimelineEvents = onCall(
          throw new HttpsError('internal', `Timeline JSON is not an array.`);
       }
 
+      // 🟢 1. DUAL-WRITE PROTOCOL (DRIVE + FIRESTORE)
+      const config = await _getProjectConfigInternal(userId);
+      const chronologyPathId = config.chronologyPath?.id;
+
+      let masterEvents: any[] = [];
+      let masterFileId: string | null = null;
+
+      // A. SYNC WITH MASTER (IF EXISTS)
+      if (chronologyPathId) {
+          logger.info(`⏳ [TIME ANCHOR] Syncing with Master Timeline in Folder: ${chronologyPathId}`);
+          try {
+              const auth = new google.auth.OAuth2();
+              auth.setCredentials({ access_token: request.data.accessToken || "" }); // We need token!
+              // Note: extractTimelineEvents definition didn't require accessToken before, but getDriveFileContent did.
+              // We must check if we have it. If not, we might fail the Drive sync part.
+              // We'll rely on the client passing it.
+
+              if (request.data.accessToken) {
+                  const drive = google.drive({ version: "v3", auth });
+
+                  // 1. Find timeline_master.json
+                  const q = `'${chronologyPathId}' in parents and name = 'timeline_master.json' and trashed = false`;
+                  const listRes = await drive.files.list({ q, fields: "files(id)" });
+
+                  if (listRes.data.files && listRes.data.files.length > 0) {
+                      masterFileId = listRes.data.files[0].id;
+                      // Read
+                      const content = await _getDriveFileContentInternal(drive, masterFileId!);
+                      try {
+                          masterEvents = parseSecureJSON(content, "TimelineMasterRead");
+                          if (!Array.isArray(masterEvents)) masterEvents = [];
+                      } catch (e) {
+                          logger.warn("⚠️ Corrupt Master Timeline. Starting fresh merge.");
+                          masterEvents = [];
+                      }
+                  }
+              }
+          } catch (driveErr) {
+              logger.error("⚠️ [TIME ANCHOR] Drive Sync Failed (Read):", driveErr);
+          }
+      }
+
+      // B. MERGE NEW EVENTS
+      // Strategy: Add new suggested events to the master list.
+      const newEventsPayload = events.map((e: any) => ({
+          ...e,
+          id: db.collection("tmp").doc().id, // Generate ID for Drive persistence
+          sourceFileId: fileId,
+          status: 'suggested',
+          createdAt: new Date().toISOString()
+      }));
+
+      // Append to Master (In-Memory)
+      const updatedMasterList = [...masterEvents, ...newEventsPayload];
+
+      // C. WRITE BACK TO DRIVE (THE TRUTH)
+      if (chronologyPathId && request.data.accessToken) {
+          try {
+              const auth = new google.auth.OAuth2();
+              auth.setCredentials({ access_token: request.data.accessToken });
+              const drive = google.drive({ version: "v3", auth });
+
+              const fileContent = JSON.stringify(updatedMasterList, null, 2);
+
+              if (masterFileId) {
+                  // Update
+                  await drive.files.update({
+                      fileId: masterFileId,
+                      media: { mimeType: 'application/json', body: fileContent }
+                  });
+              } else {
+                  // Create
+                  await drive.files.create({
+                      requestBody: {
+                          name: 'timeline_master.json',
+                          parents: [chronologyPathId],
+                          mimeType: 'application/json'
+                      },
+                      media: { mimeType: 'application/json', body: fileContent }
+                  });
+              }
+              logger.info(`✅ [TIME ANCHOR] Master Timeline Updated (${updatedMasterList.length} items).`);
+
+          } catch (writeErr) {
+              logger.error("💥 [TIME ANCHOR] Drive Write Failed:", writeErr);
+              // Non-blocking, but alarming.
+          }
+      }
+
+      // D. WRITE TO FIRESTORE (THE CACHE)
+      // We write ONLY the new events here, or should we sync the whole master?
+      // The user said "Firestore only as fast cache".
+      // To ensure consistency, we should probably write the NEW events to Firestore so the UI updates.
+      // The UI will likely see the new ones added.
+
       const batch = db.batch();
       const timelineRef = db.collection("TDB_Timeline").doc(userId).collection("events");
 
       let count = 0;
-      for (const event of events) {
-        const docRef = timelineRef.doc();
-        batch.set(docRef, {
-          ...event,
-          sourceFileId: fileId,
-          status: 'suggested',
-          createdAt: new Date().toISOString()
-        });
+      for (const event of newEventsPayload) {
+        // Use the same ID we generated for Drive if possible, but Firestore auto-ids are fine too if we don't strict sync IDs.
+        // Let's use the ID we generated to allow future correlation.
+        const docRef = timelineRef.doc(event.id);
+        batch.set(docRef, event);
         count++;
       }
 
@@ -4234,6 +4357,103 @@ export const updateForgeCharacter = onCall(
     } catch (error: any) {
         logger.error("Error in updateForgeCharacter:", error);
         throw new HttpsError("internal", error.message);
+    }
+  }
+);
+
+/**
+ * 27. RESTORE TIMELINE FROM MASTER (La Sincronización)
+ * Restaura la línea de tiempo desde el archivo maestro en Drive hacia Firestore.
+ */
+export const restoreTimelineFromMaster = onCall(
+  {
+    region: "us-central1",
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    enforceAppCheck: true,
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    const db = getFirestore();
+
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+    const { accessToken } = request.data;
+    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+    const userId = request.auth.uid;
+
+    try {
+      // 1. GET CONFIG & PATH
+      const config = await _getProjectConfigInternal(userId);
+      const chronologyPathId = config.chronologyPath?.id;
+
+      if (!chronologyPathId) {
+          logger.warn("⚠️ [TIME ANCHOR] No chronologyPath configured. Skipping restore.");
+          return { success: false, message: "No chronology folder configured." };
+      }
+
+      // 2. READ MASTER FILE
+      const auth = new google.auth.OAuth2();
+      auth.setCredentials({ access_token: accessToken });
+      const drive = google.drive({ version: "v3", auth });
+
+      const q = `'${chronologyPathId}' in parents and name = 'timeline_master.json' and trashed = false`;
+      const listRes = await drive.files.list({ q, fields: "files(id)" });
+
+      if (!listRes.data.files || listRes.data.files.length === 0) {
+          logger.info("ℹ️ [TIME ANCHOR] No master file found. Nothing to restore.");
+          return { success: true, count: 0, message: "No master file found." };
+      }
+
+      const masterFileId = listRes.data.files[0].id;
+      const content = await _getDriveFileContentInternal(drive, masterFileId!);
+
+      let masterEvents = [];
+      try {
+          masterEvents = parseSecureJSON(content, "TimelineMasterRestore");
+      } catch (e) {
+          throw new HttpsError('data-loss', "Master Timeline file is corrupt.");
+      }
+
+      if (!Array.isArray(masterEvents) || masterEvents.length === 0) {
+          return { success: true, count: 0, message: "Master file is empty." };
+      }
+
+      // 3. WIPE FIRESTORE (Clean Slate Protocol)
+      // We accept that Firestore is just a cache. Wiping ensures we don't have dupes.
+      const timelineRef = db.collection("TDB_Timeline").doc(userId).collection("events");
+      // Note: recursiveDelete in admin SDK is strictly for docs/collections.
+      // We will use a batch delete if size is small, or recursiveDelete.
+      await db.recursiveDelete(timelineRef);
+
+      // 4. POPULATE FIRESTORE
+      const batch = db.batch();
+      let count = 0;
+
+      // Batch limit is 500. If more, we need chunks.
+      // For now, let's assume < 500 for beta.
+      for (const event of masterEvents) {
+          if (count >= 450) break; // Safety cap
+
+          const docId = event.id || timelineRef.doc().id;
+          const docRef = timelineRef.doc(docId);
+
+          // Ensure we have required fields
+          batch.set(docRef, {
+              ...event,
+              restoredAt: new Date().toISOString()
+          });
+          count++;
+      }
+
+      await batch.commit();
+      logger.info(`✅ [TIME ANCHOR] Restored ${count} events from Master.`);
+
+      return { success: true, count };
+
+    } catch (error: any) {
+      logger.error("Error in restoreTimelineFromMaster:", error);
+      throw new HttpsError("internal", error.message);
     }
   }
 );

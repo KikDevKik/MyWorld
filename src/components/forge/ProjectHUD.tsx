@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { useProjectConfig } from '../ProjectConfigContext';
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 

@@ -4,6 +4,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { X, CalendarClock, FileText, Clock, Calendar, Sparkles, Check, Trash2, AlertCircle } from 'lucide-react';
 import { TimelineEvent } from '../types';
 import { toast } from 'sonner';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 
 interface TimelinePanelProps {
     onClose: () => void;
@@ -15,14 +16,17 @@ interface TimelinePanelProps {
 }
 
 const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSelect, currentFileId, accessToken, isSecurityReady = false }) => {
+    const { config } = useProjectConfig(); // 🟢 GET CONFIG FOR SYNC
     const [events, setEvents] = useState<TimelineEvent[]>([]);
     const [loading, setLoading] = useState(true);
     const [analyzing, setAnalyzing] = useState(false);
+    const [isRestoring, setIsRestoring] = useState(false); // 🟢 RESTORE STATE
 
     // Configuration State
     const [currentYear, setCurrentYear] = useState<number>(3050);
     const [eraName, setEraName] = useState<string>('Era Común');
 
+    // 🟢 1. FETCH EVENTS (LISTENER)
     useEffect(() => {
         if (!userId) return;
 
@@ -54,7 +58,44 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
         });
 
         return () => unsubscribe();
-    }, [userId, isSecurityReady]); // 👈 Add dependency
+    }, [userId, isSecurityReady]);
+
+    // 🟢 2. AUTO-SYNC LOGIC (MOUNT ONLY)
+    useEffect(() => {
+        const checkAndRestore = async () => {
+            // Only run if loaded, empty, and config exists
+            if (!loading && events.length === 0 && config?.chronologyPath && accessToken && !isRestoring) {
+                console.log("⏳ [TIME ANCHOR] Timeline Empty. Attempting restore from Master...");
+                setIsRestoring(true);
+
+                try {
+                    const functions = getFunctions();
+                    const restoreTimelineFromMaster = httpsCallable(functions, 'restoreTimelineFromMaster');
+
+                    const result = await restoreTimelineFromMaster({ accessToken });
+                    const data = result.data as any;
+
+                    if (data.count > 0) {
+                        toast.success(`Historial Restaurado: ${data.count} eventos recuperados de Drive.`);
+                    } else {
+                        console.log("ℹ️ [TIME ANCHOR] No history found in Drive.");
+                    }
+                } catch (error) {
+                    console.error("Error restoring timeline:", error);
+                    // Silent fail is okay, maybe just a log
+                } finally {
+                    setIsRestoring(false);
+                }
+            }
+        };
+
+        // Trigger with a small delay to ensure 'events' state is stable
+        const timer = setTimeout(() => {
+             checkAndRestore();
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [loading, events.length, config, accessToken]); // careful with deps
 
     const handleAnalyze = async () => {
         if (!currentFileId) {
@@ -83,7 +124,8 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                 fileId: currentFileId,
                 content: content,
                 currentYear,
-                eraName
+                eraName,
+                accessToken // 🟢 REQUIRED FOR DUAL-WRITE
             });
 
             const data = result.data as any;
@@ -178,9 +220,17 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
 
             {/* CONTENT */}
             <div className="flex-1 overflow-y-auto p-8 relative">
-                {loading ? (
+                {loading || isRestoring ? (
                     // 🟢 TITANIUM SKELETON (CIRCUIT BREAKER VISUAL)
                     <div className="relative max-w-3xl mx-auto h-full flex flex-col justify-center gap-12 py-8 animate-pulse">
+                        {isRestoring && (
+                            <div className="absolute inset-0 flex items-center justify-center z-50">
+                                <div className="bg-titanium-900/90 px-6 py-3 rounded-xl border border-orange-500/50 shadow-2xl flex items-center gap-3">
+                                    <Clock className="animate-spin text-orange-500" />
+                                    <span className="text-orange-100 font-bold tracking-wider">RESTAURANDO HISTORIA...</span>
+                                </div>
+                            </div>
+                        )}
                         <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-titanium-800/50 transform -translate-x-1/2" />
 
                         {/* Skeleton Item Left */}

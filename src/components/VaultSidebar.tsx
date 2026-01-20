@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
-import { useProjectConfig } from './ProjectConfigContext';
+import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { getFirestore, onSnapshot, collection, query, where } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 

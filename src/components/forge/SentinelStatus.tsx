@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheck, ShieldAlert, Cloud, CloudOff, RefreshCw, X, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
-import { useProjectConfig } from '../ProjectConfigContext';
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 
 interface SentinelStatusProps {
     onClose: () => void;

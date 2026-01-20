@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, Save, Folder, Book, Clock, Star } from 'lucide-react';
-import { useProjectConfig } from '../ProjectConfigContext';
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import useDrivePicker from 'react-google-drive-picker';
 import { ProjectPath } from '../../types';
 

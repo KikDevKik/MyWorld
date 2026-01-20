@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
 import MarkdownRenderer from '../ui/MarkdownRenderer';
-import { useProjectConfig } from '../ProjectConfigContext'; // 👈 IMPORT CONTEXT
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 
 interface Message {
     id?: string;
