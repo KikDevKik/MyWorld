@@ -142,6 +142,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({ projectId, onClose }) => {
         return { nodes, links };
     }, [entities]);
 
+    // --- GUARD CLAUSE ---
+    if (!projectId) return null;
+
     // --- 3. ZERO STATE ---
     if (!loading && entities.length === 0) {
         return (
