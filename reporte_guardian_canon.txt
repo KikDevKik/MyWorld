@@ -1,0 +1,116 @@
+REPORTE TÉCNICO: EL GUARDIÁN DEL CANON (SISTEMA TITAN)
+===========================================================
+FECHA: 2026-02-19
+VERSIÓN DEL REPORTE: 1.0
+ALCANCE: Ecosistema "Sentinel" (Canon Radar, Guardian, Janitor)
+
+## 1. RESUMEN EJECUTIVO
+El **"Guardián del Canon"** (nombre clave: *Sentinel*) no es una simple función de validación; es un **Sistema de Defensa Activa** integrado en el núcleo del editor MyWorld. Su propósito no es corregir gramática, sino proteger la **integridad de la realidad narrativa**.
+
+Imagina un editor literario que no duerme, que memoriza cada hecho que has escrito en miles de archivos y que, en tiempo real mientras escribes, te alerta si acabas de resucitar a un personaje muerto, contradecir una regla mágica establecida hace tres libros, o si la voz de tu protagonista está perdiendo su esencia cínica. Eso es el Guardián.
+
+Funciona en tres niveles simultáneos:
+1.  **CanonRadar (El Auditor):** Escanea lo que escribes ahora mismo y lo cruza contra la base de datos vectorial para hallar contradicciones.
+2.  **Sentinel (El Escudo):** Protege la infraestructura técnica (seguridad, límites de memoria, prevención de ataques).
+3.  **Janitor (El Limpiador):** Un proceso de fondo que elimina "basura digital" (archivos fantasma, sesiones vacías) para mantener el proyecto saludable.
+
+---
+
+## 2. EVOLUCIÓN HISTÓRICA
+
+### Fase 1: El Script Básico (Legacy)
+Originalmente, el Guardián era un simple script (`scanProjectDrift`) que comparaba vectores de texto de forma pasiva. Era lento, costoso y solo funcionaba bajo demanda.
+
+### Fase 2: "El Hater" (Integración de Personalidad)
+Se introdujo la sub-rutina de "Personalidad", donde la IA adopta una "persona" (El Hater, El Abogado del Diablo) para criticar no solo hechos, sino el *estilo* y *tono* de los personajes.
+
+### Fase 3: Protocolo TITAN (Seguridad Paranoica)
+Tras incidentes de corrupción de datos y riesgos de DoS (Denial of Service), el Guardián evolucionó a **Sentinel**.
+*   **Seguridad:** Se implementó `AppCheck` obligatorio y CORS estricto.
+*   **Límites:** Se definieron límites duros (`MAX_AI_INPUT_CHARS`, `MAX_PURGE_LIMIT`) para evitar que textos masivos colapsaran la memoria del servidor.
+*   **Circuit Breakers:** Si el Guardián detecta una amenaza de seguridad, puede bloquear toda la interfaz ("Lock Screen") para proteger los datos.
+
+---
+
+## 3. ARQUITECTURA TÉCNICA
+
+El sistema es híbrido, operando entre el navegador del cliente y la nube de Google.
+
+### Stack Tecnológico
+*   **Frontend:** React + Zustand (Gestión de Estado) + Hooks Personalizados (`useGuardian`).
+*   **Backend:** Firebase Cloud Functions (Node.js 22).
+*   **Base de Datos:** Firestore (Índices Vectoriales `TDB_Index`) + Google Drive (Archivos Físicos).
+*   **Motores de IA:**
+    *   **Gemini 2.0 Flash:** Usado para extracción rápida de hechos y escaneos de alta velocidad (Baja latencia).
+    *   **Gemini 2.5 Pro (Model High Reasoning):** Usado exclusivamente para análisis literario profundo ("El Hater" y detección de conflictos sutiles).
+
+### Flujo de Datos (The Loop)
+1.  **Escritura:** El usuario escribe en el editor.
+2.  **Hashing:** `useGuardian` calcula un hash SHA-256 del contenido localmente. Si no ha cambiado, no hace nada.
+3.  **Debounce:** Si hay cambios, espera 3 segundos de inactividad.
+4.  **Disparo:** Llama a `auditContent` en la nube.
+5.  **Análisis (Backend):** La IA extrae hechos, consulta el índice vectorial (RAG) y busca contradicciones.
+6.  **Respuesta:** Retorna un JSON estructurado con anomalías, que el frontend renderiza como tarjetas de alerta.
+
+---
+
+## 4. MÓDULOS FUNCIONALES (DETALLE)
+
+### A. CANON RADAR (El Auditor en Tiempo Real)
+**Archivo:** `functions/src/guardian.ts` | `src/components/CanonRadar.tsx`
+
+Es la cara visible del Guardián. Realiza cuatro tipos de análisis simultáneos:
+
+1.  **Verificación de Hechos (Fact Checker):**
+    *   Extrae afirmaciones ("El rey murió en 1045").
+    *   Busca en el índice vectorial fragmentos que contradigan esto.
+    *   Usa **Gemini 2.0 Flash** para velocidad.
+
+2.  **Leyes del Mundo (Reality Filter):**
+    *   Detecta violaciones a reglas físicas o mágicas preestablecidas (ej. "Nadie puede teletransportarse en el castillo").
+    *   Nivel de severidad: CRITICAL o WARNING.
+
+3.  **"El Hater" (Personality Drift):**
+    *   **Motor:** Gemini 2.5 Pro (High Reasoning).
+    *   **Funcionamiento:** Compara el diálogo/acción actual del personaje con su perfil psicológico ("Ficha de Forja") y su historial reciente.
+    *   **Veredicto:** Puede clasificar al personaje como `CONSISTENT` (Coherente), `EVOLVED` (Evolucionado, permite actualizar la ficha) o `TRAITOR` (Fuera de personaje/OOC).
+
+4.  **Resonancia y Estructura (NUEVO):**
+    *   Detecta en qué fase narrativa estás (Setup, Climax, etc.).
+    *   Identifica "Semillas de Trama" (`PLOT_SEED`) que plantaste en capítulos anteriores y sugiere conectarlas.
+
+### B. SENTINEL (Seguridad y Mantenimiento)
+**Archivo:** `functions/src/janitor.ts`
+
+1.  **Janitor (El Limpiador):**
+    *   **Ghost Detection:** Escanea Google Drive usando una Service Account ("Robot Mode") para encontrar archivos corruptos (< 10 bytes) que rompen el índice.
+    *   **Protocolo de Purga:** Elimina "ecos" (fragmentos vectoriales huérfanos) y sesiones de chat vacías para ahorrar costes y mantener la base de datos limpia.
+    *   **Seguridad:** Implementa `MAX_PURGE_LIMIT = 50` para evitar borrados masivos accidentales.
+
+2.  **Drift Scanner (Radar de Largo Alcance):**
+    *   **Función:** `scanProjectDrift`.
+    *   **Misión:** Escaneo profundo de TODO el proyecto (no solo el capítulo actual) para calcular un "Puntaje de Desviación" global comparado con el "Centroide" (la esencia matemática de tu novela).
+    *   **Estado:** Beta. Retorna alertas agrupadas por Identidad, Geografía y Continuidad.
+
+---
+
+## 5. LIMITACIONES Y PROBLEMAS ACTUALES
+
+A pesar de su potencia, el sistema tiene deudas técnicas documentadas:
+
+1.  **Latencia de "El Hater":**
+    *   El uso del modelo `gemini-2.5-pro` para el análisis de personalidad es costoso en tiempo. El análisis completo puede tardar 10-15 segundos, lo que a veces desincroniza la UI si el usuario sigue escribiendo rápido.
+
+2.  **Limitaciones "Hardcoded":**
+    *   **CORS:** Los orígenes permitidos (`https://myword-67b03.web.app`, localhost) están escritos a fuego en el código (`guardian.ts`, `janitor.ts`), lo que complica el despliegue en nuevos entornos.
+    *   **Límites de Texto:** `MAX_AI_INPUT_CHARS` está fijado en 100,000 caracteres. Capítulos más largos son truncados silenciosamente, lo que podría ocultar conflictos en el final del texto.
+
+3.  **Dependencia de Índices (Error 9):**
+    *   Si el índice vectorial de Firestore no está perfectamente construido o está reconstruyéndose, el Guardián falla silenciosamente o retorna errores de precondición (`FAILED_PRECONDITION`), dejando al usuario sin protección temporalmente.
+
+4.  **Falsos Positivos en "Ghost Files":**
+    *   El Janitor usa una heurística de tamaño (< 10 bytes). Esto es eficiente pero arriesgado; un archivo de texto válido con solo una palabra ("Fin.") podría ser marcado erróneamente como basura.
+
+## 6. CONCLUSIÓN
+
+El Guardián ha madurado de ser un simple script de búsqueda a un sistema integral de **Aseguramiento de Calidad Narrativa (NQA)**. Su integración profunda con la capa de seguridad (Sentinel) lo convierte en una pieza crítica de la infraestructura TITAN, aunque su dependencia de configuraciones estáticas (CORS, Límites) sugiere la necesidad de una futura refactorización hacia una configuración más dinámica.
