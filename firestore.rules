@@ -29,5 +29,11 @@ service cloud.firestore {
     match /users/{userId}/characters/{document=**} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
+
+    // 🟢 REGLA PARA NEXUS GRAPH (World Engine)
+    // Permitimos leer y escribir en la estructura de Proyectos y Entidades
+    match /users/{userId}/projects/{projectId}/entities/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
   }
 }
