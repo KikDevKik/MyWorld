@@ -10,6 +10,8 @@ import NexusGraph from './NexusGraph';
 import { ProjectConfig } from '../../types';
 import ScopeTreeSelector from '../ScopeTreeSelector';
 
+const CLOUD_TIMEOUT_LONG = 540000; // 9 minutes
+
 interface ForgePanelProps {
     onClose: () => void;
     folderId: string;
@@ -86,7 +88,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
 
         setIsSyncing(true);
         const functions = getFunctions();
-        const syncCharacterManifest = httpsCallable(functions, 'syncCharacterManifest');
+        const syncCharacterManifest = httpsCallable(functions, 'syncCharacterManifest', { timeout: CLOUD_TIMEOUT_LONG });
 
         // Logic remains: Sync Master Vault mostly.
         // If we want to sync the Local Scope, we could pass it.
@@ -117,7 +119,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         toast.info("Escaneando el Omniverso... Esto puede tomar un momento.");
 
         const functions = getFunctions();
-        const syncWorldManifest = httpsCallable(functions, 'syncWorldManifest');
+        const syncWorldManifest = httpsCallable(functions, 'syncWorldManifest', { timeout: CLOUD_TIMEOUT_LONG });
 
         try {
             const result = await syncWorldManifest({
