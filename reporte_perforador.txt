@@ -1,0 +1,77 @@
+REPORTE TÉCNICO: EL PERFORADOR DE MUNDOS (WORLD ENGINE)
+===========================================================
+FECHA: 19/01/2026
+AUTOR: JULES (AI ENGINEER)
+OBJETIVO: ANÁLISIS DE ARQUITECTURA, EVOLUCIÓN Y ESTADO
+
+1. INTRODUCCIÓN Y CONCEPTO NARRATIVO
+-----------------------------------------------------------
+El "Perforador de Mundos" (World Engine) es el módulo más ambicioso del sistema MyWorld. No es un simple chat; es un simulador de realidades asistido por IA diseñado para romper el bloqueo del escritor mediante la "fricción creativa".
+
+A diferencia del "Director" (que es un asistente servicial), el Perforador funciona mediante agentes con personalidades extremas que compiten para generar ideas, tramas o conceptos. Su interfaz no es lineal, sino espacial ("Infinite Grid"), permitiendo que las ideas (Nodos) se distribuyan, conecten y cristalicen en archivos reales.
+
+2. HISTORIAL DE CAMBIOS Y EVOLUCIÓN (RECONSTRUCCIÓN FORENSE)
+-----------------------------------------------------------
+Basado en las marcas de versión en el código fuente (`Phase 4.1`, `Revision 00130`), esta ha sido la evolución del módulo:
+
+*   **Fase 1 (Prototipo):** Interfaz básica de chat. Desechada.
+*   **Fase 2 (Gemini Integration):** Implementación inicial del backend `worldEngine` conectando con modelos LLM estándar.
+*   **Fase 3 (Agentes):** Introducción de las tres personalidades (Arquitecto, Oráculo, Abogado) en el Frontend para modular el "System Prompt".
+*   **Fase 4.1 (TITAN LINK - Estado Actual):**
+    *   **Backend Upgrade:** Migración a una arquitectura de "Racionamiento Alto" (`MODEL_HIGH_REASONING`).
+    *   **Sanitizer v2.0:** Implementación de `parseSecureJSON` para evitar que la UI colapse cuando la IA devuelve JSON malformado (un problema recurrente en modelos creativos).
+    *   **Iron Guardian Integration:** El backend ahora audita las respuestas generadas contra archivos marcados como `[CORE WORLD RULES]`. Si la IA alucina algo que rompe el canon, el sistema inyecta un `coherency_report` y fuerza una advertencia holográfica en el nodo.
+    *   **Session Awareness (The Chronicler):** Capacidad de recordar decisiones previas dentro de la misma sesión para mantener continuidad a corto plazo.
+
+3. ANÁLISIS TÉCNICO PROFUNDO
+-----------------------------------------------------------
+
+### A. FRONTEND: LA INTERFAZ CINÉTICA (`WorldEnginePanel.tsx`)
+El frontend es una aplicación React compleja que opera casi independientemente del resto de la suite.
+
+*   **Motor de Renderizado:** Utiliza `framer-motion` para la física de las tarjetas (Nodos). Los nodos son arrastrables (`drag`) y tienen coordenadas (x, y) porcentuales para adaptarse a diferentes tamaños de pantalla.
+*   **Gestión de Estado:**
+    *   **Local State:** Maneja la posición de los nodos, el nivel de "Caos" (Entropía) y el modo de combate.
+    *   **Modalidad "Zen":** Detecta automáticamente si un nodo está expandido para ocultar la interfaz de control (`Command Deck`) y maximizar la lectura.
+*   **Los Agentes (The Triad):**
+    1.  **El Arquitecto (Cyan):** Prompt enfocado en estructura y lógica.
+    2.  **El Oráculo (Purple):** Prompt con temperatura alta para alucinaciones creativas.
+    3.  **El Abogado del Diablo (Red):** Prompt crítico que busca fallos.
+    *Técnicamente*, el agente seleccionado simplemente cambia un parámetro `agentId` enviado a la Cloud Function, pero el cambio visual en la UI (colores, iconos) es crucial para la experiencia de usuario (UX).
+*   **Cristalización:** Permite convertir un nodo efímero (RAM) en un archivo Markdown persistente en Google Drive mediante `crystallizeNode`. Incluye inyección de metadatos (Frontmatter).
+
+### B. BACKEND: EL CEREBRO TITAN (`functions/src/index.ts`)
+La función `worldEngine` es el núcleo lógico. Es una Cloud Function "onCall" de segunda generación.
+
+*   **Prompt Engineering Dinámico:**
+    El sistema construye un "Mega-Prompt" que incluye:
+    1.  **Dump del Canon:** Lee archivos prioritarios de Google Drive para dar contexto.
+    2.  **Historial de Sesión:** Inyecta los últimos 5 turnos para continuidad.
+    3.  **Protocolo de Decisión:** Instruye a la IA para que decida si responder directamente (TYPE A) o pedir clarificaciones (TYPE B / Inquiry).
+*   **Manejo de Errores (JSON Resilience):**
+    Utiliza una función auxiliar `parseSecureJSON` que intenta limpiar la salida de la IA (eliminando bloques de código Markdown, caracteres de control) antes de hacer `JSON.parse`. Si falla, devuelve un objeto de error controlado en lugar de crashear la función.
+*   **Protocolo "Iron Guardian" (Auditoría):**
+    Es una capa de lógica post-generación. Si el texto generado contradice un archivo marcado como "PRIORITY LORE", el backend modifica el JSON de respuesta para incluir un campo `coherency_report`. Esto permite que el Frontend muestre una alerta roja sin descartar la idea por completo.
+*   **Configuración de IA:**
+    Actualmente apunta a `gemini-2.0-flash-exp` (definido como `MODEL_HIGH_REASONING` en `ai_config.ts`).
+    *Nota: El código menciona "Gemini 3" en los logs, lo cual es una alucinación del desarrollador o un nombre en clave futuro, ya que la constante real es Gemini 2.0 Flash.*
+
+4. LIMITACIONES Y PROBLEMAS ACTUALES
+-----------------------------------------------------------
+
+1.  **Fragilidad del JSON (Critical):**
+    A pesar del `parseSecureJSON`, los modelos de lenguaje (especialmente con alta temperatura/Caos) tienden a romper la sintaxis JSON (comillas sin cerrar, saltos de línea en strings). Esto puede causar que el Perforador devuelva errores de "Internal Error" esporádicamente.
+2.  **Latencia del "Harvest":**
+    Antes de cada respuesta, el sistema intenta leer el contexto del Canon (`harvestWorldContext`). Si el proyecto es grande, esto añade segundos de retraso antes de siquiera llamar a la IA. No hay caché implementado para el contexto del Canon en esta función específica.
+3.  **Memoria de Pez (Short Context):**
+    Solo recuerda los últimos 5 turnos de la sesión actual. No tiene acceso profundo a sesiones anteriores del Perforador, lo que impide arcos de trabajo largos de varios días.
+4.  **Alucinación de Versiones:**
+    Los logs del sistema dicen "Powered by Gemini 3", pero la configuración real (`ai_config.ts`) usa `gemini-2.0-flash-exp`. Esto puede llevar a confusión sobre las capacidades reales del modelo.
+5.  **Dependencia de Google Drive:**
+    La "Cristalización" falla si el token de acceso a Drive ha caducado en el frontend, y el manejo de ese error en la UI es mejorable (a veces simplemente no hace nada).
+
+5. CONCLUSIÓN
+-----------------------------------------------------------
+El "Perforador de Mundos" es una pieza de ingeniería notablemente compleja que intenta hibridar un IDE creativo con un videojuego de rol. Su arquitectura es robusta en concepto (Separación Frontend/Backend, Agentes definidos), pero su dependencia de la generación estricta de JSON por parte de un LLM "creativo" es su talón de Aquiles técnico.
+
+La implementación del "Iron Guardian" para validar el canon en tiempo real es una característica de vanguardia que lo distingue de un simple chat con ChatGPT, pero requiere optimización de latencia.
