@@ -89,14 +89,21 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 className="w-[500px] bg-slate-900 border border-titanium-500/30 rounded-xl shadow-2xl overflow-hidden"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="crystallize-title"
             >
                 {/* HEADER */}
                 <div className="h-12 bg-slate-800 flex items-center justify-between px-4 border-b border-titanium-500/30">
-                    <div className="flex items-center gap-2 text-titanium-100 font-bold tracking-widest text-sm">
+                    <div id="crystallize-title" className="flex items-center gap-2 text-titanium-100 font-bold tracking-widest text-sm">
                         <span className="text-xl">💎</span>
                         CRYSTALLIZATION PROTOCOL
                     </div>
-                    <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors">
+                    <button
+                        onClick={onClose}
+                        className="text-titanium-400 hover:text-white transition-colors"
+                        aria-label="Close crystallization window"
+                    >
                         <X size={18} />
                     </button>
                 </div>
@@ -106,23 +113,27 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
 
                     {/* FILENAME INPUT */}
                     <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-titanium-500 flex items-center gap-1">
+                        <label htmlFor="crystallize-filename" className="text-[10px] uppercase font-bold text-titanium-500 flex items-center gap-1">
                             <FileText size={10} /> Target Filename
                         </label>
                         <input
+                            id="crystallize-filename"
                             type="text"
                             value={fileName}
                             onChange={(e) => setFileName(e.target.value)}
                             className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-cyan-300 font-mono focus:border-cyan-500 focus:outline-none"
+                            placeholder="MyAwesomeConcept.md"
+                            autoFocus
                         />
                     </div>
 
                     {/* FOLDER SELECT */}
                     <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-titanium-500 flex items-center gap-1">
+                        <label htmlFor="crystallize-folder" className="text-[10px] uppercase font-bold text-titanium-500 flex items-center gap-1">
                             <Folder size={10} /> Destination Sector
                         </label>
                         <select
+                            id="crystallize-folder"
                             value={selectedFolderId}
                             onChange={(e) => setSelectedFolderId(e.target.value)}
                             className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-white font-mono focus:border-cyan-500 focus:outline-none appearance-none"
@@ -140,14 +151,16 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
 
                     {/* TAGS INPUT */}
                     <div className="space-y-1">
-                        <label className="text-[10px] uppercase font-bold text-titanium-500 flex items-center gap-1">
+                        <label htmlFor="crystallize-tags" className="text-[10px] uppercase font-bold text-titanium-500 flex items-center gap-1">
                             <Tag size={10} /> Metadata Tags
                         </label>
                         <input
+                            id="crystallize-tags"
                             type="text"
                             value={tags}
                             onChange={(e) => setTags(e.target.value)}
                             className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-purple-300 font-mono focus:border-purple-500 focus:outline-none"
+                            placeholder="concept, memory, important"
                         />
                     </div>
 
