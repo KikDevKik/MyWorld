@@ -64,6 +64,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     const graphRef = useRef<any>(null);
     const clickTimeoutRef = useRef<any>(null);
     const frozenNodesRef = useRef<Record<string, { x: number; y: number }>>({}); // 🟢 MEDUSA: Anchor Storage
+    const hasRenderedRef = useRef(false); // 🟢 RASTREO DE INICIALIZACIÓN
 
     // Interaction State
     const [hoveredNode, setHoveredNode] = useState<any>(null);
@@ -145,8 +146,17 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             // 🟢 MEDUSA: Selective Anchoring logic
             // DB Persistence (Top Priority) > Local Freeze (Medium) > Floating (New)
             const frozen = frozenNodesRef.current[entity.id];
-            const finalFx = entity.fx ?? frozen?.x;
-            const finalFy = entity.fy ?? frozen?.y;
+            let finalFx = entity.fx ?? frozen?.x;
+            let finalFy = entity.fy ?? frozen?.y;
+
+            // 🟢 SANITIZATION: QUARANTINE PROTOCOL (NaN PROTECTION)
+            // If defined but invalid, force to 0 (Center of Universe)
+            if (finalFx !== undefined) {
+                if (typeof finalFx !== 'number' || isNaN(finalFx)) finalFx = 0;
+            }
+            if (finalFy !== undefined) {
+                if (typeof finalFy !== 'number' || isNaN(finalFy)) finalFy = 0;
+            }
 
             nodes.push({
                 id: entity.id,
@@ -341,6 +351,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
     // 🟢 MEDUSA: The Anchor
     const handleEngineStop = () => {
+        hasRenderedRef.current = true; // 🟢 MARK AS RENDERED (Born)
+
         // CORRECCIÓN: Usamos la prop 'nodes' directamente (via graphData), ya que D3 muta estos objetos.
         // No llamamos a fgRef.current.graphData() porque causa crash.
         const nodes = graphData.nodes;
@@ -609,7 +621,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         }
                     }}
 
-                    cooldownTicks={1000} // Medusa: Pre-warming (was 200)
+                    cooldownTicks={hasRenderedRef.current ? 0 : 1000} // 🟢 REALITY ANCHOR: Zero Cooldown if already born
                     d3VelocityDecay={0.9} // Medusa: High Friction (was 0.6)
                     d3AlphaDecay={0.2} // Medusa: Rapid Cooling (was 0.05)
                     onEngineStop={handleEngineStop} // Medusa: Anchor
