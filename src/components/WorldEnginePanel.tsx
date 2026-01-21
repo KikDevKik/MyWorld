@@ -747,99 +747,117 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
-    // 🟢 UNIFIED NODE BUILDER (THE MERGER v2 - INVERSE STRATEGY)
+    // 🟢 HELPER: NORMALIZATION PROTOCOL
+    const normalizeName = (name: string): string => {
+        if (!name) return "";
+        // 1. Remove Extension
+        let clean = name.replace(/\.(md|txt|json)$/i, '');
+        // 2. Remove Prefixes
+        const prefixes = ["Ficha ", "Perfil ", "Hoja ", "Borrador ", "Personaje "];
+        prefixes.forEach(p => {
+            const regex = new RegExp(`^${p}`, 'i');
+            clean = clean.replace(regex, '');
+        });
+        return clean.trim();
+    };
+
+    // 🟢 UNIFIED NODE BUILDER (THE MERGER v3 - NEXUS SUPREMACY)
     const unifiedNodes = useMemo(() => {
         const unifiedMap = new Map<string, VisualGraphNode>();
-        const nameToCanonMap = new Map<string, Character>();
         const incomingRelations = new Map<string, number>(); // TargetID -> Count
 
-        // PREPARE CANON LOOKUP
-        canonCharacters.forEach(c => {
-            if (c.name) nameToCanonMap.set(c.name.toLowerCase(), c);
-            if (c.id) nameToCanonMap.set(c.id, c); // Also lookup by ID
-        });
-
-        // STEP 0: CALCULATE INCOMING METRICS (Global Popularity for Satellites)
+        // STEP 0: CALCULATE INCOMING METRICS (Global Popularity)
         entityNodes.forEach(node => {
             if (node.relations) {
                 node.relations.forEach(rel => {
-                     const count = incomingRelations.get(rel.targetId) || 0;
-                     incomingRelations.set(rel.targetId, count + 1);
+                    const count = incomingRelations.get(rel.targetId) || 0;
+                    incomingRelations.set(rel.targetId, count + 1);
                 });
             }
         });
 
-        // PHASE 1: ENTITIES (The Base Reality - Nexus Data First)
-        // We iterate Rich Entities first.
+        // STEP 1: NEXUS SUPREMACY (The Kings)
+        // Load all AI-detected entities first. They define the structure.
         entityNodes.forEach(entity => {
-            // Clone to avoid mutation and cast to Visual Type
-            const node: VisualGraphNode = { ...entity };
+            // Clone to Visual Node
+            const node: VisualGraphNode = {
+                ...entity,
+                val: 10, // Default size
+                isCanon: false // Default, will be upgraded if file found
+            };
 
-            // ENRICH: Does this match a Canon Character?
-            const normName = entity.name?.toLowerCase();
-            const canonMatch = nameToCanonMap.get(entity.id) || (normName ? nameToCanonMap.get(normName) : null);
-
-            if (canonMatch) {
-                // 🟢 LINK INJECTION (The Hyperlink)
-                node.fileId = canonMatch.id;
-                node.isCanon = true;
-
-                // 🟢 TIER INJECTION (Visual Hierarchy)
-                node.meta = {
-                    ...node.meta,
-                    tier: canonMatch.tier === 'MAIN' ? 'protagonist' : (canonMatch.tier === 'SECONDARY' ? 'secondary' : 'background'),
-                    avatarUrl: undefined // 🟢 ZERO IMAGE POLICY
-                };
-
-                // Note: We PRESERVE description/context from Nexus (AI Brain).
-            }
-
-            // 🟢 SIZE CALCULATION (Determinism)
-            let size = 10; // Default (Ghost/Background)
-            const tier = node.meta?.tier;
-
-            if (tier === 'protagonist') size = 40;
-            else if (tier === 'secondary') size = 20;
-
-            // Exception: Dynamic Size for popular ghosts/concepts
-            if (!node.isCanon && (incomingRelations.get(node.id) || 0) > 5) {
-                size = 25; // Emerging Concept
-            }
-            node.val = size;
+            // Size Logic based on Tier/Popularity
+            const incoming = incomingRelations.get(node.id) || 0;
+            if (incoming > 5) node.val = 20;
 
             unifiedMap.set(node.id, node);
         });
 
-        // PHASE 2: ORPHAN CANON (The Missing Files)
-        // If a Canon Character exists but has NO Entity document, we still want to show it.
-        // It has a file, so it implies persistence.
-        canonCharacters.forEach(char => {
-            // Check if we already have a node for this char (by ID or Name)
-            const existsById = unifiedMap.has(char.id);
-            const existsByName = Array.from(unifiedMap.values()).some(n => n.name?.toLowerCase() === char.name?.toLowerCase());
+        // STEP 2: SMART FUSION (The Matching)
+        // Iterate Canon Files and try to merge into Nexus Nodes.
+        canonCharacters.forEach(file => {
+            const rawName = file.name || "";
+            const cleanName = normalizeName(rawName).toLowerCase();
+            const fileId = file.id;
 
-            if (!existsById && !existsByName) {
-                const size = char.tier === 'MAIN' ? 40 : (char.tier === 'SECONDARY' ? 20 : 10);
+            // STRATEGY: Find match in Nexus
+            let match: VisualGraphNode | undefined;
 
-                // Create a basic node for the Canon character
-                unifiedMap.set(char.id, {
-                    id: char.id,
-                    name: char.name,
-                    type: 'character',
-                    projectId: config?.folderId || '',
-                    description: char.description || "Archivo canon sin datos en Nexus.",
-                    meta: { tier: char.tier === 'MAIN' ? 'protagonist' : 'secondary' },
-                    relations: [],
-                    foundInFiles: [],
-                    isCanon: true,
-                    fileId: char.id,
-                    val: size
-                });
+            // A. Try ID Match
+            match = unifiedMap.get(fileId);
+
+            // B. Try Name Match (Fuzzy)
+            if (!match) {
+                // Iterate map values (expensive but safe for <1000 nodes)
+                for (const [key, entity] of unifiedMap.entries()) {
+                    if (entity.name && normalizeName(entity.name).toLowerCase() === cleanName) {
+                        match = entity;
+                        break;
+                    }
+                }
+            }
+
+            if (match) {
+                // 🟢 FUSION: UPGRADE NEXUS NODE
+                match.isCanon = true;
+                match.fileId = fileId;
+                // Update Meta/Tier from File if available
+                if (file.tier) {
+                    match.meta = { ...match.meta, tier: file.tier === 'MAIN' ? 'protagonist' : 'secondary' };
+                }
+                // Update size
+                if (match.meta?.tier === 'protagonist') match.val = 40;
+                else if (match.meta?.tier === 'secondary') match.val = 25;
+
+            } else {
+                // 🟢 ORPHAN PROTOCOL: NOISE CANCELLATION
+                // If NO match in Nexus, check if it is "Relevant".
+                // Relevance = Is it mentioned by anyone? (Incoming Relations)
+                const isReferred = incomingRelations.has(fileId);
+
+                if (isReferred) {
+                    // It is an Orphan but someone points to it (using its File ID).
+                    // We allow it as a "Passive Node".
+                    unifiedMap.set(fileId, {
+                        id: fileId,
+                        name: normalizeName(rawName), // Use clean name
+                        type: 'character', // Default
+                        projectId: config?.folderId || '',
+                        description: file.description || "Archivo referenciado.",
+                        meta: { tier: file.tier === 'MAIN' ? 'protagonist' : 'secondary' },
+                        relations: [],
+                        foundInFiles: [],
+                        isCanon: true,
+                        fileId: fileId,
+                        val: file.tier === 'MAIN' ? 40 : 20
+                    });
+                }
+                // ELSE: DISCARD (Noise)
             }
         });
 
-        // PHASE 3: RECURSIVE EXPANSION (The Ghosts - Level 1)
-        // Iterate existing nodes and find missing targets
+        // STEP 3: GHOST EXPANSION (Level 1)
+        // Iterate current map (Nexus + Relevant Orphans)
         const currentNodes = Array.from(unifiedMap.values());
 
         currentNodes.forEach(sourceNode => {
@@ -849,105 +867,74 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 const targetId = rel.targetId;
                 const targetName = rel.targetName;
 
-                // Check if target already exists in our map
+                // Check existence
                 let exists = unifiedMap.has(targetId);
                 if (!exists && targetName) {
-                     exists = Array.from(unifiedMap.values()).some(n => n.name?.toLowerCase() === targetName.toLowerCase());
+                    // Check by name
+                    exists = Array.from(unifiedMap.values()).some(n => normalizeName(n.name || "") === normalizeName(targetName));
                 }
 
                 if (!exists) {
-                    // 👻 GHOST DETECTED
+                    // 👻 CREATE GHOST
                     let ghostId = targetId;
-                    if (!ghostId || ghostId.length < 10) {
-                         ghostId = generateId(EFFECTIVE_PROJECT_ID, targetName); // 🟢 HARDWIRE
+                    if (!ghostId || ghostId.length < 5) {
+                        // Fallback ID
+                        ghostId = generateId(EFFECTIVE_PROJECT_ID, targetName);
                     }
 
-                    // Double check if generated ID exists
-                    if (unifiedMap.has(ghostId)) return;
+                    if (!unifiedMap.has(ghostId)) {
+                        const popularity = incomingRelations.get(targetId) || 0;
+                        const ghostSize = popularity > 5 ? 20 : 10;
 
-                    // ORBITAL POSITIONING
-                    const angle = Math.random() * 2 * Math.PI;
-                    const radius = 50 + Math.random() * 50;
-                    const parentX = sourceNode.fx || sourceNode.x || 0;
-                    const parentY = sourceNode.fy || sourceNode.y || 0;
+                        // ORBITAL POSITIONING
+                        const angle = Math.random() * 2 * Math.PI;
+                        const radius = 50 + Math.random() * 50;
+                        const parentX = sourceNode.fx || sourceNode.x || 0;
+                        const parentY = sourceNode.fy || sourceNode.y || 0;
 
-                    // Size Calculation
-                    const popularity = incomingRelations.get(targetId) || 0;
-                    const ghostSize = popularity > 5 ? 20 : 10;
-
-                    const ghostNode: VisualGraphNode = {
-                        id: ghostId,
-                        name: targetName,
-                        type: rel.targetType || 'concept', // Default
-                        projectId: EFFECTIVE_PROJECT_ID, // 🟢 HARDWIRE
-                        description: "Entidad inferida (Nodo Fantasma)",
-                        relations: [], // Level 1 Limit: No recursion
-                        foundInFiles: [],
-                        meta: { tier: 'background' },
-
-                        // EPHEMERAL FLAGS
-                        isGhost: true,
-                        isEphemeral: true, // Needs persistence on move
-                        val: ghostSize,
-
-                        // INITIAL POSITION
-                        fx: parentX + radius * Math.cos(angle),
-                        fy: parentY + radius * Math.sin(angle)
-                    };
-
-                    unifiedMap.set(ghostId, ghostNode);
+                        unifiedMap.set(ghostId, {
+                            id: ghostId,
+                            name: targetName,
+                            type: rel.targetType || 'concept',
+                            projectId: EFFECTIVE_PROJECT_ID,
+                            description: "Entidad inferida (Nodo Fantasma)",
+                            relations: [],
+                            isGhost: true,
+                            isEphemeral: true,
+                            val: ghostSize,
+                            fx: parentX + radius * Math.cos(angle),
+                            fy: parentY + radius * Math.sin(angle)
+                        });
+                    }
                 }
             });
         });
 
-        // PHASE 4: LOCAL IDEAS (RAM)
-        // Add manual ideas
+        // STEP 4: LOCAL IDEAS (RAM)
         nodes.forEach(n => {
             unifiedMap.set(n.id, {
                 id: n.id,
                 name: n.title,
                 type: 'idea',
-                projectId: EFFECTIVE_PROJECT_ID, // 🟢 HARDWIRE
+                projectId: EFFECTIVE_PROJECT_ID,
                 fx: n.fx,
                 fy: n.fy,
                 meta: { brief: n.content.substring(0, 50) },
                 agentId: n.agentId,
                 isLocal: true,
-                val: 5, // Tiny Idea
+                val: 8,
                 relations: n.metadata?.pending_relations?.map(r => ({
                     targetId: r.targetId,
                     targetName: "Unknown",
                     targetType: 'concept',
                     relation: r.relationType as any,
-                    context: "Local Idea Link",
+                    context: "Local Link",
                     sourceFileId: "session"
                 })) || []
             } as VisualGraphNode);
         });
 
-        // PHASE 5: EXTERMINATION PROTOCOL (Garbage Collection)
-        // Filter out "Islands" - Empty nodes with no connections and no file.
-        const result = Array.from(unifiedMap.values()).filter(node => {
-            // 1. Keep if Local Idea
-            if (node.isLocal) return true;
-
-            // 2. Keep if Canon (Has File)
-            if (node.isCanon || node.fileId) return true;
-
-            // 3. Keep if Social (Has outgoing relations)
-            if (node.relations && node.relations.length > 0) return true;
-
-            // 4. Keep if Popular (Has incoming relations - Satellite)
-            // Even if it's a ghost, if someone points to it, it survives.
-            const incoming = incomingRelations.get(node.id) || 0;
-            if (incoming > 0) return true;
-
-            // ELSE: TERMINATE
-            // This kills the "Empty Boxes" that are neither Canon nor Connected.
-            return false;
-        });
-
-        return result;
+        return Array.from(unifiedMap.values());
 
     }, [canonCharacters, entityNodes, nodes, config]);
 
