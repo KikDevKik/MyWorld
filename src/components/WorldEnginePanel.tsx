@@ -1051,16 +1051,78 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 frontmatter: finalFrontmatter
             }) as any;
 
-            // Note: The backend creates the file. The listener in NexusGraph updates the graph.
-            // However, we need to ensure the position persists.
-            // If the backend doesn't write to Firestore 'entities' with fx/fy immediately,
-            // the new node will pop to 0,0.
-            // We might need to manually update the entity position once it appears?
-            // Or assume the backend handles 'nexus' frontmatter to entity mapping.
-            // (Assuming backend handles it for now, else we'd need a post-hook).
+            const newFileId = result.data.fileId;
+            const oldNode = crystallizeModal.node;
 
-            // Remove from local nodes (Transmutation)
-            setNodes(prev => prev.filter(n => n.id !== crystallizeModal.node!.id));
+            if (newFileId && oldNode) {
+                 console.log(`💎 TRANSMUTATION: Converting ${oldNode.id} -> ${newFileId}`);
+
+                 // 🟢 PHASE 2: PERSISTENCE (THE ANCHOR)
+                 // Write the new Canon Entity to Firestore immediately to prevent "Pop"
+                 const auth = getAuth();
+                 const db = getFirestore();
+
+                 if (auth.currentUser) {
+                     const entityRef = doc(db, "users", auth.currentUser.uid, "projects", targetFolderId, "entities", newFileId);
+
+                     // Convert Pending Relations to Graph Relations
+                     const migratedRelations = (oldNode.metadata?.pending_relations || []).map(r => ({
+                         targetId: r.targetId, // NOTE: If target was also a temp ID, this might break. But for now, we assume target is stable or we rely on their eventual crystallization.
+                         targetName: "Linked Entity", // Fallback
+                         targetType: 'concept',
+                         relation: r.relationType,
+                         context: "Crystallized Link",
+                         sourceFileId: newFileId
+                     }));
+
+                     await setDoc(entityRef, {
+                         id: newFileId,
+                         name: oldNode.title, // Use title as label
+                         type: 'canon', // 🟢 FORCE TITANIUM
+                         projectId: targetFolderId,
+                         description: "Memoria cristalizada.",
+                         fx: oldNode.fx || oldNode.x || 0,
+                         fy: oldNode.fy || oldNode.y || 0,
+                         relations: migratedRelations,
+                         createdFromIdea: true,
+                         lastUpdated: new Date().toISOString()
+                     }, { merge: true });
+                 }
+
+                 // 🟢 PHASE 3: LINK REPAIR (THE SURGERY)
+                 // Update ALL local nodes that were pointing to the old ID
+                 setNodes(prev => {
+                     // 1. Filter out the crystallized node
+                     const remaining = prev.filter(n => n.id !== oldNode.id);
+
+                     // 2. Map over remaining nodes to fix links
+                     return remaining.map(n => {
+                         if (n.metadata?.pending_relations) {
+                             // Check if any relation points to the old ID
+                             const needsRepair = n.metadata.pending_relations.some(r => r.targetId === oldNode.id);
+
+                             if (needsRepair) {
+                                 console.log(`🔧 Repairing links in node ${n.title}`);
+                                 return {
+                                     ...n,
+                                     metadata: {
+                                         ...n.metadata,
+                                         pending_relations: n.metadata.pending_relations.map(r =>
+                                             r.targetId === oldNode.id
+                                             ? { ...r, targetId: newFileId } // SWAP ID
+                                             : r
+                                         )
+                                     }
+                                 };
+                             }
+                         }
+                         return n;
+                     });
+                 });
+            } else {
+                // Fallback if no ID returned (should not happen)
+                setNodes(prev => prev.filter(n => n.id !== crystallizeModal.node!.id));
+            }
 
             setCrystallizeModal({ isOpen: false, node: null, isProcessing: false });
             setExpandedNodeId(null); // Close modal if open
