@@ -329,6 +329,22 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     const linkPositionUpdate = useCallback((lineMesh: any, { start, end }: any) => {
         if (!lineMesh || !lineMesh.__line) return;
 
+        // 🛡️ GUARDIA DE EXISTENCIA ESTRICTO (Ghost Coordinate Patch)
+        const isValid = (
+            typeof start.x === 'number' && !isNaN(start.x) &&
+            typeof start.y === 'number' && !isNaN(start.y) &&
+            typeof start.z === 'number' && !isNaN(start.z) &&
+            typeof end.x === 'number' && !isNaN(end.x) &&
+            typeof end.y === 'number' && !isNaN(end.y) &&
+            typeof end.z === 'number' && !isNaN(end.z)
+        );
+
+        if (!isValid) {
+            lineMesh.visible = false;
+            return true;
+        }
+
+        lineMesh.visible = true;
         const line = lineMesh.__line;
 
         // Optimize: Use setPoints instead of recreating geometry if possible,
