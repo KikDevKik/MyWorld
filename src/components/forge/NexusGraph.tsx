@@ -532,7 +532,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         }
                     }}
 
-                    cooldownTicks={100}
+                    cooldownTicks={200}
+                    d3VelocityDecay={0.6}
+                    d3AlphaDecay={0.05}
                 />
             </div>
 
