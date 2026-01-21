@@ -596,7 +596,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     }) || [];
 
                     createdNodes.push({
-                        id: n.id || generateId(sessionId, n.title),
+                        id: n.id || generateId(sessionId, n.title, 'idea'),
                         type: 'idea', // FORCE IDEA TYPE FOR GOLD COLOR
                         title: n.title || 'Unknown',
                         content: n.content || '',
@@ -929,10 +929,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
                 if (!exists) {
                     // 👻 CREATE GHOST
+                    // We need to pass the targetType if available, or default to concept
                     let ghostId = targetId;
+                    const ghostType = rel.targetType || 'concept';
+
                     if (!ghostId || ghostId.length < 5) {
                         // Fallback ID
-                        ghostId = generateId(EFFECTIVE_PROJECT_ID, targetName);
+                        ghostId = generateId(EFFECTIVE_PROJECT_ID, targetName, ghostType);
                     }
 
                     if (!unifiedMap.has(ghostId)) {
@@ -948,7 +951,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         unifiedMap.set(ghostId, {
                             id: ghostId,
                             name: targetName,
-                            type: rel.targetType || 'concept',
+                            type: ghostType,
                             projectId: EFFECTIVE_PROJECT_ID,
                             description: "Entidad inferida (Nodo Fantasma)",
                             relations: [],

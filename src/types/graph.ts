@@ -6,7 +6,7 @@ export interface NodeRelation {
   targetId: string;
   targetName: string;
   targetType: EntityType; // Vital for Ghost Nodes
-  relation: 'ENEMY' | 'ALLY' | 'MENTOR' | 'FAMILY' | 'NEUTRAL' | 'LOVER' | 'PART_OF' | 'FRIEND' | 'KNOWS' | 'TALKS_TO' | 'HATES' | 'LOCATED_IN' | 'CAUSE';
+  relation: 'ENEMY' | 'ALLY' | 'MENTOR' | 'FAMILY' | 'NEUTRAL' | 'LOVER' | 'PART_OF' | 'FRIEND' | 'KNOWS' | 'TALKS_TO' | 'HATES' | 'LOCATED_IN' | 'CAUSE' | 'OWNED_BY';
   context: string; // The "Why" (snippet)
   sourceFileId: string; // For updates/overwrites
 }
