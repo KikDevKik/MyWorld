@@ -1000,6 +1000,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     // CRYSTALLIZATION
     const handleCrystallize = (node: Node) => {
+        setExpandedNodeId(null); // Close the expanded view
         setCrystallizeModal({ isOpen: true, node, isProcessing: false });
     };
 
