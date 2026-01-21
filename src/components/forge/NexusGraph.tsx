@@ -22,6 +22,7 @@ interface NexusGraphProps {
 interface GraphData {
     nodes: any[];
     links: any[];
+    neighbors: Map<string, Set<string>>;
 }
 
 // 📐 SHAPE HELPERS
@@ -61,6 +62,10 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     const [entities, setEntities] = useState<GraphNode[]>([]);
     const [loading, setLoading] = useState(true);
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+
+    // 🟢 FOCUS MODE STATE
+    const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+
     const graphRef = useRef<any>(null);
     const clickTimeoutRef = useRef<any>(null);
     const frozenNodesRef = useRef<Record<string, { x: number; y: number }>>({}); // 🟢 MEDUSA: Anchor Storage
@@ -73,7 +78,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     });
 
     // --- 1. DATA FETCHING (CONDITIONAL) ---
-    // Only fetch if propNodes is NOT provided (Backward Compatibility / Fallback)
     useEffect(() => {
         console.log("NexusGraph Mounting...");
         if (propNodes) {
@@ -107,26 +111,36 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     const graphData = useMemo<GraphData>(() => {
         const nodes: any[] = [];
         const links: any[] = [];
+        const neighbors = new Map<string, Set<string>>(); // For Focus Mode
         const fileMap = new Map<string, string[]>(); // fileId -> [entityIds]
         const existingNodeIds = new Set<string>();
         const semanticPairs = new Set<string>(); // "idA-idB" (sorted) to track semantic overrides
+        const linkDirectionMap = new Map<string, boolean>(); // "idA->idB" -> exists
 
         // DETERMINE SOURCE: Props vs Internal State
-        // If propNodes is present, we assume it contains EVERYTHING (Canon + Ideas)
-        // If not, we use internal `entities` + legacy `localNodes`
         const sourceNodes: GraphNode[] = propNodes || entities;
         const legacyIdeas = propNodes ? [] : localNodes;
 
-        // HELPER: Color Coding
-        const getTypeColor = (type: EntityType) => {
-            switch (type) {
-                case 'character': return '#06b6d4'; // Cyan
-                case 'location': return '#a855f7'; // Violet
-                case 'object': return '#f59e0b'; // Amber
-                case 'event': return '#ef4444'; // Crimson
-                case 'faction': return '#10b981'; // Emerald
+        // 🟢 COLOR CODING: SMART PALETTE
+        const getNodeColor = (node: GraphNode) => {
+            // 1. FACTION OVERRIDE (Meta)
+            // TODO: Ensure 'faction' is correctly propagated in GraphNode interface or check loosely
+            const meta = (node as any).meta || {};
+            if (meta.faction) {
+                // If we had a faction-to-color map, we'd use it here.
+                // For now, we fall back to Type unless specific factions are hardcoded.
+                // Assuming no hardcoded faction colors yet, proceeding to Type Logic.
+            }
+
+            // 2. TYPE FALLBACK
+            switch (node.type) {
+                case 'character': return '#06b6d4'; // Cyan Neon
+                case 'location': return '#10b981'; // Emerald Green
+                case 'object': return '#f59e0b'; // Amber/Gold
+                case 'event': return '#ef4444'; // Red/Magenta
+                case 'faction': return '#8b5cf6'; // Violet
                 case 'concept': return '#ec4899'; // Pink
-                case 'idea': return '#FFD700'; // 🟢 GOLD (Ideas) - "The Golden Snitch"
+                case 'idea': return '#FFD700'; // GOLD
                 default: return '#9ca3af'; // Gray
             }
         };
@@ -144,13 +158,10 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             const val = (entity as any).val || ((isIdea || isConcept) ? 5 : Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3)));
 
             // 🟢 MEDUSA: Selective Anchoring logic
-            // DB Persistence (Top Priority) > Local Freeze (Medium) > Floating (New)
             const frozen = frozenNodesRef.current[entity.id];
             let finalFx = entity.fx ?? frozen?.x;
             let finalFy = entity.fy ?? frozen?.y;
 
-            // 🟢 SANITIZATION: QUARANTINE PROTOCOL (NaN PROTECTION)
-            // If defined but invalid, force to 0 (Center of Universe)
             if (finalFx !== undefined) {
                 if (typeof finalFx !== 'number' || isNaN(finalFx)) finalFx = 0;
             }
@@ -162,18 +173,18 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 id: entity.id,
                 name: entity.name,
                 type: entity.type,
-                color: getTypeColor(entity.type),
+                color: getNodeColor(entity),
                 val: val,
                 entityData: entity,
-                fx: finalFx, // Medusa: Persistence
+                fx: finalFx,
                 fy: finalFy,
-                isLocal: isIdea, // Use type to distinguish
-                agentId: (entity as any).agentId, // Carry over agentId if present
-                isCanon: (entity as any).isCanon, // 🟢 STRICT FLAG
+                isLocal: isIdea,
+                agentId: (entity as any).agentId,
+                isCanon: (entity as any).isCanon,
                 fileId: (entity as any).fileId
             });
 
-            // Index Files for Co-occurrence (only for Canon usually, but safely check)
+            // Index Files
             if (entity.foundInFiles) {
                 entity.foundInFiles.forEach(file => {
                     if (!fileMap.has(file.fileId)) {
@@ -184,7 +195,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             }
         });
 
-        // B. PROCESS LEGACY LOCAL IDEAS (If applicable)
+        // B. PROCESS LEGACY LOCAL IDEAS
         legacyIdeas.forEach(idea => {
             if (existingNodeIds.has(idea.id)) return;
             existingNodeIds.add(idea.id);
@@ -193,7 +204,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 id: idea.id,
                 name: idea.title,
                 type: 'idea',
-                color: getTypeColor('idea'),
+                color: getNodeColor(idea),
                 val: 5,
                 entityData: idea,
                 fx: idea.fx,
@@ -203,7 +214,16 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             });
         });
 
-        // C. PROCESS SEMANTIC RELATIONS & GHOST NODES
+        // C. PRE-PROCESS RELATIONS FOR BIDIRECTIONAL CHECK
+        sourceNodes.forEach(entity => {
+            if (entity.relations && Array.isArray(entity.relations)) {
+                entity.relations.forEach(rel => {
+                   linkDirectionMap.set(`${entity.id}->${rel.targetId}`, true);
+                });
+            }
+        });
+
+        // D. PROCESS SEMANTIC RELATIONS & GHOST NODES
         sourceNodes.forEach(entity => {
             if (entity.relations && Array.isArray(entity.relations)) {
                 entity.relations.forEach(rel => {
@@ -211,22 +231,21 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
                     // 1. Ghost Node Generation
                     if (!existingNodeIds.has(targetId)) {
-                        // Check if already added as ghost in this pass
                         if (!nodes.find(n => n.id === targetId)) {
                             nodes.push({
                                 id: targetId,
                                 name: rel.targetName || "Unknown",
                                 type: rel.targetType || 'concept',
-                                color: getTypeColor(rel.targetType),
-                                val: 1, // Small size for ghosts
-                                isGhost: true, // Marker for visual style
+                                color: getNodeColor({ type: rel.targetType || 'concept' } as GraphNode),
+                                val: 1,
+                                isGhost: true,
                                 entityData: {
                                     id: targetId,
                                     name: rel.targetName,
                                     type: rel.targetType,
                                     description: "Entidad inferida (Nodo Fantasma)",
                                     isGhost: true,
-                                    meta: { tier: 'background' } // Implicit ghost tier
+                                    meta: { tier: 'background' }
                                 },
                                 isLocal: false
                             });
@@ -234,33 +253,73 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     }
 
                     // 2. Semantic Link Generation
-                    let linkColor = '#9ca3af'; // Gray default
+                    let linkColor = '#9ca3af';
+                    let linkDist = 100; // Default Medium
+
+                    // 🟢 FORCE TUNING: SEMANTIC DISTANCE
                     switch (rel.relation) {
-                        case 'ENEMY': linkColor = '#ef4444'; break; // Red
-                        case 'ALLY': linkColor = '#22c55e'; break; // Green
-                        case 'MENTOR': linkColor = '#3b82f6'; break; // Blue
-                        case 'FAMILY': linkColor = '#10b981'; break; // Emerald/Green variant
-                        case 'NEUTRAL': linkColor = '#6b7280'; break; // Gray
-                        case 'CAUSE': linkColor = '#eab308'; break; // Yellow
+                        // CLOSE (Strong)
+                        case 'FAMILY':
+                        case 'LOVER':
+                        case 'PART_OF':
+                            linkColor = '#10b981';
+                            linkDist = 50;
+                            break;
+                        // MEDIUM (Standard)
+                        case 'FRIEND':
+                        case 'KNOWS':
+                        case 'TALKS_TO':
+                        case 'ALLY':
+                        case 'MENTOR':
+                            linkColor = '#3b82f6';
+                            linkDist = 120;
+                            break;
+                        // FAR (Weak/Repelled)
+                        case 'ENEMY':
+                        case 'HATES':
+                            linkColor = '#ef4444';
+                            linkDist = 300;
+                            break;
+                        case 'LOCATED_IN':
+                            linkColor = '#6b7280';
+                            linkDist = 180; // Orbit
+                            break;
+                        case 'NEUTRAL':
+                        default:
+                            linkColor = '#6b7280';
+                            linkDist = 120;
+                            break;
                     }
+
+                    // 🟢 CURVATURE LOGIC: CHECK RECIPROCITY
+                    const isBidirectional = linkDirectionMap.has(`${targetId}->${entity.id}`);
+                    const curvature = isBidirectional ? 0.2 : 0;
 
                     links.push({
                         source: entity.id,
                         target: targetId,
                         color: linkColor,
-                        width: 2, // Thicker than co-occurrence
-                        label: `${rel.relation}: ${rel.context}`, // Tooltip
-                        isSemantic: true
+                        width: 2,
+                        label: `${rel.relation}`,
+                        isSemantic: true,
+                        distance: linkDist,
+                        curvature: curvature
                     });
 
-                    // Track semantic pair to override co-occurrence
+                    // Track Semantic Override
                     const pairKey = [entity.id, targetId].sort().join('::');
                     semanticPairs.add(pairKey);
+
+                    // Track Neighbors for Focus Mode
+                    if (!neighbors.has(entity.id)) neighbors.set(entity.id, new Set());
+                    if (!neighbors.has(targetId)) neighbors.set(targetId, new Set());
+                    neighbors.get(entity.id)?.add(targetId);
+                    neighbors.get(targetId)?.add(entity.id);
                 });
             }
         });
 
-        // D. BUILD EDGES (CO-OCCURRENCE) - WITH OVERRIDE
+        // E. PROCESS CO-OCCURRENCE EDGES (With Override)
         const linkMap = new Map<string, number>();
 
         fileMap.forEach((entityIds) => {
@@ -282,7 +341,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         linkMap.forEach((weight, key) => {
             const [source, target] = key.split('::');
             let width = 0.5;
-            let linkColor = '#374151'; // Faint gray
+            let linkColor = '#374151';
 
             if (weight >= 5) { width = 1; linkColor = '#4b5563'; }
             if (weight >= 10) { width = 2; linkColor = '#6b7280'; }
@@ -292,12 +351,20 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 target,
                 width,
                 color: linkColor,
-                opacity: 0.2, // Visual differentiation
-                isSemantic: false
+                opacity: 0.2,
+                isSemantic: false,
+                distance: 150, // Standard loose distance for co-occurrence
+                curvature: 0
             });
+
+            // Track Neighbors
+            if (!neighbors.has(source)) neighbors.set(source, new Set());
+            if (!neighbors.has(target)) neighbors.set(target, new Set());
+            neighbors.get(source)?.add(target);
+            neighbors.get(target)?.add(source);
         });
 
-        return { nodes, links };
+        return { nodes, links, neighbors };
     }, [entities, localNodes, propNodes]);
 
     // --- 3. INTERACTION HANDLERS ---
@@ -305,34 +372,29 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     // 🟢 MEDUSA: Force Configuration
     useEffect(() => {
         if (graphRef.current) {
-            // "Anti-Clumping" - Increase repulsion
-            graphRef.current.d3Force('charge').strength(-800);
+            // 🟢 PHYSICS CALIBRATION: NUCLEAR REPULSION
+            graphRef.current.d3Force('charge').strength(-1500);
+
+            // 🟢 PHYSICS CALIBRATION: DYNAMIC LINKS
+            graphRef.current.d3Force('link').distance((link: any) => link.distance || 100);
         }
     }, [graphData]);
 
-    // 🟢 THE DROP: AUTO-FREEZE PROTOCOL (4000ms)
-    // Watches for NEW ideas that are not yet anchored (fx undefined).
+    // 🟢 THE DROP: AUTO-FREEZE PROTOCOL
     const processedFreezes = useRef<Set<string>>(new Set());
 
     useEffect(() => {
         if (!onAutoFreeze) return;
 
         graphData.nodes.forEach(node => {
-            // CONDITIONS: Idea, Local, No Anchor, Not already processed
             if (
                 node.type === 'idea' &&
                 node.isLocal &&
                 (node.fx === undefined || node.fx === null) &&
                 !processedFreezes.current.has(node.id)
             ) {
-                // MARK AS PROCESSING
                 processedFreezes.current.add(node.id);
-                console.log(`[The Drop] Timer started for: ${node.name} (${node.id})`);
-
                 setTimeout(() => {
-                    // RETRIEVE LIVE POSITION
-                    // We must ask the graph engine for the *current* simulation node object
-                    // because React state 'node' is stale (snapshot at render time).
                     if (graphRef.current) {
                         const internalData = graphRef.current?.graphData?.();
                         if (!internalData) return;
@@ -340,38 +402,28 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         const liveNode = internalData.nodes.find((n: any) => n.id === node.id);
 
                         if (liveNode && liveNode.x !== undefined && liveNode.y !== undefined) {
-                            console.log(`[The Drop] Anchoring ${node.name} at [${liveNode.x.toFixed(0)}, ${liveNode.y.toFixed(0)}]`);
                             if (onAutoFreeze && typeof onAutoFreeze === 'function') {
                                 onAutoFreeze(node.id, liveNode.x, liveNode.y);
                             }
                         }
                     }
-                }, 4000); // 4 Seconds Drop
+                }, 4000);
             }
         });
     }, [graphData.nodes, onAutoFreeze]);
 
-    // 🟢 MEDUSA: The Anchor
     const handleEngineStop = () => {
-        hasRenderedRef.current = true; // 🟢 MARK AS RENDERED (Born)
-
-        // CORRECCIÓN: Usamos la prop 'nodes' directamente (via graphData), ya que D3 muta estos objetos.
-        // No llamamos a fgRef.current.graphData() porque causa crash.
+        hasRenderedRef.current = true;
         const nodes = graphData.nodes;
         if (!nodes) return;
 
         nodes.forEach((node: any) => {
-            // Solo anclamos si tiene coordenadas válidas
             if (node.x && node.y) {
                 node.fx = node.x;
                 node.fy = node.y;
-                // Medusa: Persistence
                 frozenNodesRef.current[node.id] = { x: node.x, y: node.y };
             }
         });
-
-        // Opcional: Llamar a onAutoFreeze si fuera necesario (omitido por incompatibilidad de firma)
-        // if (onAutoFreeze && typeof onAutoFreeze === 'function') { onAutoFreeze(); }
     };
 
     // CLICK HANDLER (Single vs Double)
@@ -384,7 +436,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             if (onNodeDoubleClick) {
                 onNodeDoubleClick(node.id, node.isLocal);
             } else {
-                // Default: Open Internal Drawer
                 setSelectedNode(node.entityData);
                 graphRef.current?.centerAt(node.x, node.y, 1000);
                 graphRef.current?.zoom(4, 2000);
@@ -393,19 +444,27 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             // SINGLE CLICK INITIATED
             clickTimeoutRef.current = setTimeout(() => {
                 clickTimeoutRef.current = null;
-                // Executed only if second click didn't happen
+                // 🟢 FOCUS MODE TOGGLE
+                // If clicking same node, keep it focused. If different, switch.
+                // Wait... requirement says: 1 Click = Focus Mode.
+                setFocusedNodeId(node.id);
+
                 if (onNodeClick) {
                     onNodeClick(node.id, node.isLocal);
                 }
-            }, 300); // 300ms window
+            }, 300);
         }
     };
 
+    const handleBackgroundClick = () => {
+        setSelectedNode(null);
+        setFocusedNodeId(null); // 🟢 RESET FOCUS
+    };
+
     const handlePointerDown = (e: React.PointerEvent) => {
-        // Right Click (2) or Shift Key for Link Dragging
         if ((e.button === 2 || e.shiftKey) && hoveredNode && onLinkCreate) {
             e.preventDefault();
-            e.stopPropagation(); // Stop pan
+            e.stopPropagation();
             setLinkDragState({
                 active: true,
                 source: hoveredNode,
@@ -424,7 +483,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     const handlePointerUp = (e: React.PointerEvent) => {
         if (linkDragState.active) {
             if (hoveredNode && hoveredNode.id !== linkDragState.source.id && onLinkCreate) {
-                // Success: Create Link
                 onLinkCreate(linkDragState.source.id, hoveredNode.id);
             }
             setLinkDragState({ active: false, source: null, currentPos: null });
@@ -437,11 +495,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         }
     };
 
-
-    // --- GUARD CLAUSE ---
     if (!projectId) return null;
 
-    // --- 4. RENDER GRAPH ---
     return (
         <div
             className="absolute inset-0 z-0 bg-black/90 backdrop-blur-md overflow-hidden pointer-events-auto touch-auto"
@@ -455,8 +510,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 <div className="pointer-events-auto flex items-center gap-4">
                      <div className="px-4 py-2 bg-black/50 backdrop-blur-md rounded-full border border-titanium-800 text-titanium-300 text-xs font-mono flex items-center gap-3">
                         <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_8px_rgba(6,182,212,0.8)]"></div> CHAR</span>
-                        <span className="flex items-center gap-1"><div className="w-2 h-2 border border-purple-500 bg-purple-500/20"></div> CONCEPT</span>
-                        <span className="flex items-center gap-1"><div className="w-0 h-0 border-l-[4px] border-l-transparent border-b-[6px] border-b-amber-500 border-r-[4px] border-r-transparent"></div> LOC</span>
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 border border-emerald-500 bg-emerald-500/20"></div> LOC</span>
+                        <span className="flex items-center gap-1"><div className="w-0 h-0 border-l-[4px] border-l-transparent border-b-[6px] border-b-amber-500 border-r-[4px] border-r-transparent"></div> OBJ</span>
+                        <span className="flex items-center gap-1"><div className="w-2 h-2 border border-red-500 bg-red-500/20"></div> EVT</span>
                      </div>
                 </div>
 
@@ -482,11 +538,69 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     linkWidth="width"
                     linkDirectionalArrowLength={3.5}
                     linkDirectionalArrowRelPos={1}
-                    linkCurvature={0.2}
+                    linkCurvature="curvature"
                     linkLabel="label"
+
+                    // 🟢 FOCUS MODE LINK STYLING
+                    linkCanvasObject={(link, ctx, globalScale) => {
+                        // Check Focus Mode
+                        let opacity = 0.6; // Default
+                        if (focusedNodeId) {
+                            const sourceId = (link.source as any).id || link.source;
+                            const targetId = (link.target as any).id || link.target;
+                            const isConnected = sourceId === focusedNodeId || targetId === focusedNodeId;
+                            opacity = isConnected ? 1 : 0.05; // Dim others significantly
+                        }
+
+                        // Style
+                        ctx.globalAlpha = opacity;
+                        ctx.strokeStyle = link.color || '#9ca3af';
+                        ctx.lineWidth = (link.width || 1) / globalScale;
+
+                        // Curvature handling (Bezier) is complex to draw manually.
+                        // ForceGraph2D usually handles this. If we provide linkCanvasObject, we take FULL control.
+                        // HOWEVER, reproducing Bezier + Arrows + Interactions manually is risky.
+                        // BETTER STRATEGY: Use standard props for drawing and only use canvasObject if absolutely necessary.
+                        // But standard props don't support dynamic opacity easily without re-render.
+                        // Since 'focusedNodeId' causes re-render, we can pass opacity via `link.color` modification in memo?
+                        // No, memo doesn't update on focusedNodeId change unless added to dep array.
+                        // Let's fallback to NOT using linkCanvasObject for lines, but rely on re-processing graphData?
+                        // Too expensive.
+                        // ForceGraph allows passing a function for linkColor? No, string or accessor.
+
+                        // REVISION: We will NOT use linkCanvasObject. We will use `linkColor` accessor.
+                        // We need to trigger a graph update when focusedNodeId changes.
+                    }}
+
+                    // 🟢 LINK COLOR ACCESSOR (DYNAMIC OPACITY)
+                    linkColor={(link: any) => {
+                        if (!focusedNodeId) return link.color;
+
+                        const sourceId = link.source.id || link.source;
+                        const targetId = link.target.id || link.target;
+
+                        const isConnected = sourceId === focusedNodeId || targetId === focusedNodeId;
+                        if (isConnected) return link.color; // Keep original color
+
+                        // Dimmed version (Greyish and transparent)
+                        return '#33333330';
+                    }}
 
                     // Node Styling
                     nodeCanvasObject={(node, ctx, globalScale) => {
+                        // 🟢 FOCUS MODE LOGIC
+                        let globalAlpha = 1;
+                        if (focusedNodeId) {
+                            const isFocused = node.id === focusedNodeId;
+                            const isNeighbor = graphData.neighbors.get(focusedNodeId)?.has(node.id);
+                            if (isFocused || isNeighbor) {
+                                globalAlpha = 1;
+                            } else {
+                                globalAlpha = 0.15; // Ghosted
+                            }
+                        }
+                        ctx.globalAlpha = globalAlpha;
+
                         const label = node.name;
                         const fontSize = 12/globalScale;
                         ctx.font = `${fontSize}px Sans-Serif`;
@@ -495,37 +609,30 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         // 1. CONCEPTS / IDEAS -> SQUARE
                         if (node.type === 'idea' || node.type === 'concept') {
                             const size = 20 / globalScale;
+                            ctx.fillStyle = node.type === 'concept' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(20, 20, 20, 0.8)';
+                            ctx.strokeStyle = node.color;
 
-                            ctx.fillStyle = node.type === 'concept' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(20, 20, 20, 0.8)'; // Purple vs Slate
-                            ctx.strokeStyle = node.color; // From helper
-
-                            // Draw Square
                             ctx.beginPath();
                             ctx.rect(node.x - size/2, node.y - size/2, size, size);
                             ctx.fill();
 
-                            // Dashed if it's a detected entity or local idea
                             if (node.isLocal || node.entityData?.meta?.tier === 'background' || node.isGhost) {
                                 ctx.setLineDash([4/globalScale, 2/globalScale]);
                             } else {
                                 ctx.setLineDash([]);
                             }
-
                             ctx.stroke();
-                            ctx.setLineDash([]); // Reset
+                            ctx.setLineDash([]);
 
-                            // Label
                             ctx.textAlign = 'center';
                             ctx.textBaseline = 'middle';
                             ctx.fillStyle = '#e2e8f0';
                             ctx.fillText(label, node.x, node.y + size/2 + 8/globalScale);
-                            return;
                         }
-
-                        // 2. LOCATIONS -> HEXAGON or TRIANGLE
-                        if (node.type === 'location') {
-                            const size = 8 / globalScale; // Radius
-                            ctx.fillStyle = 'rgba(168, 85, 247, 0.1)'; // Faint Violet
+                        // 2. LOCATIONS -> HEXAGON
+                        else if (node.type === 'location') {
+                            const size = 8 / globalScale;
+                            ctx.fillStyle = 'rgba(168, 85, 247, 0.1)';
                             ctx.strokeStyle = node.color;
 
                             drawHexagon(ctx, node.x, node.y, size);
@@ -541,11 +648,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                             ctx.textBaseline = 'middle';
                             ctx.fillStyle = node.color;
                             ctx.fillText(label, node.x, node.y + size + 8/globalScale);
-                            return;
                         }
-
                         // 3. OBJECTS -> DIAMOND
-                        if (node.type === 'object') {
+                        else if (node.type === 'object') {
                             const size = 8 / globalScale;
                             ctx.fillStyle = 'rgba(245, 158, 11, 0.1)';
                             ctx.strokeStyle = node.color;
@@ -563,40 +668,32 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                             ctx.textBaseline = 'middle';
                             ctx.fillStyle = node.color;
                             ctx.fillText(label, node.x, node.y + size + 8/globalScale);
-                            return;
                         }
-
                         // 4. CHARACTERS (DEFAULT) -> CIRCLE
-                        ctx.fillStyle = 'rgba(6, 182, 212, 0.1)'; // Cyan tint
-
-                        // 🟢 VISUAL STATUS: CANON (SOLID) vs GHOST (DASHED)
-                        if (node.isCanon) {
-                             // SOLID BORDER (HAS FILE)
-                            ctx.strokeStyle = node.color;
-                            ctx.lineWidth = 1.5 / globalScale;
-                            ctx.setLineDash([]);
-
-                            ctx.beginPath();
-                            ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-                            ctx.fill();
-                            ctx.stroke();
-                        } else {
-                            // GHOST / NEXUS ONLY (DASHED)
-                            ctx.strokeStyle = node.color;
-                            ctx.lineWidth = 1 / globalScale;
-                            ctx.setLineDash([4/globalScale, 2/globalScale]);
-
-                            ctx.beginPath();
-                            ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-                            ctx.stroke();
-                            ctx.setLineDash([]);
+                        else {
+                            ctx.fillStyle = 'rgba(6, 182, 212, 0.1)';
+                            if (node.isCanon) {
+                                ctx.strokeStyle = node.color;
+                                ctx.lineWidth = 1.5 / globalScale;
+                                ctx.setLineDash([]);
+                                ctx.beginPath();
+                                ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
+                                ctx.fill();
+                                ctx.stroke();
+                            } else {
+                                ctx.strokeStyle = node.color;
+                                ctx.lineWidth = 1 / globalScale;
+                                ctx.setLineDash([4/globalScale, 2/globalScale]);
+                                ctx.beginPath();
+                                ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
+                                ctx.stroke();
+                                ctx.setLineDash([]);
+                            }
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = node.color;
+                            ctx.fillText(label, node.x, node.y + 8);
                         }
-
-                        // Text
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillStyle = node.color;
-                        ctx.fillText(label, node.x, node.y + 8);
                     }}
 
                     // Interaction Hooks
@@ -607,7 +704,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         node.fy = node.y;
                         if (onNodeDragEnd) onNodeDragEnd(node);
                     }}
-                    onBackgroundClick={() => setSelectedNode(null)}
+                    onBackgroundClick={handleBackgroundClick}
 
                     // Render Temp Link
                     onRenderFramePost={(ctx, globalScale) => {
@@ -624,18 +721,13 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     }}
 
                     cooldownTicks={hasRenderedRef.current ? 0 : 1000} // 🟢 REALITY ANCHOR: Zero Cooldown if already born
-                    d3VelocityDecay={0.9} // Medusa: High Friction (was 0.6)
-                    d3AlphaDecay={0.2} // Medusa: Rapid Cooling (was 0.05)
+                    d3VelocityDecay={0.9} // Medusa: High Friction
+                    d3AlphaDecay={0.2} // Medusa: Rapid Cooling
                     onEngineStop={handleEngineStop} // Medusa: Anchor
                 />
             </div>
 
-            {/* DRAWER (DETAILS PANEL) - Only if internal drawer is active */}
-            {/* Logic: If onNodeSelect (single click) AND onNodeDoubleClick (double click) are provided,
-                we might NOT want the internal drawer at all.
-                However, for backward compat or manual mode, we show it if selectedNode is set.
-                selectedNode is set in handleNodeClick -> default double click behavior.
-            */}
+            {/* DRAWER (DETAILS PANEL) */}
             {selectedNode && (
                 <div
                     className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col translate-x-0`}
@@ -646,7 +738,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                             <div className="flex items-center justify-between mb-2">
                                 <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded border
                                     ${selectedNode.type === 'character' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
-                                    selectedNode.type === 'location' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
+                                    selectedNode.type === 'location' ? 'text-emerald-400 border-emerald-900 bg-emerald-950/30' :
                                     selectedNode.type === 'event' ? 'text-red-400 border-red-900 bg-red-950/30' :
                                     'text-amber-400 border-amber-900 bg-amber-950/30'}
                                 `}>
