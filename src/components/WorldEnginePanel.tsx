@@ -34,6 +34,9 @@ interface VisualGraphNode extends GraphNode {
     isEphemeral?: boolean;
     isLocal?: boolean;
     agentId?: AgentType;
+    isCanon?: boolean;
+    fileId?: string;
+    val?: number; // Visual Size
 }
 
 interface WorldEnginePanelProps {
@@ -748,6 +751,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const unifiedNodes = useMemo(() => {
         const unifiedMap = new Map<string, VisualGraphNode>();
         const nameToCanonMap = new Map<string, Character>();
+        const incomingRelations = new Map<string, number>(); // TargetID -> Count
 
         // PREPARE CANON LOOKUP
         canonCharacters.forEach(c => {
@@ -755,7 +759,17 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             if (c.id) nameToCanonMap.set(c.id, c); // Also lookup by ID
         });
 
-        // PHASE 1: ENTITIES (The Base Reality)
+        // STEP 0: CALCULATE INCOMING METRICS (Global Popularity for Satellites)
+        entityNodes.forEach(node => {
+            if (node.relations) {
+                node.relations.forEach(rel => {
+                     const count = incomingRelations.get(rel.targetId) || 0;
+                     incomingRelations.set(rel.targetId, count + 1);
+                });
+            }
+        });
+
+        // PHASE 1: ENTITIES (The Base Reality - Nexus Data First)
         // We iterate Rich Entities first.
         entityNodes.forEach(entity => {
             // Clone to avoid mutation and cast to Visual Type
@@ -766,43 +780,60 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             const canonMatch = nameToCanonMap.get(entity.id) || (normName ? nameToCanonMap.get(normName) : null);
 
             if (canonMatch) {
-                // Merge Canon Data (Avatar, Tier, Bio) into Entity
+                // 🟢 LINK INJECTION (The Hyperlink)
+                node.fileId = canonMatch.id;
+                node.isCanon = true;
+
+                // 🟢 TIER INJECTION (Visual Hierarchy)
                 node.meta = {
                     ...node.meta,
-                    tier: canonMatch.tier === 'MAIN' ? 'protagonist' : 'secondary',
-                    avatarUrl: undefined // Add if available in future
+                    tier: canonMatch.tier === 'MAIN' ? 'protagonist' : (canonMatch.tier === 'SECONDARY' ? 'secondary' : 'background'),
+                    avatarUrl: undefined // 🟢 ZERO IMAGE POLICY
                 };
-                if (!node.description && canonMatch.description) {
-                    node.description = canonMatch.description;
-                }
-                // Canon ID overrides Hash ID if they differ (to link to file)
-                // However, if we change ID, we must update all relations pointing to it.
-                // For safety in this phase, we keep Entity ID as the graph node ID,
-                // but we might tag it as linked to Canon.
-                // Ideally, we want the node ID to match the Firestore Entity ID.
+
+                // Note: We PRESERVE description/context from Nexus (AI Brain).
             }
+
+            // 🟢 SIZE CALCULATION (Determinism)
+            let size = 10; // Default (Ghost/Background)
+            const tier = node.meta?.tier;
+
+            if (tier === 'protagonist') size = 40;
+            else if (tier === 'secondary') size = 20;
+
+            // Exception: Dynamic Size for popular ghosts/concepts
+            if (!node.isCanon && (incomingRelations.get(node.id) || 0) > 5) {
+                size = 25; // Emerging Concept
+            }
+            node.val = size;
 
             unifiedMap.set(node.id, node);
         });
 
-        // PHASE 2: ORPHAN CANON (The Missing)
+        // PHASE 2: ORPHAN CANON (The Missing Files)
         // If a Canon Character exists but has NO Entity document, we still want to show it.
+        // It has a file, so it implies persistence.
         canonCharacters.forEach(char => {
             // Check if we already have a node for this char (by ID or Name)
             const existsById = unifiedMap.has(char.id);
             const existsByName = Array.from(unifiedMap.values()).some(n => n.name?.toLowerCase() === char.name?.toLowerCase());
 
             if (!existsById && !existsByName) {
+                const size = char.tier === 'MAIN' ? 40 : (char.tier === 'SECONDARY' ? 20 : 10);
+
                 // Create a basic node for the Canon character
                 unifiedMap.set(char.id, {
                     id: char.id,
                     name: char.name,
                     type: 'character',
                     projectId: config?.folderId || '',
-                    description: char.description,
+                    description: char.description || "Archivo canon sin datos en Nexus.",
                     meta: { tier: char.tier === 'MAIN' ? 'protagonist' : 'secondary' },
                     relations: [],
-                    foundInFiles: []
+                    foundInFiles: [],
+                    isCanon: true,
+                    fileId: char.id,
+                    val: size
                 });
             }
         });
@@ -819,7 +850,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 const targetName = rel.targetName;
 
                 // Check if target already exists in our map
-                // We check ID first, then try to match by Name just in case
                 let exists = unifiedMap.has(targetId);
                 if (!exists && targetName) {
                      exists = Array.from(unifiedMap.values()).some(n => n.name?.toLowerCase() === targetName.toLowerCase());
@@ -827,9 +857,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
                 if (!exists) {
                     // 👻 GHOST DETECTED
-                    // We need to generate a valid ID.
-                    // If targetId looks like a hash (32+ chars), use it.
-                    // If it's short or missing, generate one.
                     let ghostId = targetId;
                     if (!ghostId || ghostId.length < 10) {
                          ghostId = generateId(EFFECTIVE_PROJECT_ID, targetName); // 🟢 HARDWIRE
@@ -839,15 +866,14 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     if (unifiedMap.has(ghostId)) return;
 
                     // ORBITAL POSITIONING
-                    // Radius: 50-100px
-                    // Angle: Random
                     const angle = Math.random() * 2 * Math.PI;
                     const radius = 50 + Math.random() * 50;
-                    const parentX = sourceNode.fx || sourceNode.x || 0; // x/y might be 0 if not rendered yet
+                    const parentX = sourceNode.fx || sourceNode.x || 0;
                     const parentY = sourceNode.fy || sourceNode.y || 0;
 
-                    const ghostX = parentX + radius * Math.cos(angle);
-                    const ghostY = parentY + radius * Math.sin(angle);
+                    // Size Calculation
+                    const popularity = incomingRelations.get(targetId) || 0;
+                    const ghostSize = popularity > 5 ? 20 : 10;
 
                     const ghostNode: VisualGraphNode = {
                         id: ghostId,
@@ -862,10 +888,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         // EPHEMERAL FLAGS
                         isGhost: true,
                         isEphemeral: true, // Needs persistence on move
+                        val: ghostSize,
 
                         // INITIAL POSITION
-                        fx: ghostX,
-                        fy: ghostY
+                        fx: parentX + radius * Math.cos(angle),
+                        fy: parentY + radius * Math.sin(angle)
                     };
 
                     unifiedMap.set(ghostId, ghostNode);
@@ -886,6 +913,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 meta: { brief: n.content.substring(0, 50) },
                 agentId: n.agentId,
                 isLocal: true,
+                val: 5, // Tiny Idea
                 relations: n.metadata?.pending_relations?.map(r => ({
                     targetId: r.targetId,
                     targetName: "Unknown",
@@ -897,7 +925,29 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             } as VisualGraphNode);
         });
 
-        return Array.from(unifiedMap.values());
+        // PHASE 5: EXTERMINATION PROTOCOL (Garbage Collection)
+        // Filter out "Islands" - Empty nodes with no connections and no file.
+        const result = Array.from(unifiedMap.values()).filter(node => {
+            // 1. Keep if Local Idea
+            if (node.isLocal) return true;
+
+            // 2. Keep if Canon (Has File)
+            if (node.isCanon || node.fileId) return true;
+
+            // 3. Keep if Social (Has outgoing relations)
+            if (node.relations && node.relations.length > 0) return true;
+
+            // 4. Keep if Popular (Has incoming relations - Satellite)
+            // Even if it's a ghost, if someone points to it, it survives.
+            const incoming = incomingRelations.get(node.id) || 0;
+            if (incoming > 0) return true;
+
+            // ELSE: TERMINATE
+            // This kills the "Empty Boxes" that are neither Canon nor Connected.
+            return false;
+        });
+
+        return result;
 
     }, [canonCharacters, entityNodes, nodes, config]);
 

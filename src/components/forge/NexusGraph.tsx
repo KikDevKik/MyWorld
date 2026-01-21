@@ -135,9 +135,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             const isIdea = entity.type === 'idea';
             const isConcept = entity.type === 'concept';
 
-            // Size based on appearances (or fixed for ideas/concepts)
+            // Size based on injected 'val' (Tier) or fallback to appearances
             const appearanceCount = entity.foundInFiles?.length || 0;
-            const val = (isIdea || isConcept) ? 5 : Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3));
+            const val = (entity as any).val || ((isIdea || isConcept) ? 5 : Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3)));
 
             nodes.push({
                 id: entity.id,
@@ -149,7 +149,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 fx: entity.fx, // Spatial Persistence
                 fy: entity.fy,
                 isLocal: isIdea, // Use type to distinguish
-                agentId: (entity as any).agentId // Carry over agentId if present
+                agentId: (entity as any).agentId, // Carry over agentId if present
+                isCanon: (entity as any).isCanon, // 🟢 STRICT FLAG
+                fileId: (entity as any).fileId
             });
 
             // Index Files for Co-occurrence (only for Canon usually, but safely check)
@@ -475,18 +477,28 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
                         // 4. CHARACTERS (DEFAULT) -> CIRCLE
                         ctx.fillStyle = 'rgba(6, 182, 212, 0.1)'; // Cyan tint
-                        if (node.isGhost || node.entityData?.meta?.tier === 'background') {
+
+                        // 🟢 VISUAL STATUS: CANON (SOLID) vs GHOST (DASHED)
+                        if (node.isCanon) {
+                             // SOLID BORDER (HAS FILE)
                             ctx.strokeStyle = node.color;
+                            ctx.lineWidth = 1.5 / globalScale;
+                            ctx.setLineDash([]);
+
+                            ctx.beginPath();
+                            ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
+                            ctx.fill();
+                            ctx.stroke();
+                        } else {
+                            // GHOST / NEXUS ONLY (DASHED)
+                            ctx.strokeStyle = node.color;
+                            ctx.lineWidth = 1 / globalScale;
                             ctx.setLineDash([4/globalScale, 2/globalScale]);
+
                             ctx.beginPath();
                             ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
                             ctx.stroke();
                             ctx.setLineDash([]);
-                        } else {
-                            ctx.fillStyle = node.color;
-                            ctx.beginPath();
-                            ctx.arc(node.x, node.y, 5, 0, 2 * Math.PI);
-                            ctx.fill();
                         }
 
                         // Text
