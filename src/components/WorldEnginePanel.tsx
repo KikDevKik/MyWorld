@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirestore, doc, updateDoc, collection, onSnapshot, query, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, collection, onSnapshot, query, setDoc, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import {
     LayoutTemplate,
@@ -301,6 +301,85 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // 🟢 COHERENCY MONITOR
     const latestNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
     const activeAlert = latestNode?.coherency_report;
+
+    // 🟢 [DIAGNOSTICO DEEP SCAN] - FASE A: CARTOGRAFÍA DE LA VERDAD
+    useEffect(() => {
+        const runDiagnostic = async () => {
+            const auth = getAuth();
+            if (!auth.currentUser) return;
+            const uid = auth.currentUser.uid;
+            const db = getFirestore();
+
+            console.log(`%c[DIAGNOSTICO DEEP SCAN] INICIANDO ESCANEO PARA USUARIO: ${uid}`, "color: yellow; font-weight: bold;");
+
+            try {
+                // 1. Listar Proyectos
+                const projectsRef = collection(db, "users", uid, "projects");
+                const projectsSnapshot = await getDocs(projectsRef);
+
+                if (projectsSnapshot.empty) {
+                    console.log(`%c[DIAGNOSTICO DEEP SCAN] No se encontraron proyectos en users/${uid}/projects`, "color: red;");
+                    return;
+                }
+
+                console.log(`%c[DIAGNOSTICO DEEP SCAN] Se encontraron ${projectsSnapshot.size} proyectos.`, "color: cyan;");
+
+                // 2. Escaneo Profundo por Proyecto
+                for (const projectDoc of projectsSnapshot.docs) {
+                    const projectId = projectDoc.id;
+                    const projectData = projectDoc.data();
+                    console.group(`📂 Proyecto: ${projectId}`);
+                    console.log("Data Raíz:", projectData);
+
+                    // Consultar subcolección entities
+                    const entitiesRef = collection(db, "users", uid, "projects", projectId, "entities");
+                    const entitiesSnapshot = await getDocs(entitiesRef);
+                    const count = entitiesSnapshot.size;
+
+                    let version = "DESCONOCIDA";
+                    let keys: string[] = [];
+
+                    if (count > 0) {
+                        const firstDoc = entitiesSnapshot.docs[0];
+                        const data = firstDoc.data();
+                        keys = Object.keys(data);
+                        const hasRelations = keys.includes('relations');
+                        const hasType = keys.includes('type');
+                        const hasFx = keys.includes('fx');
+
+                        if (hasRelations && hasType) {
+                            version = "RICA (Nexus Graph)";
+                        } else if (hasFx && !hasRelations) {
+                            version = "LITE (Legacy/Lite)";
+                        } else {
+                            version = "HIBRIDA/AMBIGUA";
+                        }
+
+                        console.log(`%c• ID: ${projectId}`, "font-weight: bold;");
+                        console.log(`• Entidades: ${count}`);
+                        console.log(`• Muestreo (Doc ID: ${firstDoc.id}):`, keys);
+                        console.log(`• Detectado: [relations: ${hasRelations}, fx: ${hasFx}, type: ${hasType}]`);
+                        console.log(`%c• VERDICTO: ${version}`, version.includes("RICA") ? "color: lime; font-weight: bold;" : "color: orange;");
+
+                    } else {
+                        console.log(`• ID: ${projectId}`);
+                        console.log(`• Entidades: 0 (VACÍO)`);
+                        console.log(`%c• VERDICTO: VACÍO`, "color: gray;");
+                    }
+                    console.groupEnd();
+                }
+
+            } catch (error) {
+                console.error("[DIAGNOSTICO DEEP SCAN] ERROR CRITICO:", error);
+            }
+        };
+
+        // Ejecutar solo una vez al montar (si el usuario está autenticado, el auth state lo maneja App pero aquí verificamos)
+        // Agregamos un pequeño delay para asegurar que auth esté listo si es la primera carga,
+        // aunque idealmente esto corre cuando el componente ya se monta dentro del contexto autenticado.
+        runDiagnostic();
+
+    }, []); // Dependencia vacía para ejecutar solo al montar
 
     // --- 0. DATA SUBSCRIPTION (LIFTED STATE) ---
     useEffect(() => {
