@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getFirestore, doc, updateDoc, collection, onSnapshot, query, setDoc, getDocs } from 'firebase/firestore';
+import { getFirestore, doc, updateDoc, collection, onSnapshot, query, setDoc, getDocs, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import {
     LayoutTemplate,
@@ -1013,8 +1013,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             const crystallizeNode = httpsCallable(functions, 'crystallizeNode');
             const accessToken = localStorage.getItem('google_drive_token');
 
-            // 🟢 FORCE HARDWIRE ID
-            const targetFolderId = EFFECTIVE_PROJECT_ID; // Force target ID
+            // 🟢 TARGET LOCK: RESPECT USER SELECTION
+            const targetFolderId = data.folderId;
 
             // 🟢 COHERENCY INJECTION
             let finalFrontmatter = { ...data.frontmatter };
@@ -1061,11 +1061,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             if (newFileId && oldNode) {
                  console.log(`💎 TRANSMUTATION: Converting ${oldNode.id} -> ${newFileId}`);
 
-                 // 🟢 PHASE 2: PERSISTENCE (THE ANCHOR)
-                 // Write the new Canon Entity to Firestore immediately to prevent "Pop"
                  const auth = getAuth();
                  const db = getFirestore();
 
+                 // 🟢 PHASE 2: PERSISTENCE (THE ANCHOR)
+                 // Write the new Canon Entity to Firestore immediately to prevent "Pop"
                  if (auth.currentUser) {
                      const entityRef = doc(db, "users", auth.currentUser.uid, "projects", targetFolderId, "entities", newFileId);
 
@@ -1091,6 +1091,59 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                          createdFromIdea: true,
                          lastUpdated: new Date().toISOString()
                      }, { merge: true });
+
+                     // 🟢 PHASE 2.5: OPTIMISTIC UI INJECTION (THE RADAR)
+                     // Inject the new file into the TDB_Index tree to make it appear instantly.
+                     try {
+                         const indexRef = doc(db, "TDB_Index", auth.currentUser.uid, "structure", "tree");
+                         const indexSnap = await getDoc(indexRef);
+
+                         if (indexSnap.exists()) {
+                             const treeData = indexSnap.data();
+                             const tree = treeData.tree || [];
+
+                             // Create the new node object (Mimic Backend Indexer)
+                             const newFileNode = {
+                                 id: newFileId,
+                                 name: data.fileName,
+                                 mimeType: 'text/markdown', // Assumed
+                                 type: 'file',
+                                 parentId: targetFolderId
+                             };
+
+                             // Recursive Injection Helper
+                             const inject = (nodes: any[]): boolean => {
+                                 for (const node of nodes) {
+                                     // Check if this is the target folder
+                                     if (node.id === targetFolderId) {
+                                         if (!node.children) node.children = [];
+                                         // Prevent duplicates
+                                         if (!node.children.find((c: any) => c.id === newFileId)) {
+                                             node.children.push(newFileNode);
+                                         }
+                                         return true;
+                                     }
+                                     // Recurse
+                                     if (node.children && node.children.length > 0) {
+                                         if (inject(node.children)) return true;
+                                     }
+                                 }
+                                 return false;
+                             };
+
+                             const injected = inject(tree);
+
+                             if (injected) {
+                                 console.log("💉 OPTIMISTIC UI: Injecting node into TDB_Index...");
+                                 await updateDoc(indexRef, { tree });
+                             } else {
+                                 console.warn("⚠️ OPTIMISTIC UI: Target folder not found in local index.");
+                             }
+                         }
+                     } catch (err) {
+                         console.error("⚠️ OPTIMISTIC UI FAILED:", err);
+                         // Non-blocking
+                     }
                  }
 
                  // 🟢 PHASE 3: LINK REPAIR (THE SURGERY)
