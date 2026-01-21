@@ -80,9 +80,9 @@ const HOLOGRAPHIC_SHADER = {
 
 // 🎨 COLOR PALETTE (Strict)
 const COLORS = {
-    HERO: '#ddbf61',    // Character / Anchor
-    ALLY: '#00fff7',    // Data / Idea / Object
-    ENEMY: '#ff153f',   // Threat / Conflict
+    HERO: '#ddbf61',    // Character / Anchor (Oro Metálico)
+    ALLY: '#00fff7',    // Data / Idea / Object (Cian Eléctrico)
+    ENEMY: '#ff153f',   // Threat / Conflict (Rojo Neón)
     VOID: '#141413'     // Background
 };
 
@@ -102,6 +102,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     const fgRef = useRef<ForceGraphMethods>();
     const [graphData, setGraphData] = React.useState({ nodes: [], links: [] });
     const [isReady, setIsReady] = useState(false);
+    const [isEngineStopped, setIsEngineStopped] = useState(false);
 
     // 🟢 LOAD VERIFICATION
     useEffect(() => {
@@ -294,26 +295,16 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             dashArray: 0.05, // Flow effect
             dashRatio: 0.5,
             transparent: true,
-            opacity: 0.6
+            opacity: 0.6,
+            blending: THREE.AdditiveBlending
         });
 
-        // We can't easily use MeshLine geometry inside ReactForceGraph's loop without updates.
-        // ReactForceGraph3D updates the line position automatically if we return a standard Line or compatible object.
-        // However, MeshLine requires geometry updates.
-        // Strategy: Use TubeGeometry or Native Line for simplicity and performance if MeshLine proves unstable in this specific wrapper.
-        // PROMPT ORDER: "Use MeshLine".
+        // 🛡️ ESCUDO DE INICIALIZACIÓN (Fix NaN Definitivo)
+        // If data is missing (initial tick), use Zero Vector to prevent MeshLine from calculating NaN sphere.
+        const sourcePos = (link.source && typeof link.source.x === 'number') ? link.source : new THREE.Vector3(0, 0, 0);
+        const targetPos = (link.target && typeof link.target.x === 'number') ? link.target : new THREE.Vector3(0, 0, 0);
 
-        // Since `react-force-graph-3d` expects us to return an Object3D, and it manages positions...
-        // Implementing MeshLine here effectively is complex because we need to update geometry every frame.
-        // FALLBACK/OPTIMIZATION: Use a custom Line with ShaderMaterial to simulate "Energy Beam" without the MeshLine overhead if possible,
-        // BUT strict orders say "MeshLine".
-
-        // Actually, `react-force-graph` passes the start/end points to `linkPositionUpdate` if defined.
-        // We will try to return a Mesh that holds the MeshLine.
-
-        const geometry = new THREE.BufferGeometry();
-        // Initialize with dummy
-        geometry.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
+        const geometry = new THREE.BufferGeometry().setFromPoints([sourcePos, targetPos]);
 
         const line = new MeshLine();
         line.setGeometry(geometry);
@@ -330,6 +321,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         if (!lineMesh || !lineMesh.__line) return;
 
         // 🛡️ GUARDIA DE EXISTENCIA ESTRICTO (Ghost Coordinate Patch)
+        // Ensure strictly valid numbers before passing to MeshLine
         const isValid = (
             typeof start.x === 'number' && !isNaN(start.x) &&
             typeof start.y === 'number' && !isNaN(start.y) &&
@@ -341,37 +333,18 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
         if (!isValid) {
             lineMesh.visible = false;
+            // Fallback to prevent internal crashes if it tries to render anyway
             return true;
         }
 
         lineMesh.visible = true;
         const line = lineMesh.__line;
 
-        // Optimize: Use setPoints instead of recreating geometry if possible,
-        // or update position attribute directly.
-        // MeshLine (three.meshline) has a specific way to update.
-        // Re-creating geometry is indeed expensive.
-        // However, three.meshline requires setGeometry to be called if the points change significantly?
-        // Actually, MeshLine supports .setPoints(pointsArray)
-
-        // Note: MeshLine might not accept Vector3[] directly in some versions.
-        // It typically accepts [x,y,z, x,y,z] flattened array or Vector3 array depending on version.
-        // Since we installed "three.meshline", let's assume standard behavior.
-
-        // PERFORMANCE FIX: Reusing the same Vector3 logic without new BufferGeometry
-        // But `setGeometry` takes a geometry.
-        // Let's try `line.setPoints`. If strictly typed, we cast.
+        // Update Geometry
+        // MeshLine requires us to update the points.
         if (line.setPoints) {
             line.setPoints([start, end]);
         } else {
-             // Fallback optimization: Update existing geometry attributes if possible
-             // For now, simpler optimization: only update if distance changed?
-             // Or stick to setGeometry but reuse a pool?
-             // Given constraint, let's assume setPoints exists or fallback to the slightly expensive one
-             // but with fewer allocations if possible.
-
-             // The most compatible way with ReactForceGraph which calls this per frame:
-             // We can modify the `points` array of the existing geometry if it was created that way.
              const geo = new THREE.BufferGeometry().setFromPoints([
                  new THREE.Vector3(start.x, start.y, start.z),
                  new THREE.Vector3(end.x, end.y, end.z)
@@ -386,13 +359,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     useEffect(() => {
         let frameId: number;
 
-        // Pre-calculate satellites (nodes that are owned)
-        const satellites = graphData.nodes.filter((n: any) => n.type === 'object').map((n: any) => {
-             // Find owner link
-             const ownerLink = graphData.links.find((l: any) => l.target === n && l.type === 'OWNED_BY');
-             return { node: n, owner: ownerLink ? ownerLink.source : null };
-        }).filter(s => s.owner);
-
         const animate = () => {
             const time = Date.now() * 0.001;
 
@@ -403,32 +369,15 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 }
             });
 
-            // 2. SATELLITE LOGIC (Rigid Orbit)
-            satellites.forEach(({ node, owner }: any) => {
-                if (owner) {
-                    // Lock physics
-                    node.fx = node.x;
-                    node.fy = node.y;
-                    node.fz = node.z;
-
-                    // Orbit Math
-                    const radius = 30; // Distance from owner
-                    const speed = 1.0;
-                    const angle = time * speed + (node.id.charCodeAt(0) * 0.1); // Offset based on ID
-
-                    node.x = owner.x + Math.cos(angle) * radius;
-                    node.z = owner.z + Math.sin(angle) * radius;
-                    node.y = owner.y + Math.sin(angle * 0.5) * 10; // Bobbing
-
-                    // Apply to fx/fy/fz to override D3
-                    node.fx = node.x;
-                    node.fy = node.y;
-                    node.fz = node.z;
-                }
-            });
+            // 2. SATELLITE LOGIC REMOVED (Stasis Protocol)
+            // Nodes must remain static after layout.
 
             // 3. Update Link Flow
              graphData.links.forEach((link: any) => {
+                 // Try to access the line object if attached by library or manually
+                 // Note: react-force-graph doesn't auto-attach to link data usually.
+                 // This part might be legacy or depend on specific library behavior.
+                 // We leave it as "best effort" for visual flow.
                  const obj = (link as any).__lineObj;
                  if (obj && obj.__material) {
                      obj.__material.uniforms.dashOffset.value -= 0.01;
@@ -463,39 +412,21 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         );
         composer.addPass(bloomPass);
 
-        // Override the graph's render loop to use composer
-        // ForceGraph3D exposes 'postProcessingComposer' prop in newer versions?
-        // If not, we have to hook into the tick.
-        // Fortunately, ReactForceGraph3D uses `d3-force` tick.
-        // BUT it handles the render loop internally using `requestAnimationFrame`.
-        // To inject post-processing, we essentially need to hijack the `extraRenderers`.
-
-        // Hack: The library exposes `postProcessingComposer` in the `ForceGraph3D` object in vanilla,
-        // but the React wrapper might not expose it directly as a prop.
-        // However, we can assign it to the instance if accessible.
-
         const graphInstance = fgRef.current as any;
         if (graphInstance && graphInstance.postProcessingComposer) {
             graphInstance.postProcessingComposer(composer);
         }
 
         // 2. LOD LOGIC (Zoom Listener)
-        // We need to poll camera zoom/position.
         const lodInterval = setInterval(() => {
             if (!camera) return;
-
-            // Calculate distance or zoom
-            // OrbitControls modifies camera position.
-            const dist = camera.position.distanceTo(new THREE.Vector3(0,0,0)); // Dist to center
-
-            // Thresholds
+            const dist = camera.position.distanceTo(new THREE.Vector3(0,0,0));
             const MACRO_THRESHOLD = 800;
             const MICRO_THRESHOLD = 200;
 
             graphData.nodes.forEach((node: any) => {
                 if (node.__threeObj) {
                     const obj = node.__threeObj;
-
                     // LEVEL 1: MACRO (>800 distance) -> Show only Factions
                     if (dist > MACRO_THRESHOLD) {
                         obj.visible = node.type === 'faction';
@@ -504,71 +435,77 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     else if (dist > MICRO_THRESHOLD) {
                         obj.visible = true;
                     }
-                    // LEVEL 3: MICRO (<200) -> Show details/text only nearby?
+                    // LEVEL 3: MICRO (<200) -> Show details/text only nearby
                     else {
                         obj.visible = true;
-                        // Maybe hide far away nodes?
                     }
                 }
             });
 
-        }, 500); // Check every 500ms
+        }, 500);
 
         return () => {
             clearInterval(lodInterval);
-            // Cleanup composer?
         };
 
-    }, [graphData]); // Re-run if graph data changes (nodes might be recreated)
+    }, [graphData]);
 
-    if (!isReady) {
-        return (
-            <div className="flex h-full w-full items-center justify-center bg-[#141413] text-cyan-500">
-                <div className="flex flex-col items-center gap-4">
-                    <Loader2 className="animate-spin h-12 w-12" />
-                    <span className="text-lg font-mono tracking-widest animate-pulse">
-                        Inicializando Holodeck...
-                    </span>
-                </div>
-            </div>
-        );
-    }
-
+    // 🟢 RENDER
     return (
-        <ForceGraph3D
-            ref={fgRef}
-            graphData={graphData}
-            backgroundColor={COLORS.VOID}
-            nodeLabel="name"
-            nodeThreeObject={(node: any) => {
-                const obj = nodeThreeObject(node);
-                node.__threeObj = obj; // Store ref for LOD
-                return obj;
-            }}
-            linkThreeObject={linkThreeObject}
-            linkPositionUpdate={linkPositionUpdate}
-            onNodeClick={(node: any) => onNodeClick && onNodeClick(node.id, node.isLocal)}
-            onNodeDragEnd={(node: any) => {
-                // Lock position
-                node.fx = node.x;
-                node.fy = node.y;
-                node.fz = node.z;
-                if (onNodeDragEnd) onNodeDragEnd(node);
-                if (onAutoFreeze) onAutoFreeze(node.id, node.x, node.y);
-            }}
-            // PHYSICS
-            d3AlphaDecay={0.01}
-            d3VelocityDecay={0.3}
-            onEngineStop={() => fgRef.current?.zoomToFit(400)}
+        <div className="relative w-full h-full bg-[#141413]">
+            {/* PANTALLA DE CARGA (Overlay) */}
+            {(!isReady || !isEngineStopped) && (
+                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-[#141413]/90 backdrop-blur-sm transition-opacity duration-1000">
+                    <div className="flex flex-col items-center gap-4">
+                        <Loader2 className="animate-spin h-12 w-12 text-[#00fff7]" />
+                        <span className="text-lg font-mono tracking-widest animate-pulse text-[#ddbf61]">
+                            {isReady ? "ESTABILIZANDO NÚCLEO HOLOGRÁFICO..." : "INICIALIZANDO HOLODECK..."}
+                        </span>
+                    </div>
+                 </div>
+            )}
 
-            // CUSTOM FORCES
-            // @ts-ignore: d3Force prop exists but might be missing in older definitions
-            d3Force={ (d3Graph: any) => {
-                // Use standard forces but tweak them
-                d3Graph.force('link').distance(100);
-                d3Graph.force('charge').strength(-500);
-            }}
-        />
+            <ForceGraph3D
+                ref={fgRef}
+                graphData={graphData}
+                backgroundColor={COLORS.VOID}
+                nodeLabel="name"
+                nodeThreeObject={(node: any) => {
+                    const obj = nodeThreeObject(node);
+                    node.__threeObj = obj; // Store ref for LOD
+                    return obj;
+                }}
+                linkThreeObject={linkThreeObject}
+                linkPositionUpdate={linkPositionUpdate}
+                onNodeClick={(node: any) => onNodeClick && onNodeClick(node.id, node.isLocal)}
+                onNodeDragEnd={(node: any) => {
+                    node.fx = node.x;
+                    node.fy = node.y;
+                    node.fz = node.z;
+                    if (onNodeDragEnd) onNodeDragEnd(node);
+                    if (onAutoFreeze) onAutoFreeze(node.id, node.x, node.y);
+                }}
+
+                // PHYSICS (STASIS PROTOCOL)
+                cooldownTicks={100} // Stop after 100 ticks
+                cooldownTime={2000} // Stop after 2 seconds
+                onEngineStop={() => {
+                    console.log('Physics Frozen');
+                    setIsEngineStopped(true);
+                    fgRef.current?.zoomToFit(400);
+                }}
+
+                d3AlphaDecay={0.01}
+                d3VelocityDecay={0.3}
+
+                // CUSTOM FORCES
+                // @ts-ignore
+                d3Force={ (d3Graph: any) => {
+                    d3Graph.force('link').distance(100);
+                    d3Graph.force('charge').strength(-500);
+                }}
+            />
+        </div>
     );
 };
 
