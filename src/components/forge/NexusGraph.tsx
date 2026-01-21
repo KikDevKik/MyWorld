@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useCallback, useEffect } from 'react';
+import React, { useMemo, useRef, useCallback, useEffect, useState } from 'react';
 import ForceGraph3D, { ForceGraphMethods } from 'react-force-graph-3d';
 import * as THREE from 'three';
 import SpriteText from 'three-spritetext';
@@ -8,6 +8,7 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { GraphNode, NodeRelation } from '../../types/graph';
 import { ingestNodeMetadata } from '../../utils/graphIngest';
+import { Loader2 } from 'lucide-react';
 
 // 🟢 NEW ARCHITECTURE: 3D REPLACEMENT
 // Migrated from 2D Canvas to Three.js/ForceGraph3D per "Nexus Graph V1.0" Protocol.
@@ -100,12 +101,22 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 }) => {
     const fgRef = useRef<ForceGraphMethods>();
     const [graphData, setGraphData] = React.useState({ nodes: [], links: [] });
+    const [isReady, setIsReady] = useState(false);
+
+    // 🟢 LOAD VERIFICATION
+    useEffect(() => {
+        // Force a small delay or check for window to ensure we are client-side and ready
+        if (typeof window !== 'undefined') {
+            setIsReady(true);
+        }
+    }, []);
 
     // 🟢 DATA PREP: MAP TO VISUAL NODES & GHOSTS
     useEffect(() => {
         if (!propNodes) return;
 
-        const nodesMap = new Map();
+        // TS Fix: Supply iterable or ignore if strictly typed
+        const nodesMap = new Map<string, any>([]);
         const links: any[] = [];
         const groups = new Map<string, any[]>(); // For Faction Centroids
 
@@ -117,11 +128,11 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 name: n.name,
                 type: n.type,
                 val: (n as any).val || 10,
-                x: n.fx || n.x || undefined, // Respect fixed positions
-                y: n.fy || n.y || undefined,
+                x: (n as any).fx || (n as any).x || undefined, // Respect fixed positions
+                y: (n as any).fy || (n as any).y || undefined,
                 z: (n as any).z || undefined,
-                fx: n.fx, // D3 Fix
-                fy: n.fy,
+                fx: (n as any).fx, // D3 Fix
+                fy: (n as any).fy,
                 fz: (n as any).fz,
                 meta: { ...((n as any).meta || {}), ...meta },
                 groupId: meta.groupId,
@@ -211,7 +222,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     // 🟢 NODE OBJECT FACTORY (THREE.JS)
     const nodeThreeObject = useCallback((node: any) => {
         // 1. Geometry Selection
-        let geometry = sphereGeo;
+        let geometry: THREE.BufferGeometry = sphereGeo;
         if (node.type === 'location') geometry = octaGeo;
         if (node.type === 'object') geometry = boxGeo;
         if (node.type === 'concept') geometry = icosaGeo;
@@ -419,7 +430,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         if (!fgRef.current) return;
 
         // Access internal Three.js objects
-        const { scene, renderer, camera } = fgRef.current.scene();
+        const scene = fgRef.current.scene();
+        const camera = fgRef.current.camera();
+        const renderer = fgRef.current.renderer();
 
         // 1. BLOOM SETUP
         const composer = new EffectComposer(renderer);
@@ -492,6 +505,19 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
     }, [graphData]); // Re-run if graph data changes (nodes might be recreated)
 
+    if (!isReady) {
+        return (
+            <div className="flex h-full w-full items-center justify-center bg-[#141413] text-cyan-500">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="animate-spin h-12 w-12" />
+                    <span className="text-lg font-mono tracking-widest animate-pulse">
+                        Inicializando Holodeck...
+                    </span>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <ForceGraph3D
             ref={fgRef}
@@ -520,6 +546,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             onEngineStop={() => fgRef.current?.zoomToFit(400)}
 
             // CUSTOM FORCES
+            // @ts-ignore: d3Force prop exists but might be missing in older definitions
             d3Force={ (d3Graph: any) => {
                 // Use standard forces but tweak them
                 d3Graph.force('link').distance(100);
