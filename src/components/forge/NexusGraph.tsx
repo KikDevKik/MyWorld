@@ -534,56 +534,49 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     nodeRelSize={6}
 
                     // Link Styling
-                    linkColor="color"
-                    linkWidth="width"
                     linkDirectionalArrowLength={3.5}
                     linkDirectionalArrowRelPos={1}
                     linkCurvature="curvature"
                     linkLabel="label"
 
-                    // 🟢 FOCUS MODE LINK STYLING
-                    linkCanvasObject={(link, ctx, globalScale) => {
-                        // Check Focus Mode
-                        let opacity = 0.6; // Default
+                    // 🟢 PARTICLES (FLOW)
+                    linkDirectionalParticles={2}
+                    linkDirectionalParticleWidth={2}
+                    linkDirectionalParticleSpeed={0.005}
+
+                    // 🟢 LINK COLOR (FOCUS MODE AWARE)
+                    linkColor={(link: any) => {
+                        // 1. FOCUS MODE
                         if (focusedNodeId) {
-                            const sourceId = (link.source as any).id || link.source;
-                            const targetId = (link.target as any).id || link.target;
+                            const sourceId = link.source.id || link.source;
+                            const targetId = link.target.id || link.target;
                             const isConnected = sourceId === focusedNodeId || targetId === focusedNodeId;
-                            opacity = isConnected ? 1 : 0.05; // Dim others significantly
+
+                            if (isConnected) {
+                                // Active: Source Color or White
+                                return (link.source && typeof link.source === 'object' && link.source.color)
+                                    ? link.source.color
+                                    : '#ffffff';
+                            } else {
+                                // Ghost: Dark Grey Transparent
+                                return 'rgba(26, 26, 26, 0.1)';
+                            }
                         }
 
-                        // Style
-                        ctx.globalAlpha = opacity;
-                        ctx.strokeStyle = link.color || '#9ca3af';
-                        ctx.lineWidth = (link.width || 1) / globalScale;
-
-                        // Curvature handling (Bezier) is complex to draw manually.
-                        // ForceGraph2D usually handles this. If we provide linkCanvasObject, we take FULL control.
-                        // HOWEVER, reproducing Bezier + Arrows + Interactions manually is risky.
-                        // BETTER STRATEGY: Use standard props for drawing and only use canvasObject if absolutely necessary.
-                        // But standard props don't support dynamic opacity easily without re-render.
-                        // Since 'focusedNodeId' causes re-render, we can pass opacity via `link.color` modification in memo?
-                        // No, memo doesn't update on focusedNodeId change unless added to dep array.
-                        // Let's fallback to NOT using linkCanvasObject for lines, but rely on re-processing graphData?
-                        // Too expensive.
-                        // ForceGraph allows passing a function for linkColor? No, string or accessor.
-
-                        // REVISION: We will NOT use linkCanvasObject. We will use `linkColor` accessor.
-                        // We need to trigger a graph update when focusedNodeId changes.
+                        // 2. DEFAULT MODE
+                        // Use static Titanium Grey for visibility against black background
+                        return '#525252';
                     }}
 
-                    // 🟢 LINK COLOR ACCESSOR (DYNAMIC OPACITY)
-                    linkColor={(link: any) => {
-                        if (!focusedNodeId) return link.color;
-
-                        const sourceId = link.source.id || link.source;
-                        const targetId = link.target.id || link.target;
-
-                        const isConnected = sourceId === focusedNodeId || targetId === focusedNodeId;
-                        if (isConnected) return link.color; // Keep original color
-
-                        // Dimmed version (Greyish and transparent)
-                        return '#33333330';
+                    // 🟢 LINK WIDTH (FOCUS MODE AWARE)
+                    linkWidth={(link: any) => {
+                         if (focusedNodeId) {
+                            const sourceId = link.source.id || link.source;
+                            const targetId = link.target.id || link.target;
+                            const isConnected = sourceId === focusedNodeId || targetId === focusedNodeId;
+                            return isConnected ? 3 : 1;
+                        }
+                        return 2; // Default Base Width
                     }}
 
                     // Node Styling
