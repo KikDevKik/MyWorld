@@ -84,7 +84,7 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="absolute inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+        <div className="absolute inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm">
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}

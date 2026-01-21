@@ -292,6 +292,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         isOpen: false, node: null, isProcessing: false
     });
 
+    // 🟢 TACTICAL LOCKDOWN: OVERLAY STATE
+    const isOverlayActive = crystallizeModal.isOpen || interrogation.isOpen || !!expandedNodeId;
+
     // 🟢 PHASE 4.3: SESSION STATE
     const [sessionId] = useState(() => `sess_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
     const [sessionHistory, setSessionHistory] = useState<SessionItem[]>([]);
@@ -1171,7 +1174,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
             {/* LAYER 0: NEXUS GRAPH (The Living Background) */}
             {/* 🟢 INTERACTION GATE: Wrapper ensures clicks reach the graph despite parent pointer-events-none */}
-            <div className="absolute inset-0 z-0 pointer-events-auto touch-auto">
+            {/* 🟢 TACTICAL SOLUTION: UNIVERSAL LOCKDOWN & CINEMATIC DIM */}
+            <div className={`absolute inset-0 z-0 transition-all duration-300 ease-in-out
+                ${isOverlayActive
+                    ? 'pointer-events-none opacity-30 blur-sm'
+                    : 'pointer-events-auto touch-auto opacity-100 blur-0'
+                }`}
+            >
                 <NexusGraph
                     projectId={EFFECTIVE_PROJECT_ID} // 🟢 HARDWIRE
                     accessToken={localStorage.getItem('google_drive_token')}
