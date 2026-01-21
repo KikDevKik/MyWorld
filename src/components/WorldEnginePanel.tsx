@@ -518,6 +518,14 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         try {
             const contextPayload = await harvestWorldContext();
 
+            // 🟢 HARVEST VISUAL CONTEXT (THE EYES)
+            // We map unifiedNodes to a lightweight structure
+            const currentGraphContext = unifiedNodes.map(n => ({
+                id: n.id,
+                name: n.name,
+                type: n.type || 'concept'
+            }));
+
             setStatusMessage("DEEP REASONING IN PROGRESS... DO NOT REFRESH.");
 
             let clarificationsText = "";
@@ -536,6 +544,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 chaosLevel,
                 combatMode,
                 context: contextPayload,
+                currentGraphContext, // 🟢 INJECTED EYES
                 interrogationDepth: currentDepth,
                 clarifications: clarificationsText,
                 sessionId,
@@ -565,22 +574,53 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 console.log("⚠️ COHERENCY REPORT RECEIVED:", data.coherency_report);
             }
 
-            // STANDARD NODE (SUCCESS)
-            // Note: New nodes start without position (NexusGraph will assign center/force)
-            const newNode: Node = {
-                id: Date.now().toString(),
-                type: data.type || 'idea',
-                title: data.title || 'Unknown',
-                content: data.content || 'No content received.',
-                agentId: activeAgent,
-                metadata: data.metadata,
-                coherency_report: data.coherency_report || undefined // 👈 Fixed Mapping with Safety Gate
-            };
+            // 🟢 NEW ARRAY HANDLING (MULTIPLE NODES)
+            const createdNodes: Node[] = [];
 
-            // 🟢 IRON GUARDIAN DEBUGGING
-            console.log("FINAL NODE OBJECT:", newNode);
+            if (data.newNodes && Array.isArray(data.newNodes)) {
+                data.newNodes.forEach((n: any) => {
+                    // Extract relations relevant to this node from newRelations
+                    // 🟢 RED THREAD LOGIC: Capture both OUTGOING (Source -> Target) and INCOMING (Target -> Source)
+                    const myRelations = data.newRelations?.filter((r: any) =>
+                        r.source === n.id || r.target === n.id
+                    ).map((r: any) => {
+                        const isOutgoing = r.source === n.id;
+                        return {
+                            targetId: isOutgoing ? r.target : r.source, // Link to the 'other' entity
+                            relationType: r.label,
+                            context: isOutgoing ? "Active Link" : "Passive Link" // Optional Context
+                        };
+                    }) || [];
 
-            setNodes(prev => [...prev, newNode]);
+                    createdNodes.push({
+                        id: n.id || generateId(sessionId, n.title),
+                        type: 'idea', // FORCE IDEA TYPE FOR GOLD COLOR
+                        title: n.title || 'Unknown',
+                        content: n.content || '',
+                        agentId: activeAgent,
+                        metadata: {
+                            ...n.metadata,
+                            pending_relations: myRelations
+                        },
+                        coherency_report: data.coherency_report // Attach report to the first/main node or all?
+                    });
+                });
+            } else if (data.type !== 'inquiry') {
+                // Fallback for legacy format (Single Object)
+                createdNodes.push({
+                    id: Date.now().toString(),
+                    type: data.type || 'idea',
+                    title: data.title || 'Unknown',
+                    content: data.content || 'No content received.',
+                    agentId: activeAgent,
+                    metadata: data.metadata,
+                    coherency_report: data.coherency_report || undefined
+                });
+            }
+
+            console.log("FINAL GENERATED NODES:", createdNodes.length);
+
+            setNodes(prev => [...prev, ...createdNodes]);
             setSessionHistory(prev => [...prev, { prompt, result: data }]);
 
             setInterrogation({
@@ -745,6 +785,16 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             // TODO: Implement immediate Firestore write for relationships
             alert("Canon-to-Canon linking not yet implemented in this phase.");
         }
+    };
+
+    // 🟢 THE DROP: AUTO-FREEZE HANDLER
+    const handleAutoFreeze = (nodeId: string, x: number, y: number) => {
+        console.log(`[WorldEngine] Freezing Node ${nodeId} at ${x.toFixed(0)},${y.toFixed(0)}`);
+        setNodes(prev => prev.map(n =>
+            n.id === nodeId
+            ? { ...n, fx: x, fy: y, x, y } // Lock it down
+            : n
+        ));
     };
 
     // 🟢 HELPER: NORMALIZATION PROTOCOL
@@ -1069,6 +1119,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     onNodeDoubleClick={handleNodeDoubleClick}
                     onNodeDragEnd={handleNodeDragEnd}
                     onLinkCreate={handleLinkCreate}
+                    onAutoFreeze={handleAutoFreeze} // 🟢 THE DROP
                 />
             </div>
 

@@ -2442,10 +2442,16 @@ export const worldEngine = onCall(
     console.log('🚀 WORLD ENGINE: Phase 4.1 - TITAN LINK - ' + new Date().toISOString());
 
     // 1. DATA RECEPTION
-    const { prompt, agentId, chaosLevel, context, interrogationDepth, clarifications, sessionId, sessionHistory, accessToken, folderId } = request.data;
+    const { prompt, agentId, chaosLevel, context, interrogationDepth, clarifications, sessionId, sessionHistory, accessToken, folderId, currentGraphContext } = request.data;
     const { canon_dump, timeline_dump } = context || {};
 
     const currentDepth = interrogationDepth || 0;
+
+    // 🟢 PAYLOAD ANALYSIS (The Eyes)
+    const contextNodeCount = Array.isArray(currentGraphContext) ? currentGraphContext.length : 0;
+    const contextNodeSummary = Array.isArray(currentGraphContext)
+        ? JSON.stringify(currentGraphContext.map((n: any) => ({ id: n.id, name: n.name, type: n.type })))
+        : "[]";
 
     // 2. DEBUG LOGGING
     logger.info("🔌 [TITAN LINK] Payload Received:", {
@@ -2453,6 +2459,7 @@ export const worldEngine = onCall(
       chaosLevel,
       canonLength: canon_dump ? canon_dump.length : 0,
       timelineLength: timeline_dump ? timeline_dump.length : 0,
+      graphContextSize: contextNodeCount, // 🟢 LOG
       interrogationDepth: currentDepth,
       sessionId: sessionId || 'NO_SESSION'
     });
@@ -2498,6 +2505,10 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
         === TIMELINE (THE LORE) ===
         ${timeline_dump || "No timeline events provided."}
 
+        === VISUAL GRAPH CONTEXT (THE EYES) ===
+        (Current state of the user's mind map. Use these Exact IDs to connect new ideas to existing nodes.)
+        ${contextNodeSummary}
+
         ${sessionContext}
 
         === ITERATIVE REFINEMENT LOOP ===
@@ -2525,9 +2536,17 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
              - The 'file_source' must be the exact filename of the contradicted [CORE WORLD RULES / PRIORITY LORE] file.
              - The 'explanation' must be a technical explanation of why the event is impossible (e.g., "Target entity ceased operations in Year 485. Inauguration in 486 is invalid.").
 
-        5. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
-        6. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
-        7. THE CHRONICLER RULE: Always refer to the CURRENT SESSION HISTORY (if available) to maintain consistency. If the user previously decided X in this session, do not contradict it.
+        5. **CONTEXTUAL WIRING (THE RED THREAD):**
+           - Analyze the user's idea against the provided [VISUAL GRAPH CONTEXT].
+           - **IF** the idea relates to an EXISTING NODE in the context:
+             - You MUST create an explicit relationship in `newRelations`.
+             - Use the **EXACT ID** from the context. Do not invent new IDs for existing characters.
+             - Example: If user mentions "Anna" and context has `{"id":"123", "name":"Anna"}`, create a relation to target "123".
+           - **IF** the idea is new, generate it in `newNodes`.
+
+        6. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
+        7. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
+        8. THE CHRONICLER RULE: Always refer to the CURRENT SESSION HISTORY (if available) to maintain consistency. If the user previously decided X in this session, do not contradict it.
 
         USER PROMPT: "${prompt}"
 
@@ -2535,21 +2554,26 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
 
         TYPE A (STANDARD NODE - WHEN RESOLVED):
         {
-          "type": "concept" | "plot" | "character",
-          "title": "Short Title",
-          "content": "Deeply reasoned analysis...",
-          "thoughts": "Optional summary of your reasoning process",
-          "metadata": {
-            "node_type": "concept" | "conflict" | "lore",
-            "suggested_filename": "snake_case_name.md",
-            "suggested_folder_category": "Factions" | "Characters" | "Locations" | "Magic",
-            "related_node_ids": ["id1", "id2"]
-          },
-          "coherency_report": {
-             "warning": "VIOLACIÓN DE CANON",
-             "file_source": "filename.md",
-             "explanation": "Explanation of the contradiction."
-          }
+          "type": "response", // Fixed type marker
+          "title": "Main Idea Title", // Summary title
+          "newNodes": [
+             {
+               "id": "generated_id_1", // Use short, deterministic IDs if possible
+               "title": "Node Title",
+               "type": "idea", // MUST BE 'idea' for Gold Color
+               "content": "Deep analysis content...",
+               "metadata": { ... } // Optional
+             }
+          ],
+          "newRelations": [
+             {
+               "source": "generated_id_1", // ID from newNodes
+               "target": "existing_id_or_new_id", // ID from Context OR newNodes
+               "label": "ENEMY" | "ALLY" | "FAMILY" | "CAUSE",
+               "strength": 0-1
+             }
+          ],
+          "coherency_report": { ... } // Optional
         }
 
         COLOR CODING LOGIC (For node_type):
