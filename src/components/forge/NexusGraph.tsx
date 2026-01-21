@@ -16,6 +16,7 @@ interface NexusGraphProps {
     onNodeDoubleClick?: (nodeId: string, isLocal: boolean) => void; // Double Click (Open)
     onNodeDragEnd?: (node: any) => void; // For persistence
     onLinkCreate?: (sourceId: string, targetId: string) => void; // For "Red Thread"
+    onAutoFreeze?: (nodeId: string, x: number, y: number) => void; // 🟢 THE DROP: Auto-anchor logic
 }
 
 interface GraphData {
@@ -123,7 +124,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 case 'event': return '#ef4444'; // Crimson
                 case 'faction': return '#10b981'; // Emerald
                 case 'concept': return '#ec4899'; // Pink
-                case 'idea': return '#94a3b8'; // Slate (Ideas)
+                case 'idea': return '#FFD700'; // 🟢 GOLD (Ideas) - "The Golden Snitch"
                 default: return '#9ca3af'; // Gray
             }
         };
@@ -297,6 +298,43 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             graphRef.current.d3Force('charge').strength(-800);
         }
     }, [graphData]);
+
+    // 🟢 THE DROP: AUTO-FREEZE PROTOCOL (4000ms)
+    // Watches for NEW ideas that are not yet anchored (fx undefined).
+    const processedFreezes = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!onAutoFreeze) return;
+
+        graphData.nodes.forEach(node => {
+            // CONDITIONS: Idea, Local, No Anchor, Not already processed
+            if (
+                node.type === 'idea' &&
+                node.isLocal &&
+                (node.fx === undefined || node.fx === null) &&
+                !processedFreezes.current.has(node.id)
+            ) {
+                // MARK AS PROCESSING
+                processedFreezes.current.add(node.id);
+                console.log(`[The Drop] Timer started for: ${node.name} (${node.id})`);
+
+                setTimeout(() => {
+                    // RETRIEVE LIVE POSITION
+                    // We must ask the graph engine for the *current* simulation node object
+                    // because React state 'node' is stale (snapshot at render time).
+                    if (graphRef.current) {
+                        const internalData = graphRef.current.graphData();
+                        const liveNode = internalData.nodes.find((n: any) => n.id === node.id);
+
+                        if (liveNode && liveNode.x !== undefined && liveNode.y !== undefined) {
+                            console.log(`[The Drop] Anchoring ${node.name} at [${liveNode.x.toFixed(0)}, ${liveNode.y.toFixed(0)}]`);
+                            onAutoFreeze(node.id, liveNode.x, liveNode.y);
+                        }
+                    }
+                }, 4000); // 4 Seconds Drop
+            }
+        });
+    }, [graphData.nodes, onAutoFreeze]);
 
     // 🟢 MEDUSA: The Anchor
     const handleEngineStop = () => {
