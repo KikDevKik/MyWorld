@@ -296,96 +296,22 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // CONTEXT
     const { config } = useProjectConfig();
 
+    // 🟢 HARDWIRE OPERATION: TARGET LOCK
+    // Manual Bypass to force connection to the specific Nexus ID.
+    const EFFECTIVE_PROJECT_ID = "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq";
+
     const activeAgentConfig = AGENTS[activeAgent];
 
     // 🟢 COHERENCY MONITOR
     const latestNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
     const activeAlert = latestNode?.coherency_report;
 
-    // 🟢 [DIAGNOSTICO DEEP SCAN] - FASE A: CARTOGRAFÍA DE LA VERDAD
-    useEffect(() => {
-        const runDiagnostic = async () => {
-            const auth = getAuth();
-            if (!auth.currentUser) return;
-            const uid = auth.currentUser.uid;
-            const db = getFirestore();
-
-            console.log(`%c[DIAGNOSTICO DEEP SCAN] INICIANDO ESCANEO PARA USUARIO: ${uid}`, "color: yellow; font-weight: bold;");
-
-            try {
-                // 1. Listar Proyectos
-                const projectsRef = collection(db, "users", uid, "projects");
-                const projectsSnapshot = await getDocs(projectsRef);
-
-                if (projectsSnapshot.empty) {
-                    console.log(`%c[DIAGNOSTICO DEEP SCAN] No se encontraron proyectos en users/${uid}/projects`, "color: red;");
-                    return;
-                }
-
-                console.log(`%c[DIAGNOSTICO DEEP SCAN] Se encontraron ${projectsSnapshot.size} proyectos.`, "color: cyan;");
-
-                // 2. Escaneo Profundo por Proyecto
-                for (const projectDoc of projectsSnapshot.docs) {
-                    const projectId = projectDoc.id;
-                    const projectData = projectDoc.data();
-                    console.group(`📂 Proyecto: ${projectId}`);
-                    console.log("Data Raíz:", projectData);
-
-                    // Consultar subcolección entities
-                    const entitiesRef = collection(db, "users", uid, "projects", projectId, "entities");
-                    const entitiesSnapshot = await getDocs(entitiesRef);
-                    const count = entitiesSnapshot.size;
-
-                    let version = "DESCONOCIDA";
-                    let keys: string[] = [];
-
-                    if (count > 0) {
-                        const firstDoc = entitiesSnapshot.docs[0];
-                        const data = firstDoc.data();
-                        keys = Object.keys(data);
-                        const hasRelations = keys.includes('relations');
-                        const hasType = keys.includes('type');
-                        const hasFx = keys.includes('fx');
-
-                        if (hasRelations && hasType) {
-                            version = "RICA (Nexus Graph)";
-                        } else if (hasFx && !hasRelations) {
-                            version = "LITE (Legacy/Lite)";
-                        } else {
-                            version = "HIBRIDA/AMBIGUA";
-                        }
-
-                        console.log(`%c• ID: ${projectId}`, "font-weight: bold;");
-                        console.log(`• Entidades: ${count}`);
-                        console.log(`• Muestreo (Doc ID: ${firstDoc.id}):`, keys);
-                        console.log(`• Detectado: [relations: ${hasRelations}, fx: ${hasFx}, type: ${hasType}]`);
-                        console.log(`%c• VERDICTO: ${version}`, version.includes("RICA") ? "color: lime; font-weight: bold;" : "color: orange;");
-
-                    } else {
-                        console.log(`• ID: ${projectId}`);
-                        console.log(`• Entidades: 0 (VACÍO)`);
-                        console.log(`%c• VERDICTO: VACÍO`, "color: gray;");
-                    }
-                    console.groupEnd();
-                }
-
-            } catch (error) {
-                console.error("[DIAGNOSTICO DEEP SCAN] ERROR CRITICO:", error);
-            }
-        };
-
-        // Ejecutar solo una vez al montar (si el usuario está autenticado, el auth state lo maneja App pero aquí verificamos)
-        // Agregamos un pequeño delay para asegurar que auth esté listo si es la primera carga,
-        // aunque idealmente esto corre cuando el componente ya se monta dentro del contexto autenticado.
-        runDiagnostic();
-
-    }, []); // Dependencia vacía para ejecutar solo al montar
-
     // --- 0. DATA SUBSCRIPTION (LIFTED STATE) ---
     useEffect(() => {
         if (!isOpen) return;
 
-        const folderId = config?.folderId || config?.characterVaultId;
+        // 🟢 HARDWIRE: Ignore config.folderId, use Target
+        const folderId = EFFECTIVE_PROJECT_ID;
         const auth = getAuth();
 
         if (!folderId || !auth.currentUser) {
@@ -460,7 +386,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             unsubscribeCharacters();
             unsubscribeEntities();
         };
-    }, [isOpen, config?.folderId, config?.characterVaultId]);
+    }, [isOpen, config?.folderId, config?.characterVaultId]); // Keep dependencies but logic ignores them
 
     // --- HARVESTER (FRONTEND LOGIC) ---
     const harvestWorldContext = async (): Promise<{ canon_dump: string; timeline_dump: string }> => {
@@ -612,7 +538,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 sessionId,
                 sessionHistory: recentHistory,
                 accessToken,
-                folderId: config?.folderId
+                folderId: EFFECTIVE_PROJECT_ID // 🟢 HARDWIRE
             };
 
             const result = await worldEngine(payload) as any;
@@ -719,7 +645,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             ));
         } else {
             // Update Firestore for: Canon, Rich Entities, or Ephemeral Ghosts becoming Real
-            if (!config?.folderId) return;
+            if (!EFFECTIVE_PROJECT_ID) return; // 🟢 HARDWIRE
 
             const entityId = node.id;
 
@@ -728,7 +654,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 const db = getFirestore();
 
                 if (auth.currentUser) {
-                    const entityRef = doc(db, "users", auth.currentUser.uid, "projects", config.folderId, "entities", entityId);
+                    const entityRef = doc(db, "users", auth.currentUser.uid, "projects", EFFECTIVE_PROJECT_ID, "entities", entityId); // 🟢 HARDWIRE
 
                     // CHECK: Is this an Ephemeral Ghost? (No DB record yet)
                     // We check if it was missing from entityNodes at render time, but simpler to check the node flag
@@ -747,7 +673,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                             id: entityId, // Persistence ID
                             name: node.name,
                             type: node.type || 'concept',
-                            projectId: config.folderId,
+                            projectId: EFFECTIVE_PROJECT_ID, // 🟢 HARDWIRE
                             relations: node.relations || [],
                             foundInFiles: node.foundInFiles || [],
                             meta: node.meta || {},
@@ -906,7 +832,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     // If it's short or missing, generate one.
                     let ghostId = targetId;
                     if (!ghostId || ghostId.length < 10) {
-                         ghostId = generateId(config?.folderId || '', targetName);
+                         ghostId = generateId(EFFECTIVE_PROJECT_ID, targetName); // 🟢 HARDWIRE
                     }
 
                     // Double check if generated ID exists
@@ -927,7 +853,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         id: ghostId,
                         name: targetName,
                         type: rel.targetType || 'concept', // Default
-                        projectId: config?.folderId || '',
+                        projectId: EFFECTIVE_PROJECT_ID, // 🟢 HARDWIRE
                         description: "Entidad inferida (Nodo Fantasma)",
                         relations: [], // Level 1 Limit: No recursion
                         foundInFiles: [],
@@ -954,7 +880,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 id: n.id,
                 name: n.title,
                 type: 'idea',
-                projectId: config?.folderId || '',
+                projectId: EFFECTIVE_PROJECT_ID, // 🟢 HARDWIRE
                 fx: n.fx,
                 fy: n.fy,
                 meta: { brief: n.content.substring(0, 50) },
@@ -996,6 +922,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             const crystallizeNode = httpsCallable(functions, 'crystallizeNode');
             const accessToken = localStorage.getItem('google_drive_token');
 
+            // 🟢 FORCE HARDWIRE ID
+            const targetFolderId = EFFECTIVE_PROJECT_ID; // Force target ID
+
             // 🟢 COHERENCY INJECTION
             let finalFrontmatter = { ...data.frontmatter };
             let finalContent = crystallizeModal.node.content;
@@ -1029,7 +958,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
             const result = await crystallizeNode({
                 accessToken,
-                folderId: data.folderId,
+                folderId: targetFolderId, // 🟢 HARDWIRE
                 fileName: data.fileName,
                 content: finalContent,
                 frontmatter: finalFrontmatter
@@ -1095,7 +1024,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             {/* 🟢 INTERACTION GATE: Wrapper ensures clicks reach the graph despite parent pointer-events-none */}
             <div className="absolute inset-0 z-0 pointer-events-auto touch-auto">
                 <NexusGraph
-                    projectId={config?.folderId || ''}
+                    projectId={EFFECTIVE_PROJECT_ID} // 🟢 HARDWIRE
                     accessToken={localStorage.getItem('google_drive_token')}
                     onClose={() => {}} // We don't close the background
                     nodes={unifiedNodes} // 🟢 UNIFIED PROP
