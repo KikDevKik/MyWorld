@@ -660,8 +660,18 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     // 1. SELECT NODE (Single Click)
     const handleNodeClick = (nodeId: string, isLocal: boolean) => {
-        // Just highlight or log. We do NOT open modals on single click.
-        console.log(`[WorldEngine] Selected ${isLocal ? 'Idea' : 'Canon'}:`, nodeId);
+        // 🟢 ACTION: OPEN INSPECTOR (Requested by Command)
+        if (isLocal) {
+            setExpandedNodeId(nodeId); // Open Macro Card for Ideas
+            setSelectedCanonId(null);
+        } else {
+            // Find the node in canonNodes (mapped)
+            const mappedCanon = unifiedNodes.find(n => n.id === nodeId && !n.isLocal);
+            if (mappedCanon) {
+                setSelectedCanonId(nodeId); // Open Side Drawer for Canon
+                setExpandedNodeId(null);
+            }
+        }
     };
 
     // 2. OPEN NODE (Double Click)
