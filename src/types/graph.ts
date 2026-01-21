@@ -6,7 +6,7 @@ export interface NodeRelation {
   targetId: string;
   targetName: string;
   targetType: EntityType; // Vital for Ghost Nodes
-  relation: 'ENEMY' | 'ALLY' | 'MENTOR' | 'FAMILY' | 'NEUTRAL';
+  relation: 'ENEMY' | 'ALLY' | 'MENTOR' | 'FAMILY' | 'NEUTRAL' | 'LOVER' | 'PART_OF' | 'FRIEND' | 'KNOWS' | 'TALKS_TO' | 'HATES' | 'LOCATED_IN' | 'CAUSE';
   context: string; // The "Why" (snippet)
   sourceFileId: string; // For updates/overwrites
 }
@@ -37,6 +37,7 @@ export interface GraphNode {
     avatarUrl?: string;
     brief?: string;
     tier?: 'protagonist' | 'secondary' | 'background';
+    faction?: string;
     // Campos específicos por tipo pueden ir aquí o extenderse
     // locationType?: 'city' | 'region' | 'room'
   };
