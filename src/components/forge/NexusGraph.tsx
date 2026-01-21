@@ -61,6 +61,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
     const graphRef = useRef<any>(null);
     const clickTimeoutRef = useRef<any>(null);
+    const frozenNodesRef = useRef<Record<string, { x: number; y: number }>>({}); // 🟢 MEDUSA: Anchor Storage
 
     // Interaction State
     const [hoveredNode, setHoveredNode] = useState<any>(null);
@@ -139,6 +140,12 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
             const appearanceCount = entity.foundInFiles?.length || 0;
             const val = (entity as any).val || ((isIdea || isConcept) ? 5 : Math.max(1, Math.min(10, Math.log2(appearanceCount + 1) * 3)));
 
+            // 🟢 MEDUSA: Selective Anchoring logic
+            // DB Persistence (Top Priority) > Local Freeze (Medium) > Floating (New)
+            const frozen = frozenNodesRef.current[entity.id];
+            const finalFx = entity.fx ?? frozen?.x;
+            const finalFy = entity.fy ?? frozen?.y;
+
             nodes.push({
                 id: entity.id,
                 name: entity.name,
@@ -146,8 +153,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 color: getTypeColor(entity.type),
                 val: val,
                 entityData: entity,
-                fx: entity.fx, // Spatial Persistence
-                fy: entity.fy,
+                fx: finalFx, // Medusa: Persistence
+                fy: finalFy,
                 isLocal: isIdea, // Use type to distinguish
                 agentId: (entity as any).agentId, // Carry over agentId if present
                 isCanon: (entity as any).isCanon, // 🟢 STRICT FLAG
@@ -282,6 +289,30 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     }, [entities, localNodes, propNodes]);
 
     // --- 3. INTERACTION HANDLERS ---
+
+    // 🟢 MEDUSA: Force Configuration
+    useEffect(() => {
+        if (graphRef.current) {
+            // "Anti-Clumping" - Increase repulsion
+            graphRef.current.d3Force('charge').strength(-800);
+        }
+    }, [graphData]);
+
+    // 🟢 MEDUSA: The Anchor
+    const handleEngineStop = () => {
+        // Freeze all nodes in their current position to prevent "Breathing"
+        if (!graphRef.current) return;
+
+        const currentData = graphRef.current.graphData();
+        currentData.nodes.forEach((node: any) => {
+            // If not already hard-anchored (DB), soft-anchor it now
+            if (node.fx === undefined && node.x !== undefined) {
+                node.fx = node.x;
+                node.fy = node.y;
+                frozenNodesRef.current[node.id] = { x: node.x, y: node.y };
+            }
+        });
+    };
 
     // CLICK HANDLER (Single vs Double)
     const handleNodeClick = (node: any) => {
@@ -532,9 +563,10 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         }
                     }}
 
-                    cooldownTicks={200}
-                    d3VelocityDecay={0.6}
-                    d3AlphaDecay={0.05}
+                    cooldownTicks={1000} // Medusa: Pre-warming (was 200)
+                    d3VelocityDecay={0.9} // Medusa: High Friction (was 0.6)
+                    d3AlphaDecay={0.2} // Medusa: Rapid Cooling (was 0.05)
+                    onEngineStop={handleEngineStop} // Medusa: Anchor
                 />
             </div>
 
