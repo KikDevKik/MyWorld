@@ -334,7 +334,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     // We must ask the graph engine for the *current* simulation node object
                     // because React state 'node' is stale (snapshot at render time).
                     if (graphRef.current) {
-                        const internalData = graphRef.current.graphData();
+                        const internalData = graphRef.current?.graphData?.();
+                        if (!internalData) return;
+
                         const liveNode = internalData.nodes.find((n: any) => n.id === node.id);
 
                         if (liveNode && liveNode.x !== undefined && liveNode.y !== undefined) {
