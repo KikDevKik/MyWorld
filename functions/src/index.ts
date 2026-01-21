@@ -2539,10 +2539,10 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
         5. **CONTEXTUAL WIRING (THE RED THREAD):**
            - Analyze the user's idea against the provided [VISUAL GRAPH CONTEXT].
            - **IF** the idea relates to an EXISTING NODE in the context:
-             - You MUST create an explicit relationship in `newRelations`.
+             - You MUST create an explicit relationship in \`newRelations\`.
              - Use the **EXACT ID** from the context. Do not invent new IDs for existing characters.
-             - Example: If user mentions "Anna" and context has `{"id":"123", "name":"Anna"}`, create a relation to target "123".
-           - **IF** the idea is new, generate it in `newNodes`.
+             - Example: If user mentions "Anna" and context has \`{"id":"123", "name":"Anna"}\`, create a relation to target "123".
+           - **IF** the idea is new, generate it in \`newNodes\`.
 
         6. THINK: Spend significant time tracing the causal chains (Butterfly Effect).
         7. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
