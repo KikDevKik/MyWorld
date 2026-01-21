@@ -341,18 +341,23 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
     // 🟢 MEDUSA: The Anchor
     const handleEngineStop = () => {
-        // Freeze all nodes in their current position to prevent "Breathing"
-        if (!graphRef.current) return;
+        // CORRECCIÓN: Usamos la prop 'nodes' directamente (via graphData), ya que D3 muta estos objetos.
+        // No llamamos a fgRef.current.graphData() porque causa crash.
+        const nodes = graphData.nodes;
+        if (!nodes) return;
 
-        const currentData = graphRef.current.graphData();
-        currentData.nodes.forEach((node: any) => {
-            // If not already hard-anchored (DB), soft-anchor it now
-            if (node.fx === undefined && node.x !== undefined) {
+        nodes.forEach((node: any) => {
+            // Solo anclamos si tiene coordenadas válidas
+            if (node.x && node.y) {
                 node.fx = node.x;
                 node.fy = node.y;
+                // Medusa: Persistence
                 frozenNodesRef.current[node.id] = { x: node.x, y: node.y };
             }
         });
+
+        // Opcional: Llamar a onAutoFreeze si fuera necesario (omitido por incompatibilidad de firma)
+        // if (onAutoFreeze && typeof onAutoFreeze === 'function') { onAutoFreeze(); }
     };
 
     // CLICK HANDLER (Single vs Double)
