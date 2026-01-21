@@ -73,6 +73,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
     // Interaction State
     const [hoveredNode, setHoveredNode] = useState<any>(null);
+    const [hoveredLink, setHoveredLink] = useState<any>(null); // 🟢 HOVER STATE FOR LINKS
     const [linkDragState, setLinkDragState] = useState<{ active: boolean, source: any, currentPos: { x: number, y: number } | null }>({
         active: false, source: null, currentPos: null
     });
@@ -253,7 +254,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     }
 
                     // 2. Semantic Link Generation
-                    let linkColor = '#9ca3af';
                     let linkDist = 100; // Default Medium
 
                     // 🟢 FORCE TUNING: SEMANTIC DISTANCE
@@ -262,7 +262,6 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         case 'FAMILY':
                         case 'LOVER':
                         case 'PART_OF':
-                            linkColor = '#10b981';
                             linkDist = 50;
                             break;
                         // MEDIUM (Standard)
@@ -271,22 +270,18 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                         case 'TALKS_TO':
                         case 'ALLY':
                         case 'MENTOR':
-                            linkColor = '#3b82f6';
                             linkDist = 120;
                             break;
                         // FAR (Weak/Repelled)
                         case 'ENEMY':
                         case 'HATES':
-                            linkColor = '#ef4444';
                             linkDist = 300;
                             break;
                         case 'LOCATED_IN':
-                            linkColor = '#6b7280';
                             linkDist = 180; // Orbit
                             break;
                         case 'NEUTRAL':
                         default:
-                            linkColor = '#6b7280';
                             linkDist = 120;
                             break;
                     }
@@ -295,12 +290,17 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     const isBidirectional = linkDirectionMap.has(`${targetId}->${entity.id}`);
                     const curvature = isBidirectional ? 0.2 : 0;
 
+                    // 🟢 LABEL LOGIC: TRUNCATE CONTEXT
+                    const labelText = rel.context
+                        ? (rel.context.length > 30 ? rel.context.substring(0, 30) + '...' : rel.context)
+                        : rel.relation;
+
                     links.push({
                         source: entity.id,
                         target: targetId,
-                        color: linkColor,
+                        // Color is now dynamic via linkColor prop, not static here
                         width: 2,
-                        label: `${rel.relation}`,
+                        label: labelText,
                         isSemantic: true,
                         distance: linkDist,
                         curvature: curvature
@@ -341,6 +341,10 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
         linkMap.forEach((weight, key) => {
             const [source, target] = key.split('::');
             let width = 0.5;
+            // Co-occurrence still uses static/neutral colors for now unless we want to inherit?
+            // User requested "Restaurar riqueza visual SIN romper las líneas" specifically for Order 1 (Inheritance).
+            // Co-occurrence links don't have a clear "Source" (they are bidirectional by nature).
+            // So we keep them neutral/grey.
             let linkColor = '#374151';
 
             if (weight >= 5) { width = 1; linkColor = '#4b5563'; }
@@ -350,11 +354,12 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 source,
                 target,
                 width,
-                color: linkColor,
+                color: linkColor, // Fallback color if we don't apply inheritance here
                 opacity: 0.2,
                 isSemantic: false,
                 distance: 150, // Standard loose distance for co-occurrence
-                curvature: 0
+                curvature: 0,
+                label: '' // No label for co-occurrence
             });
 
             // Track Neighbors
@@ -537,23 +542,23 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                     linkDirectionalArrowLength={3.5}
                     linkDirectionalArrowRelPos={1}
                     linkCurvature="curvature"
-                    linkLabel="label"
+                    // linkLabel="label" // 🔴 DISABLED NATIVE LABEL in favor of Custom Hybrid Rendering
 
                     // 🟢 PARTICLES (FLOW)
                     linkDirectionalParticles={2}
                     linkDirectionalParticleWidth={2}
                     linkDirectionalParticleSpeed={0.005}
 
-                    // 🟢 LINK COLOR (FOCUS MODE AWARE)
+                    // 🟢 LINK COLOR (FOCUS MODE AWARE + INHERITANCE)
                     linkColor={(link: any) => {
-                        // 1. FOCUS MODE
+                        // 1. FOCUS MODE CHECK
                         if (focusedNodeId) {
                             const sourceId = link.source.id || link.source;
                             const targetId = link.target.id || link.target;
                             const isConnected = sourceId === focusedNodeId || targetId === focusedNodeId;
 
                             if (isConnected) {
-                                // Active: Source Color or White
+                                // Active: Inherit Source Color
                                 return (link.source && typeof link.source === 'object' && link.source.color)
                                     ? link.source.color
                                     : '#ffffff';
@@ -563,8 +568,14 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                             }
                         }
 
-                        // 2. DEFAULT MODE
-                        // Use static Titanium Grey for visibility against black background
+                        // 2. DEFAULT MODE (INHERITANCE)
+                        if (link.isSemantic) {
+                            return (link.source && typeof link.source === 'object' && link.source.color)
+                                ? link.source.color
+                                : '#525252';
+                        }
+
+                        // Co-occurrence (Grey)
                         return '#525252';
                     }}
 
@@ -577,6 +588,49 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                             return isConnected ? 3 : 1;
                         }
                         return 2; // Default Base Width
+                    }}
+
+                    // 🟢 HYBRID RENDERING (LABELS)
+                    linkCanvasObjectMode={() => 'after'}
+                    linkCanvasObject={(link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
+                        // Visibility Check: Hover OR Focus OR Zoom > 1.5
+                        const isHovered = hoveredLink === link;
+                        const isFocused = focusedNodeId && (link.source.id === focusedNodeId || link.target.id === focusedNodeId);
+                        const isZoomed = globalScale > 1.5;
+
+                        if (isHovered || isFocused || isZoomed) {
+                            const label = link.label;
+                            if (!label) return;
+
+                            // Calculate Midpoint
+                            // Safety: Ensure source/target are objects (resolved)
+                            if (typeof link.source !== 'object' || typeof link.target !== 'object') return;
+
+                            const start = link.source;
+                            const end = link.target;
+
+                            const midX = (start.x + end.x) / 2;
+                            const midY = (start.y + end.y) / 2;
+
+                            // Draw Label
+                            const fontSize = 10 / globalScale; // Scaled font for readability at any zoom
+                            ctx.font = `600 ${fontSize}px Sans-Serif`;
+                            const textMetrics = ctx.measureText(label);
+                            const textWidth = textMetrics.width;
+                            const padding = 4 / globalScale;
+                            const bWidth = textWidth + padding * 2;
+                            const bHeight = fontSize + padding * 2;
+
+                            // Background (Semi-transparent Black)
+                            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                            ctx.fillRect(midX - bWidth / 2, midY - bHeight / 2, bWidth, bHeight);
+
+                            // Text (Titanium White/Grey)
+                            ctx.textAlign = 'center';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillStyle = '#e5e7eb';
+                            ctx.fillText(label, midX, midY);
+                        }
                     }}
 
                     // Node Styling
@@ -691,6 +745,7 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
                     // Interaction Hooks
                     onNodeHover={(node) => setHoveredNode(node)}
+                    onLinkHover={(link) => setHoveredLink(link)} // 🟢 LINK HOVER HOOK
                     onNodeClick={handleNodeClick}
                     onNodeDragEnd={(node) => {
                         node.fx = node.x;
