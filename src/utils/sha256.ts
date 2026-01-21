@@ -1,3 +1,4 @@
+
 // Minimal synchronous SHA-256 implementation
 // Source: Adapted from standard JS implementations (e.g., sjcl or similar lightweight snippets)
 // This is required because window.crypto.subtle is async, and we need a sync hash for useMemo.
@@ -9,7 +10,6 @@ function rightRotate(value: number, amount: number): number {
 const mathPow = Math.pow;
 const maxWord = mathPow(2, 32);
 const lengthProperty = 'length';
-const i = 0; // i is used as loop variable
 
 function sha256(ascii: string): string {
     const result: string[] = [];
@@ -93,8 +93,19 @@ function sha256(ascii: string): string {
     return result.join('');
 }
 
-export function generateId(projectId: string, name: string): string {
-    const input = (projectId + name.toLowerCase().trim()).replace(/[^a-z0-9]/g, '');
+/**
+ * Generates a deterministic ID for a graph node using SHA-256.
+ * MATCHES BACKEND LOGIC: sha256(projectId + ":" + normalized_name + ":" + normalized_type)
+ *
+ * @param projectId The ID of the project.
+ * @param name The name of the entity.
+ * @param type The type of the entity (default: 'concept' if not provided to avoid crash, but strictly required for collision avoidance)
+ */
+export function generateId(projectId: string, name: string, type: string = 'concept'): string {
+    const normalizedName = name.trim().toLowerCase();
+    const normalizedType = type.trim().toLowerCase();
+    const input = `${projectId}:${normalizedName}:${normalizedType}`;
+
     return sha256(input);
 }
 

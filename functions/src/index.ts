@@ -823,6 +823,7 @@ export const syncWorldManifest = onCall(
                       - 'MENTOR': Teacher, master, guide, boss.
                       - 'FAMILY': Relative, spouse, sibling, parent/child.
                       - 'NEUTRAL': Co-worker, neighbor, acquaintance, location link.
+                      - 'OWNED_BY': Ownership, possession, inventory (e.g., "The Sword belongs to Aragorn").
 
                       INSTRUCTIONS:
                       1. Extract entities as before.
