@@ -956,7 +956,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                             isEphemeral: true,
                             val: ghostSize,
                             fx: parentX + radius * Math.cos(angle),
-                            fy: parentY + radius * Math.sin(angle)
+                            fy: parentY + radius * Math.sin(angle),
+                            meta: { tier: 'background' } // Fix: Mandatory meta
                         });
                     }
                 }
