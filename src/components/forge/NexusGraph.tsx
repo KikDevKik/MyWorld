@@ -55,7 +55,8 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
     onNodeClick,
     onNodeDoubleClick,
     onNodeDragEnd,
-    onLinkCreate
+    onLinkCreate,
+    onAutoFreeze
 }) => {
     const [entities, setEntities] = useState<GraphNode[]>([]);
     const [loading, setLoading] = useState(true);
@@ -328,7 +329,9 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
 
                         if (liveNode && liveNode.x !== undefined && liveNode.y !== undefined) {
                             console.log(`[The Drop] Anchoring ${node.name} at [${liveNode.x.toFixed(0)}, ${liveNode.y.toFixed(0)}]`);
-                            onAutoFreeze(node.id, liveNode.x, liveNode.y);
+                            if (onAutoFreeze && typeof onAutoFreeze === 'function') {
+                                onAutoFreeze(node.id, liveNode.x, liveNode.y);
+                            }
                         }
                     }
                 }, 4000); // 4 Seconds Drop
