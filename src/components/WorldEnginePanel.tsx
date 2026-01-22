@@ -11,8 +11,10 @@ import {
     Zap,
     Disc,
     Diamond,
-    Loader2
+    Loader2,
+    Link as LinkIcon
 } from 'lucide-react';
+import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
 import { GemId } from '../types';
 import { Character } from '../types/core';
 import { GraphNode } from '../types/graph';
@@ -81,6 +83,7 @@ interface Node {
         file_source: string;
         explanation: string;
     };
+    auditStatus?: 'pending' | 'auditing' | 'audited';
 }
 
 // 🟢 SESSION INTERFACE
@@ -156,14 +159,21 @@ const CONTENT_TYPES: {[key: string]: {color: string, border: string, shadow: str
 };
 
 const getChaosColor = (value: number) => {
-    if (value <= 0.3) return 'from-cyan-500 to-blue-500';
-    if (value <= 0.7) return 'from-purple-500 to-violet-500';
-    return 'from-pink-500 to-white';
+    if (value <= 0.39) return 'from-cyan-600 to-cyan-400'; // ARCHITECT
+    if (value <= 0.60) return 'from-cyan-500 to-purple-500'; // HYBRID
+    return 'from-purple-600 to-fuchsia-500'; // ORACLE
+};
+
+const getChaosLabel = (value: number) => {
+    if (value <= 0.39) return { text: "MODO: LÓGICA PURA", color: "text-cyan-400" };
+    if (value <= 0.60) return { text: "MODO: HÍBRIDO / RESONANCIA", color: "text-white" };
+    return { text: "MODO: ENTROPÍA MÁXIMA", color: "text-fuchsia-400" };
 };
 
 const ChaosSlider: React.FC<{ value: number; onChange: (val: number) => void }> = ({ value, onChange }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const [isDragging, setIsDragging] = useState(false);
+    const labelInfo = getChaosLabel(value);
 
     const updateValue = (clientX: number) => {
         if (!trackRef.current) return;
@@ -187,52 +197,46 @@ const ChaosSlider: React.FC<{ value: number; onChange: (val: number) => void }> 
         e.currentTarget.releasePointerCapture(e.pointerId);
     };
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        const step = 0.05;
-        if (e.key === 'ArrowRight' || e.key === 'ArrowUp') {
-            e.preventDefault();
-            onChange(Math.min(1, Number((value + step).toFixed(2))));
-        } else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') {
-            e.preventDefault();
-            onChange(Math.max(0, Number((value - step).toFixed(2))));
-        }
-    };
-
     return (
-        <div className="flex items-center gap-4 select-none w-full">
-            <span className="text-xs font-bold text-titanium-400 tracking-widest min-w-[50px]">RIGOR</span>
+        <div className="flex flex-col gap-2 w-full select-none">
+            <div className="flex justify-between items-center px-1">
+                <span className="text-[10px] font-bold text-titanium-400 tracking-widest">RIGOR</span>
+                <span className={`text-[9px] font-mono font-bold tracking-wider ${labelInfo.color} animate-pulse`}>
+                    {labelInfo.text}
+                </span>
+                <span className="text-[10px] font-bold text-titanium-400 tracking-widest">ENTROPÍA</span>
+            </div>
 
             <div
                 ref={trackRef}
                 role="slider"
-                aria-label="Nivel de Caos (Entropía)"
-                aria-valuemin={0}
-                aria-valuemax={1}
-                aria-valuenow={value}
-                aria-valuetext={`${(value * 100).toFixed(0)}% Caos`}
+                aria-label="Nivel de Caos"
                 tabIndex={0}
-                onKeyDown={handleKeyDown}
-                className="relative flex-1 h-4 bg-slate-800 rounded-full cursor-pointer touch-none group border border-slate-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT focus:border-transparent"
+                className="relative h-6 bg-black/40 rounded-sm cursor-pointer touch-none group border border-titanium-700/50 overflow-hidden"
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
             >
+                {/* ZONES INDICATORS (Subtle) */}
+                <div className="absolute inset-0 flex pointer-events-none opacity-20">
+                    <div className="w-[40%] h-full border-r border-white/20"></div>
+                    <div className="w-[20%] h-full border-r border-white/20"></div>
+                    <div className="w-[40%] h-full"></div>
+                </div>
+
+                {/* ACTIVE BAR */}
                 <div
-                    className={`absolute top-0 left-0 bottom-0 bg-gradient-to-r ${getChaosColor(value)} transition-all duration-100 ease-out`}
+                    className={`absolute top-0 left-0 bottom-0 bg-gradient-to-r ${getChaosColor(value)} transition-all duration-100 ease-out opacity-80`}
                     style={{ width: `${value * 100}%` }}
                 />
-                <motion.div
-                    className="absolute top-0.5 bottom-0.5 w-3 bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.8)] z-10"
-                    style={{ left: `calc(${value * 100}% - 6px)` }}
-                    animate={{ scale: isDragging ? 1.2 : 1 }}
-                    whileHover={{ scale: 1.2 }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-50">
-                     <span className="text-[9px] font-mono font-bold text-white drop-shadow-md">{value.toFixed(2)}</span>
-                </div>
-            </div>
 
-            <span className="text-xs font-bold text-titanium-400 tracking-widest min-w-[60px] text-right">ENTROPÍA</span>
+                {/* HANDLE */}
+                <motion.div
+                    className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_15px_rgba(255,255,255,1)] z-10"
+                    style={{ left: `calc(${value * 100}% - 2px)` }}
+                    animate={{ scaleY: isDragging ? 1.1 : 1 }}
+                />
+            </div>
         </div>
     );
 };
@@ -977,33 +981,69 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             });
         });
 
-        // STEP 4: LOCAL IDEAS (RAM)
-        nodes.forEach(n => {
-            unifiedMap.set(n.id, {
-                id: n.id,
-                name: n.title,
-                type: 'idea',
-                projectId: EFFECTIVE_PROJECT_ID,
-                fx: n.fx,
-                fy: n.fy,
-                meta: { brief: n.content.substring(0, 50) },
-                agentId: n.agentId,
-                isLocal: true,
-                val: 8,
-                relations: n.metadata?.pending_relations?.map(r => ({
-                    targetId: r.targetId,
-                    targetName: "Unknown",
-                    targetType: 'concept',
-                    relation: r.relationType as any,
-                    context: "Local Link",
-                    sourceFileId: "session"
-                })) || []
-            } as VisualGraphNode);
-        });
-
         return Array.from(unifiedMap.values());
 
-    }, [canonCharacters, entityNodes, nodes, config]);
+    }, [canonCharacters, entityNodes, config]);
+
+    // 🟢 SILENT AUDIT PROTOCOL
+    useEffect(() => {
+        const unauditedNodes = nodes.filter(n => !n.auditStatus);
+        if (unauditedNodes.length === 0) return;
+
+        const functions = getFunctions();
+        const auditContent = httpsCallable(functions, 'auditContent');
+
+        unauditedNodes.forEach(async (node) => {
+             // 1. Mark as Auditing
+             setNodes(prev => prev.map(n => n.id === node.id ? { ...n, auditStatus: 'auditing' } : n));
+
+             try {
+                 // 2. Call Guardian
+                 const res = await auditContent({
+                     content: node.content,
+                     projectId: EFFECTIVE_PROJECT_ID,
+                     fileId: `temp_${node.id}`
+                 }) as any;
+
+                 // The backend returns 'conflicts' array.
+                 const conflicts = res.data.conflicts || [];
+                 const drift = res.data.personality_drift || [];
+                 const laws = res.data.world_law_violations || [];
+
+                 let warning = null;
+                 if (conflicts.length > 0) {
+                     warning = {
+                         warning: "FACT CONTRADICTION",
+                         file_source: conflicts[0].source || "Unknown",
+                         explanation: `Contradicts: ${conflicts[0].fact}`
+                     };
+                 } else if (laws.length > 0) {
+                     warning = {
+                         warning: "WORLD LAW VIOLATION",
+                         file_source: "World Rules",
+                         explanation: laws[0].conflict.explanation
+                     };
+                 } else if (drift.length > 0) {
+                     warning = {
+                         warning: "PERSONALITY DRIFT",
+                         file_source: "Character Profile",
+                         explanation: drift[0].detected_behavior
+                     };
+                 }
+
+                 // 3. Update Node Result
+                 setNodes(prev => prev.map(n =>
+                     n.id === node.id
+                     ? { ...n, auditStatus: 'audited', coherency_report: warning || undefined }
+                     : n
+                 ));
+
+             } catch (e) {
+                 console.error("Audit failed for", node.title, e);
+                 setNodes(prev => prev.map(n => n.id === node.id ? { ...n, auditStatus: 'audited' } : n));
+             }
+        });
+    }, [nodes]);
 
     // 🟢 TELEMETRY (SANITY CHECK)
     useEffect(() => {
@@ -1298,48 +1338,113 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 )}
             </div>
 
-            {/* LAYER 1: HUD HEADER (AGENT SELECTOR) */}
-            {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
-            <motion.div
-                className="absolute top-8 left-1/2 -translate-x-1/2 ml-12 z-50 w-fit pointer-events-auto touch-auto"
-                animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? -20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
-            >
-                <div className="flex items-center gap-1 p-1 bg-black/60 backdrop-blur-md border border-white/10 rounded-full shadow-2xl pointer-events-auto">
-                    {Object.values(AGENTS).map((agent) => (
-                        <button
-                            key={agent.id}
-                            onClick={() => setActiveAgent(agent.id as AgentType)}
-                            className="relative px-5 py-2 rounded-full flex items-center gap-2 transition-all duration-200 group"
-                        >
-                            {activeAgent === agent.id && (
-                                <motion.div
-                                    layoutId="activeAgentPill"
-                                    className={`absolute inset-0 bg-${agent.color}-500/20 border border-${agent.color}-500/50 rounded-full`}
-                                    initial={false}
-                                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                />
-                            )}
-                            <agent.icon
-                                size={14}
-                                className={`relative z-10 transition-colors ${activeAgent === agent.id ? `text-${agent.color}-400` : 'text-titanium-500 group-hover:text-titanium-300'}`}
-                            />
-                            <span className={`relative z-10 text-xs font-bold tracking-widest transition-colors ${activeAgent === agent.id ? 'text-white' : 'text-titanium-500 group-hover:text-titanium-300'}`}
-                            >
-                                {agent.name}
-                            </span>
-                        </button>
-                    ))}
-                </div>
+            {/* LAYER 0.8: WORKSPACE (HTML CARDS & CONNECTIONS) */}
+            <div className="absolute inset-0 z-10 pointer-events-none overflow-visible">
+                <Xwrapper>
+                    {nodes.map(node => {
+                        const style = CONTENT_TYPES[node.metadata?.node_type || 'default'] || CONTENT_TYPES['default'];
+                        const hasAlert = !!node.coherency_report;
+                        // Determine initial position if not set (Center randomization)
+                        const initialX = window.innerWidth / 2 - 150 + (Math.random() * 100 - 50);
+                        const initialY = window.innerHeight / 2 - 100 + (Math.random() * 100 - 50);
 
-                <motion.div
-                    key={activeAgent}
-                    initial={{ opacity: 0, y: -5 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`mt-2 text-center text-[10px] font-mono tracking-wider text-${activeAgentConfig.color}-400/80`}
-                >
-                    [{activeAgentConfig.desc}]
-                </motion.div>
-            </motion.div>
+                        return (
+                            <React.Fragment key={node.id}>
+                                <motion.div
+                                    id={node.id} // ID for Xarrow
+                                    initial={{ opacity: 0, scale: 0.8, x: initialX, y: initialY }}
+                                    animate={{
+                                        opacity: 1,
+                                        scale: 1,
+                                        x: node.x !== undefined ? node.x : initialX,
+                                        y: node.y !== undefined ? node.y : initialY
+                                    }}
+                                    drag
+                                    dragMomentum={false}
+                                    onDragEnd={(_, info) => {
+                                        // Capture final position to state
+                                        // We use the current visual position (state + delta)
+                                        const currentX = (node.x !== undefined ? node.x : initialX);
+                                        const currentY = (node.y !== undefined ? node.y : initialY);
+                                        const newX = currentX + info.offset.x;
+                                        const newY = currentY + info.offset.y;
+
+                                        setNodes(prev => prev.map(n => n.id === node.id ? { ...n, x: newX, y: newY } : n));
+                                    }}
+                                    className={`absolute w-[300px] bg-slate-900/90 backdrop-blur-md border ${style.border} rounded-lg shadow-2xl flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing`}
+                                >
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40 rounded-t-lg handle">
+                                        <div className={`flex items-center gap-2 ${style.text}`}>
+                                            <Diamond size={12} className="rotate-45" />
+                                            <span className="text-[10px] font-bold tracking-widest uppercase truncate max-w-[150px]">{node.title}</span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            {/* AUDIT STATUS */}
+                                            {node.auditStatus === 'auditing' && <Loader2 size={12} className="animate-spin text-slate-500" />}
+
+                                            {/* COHERENCY ALERT (Top Right as requested) */}
+                                            {hasAlert && (
+                                                <div className="group relative">
+                                                    <TriangleAlert size={14} className="text-[#ff153f] animate-pulse cursor-help" />
+                                                    {/* Tooltip */}
+                                                    <div className="absolute right-0 top-full mt-2 w-56 bg-black border border-[#ff153f] p-3 rounded shadow-2xl z-50 hidden group-hover:block pointer-events-none">
+                                                        <div className="text-[10px] font-bold text-[#ff153f] mb-1">{node.coherency_report?.warning}</div>
+                                                        <div className="text-[10px] text-white leading-tight">{node.coherency_report?.explanation}</div>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <button onClick={() => setExpandedNodeId(node.id)} className="hover:text-white text-slate-500 transition-colors">
+                                                <LayoutTemplate size={12} />
+                                            </button>
+                                            <button
+                                                className="hover:text-cyan-400 text-slate-500 transition-colors"
+                                                onClick={() => {
+                                                    // Quick Link Mode (MVP: Prompt)
+                                                    const targetId = prompt("Enter Target ID to link (MVP):");
+                                                    if (targetId) handleLinkCreate(node.id, targetId);
+                                                }}
+                                            >
+                                                <LinkIcon size={12} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    {/* Body */}
+                                    <div className="p-4 text-xs text-slate-300 font-serif leading-relaxed line-clamp-4 pointer-events-none select-none">
+                                        {node.content}
+                                    </div>
+                                </motion.div>
+
+                                {/* Render Arrows for this node's outgoing links */}
+                                {node.metadata?.pending_relations?.map((rel, idx) => {
+                                    // Check if target exists in WORKSPACE to draw arrow
+                                    // If target is in CANON, we can't draw Xarrow to canvas node easily
+                                    const targetExists = nodes.find(n => n.id === rel.targetId);
+                                    if (!targetExists) return null;
+
+                                    return (
+                                        <Xarrow
+                                            key={`${node.id}-${rel.targetId}-${idx}`}
+                                            start={node.id}
+                                            end={rel.targetId}
+                                            color={style.color === 'red' ? '#ef4444' : '#94a3b8'}
+                                            strokeWidth={1.5}
+                                            headSize={3}
+                                            curveness={0.4}
+                                            path="smooth"
+                                            zIndex={5}
+                                            startAnchor="auto"
+                                            endAnchor="auto"
+                                            labels={rel.relationType ? { middle: <span className="text-[9px] bg-black/50 text-white px-1 rounded">{rel.relationType}</span> } : undefined}
+                                        />
+                                    );
+                                })}
+                            </React.Fragment>
+                        );
+                    })}
+                </Xwrapper>
+            </div>
 
             {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
             <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-80 pointer-events-none">
