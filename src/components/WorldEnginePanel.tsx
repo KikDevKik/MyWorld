@@ -26,7 +26,6 @@ import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import InterrogationModal from './ui/InterrogationModal';
 import CrystallizeModal from './ui/CrystallizeModal';
 import MarkdownRenderer from './ui/MarkdownRenderer';
-import NexusGraph from './forge/NexusGraph';
 import { generateId } from '../utils/sha256';
 
 // 🟢 VISUAL EXO-SKELETON (Interface Extension)
@@ -266,6 +265,15 @@ const CombatToggle: React.FC<{ value: boolean; onChange: (val: boolean) => void 
     );
 };
 
+// 🟢 HELPER COMPONENT: Bridges Xarrow update context to parent
+const XarrowUpdater = ({ updateRef }: { updateRef: React.MutableRefObject<Function | null> }) => {
+    const updateXarrow = useXarrow();
+    useEffect(() => {
+        updateRef.current = updateXarrow;
+    }, [updateXarrow, updateRef]);
+    return null;
+};
+
 const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     isOpen,
     onClose,
@@ -327,6 +335,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const latestNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
     const activeAlert = latestNode?.coherency_report;
 
+    // 🟢 XARROW SYNC REF
+    const updateXarrowRef = useRef<Function | null>(null);
+
     // --- 0. DATA SUBSCRIPTION (LIFTED STATE) ---
     useEffect(() => {
         if (!isOpen) return;
@@ -364,17 +375,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             const loadedEntities: GraphNode[] = [];
             snapshot.forEach((doc) => {
                 const data = doc.data();
-
-                // 🟢 DIAGNOSTIC: Check if we are reading the Rich Collection
-                // We expect 'relations' array to be present.
-                if (loadedEntities.length === 0) {
-                     console.log("[WorldEngine] First Entity Sample:", {
-                         id: doc.id,
-                         hasRelations: !!data.relations,
-                         relationCount: data.relations?.length || 0,
-                         keys: Object.keys(data)
-                     });
-                }
 
                 // 🟢 EXACT MAPPING DIRECTIVE
                 // ID: doc.id
@@ -916,16 +916,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
-    // 🟢 THE DROP: AUTO-FREEZE HANDLER
-    const handleAutoFreeze = (nodeId: string, x: number, y: number) => {
-        console.log(`[WorldEngine] Freezing Node ${nodeId} at ${x.toFixed(0)},${y.toFixed(0)}`);
-        setNodes(prev => prev.map(n =>
-            n.id === nodeId
-            ? { ...n, fx: x, fy: y, x, y } // Lock it down
-            : n
-        ));
-    };
-
     // 🟢 HELPER: NORMALIZATION PROTOCOL
     const normalizeName = (name: string): string => {
         if (!name) return "";
@@ -1443,10 +1433,12 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     initialScale={1}
                     minScale={0.1}
                     maxScale={4}
-                    centerOnInit
+                    centerOnInit={true}
                     limitToBounds={false}
                     wheel={{ step: 0.1 }}
                     panning={{ velocityDisabled: true }}
+                    onPanning={() => updateXarrowRef.current?.()}
+                    onZooming={() => updateXarrowRef.current?.()}
                 >
                     {({ zoomIn, zoomOut, resetTransform }) => (
                         <>
@@ -1476,30 +1468,38 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                             </div>
 
                             <TransformComponent
-                                wrapperStyle={{ width: "100%", height: "100%", overflow: "hidden" }}
-                                contentStyle={{ width: "100%", height: "100%" }}
+                                wrapperClass="!w-full !h-full"
+                                contentClass="!w-full !h-full"
                             >
-                                {/* 🟢 LEVEL 0: BACKGROUND GRID (Scaling) */}
+                                {/* 🟢 LEVEL 0: ARENA (4000x4000) */}
                                 <div
-                                    className="absolute inset-0 z-0 opacity-20 pointer-events-none"
-                                    style={{
-                                        backgroundImage: 'radial-gradient(#7c8090 1px, transparent 1px)',
-                                        backgroundSize: '20px 20px',
-                                        width: '100%',
-                                        height: '100%'
-                                    }}
-                                />
+                                    className="relative"
+                                    style={{ width: 4000, height: 4000 }}
+                                >
+                                    {/* GRID */}
+                                    <div
+                                        className="absolute inset-0 z-0 opacity-20 pointer-events-none"
+                                        style={{
+                                            backgroundImage: 'radial-gradient(#7c8090 1px, transparent 1px)',
+                                            backgroundSize: '40px 40px',
+                                            width: '100%',
+                                            height: '100%'
+                                        }}
+                                    />
 
-                                {/* LAYER 0.8: WORKSPACE (HTML CARDS & CONNECTIONS) */}
-                                {/* 🟢 MOVED INSIDE TRANSFORM COMPONENT TO SCALE TOGETHER */}
-                                <div className="relative w-full h-full" style={{ width: '100vw', height: '100vh' }}>
+                                    {/* XWRAPPER CONTEXT */}
                                     <Xwrapper>
+                                        <XarrowUpdater updateRef={updateXarrowRef} />
+
                                         {nodes.map(node => {
                                         const style = CONTENT_TYPES[node.metadata?.node_type || 'default'] || CONTENT_TYPES['default'];
                                         const hasAlert = !!node.coherency_report;
                                         // Determine initial position if not set (Center randomization)
-                                        const initialX = window.innerWidth / 2 - 150 + (Math.random() * 100 - 50);
-                                        const initialY = window.innerHeight / 2 - 100 + (Math.random() * 100 - 50);
+                                        const ARENA_SIZE = 4000;
+                                        const CENTER = ARENA_SIZE / 2;
+                                        // 🟢 SPAWN LOGIC: 2000 +/- offset
+                                        const initialX = CENTER - 150 + (Math.random() * 200 - 100);
+                                        const initialY = CENTER - 100 + (Math.random() * 200 - 100);
 
                                         return (
                                             <React.Fragment key={node.id}>
@@ -1636,9 +1636,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                             </React.Fragment>
                                         );
                                     })}
-                                </Xwrapper>
-                            </div>
-                        </TransformComponent>
+                                    </Xwrapper>
+                                </div>
+                            </TransformComponent>
+                        </>
                     )}
                 </TransformWrapper>
             </div>
