@@ -789,29 +789,116 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
-    const handleLinkDrop = (targetId: string) => {
-        if (draggingLink && draggingLink.sourceId !== targetId) {
-            const sourceId = draggingLink.sourceId;
-            const relType = "NEUTRAL"; // Default or prompt? User asked for Drag-to-Connect without prompt if possible or later edit. For now, default.
+    // 🟢 UNIFIED LINK HANDLER (The Weaver)
+    const handleLinkCreate = async (sourceId: string, targetId: string) => {
+        // 1. Optimistic Update (Visual Feedback)
+        setNodes(prev => prev.map(n => {
+            if (n.id === sourceId) {
+                const existing = n.metadata?.pending_relations || [];
+                // Prevent duplicate
+                if (existing.find(r => r.targetId === targetId)) return n;
 
+                return {
+                    ...n,
+                    metadata: {
+                        ...n.metadata,
+                        pending_relations: [...existing, {
+                            targetId,
+                            relationType: "ANALYZING...", // Temporary Label
+                        }]
+                    }
+                };
+            }
+            return n;
+        }));
+
+        // 2. The Brain (Backend Analysis)
+        try {
+            const functions = getFunctions();
+            const analyzeConnection = httpsCallable(functions, 'analyzeConnection');
+
+            // Get names for better context from the Unified Graph (Nexus)
+            const sourceNode = unifiedNodes.find(n => n.id === sourceId);
+            const targetNode = unifiedNodes.find(n => n.id === targetId);
+
+            if (!sourceNode || !targetNode) return;
+
+            const res = await analyzeConnection({
+                sourceName: sourceNode.name,
+                targetName: targetNode.name,
+                context: "User created a manual link in the Nexus Graph."
+            }) as any;
+
+            const { reason, type } = res.data;
+
+            // 3. Truth Update (Final State)
             setNodes(prev => prev.map(n => {
                  if (n.id === sourceId) {
-                     const existing = n.metadata?.pending_relations || [];
-                     // Check dupe
-                     if (existing.find(r => r.targetId === targetId)) return n;
-
+                     const relations = n.metadata?.pending_relations || [];
                      return {
                          ...n,
                          metadata: {
                              ...n.metadata,
-                             pending_relations: [...existing, { targetId, relationType: relType }]
+                             pending_relations: relations.map(r =>
+                                 r.targetId === targetId
+                                 ? { ...r, relationType: type || 'NEUTRAL', reason: reason } // Upgrade
+                                 : r
+                             )
                          }
                      };
                  }
                  return n;
-             }));
+            }));
+
+        } catch (e) {
+            console.error("Link Analysis Failed", e);
+            // Fallback to Neutral
+             setNodes(prev => prev.map(n => {
+                 if (n.id === sourceId) {
+                     const relations = n.metadata?.pending_relations || [];
+                     return {
+                         ...n,
+                         metadata: {
+                             ...n.metadata,
+                             pending_relations: relations.map(r =>
+                                 r.targetId === targetId
+                                 ? { ...r, relationType: 'NEUTRAL', reason: 'Manual Link' }
+                                 : r
+                             )
+                         }
+                     };
+                 }
+                 return n;
+            }));
+        }
+    };
+
+    const handleLinkDrop = (targetId: string) => {
+        if (draggingLink && draggingLink.sourceId !== targetId) {
+            handleLinkCreate(draggingLink.sourceId, targetId);
         }
         setDraggingLink(null);
+    };
+
+    // 🟢 VISUAL UTILS (NEXUS PALETTE)
+    const getLinkColor = (type?: string) => {
+        switch(type) {
+            case 'ENEMY': return '#ff153f';
+            case 'FAMILY': return '#ddbf61';
+            case 'ALLY': return '#00fff7';
+            case 'OBJECT': return '#a855f7';
+            default: return '#555555';
+        }
+    };
+
+    const getBorderColor = (type?: string) => {
+        switch(type) {
+            case 'ENEMY': return 'border-[#ff153f]';
+            case 'FAMILY': return 'border-[#ddbf61]';
+            case 'ALLY': return 'border-[#00fff7]';
+            case 'OBJECT': return 'border-[#a855f7]';
+            default: return 'border-gray-500';
+        }
     };
 
     // 🟢 THE DROP: AUTO-FREEZE HANDLER
@@ -1550,15 +1637,37 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                             key={`${node.id}-${rel.targetId}-${idx}`}
                                             start={node.id}
                                             end={rel.targetId}
-                                            color={style.color === 'red' ? '#ef4444' : '#94a3b8'}
-                                            strokeWidth={1.5}
-                                            headSize={3}
+                                            color={getLinkColor(rel.relationType)}
+                                            strokeWidth={2}
+                                            headSize={6}
                                             curveness={0.4}
                                             path="smooth"
                                             zIndex={5}
                                             startAnchor="auto"
                                             endAnchor="auto"
-                                            labels={rel.relationType ? { middle: <span className="text-[9px] bg-black/50 text-white px-1 rounded">{rel.relationType}</span> } : undefined}
+                                            labels={{
+                                                middle: (
+                                                    <div
+                                                        className="group relative" // Tailwind para manejo de hover
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
+                                                        {/* ICONO DEL NODO CENTRAL (El punto en la línea) */}
+                                                        <div className={`w-4 h-4 rounded-full border-2 bg-black ${getBorderColor(rel.relationType)}`} />
+
+                                                        {/* EL TOOLTIP FLOTANTE (Solo visible en hover) */}
+                                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-48
+                                                                        opacity-0 group-hover:opacity-100 transition-opacity duration-200
+                                                                        bg-black/90 border border-gray-700 rounded p-2 text-xs text-white z-50 pointer-events-none">
+                                                            <p className="font-bold mb-1 uppercase text-[10px] tracking-wider" style={{color: getLinkColor(rel.relationType)}}>
+                                                                {rel.relationType}
+                                                            </p>
+                                                            <p className="italic">
+                                                                "{rel.reason || 'Analizando vínculo...'}"
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )
+                                            }}
                                         />
                                     );
                                 })}

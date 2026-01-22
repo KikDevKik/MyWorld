@@ -702,6 +702,63 @@ export const checkSentinelIntegrity = onCall(
   }
 );
 
+/**
+ * 28. ANALYZE CONNECTION (El Abogado del Diablo)
+ * Genera una razón narrativa para un vínculo entre dos entidades.
+ */
+export const analyzeConnection = onCall(
+  {
+    region: "us-central1",
+    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    enforceAppCheck: true,
+    timeoutSeconds: 30, // Fast response
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+    const { sourceName, targetName, context } = request.data;
+
+    // Fast fail if missing data
+    if (!sourceName || !targetName) {
+        return { reason: "Vínculo desconocido", type: "NEUTRAL" };
+    }
+
+    try {
+      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const model = genAI.getGenerativeModel({
+        model: MODEL_LOW_COST, // Gemini 3 Flash for speed
+        generationConfig: {
+          temperature: TEMP_CREATIVE,
+          responseMimeType: "application/json"
+        } as any
+      });
+
+      const prompt = `
+        TASK: Analyze the relationship between '${sourceName}' and '${targetName}'.
+        CONTEXT: ${context || "No specific context."}
+
+        OUTPUT (JSON):
+        {
+          "reason": "Max 10 words explaining the link.",
+          "type": "ENEMY" | "ALLY" | "FAMILY" | "OBJECT" | "NEUTRAL"
+        }
+      `;
+
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      const data = parseSecureJSON(text, "AnalyzeConnection");
+
+      return data.error ? { reason: "Conexión establecida", type: "NEUTRAL" } : data;
+
+    } catch (error: any) {
+      logger.error("Error analyzing connection:", error);
+      // Fallback
+      return { reason: "Conexión establecida", type: "NEUTRAL" };
+    }
+  }
+);
+
 // --- WORLD MANIFEST LOGIC (NEXUS NODE CREATION) ---
 
 /**

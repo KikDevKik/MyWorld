@@ -19,11 +19,14 @@ interface NexusGraphProps {
 // 🎨 PALETA DE COLORES (Estricta - Fuente 133)
 const COLORS = {
     HERO: '#ddbf61',    // Protagonistas (Oro)
-    ALLY: '#00fff7',    // Aliados/Objetos (Cian)
+    FAMILY: '#ddbf61',  // Familia (Oro Titán)
+    ALLY: '#00fff7',    // Aliados/Objetos (Cian Eléctrico)
     ENEMY: '#ff153f',   // Amenazas (Rojo Neón)
-    LOCATION: '#7c8090', // Ubicaciones (Gris Acero) - Can be Purple '#a855f7' if magic
+    LOCATION: '#7c8090', // Ubicaciones (Gris Acero)
+    OBJECT: '#a855f7',  // Objetos (Violeta)
     CONCEPT: '#ffffff', // Conceptos (Blanco Translúcido)
-    VOID: '#141413'     // Fondo
+    VOID: '#141413',    // Fondo
+    NEUTRAL: '#555555'  // Default
 };
 
 const NexusGraph: React.FC<NexusGraphProps> = ({
@@ -308,6 +311,17 @@ const NexusGraph: React.FC<NexusGraphProps> = ({
                 graphData={graphData}
                 backgroundColor="rgba(0,0,0,0)" // Transparent for Void Container
                 nodeCanvasObject={nodeCanvasObject}
+
+                // 🟢 VISUAL RESTORATION: DYNAMIC LINK COLORS
+                linkColor={(link: any) => {
+                    const type = link.type?.toUpperCase() || 'NEUTRAL';
+                    // @ts-ignore - Dynamic key access
+                    return COLORS[type] || COLORS.NEUTRAL;
+                }}
+                linkWidth={2}
+                linkDirectionalArrowLength={3.5}
+                linkDirectionalArrowRelPos={1}
+
                 onNodeClick={handleNodeClick}
                 onNodeHover={(node: any) => setHoverNodeId(node ? node.id : null)}
                 onNodeDragEnd={(node: any) => {
