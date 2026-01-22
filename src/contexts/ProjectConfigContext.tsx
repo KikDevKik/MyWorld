@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { getAuth } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { toast } from 'sonner';
 import { ProjectConfig } from '../types';
@@ -23,6 +23,8 @@ interface ProjectConfigContextType {
   // 🟢 NEW: Global File Tree State
   fileTree: FileNode[] | null;
   isFileTreeLoading: boolean;
+  // 🟢 GHOST MODE: Global User
+  user: User | { uid: string; displayName: string; email: string } | null;
 }
 
 export const ProjectConfigContext = createContext<ProjectConfigContextType | undefined>(undefined);
@@ -35,6 +37,27 @@ export const useProjectConfig = () => {
   return context;
 };
 
+// 🟢 GHOST IDENTITY
+const GHOST_USER = {
+    uid: "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq",
+    displayName: "Commander Ghost",
+    email: "ghost@titanium.ai",
+    isAnonymous: false,
+    emailVerified: true,
+    phoneNumber: null,
+    photoURL: null,
+    providerId: 'ghost',
+    metadata: { creationTime: new Date().toISOString(), lastSignInTime: new Date().toISOString() },
+    providerData: [],
+    refreshToken: '',
+    tenantId: null,
+    delete: async () => {},
+    getIdToken: async () => 'ghost-token',
+    getIdTokenResult: async () => ({ token: 'ghost-token', signInProvider: 'ghost', claims: {}, authTime: '', issuedAtTime: '', expirationTime: '' }),
+    reload: async () => {},
+    toJSON: () => ({})
+};
+
 export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [config, setConfig] = useState<ProjectConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,7 +67,34 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null);
   const [isFileTreeLoading, setIsFileTreeLoading] = useState(true);
 
+  // 🟢 GHOST MODE: User State
+  const [user, setUser] = useState<User | typeof GHOST_USER | null>(null);
+
+  // 1. AUTH LISTENER
+  useEffect(() => {
+    // Check Ghost Mode
+    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
+        console.warn("👻 GHOST MODE ACTIVATED: Impersonating Commander.");
+        setUser(GHOST_USER);
+        return;
+    }
+
+    const auth = getAuth();
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
   const fetchConfig = async () => {
+    // GHOST MODE BYPASS
+    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
+         // Logic is handled in useEffect below, but let's ensure we don't try to fetch real config if ghost
+         // 🟢 FIX: Ensure loading is set to false here too if called manually
+         setLoading(false);
+         return;
+    }
+
     const auth = getAuth();
     if (!auth.currentUser) {
       setLoading(false);
@@ -110,22 +160,28 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     // Note: We don't have isSecurityReady here, so we rely on user auth.
     // If App Check fails, Firestore will reject the listener, which is fine (we handle error).
-    const auth = getAuth();
-    const user = auth.currentUser;
 
-    if (!user) {
+    // In Ghost Mode, we might want to mock this too, or actually try to fetch if we have permissions
+    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
+         // If we want to test FileTree in Ghost Mode, we would need to mock it or open security rules for TDB_Index too.
+         // For now, let's leave it as returning empty or mock if needed.
+         // The user instruction was specifically about WorldEnginePanel reading ENTITIES.
+         // But let's be safe.
+         setIsFileTreeLoading(false);
+         return;
+    }
+
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
         setFileTree(null);
         setIsFileTreeLoading(false);
         return;
     }
 
-    // 🟢 GHOST BYPASS
-    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
-        return;
-    }
-
     const db = getFirestore();
-    const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
+    const docRef = doc(db, "TDB_Index", currentUser.uid, "structure", "tree");
 
     console.log("📡 [ProjectConfig] Suscribiéndose a TDB_Index/structure/tree...");
     setIsFileTreeLoading(true);
@@ -151,7 +207,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     });
 
     return () => unsubscribe();
-  }, []); // Only runs once on mount (and implicit auth state)
+  }, [user]); // Re-run when user changes
 
   return (
     <ProjectConfigContext.Provider value={{
@@ -162,7 +218,8 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
         technicalError,
         setTechnicalError,
         fileTree,
-        isFileTreeLoading
+        isFileTreeLoading,
+        user
     }}>
       {children}
     </ProjectConfigContext.Provider>
