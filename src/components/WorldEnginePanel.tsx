@@ -1679,11 +1679,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
             {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
             <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-80 pointer-events-none">
-                <div className="flex justify-end mb-2">
-                     <button onClick={onClose} className="pointer-events-auto p-2 hover:bg-white/10 rounded-full text-titanium-400 hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
                 <AnimatePresence>
                     {activeAlert && (
                         <motion.div
