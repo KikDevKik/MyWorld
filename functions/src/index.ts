@@ -2473,11 +2473,26 @@ export const worldEngine = onCall(
     }
 
     try {
+      // 🟢 TRIFASIC LOGIC (The Brain)
+      let systemPersona = "";
+      let dynamicTemp = 0.7;
+
+      if (chaosLevel <= 0.39) {
+          systemPersona = "Actúa como Ingeniero Lógico. Prioriza la consistencia dura, reglas de causalidad y sistemas de magia estrictos.";
+          dynamicTemp = 0.2;
+      } else if (chaosLevel <= 0.60) {
+          systemPersona = "Actúa como un Arquitecto Visionario. Mantén la coherencia interna pero propón giros creativos inesperados. Equilibra la estructura con la regla de lo molón (Rule of Cool).";
+          dynamicTemp = 0.7;
+      } else {
+          systemPersona = "Actúa como un Soñador Caótico. Prioriza la estética, el simbolismo y la sorpresa sobre la lógica. Rompe patrones establecidos.";
+          dynamicTemp = 1.1;
+      }
+
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         generationConfig: {
-          temperature: TEMP_CHAOS,
+          temperature: dynamicTemp,
         } as any
       });
 
@@ -2498,7 +2513,7 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
 
       const systemPrompt = `
         You are using the Gemini 3 Reasoning Engine.
-        Your Persona: ${agentId} (Chaos Level: ${chaosLevel}).
+        CORE PERSONA DIRECTIVE: ${systemPersona}
 
         === WORLD CONTEXT (THE LAW) ===
         ${canon_dump || "No canon rules provided."}
@@ -2563,7 +2578,11 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
                "title": "Node Title",
                "type": "idea", // MUST BE 'idea' for Gold Color
                "content": "Deep analysis content...",
-               "metadata": { ... } // Optional
+               "metadata": {
+                  "suggested_filename": "Name.md",
+                  "suggested_folder_category": "_Characters" | "_Locations" | "_Lore",
+                  "node_type": "concept" | "conflict" | "lore"
+               }
              }
           ],
           "newRelations": [
