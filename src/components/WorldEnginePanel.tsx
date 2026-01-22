@@ -21,7 +21,8 @@ import {
     Box,
     Swords,
     BrainCircuit,
-    Send
+    Send,
+    RefreshCw
 } from 'lucide-react';
 import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -224,14 +225,14 @@ const NodeCard: React.FC<{
                 x: node.x || 0,
                 y: node.y || 0
             }}
-            transition={{ duration: 0.5, ease: "easeOut" }} // Smooth simulation updates
+            transition={{ duration: 0 }} // INSTANT UPDATES FOR LIVE SIMULATION
             drag
             dragMomentum={false}
             onDrag={updateXarrow}
-            onPointerDown={(e) => e.stopPropagation()}
-            // Note: We handle drag updates via D3 simulation usually, but here we let Framer handle the visual drag
-            // and maybe update the simulation onDragEnd if we wanted to be strict.
-            // For this implementation, we treat visual position as authoritative for the user.
+            // 🟢 BRUTE FORCE: CAPTURE EVENT TO KILL PAN
+            onPointerDownCapture={(e) => {
+                e.stopPropagation();
+            }}
             className={`absolute w-[160px] flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing z-[20] group select-none
                 ${styleType.border} bg-slate-900/90 backdrop-blur-md rounded-lg shadow-xl border
             `}
@@ -287,13 +288,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // 🟢 AUTH INJECTION (GHOST MODE COMPATIBLE)
     const { config, user } = useProjectConfig();
 
-    const [isLoading, setIsLoading] = useState(false);
-    const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
-
     // DATA STATE
     const [nodes, setNodes] = useState<Node[]>([]); // Local Ideas
-    const [entityNodes, setEntityNodes] = useState<GraphNode[]>([]); // Canon Entities
-    const [loadingCanon, setLoadingCanon] = useState(true);
+    // 🟢 BRUTE FORCE: BYPASS DB AND USE MOCK DATA DIRECTLY
+    const [entityNodes, setEntityNodes] = useState<GraphNode[]>(FRANKENSTEIN_DATA);
+    const [loadingCanon, setLoadingCanon] = useState(false);
 
     // INPUT STATE
     const [inputValue, setInputValue] = useState("");
@@ -310,95 +309,25 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // 🟢 HARDWIRE OPERATION: TARGET LOCK
     const EFFECTIVE_PROJECT_ID = "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq";
 
-    // --- 1. DATA SUBSCRIPTION (STRICT PROJECT ID) ---
-    useEffect(() => {
-        if (!isOpen) return;
-        setLoadingCanon(true);
-
-        // 🟢 SAFETY TIMEOUT (Ghost Mode Anti-Blindness)
-        // If the real DB is empty or unreachable, we still want to use the tool.
-        const safetyTimer = setTimeout(() => {
-            setLoadingCanon((current) => {
-                if (current) {
-                    console.warn("⚠️ [WORLD_ENGINE] Connection timed out. Forcing UI load for Ghost Mode.");
-                    setEntityNodes(prev => {
-                        if (prev.length === 0) {
-                            console.log("🧪 [WORLD_ENGINE] Safety Timeout: Injecting FRANKENSTEIN_DATA...");
-                            return FRANKENSTEIN_DATA;
-                        }
-                        return prev;
-                    });
-                    return false;
-                }
-                return current;
-            });
-        }, 5000);
-
-        const db = getFirestore();
-
-        if (user) {
-            console.log(`📡 [WORLD_ENGINE] Subscribing to entities for ${user.uid} / ${EFFECTIVE_PROJECT_ID}`);
-            // ONLY FETCH ENTITIES FROM PROJECT (SOURCE OF TRUTH)
-            const entitiesRef = collection(db, "users", user.uid, "projects", EFFECTIVE_PROJECT_ID, "entities");
-            const unsubscribeEntities = onSnapshot(query(entitiesRef), (snapshot) => {
-                const loadedEntities: GraphNode[] = [];
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
-                    const name = data.meta?.name || data.name || (data.aliases && data.aliases[0]) || "Unknown Entity";
-                    loadedEntities.push({
-                        ...data,
-                        id: doc.id,
-                        name: name,
-                        type: data.type || 'concept',
-                        projectId: EFFECTIVE_PROJECT_ID,
-                        relations: data.relations || [],
-                        foundInFiles: data.foundInFiles || [],
-                        meta: { ...data.meta, brief: data.description || "" },
-                        isCanon: true // Mark as Canon
-                    } as GraphNode);
-                });
-
-                if (loadedEntities.length === 0) {
-                    console.log("🧪 [WORLD_ENGINE] Empty Database detected. Injecting FRANKENSTEIN_DATA...");
-                    setEntityNodes(FRANKENSTEIN_DATA);
-                } else {
-                    console.log(`📡 [WORLD_ENGINE] Loaded ${loadedEntities.length} entities.`);
-                    setEntityNodes(loadedEntities);
-                }
-
-                setLoadingCanon(false);
-                clearTimeout(safetyTimer);
-            }, (error) => {
-                console.error("Failed to subscribe to Entities:", error);
-                console.log("🧪 [WORLD_ENGINE] Subscription Error. Injecting FRANKENSTEIN_DATA...");
-                setEntityNodes(FRANKENSTEIN_DATA);
-                setLoadingCanon(false); // Fail gracefully
-                clearTimeout(safetyTimer);
-            });
-
-            return () => {
-                unsubscribeEntities();
-                clearTimeout(safetyTimer);
-            }
-        } else {
-            setLoadingCanon(false);
-            clearTimeout(safetyTimer);
-        }
-    }, [isOpen, user]);
+    // --- 1. DATA SUBSCRIPTION (DISABLED FOR BRUTE FORCE) ---
+    // useEffect(() => {
+    //     // 🟢 BYPASSED
+    // }, []);
 
     // --- 2. UNIFIED NODES (THE MERGER) ---
     const unifiedNodes = useMemo(() => {
         // Combine Local Ideas + Canon Entities
-        // Map to common visual structure
         const combined: (VisualGraphNode | Node)[] = [];
 
         // A. Entities
         entityNodes.forEach(e => {
             combined.push({
                 ...e,
-                // If it has saved coords, use them. Else undefined (d3 will handle).
-                x: (e as any).fx || (e as any).x,
-                y: (e as any).fy || (e as any).y,
+                // 🟢 PURGE FIXED COORDINATES TO ALLOW PHYSICS
+                x: undefined,
+                y: undefined,
+                fx: null,
+                fy: null,
                 // Ensure we have a type
                 type: e.type || 'concept'
             } as VisualGraphNode);
@@ -408,10 +337,11 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         nodes.forEach(n => {
             combined.push({
                 ...n,
-                name: n.title, // Map title to name
-                // Use existing coords
-                x: n.x,
-                y: n.y,
+                name: n.title,
+                // Local ideas can keep their positions if they are newly created,
+                // but for now we let physics handle them too unless dragged.
+                // x: n.x,
+                // y: n.y,
                 isLocal: true
             } as any);
         });
@@ -419,17 +349,15 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         return combined;
     }, [entityNodes, nodes]);
 
-    // --- 3. PHYSICS ENGINE (CLUSTER STYLE) ---
+    // --- 3. PHYSICS ENGINE (SOLAR SYSTEM) ---
     useEffect(() => {
         if (!isOpen || unifiedNodes.length === 0) return;
 
-        console.log("⚡ INITIATING PHYSICS SIMULATION...");
+        console.log("⚡ INITIATING PHYSICS SIMULATION (LIVE MODE)...");
 
-        // Stop existing
         if (simulationRef.current) simulationRef.current.stop();
 
-        // Prepare simulation data (clone to avoid mutating props directly if they were props)
-        // We use 'nodes' for D3.
+        // Prepare simulation data
         const simNodes = unifiedNodes.map(n => ({ ...n }));
 
         // Extract Links
@@ -438,7 +366,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             const rels = (node as any).relations || (node as any).metadata?.pending_relations || [];
             rels.forEach((r: any) => {
                 const targetId = r.targetId;
-                // Only link if target exists in current graph
                 if (simNodes.find(n => n.id === targetId)) {
                     links.push({
                         source: node.id,
@@ -449,60 +376,64 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             });
         });
 
-        const simulation = d3.forceSimulation(simNodes as any)
-            // 1. Repulsion (Separation) - Reduced slightly to allow tighter clusters
-            .force("charge", d3.forceManyBody().strength(-300))
-            // 2. Attraction (Links) - Stronger and shorter to keep families together
-            .force("link", d3.forceLink(links).id((d: any) => d.id).distance(80).strength(0.8))
-            // 3. Semantic Gravity (Clusters by Type)
-            .force("x", d3.forceX((d: any) => {
-                const type = ((d.metadata?.node_type || d.type || 'default') as string).toLowerCase();
-                if (type === 'location') return 2500; // East
-                if (type === 'idea' || type === 'concept') return 1500; // West
-                return 2000; // Center (Characters/Canon)
-            }).strength(0.2))
-            .force("y", d3.forceY((d: any) => {
-                 const type = ((d.metadata?.node_type || d.type || 'default') as string).toLowerCase();
-                 // Distribute slightly to avoid horizontal line clutter
-                 if (type === 'enemy' || type === 'conflict') return 2400; // South
-                 return 2000;
-            }).strength(0.2))
-            // 4. Collision (Avoid Overlap) - Adjusted for rectangular cards
-            .force("collide", d3.forceCollide().radius(110).iterations(2));
+        const width = 4000;
+        const height = 4000;
+        const cx = width / 2;
+        const cy = height / 2;
 
-        // GOLDEN SPIRAL INITIALIZATION FOR NEW NODES
-        simNodes.forEach((node, i) => {
-             if (node.x === undefined || node.y === undefined) {
-                 const angle = i * 2.4; // Golden angle approx
-                 const radius = 30 * i; // Spiral out
-                 node.x = 2000 + radius * Math.cos(angle);
-                 node.y = 2000 + radius * Math.sin(angle);
+        const simulation = d3.forceSimulation(simNodes as any)
+            // 1. Universal Repulsion (Keep them apart)
+            .force("charge", d3.forceManyBody().strength(-500))
+
+            // 2. Link Attraction (Elasticity)
+            .force("link", d3.forceLink(links).id((d: any) => d.id).distance(150).strength(0.5))
+
+            // 3. SOLAR GRAVITY (Radial Architecture)
+            .force("radial", d3.forceRadial(
+                (d: any) => {
+                    const type = ((d.metadata?.node_type || d.type || 'default') as string).toLowerCase();
+                    // STAR (Center)
+                    if (type === 'character' || type === 'canon') return 0;
+                    // PLANETS (Orbit)
+                    if (type === 'location') return 400;
+                    // COMETS/OUTER RIM
+                    return 800;
+                },
+                cx,
+                cy
+            ).strength(0.8)) // Strong pull to orbit
+
+            // 4. Collision
+            .force("collide", d3.forceCollide().radius(100).strength(0.7));
+
+        // INITIAL PLACEMENT (Big Bang)
+        simNodes.forEach((node) => {
+             // Start them somewhat near center so they explode outwards
+             if (!node.x || !node.y) {
+                 node.x = cx + (Math.random() - 0.5) * 100;
+                 node.y = cy + (Math.random() - 0.5) * 100;
              }
         });
 
-        // WARM UP (Tick manually to stabilize)
-        simulation.stop(); // Don't run timer
-        const numTicks = 300;
-        for (let i = 0; i < numTicks; ++i) simulation.tick();
-
-        setSimulatedNodes(simNodes);
-        // updateXarrowRef logic removed: Xwrapper + TransformComponent nesting handles sync natively via CSS transform.
+        // 🟢 LIVE SIMULATION LOOP
+        simulation.on("tick", () => {
+            // Force React to re-render with new positions
+            setSimulatedNodes([...simNodes]);
+        });
 
         simulationRef.current = simulation;
 
         return () => simulation.stop();
 
-    }, [unifiedNodes.length, isOpen]); // Re-run if node count changes
+    }, [unifiedNodes, isOpen]);
 
 
     // --- 4. INTERACTION HANDLERS ---
     const handleNodeClick = (node: VisualGraphNode | Node) => {
         if ((node as any).isLocal || (node as any).type === 'idea') {
-            // IDEA -> MODAL
             setExpandedNodeId(node.id);
             setSelectedCanonId(null);
         } else {
-            // CANON -> SIDEBAR
             setSelectedCanonId(node.id);
             setExpandedNodeId(null);
         }
@@ -513,14 +444,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     const handleLinkStart = (nodeId: string, e: React.MouseEvent) => {
         e.stopPropagation();
-        const rect = (e.target as Element).getBoundingClientRect();
         setDraggingLink({ sourceId: nodeId, x: e.clientX, y: e.clientY });
-    };
-
-    const handleLinkMove = (e: React.MouseEvent) => {
-        if (draggingLink) {
-            setDraggingLink(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
-        }
     };
 
     const handleLinkDrop = (targetId: string) => {
@@ -531,9 +455,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     };
 
     const handleLinkCreate = async (sourceId: string, targetId: string) => {
-        // Logic to add link to source node's metadata
-        // For now, just log or add optimistic
         console.log(`Connecting ${sourceId} to ${targetId}`);
+        // Mock connection logic for UI feedback
         setNodes(prev => prev.map(n => {
             if (n.id === sourceId) {
                 return {
@@ -551,12 +474,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }));
     };
 
-    // 🟢 NEW: INPUT BAR HANDLER (OPERATION LAZARUS)
     const handleInputSubmit = (e?: React.FormEvent) => {
         if (e) e.preventDefault();
         if (!inputValue.trim()) return;
 
-        // 🟢 FIX: Correctly using generateId(projectId, name, type)
         const newId = generateId(EFFECTIVE_PROJECT_ID, inputValue.trim(), 'idea');
         const newIdea: Node = {
             id: newId,
@@ -564,8 +485,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             title: inputValue.trim(),
             content: `# ${inputValue.trim()}\n\n*Idea generada en el Laboratorio*`,
             agentId: rigorValue > 0.5 ? 'oracle' : 'architect',
-            x: 2000 + (Math.random() - 0.5) * 100, // Spawn near center
-            y: 2000 + (Math.random() - 0.5) * 100,
+            x: 2000,
+            y: 2000,
             metadata: {
                 node_type: 'IDEA',
                 pending_relations: []
@@ -574,9 +495,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
         setNodes(prev => [...prev, newIdea]);
         setInputValue("");
-
-        // Optimistic Feedback
-        console.log("💡 New Idea Created:", newIdea);
     };
 
     // VISUAL STYLES
@@ -596,27 +514,33 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         return '#00fff7'; // CYAN DEFAULT
     };
 
+    // 🟢 BRUTE FORCE: RE-SIMULATE BUTTON ACTION
+    const handleReSimulate = () => {
+        if (simulationRef.current) {
+            console.log("🔥 MANUALLY RESTARTING SIMULATION");
+            simulationRef.current.alpha(1).restart();
+        }
+    };
+
     if (!isOpen) return null;
 
-    // Helper for Canon Drawer
     const selectedCanonNode = selectedCanonId ? entityNodes.find(n => n.id === selectedCanonId) : null;
 
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-titanium-100 flex flex-col touch-none">
 
-            {/* 🟢 LOADER */}
-            <AnimatePresence>
-                {loadingCanon && (
-                    <motion.div
-                        initial={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 z-[100] bg-titanium-950 flex flex-col items-center justify-center gap-4"
-                    >
-                        <Loader2 className="animate-spin text-cyan-500" size={48} />
-                        <span className="text-xs font-mono tracking-widest text-titanium-400">CONNECTING TO OMNIVERSE...</span>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+            {/* 🟢 LOADER (REMOVED FOR BRUTE FORCE) */}
+
+            {/* 🟢 DEBUG CONTROLS */}
+            <div className="absolute top-4 left-4 z-[9999] pointer-events-auto">
+                 <button
+                    onClick={handleReSimulate}
+                    className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded shadow-lg border border-red-400"
+                 >
+                    <RefreshCw size={16} />
+                    RE-SIMULAR
+                 </button>
+            </div>
 
             {/* 🟢 ZOOM WRAPPER */}
             <TransformWrapper
@@ -627,7 +551,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 limitToBounds={false}
                 wheel={{ step: 0.1 }}
                 panning={{ velocityDisabled: true }}
-                // Sync handled by CSS nesting in Xwrapper
             >
                 {({ zoomIn, zoomOut, resetTransform }) => (
                     <>
@@ -702,7 +625,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 )}
             </TransformWrapper>
 
-            {/* 🟢 INPUT BAR (OPERATION LAZARUS) */}
+            {/* 🟢 INPUT BAR */}
             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4 pointer-events-auto">
                 <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 flex items-center gap-3 relative">
                     {/* Rigor Slider (Left) */}
