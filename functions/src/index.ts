@@ -3774,38 +3774,59 @@ export const compileManuscript = onCall(
         // Ensure default styles are mapped if needed, or rely on global docDefinition styles
         const converted = htmlToPdfmake(html, { window: window });
 
-        // 3. Post-Process for Smart Breaks (Recursive)
+        // 3. Post-Process for Smart Breaks (Iterative - Anti DoS)
         // We look for 'html-h1' and 'html-h2' styles to inject page breaks
+        // 🛡️ SENTINEL SECURITY FIX: Replaced recursion with iteration to prevent Stack Overflow DoS
         if (isSmartBreakEnabled) {
-          const injectPageBreaks = (nodes: any[]) => {
-            if (!nodes || !Array.isArray(nodes)) return;
+          const injectPageBreaks = (rootStructure: any) => {
+            const stack: any[] = [];
 
-            nodes.forEach(node => {
-              if (node.style) {
-                 const s = node.style;
-                 // Check if style is h1/h2 (html-to-pdfmake uses 'html-h1', 'html-h2')
-                 const isH1 = s === 'html-h1' || (Array.isArray(s) && s.includes('html-h1'));
-                 const isH2 = s === 'html-h2' || (Array.isArray(s) && s.includes('html-h2'));
+            // Initialize Stack
+            if (Array.isArray(rootStructure)) {
+                // Push in reverse to maintain processing order (though not strictly necessary for style checks)
+                for (let i = rootStructure.length - 1; i >= 0; i--) {
+                    stack.push(rootStructure[i]);
+                }
+            } else if (rootStructure && typeof rootStructure === 'object') {
+                // Handle single object or { stack: [] } case
+                stack.push(rootStructure);
+            }
 
-                 if (isH1 || isH2) {
-                   node.pageBreak = 'before';
-                 }
-              }
+            while (stack.length > 0) {
+                const node = stack.pop();
 
-              // Recursion for stacks/columns/nested arrays
-              if (node.stack) injectPageBreaks(node.stack);
-              if (node.ul) injectPageBreaks(node.ul);
-              if (node.ol) injectPageBreaks(node.ol);
-              // Sometimes html-to-pdfmake returns nested arrays directly?
-              if (Array.isArray(node)) injectPageBreaks(node);
-            });
+                // 1. Unwrap Arrays (Nested structures)
+                if (Array.isArray(node)) {
+                    for (let i = node.length - 1; i >= 0; i--) {
+                        stack.push(node[i]);
+                    }
+                    continue;
+                }
+
+                if (!node || typeof node !== 'object') continue;
+
+                // 2. Process Node Logic
+                if (node.style) {
+                   const s = node.style;
+                   const isH1 = s === 'html-h1' || (Array.isArray(s) && s.includes('html-h1'));
+                   const isH2 = s === 'html-h2' || (Array.isArray(s) && s.includes('html-h2'));
+
+                   if (isH1 || isH2) {
+                     node.pageBreak = 'before';
+                   }
+                }
+
+                // 3. Push Children (Iterative Traversal)
+                // We push these as-is; if they are arrays, the next loop will unwrap them.
+                if (node.stack) stack.push(node.stack);
+                if (node.ul) stack.push(node.ul);
+                if (node.ol) stack.push(node.ol);
+                if (node.columns) stack.push(node.columns); // Also check columns just in case
+            }
           };
 
-          if (Array.isArray(converted)) {
-             injectPageBreaks(converted);
-          } else if (converted.stack) {
-             injectPageBreaks(converted.stack);
-          }
+          // Apply to the converted structure
+          injectPageBreaks(converted);
         }
 
         return Array.isArray(converted) ? converted : [converted];
