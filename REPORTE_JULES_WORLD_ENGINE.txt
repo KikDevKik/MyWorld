@@ -1,0 +1,60 @@
+REPORTE DE OPERACIÓN: WORLD ENGINE (JULES)
+================================================
+
+1. RESUMEN DE ACCIONES REALIZADAS
+---------------------------------
+He implementado las correcciones solicitadas en el "Perforador de Mundos" (WorldEnginePanel):
+
+A. FÍSICA DE ENJAMBRE SEMÁNTICA (Clustering)
+   - Modifiqué `d3.forceSimulation` para reemplazar la gravedad central genérica con fuerzas condicionales `forceX` / `forceY`.
+   - Resultado esperado:
+     * Personajes/Canon -> Centro (2000, 2000)
+     * Lugares -> Este (2500, 2000)
+     * Ideas/Conceptos -> Oeste (1500, 2000)
+
+B. SOBERANÍA DE LA TARJETA (Interacción)
+   - Añadí `e.stopPropagation()` al evento `onPointerDown` de las tarjetas.
+   - Resultado: Al arrastrar una tarjeta, el mapa (zoom/pan) ya no se mueve. Solo se mueve la tarjeta.
+
+C. CABLEADO EN TIEMPO REAL
+   - Implementé `const updateXarrow = useXarrow()` y lo vinculé al evento `onDrag` de Framer Motion.
+   - Resultado: Las flechas se recalculan en cada frame del movimiento, manteniendo la conexión visual elástica.
+
+D. CORRECCIÓN CRÍTICA (Bug Fix)
+   - Detecté y corregí un error en la función `handleInputSubmit` que causaba un crash silencioso al crear nuevas ideas. La función `generateId` requería 3 argumentos y solo recibía 1.
+
+2. PROBLEMAS ENCONTRADOS DURANTE LA MISIÓN
+------------------------------------------
+- Crash de `generateId`: Al intentar crear nodos de prueba ("Alpha", "Beta"), la aplicación fallaba internamente porque `generateId` esperaba (projectId, name, type) y recibía `undefined` para el nombre, lanzando un error al intentar hacer `.trim()`. Esto impedía que aparecieran las tarjetas.
+- Base de Datos Vacía (Ghost Mode): La consulta a Firebase en la ruta del usuario simulado (`users/1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq/projects/.../entities`) devolvió "Loaded 0 entities".
+
+3. ESTADO VISUAL: ¿SE VIERON LAS TARJETAS Y LÍNEAS?
+---------------------------------------------------
+- TARJETAS (NODOS): SÍ.
+  Tras corregir el bug de `generateId`, pude verificar visualmente (vía script de prueba) que las "Ideas" se creaban correctamente y se agrupaban hacia el OESTE (coordenada X ~1043), confirmando que la física semántica funciona. El arrastre también funcionó correctamente.
+
+- LÍNEAS (CONEXIONES): NO VERIFICADO VISUALMENTE.
+  Aunque el código para dibujarlas y actualizarlas está listo (`<Xarrow>` y `updateXarrow`), no pude verlas en pantalla por dos razones:
+  1. Las "Ideas" creadas manualmente en la prueba nacen sin conexiones (aisladas).
+  2. La base de datos de Ghost Mode no devolvió ninguna entidad existente (Canon) que pudiera tener relaciones predefinidas.
+
+  Al no haber dos nodos conectados en la escena, no se renderizó ninguna flecha. Sin embargo, la lógica de código para renderizarlas es correcta y confío en que aparecerán apenas haya datos relacionados.
+
+4. RECOMENDACIONES PARA GHOST MODE (MAYOR LIBERTAD)
+---------------------------------------------------
+Para poder realizar diagnósticos completos (incluyendo ver la "Red" completa y las líneas):
+
+A. DATOS DE PRUEBA (SEEDING):
+   Necesitamos asegurar que el usuario "Ghost" (`1mImHC6...`) tenga datos reales en su colección de Firestore. Actualmente parece estar vacía o la ruta `users/UID/projects/PID/entities` no coincide con donde están los datos reales.
+
+   *Solución:* Proporcionar un script o confirmar una ruta donde existan al menos 3 entidades conectadas (ej. Héroe -> Ama -> Lugar).
+
+B. PERMISOS DE LECTURA (CORS/Functions):
+   Noté errores de red (CORS/Internal Error) al llamar a `checkSentinelIntegrity`. Aunque esto no bloqueó el grafo, sugiere que el entorno local tiene restricciones para hablar con ciertas Cloud Functions.
+
+   *Solución:* Verificar que el emulador o las reglas de seguridad permitan llamadas desde `localhost:3000` sin token de Auth real, o proporcionar un token de prueba de larga duración si es necesario saltar validaciones estrictas de backend.
+
+C. VISIBILIDAD DE ERRORES:
+   Habilitar un modo de "Debug Overlay" en la UI que muestre errores de consola (como el de `generateId`) en pantalla ayudaría a detectar fallos de lógica más rápido sin tener que bucear en logs de terminal.
+
+Jules.

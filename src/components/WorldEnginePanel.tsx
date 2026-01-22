@@ -151,6 +151,8 @@ const NodeCard: React.FC<{
     isExpanded: boolean;
     styleType: any;
 }> = ({ node, onClick, onLinkStart, onLinkDrop, styleType }) => {
+    const updateXarrow = useXarrow();
+
     // Icon Mapping based on type
     const getIcon = () => {
         const type = ((node as any).type || 'default').toLowerCase();
@@ -177,6 +179,8 @@ const NodeCard: React.FC<{
             transition={{ duration: 0.5, ease: "easeOut" }} // Smooth simulation updates
             drag
             dragMomentum={false}
+            onDrag={updateXarrow}
+            onPointerDown={(e) => e.stopPropagation()}
             // Note: We handle drag updates via D3 simulation usually, but here we let Framer handle the visual drag
             // and maybe update the simulation onDragEnd if we wanted to be strict.
             // For this implementation, we treat visual position as authoritative for the user.
@@ -382,14 +386,25 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         });
 
         const simulation = d3.forceSimulation(simNodes as any)
-            // 1. Repulsion (Separation)
-            .force("charge", d3.forceManyBody().strength(-400))
-            // 2. Attraction (Links)
-            .force("link", d3.forceLink(links).id((d: any) => d.id).distance(100))
-            // 3. Center Gravity (Keep it in arena)
-            .force("center", d3.forceCenter(2000, 2000).strength(0.05))
-            // 4. Collision (Avoid Overlap)
-            .force("collide", d3.forceCollide().radius(100).iterations(2));
+            // 1. Repulsion (Separation) - Reduced slightly to allow tighter clusters
+            .force("charge", d3.forceManyBody().strength(-300))
+            // 2. Attraction (Links) - Stronger and shorter to keep families together
+            .force("link", d3.forceLink(links).id((d: any) => d.id).distance(80).strength(0.8))
+            // 3. Semantic Gravity (Clusters by Type)
+            .force("x", d3.forceX((d: any) => {
+                const type = ((d.metadata?.node_type || d.type || 'default') as string).toLowerCase();
+                if (type === 'location') return 2500; // East
+                if (type === 'idea' || type === 'concept') return 1500; // West
+                return 2000; // Center (Characters/Canon)
+            }).strength(0.2))
+            .force("y", d3.forceY((d: any) => {
+                 const type = ((d.metadata?.node_type || d.type || 'default') as string).toLowerCase();
+                 // Distribute slightly to avoid horizontal line clutter
+                 if (type === 'enemy' || type === 'conflict') return 2400; // South
+                 return 2000;
+            }).strength(0.2))
+            // 4. Collision (Avoid Overlap) - Adjusted for rectangular cards
+            .force("collide", d3.forceCollide().radius(110).iterations(2));
 
         // GOLDEN SPIRAL INITIALIZATION FOR NEW NODES
         simNodes.forEach((node, i) => {
@@ -477,7 +492,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         if (e) e.preventDefault();
         if (!inputValue.trim()) return;
 
-        const newId = generateId(`idea-${Date.now()}`);
+        // 🟢 FIX: Correctly using generateId(projectId, name, type)
+        const newId = generateId(EFFECTIVE_PROJECT_ID, inputValue.trim(), 'idea');
         const newIdea: Node = {
             id: newId,
             type: 'idea',
