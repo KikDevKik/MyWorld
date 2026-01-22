@@ -299,6 +299,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     // 🟢 TACTICAL LOCKDOWN: OVERLAY STATE
     const isOverlayActive = crystallizeModal.isOpen || interrogation.isOpen || !!expandedNodeId;
 
+    // 🟢 CANON ARCHIVE STATE
+    const [isCanonArchiveOpen, setIsCanonArchiveOpen] = useState(false);
+    const [canonSearchQuery, setCanonSearchQuery] = useState("");
+
     // 🟢 PHASE 4.3: SESSION STATE
     const [sessionId] = useState(() => `sess_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
     const [sessionHistory, setSessionHistory] = useState<SessionItem[]>([]);
@@ -527,10 +531,14 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
             // 🟢 HARVEST VISUAL CONTEXT (THE EYES)
             // We map unifiedNodes to a lightweight structure
+            // OPERACIÓN 'ELEFANTE': Sending FULL payload (No Truncation) as requested by Commander.
             const currentGraphContext = unifiedNodes.map(n => ({
                 id: n.id,
                 name: n.name,
-                type: n.type || 'concept'
+                type: n.type || 'concept',
+                description: n.description || "",
+                content: n.content || "", // 🟢 FULL CONTENT INJECTION
+                relations: n.relations || []
             }));
 
             setStatusMessage("DEEP REASONING IN PROGRESS... DO NOT REFRESH.");
@@ -696,7 +704,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
     // 3. PERSISTENCE (Drag End)
     const handleNodeDragEnd = async (node: VisualGraphNode) => {
-        if (node.isLocal && !node.isGhost && !node.isEphemeral) {
+        if (node.isLocal && !node.isGhost && !node.isEphemeral && !node.isCanon) {
              // True Local Idea (RAM only)
             setNodes(prev => prev.map(n =>
                 n.id === node.id
@@ -766,26 +774,32 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         }
     };
 
-    // 4. LINKING (Red Thread)
-    const handleLinkCreate = (sourceId: string, targetId: string) => {
-        // Find source and target
-        const sourceNode = nodes.find(n => n.id === sourceId);
-        // Target could be local or canon (not in 'nodes' array if canon)
+    // 4. LINKING (Red Thread - Gestural)
+    const [draggingLink, setDraggingLink] = useState<{ sourceId: string, x: number, y: number } | null>(null);
 
-        console.log(`Link Request: ${sourceId} -> ${targetId}`);
+    const handleLinkStart = (nodeId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        const rect = (e.target as Element).getBoundingClientRect();
+        setDraggingLink({ sourceId: nodeId, x: rect.right, y: rect.top + rect.height / 2 });
+    };
 
-        // UX: Ask for relation type?
-        // Simple prompt for now (MVP)
-        const relation = prompt("Define Relation (ENEMY, ALLY, MENTOR, FAMILY, NEUTRAL, CAUSE):", "ENEMY");
-        if (!relation) return;
+    const handleLinkMove = (e: React.MouseEvent) => {
+        if (draggingLink) {
+            setDraggingLink(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
+        }
+    };
 
-        const relType = relation.toUpperCase();
+    const handleLinkDrop = (targetId: string) => {
+        if (draggingLink && draggingLink.sourceId !== targetId) {
+            const sourceId = draggingLink.sourceId;
+            const relType = "NEUTRAL"; // Default or prompt? User asked for Drag-to-Connect without prompt if possible or later edit. For now, default.
 
-        if (sourceNode) {
-             // If source is Local Idea, store pending relation
-             setNodes(prev => prev.map(n => {
+            setNodes(prev => prev.map(n => {
                  if (n.id === sourceId) {
                      const existing = n.metadata?.pending_relations || [];
+                     // Check dupe
+                     if (existing.find(r => r.targetId === targetId)) return n;
+
                      return {
                          ...n,
                          metadata: {
@@ -796,12 +810,8 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                  }
                  return n;
              }));
-             alert(`Linked Idea to ${targetId} as ${relType}. Will persist on crystallization.`);
-        } else {
-            // Canon -> Canon
-            // TODO: Implement immediate Firestore write for relationships
-            alert("Canon-to-Canon linking not yet implemented in this phase.");
         }
+        setDraggingLink(null);
     };
 
     // 🟢 THE DROP: AUTO-FREEZE HANDLER
@@ -1063,6 +1073,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         setCrystallizeModal(prev => ({ ...prev, isProcessing: true }));
 
         try {
+            // 🟢 VISUAL ASCENSION: Golden Flash & Lock
+            // We update the local node state immediately to reflect "Ascension"
+            setNodes(prev => prev.map(n =>
+                n.id === crystallizeModal.node!.id
+                ? { ...n, isCanon: true, isLocal: false, metadata: { ...n.metadata, node_type: 'canon' } }
+                : n
+            ));
             const functions = getFunctions();
             const crystallizeNode = httpsCallable(functions, 'crystallizeNode');
             const accessToken = localStorage.getItem('google_drive_token');
@@ -1114,6 +1131,20 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
             if (newFileId && oldNode) {
                  console.log(`💎 TRANSMUTATION: Converting ${oldNode.id} -> ${newFileId}`);
+
+                 // 🟢 UPDATE LOCAL NODE WITH CANON STATUS
+                 setNodes(prev => prev.map(n =>
+                    n.id === oldNode.id
+                    ? {
+                        ...n,
+                        id: newFileId, // ID SWAP
+                        isCanon: true,
+                        isLocal: false,
+                        type: 'canon', // TITANIUM
+                        metadata: { ...n.metadata, node_type: 'canon' }
+                      }
+                    : n
+                 ));
 
                  const auth = getAuth();
                  const db = getFirestore();
@@ -1280,6 +1311,29 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 )}
             </AnimatePresence>
 
+            {/* 🟢 GESTURAL LINKING OVERLAY (ACTIVE ONLY WHEN DRAGGING) */}
+            {draggingLink && (
+                <div
+                    className="fixed inset-0 z-[200] cursor-crosshair pointer-events-auto"
+                    onMouseMove={handleLinkMove}
+                    onMouseUp={() => setDraggingLink(null)}
+                >
+                    {/* VISUAL FEEDBACK: THE LASER LINE */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+                        <line
+                            x1={nodes.find(n => n.id === draggingLink.sourceId)?.x || draggingLink.x}
+                            y1={nodes.find(n => n.id === draggingLink.sourceId)?.y || draggingLink.y}
+                            x2={draggingLink.x}
+                            y2={draggingLink.y}
+                            stroke="#00fff7"
+                            strokeWidth="2"
+                            strokeDasharray="5,5"
+                            className="animate-pulse drop-shadow-[0_0_8px_rgba(0,255,247,0.8)]"
+                        />
+                    </svg>
+                </div>
+            )}
+
             {/* LAYER 0: NEXUS GRAPH (The Living Background) */}
             {/* 🟢 INTERACTION GATE: Wrapper ensures clicks reach the graph despite parent pointer-events-none */}
             {/* 🟢 TACTICAL SOLUTION: UNIVERSAL LOCKDOWN & CINEMATIC DIM */}
@@ -1302,7 +1356,74 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 />
             </div>
 
-            {/* LAYER 0.5: CANON DRAWER (Lifted State) */}
+            {/* LAYER 0.5: CANON ARCHIVE (Left Panel) */}
+            <div
+                className={`absolute top-0 left-0 bottom-0 w-[300px] bg-titanium-950/95 border-r border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col pointer-events-auto
+                    ${isCanonArchiveOpen ? 'translate-x-0' : '-translate-x-full'}
+                `}
+            >
+                <div className="p-4 border-b border-titanium-800 bg-titanium-900/50 flex items-center justify-between">
+                     <h3 className="text-xs font-bold text-titanium-100 uppercase tracking-widest flex items-center gap-2">
+                        <Disc size={14} className="text-amber-500" />
+                        CANON ARCHIVE
+                     </h3>
+                     <button onClick={() => setIsCanonArchiveOpen(false)} className="text-titanium-500 hover:text-white">
+                        <X size={16} />
+                     </button>
+                </div>
+                <div className="p-4 border-b border-titanium-800">
+                    <input
+                        type="text"
+                        placeholder="Search Nexus..."
+                        value={canonSearchQuery}
+                        onChange={(e) => setCanonSearchQuery(e.target.value)}
+                        className="w-full bg-black/40 border border-titanium-700 rounded px-3 py-2 text-xs text-white placeholder-titanium-600 focus:outline-none focus:border-amber-500/50 transition-colors"
+                    />
+                </div>
+                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                    {canonCharacters
+                        .filter(c => !canonSearchQuery || (c.name?.toLowerCase().includes(canonSearchQuery.toLowerCase())))
+                        .map(char => (
+                        <button
+                            key={char.id}
+                            onClick={() => {
+                                // SUMMON PROTOCOL
+                                const existing = nodes.find(n => n.id === char.id);
+                                if (!existing) {
+                                    setNodes(prev => [...prev, {
+                                        id: char.id,
+                                        type: 'canon',
+                                        title: char.name,
+                                        content: char.role || "Personaje del Canon",
+                                        agentId: 'architect',
+                                        x: window.innerWidth / 2 - 150 + (Math.random() * 40 - 20),
+                                        y: window.innerHeight / 2 - 100 + (Math.random() * 40 - 20),
+                                        isCanon: true, // GOLD BORDER
+                                        isLocal: false,
+                                        metadata: { node_type: 'lore', tier: char.tier }
+                                    }]);
+                                }
+                            }}
+                            className="w-full text-left p-3 rounded hover:bg-white/5 border border-transparent hover:border-amber-500/20 group transition-all"
+                        >
+                            <div className="text-xs font-bold text-titanium-200 group-hover:text-amber-400 truncate">{char.name}</div>
+                            <div className="text-[10px] text-titanium-500 truncate">{char.role || "Entidad Registrada"}</div>
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* TOGGLE BUTTON FOR ARCHIVE */}
+            {!isCanonArchiveOpen && !expandedNodeId && (
+                <button
+                    onClick={() => setIsCanonArchiveOpen(true)}
+                    className="absolute top-24 left-0 z-40 bg-titanium-900/80 border-y border-r border-titanium-700 p-2 rounded-r-lg hover:bg-amber-900/20 hover:text-amber-400 hover:border-amber-500/50 transition-all pointer-events-auto"
+                >
+                    <Disc size={20} />
+                </button>
+            )}
+
+            {/* LAYER 0.5: CANON DRAWER (Lifted State - Right Side) */}
             <div
                 className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col
                     ${selectedCanonNode ? 'translate-x-0' : 'translate-x-full'}
@@ -1374,7 +1495,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                     className={`absolute w-[300px] bg-slate-900/90 backdrop-blur-md border ${style.border} rounded-lg shadow-2xl flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing`}
                                 >
                                     {/* Header */}
-                                    <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40 rounded-t-lg handle">
+                                    <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40 rounded-t-lg handle relative">
                                         <div className={`flex items-center gap-2 ${style.text}`}>
                                             <Diamond size={12} className="rotate-45" />
                                             <span className="text-[10px] font-bold tracking-widest uppercase truncate max-w-[150px]">{node.title}</span>
@@ -1398,20 +1519,21 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                             <button onClick={() => setExpandedNodeId(node.id)} className="hover:text-white text-slate-500 transition-colors">
                                                 <LayoutTemplate size={12} />
                                             </button>
-                                            <button
-                                                className="hover:text-cyan-400 text-slate-500 transition-colors"
-                                                onClick={() => {
-                                                    // Quick Link Mode (MVP: Prompt)
-                                                    const targetId = prompt("Enter Target ID to link (MVP):");
-                                                    if (targetId) handleLinkCreate(node.id, targetId);
-                                                }}
-                                            >
-                                                <LinkIcon size={12} />
-                                            </button>
+                                        </div>
+
+                                        {/* 🟢 GESTURAL LINK HANDLE (Right Edge) */}
+                                        <div
+                                            className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 bg-slate-800 border border-cyan-500/50 rounded-full hover:bg-cyan-500 cursor-crosshair z-50 flex items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all hover:scale-125"
+                                            onMouseDown={(e) => handleLinkStart(node.id, e)}
+                                        >
+                                            <div className="w-1 h-1 bg-cyan-200 rounded-full" />
                                         </div>
                                     </div>
                                     {/* Body */}
-                                    <div className="p-4 text-xs text-slate-300 font-serif leading-relaxed line-clamp-4 pointer-events-none select-none">
+                                    <div
+                                        className="p-4 text-xs text-slate-300 font-serif leading-relaxed line-clamp-4 pointer-events-none select-none"
+                                        onMouseUp={() => handleLinkDrop(node.id)}
+                                    >
                                         {node.content}
                                     </div>
                                 </motion.div>
