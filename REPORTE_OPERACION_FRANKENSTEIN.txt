@@ -1,0 +1,40 @@
+REPORTE DE MISIÓN: OPERACIÓN FRANKENSTEIN
+FECHA: 2024-05-23
+AGENTE: Jules
+OBJETIVO: Forzar visualización del Nexus Graph (WorldEnginePanel) mediante inyección de datos mock.
+
+1. RESUMEN DE ACCIONES
+----------------------
+Se ha implementado con éxito el protocolo "Frankenstein" para bypassear la dependencia de Firebase/Firestore durante el desarrollo en Ghost Mode.
+- Modificación de `src/components/WorldEnginePanel.tsx`:
+  - Se definió la constante `FRANKENSTEIN_DATA` con 4 nodos hardcodeados (Sofía, Malakar, La Torre Gris, La Traición) y sus relaciones.
+  - Se alteró la lógica de carga (`useEffect`) para que, ante cualquier fallo de conexión, timeout de 5 segundos o respuesta vacía de la base de datos, se inyecten estos datos automáticamente.
+- Ajustes Visuales:
+  - Curvatura de líneas (`Xarrow`) ajustada a `0.3` (antes 0.4) para una estética más tensa.
+  - Soporte de color ROJO (#ff153f) para relaciones de tipo 'conflict' (además de 'ENEMY').
+
+2. OBSTÁCULOS ENCONTRADOS
+-------------------------
+- Ceguera Inicial: La aplicación en Ghost Mode devolvía 0 entidades, dejando el lienzo en blanco y haciendo imposible validar la física o el diseño de las tarjetas.
+- Navegación en Verificación: El script de prueba inicial falló al intentar localizar el botón "VER GRAFO" en el panel de Forja. Se corrigió utilizando el Dock Principal (ArsenalDock), localizando el botón "World Engine" (El Perforador) por su `aria-label`.
+- Sincronización de Física: Fue necesario asegurar que la inyección de datos ocurriera *después* de confirmar que la DB real estaba vacía, para no sobrescribir datos reales si estos existieran en el futuro.
+
+3. ESTADO VISUAL DEL PERFORADOR (CONFIRMADO)
+--------------------------------------------
+Gracias a la inyección de datos, ahora podemos "ver" el sistema funcionando:
+
+- LAS TARJETAS (Nodos):
+  - Se renderizan correctamente como "Micro-Cards" rectangulares.
+  - "Sofía" (Protagonista) y "Malakar" (Antagonista) buscan el centro del lienzo debido a la gravedad semántica.
+  - "La Torre Gris" (Lugar) se desplaza hacia el Este (Periferia), confirmando que la lógica de clustering por tipo funciona.
+  - "La Traición" (Evento/Idea) flota libremente.
+
+- LAS LÍNEAS (Conexiones):
+  - Aparecen correctamente conectando los nodos.
+  - La línea de "ODIA" entre Sofía y Malakar se renderiza en ROJO NEÓN, confirmando que el mapeo de colores de conflicto es correcto.
+  - La curvatura de 0.3 ofrece un trazo limpio, menos "flácido" que el anterior.
+  - Al arrastrar a "Sofía", las líneas se estiran en tiempo real sin romperse, validando la integración de `useXarrow` dentro del evento `onDrag`.
+
+CONCLUSIÓN
+----------
+El lienzo ya no es un vacío. Tenemos un set de pruebas vivo que permite validar física, renderizado y estilos sin depender de la nube. El Comandante puede proceder con la validación estética.
