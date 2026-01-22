@@ -20,7 +20,8 @@ import {
     MapPin,
     Box,
     Swords,
-    BrainCircuit
+    BrainCircuit,
+    Send
 } from 'lucide-react';
 import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -231,7 +232,9 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     onClose,
     activeGemId
 }) => {
-    const { config } = useProjectConfig();
+    // 🟢 AUTH INJECTION (GHOST MODE COMPATIBLE)
+    const { config, user } = useProjectConfig();
+
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
 
@@ -239,6 +242,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [nodes, setNodes] = useState<Node[]>([]); // Local Ideas
     const [entityNodes, setEntityNodes] = useState<GraphNode[]>([]); // Canon Entities
     const [loadingCanon, setLoadingCanon] = useState(true);
+
+    // INPUT STATE
+    const [inputValue, setInputValue] = useState("");
+    const [rigorValue, setRigorValue] = useState(0.5); // 0.0 (Arch) - 1.0 (Oracle)
 
     // KINETIC STATE
     const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
@@ -248,9 +255,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const [simulatedNodes, setSimulatedNodes] = useState<(VisualGraphNode | Node)[]>([]);
     const simulationRef = useRef<any>(null);
 
-    // XARROW REF
-    const updateXarrowRef = useRef<Function | null>(null);
-
     // 🟢 HARDWIRE OPERATION: TARGET LOCK
     const EFFECTIVE_PROJECT_ID = "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq";
 
@@ -259,12 +263,24 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         if (!isOpen) return;
         setLoadingCanon(true);
 
-        const auth = getAuth();
+        // 🟢 SAFETY TIMEOUT (Ghost Mode Anti-Blindness)
+        // If the real DB is empty or unreachable, we still want to use the tool.
+        const safetyTimer = setTimeout(() => {
+            setLoadingCanon((current) => {
+                if (current) {
+                    console.warn("⚠️ [WORLD_ENGINE] Connection timed out. Forcing UI load for Ghost Mode.");
+                    return false;
+                }
+                return current;
+            });
+        }, 5000);
+
         const db = getFirestore();
 
-        if (auth.currentUser) {
+        if (user) {
+            console.log(`📡 [WORLD_ENGINE] Subscribing to entities for ${user.uid} / ${EFFECTIVE_PROJECT_ID}`);
             // ONLY FETCH ENTITIES FROM PROJECT (SOURCE OF TRUTH)
-            const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", EFFECTIVE_PROJECT_ID, "entities");
+            const entitiesRef = collection(db, "users", user.uid, "projects", EFFECTIVE_PROJECT_ID, "entities");
             const unsubscribeEntities = onSnapshot(query(entitiesRef), (snapshot) => {
                 const loadedEntities: GraphNode[] = [];
                 snapshot.forEach((doc) => {
@@ -282,16 +298,25 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         isCanon: true // Mark as Canon
                     } as GraphNode);
                 });
+                console.log(`📡 [WORLD_ENGINE] Loaded ${loadedEntities.length} entities.`);
                 setEntityNodes(loadedEntities);
                 setLoadingCanon(false);
+                clearTimeout(safetyTimer);
             }, (error) => {
                 console.error("Failed to subscribe to Entities:", error);
-                setLoadingCanon(false);
+                setLoadingCanon(false); // Fail gracefully
+                clearTimeout(safetyTimer);
             });
 
-            return () => unsubscribeEntities();
+            return () => {
+                unsubscribeEntities();
+                clearTimeout(safetyTimer);
+            }
+        } else {
+            setLoadingCanon(false);
+            clearTimeout(safetyTimer);
         }
-    }, [isOpen]);
+    }, [isOpen, user]);
 
     // --- 2. UNIFIED NODES (THE MERGER) ---
     const unifiedNodes = useMemo(() => {
@@ -377,20 +402,12 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         });
 
         // WARM UP (Tick manually to stabilize)
-        // We run a few ticks then set state to avoid constant re-renders during animation if we don't want live animation
-        // OR we subscribe to 'tick'.
-        // For "Cluster Style", we probably want to see it settle or just show the result.
-        // Let's run 300 ticks synchronously to "pre-calculate" layout if we want static start,
-        // or use 'on("tick")' for live.
-        // Commander said: "Organize them... Clean and static until user moves them".
-        // So pre-calculating is better.
-
         simulation.stop(); // Don't run timer
         const numTicks = 300;
         for (let i = 0; i < numTicks; ++i) simulation.tick();
 
         setSimulatedNodes(simNodes);
-        updateXarrowRef.current?.();
+        // updateXarrowRef logic removed: Xwrapper + TransformComponent nesting handles sync natively via CSS transform.
 
         simulationRef.current = simulation;
 
@@ -418,9 +435,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const handleLinkStart = (nodeId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         const rect = (e.target as Element).getBoundingClientRect();
-        // We need canvas coordinates.
-        // Simple hack: We use the mouse position for the drag line end, but start needs to be relative to the node.
-        // Actually, we can just use clientX/Y for the ghost line if it's fixed position.
         setDraggingLink({ sourceId: nodeId, x: e.clientX, y: e.clientY });
     };
 
@@ -441,8 +455,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         // Logic to add link to source node's metadata
         // For now, just log or add optimistic
         console.log(`Connecting ${sourceId} to ${targetId}`);
-        // We update the local 'nodes' state if it's an idea, or handle Canon update.
-        // For simplicity in this plan, we assume we are linking Ideas mostly.
         setNodes(prev => prev.map(n => {
             if (n.id === sourceId) {
                 return {
@@ -458,6 +470,33 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             }
             return n;
         }));
+    };
+
+    // 🟢 NEW: INPUT BAR HANDLER (OPERATION LAZARUS)
+    const handleInputSubmit = (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+        if (!inputValue.trim()) return;
+
+        const newId = generateId(`idea-${Date.now()}`);
+        const newIdea: Node = {
+            id: newId,
+            type: 'idea',
+            title: inputValue.trim(),
+            content: `# ${inputValue.trim()}\n\n*Idea generada en el Laboratorio*`,
+            agentId: rigorValue > 0.5 ? 'oracle' : 'architect',
+            x: 2000 + (Math.random() - 0.5) * 100, // Spawn near center
+            y: 2000 + (Math.random() - 0.5) * 100,
+            metadata: {
+                node_type: 'IDEA',
+                pending_relations: []
+            }
+        };
+
+        setNodes(prev => [...prev, newIdea]);
+        setInputValue("");
+
+        // Optimistic Feedback
+        console.log("💡 New Idea Created:", newIdea);
     };
 
     // VISUAL STYLES
@@ -508,13 +547,12 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 limitToBounds={false}
                 wheel={{ step: 0.1 }}
                 panning={{ velocityDisabled: true }}
-                onPanning={() => updateXarrowRef.current?.()}
-                onZooming={() => updateXarrowRef.current?.()}
+                // Sync handled by CSS nesting in Xwrapper
             >
                 {({ zoomIn, zoomOut, resetTransform }) => (
                     <>
                         {/* CONTROLS */}
-                        <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-auto">
+                        <div className="absolute bottom-24 right-6 z-50 flex flex-col gap-2 pointer-events-auto">
                             <button onClick={() => zoomIn()} className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg hover:border-cyan-500"><Plus size={18} /></button>
                             <button onClick={() => zoomOut()} className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg hover:border-cyan-500"><Minus size={18} /></button>
                             <button onClick={() => resetTransform()} className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg hover:border-cyan-500"><RotateCcw size={18} /></button>
@@ -567,7 +605,10 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                                     color={getLinkColor(rel.relationType || rel.relation, rel.status)}
                                                     strokeWidth={2}
                                                     headSize={4}
-                                                    curveness={0.3}
+                                                    curveness={0.4}
+                                                    path="smooth"
+                                                    startAnchor="auto"
+                                                    endAnchor="auto"
                                                     dashness={isConflict}
                                                     zIndex={10}
                                                 />
@@ -580,6 +621,48 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     </>
                 )}
             </TransformWrapper>
+
+            {/* 🟢 INPUT BAR (OPERATION LAZARUS) */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-2xl px-4 pointer-events-auto">
+                <div className="bg-slate-900/80 backdrop-blur-md border border-slate-700 rounded-2xl shadow-2xl p-2 flex items-center gap-3 relative">
+                    {/* Rigor Slider (Left) */}
+                    <div className="flex flex-col items-center justify-center w-12 gap-1 border-r border-slate-700 pr-2">
+                        <div className="h-8 w-1 bg-slate-800 rounded-full relative overflow-hidden">
+                            <motion.div
+                                className={`absolute bottom-0 w-full rounded-full ${rigorValue > 0.5 ? 'bg-purple-500' : 'bg-cyan-500'}`}
+                                style={{ height: `${rigorValue * 100}%` }}
+                            />
+                        </div>
+                        <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.1"
+                            value={rigorValue}
+                            onChange={(e) => setRigorValue(parseFloat(e.target.value))}
+                            className="absolute opacity-0 w-12 h-10 cursor-ns-resize"
+                            title={rigorValue > 0.5 ? "Oracle Mode (Chaos)" : "Architect Mode (Logic)"}
+                        />
+                    </div>
+
+                    {/* Input Field */}
+                    <form onSubmit={handleInputSubmit} className="flex-1 flex items-center gap-2">
+                         <input
+                            type="text"
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            placeholder="Escribe una nueva idea..."
+                            className="flex-1 bg-transparent border-none outline-none text-white placeholder-slate-500 text-sm font-medium h-10"
+                         />
+                         <button
+                            type="submit"
+                            className="p-2 bg-slate-800 text-slate-400 rounded-xl hover:bg-slate-700 hover:text-white transition-colors"
+                         >
+                            <Send size={16} />
+                         </button>
+                    </form>
+                </div>
+            </div>
 
             {/* 🟢 RIGHT DRAWER: CANON INSPECTOR */}
             <div
