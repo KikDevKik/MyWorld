@@ -44,7 +44,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
     };
 
     return (
-        <div className="w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0">
+        <div className="w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0 pointer-events-auto">
 
             {/* 🛡️ SENTINEL STATUS SHIELD */}
             <button

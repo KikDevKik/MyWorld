@@ -80,6 +80,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
 
     // 2. CALCULATE ZONE C VISIBILITY & MODE
     const isZoneCVisible = SIDE_TOOLS.includes(activeView);
+    const isHeavyTool = HEAVY_TOOLS.includes(activeView); // 🟢 CHECK FOR HEAVY TOOL
 
     // Determine Zone C width/style
     // If it's visible, is it expanded?
@@ -88,24 +89,32 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     // The user said: "Director lives in ArsenalDock (right)... ensure... opening logic updates activeView to 'director'".
 
     // Logic for Zone C classes:
-    let zoneCClasses = `bg-titanium-950 border-l border-titanium-800 flex flex-row relative ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-in-out'}`;
+    let zoneCClasses = `flex flex-row relative ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-in-out'}`;
     let zoneCStyle: React.CSSProperties = {};
 
-    if (!isZoneCVisible) {
-         zoneCClasses += " w-16"; // Minimum width for Dock
+    if (isHeavyTool) {
+        // 🟢 OVERLAY MODE FOR HEAVY TOOLS (Perforador, etc.)
+        // Makes the dock transparent and floating to allow full-screen canvas
+        zoneCClasses += " absolute right-0 top-0 bottom-0 z-40 bg-transparent pointer-events-none w-16";
     } else {
-        // Active View is a Side Tool -> Expanded
+        // STANDARD MODE (Split View)
+        zoneCClasses += " bg-titanium-950 border-l border-titanium-800";
 
-        if (activeView === 'director') {
-             // 🟢 DIRECTOR ELASTIC MODE
-             // We use inline style for granular width
-             zoneCStyle = { width: `${directorWidth}px` };
+        if (!isZoneCVisible) {
+             zoneCClasses += " w-16"; // Minimum width for Dock
         } else {
-             // Legacy Modes for other tools (Tribunal, Chat history?)
-             // Or maybe all side tools should share the width?
-             // User instruction: "Scope limitado al Director... por ahora".
-             const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
-             zoneCClasses += ` ${widthClass}`;
+            // Active View is a Side Tool -> Expanded
+            if (activeView === 'director') {
+                 // 🟢 DIRECTOR ELASTIC MODE
+                 // We use inline style for granular width
+                 zoneCStyle = { width: `${directorWidth}px` };
+            } else {
+                 // Legacy Modes for other tools (Tribunal, Chat history?)
+                 // Or maybe all side tools should share the width?
+                 // User instruction: "Scope limitado al Director... por ahora".
+                 const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
+                 zoneCClasses += ` ${widthClass}`;
+            }
         }
     }
 
