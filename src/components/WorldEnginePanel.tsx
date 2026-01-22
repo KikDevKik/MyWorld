@@ -36,6 +36,54 @@ import CrystallizeModal from './ui/CrystallizeModal';
 import MarkdownRenderer from './ui/MarkdownRenderer';
 import { generateId } from '../utils/sha256';
 
+const FRANKENSTEIN_DATA: GraphNode[] = [
+    {
+        id: "node-1",
+        name: "Sofía",
+        type: "character",
+        projectId: "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq",
+        relations: [
+            { targetId: "node-2", relation: "ODIA", relationType: "conflict", targetName: "Malakar", targetType: "character", context: "Mock conflict", sourceFileId: "mock" } as any,
+            { targetId: "node-1", relation: "Self", relationType: "self", targetName: "Sofía", targetType: "character", context: "Mock self", sourceFileId: "mock" } as any
+        ],
+        foundInFiles: [],
+        meta: { node_type: "character", faction: "Protagonistas", brief: "Protagonista Mock" },
+        isCanon: true
+    },
+    {
+        id: "node-2",
+        name: "Malakar",
+        type: "character",
+        projectId: "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq",
+        relations: [
+             { targetId: "node-3", relation: "OCUPA", relationType: "location", targetName: "La Torre Gris", targetType: "location", context: "Mock location", sourceFileId: "mock" } as any
+        ],
+        foundInFiles: [],
+        meta: { node_type: "character", faction: "Antagonistas", brief: "Villano Mock" },
+        isCanon: true
+    },
+    {
+        id: "node-3",
+        name: "La Torre Gris",
+        type: "location",
+        projectId: "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq",
+        relations: [],
+        foundInFiles: [],
+        meta: { node_type: "location", faction: "Escenario", brief: "Lugar Mock" },
+        isCanon: true
+    },
+    {
+        id: "node-4",
+        name: "La Traición",
+        type: "event",
+        projectId: "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq",
+        relations: [],
+        foundInFiles: [],
+        meta: { node_type: "idea", state: "idea", brief: "Evento Flotante" },
+        isCanon: true
+    }
+] as unknown as GraphNode[];
+
 // 🟢 VISUAL EXO-SKELETON (Interface Extension)
 interface VisualGraphNode extends GraphNode {
     x?: number;
@@ -273,6 +321,13 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
             setLoadingCanon((current) => {
                 if (current) {
                     console.warn("⚠️ [WORLD_ENGINE] Connection timed out. Forcing UI load for Ghost Mode.");
+                    setEntityNodes(prev => {
+                        if (prev.length === 0) {
+                            console.log("🧪 [WORLD_ENGINE] Safety Timeout: Injecting FRANKENSTEIN_DATA...");
+                            return FRANKENSTEIN_DATA;
+                        }
+                        return prev;
+                    });
                     return false;
                 }
                 return current;
@@ -302,12 +357,21 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         isCanon: true // Mark as Canon
                     } as GraphNode);
                 });
-                console.log(`📡 [WORLD_ENGINE] Loaded ${loadedEntities.length} entities.`);
-                setEntityNodes(loadedEntities);
+
+                if (loadedEntities.length === 0) {
+                    console.log("🧪 [WORLD_ENGINE] Empty Database detected. Injecting FRANKENSTEIN_DATA...");
+                    setEntityNodes(FRANKENSTEIN_DATA);
+                } else {
+                    console.log(`📡 [WORLD_ENGINE] Loaded ${loadedEntities.length} entities.`);
+                    setEntityNodes(loadedEntities);
+                }
+
                 setLoadingCanon(false);
                 clearTimeout(safetyTimer);
             }, (error) => {
                 console.error("Failed to subscribe to Entities:", error);
+                console.log("🧪 [WORLD_ENGINE] Subscription Error. Injecting FRANKENSTEIN_DATA...");
+                setEntityNodes(FRANKENSTEIN_DATA);
                 setLoadingCanon(false); // Fail gracefully
                 clearTimeout(safetyTimer);
             });
@@ -528,7 +592,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     const getLinkColor = (type: string, status?: string) => {
         if (type === 'CONTRADICTION' || status === 'INVALID') return '#ff00ff'; // MAGENTA GLITCH
         if (type === 'FAMILY' || type === 'CANON') return '#ddbf61';
-        if (type === 'ENEMY') return '#ff153f';
+        if (type === 'ENEMY' || type === 'conflict') return '#ff153f';
         return '#00fff7'; // CYAN DEFAULT
     };
 
@@ -621,7 +685,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                                     color={getLinkColor(rel.relationType || rel.relation, rel.status)}
                                                     strokeWidth={2}
                                                     headSize={4}
-                                                    curveness={0.4}
+                                                    curveness={0.3}
                                                     path="smooth"
                                                     startAnchor="auto"
                                                     endAnchor="auto"
