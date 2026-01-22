@@ -135,6 +135,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         onClick={() => setShowOnlyHealthy(!showOnlyHealthy)}
                         className={`ml-auto p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${showOnlyHealthy ? 'text-emerald-400' : 'text-titanium-500'}`}
                         title={showOnlyHealthy ? "Mostrando solo archivos sanos" : "Mostrando todo (incluyendo conflictos)"}
+                        aria-label={showOnlyHealthy ? "Mostrar todos los archivos" : "Mostrar solo archivos sanos"}
                     >
                         {showOnlyHealthy ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
@@ -144,6 +145,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         onClick={onIndexRequest}
                         className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
                         title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
+                        aria-label="Indexar base de conocimiento"
                     >
                         <BrainCircuit size={16} />
                     </button>
@@ -207,12 +209,22 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 <p className="text-xs text-titanium-400 leading-relaxed">
                                     No hay carpetas configuradas. Ve a la sección <strong>Proyecto</strong> para conectar tu Google Drive.
                                 </p>
-                                <button
-                                    onClick={onOpenProjectSettings}
-                                    className="mt-2 text-xs bg-titanium-700 hover:bg-titanium-600 text-white px-4 py-2 rounded-lg transition-colors"
-                                >
-                                    Configurar Proyecto
-                                </button>
+                                <div className="flex flex-col gap-3 w-full px-2 mt-2">
+                                    <button
+                                        onClick={onOpenConnectModal}
+                                        className="w-full flex items-center justify-center gap-2 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-cyan-900/20 hover:shadow-cyan-900/40"
+                                        aria-label="Conectar carpeta de Google Drive"
+                                    >
+                                        <HardDrive size={14} />
+                                        Conectar Unidad
+                                    </button>
+                                    <button
+                                        onClick={onOpenProjectSettings}
+                                        className="w-full text-[10px] text-titanium-500 hover:text-titanium-300 transition-colors"
+                                    >
+                                        Configuración Avanzada
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </>

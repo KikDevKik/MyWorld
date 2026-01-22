@@ -42,3 +42,11 @@ Before attempting verification:
 When verifying deep UI components in Ghost Mode:
 1. Check if the component has a "preload" prop (like `preloadedTree` in `VaultSidebar`).
 2. If mocking data requires modifying source code (`ProjectConfigContext`), consider if the verification value outweighs the risk of polluting the codebase. Often, verifying the *empty state* is sufficient if the *active state* cannot be cleanly mocked without a dedicated mock backend.
+
+## 2026-01-16 - Dead-End Empty States
+
+**Learning:**
+Presenting users with generic "Configuration" options during an empty state (like a missing Google Drive connection) creates friction. Users often don't know *which* configuration setting resolves the emptiness.
+
+**Action:**
+Empty states must feature a specific, primary Call-to-Action (e.g., "Connect Drive") that directly resolves the missing data. Generic "Settings" buttons should be secondary or tertiary.
