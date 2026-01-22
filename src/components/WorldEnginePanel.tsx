@@ -15,6 +15,7 @@ import {
     Link as LinkIcon
 } from 'lucide-react';
 import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
+import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import { GemId } from '../types';
 import { Character } from '../types/core';
 import { GraphNode } from '../types/graph';
@@ -39,6 +40,7 @@ interface VisualGraphNode extends GraphNode {
     isCanon?: boolean;
     fileId?: string;
     val?: number; // Visual Size
+    content?: string;
 }
 
 interface WorldEnginePanelProps {
@@ -76,6 +78,8 @@ interface Node {
         pending_relations?: {
             targetId: string;
             relationType: string;
+            reason?: string;
+            status?: string;
         }[];
     };
     coherency_report?: {
@@ -829,7 +833,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 context: "User created a manual link in the Nexus Graph."
             }) as any;
 
-            const { reason, type } = res.data;
+            const { reason, type, status } = res.data;
 
             // 3. Truth Update (Final State)
             setNodes(prev => prev.map(n => {
@@ -841,7 +845,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                              ...n.metadata,
                              pending_relations: relations.map(r =>
                                  r.targetId === targetId
-                                 ? { ...r, relationType: type || 'NEUTRAL', reason: reason } // Upgrade
+                                 ? { ...r, relationType: type || 'NEUTRAL', reason: reason, status: status || 'VALID' } // Upgrade
                                  : r
                              )
                          }
@@ -862,7 +866,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                              ...n.metadata,
                              pending_relations: relations.map(r =>
                                  r.targetId === targetId
-                                 ? { ...r, relationType: 'NEUTRAL', reason: 'Manual Link' }
+                                 ? { ...r, relationType: 'NEUTRAL', reason: 'Manual Link', status: 'VALID' }
                                  : r
                              )
                          }
@@ -881,21 +885,29 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     };
 
     // 🟢 VISUAL UTILS (NEXUS PALETTE)
-    const getLinkColor = (type?: string) => {
+    const getLinkColor = (type?: string, status?: string) => {
+        // ERROR LOGIC (DEVIL'S ADVOCATE)
+        if (status === 'INVALID' || type === 'CONTRADICTION') return '#ff00ff'; // MAGENTA GLITCH
+
         switch(type) {
             case 'ENEMY': return '#ff153f';
             case 'FAMILY': return '#ddbf61';
             case 'ALLY': return '#00fff7';
+            case 'MAGIC': // Fallthrough
             case 'OBJECT': return '#a855f7';
             default: return '#555555';
         }
     };
 
-    const getBorderColor = (type?: string) => {
+    const getBorderColor = (type?: string, status?: string) => {
+        // ERROR LOGIC
+        if (status === 'INVALID' || type === 'CONTRADICTION') return 'border-[#ff00ff]';
+
         switch(type) {
             case 'ENEMY': return 'border-[#ff153f]';
             case 'FAMILY': return 'border-[#ddbf61]';
             case 'ALLY': return 'border-[#00fff7]';
+            case 'MAGIC': // Fallthrough
             case 'OBJECT': return 'border-[#a855f7]';
             default: return 'border-gray-500';
         }
@@ -1421,26 +1433,183 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 </div>
             )}
 
-            {/* LAYER 0: NEXUS GRAPH (The Living Background) */}
-            {/* 🟢 INTERACTION GATE: Wrapper ensures clicks reach the graph despite parent pointer-events-none */}
-            {/* 🟢 TACTICAL SOLUTION: UNIVERSAL LOCKDOWN & CINEMATIC DIM */}
-            <div className={`absolute inset-0 z-0 transition-all duration-300 ease-in-out
-                ${isOverlayActive
-                    ? 'pointer-events-none opacity-30 blur-sm'
-                    : 'pointer-events-auto touch-auto opacity-100 blur-0'
-                }`}
-            >
-                <NexusGraph
-                    projectId={EFFECTIVE_PROJECT_ID} // 🟢 HARDWIRE
-                    accessToken={localStorage.getItem('google_drive_token')}
-                    onClose={() => {}} // We don't close the background
-                    nodes={unifiedNodes} // 🟢 UNIFIED PROP
-                    onNodeClick={handleNodeClick}
-                    onNodeDoubleClick={handleNodeDoubleClick}
-                    onNodeDragEnd={handleNodeDragEnd}
-                    onLinkCreate={handleLinkCreate}
-                    onAutoFreeze={handleAutoFreeze} // 🟢 THE DROP
+            {/* LAYER 0: THE INFINITE WHITEBOARD (Zoom Architecture) */}
+            <div className={`absolute inset-0 z-0 bg-[#141413]`}>
+                {/* DOT GRID (Fixed Background) */}
+                <div
+                    className="absolute inset-0 opacity-20 pointer-events-none"
+                    style={{
+                        backgroundImage: 'radial-gradient(#7c8090 1px, transparent 1px)',
+                        backgroundSize: '20px 20px'
+                    }}
                 />
+
+                {/* 🟢 ZOOM WRAPPER: Replaces NexusGraph logic for Edit Mode */}
+                <TransformWrapper
+                    initialScale={1}
+                    minScale={0.1}
+                    maxScale={4}
+                    centerOnInit
+                    limitToBounds={false}
+                    wheel={{ step: 0.1 }}
+                    panning={{ velocityDisabled: true }}
+                >
+                    {({ zoomIn, zoomOut, resetTransform }) => (
+                        <TransformComponent
+                            wrapperStyle={{ width: "100%", height: "100%", overflow: "hidden" }}
+                            contentStyle={{ width: "100%", height: "100%" }}
+                        >
+                            {/* LAYER 0.8: WORKSPACE (HTML CARDS & CONNECTIONS) */}
+                            {/* 🟢 MOVED INSIDE TRANSFORM COMPONENT TO SCALE TOGETHER */}
+                            <div className="relative w-full h-full" style={{ width: '100vw', height: '100vh' }}>
+                                <Xwrapper>
+                                    {nodes.map(node => {
+                                        const style = CONTENT_TYPES[node.metadata?.node_type || 'default'] || CONTENT_TYPES['default'];
+                                        const hasAlert = !!node.coherency_report;
+                                        // Determine initial position if not set (Center randomization)
+                                        const initialX = window.innerWidth / 2 - 150 + (Math.random() * 100 - 50);
+                                        const initialY = window.innerHeight / 2 - 100 + (Math.random() * 100 - 50);
+
+                                        return (
+                                            <React.Fragment key={node.id}>
+                                                <motion.div
+                                                    id={node.id} // ID for Xarrow
+                                                    initial={{ opacity: 0, scale: 0.8, x: initialX, y: initialY }}
+                                                    animate={{
+                                                        opacity: 1,
+                                                        scale: 1,
+                                                        x: node.x !== undefined ? node.x : initialX,
+                                                        y: node.y !== undefined ? node.y : initialY
+                                                    }}
+                                                    drag
+                                                    dragMomentum={false}
+                                                    onDragEnd={(_, info) => {
+                                                        // Capture final position to state
+                                                        // We use the current visual position (state + delta)
+                                                        const currentX = (node.x !== undefined ? node.x : initialX);
+                                                        const currentY = (node.y !== undefined ? node.y : initialY);
+                                                        const newX = currentX + info.offset.x;
+                                                        const newY = currentY + info.offset.y;
+
+                                                        setNodes(prev => prev.map(n => n.id === node.id ? { ...n, x: newX, y: newY } : n));
+                                                    }}
+                                                    className={`absolute w-[300px] bg-slate-900/90 backdrop-blur-md border ${style.border} rounded-lg shadow-2xl flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing`}
+                                                >
+                                                    {/* Header */}
+                                                    <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40 rounded-t-lg handle relative">
+                                                        <div className={`flex items-center gap-2 ${style.text}`}>
+                                                            <Diamond size={12} className="rotate-45" />
+                                                            <span className="text-[10px] font-bold tracking-widest uppercase truncate max-w-[150px]">{node.title}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {/* AUDIT STATUS */}
+                                                            {node.auditStatus === 'auditing' && <Loader2 size={12} className="animate-spin text-slate-500" />}
+
+                                                            {/* COHERENCY ALERT (Top Right as requested) */}
+                                                            {hasAlert && (
+                                                                <div className="group relative">
+                                                                    <TriangleAlert size={14} className="text-[#ff153f] animate-pulse cursor-help" />
+                                                                    {/* Tooltip */}
+                                                                    <div className="absolute right-0 top-full mt-2 w-56 bg-black border border-[#ff153f] p-3 rounded shadow-2xl z-50 hidden group-hover:block pointer-events-none">
+                                                                        <div className="text-[10px] font-bold text-[#ff153f] mb-1">{node.coherency_report?.warning}</div>
+                                                                        <div className="text-[10px] text-white leading-tight">{node.coherency_report?.explanation}</div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            <button onClick={() => setExpandedNodeId(node.id)} className="hover:text-white text-slate-500 transition-colors">
+                                                                <LayoutTemplate size={12} />
+                                                            </button>
+                                                        </div>
+
+                                                        {/* 🟢 GESTURAL LINK HANDLE (Right Edge) */}
+                                                        <div
+                                                            className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 bg-slate-800 border border-cyan-500/50 rounded-full hover:bg-cyan-500 cursor-crosshair z-50 flex items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all hover:scale-125"
+                                                            onMouseDown={(e) => handleLinkStart(node.id, e)}
+                                                        >
+                                                            <div className="w-1 h-1 bg-cyan-200 rounded-full" />
+                                                        </div>
+                                                    </div>
+                                                    {/* Body */}
+                                                    <div
+                                                        className="p-4 text-xs text-slate-300 font-serif leading-relaxed line-clamp-4 pointer-events-none select-none"
+                                                        onMouseUp={() => handleLinkDrop(node.id)}
+                                                    >
+                                                        {node.content}
+                                                    </div>
+                                                </motion.div>
+
+                                                {/* Render Arrows for this node's outgoing links */}
+                                                {node.metadata?.pending_relations?.map((rel, idx) => {
+                                                    // Check if target exists in WORKSPACE to draw arrow
+                                                    // If target is in CANON, we can't draw Xarrow to canvas node easily
+                                                    const targetExists = nodes.find(n => n.id === rel.targetId);
+                                                    if (!targetExists) return null;
+
+                                                    // ERROR LOGIC: Check status
+                                                    const isInvalid = (rel as any).status === 'INVALID' || rel.relationType === 'CONTRADICTION';
+
+                                                    return (
+                                                        <Xarrow
+                                                            key={`${node.id}-${rel.targetId}-${idx}`}
+                                                            start={node.id}
+                                                            end={rel.targetId}
+                                                            color={getLinkColor(rel.relationType, (rel as any).status)}
+                                                            strokeWidth={2}
+                                                            headSize={6}
+                                                            curveness={0.4}
+                                                            path="smooth"
+                                                            zIndex={5}
+                                                            startAnchor="auto"
+                                                            endAnchor="auto"
+                                                            dashness={isInvalid ? { strokeLen: 10, nonStrokeLen: 5, animation: 1 } : false}
+                                                            labels={{
+                                                                middle: (
+                                                                    <div
+                                                                        className="group relative flex items-center justify-center" // Tailwind para manejo de hover
+                                                                        style={{ cursor: 'pointer', pointerEvents: 'auto', width: 40, height: 40 }}
+                                                                    >
+                                                                        {/* ICONO DEL NODO CENTRAL (El punto en la línea) */}
+                                                                        <div className={`w-3 h-3 rounded-full border-2 bg-black ${getBorderColor(rel.relationType, (rel as any).status)} shadow-[0_0_10px_rgba(0,0,0,0.5)] transition-transform group-hover:scale-150`} />
+
+                                                                        {/* EL TOOLTIP FLOTANTE (Solo visible en hover) */}
+                                                                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-56
+                                                                                        opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0
+                                                                                        bg-black/95 backdrop-blur-sm border rounded-lg p-3 text-xs text-white z-[9999] shadow-2xl pointer-events-none"
+                                                                             style={{ borderColor: getLinkColor(rel.relationType, (rel as any).status) }}
+                                                                        >
+                                                                            <div className="flex items-center gap-2 mb-1 border-b border-white/10 pb-1">
+                                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getLinkColor(rel.relationType, (rel as any).status) }}></div>
+                                                                                <span className="font-bold uppercase text-[10px] tracking-wider" style={{color: getLinkColor(rel.relationType, (rel as any).status)}}>
+                                                                                    {rel.relationType === 'ANALYZING...' ? 'ESPERANDO ENLACE...' : rel.relationType}
+                                                                                </span>
+                                                                            </div>
+
+                                                                            {rel.relationType === 'ANALYZING...' ? (
+                                                                                <div className="flex items-center gap-2 text-titanium-400 py-2">
+                                                                                    <Loader2 size={12} className="animate-spin" />
+                                                                                    <span className="italic">Escaneando red neuronal...</span>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <p className="italic text-titanium-200 leading-relaxed">
+                                                                                    "{rel.reason || 'Sin datos.'}"
+                                                                                </p>
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            }}
+                                                        />
+                                                    );
+                                                })}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </Xwrapper>
+                            </div>
+                        </TransformComponent>
+                    )}
+                </TransformWrapper>
             </div>
 
             {/* LAYER 0.5: CANON ARCHIVE (Left Panel) */}

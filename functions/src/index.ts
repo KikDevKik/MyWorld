@@ -738,10 +738,22 @@ export const analyzeConnection = onCall(
         TASK: Analyze the relationship between '${sourceName}' and '${targetName}'.
         CONTEXT: ${context || "No specific context."}
 
-        OUTPUT (JSON):
+        STRICT CLASSIFICATION PROTOCOL:
+        1. DETECT CONTRADICTION: If the link creates a logical error (e.g. character is in two places, dead person talking, timeline paradox), mark status as 'INVALID'.
+        2. VALID LINK: If plausible, mark status as 'VALID'.
+
+        TYPE MAPPING (Use ONLY these exact types):
+        - 'FAMILY': Blood relation, spouse, deep loyalty. (Color: Gold)
+        - 'ALLY': Trade, cooperation, friendship. (Color: Cyan)
+        - 'MAGIC': Spell target, curse, object owner, concept link. (Color: Violet)
+        - 'ENEMY': Hate, war, rivalry. (Color: Red)
+        - 'NEUTRAL': Acquaintance, neighbor.
+
+        OUTPUT (JSON STRICT):
         {
-          "reason": "Max 10 words explaining the link.",
-          "type": "ENEMY" | "ALLY" | "FAMILY" | "OBJECT" | "NEUTRAL"
+          "status": "VALID" | "INVALID",
+          "type": "FAMILY" | "ALLY" | "MAGIC" | "ENEMY" | "NEUTRAL" | "CONTRADICTION",
+          "reason": "Max 10 words. Explain the link OR the error."
         }
       `;
 
@@ -749,7 +761,14 @@ export const analyzeConnection = onCall(
       const text = result.response.text();
       const data = parseSecureJSON(text, "AnalyzeConnection");
 
-      return data.error ? { reason: "Conexión establecida", type: "NEUTRAL" } : data;
+      if (data.error) {
+          return { reason: "Error de análisis", type: "NEUTRAL", status: "VALID" };
+      }
+
+      // Ensure status exists (fallback)
+      if (!data.status) data.status = 'VALID';
+
+      return data;
 
     } catch (error: any) {
       logger.error("Error analyzing connection:", error);
