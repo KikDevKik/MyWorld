@@ -41,3 +41,8 @@
 **Prevention:**
 - Centralize CORS configuration in a constant file (e.g., `functions/src/config.ts`).
 - Use Environment Variables (`defineString`) to manage allowed origins dynamically per environment.
+
+## 2025-05-24 - [DoS Prevention: Recursive Stack Overflow]
+**Vulnerability:** Maximum Call Stack Size Exceeded (DoS)
+**Learning:** The `compileManuscript` function used a recursive helper `injectPageBreaks` to process deeply nested content structures (from `html-to-pdfmake`). A malicious or complex Markdown document (e.g., 10,000 nested lists) could cause a stack overflow, crashing the Cloud Function instance. Recursion is dangerous when processing user-controlled tree depth.
+**Prevention:** Replaced the recursive algorithm with an iterative approach using a stack. Iterative solutions move the state from the call stack (limited) to the heap (limited only by available memory), which is much more robust for deep trees.
