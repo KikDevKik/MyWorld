@@ -2450,8 +2450,16 @@ export const worldEngine = onCall(
 
     // 🟢 PAYLOAD ANALYSIS (The Eyes)
     const contextNodeCount = Array.isArray(currentGraphContext) ? currentGraphContext.length : 0;
+    // OPERACIÓN 'ELEFANTE': Sending FULL payload (No Truncation) as requested by Commander.
     const contextNodeSummary = Array.isArray(currentGraphContext)
-        ? JSON.stringify(currentGraphContext.map((n: any) => ({ id: n.id, name: n.name, type: n.type })))
+        ? JSON.stringify(currentGraphContext.map((n: any) => ({
+            id: n.id,
+            name: n.name,
+            type: n.type,
+            description: n.description || "",
+            content: n.content || "", // 🟢 FULL CONTENT INJECTION
+            relations: n.relations || []
+        })))
         : "[]";
 
     // 2. DEBUG LOGGING
