@@ -15,10 +15,17 @@ import {
     Link as LinkIcon,
     Plus,
     Minus,
-    RotateCcw
+    RotateCcw,
+    User,
+    MapPin,
+    Box,
+    Swords,
+    BrainCircuit
 } from 'lucide-react';
 import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import * as d3 from 'd3-force';
+
 import { GemId } from '../types';
 import { Character } from '../types/core';
 import { GraphNode } from '../types/graph';
@@ -29,7 +36,6 @@ import MarkdownRenderer from './ui/MarkdownRenderer';
 import { generateId } from '../utils/sha256';
 
 // 🟢 VISUAL EXO-SKELETON (Interface Extension)
-// Allows UI-specific props (physics, selection state) without polluting the Database Schema.
 interface VisualGraphNode extends GraphNode {
     x?: number;
     y?: number;
@@ -67,16 +73,15 @@ interface Node {
     title: string;
     content: string;
     agentId: AgentType;
-    x?: number; // Graph Coordinate X
-    y?: number; // Graph Coordinate Y
-    fx?: number; // Fixed Position X
-    fy?: number; // Fixed Position Y
+    x?: number;
+    y?: number;
+    fx?: number;
+    fy?: number;
     metadata?: {
         suggested_filename?: string;
         suggested_folder_category?: string;
         node_type?: string;
         related_node_ids?: string[];
-        // Pending relationships to be created on crystallization
         pending_relations?: {
             targetId: string;
             relationType: string;
@@ -92,7 +97,6 @@ interface Node {
     auditStatus?: 'pending' | 'auditing' | 'audited';
 }
 
-// 🟢 SESSION INTERFACE
 interface SessionItem {
     prompt: string;
     result: any;
@@ -137,141 +141,89 @@ const AGENTS = {
     }
 };
 
-const CONTENT_TYPES: {[key: string]: {color: string, border: string, shadow: string, text: string}} = {
-    concept: {
-        color: 'blue',
-        border: 'border-blue-500/50',
-        shadow: 'shadow-[0_0_30px_rgba(59,130,246,0.2)]',
-        text: 'text-blue-400'
-    },
-    conflict: {
-        color: 'red',
-        border: 'border-red-500/50',
-        shadow: 'shadow-[0_0_30px_rgba(239,68,68,0.2)]',
-        text: 'text-red-400'
-    },
-    lore: {
-        color: 'violet',
-        border: 'border-violet-500/50',
-        shadow: 'shadow-[0_0_30px_rgba(139,92,246,0.2)]',
-        text: 'text-violet-400'
-    },
-    default: {
-        color: 'slate',
-        border: 'border-slate-500/50',
-        shadow: 'shadow-[0_0_20px_rgba(100,116,139,0.2)]',
-        text: 'text-slate-400'
-    }
-};
-
-const getChaosColor = (value: number) => {
-    if (value <= 0.39) return 'from-cyan-600 to-cyan-400'; // ARCHITECT
-    if (value <= 0.60) return 'from-cyan-500 to-purple-500'; // HYBRID
-    return 'from-purple-600 to-fuchsia-500'; // ORACLE
-};
-
-const getChaosLabel = (value: number) => {
-    if (value <= 0.39) return { text: "MODO: LÓGICA PURA", color: "text-cyan-400" };
-    if (value <= 0.60) return { text: "MODO: HÍBRIDO / RESONANCIA", color: "text-white" };
-    return { text: "MODO: ENTROPÍA MÁXIMA", color: "text-fuchsia-400" };
-};
-
-const ChaosSlider: React.FC<{ value: number; onChange: (val: number) => void }> = ({ value, onChange }) => {
-    const trackRef = useRef<HTMLDivElement>(null);
-    const [isDragging, setIsDragging] = useState(false);
-    const labelInfo = getChaosLabel(value);
-
-    const updateValue = (clientX: number) => {
-        if (!trackRef.current) return;
-        const rect = trackRef.current.getBoundingClientRect();
-        const percent = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 1);
-        onChange(Number(percent.toFixed(2))); // Round to 2 decimals
+// 🟢 MICRO-CARD COMPONENT (Modular)
+const NodeCard: React.FC<{
+    node: VisualGraphNode | Node;
+    onClick: () => void;
+    onLinkStart: (e: React.MouseEvent) => void;
+    onLinkDrop: () => void;
+    isExpanded: boolean;
+    styleType: any;
+}> = ({ node, onClick, onLinkStart, onLinkDrop, styleType }) => {
+    // Icon Mapping based on type
+    const getIcon = () => {
+        const type = ((node as any).type || 'default').toLowerCase();
+        if (type === 'character' || type === 'canon') return <User size={12} />;
+        if (type === 'location') return <MapPin size={12} />;
+        if (type === 'object') return <Box size={12} />;
+        if (type === 'enemy' || type === 'conflict') return <Swords size={12} />;
+        if (type === 'idea') return <BrainCircuit size={12} />;
+        return <Diamond size={12} className="rotate-45" />;
     };
 
-    const handlePointerDown = (e: React.PointerEvent) => {
-        setIsDragging(true);
-        updateValue(e.clientX);
-        e.currentTarget.setPointerCapture(e.pointerId);
-    };
-
-    const handlePointerMove = (e: React.PointerEvent) => {
-        if (isDragging) updateValue(e.clientX);
-    };
-
-    const handlePointerUp = (e: React.PointerEvent) => {
-        setIsDragging(false);
-        e.currentTarget.releasePointerCapture(e.pointerId);
-    };
+    const hasAlert = !!(node as any).coherency_report;
 
     return (
-        <div className="flex flex-col gap-2 w-full select-none">
-            <div className="flex justify-between items-center px-1">
-                <span className="text-[10px] font-bold text-titanium-400 tracking-widest">RIGOR</span>
-                <span className={`text-[9px] font-mono font-bold tracking-wider ${labelInfo.color} animate-pulse`}>
-                    {labelInfo.text}
-                </span>
-                <span className="text-[10px] font-bold text-titanium-400 tracking-widest">ENTROPÍA</span>
-            </div>
+        <motion.div
+            id={node.id}
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{
+                opacity: 1,
+                scale: 1,
+                x: node.x || 0,
+                y: node.y || 0
+            }}
+            transition={{ duration: 0.5, ease: "easeOut" }} // Smooth simulation updates
+            drag
+            dragMomentum={false}
+            // Note: We handle drag updates via D3 simulation usually, but here we let Framer handle the visual drag
+            // and maybe update the simulation onDragEnd if we wanted to be strict.
+            // For this implementation, we treat visual position as authoritative for the user.
+            className={`absolute w-[160px] flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing z-[20] group select-none
+                ${styleType.border} bg-slate-900/90 backdrop-blur-md rounded-lg shadow-xl border
+            `}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+            }}
+            onMouseUp={(e) => {
+                e.stopPropagation();
+                onLinkDrop();
+            }}
+        >
+            {/* Header / Main Body */}
+            <div className="flex items-center gap-2 p-2 relative overflow-hidden">
+                {/* Background Glow for Type */}
+                <div className={`absolute left-0 top-0 bottom-0 w-1 ${styleType.bg}`} />
 
-            <div
-                ref={trackRef}
-                role="slider"
-                aria-label="Nivel de Caos"
-                tabIndex={0}
-                className="relative h-6 bg-black/40 rounded-sm cursor-pointer touch-none group border border-titanium-700/50 overflow-hidden"
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-            >
-                {/* ZONES INDICATORS (Subtle) */}
-                <div className="absolute inset-0 flex pointer-events-none opacity-20">
-                    <div className="w-[40%] h-full border-r border-white/20"></div>
-                    <div className="w-[20%] h-full border-r border-white/20"></div>
-                    <div className="w-[40%] h-full"></div>
+                <div className={`text-titanium-400 ${styleType.text}`}>
+                    {getIcon()}
                 </div>
 
-                {/* ACTIVE BAR */}
-                <div
-                    className={`absolute top-0 left-0 bottom-0 bg-gradient-to-r ${getChaosColor(value)} transition-all duration-100 ease-out opacity-80`}
-                    style={{ width: `${value * 100}%` }}
-                />
+                <div className="flex-1 min-w-0">
+                    <div className="text-[11px] font-bold text-titanium-100 truncate leading-tight">
+                        {(node as any).title || node.name || "Unknown"}
+                    </div>
+                    <div className="text-[9px] text-titanium-500 truncate font-mono uppercase tracking-wider">
+                        {(node as any).metadata?.node_type || (node as any).type || "ENTITY"}
+                    </div>
+                </div>
 
-                {/* HANDLE */}
-                <motion.div
-                    className="absolute top-0 bottom-0 w-1 bg-white shadow-[0_0_15px_rgba(255,255,255,1)] z-10"
-                    style={{ left: `calc(${value * 100}% - 2px)` }}
-                    animate={{ scaleY: isDragging ? 1.1 : 1 }}
-                />
+                {/* Status Icons */}
+                {hasAlert && (
+                    <TriangleAlert size={12} className="text-[#ff153f] animate-pulse shrink-0" />
+                )}
             </div>
-        </div>
-    );
-};
 
-const CombatToggle: React.FC<{ value: boolean; onChange: (val: boolean) => void }> = ({ value, onChange }) => {
-    return (
-        <button
-            onClick={() => onChange(!value)}
-            className={`flex items-center gap-3 px-4 py-2 rounded-lg border transition-all duration-300 ${
-                value
-                    ? 'bg-red-900/40 border-red-500 shadow-[0_0_15px_rgba(220,38,38,0.2)]'
-                    : 'bg-slate-800/50 border-slate-700 hover:bg-slate-800'
-            }`}
-        >
-            <Zap size={16} className={value ? 'text-red-500' : 'text-titanium-500'} />
-            <span className={`text-xs font-bold tracking-wider ${value ? 'text-red-100' : 'text-titanium-400'}`}>
-                {value ? 'RED ALERT' : 'SAFE MODE'}
-            </span>
-        </button>
+            {/* Link Handle (Right Side) */}
+            <div
+                className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-800 border border-cyan-500/30 hover:bg-cyan-500 hover:border-cyan-400 cursor-crosshair opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center z-30"
+                onMouseDown={(e) => onLinkStart(e)}
+            >
+                <div className="w-1 h-1 bg-white rounded-full" />
+            </div>
+        </motion.div>
     );
-};
-
-// 🟢 HELPER COMPONENT: Bridges Xarrow update context to parent
-const XarrowUpdater = ({ updateRef }: { updateRef: React.MutableRefObject<Function | null> }) => {
-    const updateXarrow = useXarrow();
-    useEffect(() => {
-        updateRef.current = updateXarrow;
-    }, [updateXarrow, updateRef]);
-    return null;
 };
 
 const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
@@ -279,604 +231,202 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
     onClose,
     activeGemId
 }) => {
-    // UI STATE
-    const [activeAgent, setActiveAgent] = useState<AgentType>('architect');
-    const [chaosLevel, setChaosLevel] = useState<number>(0.3);
-    const [combatMode, setCombatMode] = useState<boolean>(false);
-
-    // DATA STATE
-    const [nodes, setNodes] = useState<Node[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const { config } = useProjectConfig();
+    const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState<string>("ESTABLISHING NEURAL LINK...");
 
-    // 🟢 CANON STATE (Elevated)
-    const [canonCharacters, setCanonCharacters] = useState<Character[]>([]);
-    const [entityNodes, setEntityNodes] = useState<GraphNode[]>([]);
+    // DATA STATE
+    const [nodes, setNodes] = useState<Node[]>([]); // Local Ideas
+    const [entityNodes, setEntityNodes] = useState<GraphNode[]>([]); // Canon Entities
     const [loadingCanon, setLoadingCanon] = useState(true);
+
+    // KINETIC STATE
+    const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
     const [selectedCanonId, setSelectedCanonId] = useState<string | null>(null);
 
-    // 🟢 KINETIC STATE
-    const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
+    // SIMULATION STATE
+    const [simulatedNodes, setSimulatedNodes] = useState<(VisualGraphNode | Node)[]>([]);
+    const simulationRef = useRef<any>(null);
 
-    const [interrogation, setInterrogation] = useState<InterrogationState>({
-        isOpen: false,
-        questions: [],
-        depth: 0,
-        history: [],
-        pendingPrompt: ''
-    });
-
-    // CRYSTALLIZATION STATE
-    const [crystallizeModal, setCrystallizeModal] = useState<{isOpen: boolean, node: Node | null, isProcessing: boolean}>({
-        isOpen: false, node: null, isProcessing: false
-    });
-
-    // 🟢 TACTICAL LOCKDOWN: OVERLAY STATE
-    const isOverlayActive = crystallizeModal.isOpen || interrogation.isOpen || !!expandedNodeId;
-
-    // 🟢 CANON ARCHIVE STATE
-    const [isCanonArchiveOpen, setIsCanonArchiveOpen] = useState(false);
-    const [canonSearchQuery, setCanonSearchQuery] = useState("");
-
-    // 🟢 PHASE 4.3: SESSION STATE
-    const [sessionId] = useState(() => `sess_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`);
-    const [sessionHistory, setSessionHistory] = useState<SessionItem[]>([]);
-
-    // CONTEXT
-    const { config } = useProjectConfig();
-
-    // 🟢 HARDWIRE OPERATION: TARGET LOCK
-    // Manual Bypass to force connection to the specific Nexus ID.
-    const EFFECTIVE_PROJECT_ID = "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq";
-
-    const activeAgentConfig = AGENTS[activeAgent];
-
-    // 🟢 COHERENCY MONITOR
-    const latestNode = nodes.length > 0 ? nodes[nodes.length - 1] : null;
-    const activeAlert = latestNode?.coherency_report;
-
-    // 🟢 XARROW SYNC REF
+    // XARROW REF
     const updateXarrowRef = useRef<Function | null>(null);
 
-    // --- 0. DATA SUBSCRIPTION (LIFTED STATE) ---
+    // 🟢 HARDWIRE OPERATION: TARGET LOCK
+    const EFFECTIVE_PROJECT_ID = "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq";
+
+    // --- 1. DATA SUBSCRIPTION (STRICT PROJECT ID) ---
     useEffect(() => {
         if (!isOpen) return;
-
-        // 🟢 HARDWIRE: Ignore config.folderId, use Target
-        const folderId = EFFECTIVE_PROJECT_ID;
-        const auth = getAuth();
-
-        if (!folderId || !auth.currentUser) {
-            setLoadingCanon(false);
-            return;
-        }
-
         setLoadingCanon(true);
+
+        const auth = getAuth();
         const db = getFirestore();
 
-        // 1. SOURCE: CANON (Manual Truth)
-        const charactersRef = collection(db, "users", auth.currentUser.uid, "characters");
-        const unsubscribeCharacters = onSnapshot(query(charactersRef), (snapshot) => {
-            const loadedChars: Character[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                loadedChars.push({
-                    ...data,
-                    id: doc.id, // FORCE ID FROM DOC
-                    name: data.name || "Unknown Character"
-                } as Character);
-            });
-            setCanonCharacters(loadedChars);
-        });
-
-        // 2. SOURCE: ENTITIES (AI/Hash Truth - The Rich Collection)
-        const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", folderId, "entities");
-        const unsubscribeEntities = onSnapshot(query(entitiesRef), (snapshot) => {
-            const loadedEntities: GraphNode[] = [];
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-
-                // 🟢 EXACT MAPPING DIRECTIVE
-                // ID: doc.id
-                // Label: data.meta.name ?? data.name ?? data.aliases
-                // Type: data.type
-                const name = data.meta?.name || data.name || (data.aliases && data.aliases[0]) || "Unknown Entity";
-
-                loadedEntities.push({
-                    ...data,
-                    id: doc.id,
-                    name: name,
-                    type: data.type || 'concept', // Default to concept if type missing
-                    projectId: folderId,
-                    relations: data.relations || [],
-                    foundInFiles: data.foundInFiles || [], // Ensure we carry this over
-                    meta: {
-                        ...data.meta,
-                        brief: data.description || ""
-                    }
-                } as GraphNode);
-            });
-            setEntityNodes(loadedEntities);
-            setLoadingCanon(false);
-        }, (error) => {
-            console.error("Failed to subscribe to Entities:", error);
-            setLoadingCanon(false);
-        });
-
-        return () => {
-            unsubscribeCharacters();
-            unsubscribeEntities();
-        };
-    }, [isOpen, config?.folderId, config?.characterVaultId]); // Keep dependencies but logic ignores them
-
-    // --- HARVESTER (FRONTEND LOGIC) ---
-    const harvestWorldContext = async (): Promise<{ canon_dump: string; timeline_dump: string }> => {
-        if (!config) return { canon_dump: "", timeline_dump: "" };
-
-        const functions = getFunctions();
-        const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
-        const getDriveFileContent = httpsCallable(functions, 'getDriveFileContent');
-
-        let canonText = "";
-        let timelineText = "";
-
-        // 🟢 HELPER: Flatten tree and track Priority (Source of Truth)
-        const flattenAndSortFiles = (
-            nodes: any[],
-            isPriorityBranch: boolean = false,
-            primaryId: string | null = null
-        ): { file: any; isPriority: boolean }[] => {
-            let result: { file: any; isPriority: boolean }[] = [];
-
-            for (const node of nodes) {
-                // Determine if this node (root or child) is part of the Primary Tree
-                // If we are already in a priority branch, children inherit it.
-                // If not, check if this node IS the primary root.
-                const currentIsPriority = isPriorityBranch || (primaryId && node.id === primaryId);
-
-                if (node.type === 'file' || node.mimeType !== 'application/vnd.google-apps.folder') {
-                    // Filter for markdown/text
-                    if (node.name.endsWith('.md') || node.name.endsWith('.txt')) {
-                        result.push({ file: node, isPriority: !!currentIsPriority });
-                    }
-                }
-
-                if (node.children && node.children.length > 0) {
-                    result = [...result, ...flattenAndSortFiles(node.children, !!currentIsPriority, primaryId)];
-                }
-            }
-
-            return result;
-        };
-
-        // HELPER: Fetch content with Sorting & Headers
-        const fetchContent = async (items: { file: any; isPriority: boolean }[]): Promise<string> => {
-            // SORT: Priority First
-            const sortedItems = [...items].sort((a, b) => {
-                if (a.isPriority && !b.isPriority) return -1;
-                if (!a.isPriority && b.isPriority) return 1;
-                return 0;
-            });
-
-            let combined = "";
-            for (const item of sortedItems) {
-                try {
-                    const token = localStorage.getItem('google_drive_token');
-                    if (!token) continue;
-
-                    const res = await getDriveFileContent({ fileId: item.file.id, accessToken: token }) as any;
-
-                    // 🏷️ APPLY PRIORITY TAGS
-                    const header = item.isPriority
-                        ? `[CORE WORLD RULES / PRIORITY LORE - File: ${item.file.name}]`
-                        : `[FILE: ${item.file.name}]`;
-
-                    combined += `\n\n${header}\n${res.data.content}`;
-                } catch (e) {
-                    console.warn(`Failed to read ${item.file.name}`, e);
-                }
-            }
-            return combined;
-        };
-
-        if (config.canonPaths && config.canonPaths.length > 0) {
-            setStatusMessage("ALIGNING WITH CANON PROTOCOLS...");
-            const token = localStorage.getItem('google_drive_token');
-            if (token) {
-                try {
-                     const folderIds = config.canonPaths.map(p => p.id);
-                     const res = await getDriveFiles({ folderIds, accessToken: token, recursive: true }) as any;
-
-                     // 🟢 FLATTEN & IDENTIFY PRIORITY
-                     const flatList = flattenAndSortFiles(res.data, false, config.primaryCanonPathId);
-
-                     canonText = await fetchContent(flatList);
-                } catch (e) {
-                    console.error("Canon Harvest Failed", e);
-                }
-            }
-        }
-
-        if (config.chronologyPath) {
-             setStatusMessage("SYNCHRONIZING TIMELINE EVENTS...");
-             const token = localStorage.getItem('google_drive_token');
-             if (token) {
-                 try {
-                     const res = await getDriveFiles({ folderId: config.chronologyPath.id, accessToken: token, recursive: true }) as any;
-
-                     // Flatten simple for timeline (no priority distinction needed here, but reusing logic)
-                     const flatList = flattenAndSortFiles(res.data, false, null);
-
-                     timelineText = await fetchContent(flatList);
-                 } catch (e) {
-                     console.error("Timeline Harvest Failed", e);
-                 }
-             }
-        }
-
-        return { canon_dump: canonText, timeline_dump: timelineText };
-    };
-
-    // --- NEURAL LINK (BACKEND CONNECTION) ---
-    const runSimulation = async (
-        prompt: string,
-        currentDepth: number,
-        clarificationHistory: { questions: string[]; answer: string }[]
-    ) => {
-        setIsLoading(true);
-        setStatusMessage(currentDepth > 0 ? `REFINING... (DEPTH ${currentDepth}/3)` : "INITIALIZING HARVESTER...");
-
-        const functions = getFunctions();
-        const worldEngine = httpsCallable(functions, 'worldEngine', { timeout: 1800000 });
-
-        let backendAgentId = 'ARCHITECT';
-        if (activeAgent === 'oracle') backendAgentId = 'ORACLE';
-        if (activeAgent === 'advocate') backendAgentId = 'DEVIL_ADVOCATE';
-
-        try {
-            const contextPayload = await harvestWorldContext();
-
-            // 🟢 HARVEST VISUAL CONTEXT (THE EYES)
-            // We map unifiedNodes to a lightweight structure
-            // OPERACIÓN 'ELEFANTE': Sending FULL payload (No Truncation) as requested by Commander.
-            const currentGraphContext = unifiedNodes.map(n => ({
-                id: n.id,
-                name: n.name,
-                type: n.type || 'concept',
-                description: n.description || "",
-                content: n.content || "", // 🟢 FULL CONTENT INJECTION
-                relations: n.relations || []
-            }));
-
-            setStatusMessage("DEEP REASONING IN PROGRESS... DO NOT REFRESH.");
-
-            let clarificationsText = "";
-            if (clarificationHistory.length > 0) {
-                clarificationsText = clarificationHistory.map((item, idx) =>
-                    `[ROUND ${idx + 1}]\nQ: ${item.questions.join(" / ")}\nA: ${item.answer}`
-                ).join("\n\n");
-            }
-
-            const recentHistory = sessionHistory.slice(-5);
-            const accessToken = localStorage.getItem('google_drive_token');
-
-            const payload = {
-                prompt,
-                agentId: backendAgentId,
-                chaosLevel,
-                combatMode,
-                context: contextPayload,
-                currentGraphContext, // 🟢 INJECTED EYES
-                interrogationDepth: currentDepth,
-                clarifications: clarificationsText,
-                sessionId,
-                sessionHistory: recentHistory,
-                accessToken,
-                folderId: EFFECTIVE_PROJECT_ID // 🟢 HARDWIRE
-            };
-
-            const result = await worldEngine(payload) as any;
-            const data = result.data;
-
-            console.log("🔍 WORLD ENGINE RESPONSE TYPE:", data.type);
-
-            if (data.type === 'inquiry') {
-                setInterrogation({
-                    isOpen: true,
-                    questions: data.questions || ["Please clarify your intent."],
-                    depth: currentDepth,
-                    history: clarificationHistory,
-                    pendingPrompt: prompt
+        if (auth.currentUser) {
+            // ONLY FETCH ENTITIES FROM PROJECT (SOURCE OF TRUTH)
+            const entitiesRef = collection(db, "users", auth.currentUser.uid, "projects", EFFECTIVE_PROJECT_ID, "entities");
+            const unsubscribeEntities = onSnapshot(query(entitiesRef), (snapshot) => {
+                const loadedEntities: GraphNode[] = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const name = data.meta?.name || data.name || (data.aliases && data.aliases[0]) || "Unknown Entity";
+                    loadedEntities.push({
+                        ...data,
+                        id: doc.id,
+                        name: name,
+                        type: data.type || 'concept',
+                        projectId: EFFECTIVE_PROJECT_ID,
+                        relations: data.relations || [],
+                        foundInFiles: data.foundInFiles || [],
+                        meta: { ...data.meta, brief: data.description || "" },
+                        isCanon: true // Mark as Canon
+                    } as GraphNode);
                 });
-                return;
-            }
+                setEntityNodes(loadedEntities);
+                setLoadingCanon(false);
+            }, (error) => {
+                console.error("Failed to subscribe to Entities:", error);
+                setLoadingCanon(false);
+            });
 
-            // 🟢 COHERENCY CHECK (LOGGING)
-            if (data.coherency_report) {
-                console.log("⚠️ COHERENCY REPORT RECEIVED:", data.coherency_report);
-            }
+            return () => unsubscribeEntities();
+        }
+    }, [isOpen]);
 
-            // 🟢 NEW ARRAY HANDLING (MULTIPLE NODES)
-            const createdNodes: Node[] = [];
+    // --- 2. UNIFIED NODES (THE MERGER) ---
+    const unifiedNodes = useMemo(() => {
+        // Combine Local Ideas + Canon Entities
+        // Map to common visual structure
+        const combined: (VisualGraphNode | Node)[] = [];
 
-            if (data.newNodes && Array.isArray(data.newNodes)) {
-                data.newNodes.forEach((n: any) => {
-                    // Extract relations relevant to this node from newRelations
-                    // 🟢 RED THREAD LOGIC: Capture both OUTGOING (Source -> Target) and INCOMING (Target -> Source)
-                    const myRelations = data.newRelations?.filter((r: any) =>
-                        r.source === n.id || r.target === n.id
-                    ).map((r: any) => {
-                        const isOutgoing = r.source === n.id;
-                        return {
-                            targetId: isOutgoing ? r.target : r.source, // Link to the 'other' entity
-                            relationType: r.label,
-                            context: isOutgoing ? "Active Link" : "Passive Link" // Optional Context
-                        };
-                    }) || [];
+        // A. Entities
+        entityNodes.forEach(e => {
+            combined.push({
+                ...e,
+                // If it has saved coords, use them. Else undefined (d3 will handle).
+                x: (e as any).fx || (e as any).x,
+                y: (e as any).fy || (e as any).y,
+                // Ensure we have a type
+                type: e.type || 'concept'
+            } as VisualGraphNode);
+        });
 
-                    createdNodes.push({
-                        id: n.id || generateId(sessionId, n.title, 'idea'),
-                        type: 'idea', // FORCE IDEA TYPE FOR GOLD COLOR
-                        title: n.title || 'Unknown',
-                        content: n.content || '',
-                        agentId: activeAgent,
-                        metadata: {
-                            ...n.metadata,
-                            pending_relations: myRelations
-                        },
-                        coherency_report: data.coherency_report // Attach report to the first/main node or all?
+        // B. Local Ideas
+        nodes.forEach(n => {
+            combined.push({
+                ...n,
+                name: n.title, // Map title to name
+                // Use existing coords
+                x: n.x,
+                y: n.y,
+                isLocal: true
+            } as any);
+        });
+
+        return combined;
+    }, [entityNodes, nodes]);
+
+    // --- 3. PHYSICS ENGINE (CLUSTER STYLE) ---
+    useEffect(() => {
+        if (!isOpen || unifiedNodes.length === 0) return;
+
+        console.log("⚡ INITIATING PHYSICS SIMULATION...");
+
+        // Stop existing
+        if (simulationRef.current) simulationRef.current.stop();
+
+        // Prepare simulation data (clone to avoid mutating props directly if they were props)
+        // We use 'nodes' for D3.
+        const simNodes = unifiedNodes.map(n => ({ ...n }));
+
+        // Extract Links
+        const links: any[] = [];
+        simNodes.forEach(node => {
+            const rels = (node as any).relations || (node as any).metadata?.pending_relations || [];
+            rels.forEach((r: any) => {
+                const targetId = r.targetId;
+                // Only link if target exists in current graph
+                if (simNodes.find(n => n.id === targetId)) {
+                    links.push({
+                        source: node.id,
+                        target: targetId,
+                        type: r.relationType || r.relation
                     });
-                });
-            } else if (data.type !== 'inquiry') {
-                // Fallback for legacy format (Single Object)
-                createdNodes.push({
-                    id: Date.now().toString(),
-                    type: data.type || 'idea',
-                    title: data.title || 'Unknown',
-                    content: data.content || 'No content received.',
-                    agentId: activeAgent,
-                    metadata: data.metadata,
-                    coherency_report: data.coherency_report || undefined
-                });
-            }
-
-            console.log("FINAL GENERATED NODES:", createdNodes.length);
-
-            setNodes(prev => [...prev, ...createdNodes]);
-            setSessionHistory(prev => [...prev, { prompt, result: data }]);
-
-            setInterrogation({
-                isOpen: false,
-                questions: [],
-                depth: 0,
-                history: [],
-                pendingPrompt: ''
-            });
-
-
-        } catch (error) {
-            console.error("NEURAL LINK FAILURE:", error);
-        } finally {
-            setIsLoading(false);
-            setStatusMessage("ESTABLISHING NEURAL LINK...");
-        }
-    };
-
-    const generateNode = async (prompt: string) => {
-        runSimulation(prompt, 0, []);
-    };
-
-    const handleInterrogationSubmit = (answer: string) => {
-        const newHistory = [
-            ...interrogation.history,
-            { questions: interrogation.questions, answer }
-        ];
-        setInterrogation(prev => ({ ...prev, isOpen: false }));
-        runSimulation(interrogation.pendingPrompt, interrogation.depth + 1, newHistory);
-    };
-
-    // 🟢 NEXUS INTEGRATION HANDLERS
-
-    // 1. SELECT NODE (Single Click)
-    const handleNodeClick = (nodeId: string, isLocal: boolean) => {
-        // 🟢 ACTION: OPEN INSPECTOR (Requested by Command)
-        if (isLocal) {
-            setExpandedNodeId(nodeId); // Open Macro Card for Ideas
-            setSelectedCanonId(null);
-        } else {
-            // Find the node in canonNodes (mapped)
-            const mappedCanon = unifiedNodes.find(n => n.id === nodeId && !n.isLocal);
-            if (mappedCanon) {
-                setSelectedCanonId(nodeId); // Open Side Drawer for Canon
-                setExpandedNodeId(null);
-            }
-        }
-    };
-
-    // 2. OPEN NODE (Double Click)
-    const handleNodeDoubleClick = (nodeId: string, isLocal: boolean) => {
-        if (isLocal) {
-            setExpandedNodeId(nodeId); // Open Macro Card
-            setSelectedCanonId(null);
-        } else {
-            // Open Canon Drawer (Lifted State)
-            // Find the node in canonNodes (mapped)
-            const mappedCanon = unifiedNodes.find(n => n.id === nodeId && !n.isLocal);
-            if (mappedCanon) {
-                setSelectedCanonId(nodeId);
-                setExpandedNodeId(null);
-            }
-        }
-    };
-
-    // 3. PERSISTENCE (Drag End)
-    const handleNodeDragEnd = async (node: VisualGraphNode) => {
-        if (node.isLocal && !node.isGhost && !node.isEphemeral && !node.isCanon) {
-             // True Local Idea (RAM only)
-            setNodes(prev => prev.map(n =>
-                n.id === node.id
-                ? { ...n, fx: node.x, fy: node.y, x: node.x, y: node.y }
-                : n
-            ));
-        } else {
-            // Update Firestore for: Canon, Rich Entities, or Ephemeral Ghosts becoming Real
-            if (!EFFECTIVE_PROJECT_ID) return; // 🟢 HARDWIRE
-
-            const entityId = node.id;
-
-            try {
-                const auth = getAuth();
-                const db = getFirestore();
-
-                if (auth.currentUser) {
-                    const entityRef = doc(db, "users", auth.currentUser.uid, "projects", EFFECTIVE_PROJECT_ID, "entities", entityId); // 🟢 HARDWIRE
-
-                    // CHECK: Is this an Ephemeral Ghost? (No DB record yet)
-                    // We check if it was missing from entityNodes at render time, but simpler to check the node flag
-                    // Note: 'node' here comes from D3/ReactForceGraph, it wraps our data in 'entityData' usually,
-                    // OR it merges properties. 'node.isEphemeral' should be preserved if we passed it.
-
-                    // The 'node' object from the graph usually has top-level props from our data object.
-                    // ⚠️ SAFETY CAST: The incoming node from graph might have extra D3 props.
-                    const isEphemeral = node.isEphemeral;
-
-                    if (isEphemeral) {
-                         // 🟢 GENESIS PROTOCOL: Ghost -> Real Entity
-                         // We must save the FULL payload because it doesn't exist in DB yet.
-                         // ⚠️ CLEANING PROTOCOL: Strip UI flags before saving to DB
-                         const payload: any = {
-                            id: entityId, // Persistence ID
-                            name: node.name,
-                            type: node.type || 'concept',
-                            projectId: EFFECTIVE_PROJECT_ID, // 🟢 HARDWIRE
-                            relations: node.relations || [],
-                            foundInFiles: node.foundInFiles || [],
-                            meta: node.meta || {},
-                            description: node.description || "Entidad materializada desde el Nexus.",
-                            fx: node.x,
-                            fy: node.y,
-                            createdFromGhost: true
-                         };
-
-                         // Explicitly remove UI flags if they leaked into the object (though construction above prevents it)
-                         // This is just double safety.
-
-                         console.log(`[Genesis] Materializing Ghost Node: ${node.name}`);
-                         await setDoc(entityRef, payload, { merge: true });
-
-                    } else {
-                        // 🟢 UPDATE PROTOCOL: Just update position
-                        // This applies to Canon Shadows AND Rich Entities.
-                        // We do NOT overwrite name/relations/etc.
-                        console.log(`[Persistence] Updating position for: ${node.name}`);
-                        await setDoc(entityRef, {
-                            fx: node.x,
-                            fy: node.y
-                        }, { merge: true });
-                    }
                 }
-            } catch (e) {
-                console.error("Failed to save node position", e);
-            }
+            });
+        });
+
+        const simulation = d3.forceSimulation(simNodes as any)
+            // 1. Repulsion (Separation)
+            .force("charge", d3.forceManyBody().strength(-400))
+            // 2. Attraction (Links)
+            .force("link", d3.forceLink(links).id((d: any) => d.id).distance(100))
+            // 3. Center Gravity (Keep it in arena)
+            .force("center", d3.forceCenter(2000, 2000).strength(0.05))
+            // 4. Collision (Avoid Overlap)
+            .force("collide", d3.forceCollide().radius(100).iterations(2));
+
+        // GOLDEN SPIRAL INITIALIZATION FOR NEW NODES
+        simNodes.forEach((node, i) => {
+             if (node.x === undefined || node.y === undefined) {
+                 const angle = i * 2.4; // Golden angle approx
+                 const radius = 30 * i; // Spiral out
+                 node.x = 2000 + radius * Math.cos(angle);
+                 node.y = 2000 + radius * Math.sin(angle);
+             }
+        });
+
+        // WARM UP (Tick manually to stabilize)
+        // We run a few ticks then set state to avoid constant re-renders during animation if we don't want live animation
+        // OR we subscribe to 'tick'.
+        // For "Cluster Style", we probably want to see it settle or just show the result.
+        // Let's run 300 ticks synchronously to "pre-calculate" layout if we want static start,
+        // or use 'on("tick")' for live.
+        // Commander said: "Organize them... Clean and static until user moves them".
+        // So pre-calculating is better.
+
+        simulation.stop(); // Don't run timer
+        const numTicks = 300;
+        for (let i = 0; i < numTicks; ++i) simulation.tick();
+
+        setSimulatedNodes(simNodes);
+        updateXarrowRef.current?.();
+
+        simulationRef.current = simulation;
+
+        return () => simulation.stop();
+
+    }, [unifiedNodes.length, isOpen]); // Re-run if node count changes
+
+
+    // --- 4. INTERACTION HANDLERS ---
+    const handleNodeClick = (node: VisualGraphNode | Node) => {
+        if ((node as any).isLocal || (node as any).type === 'idea') {
+            // IDEA -> MODAL
+            setExpandedNodeId(node.id);
+            setSelectedCanonId(null);
+        } else {
+            // CANON -> SIDEBAR
+            setSelectedCanonId(node.id);
+            setExpandedNodeId(null);
         }
     };
 
-    // 4. LINKING (Red Thread - Gestural)
+    // LINKING LOGIC
     const [draggingLink, setDraggingLink] = useState<{ sourceId: string, x: number, y: number } | null>(null);
 
     const handleLinkStart = (nodeId: string, e: React.MouseEvent) => {
         e.stopPropagation();
         const rect = (e.target as Element).getBoundingClientRect();
-        setDraggingLink({ sourceId: nodeId, x: rect.right, y: rect.top + rect.height / 2 });
+        // We need canvas coordinates.
+        // Simple hack: We use the mouse position for the drag line end, but start needs to be relative to the node.
+        // Actually, we can just use clientX/Y for the ghost line if it's fixed position.
+        setDraggingLink({ sourceId: nodeId, x: e.clientX, y: e.clientY });
     };
 
     const handleLinkMove = (e: React.MouseEvent) => {
         if (draggingLink) {
             setDraggingLink(prev => prev ? { ...prev, x: e.clientX, y: e.clientY } : null);
-        }
-    };
-
-    // 🟢 UNIFIED LINK HANDLER (The Weaver)
-    const handleLinkCreate = async (sourceId: string, targetId: string) => {
-        // 1. Optimistic Update (Visual Feedback)
-        setNodes(prev => prev.map(n => {
-            if (n.id === sourceId) {
-                const existing = n.metadata?.pending_relations || [];
-                // Prevent duplicate
-                if (existing.find(r => r.targetId === targetId)) return n;
-
-                return {
-                    ...n,
-                    metadata: {
-                        ...n.metadata,
-                        pending_relations: [...existing, {
-                            targetId,
-                            relationType: "ANALYZING...", // Temporary Label
-                        }]
-                    }
-                };
-            }
-            return n;
-        }));
-
-        // 2. The Brain (Backend Analysis)
-        try {
-            const functions = getFunctions();
-            const analyzeConnection = httpsCallable(functions, 'analyzeConnection');
-
-            // Get names for better context from the Unified Graph (Nexus)
-            const sourceNode = unifiedNodes.find(n => n.id === sourceId);
-            const targetNode = unifiedNodes.find(n => n.id === targetId);
-
-            if (!sourceNode || !targetNode) return;
-
-            const res = await analyzeConnection({
-                sourceName: sourceNode.name,
-                targetName: targetNode.name,
-                context: "User created a manual link in the Nexus Graph."
-            }) as any;
-
-            const { reason, type, status } = res.data;
-
-            // 3. Truth Update (Final State)
-            setNodes(prev => prev.map(n => {
-                 if (n.id === sourceId) {
-                     const relations = n.metadata?.pending_relations || [];
-                     return {
-                         ...n,
-                         metadata: {
-                             ...n.metadata,
-                             pending_relations: relations.map(r =>
-                                 r.targetId === targetId
-                                 ? { ...r, relationType: type || 'NEUTRAL', reason: reason, status: status || 'VALID' } // Upgrade
-                                 : r
-                             )
-                         }
-                     };
-                 }
-                 return n;
-            }));
-
-        } catch (e) {
-            console.error("Link Analysis Failed", e);
-            // Fallback to Neutral
-             setNodes(prev => prev.map(n => {
-                 if (n.id === sourceId) {
-                     const relations = n.metadata?.pending_relations || [];
-                     return {
-                         ...n,
-                         metadata: {
-                             ...n.metadata,
-                             pending_relations: relations.map(r =>
-                                 r.targetId === targetId
-                                 ? { ...r, relationType: 'NEUTRAL', reason: 'Manual Link', status: 'VALID' }
-                                 : r
-                             )
-                         }
-                     };
-                 }
-                 return n;
-            }));
         }
     };
 
@@ -887,509 +437,55 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
         setDraggingLink(null);
     };
 
-    // 🟢 VISUAL UTILS (NEXUS PALETTE)
-    const getLinkColor = (type?: string, status?: string) => {
-        // ERROR LOGIC (DEVIL'S ADVOCATE)
-        if (status === 'INVALID' || type === 'CONTRADICTION') return '#ff00ff'; // MAGENTA GLITCH
-
-        switch(type) {
-            case 'ENEMY': return '#ff153f';
-            case 'FAMILY': return '#ddbf61';
-            case 'ALLY': return '#00fff7';
-            case 'MAGIC': // Fallthrough
-            case 'OBJECT': return '#a855f7';
-            default: return '#555555';
-        }
-    };
-
-    const getBorderColor = (type?: string, status?: string) => {
-        // ERROR LOGIC
-        if (status === 'INVALID' || type === 'CONTRADICTION') return 'border-[#ff00ff]';
-
-        switch(type) {
-            case 'ENEMY': return 'border-[#ff153f]';
-            case 'FAMILY': return 'border-[#ddbf61]';
-            case 'ALLY': return 'border-[#00fff7]';
-            case 'MAGIC': // Fallthrough
-            case 'OBJECT': return 'border-[#a855f7]';
-            default: return 'border-gray-500';
-        }
-    };
-
-    // 🟢 HELPER: NORMALIZATION PROTOCOL
-    const normalizeName = (name: string): string => {
-        if (!name) return "";
-        // 1. Remove Extension
-        let clean = name.replace(/\.(md|txt|json)$/i, '');
-        // 2. Remove Prefixes
-        const prefixes = ["Ficha ", "Perfil ", "Hoja ", "Borrador ", "Personaje "];
-        prefixes.forEach(p => {
-            const regex = new RegExp(`^${p}`, 'i');
-            clean = clean.replace(regex, '');
-        });
-        return clean.trim();
-    };
-
-    // 🟢 UNIFIED NODE BUILDER (THE MERGER v3 - NEXUS SUPREMACY)
-    const unifiedNodes = useMemo(() => {
-        const unifiedMap = new Map<string, VisualGraphNode>();
-        const incomingRelations = new Map<string, number>(); // TargetID -> Count
-
-        // STEP 0: CALCULATE INCOMING METRICS (Global Popularity)
-        entityNodes.forEach(node => {
-            if (node.relations) {
-                node.relations.forEach(rel => {
-                    const count = incomingRelations.get(rel.targetId) || 0;
-                    incomingRelations.set(rel.targetId, count + 1);
-                });
-            }
-        });
-
-        // STEP 1: NEXUS SUPREMACY (The Kings)
-        // Load all AI-detected entities first. They define the structure.
-        entityNodes.forEach(entity => {
-            // Clone to Visual Node
-            const node: VisualGraphNode = {
-                ...entity,
-                val: 10, // Default size
-                isCanon: false // Default, will be upgraded if file found
-            };
-
-            // Size Logic based on Tier/Popularity
-            const incoming = incomingRelations.get(node.id) || 0;
-            if (incoming > 5) node.val = 20;
-
-            unifiedMap.set(node.id, node);
-        });
-
-        // STEP 2: SMART FUSION (The Matching)
-        // Iterate Canon Files and try to merge into Nexus Nodes.
-        canonCharacters.forEach(file => {
-            const rawName = file.name || "";
-            const cleanName = normalizeName(rawName).toLowerCase();
-            const fileId = file.id;
-
-            // STRATEGY: Find match in Nexus
-            let match: VisualGraphNode | undefined;
-
-            // A. Try ID Match
-            match = unifiedMap.get(fileId);
-
-            // B. Try Name Match (Fuzzy)
-            if (!match) {
-                // Iterate map values (expensive but safe for <1000 nodes)
-                for (const [key, entity] of unifiedMap.entries()) {
-                    if (entity.name && normalizeName(entity.name).toLowerCase() === cleanName) {
-                        match = entity;
-                        break;
+    const handleLinkCreate = async (sourceId: string, targetId: string) => {
+        // Logic to add link to source node's metadata
+        // For now, just log or add optimistic
+        console.log(`Connecting ${sourceId} to ${targetId}`);
+        // We update the local 'nodes' state if it's an idea, or handle Canon update.
+        // For simplicity in this plan, we assume we are linking Ideas mostly.
+        setNodes(prev => prev.map(n => {
+            if (n.id === sourceId) {
+                return {
+                    ...n,
+                    metadata: {
+                        ...n.metadata,
+                        pending_relations: [
+                            ...(n.metadata?.pending_relations || []),
+                            { targetId, relationType: 'NEUTRAL', status: 'PENDING' }
+                        ]
                     }
-                }
-            }
-
-            if (match) {
-                // 🟢 FUSION: UPGRADE NEXUS NODE
-                match.isCanon = true;
-                match.fileId = fileId;
-                // Update Meta/Tier from File if available
-                if (file.tier) {
-                    match.meta = { ...match.meta, tier: file.tier === 'MAIN' ? 'protagonist' : 'secondary' };
-                }
-                // Update size
-                if (match.meta?.tier === 'protagonist') match.val = 40;
-                else if (match.meta?.tier === 'secondary') match.val = 25;
-
-            } else {
-                // 🟢 ORPHAN PROTOCOL: NOISE CANCELLATION
-                // If NO match in Nexus, check if it is "Relevant".
-                // Relevance = Is it mentioned by anyone? (Incoming Relations)
-                const isReferred = incomingRelations.has(fileId);
-
-                if (isReferred) {
-                    // It is an Orphan but someone points to it (using its File ID).
-                    // We allow it as a "Passive Node".
-                    unifiedMap.set(fileId, {
-                        id: fileId,
-                        name: normalizeName(rawName), // Use clean name
-                        type: 'character', // Default
-                        projectId: config?.folderId || '',
-                        description: file.description || "Archivo referenciado.",
-                        meta: { tier: file.tier === 'MAIN' ? 'protagonist' : 'secondary' },
-                        relations: [],
-                        foundInFiles: [],
-                        isCanon: true,
-                        fileId: fileId,
-                        val: file.tier === 'MAIN' ? 40 : 20
-                    });
-                }
-                // ELSE: DISCARD (Noise)
-            }
-        });
-
-        // STEP 3: GHOST EXPANSION (Level 1)
-        // Iterate current map (Nexus + Relevant Orphans)
-        const currentNodes = Array.from(unifiedMap.values());
-
-        currentNodes.forEach(sourceNode => {
-            if (!sourceNode.relations) return;
-
-            sourceNode.relations.forEach(rel => {
-                const targetId = rel.targetId;
-                const targetName = rel.targetName;
-
-                // Check existence
-                let exists = unifiedMap.has(targetId);
-                if (!exists && targetName) {
-                    // Check by name
-                    exists = Array.from(unifiedMap.values()).some(n => normalizeName(n.name || "") === normalizeName(targetName));
-                }
-
-                if (!exists) {
-                    // 👻 CREATE GHOST
-                    // We need to pass the targetType if available, or default to concept
-                    let ghostId = targetId;
-                    const ghostType = rel.targetType || 'concept';
-
-                    if (!ghostId || ghostId.length < 5) {
-                        // Fallback ID
-                        ghostId = generateId(EFFECTIVE_PROJECT_ID, targetName, ghostType);
-                    }
-
-                    if (!unifiedMap.has(ghostId)) {
-                        const popularity = incomingRelations.get(targetId) || 0;
-                        const ghostSize = popularity > 5 ? 20 : 10;
-
-                        // ORBITAL POSITIONING
-                        const angle = Math.random() * 2 * Math.PI;
-                        const radius = 50 + Math.random() * 50;
-                        const parentX = sourceNode.fx || sourceNode.x || 0;
-                        const parentY = sourceNode.fy || sourceNode.y || 0;
-
-                        unifiedMap.set(ghostId, {
-                            id: ghostId,
-                            name: targetName,
-                            type: ghostType,
-                            projectId: EFFECTIVE_PROJECT_ID,
-                            description: "Entidad inferida (Nodo Fantasma)",
-                            relations: [],
-                            isGhost: true,
-                            isEphemeral: true,
-                            val: ghostSize,
-                            fx: parentX + radius * Math.cos(angle),
-                            fy: parentY + radius * Math.sin(angle),
-                            meta: { tier: 'background' } // 🟢 FIXED: Added meta
-                        });
-                    }
-                }
-            });
-        });
-
-        return Array.from(unifiedMap.values());
-
-    }, [canonCharacters, entityNodes, config]);
-
-    // 🟢 SILENT AUDIT PROTOCOL
-    useEffect(() => {
-        const unauditedNodes = nodes.filter(n => !n.auditStatus);
-        if (unauditedNodes.length === 0) return;
-
-        const functions = getFunctions();
-        const auditContent = httpsCallable(functions, 'auditContent');
-
-        unauditedNodes.forEach(async (node) => {
-             // 1. Mark as Auditing
-             setNodes(prev => prev.map(n => n.id === node.id ? { ...n, auditStatus: 'auditing' } : n));
-
-             try {
-                 // 2. Call Guardian
-                 const res = await auditContent({
-                     content: node.content,
-                     projectId: EFFECTIVE_PROJECT_ID,
-                     fileId: `temp_${node.id}`
-                 }) as any;
-
-                 // The backend returns 'conflicts' array.
-                 const conflicts = res.data.conflicts || [];
-                 const drift = res.data.personality_drift || [];
-                 const laws = res.data.world_law_violations || [];
-
-                 let warning = null;
-                 if (conflicts.length > 0) {
-                     warning = {
-                         warning: "FACT CONTRADICTION",
-                         file_source: conflicts[0].source || "Unknown",
-                         explanation: `Contradicts: ${conflicts[0].fact}`
-                     };
-                 } else if (laws.length > 0) {
-                     warning = {
-                         warning: "WORLD LAW VIOLATION",
-                         file_source: "World Rules",
-                         explanation: laws[0].conflict.explanation
-                     };
-                 } else if (drift.length > 0) {
-                     warning = {
-                         warning: "PERSONALITY DRIFT",
-                         file_source: "Character Profile",
-                         explanation: drift[0].detected_behavior
-                     };
-                 }
-
-                 // 3. Update Node Result
-                 setNodes(prev => prev.map(n =>
-                     n.id === node.id
-                     ? { ...n, auditStatus: 'audited', coherency_report: warning || undefined }
-                     : n
-                 ));
-
-             } catch (e) {
-                 console.error("Audit failed for", node.title, e);
-                 setNodes(prev => prev.map(n => n.id === node.id ? { ...n, auditStatus: 'audited' } : n));
-             }
-        });
-    }, [nodes]);
-
-    // 🟢 TELEMETRY (SANITY CHECK)
-    useEffect(() => {
-        if (isOpen) {
-            console.log(`[Nexus Fusion] Total Render: ${unifiedNodes.length} | Canon (DB): ${canonCharacters.length} | Entities (Hash): ${entityNodes.length} | Ideas (RAM): ${nodes.length}`);
-        }
-    }, [unifiedNodes.length, canonCharacters.length, entityNodes.length, nodes.length, isOpen]);
-
-    // CRYSTALLIZATION
-    const handleCrystallize = (node: Node) => {
-        setExpandedNodeId(null); // Close the expanded view
-        setCrystallizeModal({ isOpen: true, node, isProcessing: false });
-    };
-
-    const confirmCrystallization = async (data: { fileName: string; folderId: string; frontmatter: any }) => {
-        if (!crystallizeModal.node) return;
-        setCrystallizeModal(prev => ({ ...prev, isProcessing: true }));
-
-        try {
-            // 🟢 VISUAL ASCENSION: Golden Flash & Lock
-            // We update the local node state immediately to reflect "Ascension"
-            setNodes(prev => prev.map(n =>
-                n.id === crystallizeModal.node!.id
-                ? { ...n, isCanon: true, isLocal: false, metadata: { ...n.metadata, node_type: 'canon' } }
-                : n
-            ));
-            const functions = getFunctions();
-            const crystallizeNode = httpsCallable(functions, 'crystallizeNode');
-            const accessToken = localStorage.getItem('google_drive_token');
-
-            // 🟢 TARGET LOCK: RESPECT USER SELECTION
-            const targetFolderId = data.folderId;
-
-            // 🟢 COHERENCY INJECTION
-            let finalFrontmatter = { ...data.frontmatter };
-            let finalContent = crystallizeModal.node.content;
-
-            if (crystallizeModal.node.coherency_report) {
-                // 1. Inject Frontmatter Tag
-                const existingTags = finalFrontmatter.tags || [];
-                finalFrontmatter.tags = [...existingTags, 'INCONSISTENCY_WARNING'];
-
-                // 2. Inject Markdown Header
-                const report = crystallizeModal.node.coherency_report;
-                const warningHeader = `> ⚠️ **[${report.warning}]:** ${report.explanation}\n> *Source Conflict: ${report.file_source}*\n\n`;
-                finalContent = warningHeader + finalContent;
-            }
-
-            // 🟢 INJECT POSITION DATA
-            // We pass fx/fy in frontmatter so the parser/backend can (optionally) use it
-            // or so we can retrieve it later if we re-parse.
-            if (crystallizeModal.node.fx !== undefined) {
-                finalFrontmatter.nexus = {
-                    ...(finalFrontmatter.nexus || {}),
-                    fx: crystallizeModal.node.fx,
-                    fy: crystallizeModal.node.fy
                 };
             }
-
-            // 🟢 INJECT PENDING RELATIONS
-            if (crystallizeModal.node.metadata?.pending_relations) {
-                finalFrontmatter.relations = crystallizeModal.node.metadata.pending_relations;
-            }
-
-            const result = await crystallizeNode({
-                accessToken,
-                folderId: targetFolderId, // 🟢 HARDWIRE
-                fileName: data.fileName,
-                content: finalContent,
-                frontmatter: finalFrontmatter
-            }) as any;
-
-            const newFileId = result.data.fileId;
-            const oldNode = crystallizeModal.node;
-
-            if (newFileId && oldNode) {
-                 console.log(`💎 TRANSMUTATION: Converting ${oldNode.id} -> ${newFileId}`);
-
-                 // 🟢 UPDATE LOCAL NODE WITH CANON STATUS
-                 setNodes(prev => prev.map(n =>
-                    n.id === oldNode.id
-                    ? {
-                        ...n,
-                        id: newFileId, // ID SWAP
-                        isCanon: true,
-                        isLocal: false,
-                        type: 'canon', // TITANIUM
-                        metadata: { ...n.metadata, node_type: 'canon' }
-                      }
-                    : n
-                 ));
-
-                 const auth = getAuth();
-                 const db = getFirestore();
-
-                 // 🟢 PHASE 2: PERSISTENCE (THE ANCHOR)
-                 // Write the new Canon Entity to Firestore immediately to prevent "Pop"
-                 if (auth.currentUser) {
-                     const entityRef = doc(db, "users", auth.currentUser.uid, "projects", targetFolderId, "entities", newFileId);
-
-                     // Convert Pending Relations to Graph Relations
-                     const migratedRelations = (oldNode.metadata?.pending_relations || []).map(r => ({
-                         targetId: r.targetId, // NOTE: If target was also a temp ID, this might break. But for now, we assume target is stable or we rely on their eventual crystallization.
-                         targetName: "Linked Entity", // Fallback
-                         targetType: 'concept',
-                         relation: r.relationType,
-                         context: "Crystallized Link",
-                         sourceFileId: newFileId
-                     }));
-
-                     await setDoc(entityRef, {
-                         id: newFileId,
-                         name: oldNode.title, // Use title as label
-                         type: 'canon', // 🟢 FORCE TITANIUM
-                         projectId: targetFolderId,
-                         description: "Memoria cristalizada.",
-                         fx: oldNode.fx || oldNode.x || 0,
-                         fy: oldNode.fy || oldNode.y || 0,
-                         relations: migratedRelations,
-                         createdFromIdea: true,
-                         lastUpdated: new Date().toISOString()
-                     }, { merge: true });
-
-                     // 🟢 PHASE 2.5: OPTIMISTIC UI INJECTION (THE RADAR)
-                     // Inject the new file into the TDB_Index tree to make it appear instantly.
-                     try {
-                         const indexRef = doc(db, "TDB_Index", auth.currentUser.uid, "structure", "tree");
-                         const indexSnap = await getDoc(indexRef);
-
-                         if (indexSnap.exists()) {
-                             const treeData = indexSnap.data();
-                             const tree = treeData.tree || [];
-
-                             // Create the new node object (Mimic Backend Indexer)
-                             const newFileNode = {
-                                 id: newFileId,
-                                 name: data.fileName,
-                                 mimeType: 'text/markdown', // Assumed
-                                 type: 'file',
-                                 parentId: targetFolderId
-                             };
-
-                             // Recursive Injection Helper
-                             const inject = (nodes: any[]): boolean => {
-                                 for (const node of nodes) {
-                                     // Check if this is the target folder
-                                     if (node.id === targetFolderId) {
-                                         if (!node.children) node.children = [];
-                                         // Prevent duplicates
-                                         if (!node.children.find((c: any) => c.id === newFileId)) {
-                                             node.children.push(newFileNode);
-                                         }
-                                         return true;
-                                     }
-                                     // Recurse
-                                     if (node.children && node.children.length > 0) {
-                                         if (inject(node.children)) return true;
-                                     }
-                                 }
-                                 return false;
-                             };
-
-                             const injected = inject(tree);
-
-                             if (injected) {
-                                 console.log("💉 OPTIMISTIC UI: Injecting node into TDB_Index...");
-                                 await updateDoc(indexRef, { tree });
-                             } else {
-                                 console.warn("⚠️ OPTIMISTIC UI: Target folder not found in local index.");
-                             }
-                         }
-                     } catch (err) {
-                         console.error("⚠️ OPTIMISTIC UI FAILED:", err);
-                         // Non-blocking
-                     }
-                 }
-
-                 // 🟢 PHASE 3: LINK REPAIR (THE SURGERY)
-                 // Update ALL local nodes that were pointing to the old ID
-                 setNodes(prev => {
-                     // 1. Filter out the crystallized node
-                     const remaining = prev.filter(n => n.id !== oldNode.id);
-
-                     // 2. Map over remaining nodes to fix links
-                     return remaining.map(n => {
-                         if (n.metadata?.pending_relations) {
-                             // Check if any relation points to the old ID
-                             const needsRepair = n.metadata.pending_relations.some(r => r.targetId === oldNode.id);
-
-                             if (needsRepair) {
-                                 console.log(`🔧 Repairing links in node ${n.title}`);
-                                 return {
-                                     ...n,
-                                     metadata: {
-                                         ...n.metadata,
-                                         pending_relations: n.metadata.pending_relations.map(r =>
-                                             r.targetId === oldNode.id
-                                             ? { ...r, targetId: newFileId } // SWAP ID
-                                             : r
-                                         )
-                                     }
-                                 };
-                             }
-                         }
-                         return n;
-                     });
-                 });
-            } else {
-                // Fallback if no ID returned (should not happen)
-                setNodes(prev => prev.filter(n => n.id !== crystallizeModal.node!.id));
-            }
-
-            setCrystallizeModal({ isOpen: false, node: null, isProcessing: false });
-            setExpandedNodeId(null); // Close modal if open
-
-        } catch (e) {
-            console.error("Crystallization Failed", e);
-            setCrystallizeModal(prev => ({ ...prev, isProcessing: false }));
-        }
+            return n;
+        }));
     };
 
-    // SAFETY: Warn on exit if ideas exist
-    useEffect(() => {
-        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-            if (nodes.length > 0) {
-                e.preventDefault();
-                e.returnValue = ''; // Chrome requires this
-            }
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [nodes]);
+    // VISUAL STYLES
+    const getStyle = (type: string) => {
+        const t = type.toLowerCase();
+        if (t === 'conflict' || t === 'enemy') return { border: 'border-red-500', text: 'text-red-400', bg: 'bg-red-500' };
+        if (t === 'ally' || t === 'object') return { border: 'border-cyan-500', text: 'text-cyan-400', bg: 'bg-cyan-500' };
+        if (t === 'canon' || t === 'character' || t === 'family') return { border: 'border-amber-500', text: 'text-amber-400', bg: 'bg-amber-500' };
+        if (t === 'idea') return { border: 'border-emerald-500', text: 'text-emerald-400', bg: 'bg-emerald-500' };
+        return { border: 'border-slate-600', text: 'text-slate-400', bg: 'bg-slate-600' };
+    };
+
+    const getLinkColor = (type: string, status?: string) => {
+        if (type === 'CONTRADICTION' || status === 'INVALID') return '#ff00ff'; // MAGENTA GLITCH
+        if (type === 'FAMILY' || type === 'CANON') return '#ddbf61';
+        if (type === 'ENEMY') return '#ff153f';
+        return '#00fff7'; // CYAN DEFAULT
+    };
 
     if (!isOpen) return null;
 
-    // Helper for Canon Drawer Selection
-    // We use unifiedNodes to find it, so we can display details even for merged entities
-    const selectedCanonNode = selectedCanonId ? unifiedNodes.find(n => n.id === selectedCanonId) : null;
+    // Helper for Canon Drawer
+    const selectedCanonNode = selectedCanonId ? entityNodes.find(n => n.id === selectedCanonId) : null;
 
     return (
-        <div
-            className="relative w-full h-full bg-transparent overflow-hidden font-sans text-titanium-100 flex flex-col touch-none pointer-events-none"
-        >
-            {/* 🟢 LOADER OVERLAY */}
+        <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-titanium-100 flex flex-col touch-none">
+
+            {/* 🟢 LOADER */}
             <AnimatePresence>
                 {loadingCanon && (
                     <motion.div
@@ -1398,532 +494,175 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                         className="absolute inset-0 z-[100] bg-titanium-950 flex flex-col items-center justify-center gap-4"
                     >
                         <Loader2 className="animate-spin text-cyan-500" size={48} />
-                        <span className="text-xs font-mono tracking-widest text-titanium-400">CONNECTING TO CANON VAULT...</span>
+                        <span className="text-xs font-mono tracking-widest text-titanium-400">CONNECTING TO OMNIVERSE...</span>
                     </motion.div>
                 )}
             </AnimatePresence>
 
-            {/* 🟢 GESTURAL LINKING OVERLAY (ACTIVE ONLY WHEN DRAGGING) */}
-            {draggingLink && (
-                <div
-                    className="fixed inset-0 z-[200] cursor-crosshair pointer-events-auto"
-                    onMouseMove={handleLinkMove}
-                    onMouseUp={() => setDraggingLink(null)}
-                >
-                    {/* VISUAL FEEDBACK: THE LASER LINE */}
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
-                        <line
-                            x1={nodes.find(n => n.id === draggingLink.sourceId)?.x || draggingLink.x}
-                            y1={nodes.find(n => n.id === draggingLink.sourceId)?.y || draggingLink.y}
-                            x2={draggingLink.x}
-                            y2={draggingLink.y}
-                            stroke="#00fff7"
-                            strokeWidth="2"
-                            strokeDasharray="5,5"
-                            className="animate-pulse drop-shadow-[0_0_8px_rgba(0,255,247,0.8)]"
-                        />
-                    </svg>
-                </div>
-            )}
-
-            {/* LAYER 0: THE INFINITE WHITEBOARD (Zoom Architecture) */}
-            <div className={`absolute inset-0 z-0 bg-[#141413]`}>
-                {/* 🟢 ZOOM WRAPPER: Replaces NexusGraph logic for Edit Mode */}
-                <TransformWrapper
-                    initialScale={1}
-                    minScale={0.1}
-                    maxScale={4}
-                    centerOnInit={true}
-                    limitToBounds={false}
-                    wheel={{ step: 0.1 }}
-                    panning={{ velocityDisabled: true }}
-                    onPanning={() => updateXarrowRef.current?.()}
-                    onZooming={() => updateXarrowRef.current?.()}
-                >
-                    {({ zoomIn, zoomOut, resetTransform }) => (
-                        <>
-                            {/* 🟢 LEVEL 3: UI CONTROLS (Floating Fixed) */}
-                            <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-auto">
-                                <button
-                                    onClick={() => zoomIn()}
-                                    className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg text-titanium-300 hover:text-white hover:border-cyan-500 hover:bg-slate-700 transition-all shadow-xl backdrop-blur-sm"
-                                    title="Zoom In"
-                                >
-                                    <Plus size={18} />
-                                </button>
-                                <button
-                                    onClick={() => zoomOut()}
-                                    className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg text-titanium-300 hover:text-white hover:border-cyan-500 hover:bg-slate-700 transition-all shadow-xl backdrop-blur-sm"
-                                    title="Zoom Out"
-                                >
-                                    <Minus size={18} />
-                                </button>
-                                <button
-                                    onClick={() => resetTransform()}
-                                    className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg text-titanium-300 hover:text-white hover:border-cyan-500 hover:bg-slate-700 transition-all shadow-xl backdrop-blur-sm"
-                                    title="Reset View"
-                                >
-                                    <RotateCcw size={18} />
-                                </button>
-                            </div>
-
-                            <TransformComponent
-                                wrapperClass="!w-full !h-full"
-                                contentClass="!w-full !h-full"
-                            >
-                                {/* 🟢 LEVEL 0: ARENA (4000x4000) */}
-                                <div
-                                    className="relative"
-                                    style={{ width: 4000, height: 4000 }}
-                                >
-                                    {/* GRID */}
-                                    <div
-                                        className="absolute inset-0 z-0 opacity-20 pointer-events-none"
-                                        style={{
-                                            backgroundImage: 'radial-gradient(#7c8090 1px, transparent 1px)',
-                                            backgroundSize: '40px 40px',
-                                            width: '100%',
-                                            height: '100%'
-                                        }}
-                                    />
-
-                                    {/* XWRAPPER CONTEXT */}
-                                    <Xwrapper>
-                                        <XarrowUpdater updateRef={updateXarrowRef} />
-
-                                        {nodes.map(node => {
-                                        const style = CONTENT_TYPES[node.metadata?.node_type || 'default'] || CONTENT_TYPES['default'];
-                                        const hasAlert = !!node.coherency_report;
-                                        // Determine initial position if not set (Center randomization)
-                                        const ARENA_SIZE = 4000;
-                                        const CENTER = ARENA_SIZE / 2;
-                                        // 🟢 SPAWN LOGIC: 2000 +/- offset
-                                        const initialX = CENTER - 150 + (Math.random() * 200 - 100);
-                                        const initialY = CENTER - 100 + (Math.random() * 200 - 100);
-
-                                        return (
-                                            <React.Fragment key={node.id}>
-                                                <motion.div
-                                                    id={node.id} // ID for Xarrow
-                                                    initial={{ opacity: 0, scale: 0.8, x: initialX, y: initialY }}
-                                                    animate={{
-                                                        opacity: 1,
-                                                        scale: 1,
-                                                        x: node.x !== undefined ? node.x : initialX,
-                                                        y: node.y !== undefined ? node.y : initialY
-                                                    }}
-                                                    drag
-                                                    dragMomentum={false}
-                                                    onDragEnd={(_, info) => {
-                                                        // Capture final position to state
-                                                        // We use the current visual position (state + delta)
-                                                        const currentX = (node.x !== undefined ? node.x : initialX);
-                                                        const currentY = (node.y !== undefined ? node.y : initialY);
-                                                        const newX = currentX + info.offset.x;
-                                                        const newY = currentY + info.offset.y;
-
-                                                        setNodes(prev => prev.map(n => n.id === node.id ? { ...n, x: newX, y: newY } : n));
-                                                    }}
-                                                    className={`absolute w-[300px] bg-slate-900/90 backdrop-blur-md border ${style.border} rounded-lg shadow-2xl flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing z-[20]`}
-                                                >
-                                                    {/* Header */}
-                                                    <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40 rounded-t-lg handle relative">
-                                                        <div className={`flex items-center gap-2 ${style.text}`}>
-                                                            <Diamond size={12} className="rotate-45" />
-                                                            <span className="text-[10px] font-bold tracking-widest uppercase truncate max-w-[150px]">{node.title}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2">
-                                                            {/* AUDIT STATUS */}
-                                                            {node.auditStatus === 'auditing' && <Loader2 size={12} className="animate-spin text-slate-500" />}
-
-                                                            {/* COHERENCY ALERT (Top Right as requested) */}
-                                                            {hasAlert && (
-                                                                <div className="group relative">
-                                                                    <TriangleAlert size={14} className="text-[#ff153f] animate-pulse cursor-help" />
-                                                                    {/* Tooltip */}
-                                                                    <div className="absolute right-0 top-full mt-2 w-56 bg-black border border-[#ff153f] p-3 rounded shadow-2xl z-50 hidden group-hover:block pointer-events-none">
-                                                                        <div className="text-[10px] font-bold text-[#ff153f] mb-1">{node.coherency_report?.warning}</div>
-                                                                        <div className="text-[10px] text-white leading-tight">{node.coherency_report?.explanation}</div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-
-                                                            <button onClick={() => setExpandedNodeId(node.id)} className="hover:text-white text-slate-500 transition-colors">
-                                                                <LayoutTemplate size={12} />
-                                                            </button>
-                                                        </div>
-
-                                                        {/* 🟢 GESTURAL LINK HANDLE (Right Edge) */}
-                                                        <div
-                                                            className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 bg-slate-800 border border-cyan-500/50 rounded-full hover:bg-cyan-500 cursor-crosshair z-50 flex items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all hover:scale-125"
-                                                            onMouseDown={(e) => handleLinkStart(node.id, e)}
-                                                        >
-                                                            <div className="w-1 h-1 bg-cyan-200 rounded-full" />
-                                                        </div>
-                                                    </div>
-                                                    {/* Body */}
-                                                    <div
-                                                        className="p-4 text-xs text-slate-300 font-serif leading-relaxed line-clamp-4 pointer-events-none select-none"
-                                                        onMouseUp={() => handleLinkDrop(node.id)}
-                                                    >
-                                                        {node.content}
-                                                    </div>
-                                                </motion.div>
-
-                                                {/* Render Arrows for this node's outgoing links */}
-                                                {node.metadata?.pending_relations?.map((rel, idx) => {
-                                                    // Check if target exists in WORKSPACE to draw arrow
-                                                    // If target is in CANON, we can't draw Xarrow to canvas node easily
-                                                    const targetExists = nodes.find(n => n.id === rel.targetId);
-                                                    if (!targetExists) return null;
-
-                                                    // ERROR LOGIC: Check status
-                                                    const isInvalid = (rel as any).status === 'INVALID' || rel.relationType === 'CONTRADICTION';
-
-                                                    return (
-                                                        <Xarrow
-                                                            key={`${node.id}-${rel.targetId}-${idx}`}
-                                                            start={node.id}
-                                                            end={rel.targetId}
-                                                            color={getLinkColor(rel.relationType, (rel as any).status)}
-                                                            strokeWidth={2}
-                                                            headSize={6}
-                                                            curveness={0.4}
-                                                            path="smooth"
-                                                            zIndex={10}
-                                                            startAnchor="auto"
-                                                            endAnchor="auto"
-                                                            dashness={isInvalid ? { strokeLen: 10, nonStrokeLen: 5, animation: 1 } : false}
-                                                            labels={{
-                                                                middle: (
-                                                                    <div
-                                                                        className="group relative flex items-center justify-center" // Tailwind para manejo de hover
-                                                                        style={{ cursor: 'pointer', pointerEvents: 'auto', width: 40, height: 40 }}
-                                                                    >
-                                                                        {/* ICONO DEL NODO CENTRAL (El punto en la línea) */}
-                                                                        <div className={`w-3 h-3 rounded-full border-2 bg-black ${getBorderColor(rel.relationType, (rel as any).status)} shadow-[0_0_10px_rgba(0,0,0,0.5)] transition-transform group-hover:scale-150`} />
-
-                                                                        {/* EL TOOLTIP FLOTANTE (Solo visible en hover) */}
-                                                                        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 w-56
-                                                                                        opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0
-                                                                                        bg-black/95 backdrop-blur-sm border rounded-lg p-3 text-xs text-white z-[9999] shadow-2xl pointer-events-none"
-                                                                             style={{ borderColor: getLinkColor(rel.relationType, (rel as any).status) }}
-                                                                        >
-                                                                            <div className="flex items-center gap-2 mb-1 border-b border-white/10 pb-1">
-                                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: getLinkColor(rel.relationType, (rel as any).status) }}></div>
-                                                                                <span className="font-bold uppercase text-[10px] tracking-wider" style={{color: getLinkColor(rel.relationType, (rel as any).status)}}>
-                                                                                    {rel.relationType === 'ANALYZING...' ? 'ESPERANDO ENLACE...' : rel.relationType}
-                                                                                </span>
-                                                                            </div>
-
-                                                                            {rel.relationType === 'ANALYZING...' ? (
-                                                                                <div className="flex items-center gap-2 text-titanium-400 py-2">
-                                                                                    <Loader2 size={12} className="animate-spin" />
-                                                                                    <span className="italic">Escaneando red neuronal...</span>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <p className="italic text-titanium-200 leading-relaxed">
-                                                                                    "{rel.reason || 'Sin datos.'}"
-                                                                                </p>
-                                                                            )}
-                                                                        </div>
-                                                                    </div>
-                                                                )
-                                                            }}
-                                                        />
-                                                    );
-                                                })}
-                                            </React.Fragment>
-                                        );
-                                    })}
-                                    </Xwrapper>
-                                </div>
-                            </TransformComponent>
-                        </>
-                    )}
-                </TransformWrapper>
-            </div>
-
-            {/* LAYER 0.5: CANON ARCHIVE (Left Panel) */}
-            <div
-                className={`absolute top-0 left-0 bottom-0 w-[300px] bg-titanium-950/95 border-r border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col pointer-events-auto
-                    ${isCanonArchiveOpen ? 'translate-x-0' : '-translate-x-full'}
-                `}
+            {/* 🟢 ZOOM WRAPPER */}
+            <TransformWrapper
+                initialScale={0.5}
+                minScale={0.1}
+                maxScale={4}
+                centerOnInit={true}
+                limitToBounds={false}
+                wheel={{ step: 0.1 }}
+                panning={{ velocityDisabled: true }}
+                onPanning={() => updateXarrowRef.current?.()}
+                onZooming={() => updateXarrowRef.current?.()}
             >
-                <div className="p-4 border-b border-titanium-800 bg-titanium-900/50 flex items-center justify-between">
-                     <h3 className="text-xs font-bold text-titanium-100 uppercase tracking-widest flex items-center gap-2">
-                        <Disc size={14} className="text-amber-500" />
-                        CANON ARCHIVE
-                     </h3>
-                     <button onClick={() => setIsCanonArchiveOpen(false)} className="text-titanium-500 hover:text-white">
-                        <X size={16} />
-                     </button>
-                </div>
-                <div className="p-4 border-b border-titanium-800">
-                    <input
-                        type="text"
-                        placeholder="Search Nexus..."
-                        value={canonSearchQuery}
-                        onChange={(e) => setCanonSearchQuery(e.target.value)}
-                        className="w-full bg-black/40 border border-titanium-700 rounded px-3 py-2 text-xs text-white placeholder-titanium-600 focus:outline-none focus:border-amber-500/50 transition-colors"
-                    />
-                </div>
-                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                    {canonCharacters
-                        .filter(c => !canonSearchQuery || (c.name?.toLowerCase().includes(canonSearchQuery.toLowerCase())))
-                        .map(char => (
-                        <button
-                            key={char.id}
-                            onClick={() => {
-                                // SUMMON PROTOCOL
-                                const existing = nodes.find(n => n.id === char.id);
-                                if (!existing) {
-                                    setNodes(prev => [...prev, {
-                                        id: char.id,
-                                        type: 'canon',
-                                        title: char.name,
-                                        content: char.role || "Personaje del Canon",
-                                        agentId: 'architect',
-                                        x: window.innerWidth / 2 - 150 + (Math.random() * 40 - 20),
-                                        y: window.innerHeight / 2 - 100 + (Math.random() * 40 - 20),
-                                        isCanon: true, // GOLD BORDER
-                                        isLocal: false,
-                                        metadata: { node_type: 'lore', tier: char.tier }
-                                    }]);
-                                }
-                            }}
-                            className="w-full text-left p-3 rounded hover:bg-white/5 border border-transparent hover:border-amber-500/20 group transition-all"
+                {({ zoomIn, zoomOut, resetTransform }) => (
+                    <>
+                        {/* CONTROLS */}
+                        <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-auto">
+                            <button onClick={() => zoomIn()} className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg hover:border-cyan-500"><Plus size={18} /></button>
+                            <button onClick={() => zoomOut()} className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg hover:border-cyan-500"><Minus size={18} /></button>
+                            <button onClick={() => resetTransform()} className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg hover:border-cyan-500"><RotateCcw size={18} /></button>
+                        </div>
+
+                        <TransformComponent
+                            wrapperClass="!w-full !h-full"
+                            contentClass="!w-full !h-full"
                         >
-                            <div className="text-xs font-bold text-titanium-200 group-hover:text-amber-400 truncate">{char.name}</div>
-                            <div className="text-[10px] text-titanium-500 truncate">{char.role || "Entidad Registrada"}</div>
-                        </button>
-                    ))}
-                </div>
-            </div>
+                            {/* ARENA 4000x4000 */}
+                            <div className="relative" style={{ width: 4000, height: 4000 }}>
+                                {/* GRID */}
+                                <div
+                                    className="absolute inset-0 z-0 opacity-10 pointer-events-none"
+                                    style={{
+                                        backgroundImage: 'radial-gradient(#7c8090 1px, transparent 1px)',
+                                        backgroundSize: '40px 40px',
+                                        width: '100%',
+                                        height: '100%'
+                                    }}
+                                />
 
-            {/* TOGGLE BUTTON FOR ARCHIVE */}
-            {!isCanonArchiveOpen && !expandedNodeId && (
-                <button
-                    onClick={() => setIsCanonArchiveOpen(true)}
-                    className="absolute top-24 left-0 z-40 bg-titanium-900/80 border-y border-r border-titanium-700 p-2 rounded-r-lg hover:bg-amber-900/20 hover:text-amber-400 hover:border-amber-500/50 transition-all pointer-events-auto"
-                >
-                    <Disc size={20} />
-                </button>
-            )}
+                                <Xwrapper>
+                                    {/* NODES */}
+                                    {simulatedNodes.map(node => (
+                                        <NodeCard
+                                            key={node.id}
+                                            node={node}
+                                            onClick={() => handleNodeClick(node)}
+                                            onLinkStart={(e) => handleLinkStart(node.id, e)}
+                                            onLinkDrop={() => handleLinkDrop(node.id)}
+                                            isExpanded={expandedNodeId === node.id}
+                                            styleType={getStyle((node as any).metadata?.node_type || (node as any).type || 'default')}
+                                        />
+                                    ))}
 
-            {/* LAYER 0.5: CANON DRAWER (Lifted State - Right Side) */}
+                                    {/* CONNECTIONS */}
+                                    {simulatedNodes.map(node => {
+                                        const rels = (node as any).relations || (node as any).metadata?.pending_relations || [];
+                                        return rels.map((rel: any, idx: number) => {
+                                            // Check existence
+                                            if (!simulatedNodes.find(n => n.id === rel.targetId)) return null;
+
+                                            const isConflict = rel.relationType === 'CONTRADICTION' || rel.status === 'INVALID';
+                                            return (
+                                                <Xarrow
+                                                    key={`${node.id}-${rel.targetId}-${idx}`}
+                                                    start={node.id}
+                                                    end={rel.targetId}
+                                                    color={getLinkColor(rel.relationType || rel.relation, rel.status)}
+                                                    strokeWidth={2}
+                                                    headSize={4}
+                                                    curveness={0.3}
+                                                    dashness={isConflict}
+                                                    zIndex={10}
+                                                />
+                                            );
+                                        });
+                                    })}
+                                </Xwrapper>
+                            </div>
+                        </TransformComponent>
+                    </>
+                )}
+            </TransformWrapper>
+
+            {/* 🟢 RIGHT DRAWER: CANON INSPECTOR */}
             <div
-                className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col
-                    ${selectedCanonNode ? 'translate-x-0' : 'translate-x-full'}
+                className={`absolute top-0 right-0 bottom-0 w-[400px] bg-titanium-950/95 border-l border-titanium-800 shadow-2xl transform transition-transform duration-300 ease-out z-50 flex flex-col pointer-events-auto
+                    ${selectedCanonId ? 'translate-x-0' : 'translate-x-full'}
                 `}
             >
                 {selectedCanonNode && (
-                    <div className="flex flex-col h-full pointer-events-auto">
+                    <div className="flex flex-col h-full">
                         <div className="p-6 border-b border-titanium-800 bg-titanium-900/50">
-                            <div className="flex items-center justify-between mb-2">
-                                <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded border
-                                    ${selectedCanonNode.type === 'character' ? 'text-cyan-400 border-cyan-900 bg-cyan-950/30' :
-                                    selectedCanonNode.type === 'location' ? 'text-purple-400 border-purple-900 bg-purple-950/30' :
-                                    selectedCanonNode.type === 'event' ? 'text-red-400 border-red-900 bg-red-950/30' :
-                                    'text-amber-400 border-amber-900 bg-amber-950/30'}
-                                `}>
+                            <div className="flex items-center justify-between mb-4">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-cyan-500 border border-cyan-900 px-2 py-1 rounded bg-cyan-950/30">
                                     {selectedCanonNode.type}
                                 </span>
                                 <button onClick={() => setSelectedCanonId(null)} className="text-titanium-500 hover:text-white">
-                                    <X size={18} />
+                                    <X size={20} />
                                 </button>
                             </div>
-                            <h2 className="text-2xl font-bold text-white leading-tight">{selectedCanonNode.name}</h2>
+                            <h2 className="text-3xl font-bold text-white font-serif">{selectedCanonNode.name}</h2>
                         </div>
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">
                             <div className="space-y-2">
-                                <h4 className="text-xs font-bold text-titanium-500 uppercase">Descripción</h4>
-                                <p className="text-titanium-300 text-sm leading-relaxed">
-                                    {selectedCanonNode.description || "Sin descripción registrada en el Nexus."}
+                                <h4 className="text-xs font-bold text-titanium-500 uppercase tracking-wider">Descripción</h4>
+                                <p className="text-titanium-200 text-sm leading-relaxed font-serif">
+                                    {(selectedCanonNode as any).meta?.brief || (selectedCanonNode as any).description || "Sin descripción disponible."}
                                 </p>
+                            </div>
+                            <div className="space-y-2">
+                                <h4 className="text-xs font-bold text-titanium-500 uppercase tracking-wider">Metadatos</h4>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-black/20 p-3 rounded border border-titanium-800">
+                                        <div className="text-[10px] text-titanium-500 uppercase">Tier</div>
+                                        <div className="text-sm font-bold text-white">{(selectedCanonNode as any).meta?.tier || "N/A"}</div>
+                                    </div>
+                                    <div className="bg-black/20 p-3 rounded border border-titanium-800">
+                                        <div className="text-[10px] text-titanium-500 uppercase">Estado</div>
+                                        <div className="text-sm font-bold text-emerald-400">CANON</div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
 
-
-            {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
-            <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-80 pointer-events-none">
-                <AnimatePresence>
-                    {activeAlert && (
-                        <motion.div
-                            key="coherency-alert"
-                            initial={{ opacity: 0, x: 20 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={{ opacity: 0, x: 20 }}
-                            className="bg-black/90 border-l-2 border-red-500 p-4 rounded backdrop-blur-md shadow-2xl pointer-events-auto"
-                        >
-                            <div className="flex items-start gap-3">
-                                <TriangleAlert size={20} className="text-red-500 mt-1 shrink-0 animate-pulse" />
-                                <div>
-                                    <div className="text-xs font-bold text-red-400 tracking-widest mb-1">{activeAlert.warning.toUpperCase()}</div>
-                                    <p className="text-[11px] font-serif text-titanium-200 leading-relaxed">
-                                        {activeAlert.explanation}
-                                    </p>
-                                    <div className="mt-2 text-[10px] font-mono text-red-500/80">
-                                        SOURCE: {activeAlert.file_source}
-                                    </div>
+            {/* 🟢 CENTER MODAL: IDEA EDIT */}
+            <AnimatePresence>
+                {expandedNodeId && (
+                     <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-12 pointer-events-auto"
+                        onClick={() => setExpandedNodeId(null)}
+                     >
+                         <motion.div
+                            initial={{ scale: 0.9, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.9, opacity: 0 }}
+                            className="w-full max-w-4xl h-[80vh] bg-slate-900 border border-slate-700 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+                            onClick={e => e.stopPropagation()}
+                         >
+                            <div className="p-6 border-b border-slate-700 flex justify-between items-center bg-slate-950">
+                                <div className="flex items-center gap-3">
+                                    <BrainCircuit className="text-emerald-500" />
+                                    <h2 className="text-xl font-bold text-white">
+                                        {nodes.find(n => n.id === expandedNodeId)?.title}
+                                    </h2>
+                                </div>
+                                <button onClick={() => setExpandedNodeId(null)} className="text-slate-500 hover:text-white"><X /></button>
+                            </div>
+                            <div className="flex-1 p-8 overflow-y-auto">
+                                <div className="prose prose-invert max-w-none">
+                                    <MarkdownRenderer
+                                        content={nodes.find(n => n.id === expandedNodeId)?.content || ""}
+                                        mode="full"
+                                    />
                                 </div>
                             </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </div>
-
-            {/* LAYER 1: DYNAMIC NODES & EXPANSION OVERLAY (Only for Expanded Modal now) */}
-            <AnimatePresence>
-                {nodes.map(node => {
-                   const agent = AGENTS[node.agentId];
-                   const nodeType = node.metadata?.node_type || 'default';
-                   const style = CONTENT_TYPES[nodeType] || CONTENT_TYPES['default'];
-
-                   const isExpanded = expandedNodeId === node.id;
-
-                   if (isExpanded) {
-                       // 🟢 DATAPAD: EXPANDED MODE (Macro-Card)
-                       return (
-                           <React.Fragment key={node.id}>
-                               {/* BACKDROP */}
-                               <motion.div
-                                    initial={{ opacity: 0 }}
-                                    animate={{ opacity: 1 }}
-                                    exit={{ opacity: 0 }}
-                                    className="fixed inset-0 bg-black/80 z-[60] backdrop-blur-sm"
-                                    onClick={() => setExpandedNodeId(null)}
-                               />
-
-                               {/* EXPANDED CARD */}
-                               <motion.div
-                                   layoutId={`node-${node.id}`}
-                                   className={`fixed inset-0 m-auto w-[60vw] h-[80vh] bg-slate-900 border rounded-xl z-[100] overflow-hidden flex flex-col shadow-2xl touch-auto pointer-events-auto ${style.border}`}
-                                   transition={{ type: "spring", bounce: 0.15, duration: 0.6 }}
-                               >
-                                    {/* Expanded Header */}
-                                    <div className="flex items-center justify-between p-6 border-b border-white/10 bg-black/20 shrink-0">
-                                        <div className={`flex items-center gap-3 ${style.text}`}>
-                                            <Diamond size={16} className="rotate-45" />
-                                            <span className="text-sm font-bold tracking-[0.2em] uppercase">{node.metadata?.node_type || node.type}</span>
-                                        </div>
-                                        <button
-                                            onClick={() => setExpandedNodeId(null)}
-                                            className="p-2 hover:bg-white/10 rounded-full text-titanium-400 hover:text-white transition-colors"
-                                        >
-                                            <X size={24} />
-                                        </button>
-                                    </div>
-
-                                    {/* Expanded Content */}
-                                    <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
-                                        <div className="max-w-4xl mx-auto">
-                                            <h2 className="text-3xl font-bold text-white mb-6 font-serif">{node.title}</h2>
-                                            <div className="prose prose-invert prose-lg max-w-none text-titanium-200 font-serif leading-loose whitespace-pre-wrap">
-                                                <MarkdownRenderer content={node.content} mode="full" />
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Expanded Footer */}
-                                    <div className="p-4 border-t border-white/10 bg-black/40 flex justify-between items-center shrink-0">
-                                        <div className="flex items-center gap-3 opacity-50">
-                                            <agent.icon size={16} className={`text-${agent.color}-400`} />
-                                            <span className="text-xs font-mono text-titanium-400">GENERATED BY {agent.name}</span>
-                                        </div>
-                                        <button
-                                            onClick={() => handleCrystallize(node)}
-                                            className="flex items-center gap-2 px-6 py-3 bg-titanium-800 hover:bg-cyan-900/30 border border-titanium-700 hover:border-cyan-500/50 rounded-lg transition-all group"
-                                        >
-                                            <span className="text-xs font-bold text-titanium-300 group-hover:text-cyan-400 tracking-wider">💎 CRISTALIZAR MEMORIA</span>
-                                        </button>
-                                    </div>
-                               </motion.div>
-                           </React.Fragment>
-                       );
-                   }
-
-                   // Note: Standard Micro-Card is now rendered by NexusGraph (Canvas)
-                   return null;
-                })}
+                         </motion.div>
+                     </motion.div>
+                )}
             </AnimatePresence>
-
-            {/* LAYER 2: INTERROGATION MODAL */}
-            <InterrogationModal
-                isOpen={interrogation.isOpen}
-                questions={interrogation.questions}
-                history={interrogation.history}
-                depth={interrogation.depth}
-                isThinking={isLoading}
-                onSubmit={handleInterrogationSubmit}
-                onCancel={() => setInterrogation(prev => ({ ...prev, isOpen: false }))}
-            />
-
-            {/* LAYER 2.5: CRYSTALLIZE MODAL */}
-            <CrystallizeModal
-                isOpen={crystallizeModal.isOpen}
-                onClose={() => setCrystallizeModal(prev => ({ ...prev, isOpen: false }))}
-                onConfirm={confirmCrystallization}
-                node={crystallizeModal.node}
-                isProcessing={crystallizeModal.isProcessing}
-            />
-
-            {/* LAYER 3: COMMAND DECK (OPERATION MONOLITH) */}
-            {/* 🟢 ZEN MODE: HIDE WHEN EXPANDED */}
-            <motion.div
-                className="absolute bottom-12 left-1/2 -translate-x-1/2 ml-12 z-50 flex flex-col gap-0 items-center w-[600px] pointer-events-auto touch-auto"
-                animate={{ opacity: expandedNodeId ? 0 : 1, y: expandedNodeId ? 20 : 0, pointerEvents: expandedNodeId ? 'none' : 'auto' }}
-            >
-                {/* Row 1: The Input */}
-                <input
-                    type="text"
-                    aria-label="Input de Comando del Motor Mundial"
-                    disabled={isLoading}
-                    placeholder={isLoading ? statusMessage : "Initialize simulation protocol..."}
-                    className={`w-full bg-black/60 border border-titanium-500/50 rounded-t-xl rounded-b-none px-6 py-4 text-titanium-100 placeholder-titanium-600 backdrop-blur-md focus:outline-none focus:ring-1 ${activeAgentConfig.styles.focusRing} transition-all font-mono text-sm shadow-2xl z-10 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !isLoading) {
-                            const val = e.currentTarget.value.trim();
-                            if (val) {
-                                generateNode(val);
-                                e.currentTarget.value = '';
-                            }
-                        }
-                    }}
-                />
-
-                {/* Row 2: The Parameters ("The Chin") */}
-                <div className="w-full bg-black/80 backdrop-blur-xl border border-titanium-500/50 border-t-0 rounded-t-none rounded-b-xl px-4 py-3 flex items-center justify-between gap-4 -mt-px shadow-2xl">
-                    {/* Left: Chaos Slider (65%) */}
-                    <div className="w-[65%]">
-                        <ChaosSlider value={chaosLevel} onChange={setChaosLevel} />
-                    </div>
-
-                    {/* Right: Status & Toggle (35%) */}
-                    <div className="w-[35%] flex items-center justify-end gap-4">
-                        {/* Status Indicator */}
-                        <div className="flex flex-col items-end">
-                            <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full animate-pulse ${combatMode ? 'bg-red-500' : 'bg-green-500'}`} />
-                                <span className="text-[10px] font-bold text-titanium-400">ONLINE</span>
-                            </div>
-                            <span className="text-[9px] font-mono text-titanium-600">LATENCY: 12ms</span>
-                        </div>
-
-                        {/* Combat Toggle */}
-                        <CombatToggle value={combatMode} onChange={setCombatMode} />
-                    </div>
-                </div>
-            </motion.div>
-
-            {/* 🟢 UI: REC INDICATOR */}
-            <div className="absolute bottom-8 right-8 z-10 flex items-center gap-2 opacity-50 pointer-events-none">
-                 <Disc className="text-red-500 animate-pulse" size={12} />
-                 <span className="text-[9px] font-mono text-red-500/80 tracking-widest">REC</span>
-            </div>
 
         </div>
     );
