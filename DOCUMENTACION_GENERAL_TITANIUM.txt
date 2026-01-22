@@ -1,0 +1,117 @@
+================================================================================
+MANIFIESTO DEL PROYECTO TITANIUM: LA CATEDRAL DE CÓDIGO
+================================================================================
+VERSIÓN: 3.2 (Fase 5 - Integración Gemini 3.0)
+ESTADO: EN DESARROLLO ACTIVO
+AUTOR: EQUIPO DE INGENIERÍA (IA + HUMANO)
+
+--------------------------------------------------------------------------------
+1. VISIÓN: LA CATEDRAL Y EL BÚNKER
+--------------------------------------------------------------------------------
+No estamos construyendo un simple editor de texto. Estamos construyendo una
+"Catedral de Titanio": una estructura monumental diseñada para elevar el proceso
+creativo humano, sostenida por una infraestructura de seguridad paranoica.
+
+Nuestra filosofía se basa en dos principios en tensión:
+1.  LA MAGIA (La Catedral): La IA no debe ser un simple autocompletar. Debe ser
+    un "Espejo Activo" que entienda la trama, detecte contradicciones y visualice
+    la estructura profunda de la obra.
+2.  LA SEGURIDAD (El Búnker): La "Verdad" nunca debe perderse. Si la IA falla,
+    el archivo físico en Google Drive permanece inmutable. La estructura debe ser
+    lo suficientemente robusta para contener el caos de la creatividad.
+
+--------------------------------------------------------------------------------
+2. ARQUITECTURA SAGRADA (EL STACK)
+--------------------------------------------------------------------------------
+Nuestro sistema es un híbrido "Nube-Local" diseñado para la persistencia absoluta.
+
+[CEREBRO]
+*   Google Gemini 3.0 (Pro/Reasoning & Flash): El motor cognitivo. Usamos modelos
+    de "Alto Razonamiento" para auditoría lógica y modelos "Flash" para tareas
+    de alta velocidad (vectorización, extracción).
+
+[CUERPO]
+*   Frontend: React + Vite + Tailwind CSS. Una interfaz "Titanium Shell" oscura,
+    rápida y modular.
+*   Backend: Firebase Cloud Functions (Node.js 20+). Serverless para escalabilidad.
+
+[MEMORIA]
+*   Nivel 0 (La Verdad Física): Google Drive. Archivos Markdown (.md) reales.
+    Si el sistema colapsa, el usuario aún tiene sus archivos.
+*   Nivel 1 (La Verdad Indexada): Firestore `TDB_Index`. Metadatos, vectores
+    semánticos y grafos de relaciones. Actúa como caché de alta velocidad.
+
+--------------------------------------------------------------------------------
+3. LOS PILARES (COMPONENTES MAYORES)
+--------------------------------------------------------------------------------
+
+A. LA FORJA DE ALMAS (THE FORGE)
+--------------------------------
+El laboratorio alquímico donde nacen las entidades.
+*   Propósito: Creación, interrogatorio y materialización de personajes y lore.
+*   Tecnología Clave:
+    -   `ForgeChat`: Una interfaz de chat consciente del contexto (Scope).
+    -   `ScopeTreeSelector`: Permite a la IA "enfocar" su atención en carpetas
+        específicas del proyecto, ignorando el ruido global.
+    -   Materialización: La IA tiene permiso para invocar herramientas (`create_lore_file`)
+        y crear archivos físicos en Drive basados en la conversación.
+
+B. EL PERFORADOR DE MUNDOS (WORLD ENGINE)
+-----------------------------------------
+El sistema visual que conecta los puntos invisibles.
+*   Propósito: Visualización de grafos y detección de "La Red Roja" (relaciones).
+*   Tecnología Clave:
+    -   `WorldEnginePanel`: Una "Arena Masiva" de 4000x4000px virtualizada.
+    -   Física: Usa `d3-force` para simular gravedad y repulsión entre nodos.
+        Los nodos se organizan orgánicamente antes de "congelarse" (Warm-up Tick).
+    -   Micro-Cards: Los nodos no son círculos, son tarjetas modulares con
+        iconografía semántica y alertas visuales.
+    -   Titan Link: El backend (`worldEngine`) analiza el grafo visible y sugiere
+        conexiones lógicas (ej. "Si A odia a B, y B es padre de C...").
+
+--------------------------------------------------------------------------------
+4. LOS CUSTODIOS (SISTEMAS DE DEFENSA)
+--------------------------------------------------------------------------------
+
+A. EL CENTINELA (SEGURIDAD E INTEGRIDAD)
+----------------------------------------
+El sistema inmunológico del proyecto.
+*   Misión: Proteger la integridad de los datos y prevenir alucinaciones técnicas.
+*   Mecanismos:
+    -   Drift Detection: Compara el vector del contenido actual con el "Centroide"
+        del proyecto para detectar si el tono se desvía demasiado.
+    -   Hash Check: Evita re-procesar archivos que no han cambiado en Drive.
+    -   Hard Bindings: En el grafo visual, fuerza la actualización de líneas
+        durante el paneo/zoom para evitar "lag" visual, priorizando coherencia.
+
+B. EL GUARDIÁN DEL CANON (AUDITORÍA NARRATIVA)
+----------------------------------------------
+El crítico literario despiadado que vive en la máquina.
+*   Misión: Detectar contradicciones lógicas y errores de continuidad.
+*   Personalidades (IA):
+    -   "El Hater": Un módulo específico diseñado para criticar la evolución de
+        personajes ("TRAITOR detection"). Si un personaje actúa fuera de su
+        personalidad establecida, el Hater lo marca.
+    -   Reality Filter: Verifica si los eventos del borrador violan las
+        "Leyes del Mundo" (ej. Magia, Cronología) extraídas del Canon.
+    -   Resonator: Busca "Semillas de Trama" olvidadas en la base de datos vectorial.
+
+--------------------------------------------------------------------------------
+5. FLUJO DE DATOS Y LÍMITES
+--------------------------------------------------------------------------------
+*   Sincronización: El sistema favorece la "Sincronización Unidireccional" desde
+    Drive hacia Firestore. Drive es la autoridad.
+*   Límites Actuales (Sujetos a cambio):
+    -   Input IA: Máximo 100k caracteres por análisis.
+    -   Grafo: Optimizado para ~50-100 nodos visibles simultáneamente.
+    -   Modelo: La "Alta Razón" (Gemini 3.0) es costosa, por lo que se usa
+        selectivamente para auditorías profundas, mientras que "Flash" maneja
+        la interacción rápida.
+
+--------------------------------------------------------------------------------
+NOTA FINAL
+--------------------------------------------------------------------------------
+Este documento es un mapa vivo. El territorio cambia con cada commit.
+La prioridad actual es perfeccionar la "Magia" (la capacidad de la IA para
+entender y mejorar la historia) manteniendo los muros del "Búnker" lo
+suficientemente altos para que el escritor duerma tranquilo.
