@@ -1,0 +1,56 @@
+REPORTE DE OPERACIÓN: FUERZA BRUTA (WORLD ENGINE)
+==================================================
+
+FECHA: 2024-02-??
+AGENTE: Jules
+OBJETIVO: Resucitar la visualización del "Perforador de Mundos" (World Engine) y alinearla con la visión de "Gravedad Narrativa".
+
+1. QUÉ SE HIZO (ACCIONES TÁCTICAS)
+----------------------------------
+Siguiendo las órdenes directas del Comandante, ejecuté cuatro maniobras de "Fuerza Bruta" para romper el estancamiento visual:
+
+A. BYPASS DE DATOS (Protocolo Frankenstein):
+   - Se cortó la conexión con Firestore (temporalmente).
+   - Se inyectaron los datos de prueba (`FRANKENSTEIN_DATA`) directamente en el estado inicial.
+   - Resultado: El grafo carga instantáneamente. Cero latencia. Se eliminó la incertidumbre de si la base de datos estaba vacía o lenta.
+
+B. FÍSICA SOLAR (Nueva Arquitectura):
+   - Se eliminó la lógica de "Grilla" (X/Y fijos) que trataba a los nodos como fichas de tablero.
+   - Se implementó `d3.forceRadial`:
+     * ESTRELLAS (Personajes/Canon): Atracción masiva al centro (0,0).
+     * PLANETAS (Ubicaciones): Órbita forzada a un radio de ~400px.
+     * COMETAS (Ideas): Órbita exterior o flotación libre.
+   - Se eliminaron las coordenadas fijas (`fx`, `fy`) que venían en los datos y "congelaban" la simulación.
+
+C. SIMULACIÓN EN VIVO (Live Tick):
+   - Se desactivó el "calentamiento" (warm-up) silencioso que calculaba la física antes de pintar.
+   - Se activó el listener `.on("tick")`. Ahora vemos la explosión inicial y cómo cada nodo viaja a su lugar. El grafo "respira".
+   - Se añadió un botón de emergencia "RE-SIMULAR" para reiniciar el Big Bang a voluntad.
+
+D. CANDADO DE INTERACCIÓN (Capture Events):
+   - El problema de "se mueve el mapa al arrastrar la tarjeta" se solucionó con violencia.
+   - Usé `onPointerDownCapture` con `e.stopPropagation()`. Esto intercepta el clic en la fase de captura (bajando por el DOM) antes de que la librería de Zoom/Pan se entere siquiera de que ocurrió.
+
+2. POR QUÉ SE HIZO (LA ESTRATEGIA)
+----------------------------------
+El estado anterior era inaceptable porque era estático. Un grafo narrativo debe sentirse orgánico.
+- Hice el Bypass para poder ver *algo* y trabajar en la estética sin depender de la red.
+- Cambié la física porque la visión del Comandante no es un organigrama (jerárquico), sino un sistema solar (gravitacional). La importancia de un personaje se mide por cuánto atrae a otros, no por dónde lo puse yo manualmente.
+
+3. PROBLEMAS ENCONTRADOS (OBSTÁCULOS)
+-------------------------------------
+- El Enemigo Invisible (fx/fy): D3 intentaba mover los nodos, pero los datos traían propiedades `fx` (fixed x) y `fy` guardadas de sesiones anteriores. Esto clavaba los nodos en su lugar, haciendo parecer que la física estaba rota. Tuve que purgar esas propiedades manualmente al cargar.
+- La Guerra de Eventos: `react-zoom-pan-pinch` es muy agresivo capturando el ratón. Los métodos suaves (`stopPropagation` en burbujeo) no funcionaban. Fue necesario usar la fase de captura (Capture Phase) para ganar la prioridad.
+
+4. ENTENDIMIENTO DEL "PERFORADOR DE MUNDOS"
+-------------------------------------------
+He logrado una comprensión más profunda de este componente. No es una pizarra blanca (Whiteboard) como Miro o excalidraw.
+- Es una **Simulación Viva**: Los nodos no están donde el usuario los deja, sino donde su "naturaleza" (Tipo, Relaciones) dicta que deben estar.
+- Es el **Sistema Nervioso** del proyecto: Las líneas no son simples conectores, son tensiones. Una línea roja entre dos personajes debe sentirse tensa.
+- Filosofía "Catedral": Priorizamos la magia y la sensación de inmensidad (el fondo Void, el zoom infinito) sobre la utilidad segura y aburrida de una lista de archivos.
+
+ESTADO FINAL:
+El sistema ahora es reactivo, táctil y visualmente coherente con la metáfora espacial.
+
+Firma,
+Jules.
