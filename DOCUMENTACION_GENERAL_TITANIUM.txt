@@ -1,7 +1,7 @@
 ================================================================================
 MANIFIESTO DEL PROYECTO TITANIUM: LA CATEDRAL DE CÓDIGO
 ================================================================================
-VERSIÓN: 3.2 (Fase 5 - Integración Gemini 3.0)
+VERSIÓN: 3.3 (Fase 5 - Integración Gemini 3.0 & Herramientas Especializadas)
 ESTADO: EN DESARROLLO ACTIVO
 AUTOR: EQUIPO DE INGENIERÍA (IA + HUMANO)
 
@@ -70,7 +70,69 @@ El sistema visual que conecta los puntos invisibles.
         conexiones lógicas (ej. "Si A odia a B, y B es padre de C...").
 
 --------------------------------------------------------------------------------
-4. LOS CUSTODIOS (SISTEMAS DE DEFENSA)
+4. HERRAMIENTAS DE OFICIO
+--------------------------------------------------------------------------------
+Módulos especializados que extienden las capacidades de la Forja y el Perforador.
+
+A. EL TRIBUNAL LITERARIO (`summonTheTribunal`)
+----------------------------------------------
+Un consejo de tres jueces IA diseñado para despedazar (constructivamente) el texto.
+*   **El Arquitecto:** Juez de lógica, estructura y agujeros de guion. Frío y preciso.
+*   **El Bardo:** Juez de estética, prosa y resonancia emocional. Apasionado.
+*   **El Usuario de Twitter** (antes "Hater"): Juez de mercado y cinismo. Busca clichés,
+    aburrimiento y factores de "cringe". Brutalmente honesto.
+
+B. EL LABORATORIO DE IDEAS (`LaboratoryPanel`)
+----------------------------------------------
+Un espacio de experimentación aislado del Canon principal.
+*   Permite "hablar con la biblioteca": Un chat RAG dedicado exclusivamente a los
+    archivos de referencia (investigación) sin contaminar la memoria narrativa.
+
+C. EL CRONOGRAMA (`extractTimelineEvents`)
+------------------------------------------
+El historiador del sistema.
+*   Analiza textos para extraer fechas absolutas y relativas.
+*   Protocolo de "Ancla Temporal": Si detecta contradicciones cronológicas
+    (ej. un personaje muerto hablando en el futuro), emite alertas de paradoja.
+
+D. LA IMPRENTA (`compileManuscript`)
+------------------------------------
+El motor de publicación.
+*   Compila múltiples archivos Markdown dispersos en un único manuscrito PDF/EPUB.
+*   Capacidad de "Smart Breaks": Detecta capítulos automáticamente basándose en headers.
+
+E. EL CÓDICE (TUTORIAL Y AYUDA)
+-------------------------------
+No confundir con el Manual de Campo. "El Códice" es la capa de ayuda contextual
+que explica al usuario cómo operar la maquinaria de Titanium.
+
+--------------------------------------------------------------------------------
+5. INFRAESTRUCTURA Y ACCESO
+--------------------------------------------------------------------------------
+
+A. GESTIÓN DE PROYECTO (`ProjectConfigContext`)
+-----------------------------------------------
+Titanium no "posee" los archivos, los "toma prestados" de Google Drive.
+*   **Carpetas Canon:** Donde vive la historia real.
+*   **Carpetas de Recursos:** Material de referencia (imágenes, notas) que no es historia.
+*   **Manual de Campo (`FileTree`):** El explorador visual de archivos. Es la interfaz
+    humana para navegar la estructura física de Drive desde dentro de la app.
+
+B. AUTENTICACIÓN Y TOKEN
+------------------------
+*   El sistema usa **Firebase Auth** para la identidad del usuario.
+*   **Google Access Token:** Se gestiona un token de OAuth 2.0 específico con alcance
+    `drive.file` para permitir que el Backend (Cloud Functions) lea y escriba en Drive
+    en nombre del usuario. Este token es efímero y crítico para la operación.
+
+C. EL INDEXADO NUCLEAR
+----------------------
+Cuando la memoria caché (`TDB_Index`) se corrompe o desincroniza de la realidad (Drive):
+*   **Botón Nuclear:** Borra toda la base de datos vectorial y re-escanea Drive desde cero.
+    Es la opción de último recurso para restaurar la "Verdad".
+
+--------------------------------------------------------------------------------
+6. LOS CUSTODIOS (SISTEMAS DE DEFENSA)
 --------------------------------------------------------------------------------
 
 A. EL CENTINELA (SEGURIDAD E INTEGRIDAD)
@@ -89,24 +151,11 @@ B. EL GUARDIÁN DEL CANON (AUDITORÍA NARRATIVA)
 El crítico literario despiadado que vive en la máquina.
 *   Misión: Detectar contradicciones lógicas y errores de continuidad.
 *   Personalidades (IA):
-    -   "El Hater": Un módulo específico diseñado para criticar la evolución de
-        personajes ("TRAITOR detection"). Si un personaje actúa fuera de su
-        personalidad establecida, el Hater lo marca.
+    -   "El Hater" (Usuario de Twitter): Módulo específico diseñado para criticar
+        la evolución de personajes ("TRAITOR detection").
     -   Reality Filter: Verifica si los eventos del borrador violan las
         "Leyes del Mundo" (ej. Magia, Cronología) extraídas del Canon.
     -   Resonator: Busca "Semillas de Trama" olvidadas en la base de datos vectorial.
-
---------------------------------------------------------------------------------
-5. FLUJO DE DATOS Y LÍMITES
---------------------------------------------------------------------------------
-*   Sincronización: El sistema favorece la "Sincronización Unidireccional" desde
-    Drive hacia Firestore. Drive es la autoridad.
-*   Límites Actuales (Sujetos a cambio):
-    -   Input IA: Máximo 100k caracteres por análisis.
-    -   Grafo: Optimizado para ~50-100 nodos visibles simultáneamente.
-    -   Modelo: La "Alta Razón" (Gemini 3.0) es costosa, por lo que se usa
-        selectivamente para auditorías profundas, mientras que "Flash" maneja
-        la interacción rápida.
 
 --------------------------------------------------------------------------------
 NOTA FINAL
