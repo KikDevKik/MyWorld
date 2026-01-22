@@ -12,7 +12,10 @@ import {
     Disc,
     Diamond,
     Loader2,
-    Link as LinkIcon
+    Link as LinkIcon,
+    Plus,
+    Minus,
+    RotateCcw
 } from 'lucide-react';
 import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
@@ -1435,15 +1438,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
             {/* LAYER 0: THE INFINITE WHITEBOARD (Zoom Architecture) */}
             <div className={`absolute inset-0 z-0 bg-[#141413]`}>
-                {/* DOT GRID (Fixed Background) */}
-                <div
-                    className="absolute inset-0 opacity-20 pointer-events-none"
-                    style={{
-                        backgroundImage: 'radial-gradient(#7c8090 1px, transparent 1px)',
-                        backgroundSize: '20px 20px'
-                    }}
-                />
-
                 {/* 🟢 ZOOM WRAPPER: Replaces NexusGraph logic for Edit Mode */}
                 <TransformWrapper
                     initialScale={1}
@@ -1455,15 +1449,52 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                     panning={{ velocityDisabled: true }}
                 >
                     {({ zoomIn, zoomOut, resetTransform }) => (
-                        <TransformComponent
-                            wrapperStyle={{ width: "100%", height: "100%", overflow: "hidden" }}
-                            contentStyle={{ width: "100%", height: "100%" }}
-                        >
-                            {/* LAYER 0.8: WORKSPACE (HTML CARDS & CONNECTIONS) */}
-                            {/* 🟢 MOVED INSIDE TRANSFORM COMPONENT TO SCALE TOGETHER */}
-                            <div className="relative w-full h-full" style={{ width: '100vw', height: '100vh' }}>
-                                <Xwrapper>
-                                    {nodes.map(node => {
+                        <>
+                            {/* 🟢 LEVEL 3: UI CONTROLS (Floating Fixed) */}
+                            <div className="absolute bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-auto">
+                                <button
+                                    onClick={() => zoomIn()}
+                                    className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg text-titanium-300 hover:text-white hover:border-cyan-500 hover:bg-slate-700 transition-all shadow-xl backdrop-blur-sm"
+                                    title="Zoom In"
+                                >
+                                    <Plus size={18} />
+                                </button>
+                                <button
+                                    onClick={() => zoomOut()}
+                                    className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg text-titanium-300 hover:text-white hover:border-cyan-500 hover:bg-slate-700 transition-all shadow-xl backdrop-blur-sm"
+                                    title="Zoom Out"
+                                >
+                                    <Minus size={18} />
+                                </button>
+                                <button
+                                    onClick={() => resetTransform()}
+                                    className="p-3 bg-slate-800/90 border border-slate-600 rounded-lg text-titanium-300 hover:text-white hover:border-cyan-500 hover:bg-slate-700 transition-all shadow-xl backdrop-blur-sm"
+                                    title="Reset View"
+                                >
+                                    <RotateCcw size={18} />
+                                </button>
+                            </div>
+
+                            <TransformComponent
+                                wrapperStyle={{ width: "100%", height: "100%", overflow: "hidden" }}
+                                contentStyle={{ width: "100%", height: "100%" }}
+                            >
+                                {/* 🟢 LEVEL 0: BACKGROUND GRID (Scaling) */}
+                                <div
+                                    className="absolute inset-0 z-0 opacity-20 pointer-events-none"
+                                    style={{
+                                        backgroundImage: 'radial-gradient(#7c8090 1px, transparent 1px)',
+                                        backgroundSize: '20px 20px',
+                                        width: '100%',
+                                        height: '100%'
+                                    }}
+                                />
+
+                                {/* LAYER 0.8: WORKSPACE (HTML CARDS & CONNECTIONS) */}
+                                {/* 🟢 MOVED INSIDE TRANSFORM COMPONENT TO SCALE TOGETHER */}
+                                <div className="relative w-full h-full" style={{ width: '100vw', height: '100vh' }}>
+                                    <Xwrapper>
+                                        {nodes.map(node => {
                                         const style = CONTENT_TYPES[node.metadata?.node_type || 'default'] || CONTENT_TYPES['default'];
                                         const hasAlert = !!node.coherency_report;
                                         // Determine initial position if not set (Center randomization)
@@ -1493,7 +1524,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
 
                                                         setNodes(prev => prev.map(n => n.id === node.id ? { ...n, x: newX, y: newY } : n));
                                                     }}
-                                                    className={`absolute w-[300px] bg-slate-900/90 backdrop-blur-md border ${style.border} rounded-lg shadow-2xl flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing`}
+                                                    className={`absolute w-[300px] bg-slate-900/90 backdrop-blur-md border ${style.border} rounded-lg shadow-2xl flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing z-[20]`}
                                                 >
                                                     {/* Header */}
                                                     <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40 rounded-t-lg handle relative">
@@ -1559,7 +1590,7 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                                                             headSize={6}
                                                             curveness={0.4}
                                                             path="smooth"
-                                                            zIndex={5}
+                                                            zIndex={10}
                                                             startAnchor="auto"
                                                             endAnchor="auto"
                                                             dashness={isInvalid ? { strokeLen: 10, nonStrokeLen: 5, animation: 1 } : false}
@@ -1715,136 +1746,6 @@ const WorldEnginePanel: React.FC<WorldEnginePanelProps> = ({
                 )}
             </div>
 
-            {/* LAYER 0.8: WORKSPACE (HTML CARDS & CONNECTIONS) */}
-            <div className="absolute inset-0 z-10 pointer-events-none overflow-visible">
-                <Xwrapper>
-                    {nodes.map(node => {
-                        const style = CONTENT_TYPES[node.metadata?.node_type || 'default'] || CONTENT_TYPES['default'];
-                        const hasAlert = !!node.coherency_report;
-                        // Determine initial position if not set (Center randomization)
-                        const initialX = window.innerWidth / 2 - 150 + (Math.random() * 100 - 50);
-                        const initialY = window.innerHeight / 2 - 100 + (Math.random() * 100 - 50);
-
-                        return (
-                            <React.Fragment key={node.id}>
-                                <motion.div
-                                    id={node.id} // ID for Xarrow
-                                    initial={{ opacity: 0, scale: 0.8, x: initialX, y: initialY }}
-                                    animate={{
-                                        opacity: 1,
-                                        scale: 1,
-                                        x: node.x !== undefined ? node.x : initialX,
-                                        y: node.y !== undefined ? node.y : initialY
-                                    }}
-                                    drag
-                                    dragMomentum={false}
-                                    onDragEnd={(_, info) => {
-                                        // Capture final position to state
-                                        // We use the current visual position (state + delta)
-                                        const currentX = (node.x !== undefined ? node.x : initialX);
-                                        const currentY = (node.y !== undefined ? node.y : initialY);
-                                        const newX = currentX + info.offset.x;
-                                        const newY = currentY + info.offset.y;
-
-                                        setNodes(prev => prev.map(n => n.id === node.id ? { ...n, x: newX, y: newY } : n));
-                                    }}
-                                    className={`absolute w-[300px] bg-slate-900/90 backdrop-blur-md border ${style.border} rounded-lg shadow-2xl flex flex-col pointer-events-auto cursor-grab active:cursor-grabbing`}
-                                >
-                                    {/* Header */}
-                                    <div className="flex items-center justify-between p-3 border-b border-white/10 bg-black/40 rounded-t-lg handle relative">
-                                        <div className={`flex items-center gap-2 ${style.text}`}>
-                                            <Diamond size={12} className="rotate-45" />
-                                            <span className="text-[10px] font-bold tracking-widest uppercase truncate max-w-[150px]">{node.title}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {/* AUDIT STATUS */}
-                                            {node.auditStatus === 'auditing' && <Loader2 size={12} className="animate-spin text-slate-500" />}
-
-                                            {/* COHERENCY ALERT (Top Right as requested) */}
-                                            {hasAlert && (
-                                                <div className="group relative">
-                                                    <TriangleAlert size={14} className="text-[#ff153f] animate-pulse cursor-help" />
-                                                    {/* Tooltip */}
-                                                    <div className="absolute right-0 top-full mt-2 w-56 bg-black border border-[#ff153f] p-3 rounded shadow-2xl z-50 hidden group-hover:block pointer-events-none">
-                                                        <div className="text-[10px] font-bold text-[#ff153f] mb-1">{node.coherency_report?.warning}</div>
-                                                        <div className="text-[10px] text-white leading-tight">{node.coherency_report?.explanation}</div>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <button onClick={() => setExpandedNodeId(node.id)} className="hover:text-white text-slate-500 transition-colors">
-                                                <LayoutTemplate size={12} />
-                                            </button>
-                                        </div>
-
-                                        {/* 🟢 GESTURAL LINK HANDLE (Right Edge) */}
-                                        <div
-                                            className="absolute -right-3 top-1/2 -translate-y-1/2 w-4 h-4 bg-slate-800 border border-cyan-500/50 rounded-full hover:bg-cyan-500 cursor-crosshair z-50 flex items-center justify-center shadow-[0_0_10px_rgba(6,182,212,0.3)] transition-all hover:scale-125"
-                                            onMouseDown={(e) => handleLinkStart(node.id, e)}
-                                        >
-                                            <div className="w-1 h-1 bg-cyan-200 rounded-full" />
-                                        </div>
-                                    </div>
-                                    {/* Body */}
-                                    <div
-                                        className="p-4 text-xs text-slate-300 font-serif leading-relaxed line-clamp-4 pointer-events-none select-none"
-                                        onMouseUp={() => handleLinkDrop(node.id)}
-                                    >
-                                        {node.content}
-                                    </div>
-                                </motion.div>
-
-                                {/* Render Arrows for this node's outgoing links */}
-                                {node.metadata?.pending_relations?.map((rel, idx) => {
-                                    // Check if target exists in WORKSPACE to draw arrow
-                                    // If target is in CANON, we can't draw Xarrow to canvas node easily
-                                    const targetExists = nodes.find(n => n.id === rel.targetId);
-                                    if (!targetExists) return null;
-
-                                    return (
-                                        <Xarrow
-                                            key={`${node.id}-${rel.targetId}-${idx}`}
-                                            start={node.id}
-                                            end={rel.targetId}
-                                            color={getLinkColor(rel.relationType)}
-                                            strokeWidth={2}
-                                            headSize={6}
-                                            curveness={0.4}
-                                            path="smooth"
-                                            zIndex={5}
-                                            startAnchor="auto"
-                                            endAnchor="auto"
-                                            labels={{
-                                                middle: (
-                                                    <div
-                                                        className="group relative" // Tailwind para manejo de hover
-                                                        style={{ cursor: 'pointer' }}
-                                                    >
-                                                        {/* ICONO DEL NODO CENTRAL (El punto en la línea) */}
-                                                        <div className={`w-4 h-4 rounded-full border-2 bg-black ${getBorderColor(rel.relationType)}`} />
-
-                                                        {/* EL TOOLTIP FLOTANTE (Solo visible en hover) */}
-                                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-48
-                                                                        opacity-0 group-hover:opacity-100 transition-opacity duration-200
-                                                                        bg-black/90 border border-gray-700 rounded p-2 text-xs text-white z-50 pointer-events-none">
-                                                            <p className="font-bold mb-1 uppercase text-[10px] tracking-wider" style={{color: getLinkColor(rel.relationType)}}>
-                                                                {rel.relationType}
-                                                            </p>
-                                                            <p className="italic">
-                                                                "{rel.reason || 'Analizando vínculo...'}"
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                )
-                                            }}
-                                        />
-                                    );
-                                })}
-                            </React.Fragment>
-                        );
-                    })}
-                </Xwrapper>
-            </div>
 
             {/* LAYER 1: NOTIFICATIONS (TOP RIGHT) */}
             <div className="absolute top-6 right-24 z-10 flex flex-col gap-2 w-80 pointer-events-none">
