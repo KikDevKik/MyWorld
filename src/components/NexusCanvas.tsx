@@ -139,6 +139,7 @@ const EntityCard: React.FC<{
     const updateXarrow = useXarrow();
     const [isEditing, setIsEditing] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
+    const [isHovered, setIsHovered] = useState(false); // Used for Z-Index King of the Hill
     const [editName, setEditName] = useState(node.name);
     const [editDesc, setEditDesc] = useState(node.description || "");
 
@@ -181,14 +182,16 @@ const EntityCard: React.FC<{
     };
 
     return (
+        // 🧱 OUTER GHOST CONTAINER (Physics Anchor & Drag Handle)
+        // Keeps X/Y stable while Inner Card scales visually.
         <motion.div
             id={node.id}
-            initial={{ opacity: 0, scale: 0.5 }}
+            initial={{ opacity: 0 }}
             animate={{
                 opacity: 1,
-                scale: 1,
                 x: isDragging ? undefined : (node.x || 0),
-                y: isDragging ? undefined : (node.y || 0)
+                y: isDragging ? undefined : (node.y || 0),
+                zIndex: isDragging || isHovered ? 9999 : 1 // 👑 King of the Hill
             }}
             transition={{ duration: 0 }}
             drag
@@ -206,91 +209,107 @@ const EntityCard: React.FC<{
                 if (onDragEnd) onDragEnd();
             }}
             onPointerDownCapture={(e) => e.stopPropagation()}
-            onMouseEnter={() => setHoveredNodeId(node.id)}
-            onMouseLeave={() => setHoveredNodeId(null)}
+            onMouseEnter={() => {
+                setIsHovered(true);
+                setHoveredNodeId(node.id);
+            }}
+            onMouseLeave={() => {
+                setIsHovered(false);
+                setHoveredNodeId(null);
+            }}
             className={`
-                absolute flex flex-col gap-1
-                bg-black/90 backdrop-blur-[4px] rounded-lg border
-                ${style.border}
-                ${isMicro ? 'w-[200px] p-3' : 'w-[120px] h-[60px] p-2 overflow-hidden'}
-                cursor-grab active:cursor-grabbing z-20 group transition-all duration-200
-                hover:z-50 hover:scale-110 hover:shadow-xl hover:bg-black/95
-                ${style.shadow}
+                absolute flex items-center justify-center
+                ${isMicro ? 'w-[200px] h-auto' : 'w-[120px] h-[60px]'}
                 ${isMacro ? 'opacity-0 pointer-events-none' : 'opacity-100'}
             `}
             style={{ willChange: 'transform' }} // Optimization
-            onClick={(e) => {
-                e.stopPropagation();
-                if (!isEditing) onClick();
-            }}
         >
-            {isEditing ? (
-                 // 🟢 EDIT FORM (Simple Option A)
-                 <div className="flex flex-col gap-2 pointer-events-auto" onClick={e => e.stopPropagation()}>
-                    <input
-                        className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-cyan-500"
-                        value={editName}
-                        onChange={e => setEditName(e.target.value)}
-                        placeholder="Nombre..."
-                    />
-                    <textarea
-                        className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-cyan-500"
-                        rows={2}
-                        value={editDesc}
-                        onChange={e => setEditDesc(e.target.value)}
-                        placeholder="Descripción..."
-                    />
-                    <div className="flex gap-1 justify-end mt-1">
-                        <button onClick={() => setIsEditing(false)} className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>
-                        <button onClick={handleSaveEdit} className="text-[10px] text-green-400 hover:text-white px-2 py-0.5 border border-green-500/30 rounded">OK</button>
-                    </div>
-                 </div>
-            ) : (
-                <>
-                    {/* Header */}
-                    <div className="flex items-center justify-between">
-                         <div className={`flex items-center gap-1.5 ${style.iconColor} font-mono font-bold text-[10px] uppercase tracking-wider`}>
-                             {getIcon()}
-                             <span className="truncate max-w-[80px]">{node.type}</span>
-                         </div>
-                         {/* Actions (Only Micro & Ghosts) */}
-                         {isMicro && node.isGhost && (
-                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 {onEdit && (
-                                     <button
-                                         onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-                                         className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
-                                         title="Editar Borrador"
-                                     >
-                                         <FileText size={10} />
-                                     </button>
-                                 )}
-                                 {onCrystallize && (
-                                     <button
-                                         onClick={(e) => { e.stopPropagation(); onCrystallize(); }}
-                                         className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
-                                         title="Hacer Canon"
-                                     >
-                                         <Save size={10} />
-                                     </button>
-                                 )}
-                             </div>
-                         )}
-                    </div>
-
-                    {/* Title */}
-                    <div className={`font-sans font-bold text-white leading-tight ${isMicro ? 'text-sm' : 'text-xs truncate'}`}>
-                        {node.name}
-                    </div>
-
-                    {/* Brief (Only Micro) */}
-                    {isMicro && (node.meta?.brief || node.description) && (
-                        <div className="text-[10px] text-slate-400 line-clamp-3 leading-relaxed font-mono">
-                            {node.meta?.brief || node.description}
+            {/* 🎨 INNER VISUAL CARD (Scales without affecting Lines) */}
+            <div
+                className={`
+                    relative w-full h-full flex flex-col gap-1
+                    bg-black/90 backdrop-blur-[4px] rounded-lg border
+                    ${style.border}
+                    ${isMicro ? 'p-3' : 'p-2 overflow-hidden'}
+                    cursor-grab active:cursor-grabbing group transition-all duration-200
+                    hover:scale-110 hover:shadow-xl hover:bg-black/95
+                    ${style.shadow}
+                    select-none
+                    ${isDragging ? 'pointer-events-none' : ''}
+                `}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isEditing) onClick();
+                }}
+            >
+                {isEditing ? (
+                    // 🟢 EDIT FORM
+                    <div className="flex flex-col gap-2 pointer-events-auto" onClick={e => e.stopPropagation()}>
+                        <input
+                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-cyan-500"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            placeholder="Nombre..."
+                        />
+                        <textarea
+                            className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-cyan-500"
+                            rows={2}
+                            value={editDesc}
+                            onChange={e => setEditDesc(e.target.value)}
+                            placeholder="Descripción..."
+                        />
+                        <div className="flex gap-1 justify-end mt-1">
+                            <button onClick={() => setIsEditing(false)} className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>
+                            <button onClick={handleSaveEdit} className="text-[10px] text-green-400 hover:text-white px-2 py-0.5 border border-green-500/30 rounded">OK</button>
                         </div>
-                    )}
-                </>
-            )}
+                    </div>
+                ) : (
+                    <>
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                            <div className={`flex items-center gap-1.5 ${style.iconColor} font-mono font-bold text-[10px] uppercase tracking-wider`}>
+                                {getIcon()}
+                                <span className="truncate max-w-[80px]">{node.type}</span>
+                            </div>
+                            {/* Actions (Only Micro & Ghosts) */}
+                            {isMicro && node.isGhost && (
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {onEdit && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                                            className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
+                                            title="Editar Borrador"
+                                        >
+                                            <FileText size={10} />
+                                        </button>
+                                    )}
+                                    {onCrystallize && (
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); onCrystallize(); }}
+                                            className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
+                                            title="Hacer Canon"
+                                        >
+                                            <Save size={10} />
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Title */}
+                        <div className={`font-sans font-bold text-white leading-tight ${isMicro ? 'text-sm' : 'text-xs truncate'}`}>
+                            {node.name}
+                        </div>
+
+                        {/* Brief (Only Micro) */}
+                        {isMicro && (node.meta?.brief || node.description) && (
+                            <div className="text-[10px] text-slate-400 line-clamp-3 leading-relaxed font-mono">
+                                {node.meta?.brief || node.description}
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
         </motion.div>
     );
 };
@@ -313,6 +332,7 @@ const NexusCanvas: React.FC<{
     const [entropy, setEntropy] = useState(0.5); // 0.0 (Rigor) -> 1.0 (Chaos)
     const [loading, setLoading] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isStabilizing, setIsStabilizing] = useState(true);
 
     // 🟢 LOD State
     const [lodTier, setLodTier] = useState<'MACRO' | 'MESO' | 'MICRO'>('MESO');
@@ -482,8 +502,12 @@ const NexusCanvas: React.FC<{
 
     // --- 3. PHYSICS ENGINE (SOLAR SYSTEM) ---
     useEffect(() => {
-        if (unifiedNodes.length === 0) return;
+        if (unifiedNodes.length === 0) {
+            setIsStabilizing(false);
+            return;
+        }
 
+        setIsStabilizing(true);
         console.log("⚡ NEXUS PHYSICS: Initiating Big Bang...");
         if (simulationRef.current) simulationRef.current.stop();
 
@@ -537,12 +561,22 @@ const NexusCanvas: React.FC<{
             ).strength(0.6)) // Orbit strength
 
             // 5. Links
-            .force("link", d3.forceLink(links).id((d: any) => d.id).distance(200));
+            .force("link", d3.forceLink(links).id((d: any) => d.id).distance(200))
+            .stop(); // 🛑 Stop auto-start
 
-        // TICK
+        // 🔥 WARM-UP (300 ticks in memory)
+        console.log("🔥 NEXUS: Stabilizing Gravity (300 ticks)...");
+        simulation.tick(300);
+
+        // Render Frame 1 (Stable)
+        setSimulatedNodes([...simNodes]);
+        setIsStabilizing(false);
+
+        // Start Live Interaction
         simulation.on("tick", () => {
             setSimulatedNodes([...simNodes]);
         });
+        simulation.restart();
 
         simulationRef.current = simulation;
 
@@ -876,6 +910,29 @@ const NexusCanvas: React.FC<{
     // --- RENDER ---
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
+
+            {/* WARM-UP LOADER */}
+            <AnimatePresence>
+                {(isStabilizing || loading) && (
+                    <motion.div
+                        initial={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-[#141413] z-[100] flex items-center justify-center pointer-events-none"
+                    >
+                        <div className="flex flex-col items-center gap-4">
+                            <div className="font-mono text-cyan-500 text-xl tracking-[0.2em] animate-pulse">
+                                &gt; ESTABILIZANDO GRAVEDAD...
+                            </div>
+                            {/* Simple Matrix Loader */}
+                            <div className="flex gap-1">
+                                <motion.div animate={{ height: [10, 30, 10] }} transition={{ repeat: Infinity, duration: 1 }} className="w-1 bg-cyan-500/50" />
+                                <motion.div animate={{ height: [10, 30, 10] }} transition={{ repeat: Infinity, duration: 1, delay: 0.2 }} className="w-1 bg-cyan-500/50" />
+                                <motion.div animate={{ height: [10, 30, 10] }} transition={{ repeat: Infinity, duration: 1, delay: 0.4 }} className="w-1 bg-cyan-500/50" />
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
             {/* CANVAS */}
             <TransformWrapper
