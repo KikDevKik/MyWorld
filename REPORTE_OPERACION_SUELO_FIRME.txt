@@ -1,0 +1,58 @@
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+FECHA: 2024-05-22
+ASUNTO: REPORTE DE MISIÓN - OPERACIÓN "SUELO FIRME" (Estabilización NexusCanvas)
+
+--------------------------------------------------------------------------------
+1. RESUMEN EJECUTIVO
+--------------------------------------------------------------------------------
+La misión ha sido completada con éxito. El motor físico de `NexusCanvas` ha sido pacificado.
+La "explosión" inicial (Big Bang) ha sido eliminada y la interacción táctil ahora es sólida como una roca.
+
+Estado Final: ESTABLE
+Versión: Pre-Fase 3 (Ready)
+
+--------------------------------------------------------------------------------
+2. MANIOBRAS TÉCNICAS EJECUTADAS
+--------------------------------------------------------------------------------
+
+A. PROTOCOLO "WARM-UP" (La Calma antes de la Tormenta)
+   - Problema: Al cargar el grafo, la simulación D3 comenzaba con coordenadas aleatorias (o cero), causando que los nodos "explotaran" visualmente hacia afuera buscando equilibrio frente a los ojos del usuario.
+   - Solución: Implementé un ciclo de pre-cálculo sincrónico (`simulation.tick(300)`).
+   - Resultado: El motor físico resuelve 300 iteraciones de colisiones y gravedad en la memoria (invisible) en milisegundos.
+   - UX: Se añadió una pantalla de carga tipo terminal ("> ESTABILIZANDO GRAVEDAD...") que oculta este micro-proceso. Cuando el telón se levanta, el sistema solar ya está formado y estable.
+
+B. ARQUITECTURA "GHOST CONTAINER" (Separación de Poderes)
+   - Problema (El "Temblor"): Al hacer hover, la tarjeta crecía (`scale: 1.1`). Esto cambiaba su `getBoundingClientRect`, confundiendo al motor de arrastre (D3 Drag) y a las líneas (`react-xarrows`), que intentaban recalcular el centro de un objeto que cambiaba de tamaño dinámicamente. Esto causaba vibración y que las líneas se desconectaran visualmente.
+   - Solución: Refactorización total de `EntityCard`.
+     1. Contenedor Fantasma (Outer Div): Invisible. Maneja SOLAMENTE la posición (x, y) y el evento de arrastre. No cambia de tamaño. Es el ancla física.
+     2. Tarjeta Visual (Inner Div): Visible. Maneja el estilo, el borde, la sombra y la escala (zoom on hover). Vive DENTRO del fantasma.
+   - Resultado: Puedes hacer zoom/hover en la tarjeta tanto como quieras; el ancla física (y por tanto las líneas) no se mueven ni un píxel. La interacción es 100% estable.
+
+C. REGLA "REY DE LA COLINA" (Gestión de Z-Index)
+   - Problema: Al arrastrar un nodo por un área densa, pasaba por debajo de otros, perdiéndose de vista.
+   - Solución: Lógica dinámica de `z-index`.
+     - Estado Base: 1
+     - Estado Hover/Drag: 9999
+   - Resultado: El nodo que el usuario está manipulando siempre flota físicamente por encima de todo el resto del universo.
+
+D. SILENCIADOR DE EVENTOS (Pointer Events)
+   - Problema: Al intentar arrastrar rápido, el navegador a veces interpretaba que queríamos seleccionar el texto del nombre ("Character X"), interrumpiendo el arrastre.
+   - Solución: Clase CSS condicional `pointer-events-none` aplicada al contenido interior DURANTE el arrastre.
+   - Resultado: Arrastre fluido sin selecciones de texto accidentales.
+
+--------------------------------------------------------------------------------
+3. OBSTÁCULOS Y APRENDIZAJES
+--------------------------------------------------------------------------------
+- Desafío de Verificación: Verificar cambios físicos visuales es difícil con tests unitarios tradicionales.
+- Solución: Usé scripts de Playwright (`verify_nexus.py`) atacando una instancia local en "Ghost Mode". Esto me permitió simular un usuario real arrastrando nodos y verificar que no hubiera errores de consola ni "misses" en el click.
+
+- Curiosidad Técnica: D3 Force es extremadamente rápido. 300 ticks suenan a mucho, pero en un motor V8 moderno ocurren casi instantáneamente. El "loader" es más una cortesía psicológica para evitar el parpadeo que una necesidad técnica estricta por tiempo de espera.
+
+--------------------------------------------------------------------------------
+4. CONCLUSIÓN
+--------------------------------------------------------------------------------
+El sistema `NexusCanvas` está listo para la Fase 3. La base es sólida. Ya no hay "gelatina" en la UI.
+
+Cambio y fuera.
+Jules.
