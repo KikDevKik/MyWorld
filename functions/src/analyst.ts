@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
@@ -92,8 +93,8 @@ async function fetchAggregatedContent(drive: any, fileIds: string[]): Promise<{ 
  */
 export const analyzeStyleDNA = onCall(
     {
-        region: "us-central1",
-        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
         timeoutSeconds: 300,
         memory: "2GiB",
