@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
@@ -46,8 +47,8 @@ function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): 
 
 export const auditContent = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     timeoutSeconds: 60, // Fast execution
     memory: "1GiB",
@@ -526,9 +527,9 @@ export const auditContent = onCall(
  */
 export const purgeEcho = onCall(
     {
-        region: "us-central1",
+        region: FUNCTIONS_REGION,
         // TODO: Refactor hardcoded CORS origins to environment variables for better portability.
-        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+        cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
     },
     async (request) => {
@@ -579,7 +580,7 @@ export const purgeEcho = onCall(
  */
 export const scanProjectDrift = onCall(
   {
-    region: "us-central1",
+    region: FUNCTIONS_REGION,
     cors: true, // 🟢 USER MANDATE: Wildcard CORS for Beta
     enforceAppCheck: true,
     timeoutSeconds: 540, // Long running
@@ -710,8 +711,8 @@ export const scanProjectDrift = onCall(
  */
 export const rescueEcho = onCall(
     {
-        region: "us-central1",
-        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
     },
     async (request) => {

@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import * as admin from "firebase-admin";
@@ -16,8 +17,8 @@ const MAX_PURGE_LIMIT = 50; // Limit per batch to prevent DoS/Timeout
  */
 export const scanVaultHealth = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -124,8 +125,8 @@ export const scanVaultHealth = onCall(
  */
 export const purgeArtifacts = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -198,8 +199,8 @@ export const purgeArtifacts = onCall(
  */
 export const purgeEmptySessions = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {

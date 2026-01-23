@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldPath } from "firebase-admin/firestore";
 import { google } from "googleapis";
@@ -144,8 +145,8 @@ ${orphans.length > 0 ? `  - IDs: ${orphans.slice(0, 10).join(', ')}${orphans.len
 
 export const executeBaptismProtocol = onCall(
     {
-        region: "us-central1",
-        cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
         timeoutSeconds: 540,
         memory: "1GiB",
         secrets: [baptismMasterKey],

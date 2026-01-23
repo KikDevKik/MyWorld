@@ -50,3 +50,19 @@ Presenting users with generic "Configuration" options during an empty state (lik
 
 **Action:**
 Empty states must feature a specific, primary Call-to-Action (e.g., "Connect Drive") that directly resolves the missing data. Generic "Settings" buttons should be secondary or tertiary.
+
+## 2025-05-18 - The Invisible Loading State
+
+**Learning:**
+Skeleton loaders (pulsing gray bars) are visually effective but silent to screen readers, leaving non-sighted users wondering if the application has frozen.
+
+**Action:**
+Always wrap skeleton loaders in a container with `role="status"` and a clear `aria-label` (e.g., "Loading file structure..."). This converts a visual pattern into a semantic state notification.
+
+## 2025-05-18 - Implicit Dropdown Labels
+
+**Learning:**
+Dropdowns (`<select>`) that rely on a default option (like "Global View") as their label often lack semantic association, making them confusing when navigating via screen reader.
+
+**Action:**
+If a visible `<label>` is design-prohibited, explicitly add `aria-label` to the `<select>` element to describe its function (e.g., "Filter by Saga").

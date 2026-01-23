@@ -1,4 +1,5 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { SecretManagerServiceClient } from '@google-cloud/secret-manager';
 import { google } from "googleapis";
@@ -633,8 +634,8 @@ function flattenFileTree(nodes: DriveFile[]): DriveFile[] {
  */
 export const checkSentinelIntegrity = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -708,8 +709,8 @@ export const checkSentinelIntegrity = onCall(
  */
 export const analyzeConnection = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 30, // Fast response
     secrets: [googleApiKey],
@@ -787,8 +788,8 @@ export const analyzeConnection = onCall(
  */
 export const syncWorldManifest = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
@@ -842,15 +843,34 @@ export const syncWorldManifest = onCall(
                  throw new HttpsError("not-found", "Could not find specific file.");
              }
         } else {
-             logger.info(`📡 Full Scan: Scanning ${projectId}`);
-             const tree = await fetchFolderContents(drive, projectId, config, true);
-             const flatFiles = flattenFileTree(tree);
-             candidates = flatFiles.filter(f =>
+             // 🟢 SANCTITY FILTER: STRICT WHITELIST
+             if (config.canonPaths && config.canonPaths.length > 0) {
+                 logger.info(`🛡️ SANCTITY PROTOCOL: Scanning ${config.canonPaths.length} Canon Folders (Whitelisted).`);
+                 // Iterate and scan ONLY canon folders
+                 for (const p of config.canonPaths) {
+                      logger.info(`   -> Whitelisted Folder: ${p.name} (${p.id})`);
+                      const folderTree = await fetchFolderContents(drive, p.id, config, true);
+                      const flatTree = flattenFileTree(folderTree);
+                      candidates = [...candidates, ...flatTree];
+                 }
+                 logger.info(`   -> Whitelist Total Candidates: ${candidates.length}`);
+             } else {
+                 // FAIL SAFE: No Canon Configured -> ABORT
+                 logger.warn("⚠️ SANCTITY PROTOCOL: No Canon Folders configured. Aborting scan.");
+                 return {
+                     success: false,
+                     code: "REQUIRE_CANON_CONFIG",
+                     message: "No tienes carpetas Canon configuradas. Ve a Ajustes -> Carpetas y define dónde vive la verdad."
+                 };
+             }
+
+             // Filter by extension
+             candidates = candidates.filter(f =>
                 f.mimeType === 'application/vnd.google-apps.document' ||
                 f.name.endsWith('.md') ||
                 f.name.endsWith('.txt')
             );
-            logger.info(`   -> Files Found: ${candidates.length}`);
+            logger.info(`   -> Valid Files Found: ${candidates.length}`);
         }
 
         // --- STEP B: BATCH PROCESS (AI EXTRACTION + SEQUENTIAL UPSERT) ---
@@ -1092,8 +1112,8 @@ async function checkLineage(drive: any, folderId: string, requiredRootId: string
  */
 export const getDriveFiles = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540, // Increased for Deep Extraction
     secrets: [googleApiKey],
@@ -1215,8 +1235,8 @@ export { analyzeStyleDNA } from "./analyst";
  */
 export const enrichCharacterContext = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 300,
     memory: "2GiB",
@@ -1405,8 +1425,8 @@ export const enrichCharacterContext = onCall(
  */
 export const crystallizeNode = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     secrets: [googleApiKey],
   },
@@ -1492,8 +1512,8 @@ export const crystallizeNode = onCall(
  */
 export const getProjectConfig = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1537,8 +1557,8 @@ export const getProjectConfig = onCall(
  */
 export const saveProjectConfig = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1576,8 +1596,8 @@ export const saveProjectConfig = onCall(
  */
 export const getDriveFileContent = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1608,8 +1628,8 @@ export const getDriveFileContent = onCall(
  */
 export const checkIndexStatus = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -1650,8 +1670,8 @@ export const checkIndexStatus = onCall(
  */
 export const indexTDB = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 3600,
     memory: "1GiB",
@@ -1943,8 +1963,8 @@ export const indexTDB = onCall(
  */
 export const chatWithGem = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
@@ -2507,8 +2527,8 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
  */
 export const worldEngine = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 1800, // 30 Minutes
     memory: "2GiB",
@@ -2740,8 +2760,8 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
  */
 export const saveDriveFile = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     secrets: [googleApiKey],
   },
@@ -2801,8 +2821,8 @@ export const saveDriveFile = onCall(
  */
 export const saveUserProfile = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2849,8 +2869,8 @@ export const saveUserProfile = onCall(
  */
 export const getUserProfile = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2886,8 +2906,8 @@ export const getUserProfile = onCall(
  */
 export const createForgeSession = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2932,8 +2952,8 @@ export const createForgeSession = onCall(
  */
 export const getForgeSessions = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -2976,8 +2996,8 @@ export const getForgeSessions = onCall(
  */
 export const deleteForgeSession = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -3014,8 +3034,8 @@ export const deleteForgeSession = onCall(
  */
 export const addForgeMessage = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -3159,8 +3179,8 @@ export const addForgeMessage = onCall(
  */
 export const getForgeHistory = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -3204,8 +3224,8 @@ export const getForgeHistory = onCall(
  */
 export const forgeToDrive = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
@@ -3353,8 +3373,8 @@ export const forgeToDrive = onCall(
  */
 export const summonTheTribunal = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
@@ -3494,8 +3514,8 @@ export const summonTheTribunal = onCall(
  */
 export const extractTimelineEvents = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
@@ -3692,8 +3712,8 @@ export const extractTimelineEvents = onCall(
  */
 export const compileManuscript = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
@@ -4000,8 +4020,8 @@ export const compileManuscript = onCall(
  */
 export const debugGetIndexStats = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -4069,8 +4089,8 @@ export const debugGetIndexStats = onCall(
  */
 export const syncCharacterManifest = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
@@ -4333,8 +4353,8 @@ export const syncCharacterManifest = onCall(
  */
 export const forgeToolExecution = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     secrets: [googleApiKey],
   },
@@ -4400,8 +4420,8 @@ export const forgeToolExecution = onCall(
  */
 export const forgeAnalyzer = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540,
     memory: "2GiB",
@@ -4623,8 +4643,8 @@ export const forgeAnalyzer = onCall(
  */
 export const clearSessionMessages = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
   },
   async (request) => {
@@ -4669,8 +4689,8 @@ export const clearSessionMessages = onCall(
  */
 export const updateForgeCharacter = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
@@ -4797,8 +4817,8 @@ export const updateForgeCharacter = onCall(
  */
 export const restoreTimelineFromMaster = onCall(
   {
-    region: "us-central1",
-    cors: ["https://myword-67b03.web.app", "http://localhost:5173", "http://localhost:4173"],
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     secrets: [googleApiKey],
   },
