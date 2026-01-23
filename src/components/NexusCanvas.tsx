@@ -52,31 +52,32 @@ interface PendingCrystallization {
 
 const PENDING_KEY = 'nexus_pending_crystallization';
 
-// 🟢 STYLES (CYBERPUNK PALETTE)
-const NODE_STYLES: Record<string, { border: string, bg: string, text: string, glow: string }> = {
+// 🟢 STYLES (CYBERPUNK PALETTE REFINED)
+const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: string }> = {
     character: {
-        border: 'border-[#ddbf61]', // Gold
-        bg: 'bg-[#ddbf61]/10',
-        text: 'text-[#ddbf61]',
-        glow: 'shadow-[0_0_15px_rgba(221,191,97,0.3)]'
+        border: 'border-yellow-500',
+        shadow: 'shadow-[0_0_15px_rgba(234,179,8,0.5)]', // Yellow-500
+        iconColor: 'text-yellow-500'
     },
     location: {
-        border: 'border-[#00fff7]', // Cyan
-        bg: 'bg-[#00fff7]/10',
-        text: 'text-[#00fff7]',
-        glow: 'shadow-[0_0_15px_rgba(0,255,247,0.3)]'
+        border: 'border-cyan-500',
+        shadow: 'shadow-[0_0_15px_rgba(6,182,212,0.5)]', // Cyan-500
+        iconColor: 'text-cyan-500'
     },
     idea: {
-        border: 'border-[#a855f7]', // Violet (Ghost/Draft)
-        bg: 'bg-[#a855f7]/10',
-        text: 'text-[#a855f7]',
-        glow: 'shadow-[0_0_10px_rgba(168,85,247,0.2)]'
+        border: 'border-purple-500',
+        shadow: 'shadow-[0_0_15px_rgba(168,85,247,0.5)]', // Purple-500
+        iconColor: 'text-purple-500'
+    },
+    conflict: {
+        border: 'border-red-600',
+        shadow: 'shadow-[0_0_15px_rgba(220,38,38,0.6)]', // Red-600
+        iconColor: 'text-red-500'
     },
     default: {
         border: 'border-slate-600',
-        bg: 'bg-slate-900/80',
-        text: 'text-slate-400',
-        glow: ''
+        shadow: '',
+        iconColor: 'text-slate-400'
     }
 };
 
@@ -104,64 +105,72 @@ const getRelationColor = (type: string) => {
     return RELATION_COLORS.DEFAULT;
 };
 
-const NodeCard: React.FC<{
+// 🟢 FACTION LABEL (MACRO VIEW)
+const FactionLabel: React.FC<{ name: string, x: number, y: number, count: number }> = ({ name, x, y, count }) => (
+    <motion.div
+        animate={{ x, y }}
+        transition={{ type: "spring", stiffness: 30, damping: 20 }} // Smooth float
+        className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center justify-center cursor-default pointer-events-none z-0"
+    >
+        <div className="text-[60px] font-black text-white/10 uppercase tracking-[0.2em] drop-shadow-2xl whitespace-nowrap select-none">
+            {name}
+        </div>
+        <div className="text-sm text-cyan-500/50 font-mono tracking-[0.5em] uppercase mt-2 bg-black/50 px-2 rounded">
+            {count} NODES
+        </div>
+    </motion.div>
+);
+
+// 🟢 NEW: ENTITY CARD (MICRO-CARD)
+const EntityCard: React.FC<{
     node: VisualNode;
     onClick: () => void;
     onCrystallize?: () => void;
+    onEdit?: (nodeId: string, updates: { name: string, description: string }) => void;
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
-}> = ({ node, onClick, onCrystallize, lodTier }) => {
+    setHoveredNodeId: (id: string | null) => void;
+}> = ({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId }) => {
     const updateXarrow = useXarrow();
-    const style = NODE_STYLES[node.type] || NODE_STYLES.default;
+    const [isEditing, setIsEditing] = useState(false);
+    const [editName, setEditName] = useState(node.name);
+    const [editDesc, setEditDesc] = useState(node.description || "");
 
-    // Ghost Override
-    const finalStyle = node.isGhost ? NODE_STYLES.idea : style;
+    // Detect Style
+    let nodeStyleKey = 'default';
+    if (node.isGhost) nodeStyleKey = 'idea';
+    else if (node.type === 'character') nodeStyleKey = 'character';
+    else if (node.type === 'location') nodeStyleKey = 'location';
+    else if (node.meta?.node_type === 'conflict' || node.type === 'enemy') nodeStyleKey = 'conflict'; // Red detection
+    else if (['faction', 'event', 'object'].includes(node.type)) nodeStyleKey = 'default';
+
+    const style = NODE_STYLES[nodeStyleKey] || NODE_STYLES.default;
 
     // Icon Mapping
     const getIcon = () => {
-        if (node.isRescue) return <AlertTriangle size={14} className="text-red-500 animate-pulse" />;
-        if (node.isGhost) return <BrainCircuit size={14} />;
+        if (node.isRescue) return <AlertTriangle size={12} className="text-red-500 animate-pulse" />;
         switch (node.type) {
-            case 'character': return <User size={14} />;
-            case 'location': return <MapPin size={14} />;
-            case 'object': return <Box size={14} />;
-            case 'event': return <Zap size={14} />;
-            case 'faction': return <Swords size={14} />;
-            default: return <Diamond size={14} className="rotate-45" />;
+            case 'character': return <User size={12} />;
+            case 'location': return <MapPin size={12} />;
+            case 'object': return <Box size={12} />;
+            case 'event': return <Zap size={12} />;
+            case 'faction': return <Swords size={12} />;
+            case 'idea': return <BrainCircuit size={12} />;
+            default: return <Diamond size={12} className="rotate-45" />;
         }
     };
 
-    // 🟢 LOD: MACRO VIEW (The Strategist)
-    if (lodTier === 'MACRO') {
-        // Show only Factions or important locations, otherwise hide
-        const isStrategicallyImportant = node.type === 'faction' || node.type === 'group';
-
-        if (!isStrategicallyImportant) {
-            // We still render it but hidden to maintain physics/layout, or return null?
-            // If we return null, React might unmount it, which is fine for visual, but Xarrow needs the ID to exist?
-            // No, Xarrow needs the element to exist in DOM to draw lines.
-            // BUT in MACRO view, lines are hidden too! So we can return null (or hidden div).
-            // However, we must ensure physics simulation (d3) isn't affected. D3 runs in parent.
-            // Rendering is separate.
-            return null;
-        }
-
-        // Render HUGE Label
-        return (
-             <motion.div
-                id={node.id}
-                animate={{ x: node.x || 0, y: node.y || 0, scale: 2 }} // 2x Scale
-                transition={{ duration: 0.5 }}
-                className="absolute flex flex-col items-center justify-center cursor-pointer pointer-events-none"
-            >
-                <div className="text-[40px] font-black text-white/20 uppercase tracking-[0.2em] drop-shadow-xl whitespace-nowrap">
-                    {node.name}
-                </div>
-            </motion.div>
-        );
-    }
-
-    // 🟢 LOD: MESO & MICRO
+    // 🟢 LOD: MACRO VIEW (Hidden via Opacity for smooth transition/Xarrow safety)
+    const isMacro = lodTier === 'MACRO';
     const isMicro = lodTier === 'MICRO';
+
+    const handleSaveEdit = (e: React.FormEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (onEdit) {
+            onEdit(node.id, { name: editName, description: editDesc });
+            setIsEditing(false);
+        }
+    };
 
     return (
         <motion.div
@@ -173,54 +182,95 @@ const NodeCard: React.FC<{
                 x: node.x || 0,
                 y: node.y || 0
             }}
-            // Instant update for physics tick
             transition={{ duration: 0 }}
             drag
             dragMomentum={false}
             onDrag={updateXarrow}
-            // Capture pointer to prevent pan
             onPointerDownCapture={(e) => e.stopPropagation()}
+            onMouseEnter={() => setHoveredNodeId(node.id)}
+            onMouseLeave={() => setHoveredNodeId(null)}
             className={`
-                absolute w-[180px] p-2 flex flex-col gap-1
-                bg-black/90 backdrop-blur-md rounded border ${finalStyle.border} ${finalStyle.glow}
-                cursor-grab active:cursor-grabbing z-20 group transition-all duration-300
-                ${!isMicro ? 'h-[60px] overflow-hidden' : ''}
+                absolute flex flex-col gap-1
+                bg-black/90 backdrop-blur-[4px] rounded-lg border
+                ${style.border}
+                ${isMicro ? 'w-[200px] p-3' : 'w-[120px] h-[60px] p-2 overflow-hidden'}
+                cursor-grab active:cursor-grabbing z-20 group transition-all duration-200
+                hover:z-50 hover:scale-110 hover:shadow-xl hover:bg-black/95
+                ${style.shadow}
+                ${isMacro ? 'opacity-0 pointer-events-none' : 'opacity-100'}
             `}
-            // Meso View: fixed height, hide details
+            style={{ willChange: 'transform' }} // Optimization
             onClick={(e) => {
                 e.stopPropagation();
-                onClick();
+                if (!isEditing) onClick();
             }}
         >
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className={`flex items-center gap-2 ${finalStyle.text} font-bold text-xs uppercase tracking-wider`}>
-                    {getIcon()}
-                    <span className="truncate max-w-[100px]">{node.type}</span>
-                </div>
-                {/* Ghost Action: Crystallize (Only visible in MICRO or always?)
-                    Commander said: "Meso: Oculta botones de acción". */}
-                {isMicro && node.isGhost && onCrystallize && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onCrystallize(); }}
-                        className="p-1 hover:bg-white/10 rounded text-white/50 hover:text-white transition-colors"
-                        title="Hacer Canon"
-                    >
-                        <Save size={12} />
-                    </button>
-                )}
-            </div>
+            {isEditing ? (
+                 // 🟢 EDIT FORM (Simple Option A)
+                 <div className="flex flex-col gap-2 pointer-events-auto" onClick={e => e.stopPropagation()}>
+                    <input
+                        className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-cyan-500"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        placeholder="Nombre..."
+                    />
+                    <textarea
+                        className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-cyan-500"
+                        rows={2}
+                        value={editDesc}
+                        onChange={e => setEditDesc(e.target.value)}
+                        placeholder="Descripción..."
+                    />
+                    <div className="flex gap-1 justify-end mt-1">
+                        <button onClick={() => setIsEditing(false)} className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>
+                        <button onClick={handleSaveEdit} className="text-[10px] text-green-400 hover:text-white px-2 py-0.5 border border-green-500/30 rounded">OK</button>
+                    </div>
+                 </div>
+            ) : (
+                <>
+                    {/* Header */}
+                    <div className="flex items-center justify-between">
+                         <div className={`flex items-center gap-1.5 ${style.iconColor} font-mono font-bold text-[10px] uppercase tracking-wider`}>
+                             {getIcon()}
+                             <span className="truncate max-w-[80px]">{node.type}</span>
+                         </div>
+                         {/* Actions (Only Micro & Ghosts) */}
+                         {isMicro && node.isGhost && (
+                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                 {onEdit && (
+                                     <button
+                                         onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                                         className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
+                                         title="Editar Borrador"
+                                     >
+                                         <FileText size={10} />
+                                     </button>
+                                 )}
+                                 {onCrystallize && (
+                                     <button
+                                         onClick={(e) => { e.stopPropagation(); onCrystallize(); }}
+                                         className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
+                                         title="Hacer Canon"
+                                     >
+                                         <Save size={10} />
+                                     </button>
+                                 )}
+                             </div>
+                         )}
+                    </div>
 
-            {/* Title */}
-            <div className={`font-bold text-white leading-tight ${isMicro ? 'text-sm line-clamp-2' : 'text-xs truncate'}`}>
-                {node.name}
-            </div>
+                    {/* Title */}
+                    <div className={`font-sans font-bold text-white leading-tight ${isMicro ? 'text-sm' : 'text-xs truncate'}`}>
+                        {node.name}
+                    </div>
 
-            {/* Brief/Snippet (Only MICRO) */}
-            {isMicro && (node.meta?.brief || node.description) && (
-                <div className="text-[9px] text-slate-400 line-clamp-2 leading-relaxed mt-1 font-mono">
-                    {node.meta?.brief || node.description}
-                </div>
+                    {/* Brief (Only Micro) */}
+                    {isMicro && (node.meta?.brief || node.description) && (
+                        <div className="text-[10px] text-slate-400 line-clamp-3 leading-relaxed font-mono">
+                            {node.meta?.brief || node.description}
+                        </div>
+                    )}
+                </>
             )}
         </motion.div>
     );
@@ -247,6 +297,8 @@ const NexusCanvas: React.FC<{
 
     // 🟢 LOD State
     const [lodTier, setLodTier] = useState<'MACRO' | 'MESO' | 'MICRO'>('MESO');
+    const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+    const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
 
     // Modal State
     const [crystallizeModal, setCrystallizeModal] = useState<{ isOpen: boolean, node: VisualNode | null }>({ isOpen: false, node: null });
@@ -445,7 +497,79 @@ const NexusCanvas: React.FC<{
 
     }, [unifiedNodes]);
 
+    // 🟢 CENTROID CALCULATION (MACRO VIEW)
+    const factionCentroids = useMemo(() => {
+        if (lodTier !== 'MACRO') return [];
+
+        const groups: Record<string, { x: number, y: number, count: number }> = {};
+
+        simulatedNodes.forEach(node => {
+            // 1. Priority: Meta Faction
+            let faction = node.meta?.faction;
+
+            // 2. Fallback: Relations (PART_OF)
+            if (!faction && node.relations) {
+                 const partOfRel = node.relations.find(r => r.relation === 'PART_OF');
+                 if (partOfRel) faction = partOfRel.targetName;
+            }
+
+            // Clean up faction name (default group if none)
+            // Or skip if no faction? Let's skip orphans for clarity in Macro
+            if (faction) {
+                if (!groups[faction]) groups[faction] = { x: 0, y: 0, count: 0 };
+                groups[faction].x += (node.x || 0);
+                groups[faction].y += (node.y || 0);
+                groups[faction].count++;
+            }
+        });
+
+        return Object.entries(groups).map(([name, data]) => ({
+            name,
+            x: data.x / data.count,
+            y: data.y / data.count,
+            count: data.count
+        }));
+    }, [simulatedNodes, lodTier]);
+
     // --- 4. HANDLERS ---
+
+    // 🟢 SEMANTIC CONTEXT FILTER (AI OPTIMIZATION)
+    const getSemanticContext = (input: string, allNodes: VisualNode[]) => {
+        const lowerInput = input.toLowerCase();
+
+        // 1. Identify Direct Mentions
+        const mentionedNodes = allNodes.filter(n => {
+            if (!n.name) return false;
+            // Loose check: If input contains name (e.g. "Create a brother for Anna")
+            return lowerInput.includes(n.name.toLowerCase());
+        });
+
+        const mentionedIds = new Set(mentionedNodes.map(n => n.id));
+
+        // 2. Identify 1st Degree Neighbors (Outgoing & Incoming)
+        const relevantIds = new Set(mentionedIds);
+
+        allNodes.forEach(node => {
+            // Check Outgoing from this node to a Mentioned node
+            const pointsToMentioned = node.relations?.some(r => mentionedIds.has(r.targetId));
+
+            // Check Incoming (Is this node mentioned? Then include its targets)
+            const isMentioned = mentionedIds.has(node.id);
+
+            if (isMentioned) {
+                // Add all my targets
+                node.relations?.forEach(r => relevantIds.add(r.targetId));
+            }
+
+            if (pointsToMentioned) {
+                relevantIds.add(node.id);
+            }
+        });
+
+        const filtered = allNodes.filter(n => relevantIds.has(n.id));
+        console.log(`🧠 SEMANTIC FILTER: Reduced context from ${allNodes.length} to ${filtered.length} nodes.`);
+        return filtered;
+    };
 
     const handleInputEnter = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -459,7 +583,10 @@ const NexusCanvas: React.FC<{
             toast.info("🧠 Contactando al Motor del Mundo...");
 
             // 1. Prepare Context (Lite Version for efficiency)
-            const currentGraphContext = [...dbNodes, ...ghostNodes].map(n => ({
+            const allNodes = [...dbNodes, ...ghostNodes];
+            const filteredNodes = getSemanticContext(inputValue, allNodes);
+
+            const currentGraphContext = filteredNodes.map(n => ({
                 id: n.id,
                 name: n.name,
                 type: n.type,
@@ -594,6 +721,16 @@ const NexusCanvas: React.FC<{
         }
     };
 
+    const handleUpdateGhost = (nodeId: string, updates: { name: string, description: string }) => {
+        setGhostNodes(prev => prev.map(g => {
+            if (g.id === nodeId) {
+                return { ...g, name: updates.name, description: updates.description };
+            }
+            return g;
+        }));
+        toast.success("Borrador actualizado localmente.");
+    };
+
     // --- RENDER ---
     return (
         <div className="relative w-full h-full bg-black overflow-hidden font-sans text-white select-none">
@@ -635,16 +772,29 @@ const NexusCanvas: React.FC<{
                                 />
 
                                 <Xwrapper>
-                                    {/* NODES */}
+                                    {/* FACTION LABELS (MACRO ONLY) */}
+                                    {lodTier === 'MACRO' && factionCentroids.map(f => (
+                                        <FactionLabel
+                                            key={f.name}
+                                            name={f.name}
+                                            x={f.x}
+                                            y={f.y}
+                                            count={f.count}
+                                        />
+                                    ))}
+
+                                    {/* NODES (MESO/MICRO) */}
                                     {simulatedNodes.map(node => (
-                                        <NodeCard
+                                        <EntityCard
                                             key={node.id}
                                             node={node}
                                             lodTier={lodTier}
+                                            setHoveredNodeId={setHoveredNodeId}
                                             onClick={() => {
                                                 console.log("Clicked:", node.name);
                                             }}
                                             onCrystallize={node.isGhost ? () => setCrystallizeModal({ isOpen: true, node }) : undefined}
+                                            onEdit={node.isGhost ? handleUpdateGhost : undefined}
                                         />
                                     ))}
 
@@ -654,7 +804,10 @@ const NexusCanvas: React.FC<{
                                         return node.relations.map((rel, idx) => {
                                             if (!simulatedNodes.find(n => n.id === rel.targetId)) return null;
 
+                                            const lineId = `${node.id}-${rel.targetId}-${idx}`;
+                                            const isFocused = hoveredNodeId === node.id || hoveredNodeId === rel.targetId || hoveredLineId === lineId;
                                             const relColor = getRelationColor(rel.relation);
+
                                             // 🟢 SEMANTIC CONTEXT: Show Story first, Type as fallback
                                             const labelText = rel.context
                                                 ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
@@ -662,7 +815,7 @@ const NexusCanvas: React.FC<{
 
                                             return (
                                                 <Xarrow
-                                                    key={`${node.id}-${rel.targetId}-${idx}`}
+                                                    key={lineId}
                                                     start={node.id}
                                                     end={rel.targetId}
                                                     color={relColor}
@@ -671,10 +824,18 @@ const NexusCanvas: React.FC<{
                                                     curveness={0.3}
                                                     path="smooth"
                                                     zIndex={10}
+                                                    passProps={{
+                                                        onMouseEnter: () => setHoveredLineId(lineId),
+                                                        onMouseLeave: () => setHoveredLineId(null),
+                                                        style: { cursor: 'pointer' }
+                                                    }}
                                                     labels={{
                                                         middle: (
                                                             <div
-                                                                className="bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help hover:z-50 hover:scale-110 hover:text-white transition-all shadow-sm"
+                                                                className={`
+                                                                    bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
+                                                                    ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
+                                                                `}
                                                                 style={{
                                                                     borderColor: relColor,
                                                                     color: relColor,
