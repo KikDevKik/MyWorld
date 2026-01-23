@@ -124,7 +124,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             <div className="px-4 py-4 border-b border-titanium-800 bg-titanium-900/50">
                 <div className="flex items-center gap-2 mb-3">
                     <div className="text-titanium-500">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                             <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
                     </div>
@@ -157,6 +157,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         onChange={(e) => setSelectedSagaId(e.target.value || null)}
                         className="w-full appearance-none bg-titanium-950 hover:bg-titanium-900 text-sm font-medium text-titanium-100 focus:outline-none focus:ring-2 focus:ring-accent-DEFAULT/50 cursor-pointer py-2 px-3 pr-8 rounded-md border border-titanium-700 transition-all"
                         disabled={!fileTree || fileTree.length === 0}
+                        aria-label="Filtrar por Saga"
                     >
                         <option value="" className="bg-titanium-950 text-titanium-100">Vista Global</option>
                         {topLevelFolders.map(folder => (
@@ -179,7 +180,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
                 {isFileTreeLoading ? (
                     // 🟢 TITANIUM SKELETON (CIRCUIT BREAKER VISUAL)
-                    <div className="flex flex-col gap-3 p-2 animate-pulse">
+                    <div
+                        className="flex flex-col gap-3 p-2 animate-pulse"
+                        role="status"
+                        aria-label="Cargando estructura de archivos..."
+                    >
                         <div className="h-4 bg-titanium-700/50 rounded w-3/4"></div>
                         <div className="h-4 bg-titanium-700/30 rounded w-1/2 ml-4"></div>
                         <div className="h-4 bg-titanium-700/30 rounded w-2/3 ml-4"></div>
@@ -207,7 +212,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 </div>
                                 <h3 className="text-sm font-bold text-titanium-200">Proyecto Vacío</h3>
                                 <p className="text-xs text-titanium-400 leading-relaxed">
-                                    No hay carpetas configuradas. Ve a la sección <strong>Proyecto</strong> para conectar tu Google Drive.
+                                    Tu bóveda está vacía. Conecta Google Drive para sincronizar tu universo narrativo.
                                 </p>
                                 <div className="flex flex-col gap-3 w-full px-2 mt-2">
                                     <button
