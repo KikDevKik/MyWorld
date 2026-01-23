@@ -191,7 +191,7 @@ const EntityCard: React.FC<{
                 opacity: 1,
                 x: isDragging ? undefined : (node.x || 0),
                 y: isDragging ? undefined : (node.y || 0),
-                zIndex: isDragging || isHovered ? 9999 : 1 // 👑 King of the Hill
+                zIndex: isDragging || isHovered ? 100 : 10 // 👑 King of the Hill (Adjusted for Layering)
             }}
             transition={{ duration: 0 }}
             drag
@@ -224,6 +224,13 @@ const EntityCard: React.FC<{
             `}
             style={{ willChange: 'transform' }} // Optimization
         >
+            {/* ⚓ GHOST ANCHOR (1x1px Center Target for Lines) */}
+            {/* Using 1px instead of 0px to ensure browser engine renders it as valid target */}
+            <div
+                id={`${node.id}-anchor`}
+                className="absolute top-1/2 left-1/2 w-px h-px -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-none"
+            />
+
             {/* 🎨 INNER VISUAL CARD (Scales without affecting Lines) */}
             <div
                 className={`
@@ -942,6 +949,7 @@ const NexusCanvas: React.FC<{
                 centerOnInit={true}
                 limitToBounds={false}
                 wheel={{ step: 0.1 }}
+                panning={{ activationKeys: ["Shift"] }} // 🔒 STRICT INPUT PROTOCOL
                 onTransformed={(ref) => {
                     const s = ref.state.scale;
                     setCurrentScale(s);
@@ -1020,14 +1028,14 @@ const NexusCanvas: React.FC<{
                                             return (
                                                 <Xarrow
                                                     key={lineId}
-                                                    start={node.id}
-                                                    end={rel.targetId}
+                                                    start={`${node.id}-anchor`} // ⚓ Anchor Target
+                                                    end={`${rel.targetId}-anchor`} // ⚓ Anchor Target
                                                     color={relColor}
                                                     strokeWidth={1.5}
                                                     headSize={3}
                                                     curveness={0.3}
                                                     path="smooth"
-                                                    zIndex={10}
+                                                    zIndex={0} // 📉 Layer 0 (Below Cards)
                                                     passProps={{
                                                         onMouseEnter: () => setHoveredLineId(lineId),
                                                         onMouseLeave: () => setHoveredLineId(null),
