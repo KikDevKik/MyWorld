@@ -1,0 +1,71 @@
+REPORTE DE CAMBIOS: NEXUS CANVAS V2 (FASE 1.5 & 2)
+======================================================
+Fecha: 25 de Octubre, 2023 (Simulado)
+Agente: Jules
+Asunto: Implementación de Resiliencia, IA y Zoom Semántico
+
+1. RESUMEN DE CAMBIOS EJECUTADOS
+--------------------------------
+Se han completado las tres directrices principales ordenadas por el Comandante:
+
+A. Protocolo "Boya de Rescate" (Lifeboat Protocol)
+   - Objetivo: Evitar la pérdida de datos creativa ante fallos de red o token expirado.
+   - Implementación:
+     - Se añadió persistencia en `localStorage` bajo la clave `nexus_pending_crystallization`.
+     - Si `handleCrystallizeConfirm` falla, el nodo se guarda localmente y se marca visualmente con un icono de alerta (Triángulo Rojo).
+     - Se implementó un botón flotante de "Reintento Masivo" que aparece solo cuando hay nodos pendientes.
+
+B. Conexión del "Cerebro Real" (World Engine Integration)
+   - Objetivo: Que la Terminal de Génesis deje de ser un eco local y use la IA del backend.
+   - Implementación:
+     - La terminal ahora llama a la Cloud Function `worldEngine`.
+     - Se mapeó el slider de Entropía al parámetro `chaosLevel` de la IA.
+     - La respuesta de la IA (nodos + relaciones) se inyecta directamente en el grafo como "Ghost Nodes".
+     - Se añadió estado de carga (`isGenerating`) para evitar doble envío.
+
+C. Zoom Semántico y Visualización (LOD & Aesthetics)
+   - Objetivo: Mejorar la legibilidad y la jerarquía visual.
+   - Implementación:
+     - **Líneas:** Ahora muestran `rel.context` (la historia: "Traición por dinero") como etiqueta principal. El color de la línea indica el tipo (Rojo=Enemigo, Dorado=Familia, etc.).
+     - **LOD (Level of Detail):** Se implementaron 3 niveles de zoom automáticos:
+       1. MACRO (< 0.6x): Solo muestra etiquetas gigantes de Facciones/Grupos. Oculta nodos individuales y líneas.
+       2. MESO (0.6x - 2.0x): Vista táctica. Tarjetas simplificadas (Icono + Nombre). Sin botones de acción.
+       3. MICRO (> 2.0x): Vista detallada. Tarjetas completas con descripción y botones de cristalización.
+
+2. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+-------------------------------------
+Durante el desarrollo surgieron los siguientes obstáculos:
+
+- **Error de Compilación (Missing Import):** Se detectó el uso de `<Loader2 />` sin importarlo de `lucide-react`.
+  -> Solución: Se añadió la importación en la fase de revisión.
+
+- **Estado Inicial del Zoom (Pantalla Vacía):** La variable `lodTier` iniciaba en 'MACRO', lo que causaba que al cargar la página (zoom 1.0) los nodos estuvieran invisibles.
+  -> Solución: Se cambió el estado inicial a 'MESO' para garantizar visibilidad inmediata.
+
+- **Duplicidad en la Boya:** Al reintentar fallidamente, se corría el riesgo de duplicar entradas en la cola de rescate.
+  -> Solución: Se añadió una comprobación de IDs existentes antes de agregar a la cola `pendingNodes`.
+
+- **Verificación Playwright:** El script de prueba fallaba al intentar localizar el botón de "Lifeboat" debido a selectores de CSS escapados incorrectamente en Python.
+  -> Solución: Se corrigió el script de prueba y se verificó visualmente con éxito.
+
+3. CONSIDERACIONES FUTURAS Y RIESGOS DETECTADOS
+-----------------------------------------------
+Para la Fase 3 y mantenimiento, tener en cuenta:
+
+- **Rendimiento de Renderizado (React + D3):**
+  A medida que el número de nodos crezca (>100), la renderización de componentes React (`NodeCard`) sincronizados con `d3-force` puede causar lag.
+  -> *Recomendación:* Si el grafo crece mucho, considerar migrar a `Canvas API` puro para renderizado (perdiendo interactividad HTML fácil) o usar `WebWorker` para la física.
+
+- **Límite de LocalStorage:**
+  La "Boya de Rescate" usa `localStorage`, que tiene un límite de ~5MB. Si el usuario intenta guardar nodos con textos extremadamente largos (novelas enteras), podría fallar silenciosamente.
+  -> *Recomendación:* Implementar compresión (LZ-string) o usar `IndexedDB` para mayor capacidad en el futuro.
+
+- **Costos de IA (World Engine):**
+  La conexión real a Gemini implica costos por token. La terminal actual envía el contexto del grafo para generar relaciones.
+  -> *Recomendación:* Monitorizar el uso de tokens. Si el grafo es muy grande, enviar solo un resumen o los nodos vecinos al `worldEngine`, no todo el grafo.
+
+- **Colisiones de ID:**
+  Los nodos generados por IA usan IDs basados en timestamp o random. Si dos usuarios colaboran (futuro) o si hay sincronización masiva, podría haber colisiones.
+  -> *Recomendación:* Mantener la generación de IDs deterministas (SHA-256 del nombre + proyecto) como se usa en `syncWorldManifest`.
+
+FIN DEL REPORTE
