@@ -1,0 +1,39 @@
+REPORTE DE OPERACIONES: REPARACIÓN NEXUS CANVAS
+AGENTE: Jules (JUL-0B)
+FECHA: 2024-05-23
+ESTADO: MISIÓN CUMPLIDA
+
+1. RESUMEN DE LA SITUACIÓN
+Se detectaron dos fallos críticos en la usabilidad del sistema "El Perforador de Mundos" (NexusCanvas):
+   A) "Parálisis de Nodos": Conflicto severo entre la acción de Mover el Mapa (Pan) y Mover un Nodo (Drag). El sistema no distinguía claramente la intención del usuario.
+   B) "Desacople Visual": Al hacer Zoom In/Out, las líneas de conexión parecían flotar sobre las tarjetas o desconectarse de ellas, rompiendo la inmersión visual.
+
+2. PROBLEMAS ENCONTRADOS Y DIAGNÓSTICO
+   - Conflicto de Eventos: La librería de zoom (react-zoom-pan-pinch) capturaba todos los clics en el fondo, incluso aquellos que empezaban cerca de un nodo pero salían rápido, o competía con el evento `onDrag` de Framer Motion.
+   - Geometría de Conexión: `react-xarrows` calculaba la ruta de la línea basándose en el borde del contenedor rectangular (`div` externo). Al hacer zoom, el cálculo del borde vs el centro visual de la tarjeta variaba, causando el efecto de "línea flotante".
+   - Orden de Apilamiento (Z-Index): Las líneas tenían un Z-index igual o superior al de las tarjetas en algunos estados, haciendo que se dibujaran "encima" del texto o iconos.
+
+3. ACCIONES TOMADAS (LA SOLUCIÓN)
+
+   A) PROTOCOLO DE INTERACCIÓN ESTRICTO (Shift to Pan)
+      - Acción: Se configuró el `TransformWrapper` con `panning={{ activationKeys: ["Shift"] }}`.
+      - Por qué: Esta es la solución estándar en herramientas profesionales (Figma, Miro). Elimina la ambigüedad.
+        * Sin Shift: El ratón es una "Mano" que agarra objetos (Nodos).
+        * Con Shift: El ratón se convierte en una "Cámara" que mueve el mundo.
+
+   B) ESTRATEGIA DE "ANCLA FANTASMA" (Ghost Anchor)
+      - Acción: Se inyectó un `div` invisible de 1x1 píxeles en el centro absoluto de cada tarjeta (`top-1/2 left-1/2`).
+      - Acción: Se reprogramaron las flechas (`Xarrow`) para apuntar a este ID (`node-id-anchor`) en lugar de al nodo entero.
+      - Por qué: Matemáticamente, esto fuerza a la línea a calcular su trayectoria hacia el "corazón" del nodo. Al ser un punto fijo, la línea siempre es recta hacia el centro.
+
+   C) ILUSIÓN DE PROFUNDIDAD (Layering)
+      - Acción: Se forzó `z-index: 0` para las líneas.
+      - Acción: Se forzó `z-index: 10` (base) y `100` (hover) para las tarjetas.
+      - Por qué: Al poner la tarjeta visualmente "encima" de la línea, y la línea apuntando al centro de la tarjeta, la punta de la flecha queda oculta debajo del cuerpo de la tarjeta. Esto crea la ilusión perfecta de que la conexión "nace" desde atrás, resolviendo el problema visual sin cálculos matemáticos complejos de intersección de bordes.
+
+4. VALIDACIÓN
+   - Se generó un enjambre de prueba (50 nodos).
+   - Se verificó en Zoom Máximo (Micro): Las líneas nacen limpiamente desde atrás.
+   - Se verificó la interacción: El mapa ya no se mueve accidentalmente al intentar arrastrar un nodo.
+
+FIN DEL REPORTE.
