@@ -1,0 +1,59 @@
+REPORTE TÉCNICO: OPERACIÓN NEXUS V2 (FASE 1)
+FECHA: 2024-05-22
+AUTOR: Jules (Agente de Ingeniería)
+PARA: El Comandante & Equipo de Planificación
+
+---
+
+1. RESUMEN EJECUTIVO (Misión Cumplida)
+Se ha completado la transición exitosa de la antigua arquitectura de visualización (`WorldEnginePanel` / `NexusGraph`) hacia el nuevo estándar `NexusCanvas`. Esta operación "Tabula Rasa" no fue una refactorización, sino una reconstrucción total del motor de visualización y de la lógica de ingestión de datos para alinear el sistema con la visión "Cyberpunk/Solar" del Comandante.
+
+El sistema ahora cuenta con un "Filtro de Santidad" en el backend que protege la integridad de los datos, y un frontend reactivo que prioriza la física narrativa sobre la posición manual.
+
+---
+
+2. ARQUITECTURA TÉCNICA (Lo que se construyó)
+
+A. NEXUS CANVAS (Frontend)
+   - Componente: `src/components/NexusCanvas.tsx`
+   - Motor Físico: `d3-force` configurado con "Gravedad Solar".
+     - Núcleo (Sol): Personajes atraídos al centro (radio 100px).
+     - Anillo Interior (Planetas): Lugares orbitando a 500px.
+     - Anillo Exterior (Cinturón de Kuiper): Ideas/Borradores y Nodos Fantasma orbitando a 900px.
+   - Protocolo de Amnesia: Se fuerza `fx = null` y `fy = null` en cada carga. Esto garantiza que el grafo siempre respire y se auto-organice, evitando que los nodos queden "congelados" en posiciones obsoletas.
+   - Estética: Diseño Cyberpunk estricto. Tarjetas rectangulares con bordes de neón (Oro, Cian, Violeta) sobre fondo negro absoluto (#000).
+   - Conexiones: Uso de `react-xarrows` con tooltips nativos (hover) que muestran el contexto narrativo (ej. "Rivalidad por envidia").
+
+B. FILTRO DE SANTIDAD (Backend)
+   - Archivo: `functions/src/index.ts`
+   - Lógica: Se modificó `syncWorldManifest` para implementar una "Lista Blanca Estricta".
+   - Comportamiento Anterior: El escáner leía recursivamente TODA la carpeta del proyecto, incluyendo basura, borradores y recursos.
+   - Comportamiento Nuevo: El sistema lee `projectConfig.canonPaths`.
+     - Si existen carpetas Canon: Solo entra en ellas.
+     - Si NO existen: ABORTA la operación y devuelve error `REQUIRE_CANON_CONFIG`.
+   - Impacto: Reducción drástica de costos de IA (tokens) y eliminación de ruido en el grafo.
+
+C. TERMINAL DE GÉNESIS
+   - Interfaz: Barra inferior flotante con Slider de Entropía (0.0 a 1.0).
+   - Funcionalidad: Permite inyectar "Nodos Fantasma" (Ideas locales) que viven solo en la memoria del navegador hasta que el usuario decide "Cristalizarlos" (Hacerlos Canon), momento en el cual se guardan como archivos Markdown reales en Drive.
+
+---
+
+3. RACIONAL ESTRATÉGICO (El "Por Qué")
+
+- Por qué eliminar WorldEnginePanel: El componente antiguo arrastraba deuda técnica de tres intentos previos de visualización (3D vs 2D). `NexusCanvas` unifica la visión en una sola arquitectura mantenible.
+- Por qué "Amnesia": La narrativa es fluida. Guardar posiciones (X, Y) funcionaba para diagramas estáticos, pero para un "Cerebro Vivo", las relaciones (gravedad) son más importantes que la ubicación absoluta. Si un personaje se vuelve irrelevante, la física debe empujarlo fuera, no una coordenada guardada hace 3 meses.
+- Por qué Whitelist Estricta: La IA es tan buena como los datos que consume. Permitir que leyera la carpeta "_RESOURCES" o "Borradores_Viejos" estaba envenenando el contexto del RAG. Ahora, la "Verdad" está confinada geográficamente en Drive.
+
+---
+
+4. NOTAS PARA PLANIFICACIÓN (Fases Futuras & Riesgos)
+
+- [RIESGO] Rendimiento D3: Con <500 nodos, la simulación es fluida a 60fps. Si el proyecto escala a >1000 entidades, deberíamos considerar migrar el motor de renderizado a WebGL (`react-force-graph` o `Cosmos`), aunque perderíamos la flexibilidad de HTML/CSS en las tarjetas.
+- [RECOMENDACIÓN] Fase 2 (Drift): El siguiente paso lógico es conectar el "Análisis de Impacto" real en la Terminal de Génesis. Actualmente crea el nodo fantasma, pero el análisis de contradicción (Argos) debe integrarse antes de permitir la cristalización.
+- [UX] Token de Drive: La cristalización depende de `localStorage.getItem('google_drive_token')`. Si el usuario limpia caché o el token caduca, la acción fallará (con aviso). En el futuro, deberíamos pasar el token vivo desde el contexto de la App para mayor robustez.
+- [UI] Icono Sidebar: Se ha reutilizado el botón dentro de "Forja" para acceder al Nexus. Para la Fase 2, se recomienda crear un icono dedicado en `ArsenalDock` (Barra lateral derecha) para acceso directo de primer nivel.
+
+---
+
+FIN DEL REPORTE

@@ -842,15 +842,34 @@ export const syncWorldManifest = onCall(
                  throw new HttpsError("not-found", "Could not find specific file.");
              }
         } else {
-             logger.info(`📡 Full Scan: Scanning ${projectId}`);
-             const tree = await fetchFolderContents(drive, projectId, config, true);
-             const flatFiles = flattenFileTree(tree);
-             candidates = flatFiles.filter(f =>
+             // 🟢 SANCTITY FILTER: STRICT WHITELIST
+             if (config.canonPaths && config.canonPaths.length > 0) {
+                 logger.info(`🛡️ SANCTITY PROTOCOL: Scanning ${config.canonPaths.length} Canon Folders (Whitelisted).`);
+                 // Iterate and scan ONLY canon folders
+                 for (const p of config.canonPaths) {
+                      logger.info(`   -> Whitelisted Folder: ${p.name} (${p.id})`);
+                      const folderTree = await fetchFolderContents(drive, p.id, config, true);
+                      const flatTree = flattenFileTree(folderTree);
+                      candidates = [...candidates, ...flatTree];
+                 }
+                 logger.info(`   -> Whitelist Total Candidates: ${candidates.length}`);
+             } else {
+                 // FAIL SAFE: No Canon Configured -> ABORT
+                 logger.warn("⚠️ SANCTITY PROTOCOL: No Canon Folders configured. Aborting scan.");
+                 return {
+                     success: false,
+                     code: "REQUIRE_CANON_CONFIG",
+                     message: "No tienes carpetas Canon configuradas. Ve a Ajustes -> Carpetas y define dónde vive la verdad."
+                 };
+             }
+
+             // Filter by extension
+             candidates = candidates.filter(f =>
                 f.mimeType === 'application/vnd.google-apps.document' ||
                 f.name.endsWith('.md') ||
                 f.name.endsWith('.txt')
             );
-            logger.info(`   -> Files Found: ${candidates.length}`);
+            logger.info(`   -> Valid Files Found: ${candidates.length}`);
         }
 
         // --- STEP B: BATCH PROCESS (AI EXTRACTION + SEQUENTIAL UPSERT) ---
