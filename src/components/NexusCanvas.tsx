@@ -17,7 +17,8 @@ import {
     Box,
     Swords,
     Diamond,
-    AlertTriangle
+    AlertTriangle,
+    Bug
 } from 'lucide-react';
 import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
@@ -51,6 +52,7 @@ interface PendingCrystallization {
 }
 
 const PENDING_KEY = 'nexus_pending_crystallization';
+const DRAFTS_KEY = 'nexus_drafts_v1';
 
 // 🟢 STYLES (CYBERPUNK PALETTE REFINED)
 const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: string }> = {
@@ -98,7 +100,7 @@ const RELATION_COLORS: Record<string, string> = {
 const getRelationColor = (type: string) => {
     if (!type) return RELATION_COLORS.DEFAULT;
     const key = type.toUpperCase();
-    if (key.includes('ENEMY') || key.includes('WAR') || key.includes('KILL') || key.includes('HATE')) return RELATION_COLORS.ENEMY;
+    if (key.includes('ENEMY') || key.includes('WAR') || key.includes('KILL') || key.includes('HATE') || key.includes('ODIA') || key.includes('TRAICIÓN') || key.includes('RIVAL') || key.includes('MUERTE')) return RELATION_COLORS.ENEMY;
     if (key.includes('ALLY') || key.includes('FRIEND') || key.includes('TRADE') || key.includes('LOVE')) return RELATION_COLORS.ALLY;
     if (key.includes('FAMILY') || key.includes('SPOUSE') || key.includes('BLOOD') || key.includes('SIB')) return RELATION_COLORS.FAMILY;
     if (key.includes('MAGIC') || key.includes('SPELL') || key.includes('CURSE')) return RELATION_COLORS.MAGIC;
@@ -128,19 +130,25 @@ const EntityCard: React.FC<{
     onCrystallize?: () => void;
     onEdit?: (nodeId: string, updates: { name: string, description: string }) => void;
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
+    currentScale: number;
     setHoveredNodeId: (id: string | null) => void;
-}> = ({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId }) => {
+    onDragStart?: () => void;
+    onDrag?: (dx: number, dy: number) => void;
+    onDragEnd?: () => void;
+}> = ({ node, onClick, onCrystallize, onEdit, lodTier, currentScale, setHoveredNodeId, onDragStart, onDrag, onDragEnd }) => {
     const updateXarrow = useXarrow();
     const [isEditing, setIsEditing] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     const [editName, setEditName] = useState(node.name);
     const [editDesc, setEditDesc] = useState(node.description || "");
 
     // Detect Style
     let nodeStyleKey = 'default';
-    if (node.isGhost) nodeStyleKey = 'idea';
-    else if (node.type === 'character') nodeStyleKey = 'character';
+    if (node.type === 'character') nodeStyleKey = 'character';
     else if (node.type === 'location') nodeStyleKey = 'location';
     else if (node.meta?.node_type === 'conflict' || node.type === 'enemy') nodeStyleKey = 'conflict'; // Red detection
+    else if (node.type === 'idea') nodeStyleKey = 'idea';
+    else if (node.isGhost) nodeStyleKey = 'idea'; // Fallback for generic ghosts
     else if (['faction', 'event', 'object'].includes(node.type)) nodeStyleKey = 'default';
 
     const style = NODE_STYLES[nodeStyleKey] || NODE_STYLES.default;
@@ -179,13 +187,24 @@ const EntityCard: React.FC<{
             animate={{
                 opacity: 1,
                 scale: 1,
-                x: node.x || 0,
-                y: node.y || 0
+                x: isDragging ? undefined : (node.x || 0),
+                y: isDragging ? undefined : (node.y || 0)
             }}
             transition={{ duration: 0 }}
             drag
             dragMomentum={false}
-            onDrag={updateXarrow}
+            onDragStart={() => {
+                setIsDragging(true);
+                if (onDragStart) onDragStart();
+            }}
+            onDrag={(e, info) => {
+                updateXarrow();
+                if (onDrag) onDrag(info.delta.x / currentScale, info.delta.y / currentScale);
+            }}
+            onDragEnd={() => {
+                setIsDragging(false);
+                if (onDragEnd) onDragEnd();
+            }}
             onPointerDownCapture={(e) => e.stopPropagation()}
             onMouseEnter={() => setHoveredNodeId(node.id)}
             onMouseLeave={() => setHoveredNodeId(null)}
@@ -297,6 +316,7 @@ const NexusCanvas: React.FC<{
 
     // 🟢 LOD State
     const [lodTier, setLodTier] = useState<'MACRO' | 'MESO' | 'MICRO'>('MESO');
+    const [currentScale, setCurrentScale] = useState(0.8);
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
     const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
 
@@ -307,31 +327,64 @@ const NexusCanvas: React.FC<{
     // Physics Ref
     const simulationRef = useRef<any>(null);
 
-    // --- 0. LIFEBOAT (Boya de Rescate) ---
+    // --- 0. LIFEBOAT & DRAFTS (Paranoid Persistence) ---
     useEffect(() => {
-        const saved = localStorage.getItem(PENDING_KEY);
-        if (saved) {
+        // 1. Load Lifeboat (Failed Saves)
+        const savedRescue = localStorage.getItem(PENDING_KEY);
+        let initialGhosts: VisualNode[] = [];
+
+        if (savedRescue) {
             try {
-                const parsed = JSON.parse(saved) as PendingCrystallization[];
+                const parsed = JSON.parse(savedRescue) as PendingCrystallization[];
                 console.log("⚓ NEXUS LIFEBOAT: Found pending nodes:", parsed.length);
                 setPendingNodes(parsed);
-                // Re-hydrate visual ghosts
-                const rescuedGhosts = parsed.map(p => ({
+                initialGhosts = parsed.map(p => ({
                     ...p.node,
                     isGhost: true,
                     isRescue: true
                 }));
-                setGhostNodes(prev => {
-                    // Avoid dupes if strict mode double mounts
-                    const existingIds = new Set(prev.map(n => n.id));
-                    const newGhosts = rescuedGhosts.filter(g => !existingIds.has(g.id));
-                    return [...prev, ...newGhosts];
-                });
             } catch (e) {
                 console.error("💥 LIFEBOAT ERROR: Could not parse local storage.", e);
             }
         }
+
+        // 2. Load Paranoid Drafts
+        const savedDrafts = localStorage.getItem(DRAFTS_KEY);
+        if (savedDrafts) {
+            try {
+                const parsedDrafts = JSON.parse(savedDrafts) as VisualNode[];
+                console.log("💾 NEXUS PARANOID: Found drafts:", parsedDrafts.length);
+
+                // Dedupe: If ID exists in Rescue, keep Rescue (it implies pending action)
+                const rescueIds = new Set(initialGhosts.map(n => n.id));
+                const uniqueDrafts = parsedDrafts.filter(d => !rescueIds.has(d.id));
+
+                initialGhosts = [...initialGhosts, ...uniqueDrafts];
+            } catch (e) {
+                console.error("💥 DRAFTS ERROR: Could not parse local storage.", e);
+            }
+        }
+
+        if (initialGhosts.length > 0) {
+            setGhostNodes(prev => {
+                const existingIds = new Set(prev.map(n => n.id));
+                const newGhosts = initialGhosts.filter(g => !existingIds.has(g.id));
+                return [...prev, ...newGhosts];
+            });
+        }
     }, []);
+
+    // 🟢 PARANOID SAVER (Debounce 1s)
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (ghostNodes.length > 0) {
+                localStorage.setItem(DRAFTS_KEY, JSON.stringify(ghostNodes));
+            } else {
+                 if (localStorage.getItem(DRAFTS_KEY)) localStorage.removeItem(DRAFTS_KEY);
+            }
+        }, 1000);
+        return () => clearTimeout(timer);
+    }, [ghostNodes]);
 
     const saveToLifeboat = (node: VisualNode, targetData: any) => {
         const newItem: PendingCrystallization = { node, targetData, timestamp: Date.now() };
@@ -731,9 +784,98 @@ const NexusCanvas: React.FC<{
         toast.success("Borrador actualizado localmente.");
     };
 
+    // 🟢 PHYSICS HANDLERS (Jitter Fix)
+    const handleDragStart = useCallback((nodeId: string) => {
+        if (!simulationRef.current) return;
+        const d = simulationRef.current.nodes().find((n: any) => n.id === nodeId);
+        if (!d) return;
+        d.fx = d.x;
+        d.fy = d.y;
+        simulationRef.current.alphaTarget(0.3).restart();
+    }, []);
+
+    const handleDrag = useCallback((nodeId: string, dx: number, dy: number) => {
+        if (!simulationRef.current) return;
+        const d = simulationRef.current.nodes().find((n: any) => n.id === nodeId);
+        if (!d) return;
+        // Init fx/fy if missing
+        if (d.fx === null) d.fx = d.x;
+        if (d.fy === null) d.fy = d.y;
+
+        d.fx += dx;
+        d.fy += dy;
+        // Simulation tick will auto-update
+    }, []);
+
+    const handleDragEnd = useCallback((nodeId: string) => {
+        if (!simulationRef.current) return;
+        const d = simulationRef.current.nodes().find((n: any) => n.id === nodeId);
+        if (!d) return;
+        d.fx = null;
+        d.fy = null;
+        simulationRef.current.alphaTarget(0);
+    }, []);
+
+    // 🟢 DEBUG: SWARM GENERATOR
+    const spawnDebugNodes = (count: number = 50) => {
+        const newGhosts: VisualNode[] = [];
+        const width = 4000;
+        const center = width / 2;
+
+        for (let i = 0; i < count; i++) {
+            const r = Math.random();
+            let type: EntityType | string = 'character';
+            if (r < 0.5) type = 'enemy'; // 50% (Red)
+            else if (r < 0.7) type = 'location'; // 20% (Cyan)
+            else type = 'character'; // 30% (Yellow)
+
+            const id = `debug-${Date.now()}-${i}`;
+            const node: VisualNode = {
+                id,
+                name: `${type.toUpperCase()} ${i}`,
+                type: type as EntityType,
+                description: "Simulación de estrés. Nodo generado por el protocolo de prueba.",
+                projectId: config?.folderId || 'debug',
+                isGhost: true,
+                x: center + (Math.random() - 0.5) * 2000,
+                y: center + (Math.random() - 0.5) * 2000,
+                relations: []
+            };
+
+            // Relations
+            if (i > 0 && Math.random() > 0.6) {
+                const target = newGhosts[Math.floor(Math.random() * i)];
+                const relTypes = [
+                    { rel: 'ODIA A', ctx: 'Rivalidad a muerte' },
+                    { rel: 'ALIANZA', ctx: 'Tratado comercial' },
+                    { rel: 'TRAICIÓN', ctx: 'Puñalada por la espalda' }
+                ];
+                const rt = relTypes[Math.floor(Math.random() * relTypes.length)];
+
+                node.relations?.push({
+                    targetId: target.id,
+                    relation: rt.rel,
+                    context: rt.ctx,
+                    targetName: target.name,
+                    targetType: target.type
+                });
+            }
+
+            newGhosts.push(node);
+        }
+
+        setGhostNodes(prev => [...prev, ...newGhosts]);
+        toast.success(`🪲 ENJAMBRE: ${count} nodos inyectados.`);
+    };
+
+    // Expose to window for console access
+    useEffect(() => {
+        (window as any).spawnDebugNodes = spawnDebugNodes;
+    }, []);
+
     // --- RENDER ---
     return (
-        <div className="relative w-full h-full bg-black overflow-hidden font-sans text-white select-none">
+        <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
 
             {/* CANVAS */}
             <TransformWrapper
@@ -745,6 +887,7 @@ const NexusCanvas: React.FC<{
                 wheel={{ step: 0.1 }}
                 onTransformed={(ref) => {
                     const s = ref.state.scale;
+                    setCurrentScale(s);
                     let tier: 'MACRO' | 'MESO' | 'MICRO' = 'MESO';
                     if (s < 0.6) tier = 'MACRO';
                     else if (s > 2.0) tier = 'MICRO';
@@ -789,10 +932,14 @@ const NexusCanvas: React.FC<{
                                             key={node.id}
                                             node={node}
                                             lodTier={lodTier}
+                                            currentScale={currentScale}
                                             setHoveredNodeId={setHoveredNodeId}
                                             onClick={() => {
                                                 console.log("Clicked:", node.name);
                                             }}
+                                            onDragStart={() => handleDragStart(node.id)}
+                                            onDrag={(dx, dy) => handleDrag(node.id, dx, dy)}
+                                            onDragEnd={() => handleDragEnd(node.id)}
                                             onCrystallize={node.isGhost ? () => setCrystallizeModal({ isOpen: true, node }) : undefined}
                                             onEdit={node.isGhost ? handleUpdateGhost : undefined}
                                         />
@@ -857,6 +1004,7 @@ const NexusCanvas: React.FC<{
 
                         {/* ZOOM CONTROLS (Floating) */}
                         <div className="absolute bottom-24 right-6 flex flex-col gap-2 pointer-events-auto">
+                            <button onClick={() => spawnDebugNodes(50)} className="p-2 bg-red-900/50 border border-red-700 rounded hover:border-red-500 text-red-500 hover:text-white mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
                             <button onClick={() => zoomIn()} className="p-2 bg-slate-900 border border-slate-700 rounded hover:border-cyan-500"><Plus size={16} /></button>
                             <button onClick={() => zoomOut()} className="p-2 bg-slate-900 border border-slate-700 rounded hover:border-cyan-500"><div className="w-4 h-[2px] bg-white my-2" /></button>
                         </div>
