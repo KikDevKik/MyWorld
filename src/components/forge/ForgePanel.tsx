@@ -6,9 +6,9 @@ import useDrivePicker from 'react-google-drive-picker';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import ForgeDashboard from './ForgeDashboard';
-import NexusGraph from './NexusGraph';
 import { ProjectConfig } from '../../types';
 import ScopeTreeSelector from '../ScopeTreeSelector';
+import { useLayoutStore } from '../../stores/useLayoutStore';
 
 interface ForgePanelProps {
     onClose: () => void;
@@ -18,10 +18,10 @@ interface ForgePanelProps {
 
 const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken }) => {
     const { config, updateConfig } = useProjectConfig();
+    const { setActiveView } = useLayoutStore(); // 🟢 Global Nav
     const [openPicker] = useDrivePicker();
     const [isSyncing, setIsSyncing] = useState(false);
     const [isSyncingNexus, setIsSyncingNexus] = useState(false);
-    const [showGraph, setShowGraph] = useState(false);
 
     // 🟢 SCOPE STATE (REPLACED BREADCRUMB)
     const [selectedScope, setSelectedScope] = useState<{ id: string | null; name: string; recursiveIds: string[]; path?: string }>({
@@ -266,15 +266,15 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    {/* TOGGLE GRAPH */}
+                    {/* TOGGLE GRAPH (NEXUS) */}
                     {config?.characterVaultId && (
                         <button
-                            onClick={() => setShowGraph(true)}
+                            onClick={() => setActiveView('perforador')}
                             className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 hover:text-cyan-400 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-titanium-700 mr-2 group"
-                            title="View Nexus Graph"
+                            title="Switch to Nexus Canvas"
                         >
                             <Network size={16} className="group-hover:text-cyan-400" />
-                            <span className="hidden sm:inline">VER GRAFO</span>
+                            <span className="hidden sm:inline">VER NEXUS</span>
                         </button>
                     )}
 
@@ -319,14 +319,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                 />
             </div>
 
-            {/* NEXUS GRAPH OVERLAY */}
-            {showGraph && config?.characterVaultId && (
-                <NexusGraph
-                    projectId={config.characterVaultId}
-                    onClose={() => setShowGraph(false)}
-                    accessToken={accessToken}
-                />
-            )}
         </div>
     );
 };
