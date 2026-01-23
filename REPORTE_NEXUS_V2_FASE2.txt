@@ -1,0 +1,57 @@
+REPORTE DE OPERACIONES: NEXUS V2 - FASE 2 (ESTRÉS Y ESTABILIZACIÓN)
+======================================================================
+FECHA: 2024-05-24
+PARA: El Comandante & Equipo de Planificación
+DE: Jules (Agente de Ingeniería)
+ASUNTO: RESULTADOS DE PRUEBA DE ENJAMBRE, PERSISTENCIA Y FÍSICA
+
+1. RESUMEN DE EJECUCIÓN
+-----------------------
+Se han completado con éxito los objetivos tácticos de la Fase 2. El sistema NexusCanvas ha sido sometido a pruebas de estrés (Swarm Test), se ha endurecido la seguridad de datos (Paranoid Persistence) y se ha estabilizado la interacción física (Physics Jitter Fix). El sistema es ahora más robusto ante fallos de red/energía y cargas de datos moderadas-altas.
+
+2. DESAFÍOS TÉCNICOS Y SOLUCIONES
+---------------------------------
+A. EL "TEMBLOR" FÍSICO (PHYSICS JITTER)
+   - PROBLEMA: Al arrastrar nodos, existía un conflicto entre la interpolación de Framer Motion y el bucle de actualización de D3 Force, causando una vibración visual ("efecto colibrí").
+   - SOLUCIÓN: Se implementó un "Protocolo de Anclaje". Durante el evento de arrastre (`drag`), desactivamos temporalmente la actualización de coordenadas `x/y` reactivas y manipulamos directamente los puntos de fuerza `fx/fy` (fixed x/y) del motor de simulación. Esto permite que el cursor tenga control absoluto sin "pelear" con la gravedad hasta que se suelta el nodo.
+
+B. VISUALIZACIÓN DE ENLACES FANTASMA
+   - DECISIÓN: Se evaluó y DESCARTÓ la implementación de líneas visuales ("hilos") hacia los miembros invisibles de una facción en modo MACRO.
+   - JUSTIFICACIÓN: Evitar el "Hairball Effect". La limpieza visual del modo MACRO es prioritaria para la estrategia cognitiva. La etiqueta flotante en el centroide es suficiente abstracción.
+
+3. IMPLEMENTACIONES CLAVE
+-------------------------
+A. PERSISTENCIA PARANOICA (DRAFTS)
+   - MECÁNICA: Se estableció un observador con `debounce` de 1000ms (1 segundo).
+   - ALMACENAMIENTO: `localStorage` bajo la llave `nexus_drafts_v1`.
+   - COMPORTAMIENTO: Si el navegador se cierra o falla, los borradores reaparecen automáticamente al recargar, fusionándose inteligentemente con cualquier dato existente en la "Boya de Rescate" (`Lifeboat`).
+
+B. GENERADOR DE ENJAMBRE (DEBUG SWARM)
+   - HERRAMIENTA: Función `spawnDebugNodes(50)` accesible vía botón (Icono de Bicho 🪲) y consola global.
+   - DISTRIBUCIÓN: 50% Enemigos (Rojo), 30% Personajes (Amarillo), 20% Lugares (Cian).
+   - SEMÁNTICA: Genera relaciones aleatorias con contextos narrativos reales ("ODIA A", "TRAICIÓN") para validar el diccionario de colores.
+
+C. DICCIONARIO SEMÁNTICO EXPANDIDO
+   - ACTUALIZACIÓN: Se añadieron disparadores en español: 'ODIA', 'TRAICIÓN', 'RIVAL', 'MUERTE' -> Color ROJO (Conflicto/Enemigo).
+
+4. RESULTADOS DE PRUEBAS
+------------------------
+- RENDIMIENTO: Estable con 50-100 nodos. La caída de FPS es imperceptible en operaciones de Zoom.
+- ESTÉTICA: Fondo "Void" (#141413) verificado. Contraste de neón óptimo.
+- ESTABILIDAD: El arrastre de nodos es ahora fluido y pesado ("como una piedra en el agua"), cumpliendo el requisito de UX.
+
+5. RECOMENDACIONES PARA EL EQUIPO DE PLANIFICACIÓN (FASE 3)
+-----------------------------------------------------------
+1. ESCALABILIDAD WEB WORKER:
+   - OBSERVACIÓN: Si el Comandante planea superar los 500 nodos activos simultáneamente, el cálculo de físicas (D3) debería moverse a un `WebWorker` para no bloquear el hilo principal de la UI (React). Se recomienda agendar esta tarea si el "Lore" crece exponencialmente.
+
+2. GESTIÓN DE BORRADORES:
+   - ACTUAL: Los borradores se guardan y cargan automáticamente.
+   - FUTURO: Se necesitará una UI para "Limpiar Borradores" o "Ver Historial de Cambios", ya que la acumulación indefinida en `localStorage` podría volverse caótica tras meses de uso.
+
+3. REFINAMIENTO MACRO:
+   - ACTUAL: Las etiquetas flotan en el centroide.
+   - FUTURO: Considerar "Cluster Packing" (agrupar nodos físicamente en burbujas) en lugar de solo ocultarlos, para dar una mejor sensación de "territorio" en el mapa.
+
+FIN DEL REPORTE.
+JULES // SYSTEM READY.
