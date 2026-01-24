@@ -2,7 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Force Update Timestamp: 2024-05-22T12:00:00Z
+    // Force Update Timestamp: 2024-05-23T14:30:00Z
 
     // 🟢 GHOST MODE EXCEPTION (TEMPORARY FOR JULES)
     // Allows unauthenticated access to the Commander's specific data silo
@@ -31,24 +31,36 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
 
-    // 🟢 REGLA PARA PERSONAJES (Soul Collector)
-    // Permitimos al frontend leer y editar sus personajes
-    match /users/{userId}/characters/{document=**} {
+    // 🟢 REGLA MAESTRA ANIDADA (MATCHING FRONTEND TRUTH)
+    // Coincide con la estructura: users/{userId}/projects/{projectId}/...
+    match /users/{userId} {
+      // Permite acceso al documento de usuario (opcional, pero buena práctica)
       allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
 
-    // 🟢 REGLA PARA PROYECTOS (MyWorld / Nexus)
-    // Estructura: users/{userId}/projects/{projectId}/entities/{entityId}
-    match /users/{userId}/projects/{projectId} {
-       allow read, write: if request.auth != null && request.auth.uid == userId;
+      // ... Y a sus subcolecciones (como characters)
+      match /characters/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
 
-       match /entities/{entityId} {
-         allow read, write: if request.auth != null && request.auth.uid == userId;
-       }
+      // 🟢 PROYECTOS
+      match /projects/{projectId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
 
-       match /edges/{edgeId} {
-         allow read, write: if request.auth != null && request.auth.uid == userId;
-       }
+        // SUB-COLLECTION: ENTITIES (Confirmed in Report [4])
+        match /entities/{entityId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+
+        // SUB-COLLECTION: EDGES (Critical for Purge Button [5])
+        match /edges/{edgeId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+
+        // SUB-COLLECTION: SETTINGS (For Blacklist/Rencor Protocol)
+        match /settings/{settingId} {
+           allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
     }
   }
 }
