@@ -1,0 +1,45 @@
+REPORTE DE REPARACIÓN: PROTOCOLO TRIBUNAL (JUL-0B)
+====================================================
+FECHA: 2024-05-23
+ASUNTO: Corrección de Bugs Críticos en Nexus Tribunal
+
+RESUMEN DE EJECUCIÓN
+--------------------
+Se han completado las reparaciones solicitadas para estabilizar el módulo Nexus Tribunal en WorldEngineV2. El sistema ahora permite aprobar nodos, valida la sesión de Drive correctamente y filtra la lista de candidatos.
+
+DETALLES TÁCTICOS (QUÉ Y POR QUÉ)
+---------------------------------
+
+1. ERROR CRÍTICO `generateId`
+   - Situación: La función `generateId` no estaba definida en el alcance de `WorldEnginePageV2.tsx`, causando un `ReferenceError` al intentar crear un nuevo nodo.
+   - Solución: Se implementó una función auxiliar local que genera IDs deterministas pero únicos: `${projectId}-${slug}-${hash}`.
+   - Resultado: La acción [APROBAR] ahora crea documentos en Firestore correctamente.
+
+2. TOKEN DE DRIVE (PRE-FLIGHT CHECK)
+   - Situación: Si el token de Google Drive caducaba, el escáner (`NexusScanner.ts`) fallaba silenciosamente o mostraba barras de progreso infinitas.
+   - Solución: Se añadió la función `validateToken` que realiza una petición ligera (`/about`) a la API de Drive antes de iniciar el escaneo masivo.
+   - Resultado: Si el token es inválido, el proceso se detiene inmediatamente con un error explícito ("Sesión de Drive caducada"), mejorando la UX.
+
+3. REPARACIÓN DE BOTÓN MERGE
+   - Situación: La fusión de nodos fallaba silenciosamente si el candidato no traía un `mergeWithId`.
+   - Solución: Se añadió una cláusula de guardia defensiva. Si falta el ID de destino, se muestra un Toast de error en lugar de dejar la UI en un estado inconsistente.
+
+4. FILTROS VISUALES
+   - Situación: Los botones "Conflicts Only" y "New" eran puramente estéticos.
+   - Solución: Se implementó el estado local `filterMode` en `NexusTribunalModal.tsx` y se conectó a la lógica de renderizado.
+   - Resultado: El usuario puede filtrar la lista de candidatos según el tipo de ambigüedad.
+
+OBSTÁCULOS Y RESOLUCIONES TÉCNICAS
+----------------------------------
+Durante la implementación, surgieron dos fricciones menores con TypeScript que fueron resueltas:
+
+1. Rutas de Importación: Al mover lógica a `NexusScanner.ts` (ubicado en `src/components/WorldEngineV2/utils`), la importación de `GraphNode` apuntaba incorrectamente a `../../types/graph`. Se corrigió a `../../../types/graph`.
+2. Tipado de `AnalysisCandidate`: La propiedad `type` (ej. 'character', 'location') venía del backend pero no estaba definida en la interfaz del frontend. Esto causaba riesgo de crash al hacer `candidate.type.toLowerCase()`. Se actualizó la interfaz y se añadió un fallback (`|| 'concept'`).
+
+OBSERVACIONES ADICIONALES
+-------------------------
+- Arquitectura V2: WorldEngineV2 está evolucionando hacia un módulo muy robusto. La decisión de separar la lógica de escaneo (`NexusScanner`) de la vista (`WorldEnginePageV2`) facilitó mucho la implementación del "Pre-Flight Check".
+- Dependencias: Noté que no hay scripts de test automatizados en `package.json`. Para futuras fases críticas (como la integración completa de Gemini 3.0), recomendaría añadir al menos tests unitarios para los helpers de lógica (como el cálculo de Levenshtein o la generación de IDs).
+
+FIN DEL REPORTE.
+Jules (Agente de Ingeniería)
