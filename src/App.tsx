@@ -20,6 +20,7 @@ import FieldManualModal from './components/ui/FieldManualModal';
 import ProjectSettingsModal from './components/ui/ProjectSettingsModal';
 import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
 import NexusCanvas from './components/NexusCanvas'; // 👈 IMPORT NEXUS (V2)
+import WorldEnginePageV2 from './components/WorldEngineV2/WorldEnginePageV2'; // 👈 IMPORT WORLD ENGINE V2 (NEW)
 import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
 import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
@@ -441,7 +442,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
         if (activeView === 'perforador') {
             return (
-                <NexusCanvas
+                <WorldEnginePageV2
                     isOpen={true}
                     onClose={() => setActiveView('editor')}
                     activeGemId={'perforador'}
