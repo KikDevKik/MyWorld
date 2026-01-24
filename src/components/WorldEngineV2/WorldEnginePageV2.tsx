@@ -339,7 +339,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      const newNodeId = generateId(projectId, candidate.name, type);
                      const nodeRef = doc(db, collectionPath, newNodeId);
 
-                     const newNode: GraphNode = {
+                     const newNode: any = {
                          id: newNodeId,
                          name: candidate.name,
                          type: type as EntityType,
@@ -354,7 +354,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                              lastSeen: new Date().toISOString()
                          })) || [],
                          meta: {},
-                         // STRICT: No Coordinates (Let Physics decide)
+                         // 🟢 STRICT: No Coordinates (Let Physics decide)
+                         // Explicitly excluding fx, fy, x, y, vx, vy
                      };
 
                      await setDoc(nodeRef, newNode);
@@ -393,7 +394,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
              }
 
              // 3. Save
-             const newNode: GraphNode = {
+             const newNode: any = {
                  id: newNodeId,
                  name: newValues.name,
                  type: type as EntityType,
@@ -407,6 +408,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      lastSeen: new Date().toISOString()
                  })) || [],
                  meta: {},
+                 // 🟢 STRICT: No Coordinates (Let Physics decide)
              };
 
              await setDoc(nodeRef, newNode);

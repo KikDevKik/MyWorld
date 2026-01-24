@@ -43,7 +43,13 @@ service cloud.firestore {
        allow read, write: if request.auth != null && request.auth.uid == userId;
 
        match /entities/{entityId} {
-         allow read, write: if request.auth != null && request.auth.uid == userId;
+         // 🟢 PERMISO EXPLÍCITO PARA BORRAR Y EDITAR
+         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+       }
+
+       match /edges/{edgeId} {
+         // 🟢 PERMISO EXPLÍCITO PARA BORRAR Y EDITAR EDGES
+         allow read, write, delete: if request.auth != null && request.auth.uid == userId;
        }
     }
   }
