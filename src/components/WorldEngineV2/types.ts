@@ -23,6 +23,7 @@ export interface AnalysisCandidate {
     ambiguityType: AnalysisAmbiguityType;
     suggestedAction: AnalysisAction;
     category: 'ENTITY' | 'ITEM' | 'CONCEPT' | 'EVENT';
+    type?: string; // Backend provided type (e.g. 'character')
 
     // Logic
     mergeWithId?: string; // If 'MERGE', who is the parent?
