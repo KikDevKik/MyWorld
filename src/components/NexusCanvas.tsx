@@ -320,6 +320,26 @@ const GraphSimulation: React.FC<{
         setSimNodes(nextNodes);
     }, [nodes]);
 
+    // 🧠 MEMOIZED LINKS (For Dependency Tracking)
+    const links = useMemo(() => {
+        const l: any[] = [];
+        simNodes.forEach(node => {
+            if (node.relations) {
+                node.relations.forEach(r => {
+                    if (simNodes.find(n => n.id === r.targetId)) {
+                        l.push({ source: node.id, target: r.targetId, label: r.context || r.relation, ...r });
+                    }
+                });
+            }
+        });
+        return l;
+    }, [simNodes]);
+
+    // 🐛 SWARM FIX: Watch Links Explicitly
+    useEffect(() => {
+        updateXarrow();
+    }, [links.length]);
+
     // ⚡ D3 PHYSICS & DRAG
     useEffect(() => {
         if (simNodes.length === 0) return;
@@ -329,20 +349,9 @@ const GraphSimulation: React.FC<{
         const cx = width / 2;
         const cy = height / 2;
 
-        // Links
-        const links: any[] = [];
-        simNodes.forEach(node => {
-            if (node.relations) {
-                node.relations.forEach(r => {
-                    if (simNodes.find(n => n.id === r.targetId)) {
-                        links.push({ source: node.id, target: r.targetId, label: r.context || r.relation, ...r });
-                    }
-                });
-            }
-        });
-
-        // Simulation Setup
+        // Simulation Setup (ZERO KELVIN PROTOCOL)
         const simulation = d3Force.forceSimulation(simNodes as any)
+            .alphaDecay(0.05) // ❄️ Faster freeze (default ~0.0228)
             .force("charge", d3Force.forceManyBody().strength(-300))
             .force("center", d3Force.forceCenter(cx, cy).strength(0.05))
             .force("collide", d3Force.forceCollide().radius(100).strength(0.7))
@@ -371,10 +380,10 @@ const GraphSimulation: React.FC<{
             updateXarrow();
         });
 
-        // ✋ DRAG BEHAVIOR
+        // ✋ DRAG BEHAVIOR (SLEEP & WAKE)
         const dragBehavior = d3Drag<HTMLDivElement, any>()
             .on("start", (event, d) => {
-                if (!event.active) simulation.alphaTarget(0.3).restart();
+                if (!event.active) simulation.alphaTarget(0.3).restart(); // Wake up!
                 d.fx = d.x;
                 d.fy = d.y;
                 if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grabbing';
@@ -385,10 +394,10 @@ const GraphSimulation: React.FC<{
                 // Force immediate update of this node for smoothness (though tick handles it)
                 const el = nodeRefs.current[d.id];
                 if (el) el.style.transform = `translate(${event.x}px, ${event.y}px)`;
-                updateXarrow();
+                updateXarrow(); // ⚡ SURGICAL PRECISION
             })
             .on("end", (event, d) => {
-                if (!event.active) simulation.alphaTarget(0);
+                if (!event.active) simulation.alphaTarget(0); // Go back to sleep
                 d.fx = null;
                 d.fy = null;
                 if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grab';
@@ -632,6 +641,17 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
             const id = `debug-${Date.now()}-${i}`;
             const r = Math.random();
             let type: EntityType = r < 0.5 ? 'character' : (r < 0.8 ? 'enemy' as any : 'location');
+            const relations: any[] = [];
+            if (i > 0) {
+                // Link to previous for chain
+                relations.push({
+                    targetId: `debug-${Date.now()}-${i-1}`, // This ID might be slightly off if Date.now changes?
+                    // Wait, Date.now() is constant in the loop? No, loop is fast but Date.now() might be same.
+                    // Better to assign IDs first.
+                    relation: 'FRIEND',
+                    context: 'Swarm Link'
+                });
+            }
             newGhosts.push({
                 id,
                 name: `DEBUG ${i}`,
@@ -645,6 +665,19 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 meta: {}
             });
          }
+
+         // Post-link to avoid ID issues
+         for(let i=1; i<count; i++) {
+             newGhosts[i].relations = [{
+                 targetId: newGhosts[i-1].id,
+                 targetName: newGhosts[i-1].name,
+                 targetType: newGhosts[i-1].type,
+                 relation: 'ALLY',
+                 context: 'Swarm Connection',
+                 sourceFileId: 'debug'
+             }];
+         }
+
          setGhostNodes(prev => [...prev, ...newGhosts]);
          toast.success(`🪲 +${count} Nodos`);
     };
