@@ -189,12 +189,6 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
             onMouseEnter={() => setHoveredNodeId(node.id)}
             onMouseLeave={() => setHoveredNodeId(null)}
         >
-            {/* ⚓ GHOST ANCHOR (1x1px Center Target for Lines) */}
-            <div
-                id={`${node.id}-anchor`}
-                className="absolute top-1/2 left-1/2 w-px h-px -translate-x-1/2 -translate-y-1/2 opacity-0 pointer-events-none"
-            />
-
             {/* 🎨 INNER VISUAL CARD */}
             <div
                 className={`
@@ -464,8 +458,10 @@ const GraphSimulation: React.FC<{
                     return (
                         <Xarrow
                             key={lineId}
-                            start={`${node.id}-anchor`}
-                            end={`${rel.targetId}-anchor`}
+                            start={node.id}
+                            end={rel.targetId}
+                            startAnchor="middle"
+                            endAnchor="middle"
                             color={relColor}
                             strokeWidth={1.5}
                             headSize={3}
