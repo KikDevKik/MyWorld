@@ -1,0 +1,57 @@
+REPORTE DE MISIÓN: FASE 2.1 - EL CEREBRO NEXUS (ESTRUCTURA Y TRIBUNAL)
+FECHA: 2024-05-24
+AGENTE: Jules
+
+--------------------------------------------------------------------------------
+1. RESUMEN DE EJECUCIÓN (QUÉ SE HIZO)
+--------------------------------------------------------------------------------
+Se implementó la infraestructura base para el sistema de validación humana "Nexus Tribunal".
+
+A. Estructura de Datos (types.ts):
+   - Se definió la interfaz `AnalysisCandidate` para representar el estado "Limbo".
+   - CRÍTICO: Se excluyeron explícitamente las coordenadas (`fx`, `fy`) para diferenciar candidatos de nodos físicos.
+   - Se crearon los tipos `AnalysisAmbiguityType` ('CONFLICT', 'NEW', 'ITEM_LORE') y `AnalysisAction`.
+
+B. Componente Visual (NexusTribunalModal.tsx):
+   - Se creó un modal de gran formato con estética "Informe de Inteligencia".
+   - Diseño Split-View: Lista de hallazgos a la izquierda, Panel de detalles/resolución a la derecha.
+   - Implementación de la Paleta Semántica solicitada:
+     * Naranja (Conflictos/Duplicados)
+     * Cian (Nuevos Nodos)
+     * Violeta (Items/Lore)
+
+C. Integración UX (WorldEnginePageV2.tsx):
+   - Se conectó el botón "NEXUS" (Globo Terráqueo) al nuevo sistema.
+   - Se implementó la secuencia de "Escaneo Simulado":
+     1. "INICIALIZANDO PROTOCOLO TITANIUM..."
+     2. "FILTRANDO RUTAS CANON..."
+     3. "ANALIZANDO ENTIDADES..."
+   - Esto añade el "peso" psicológico solicitado antes de mostrar el Tribunal.
+
+--------------------------------------------------------------------------------
+2. JUSTIFICACIÓN (POR QUÉ)
+--------------------------------------------------------------------------------
+El objetivo central era resolver el problema de la "basura en el grafo". Antes, la IA inyectaba nodos directamente. Ahora:
+1.  **Cuarentena de Datos:** Los nodos generados no entran al grafo físico inmediatamente; viven como `AnalysisCandidate`.
+2.  **Juicio Humano:** El Comandante tiene la última palabra sobre fusiones (ej. Madre -> Elsa) o categorización (Objeto vs. Personaje).
+3.  **Coherencia Visual:** La interfaz refuerza la narrativa de estar operando una máquina compleja (Nexus), no solo una base de datos.
+
+--------------------------------------------------------------------------------
+3. OBSTÁCULOS Y SOLUCIONES
+--------------------------------------------------------------------------------
+A. Verificación Frontend (Playwright):
+   - **Problema:** El entorno de pruebas local requería autenticación.
+   - **Solución:** Se utilizó la variable `VITE_JULES_MODE=true` para activar el "Ghost Mode" y saltar el login de Firebase durante las pruebas automáticas.
+
+B. Selectores de Pruebas:
+   - **Problema:** Los selectores genéricos (`get_by_text("Madre")`) fallaban por ambigüedad (aparecía en título, lista y descripción).
+   - **Solución:** Se refinaron los selectores usando roles específicos (`get_by_role("button", name="Madre")`) para asegurar que el script interactuaba con el elemento correcto de la lista.
+
+--------------------------------------------------------------------------------
+4. NOTAS ADICIONALES Y SIGUIENTES PASOS
+--------------------------------------------------------------------------------
+- **Estado Actual:** El sistema utiliza "Mock Data" (Datos Falsos) hardcodeados en el componente para probar la UI.
+- **Botones de Acción:** Los botones "APPROVE" y "REJECT" actualmente solo imprimen en consola (`console.log`).
+- **Próxima Fase (2.2):** Conectar este esqueleto a la IA real (Gemini/Cloud Functions). La estructura `AnalysisCandidate` está lista para recibir el JSON real del backend.
+
+FIN DEL REPORTE.
