@@ -1,0 +1,61 @@
+REPORTE DE EJECUCIÓN: FASE 2.4 "EVOLUCIÓN" & 2.5 "EL VERTEDERO"
+================================================================
+
+AUTOR: Jules (Agente de Ingeniería)
+FECHA: 2024-05-22
+OBJETIVO: Implementar taxonomía biológica, herramientas de corrección manual y gestión de residuos de datos.
+
+1. RESUMEN DE CAMBIOS REALIZADOS
+--------------------------------
+A. EXPANSIÓN DE TAXONOMÍA (BESTIARIO/RAZAS)
+   - Se añadieron los tipos `CREATURE` (Criatura) y `RACE` (Raza/Especie) al esquema de datos (`GraphNode`).
+   - Se actualizó la interfaz visual (`EntityCard`):
+     * CREATURE: Color Esmeralda (#10b981) + Icono Huella.
+     * RACE: Color Púrpura (#a855f7) + Icono ADN.
+   - Se inyectaron las "Leyes Biológicas" (Ley 7) en el prompt del sistema (`nexus_scan.ts`) para que la IA distinga entre facciones políticas y especies biológicas.
+
+B. MODO DE EDICIÓN EN TRIBUNAL
+   - Se implementó un botón de "Editar" (Lápiz) en las tarjetas del Tribunal.
+   - Permite modificar manualmente: Nombre, Tipo y Subtipo antes de aprobar.
+   - Al guardar, el sistema regenera el ID basándose en el nuevo nombre para mantener la higiene de datos y evitar "semantic drift".
+
+C. PROTOCOLO DE RENCOR (BLACKLIST & TRASH)
+   - Backend: Se modificó el escáner para filtrar candidatos cuyos nombres estén en la lista negra (`ignoredTerms`).
+   - Frontend: Al rechazar un candidato, se añade automáticamente a la lista negra en `settings/general`.
+   - UI "Papelera": Se añadió una pestaña "TRASH" en el Tribunal para ver y restaurar elementos ignorados (botón "Undo").
+
+D. OPCIÓN NUCLEAR (DELETE ALL)
+   - Se añadió un botón de "Borrado Total" en la barra de comandos principal.
+   - Incluye un Modal de Confirmación ("Zona de Peligro") para evitar accidentes.
+   - Ejecuta una limpieza profunda en Firestore, eliminando tanto la colección `nodes` como `edges` del proyecto activo.
+
+2. MOTIVACIÓN (POR QUÉ)
+-----------------------
+- La distinción entre política (Faction) y biología (Race/Creature) era necesaria para evitar que la IA clasificara "Elfos" como un partido político.
+- Los usuarios necesitaban una forma de corregir errores menores de la IA (ej. "Trauma" detectado como Lugar) sin tener que rechazar y crear manualmente.
+- La gestión de residuos (Blacklist y Delete All) es crucial para iterar rápidamente en la construcción del mundo sin que el sistema vuelva a sugerir errores descartados previamente.
+
+3. OBSTÁCULOS Y SOLUCIONES TÉCNICAS
+-----------------------------------
+A. GESTIÓN DE ORPHANS (Bordes Huérfanos)
+   - Problema: Inicialmente, la función de borrado solo eliminaba nodos, dejando referencias rotas en la colección de bordes.
+   - Solución: Se actualizó `handleClearAll` para buscar y eliminar explícitamente los documentos en la colección `edges` dentro del mismo batch.
+
+B. RECUPERACIÓN DE ERRORES (UI)
+   - Problema: La lista negra funcionaba en el backend, pero el usuario no tenía forma de "deshacer" un rechazo accidental.
+   - Solución: Se implementó la pestaña "TRASH" en el Tribunal, conectada a la función `arrayRemove` de Firestore para restaurar términos.
+
+C. VERIFICACIÓN DE ENTORNO
+   - Problema: Durante la verificación automática, el entorno carecía de dependencias instaladas (`vite`), lo que impidió levantar el servidor de pruebas inicialmente.
+   - Solución: Se ejecutó la instalación de paquetes (`pnpm install`) para restaurar el entorno de desarrollo.
+
+D. TIPADO TYPESCRIPT
+   - Problema: Errores menores de tipado en `react-zoom-pan-pinch` (evento `onZooming` vs `onZoom`) rompían la compilación.
+   - Solución: Se corrigió el nombre del evento a `onZoom` según la versión instalada de la librería.
+
+4. NOTAS ADICIONALES
+--------------------
+- La lista negra se almacena a nivel de proyecto (`projects/{id}/settings`), lo que permite tener reglas de exclusión diferentes para distintos mundos.
+- La regeneración de IDs al editar es una decisión arquitectónica clave: asegura que si cambias el nombre de "Chico Desconocido" a "Arthas", el ID en la base de datos sea `arthas` y no `chico-desconocido`, facilitando la legibilidad y depuración futura.
+
+FIN DEL REPORTE.
