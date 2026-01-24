@@ -19,9 +19,10 @@ import {
     Swords,
     Diamond,
     AlertTriangle,
-    Bug
+    Bug,
+    Trash2
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
@@ -648,6 +649,34 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
          toast.success(`🪲 +${count} Nodos`);
     };
 
+    const handleClearAll = async () => {
+        if (!confirm("⚠️ ¿ELIMINAR TODO? Esto borrará todos los nodos de la base de datos y la vista local.")) return;
+
+        // 1. Clear Local Ghosts
+        setGhostNodes([]);
+        localStorage.removeItem('nexus_drafts_v1');
+
+        // 2. Delete Canon Nodes (Firestore)
+        if (user && config?.folderId) {
+             const db = getFirestore();
+             const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
+             try {
+                 const snapshot = await getDocs(entitiesRef);
+                 const batch = writeBatch(db);
+                 snapshot.docs.forEach((doc) => {
+                     batch.delete(doc.ref);
+                 });
+                 await batch.commit();
+                 toast.success("🗑️ Todo eliminado (Local + DB).");
+             } catch (e: any) {
+                 console.error(e);
+                 toast.error("Error borrando DB: " + e.message);
+             }
+        } else {
+             toast.success("🗑️ Vista local limpia.");
+        }
+    };
+
     const handleInputEnter = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!inputValue.trim()) return;
@@ -741,6 +770,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
 
                          {/* ZOOM CONTROLS */}
                         <div className="absolute bottom-24 right-6 flex flex-col gap-2 pointer-events-auto">
+                            <button onClick={handleClearAll} className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title="Limpiar Todo (DB + Local)"><Trash2 size={16} /></button>
                             <button onClick={() => spawnDebugNodes(50)} className="p-2 bg-red-900/50 border border-red-700 rounded text-red-500 mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
                             <button onClick={() => zoomIn()} className="p-2 bg-slate-900 border border-slate-700 rounded"><Plus size={16} /></button>
                             <button onClick={() => zoomOut()} className="p-2 bg-slate-900 border border-slate-700 rounded"><div className="w-4 h-[2px] bg-white my-2" /></button>
