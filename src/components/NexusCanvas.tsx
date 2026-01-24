@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback, forwardRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
@@ -277,7 +277,11 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
 
 
 // 🟢 GRAPH SIMULATION (D3 Logic + Direct DOM)
-const GraphSimulation: React.FC<{
+export interface GraphSimulationHandle {
+    forceUpdateArrows: () => void;
+}
+
+const GraphSimulation = forwardRef<GraphSimulationHandle, {
     nodes: VisualNode[];
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
@@ -288,21 +292,16 @@ const GraphSimulation: React.FC<{
     onUpdateGhost: (id: string, updates: any) => void;
     onCrystallize: (node: VisualNode) => void;
     isLoading: boolean;
-}> = ({ nodes, lodTier, setHoveredNodeId, hoveredNodeId, hoveredLineId, setHoveredLineId, onNodeClick, onUpdateGhost, onCrystallize, isLoading }) => {
+}>(({ nodes, lodTier, setHoveredNodeId, hoveredNodeId, hoveredLineId, setHoveredLineId, onNodeClick, onUpdateGhost, onCrystallize, isLoading }, ref) => {
     const updateXarrow = useXarrow();
     const nodeRefs = useRef<Record<string, HTMLDivElement>>({});
     const simulationRef = useRef<any>(null);
     const [simNodes, setSimNodes] = useState<VisualNode[]>([]); // For React Rendering only (Mount/Unmount)
 
-    // 2. KICKSTART (Fix Initial Line Positions)
-    useEffect(() => {
-        if (!isLoading) {
-            const timer = setTimeout(() => {
-                updateXarrow();
-            }, 100);
-            return () => clearTimeout(timer);
-        }
-    }, [isLoading]);
+    // 1. IMPERATIVE HANDLE (Sync from Parent)
+    useImperativeHandle(ref, () => ({
+        forceUpdateArrows: () => updateXarrow()
+    }));
 
     // Sync React State with Props (Initialization)
     useEffect(() => {
@@ -371,6 +370,10 @@ const GraphSimulation: React.FC<{
             });
 
             // 2. Sync Lines
+            updateXarrow();
+        });
+
+        simulation.on("end", () => {
             updateXarrow();
         });
 
@@ -498,11 +501,12 @@ const GraphSimulation: React.FC<{
             })}
         </div>
     );
-};
+});
 
 
 // 🟢 MAIN COMPONENT
 const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
+    const graphRef = useRef<GraphSimulationHandle>(null);
     const { config, user } = useProjectConfig();
     const [dbNodes, setDbNodes] = useState<GraphNode[]>([]);
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
@@ -768,7 +772,10 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 limitToBounds={false}
                 wheel={{ step: 0.1 }}
                 panning={{ activationKeys: ["Shift"], excluded: ["nodrag"] }} // 🔒 EXCLUDED CLASS
+                onPanning={() => graphRef.current?.forceUpdateArrows()}
+                onZooming={() => graphRef.current?.forceUpdateArrows()}
                 onTransformed={(ref) => {
+                    graphRef.current?.forceUpdateArrows();
                     const s = ref.state.scale;
                     if (s < 0.6) setLodTier('MACRO');
                     else if (s > 2.0) setLodTier('MICRO');
@@ -783,6 +790,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                         >
                             <Xwrapper>
                                 <GraphSimulation
+                                    ref={graphRef}
                                     nodes={unifiedNodes}
                                     lodTier={lodTier}
                                     setHoveredNodeId={setHoveredNodeId}
