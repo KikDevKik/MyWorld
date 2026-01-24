@@ -9,11 +9,7 @@ import {
     Archive,
     ArrowRight,
     ShieldAlert,
-    Database,
-    Pencil,
-    Save,
-    Trash2,
-    Undo2
+    Database
 } from 'lucide-react';
 import { AnalysisCandidate, AnalysisAmbiguityType } from './types';
 
@@ -22,9 +18,6 @@ interface NexusTribunalModalProps {
     onClose: () => void;
     candidates: AnalysisCandidate[];
     onAction: (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => void;
-    onEditApprove: (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string }) => void;
-    ignoredTerms?: string[];
-    onRestoreIgnored?: (term: string) => void;
 }
 
 // 🟢 UTILS: COLOR MAPPING
@@ -48,17 +41,12 @@ const getTypeIcon = (type: AnalysisAmbiguityType) => {
     }
 };
 
-const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, ignoredTerms = [], onRestoreIgnored }) => {
+const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction }) => {
     // STATE: FILTER
-    const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
-
-    // STATE: EDIT MODE
-    const [isEditing, setIsEditing] = useState(false);
-    const [editValues, setEditValues] = useState({ name: '', type: 'concept', subtype: '' });
+    const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW'>('ALL');
 
     // DERIVED: FILTERED LIST
     const filteredCandidates = React.useMemo(() => {
-        if (filterMode === 'TRASH') return []; // Trash handled separately in UI
         return candidates.filter(c => {
             if (filterMode === 'ALL') return true;
             if (filterMode === 'CONFLICT') return c.ambiguityType === 'CONFLICT' || c.ambiguityType === 'DUPLICATE';
@@ -75,8 +63,6 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
     // Sync selection when candidates list changes (e.g., item removed)
     React.useEffect(() => {
-        if (filterMode === 'TRASH') return; // Selection logic irrelevant in Trash mode
-
         // If list is empty, clear selection
         if (filteredCandidates.length === 0) {
             setSelectedId(null);
@@ -89,28 +75,11 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         if (!isSelectedVisible) {
             setSelectedId(filteredCandidates[0].id);
         }
-    }, [filteredCandidates, selectedId, filterMode]);
-
-    // Reset Edit Mode when changing selection
-    React.useEffect(() => {
-        setIsEditing(false);
-        if (selectedCandidate) {
-            setEditValues({
-                name: selectedCandidate.name,
-                type: (selectedCandidate as any).type || 'concept',
-                subtype: (selectedCandidate as any).subtype || ''
-            });
-        }
-    }, [selectedCandidate]);
+    }, [filteredCandidates, selectedId]);
 
     const handleAction = (action: 'APPROVE' | 'REJECT') => {
         if (!selectedCandidate) return;
         onAction(action, selectedCandidate);
-    };
-
-    const handleSaveEdit = () => {
-        if (!selectedCandidate) return;
-        onEditApprove(selectedCandidate, editValues);
     };
 
     if (!isOpen) return null;
@@ -140,13 +109,13 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                             onClick={() => setFilterMode('ALL')}
                             className={`flex-1 py-3 text-center transition-colors ${filterMode === 'ALL' ? 'border-b-2 border-cyan-500 text-cyan-100 bg-cyan-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
                         >
-                            All
+                            All Pending
                         </button>
                         <button
                             onClick={() => setFilterMode('CONFLICT')}
                             className={`flex-1 py-3 text-center transition-colors ${filterMode === 'CONFLICT' ? 'border-b-2 border-orange-500 text-orange-100 bg-orange-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
                         >
-                            Conf.
+                            Conflicts
                         </button>
                         <button
                             onClick={() => setFilterMode('NEW')}
@@ -154,80 +123,50 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         >
                             New
                         </button>
-                        <button
-                            onClick={() => setFilterMode('TRASH')}
-                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'TRASH' ? 'border-b-2 border-red-500 text-red-100 bg-red-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
-                        >
-                            <Trash2 size={12} className="mx-auto" />
-                        </button>
                     </div>
 
                     {/* List */}
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {filterMode === 'TRASH' ? (
-                            // TRASH LIST
-                            ignoredTerms.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
-                                    <Trash2 size={24} className="text-slate-800" />
-                                    <span className="text-xs font-mono">PAPER BIN EMPTY</span>
-                                </div>
-                            ) : (
-                                ignoredTerms.map((term, idx) => (
-                                    <div key={idx} className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-slate-900/30">
-                                        <span className="text-sm text-slate-400 font-mono truncate max-w-[150px]">{term}</span>
-                                        <button
-                                            onClick={() => onRestoreIgnored && onRestoreIgnored(term)}
-                                            className="p-1.5 rounded bg-slate-800 hover:bg-green-900 hover:text-green-300 text-slate-500 transition-colors"
-                                            title="Restaurar"
-                                        >
-                                            <Undo2 size={14} />
-                                        </button>
-                                    </div>
-                                ))
-                            )
+                        {filteredCandidates.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
+                                <Check size={32} className="text-green-900" />
+                                <span className="text-xs font-mono">
+                                    {candidates.length === 0 ? "NO ISSUES FOUND" : "NO MATCHES"}
+                                </span>
+                            </div>
                         ) : (
-                            // CANDIDATE LIST
-                            filteredCandidates.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
-                                    <Check size={32} className="text-green-900" />
-                                    <span className="text-xs font-mono">
-                                        {candidates.length === 0 ? "NO ISSUES FOUND" : "NO MATCHES"}
-                                    </span>
-                                </div>
-                            ) : (
-                                filteredCandidates.map(candidate => {
-                                    const isSelected = selectedId === candidate.id;
+                            filteredCandidates.map(candidate => {
+                                const isSelected = selectedId === candidate.id;
 
-                                    return (
-                                        <button
-                                            key={candidate.id}
-                                            onClick={() => setSelectedId(candidate.id)}
-                                            className={`w-full text-left p-4 rounded-lg border transition-all duration-200 group relative overflow-hidden ${
-                                                isSelected
-                                                    ? 'bg-slate-800/80 border-slate-600 shadow-lg'
-                                                    : 'bg-transparent border-transparent hover:bg-slate-900/50 hover:border-slate-800'
-                                            }`}
-                                        >
-                                            {/* Selection Indicator */}
-                                            {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />}
+                                return (
+                                    <button
+                                        key={candidate.id}
+                                        onClick={() => setSelectedId(candidate.id)}
+                                        className={`w-full text-left p-4 rounded-lg border transition-all duration-200 group relative overflow-hidden ${
+                                            isSelected
+                                                ? 'bg-slate-800/80 border-slate-600 shadow-lg'
+                                                : 'bg-transparent border-transparent hover:bg-slate-900/50 hover:border-slate-800'
+                                        }`}
+                                    >
+                                        {/* Selection Indicator */}
+                                        {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />}
 
-                                            <div className="flex justify-between items-start mb-1">
-                                                <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
-                                                    {candidate.name}
-                                                </span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(candidate.ambiguityType)}`}>
-                                                    {candidate.category}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-                                                {getTypeIcon(candidate.ambiguityType)}
-                                                <span>{candidate.suggestedAction}</span>
-                                                <span className="ml-auto text-slate-600">{candidate.confidence}% CF</span>
-                                            </div>
-                                        </button>
-                                    );
-                                })
-                            )
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                                                {candidate.name}
+                                            </span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(candidate.ambiguityType)}`}>
+                                                {candidate.category}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                                            {getTypeIcon(candidate.ambiguityType)}
+                                            <span>{candidate.suggestedAction}</span>
+                                            <span className="ml-auto text-slate-600">{candidate.confidence}% CF</span>
+                                        </div>
+                                    </button>
+                                );
+                            })
                         )}
 
                     </div>
@@ -243,96 +182,23 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         <X size={20} />
                     </button>
 
-                    {filterMode === 'TRASH' ? (
-                        // TRASH EMPTY STATE FOR RIGHT PANEL
-                        <div className="flex-1 flex flex-col items-center justify-center text-slate-600">
-                             <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mb-4">
-                                <Trash2 size={24} className="text-red-900" />
-                             </div>
-                             <p className="text-sm font-mono">IGNORED ENTITIES ARCHIVE</p>
-                             <p className="text-xs text-slate-500 mt-2">Restoring an item allows Nexus to detect it again in the next scan.</p>
-                        </div>
-                    ) : selectedCandidate ? (
+                    {selectedCandidate ? (
                         <>
                             {/* Header Detail */}
                             <div className="h-24 border-b border-slate-800/50 flex flex-col justify-center px-8 bg-gradient-to-b from-slate-900/20 to-transparent">
-
-                                {isEditing ? (
-                                    <div className="flex gap-4 items-center">
-                                        <div className="flex-1 space-y-1">
-                                             <label className="text-[10px] text-cyan-500 font-bold tracking-wider">NOMBRE</label>
-                                             <input
-                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-xl font-bold text-white outline-none focus:border-cyan-500"
-                                                 value={editValues.name}
-                                                 onChange={e => setEditValues({...editValues, name: e.target.value})}
-                                             />
-                                        </div>
-                                        <div className="w-40 space-y-1">
-                                             <label className="text-[10px] text-cyan-500 font-bold tracking-wider">TIPO</label>
-                                             <select
-                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-cyan-500 appearance-none"
-                                                 value={editValues.type}
-                                                 onChange={e => setEditValues({...editValues, type: e.target.value})}
-                                             >
-                                                 <option value="character">CHARACTER</option>
-                                                 <option value="location">LOCATION</option>
-                                                 <option value="object">OBJECT</option>
-                                                 <option value="event">EVENT</option>
-                                                 <option value="faction">FACTION</option>
-                                                 <option value="concept">CONCEPT</option>
-                                                 <option value="creature">CREATURE</option>
-                                                 <option value="race">RACE</option>
-                                             </select>
-                                        </div>
-                                        <div className="w-40 space-y-1">
-                                             <label className="text-[10px] text-slate-500 font-bold tracking-wider">SUBTIPO</label>
-                                             <input
-                                                 className="w-full bg-slate-900/50 border border-slate-700 rounded p-2 text-sm text-white outline-none focus:border-cyan-500"
-                                                 value={editValues.subtype}
-                                                 onChange={e => setEditValues({...editValues, subtype: e.target.value})}
-                                                 placeholder="Ej. Ruinas"
-                                             />
-                                        </div>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <div className={`p-2 rounded-lg border ${getTypeColor(selectedCandidate.ambiguityType)}`}>
+                                        {getTypeIcon(selectedCandidate.ambiguityType)}
                                     </div>
-                                ) : (
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className={`p-2 rounded-lg border ${getTypeColor(selectedCandidate.ambiguityType)}`}>
-                                            {getTypeIcon(selectedCandidate.ambiguityType)}
-                                        </div>
-                                        <h1 className="text-2xl font-bold text-white tracking-tight">{selectedCandidate.name}</h1>
-
-                                        {/* EDIT BUTTON */}
-                                        <button
-                                            onClick={() => setIsEditing(true)}
-                                            className="ml-2 p-2 rounded-full hover:bg-slate-800 text-slate-500 hover:text-cyan-400 transition-colors"
-                                            title="Editar Manualmente"
-                                        >
-                                            <Pencil size={16} />
-                                        </button>
-                                    </div>
-                                )}
-
-                                {!isEditing && (
-                                    <div className="flex items-center gap-4 text-xs font-mono text-slate-500">
-                                        <span className="flex items-center gap-1 text-cyan-500">
-                                            <Database size={12} /> ID: {selectedCandidate.id}
-                                        </span>
-                                        <span>•</span>
-                                        <span className="text-slate-400">DETECTED IN SCAN</span>
-                                        { (selectedCandidate as any).subtype && (
-                                             <>
-                                                <span>•</span>
-                                                <span className="text-purple-400">SUBTYPE: {(selectedCandidate as any).subtype}</span>
-                                             </>
-                                        )}
-                                        { (selectedCandidate as any).type && (
-                                             <>
-                                                <span>•</span>
-                                                <span className="text-yellow-400">TYPE: {(selectedCandidate as any).type}</span>
-                                             </>
-                                        )}
-                                    </div>
-                                )}
+                                    <h1 className="text-2xl font-bold text-white tracking-tight">{selectedCandidate.name}</h1>
+                                </div>
+                                <div className="flex items-center gap-4 text-xs font-mono text-slate-500">
+                                    <span className="flex items-center gap-1 text-cyan-500">
+                                        <Database size={12} /> ID: {selectedCandidate.id}
+                                    </span>
+                                    <span>•</span>
+                                    <span className="text-slate-400">DETECTED IN SCAN</span>
+                                </div>
                             </div>
 
                             {/* Content Body */}
@@ -413,39 +279,19 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
                             {/* Footer Actions */}
                             <div className="h-20 border-t border-slate-800/50 flex items-center justify-end px-8 gap-4 bg-[#0f0f10]">
-                                {isEditing ? (
-                                    <>
-                                        <button
-                                            onClick={() => setIsEditing(false)}
-                                            className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-bold"
-                                        >
-                                            CANCELAR
-                                        </button>
-                                        <button
-                                            onClick={handleSaveEdit}
-                                            className="px-8 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20 transition-all text-sm font-bold flex items-center gap-2 group"
-                                        >
-                                            <Save size={16} />
-                                            GUARDAR Y APROBAR
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={() => handleAction('REJECT')}
-                                            className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-bold"
-                                        >
-                                            REJECT
-                                        </button>
-                                        <button
-                                            onClick={() => handleAction('APPROVE')}
-                                            className="px-8 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/20 transition-all text-sm font-bold flex items-center gap-2 group"
-                                        >
-                                            <Check size={16} className="group-hover:scale-110 transition-transform" />
-                                            APPROVE ACTION
-                                        </button>
-                                    </>
-                                )}
+                                <button
+                                    onClick={() => handleAction('REJECT')}
+                                    className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-bold"
+                                >
+                                    REJECT
+                                </button>
+                                <button
+                                    onClick={() => handleAction('APPROVE')}
+                                    className="px-8 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/20 transition-all text-sm font-bold flex items-center gap-2 group"
+                                >
+                                    <Check size={16} className="group-hover:scale-110 transition-transform" />
+                                    APPROVE ACTION
+                                </button>
                             </div>
                         </>
                     ) : (

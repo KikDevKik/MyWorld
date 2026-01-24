@@ -14,14 +14,12 @@ interface NexusScanRequest {
     fileId: string;
     accessToken: string;
     contextType: 'NARRATIVE' | 'WORLD_DEF';
-    ignoredTerms?: string[]; // 🟢 NEW: Blacklist
 }
 
 interface AnalysisCandidate {
     name: string;
-    type: string; // STRICT: CHARACTER, LOCATION, OBJECT, EVENT, CONCEPT, FACTION, CREATURE, RACE
+    type: string; // STRICT: CHARACTER, LOCATION, OBJECT, EVENT, CONCEPT, FACTION
     description: string;
-    subtype?: string; // 🟢 NEW: Subtype
     ambiguityType: 'CONFLICT' | 'NEW' | 'ITEM_LORE' | 'DUPLICATE';
     suggestedAction: 'MERGE' | 'CREATE' | 'CONVERT_TYPE' | 'IGNORE';
     confidence: number;
@@ -46,7 +44,7 @@ export const analyzeNexusFile = onCall(
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-        const { fileId, accessToken, contextType, ignoredTerms } = request.data as NexusScanRequest;
+        const { fileId, accessToken, contextType } = request.data as NexusScanRequest;
 
         if (!fileId || !accessToken) {
             throw new HttpsError("invalid-argument", "Faltan datos (fileId, accessToken).");
@@ -88,7 +86,7 @@ export const analyzeNexusFile = onCall(
             CURRENT FILE CONTEXT: "${fileName}"
             CONTEXT CATEGORY: ${contextType || 'NARRATIVE'}
 
-            === THE 8 UNBREAKABLE LAWS OF THE TRIBUNAL ===
+            === THE 6 UNBREAKABLE LAWS OF THE TRIBUNAL ===
             SYSTEM INSTRUCTION: "Al analizar el texto, aplica estrictamente las siguientes leyes de exclusión. Tu objetivo es limpiar el grafo, no llenarlo."
 
             *** LANGUAGE MIRRORING PROTOCOL ***
@@ -133,17 +131,6 @@ export const analyzeNexusFile = onCall(
                - Agrúpalos bajo la Facción o Lugar correspondiente.
                - suggestedAction: 'IGNORE'.
 
-            7. LEY DE BIOLOGÍA (BESTIARIO):
-               - Si detectas un animal, bestia o monstruo sin agencia política compleja, clasifícalo como type: 'CREATURE'.
-               - Si detectas una especie o linaje biológico (ej. 'Mestizos', 'Elfos'), clasifícalo como type: 'RACE'.
-               - NO uses FACTION para especies biológicas.
-               - REASONING: "Entity is biological species/creature, not political faction."
-
-            8. LEY DE DETALLE (SUBTIPOS):
-               - Para LOCATION, OBJECT, y CREATURE, intenta generar un 'subtype' corto de una sola palabra.
-               - Ejemplo: 'Ruinas de Rotchel' -> Type: LOCATION, Subtype: 'RUINS'.
-               - Ejemplo: 'Espada Real' -> Type: OBJECT, Subtype: 'WEAPON'.
-
             === EVIDENCE REQUIREMENT ===
             For every candidate, you MUST extract a 'contextSnippet':
             - A verbatim quote (max 30 words) from the text proving the entity's existence and nature.
@@ -152,8 +139,7 @@ export const analyzeNexusFile = onCall(
             [
               {
                 "name": "Exact Name",
-                "type": "CHARACTER", // CHARACTER, LOCATION, OBJECT, EVENT, CONCEPT, FACTION, CREATURE, RACE
-                "subtype": "Optional Subtype",
+                "type": "CHARACTER",
                 "category": "ENTITY", // ENTITY, ITEM, CONCEPT, EVENT
                 "ambiguityType": "NEW", // NEW, CONFLICT, ITEM_LORE, DUPLICATE
                 "suggestedAction": "CREATE", // CREATE, MERGE, CONVERT_TYPE, IGNORE
@@ -184,7 +170,7 @@ export const analyzeNexusFile = onCall(
             }
 
             // 🟢 POST-PROCESS: Sanitize and Validate
-            let validCandidates = candidates.map((c: any) => ({
+            const validCandidates = candidates.map((c: any) => ({
                 ...c,
                 // Enforce File Name injection if AI missed it (it happens)
                 foundInFiles: c.foundInFiles?.map((f: any) => ({
@@ -192,25 +178,6 @@ export const analyzeNexusFile = onCall(
                     contextSnippet: f.contextSnippet || "No snippet provided."
                 })) || [{ fileName, contextSnippet: "Snippet missing." }]
             }));
-
-            // 🟢 BLACKLIST FILTER (Protocolo de Rencor)
-            if (ignoredTerms && Array.isArray(ignoredTerms) && ignoredTerms.length > 0) {
-                const ignoredSet = new Set(ignoredTerms.map(t => t.toLowerCase()));
-                const initialCount = validCandidates.length;
-
-                validCandidates = validCandidates.filter((c: any) => {
-                    const cleanName = c.name.trim().toLowerCase();
-                    const isIgnored = ignoredSet.has(cleanName);
-                    if (isIgnored) {
-                        logger.info(`🚫 [BLACKLIST] Ignoring candidate: ${c.name}`);
-                    }
-                    return !isIgnored;
-                });
-
-                if (initialCount > validCandidates.length) {
-                    logger.info(`🗑️ Filtered ${initialCount - validCandidates.length} ignored candidates.`);
-                }
-            }
 
             return { candidates: validCandidates };
 
