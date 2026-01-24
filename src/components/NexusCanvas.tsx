@@ -209,6 +209,7 @@ const EntityCard: React.FC<{
                 if (onDragEnd) onDragEnd();
             }}
             onPointerDownCapture={(e) => e.stopPropagation()}
+            onMouseDownCapture={(e) => e.stopPropagation()}
             onMouseEnter={() => {
                 setIsHovered(true);
                 setHoveredNodeId(node.id);
@@ -218,7 +219,7 @@ const EntityCard: React.FC<{
                 setHoveredNodeId(null);
             }}
             className={`
-                absolute flex items-center justify-center
+                absolute flex items-center justify-center pointer-events-auto
                 ${isMicro ? 'w-[200px] h-auto' : 'w-[120px] h-[60px]'}
                 ${isMacro ? 'opacity-0 pointer-events-none' : 'opacity-100'}
             `}
@@ -969,17 +970,17 @@ const NexusCanvas: React.FC<{
                             wrapperClass="!w-full !h-full"
                             contentClass="!w-full !h-full"
                         >
-                            <div className="relative" style={{ width: 4000, height: 4000 }}>
-                                {/* Background Grid (Cyberpunk) */}
-                                <div
-                                    className="absolute inset-0 opacity-20 pointer-events-none"
-                                    style={{
-                                        backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
-                                        backgroundSize: '50px 50px'
-                                    }}
-                                />
+                            <Xwrapper>
+                                <div className="relative" style={{ width: 4000, height: 4000 }}>
+                                    {/* Background Grid (Cyberpunk) */}
+                                    <div
+                                        className="absolute inset-0 opacity-20 pointer-events-none"
+                                        style={{
+                                            backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
+                                            backgroundSize: '50px 50px'
+                                        }}
+                                    />
 
-                                <Xwrapper>
                                     {/* FACTION LABELS (MACRO ONLY) */}
                                     {lodTier === 'MACRO' && factionCentroids.map(f => (
                                         <FactionLabel
@@ -1063,8 +1064,8 @@ const NexusCanvas: React.FC<{
                                             );
                                         });
                                     })}
-                                </Xwrapper>
-                            </div>
+                                </div>
+                            </Xwrapper>
                         </TransformComponent>
 
                         {/* ZOOM CONTROLS (Floating) */}
