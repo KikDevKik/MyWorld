@@ -1,0 +1,60 @@
+REPORTE DE MISIÓN: INFRAESTRUCTURA WORLD ENGINE V2
+FECHA: 2024-05-XX
+AGENTE: Jules
+ASUNTO: Establecimiento del Santuario (V2)
+
+1. MANIOBRAS EJECUTADAS (QUÉ SE HIZO)
+-------------------------------------
+Siguiendo las órdenes del Comandante, se ha establecido la infraestructura para el World Engine V2 ("El Ferrari") sin perturbar la operación del V1 ("El Ford").
+
+A. CREACIÓN DEL SANTUARIO (src/components/WorldEngineV2/)
+   - Se creó un nuevo directorio limpio.
+   - Se implementó `WorldEnginePageV2.tsx` como el nuevo contenedor principal.
+   - Se replicó la arquitectura de "Capas Divorciadas" (Divorced Layers) exitosa del V1:
+     - `GraphSimulationV2.tsx`: Maneja la física D3 y los Nodos (DOM directo).
+     - `LinksOverlayV2.tsx`: Maneja las líneas SVG (React-Xarrows) en una capa estática separada.
+     - `types.ts`: Definiciones de tipos locales para asegurar independencia total.
+
+B. LA UI "EL VACÍO"
+   - El nuevo lienzo es un fondo oscuro absoluto (`bg-[#141413]`).
+   - Se eliminaron barras laterales heredadas en esta vista.
+   - Se implementó el botón "NEXUS" (La Semilla) en la parte inferior central, actualmente inerte pero visualmente activo.
+
+C. PROTOCOLO GHOST MODE
+   - Se implementó la detección de `VITE_JULES_MODE`.
+   - Si está activo, aparecen las herramientas de debug:
+     - Botón "Swarm" (Enjambre) para pruebas de estrés.
+     - Botón "Trash" (Papelera Nuclear) para limpieza rápida.
+
+D. ENRUTAMIENTO QUIRÚRGICO
+   - Se modificó `src/App.tsx`.
+   - La vista 'perforador' ahora carga explícitamente `WorldEnginePageV2`.
+   - El código del V1 (`NexusCanvas.tsx`) permanece intacto en el sistema de archivos como referencia ("piezas de repuesto"), pero ya no se renderiza en la ruta principal.
+
+2. RAZONAMIENTO TÁCTICO (POR QUÉ)
+---------------------------------
+El objetivo era evitar la "deuda técnica" de parchear el V1. Al copiar y aislar los componentes críticos (`GraphSimulation`, `LinksOverlay`) en un nuevo namespace (V2), garantizamos que:
+1. Cualquier refactorización agresiva en V2 no rompe accidentalmente nada si decidiéramos revertir al V1.
+2. Tenemos libertad total para cambiar la UI sin luchar contra estilos heredados.
+3. La arquitectura de "Capas Divorciadas" ya probada se mantiene como base sólida de rendimiento.
+
+3. OBSTÁCULOS ENCONTRADOS (PROBLEMAS)
+-------------------------------------
+A. VERIFICACIÓN DE ENTORNO
+   - Problema: Al intentar verificar la UI con scripts automatizados (Playwright), el servidor de desarrollo no se iniciaba correctamente debido a rutas de ejecutables (`vite`) no encontradas en el entorno restringido inicial.
+   - Solución: Se ejecutó una reinstalación de dependencias (`pnpm install`) y se invocó el servidor explícitamente, logrando levantar el entorno en el puerto 3000.
+
+B. GHOST MODE
+   - Problema: Verificar que los botones de Debug aparecieran solo bajo demanda.
+   - Solución: Se inyectó `VITE_JULES_MODE=true` en el proceso de arranque del servidor de prueba, confirmando visualmente (vía captura de pantalla) que los artefactos aparecen correctamente.
+
+4. NOTAS ADICIONALES Y RECOMENDACIONES
+--------------------------------------
+- CÓDIGO MUERTO: Actualmente, `src/components/NexusCanvas.tsx` es código muerto (no se usa). Recomiendo mantenerlo durante la Fase 2 del desarrollo del V2 por si necesitamos consultar lógica específica, y borrarlo solo cuando el V2 sea funcionalmente superior.
+- EL BOTÓN NEXUS: Está listo para ser conectado. Su propósito actual es puramente estético/semántico.
+- RENDIMIENTO: La copia literal de la lógica de D3 asegura que el rendimiento (que ya era bueno tras el arreglo del Zoom) se mantiene.
+
+Misión Cumplida. El garaje está listo. El Ferrari tiene chasis.
+Esperando órdenes para encender el motor.
+
+-- Jules
