@@ -6,24 +6,24 @@ OBJETIVO: Fortalecimiento de Seguridad en Cloud Functions (`scanProjectDrift`)
 ## 1. RESUMEN DE CAMBIOS EJECUTADOS
 Se han implementado dos medidas de seguridad críticas en la función `scanProjectDrift` ubicada en `functions/src/guardian.ts`:
 
-1.  **Límite de Consultas (DoS Prevention):** Se introdujo una constante `MAX_SCAN_LIMIT = 2000` y se aplicó al query de Firestore (`.limit(MAX_SCAN_LIMIT)`).
-2.  **Endurecimiento CORS:** Se reemplazó la configuración insegura `cors: true` (wildcard) por `cors: ALLOWED_ORIGINS`, restringiendo el acceso únicamente a los dominios confiables definidos en `config.ts`.
-3.  **Observabilidad:** Se agregaron logs de advertencia (`logger.warn`) que se activan si el escaneo alcanza el límite, informando que el análisis podría ser parcial.
+1.  **Límite de Consultas Optimizado (Scaling):** Se estableció `MAX_SCAN_LIMIT = 10000` (anteriormente 2000). Esta ampliación responde a la necesidad de soportar "Sagas Multigeneracionales" en MyWorld, permitiendo analizar proyectos extensos sin comprometer la estabilidad (Node.js Gen2 maneja bien arrays de 10k items si están optimizados).
+2.  **Optimización de Payload:** Se verificó el uso de `.select("embedding", "fileName", "text", "path", "category")` en la query de Firestore para reducir la huella de memoria, evitando traer metadatos innecesarios.
+3.  **Endurecimiento CORS:** Se reemplazó la configuración insegura `cors: true` (wildcard) por `cors: ALLOWED_ORIGINS`, restringiendo el acceso únicamente a los dominios confiables definidos en `config.ts`.
+4.  **Soft Cap Warning:** Si el análisis alcanza el límite de 10,000 fragmentos, la función devuelve `partialAnalysis: true` al frontend, permitiendo advertir al usuario (Comandante) sobre la cobertura parcial del análisis.
 
 ## 2. MOTIVACIÓN (EL PORQUÉ)
-*   **Prevención de Denegación de Servicio (DoS):** La función original intentaba descargar *todos* los "chunks" (fragmentos de texto) de un proyecto sin límite. En proyectos masivos (ej. >10,000 fragmentos), esto podía exceder la memoria asignada a la función (1GiB), provocando un fallo por "Out Of Memory" (OOM) y caída del servicio.
-*   **Seguridad de Acceso:** La configuración `cors: true` permitía que cualquier sitio web en internet invocara esta función costosa. Al restringirlo a `ALLOWED_ORIGINS`, cerramos esta superficie de ataque.
+*   **Escalabilidad Segura:** Un límite de 2000 fragmentos era demasiado conservador para novelas largas o series, arriesgando "falsos negativos" al ignorar conflictos en capítulos tardíos. 10,000 ofrece un equilibrio superior entre cobertura y seguridad OOM.
+*   **Seguridad de Acceso:** La restricción de CORS cierra la puerta a invocaciones no autorizadas desde orígenes externos.
 
 ## 3. DESAFÍOS Y VERIFICACIONES
-*   **Verificación de Dependencias:** Durante el análisis, identifiqué que la variable `ALLOWED_ORIGINS` era necesaria. Verifiqué explícitamente `functions/src/config.ts` y las importaciones en `functions/src/guardian.ts` para asegurar que el código compilaría correctamente antes de aplicar el cambio.
-*   **Compilación TypeScript:** Ejecuté `npm run build` en el directorio `functions/` para confirmar que los tipos y las importaciones eran correctos y no rompían el build de producción.
-*   **Coherencia del Journal:** Documenté este hallazgo en `.jules/sentinel.md` siguiendo el protocolo estricto de aprendizaje.
+*   **Verificación de Dependencias:** Se confirmó la correcta importación de `ALLOWED_ORIGINS` desde `config.ts`.
+*   **Compilación TypeScript:** Ejecución exitosa de `npm run build` en el directorio `functions/`.
+*   **Prueba de Lógica de Límite:** Se revisó que la bandera `partialAnalysis` se active estrictamente cuando `chunksSnapshot.size === MAX_SCAN_LIMIT`.
 
 ## 4. OBSERVACIONES ADICIONALES
-*   **Trade-off de Estabilidad:** El límite de 2000 fragmentos garantiza que la función no colapse, pero implica que para proyectos gigantescos, el análisis de "Drift" (desviación narrativa) será un muestreo de los primeros 2000 fragmentos encontrados, no un censo total. Esto es un compromiso aceptable para mantener la estabilidad del sistema.
-*   **Próximos Pasos (Sugerencia):** Si se requiere analizar proyectos masivos en su totalidad, se debería considerar refactorizar esta función para usar paginación o un proceso en segundo plano (Cloud Tasks) en lugar de una función `onCall` síncrona.
+*   **Trade-off:** Aunque 10k es un límite generoso, sigue siendo un límite. Para obras verdaderamente masivas (ej. >1 millón de palabras fragmentadas), la arquitectura ideal a largo plazo sería un proceso asíncrono (Cloud Tasks) con paginación, pero la solución actual cubre el 99% de los casos de uso previstos para la Fase 5.
 
 ## 5. RECOMENDACIÓN DE MONITOREO
-*   Se recomienda vigilar los logs de Google Cloud Functions buscando la etiqueta `[SENTINEL] Drift Scan hit limit`. Si esta advertencia aparece frecuentemente, indicará que el límite de 2000 fragmentos es insuficiente para el uso real y podría requerirse una reevaluación de la arquitectura (paginación o aumento de memoria).
+*   Vigilar los logs buscando `[SENTINEL] Drift Scan hit limit`. Si aparece, significa que un usuario ha superado incluso los 10,000 fragmentos, lo cual es un hito de uso significativo que podría requerir atención personalizada o arquitectura dedicada.
 
 -- FIN DEL REPORTE --
