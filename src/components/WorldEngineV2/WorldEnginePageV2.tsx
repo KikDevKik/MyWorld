@@ -4,9 +4,11 @@ import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import {
     Plus,
     Loader2,
+    Bug,
+    Trash2,
     Globe
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
@@ -57,7 +59,6 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
     const [pendingNodes, setPendingNodes] = useState<PendingCrystallization[]>([]);
     const [candidates, setCandidates] = useState<AnalysisCandidate[]>([]);
-    const [ignoredTerms, setIgnoredTerms] = useState<string[]>([]); // 🟢 BLACKLIST STATE
 
     // STATE: UI
     const [loading, setLoading] = useState(true);
@@ -67,15 +68,12 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     const [crystallizeModal, setCrystallizeModal] = useState<{ isOpen: boolean, node: VisualNode | null }>({ isOpen: false, node: null });
     const [isCrystallizing, setIsCrystallizing] = useState(false);
 
-    // STATE: CONFIRMATION MODALS
-    const [isClearAllOpen, setIsClearAllOpen] = useState(false);
-
     // STATE: NEXUS TRIBUNAL (Scanning)
     const [isScanning, setIsScanning] = useState(false);
     const [scanStatus, setScanStatus] = useState('');
     const [showTribunal, setShowTribunal] = useState(false);
 
-    // 🟢 DATA SUBSCRIPTION (Nodes)
+    // 🟢 DATA SUBSCRIPTION (Mirrors V1)
     useEffect(() => {
         if (!user || !config?.folderId) {
             setLoading(false);
@@ -88,21 +86,6 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
             snapshot.forEach(doc => loaded.push(doc.data() as GraphNode));
             setDbNodes(loaded);
             setLoading(false);
-        });
-        return () => unsubscribe();
-    }, [user, config?.folderId]);
-
-    // 🟢 DATA SUBSCRIPTION (Blacklist)
-    useEffect(() => {
-        if (!user || !config?.folderId) return;
-        const db = getFirestore();
-        const settingsRef = doc(db, `users/${user.uid}/projects/${config.folderId}/settings/general`);
-        const unsubscribe = onSnapshot(settingsRef, (doc) => {
-            if (doc.exists()) {
-                setIgnoredTerms(doc.data().ignoredTerms || []);
-            } else {
-                setIgnoredTerms([]);
-            }
         });
         return () => unsubscribe();
     }, [user, config?.folderId]);
@@ -151,7 +134,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         if (isScanning || showTribunal) return;
 
         // Guard: Check Prerequisites
-        if (!fileTree || !config?.canonPaths || !config?.folderId) {
+        if (!fileTree || !config?.canonPaths) {
             toast.error("⚠️ Configuración incompleta. Verifica 'Carpetas Canon'.");
             return;
         }
@@ -162,7 +145,6 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
         try {
             // EXECUTE HYBRID SCAN
-            // Note: ignoredTerms is now fetched via subscription and available in state
             const results = await scanProjectFiles(
                 fileTree,
                 config.canonPaths,
@@ -171,8 +153,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                     // Update UI with granular progress
                     const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
                     setScanStatus(`${status.toUpperCase()} [${pct}%]`);
-                },
-                ignoredTerms // 🟢 PASSING BLACKLIST
+                }
             );
 
             setCandidates(results);
@@ -246,30 +227,52 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
-    const handleClearAll = async () => {
-        // if (!confirm("⚠️ ¿ELIMINAR TODO? Esto borrará todos los nodos de la base de datos y la vista local.")) return;
-        setIsClearAllOpen(false); // Close modal
+    // 🟢 DEBUG ARTIFACTS
+    const spawnDebugNodes = (count: number = 50) => {
+         const newGhosts: VisualNode[] = [];
+         for (let i = 0; i < count; i++) {
+            const id = `debug-${Date.now()}-${i}`;
+            const r = Math.random();
+            let type: EntityType = r < 0.5 ? 'character' : (r < 0.8 ? 'enemy' as any : 'location');
+            newGhosts.push({
+                id,
+                name: `DEBUG ${i}`,
+                type,
+                description: "Test node",
+                projectId: config?.folderId || 'debug',
+                isGhost: true,
+                x: 2000 + (Math.random()-0.5)*1000,
+                y: 2000 + (Math.random()-0.5)*1000,
+                relations: i > 0 ? [{
+                    targetId: `debug-${Date.now()}-${i-1}`,
+                    relation: 'FRIEND',
+                    context: 'Swarm Link',
+                    targetName: 'Prev',
+                    targetType: 'character',
+                    sourceFileId: 'debug'
+                }] : [],
+                meta: {}
+            });
+         }
+         // Post-link fixup not needed if we accept imperfect initial links for debug
+         setGhostNodes(prev => [...prev, ...newGhosts]);
+         toast.success(`🪲 +${count} Nodos`);
+    };
 
+    const handleClearAll = async () => {
+        if (!confirm("⚠️ ¿ELIMINAR TODO? Esto borrará todos los nodos de la base de datos y la vista local.")) return;
         setGhostNodes([]);
         setDbNodes([]); // Force clear local state immediately to prevent ghosts
         localStorage.removeItem('nexus_drafts_v1');
         if (user && config?.folderId) {
              const db = getFirestore();
-             const projectPath = `users/${user.uid}/projects/${config.folderId}`;
-             const entitiesRef = collection(db, projectPath, "entities");
-             const edgesRef = collection(db, projectPath, "edges");
-
+             const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
              try {
+                 const snapshot = await getDocs(entitiesRef);
                  const batch = writeBatch(db);
-
-                 // 1. Delete Nodes
-                 const nodeSnap = await getDocs(entitiesRef);
-                 nodeSnap.docs.forEach((doc) => batch.delete(doc.ref));
-
-                 // 2. Delete Edges (Fixed)
-                 const edgeSnap = await getDocs(edgesRef);
-                 edgeSnap.docs.forEach((doc) => batch.delete(doc.ref));
-
+                 snapshot.docs.forEach((doc) => {
+                     batch.delete(doc.ref);
+                 });
                  await batch.commit();
                  toast.success("🗑️ Todo eliminado (Local + DB).");
              } catch (e: any) {
@@ -280,38 +283,25 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
-    // 🟢 TRIBUNAL ACTIONS (Phase 2.4/2.5)
+    // 🟢 TRIBUNAL ACTIONS (Phase 2.3)
     const handleTribunalAction = async (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => {
-        const db = getFirestore();
-        if (!user || !config?.folderId) {
-            toast.error("Error de sesión.");
-            return;
-        }
-        const projectId = config.folderId;
-        const projectRoot = `users/${user.uid}/projects/${projectId}`;
-
-        // 1. REJECT: Protocolo de Rencor (Blacklist)
+        // 1. REJECT: Simple removal
         if (action === 'REJECT') {
-            try {
-                const settingsRef = doc(db, `${projectRoot}/settings/general`);
-                // Ensure document exists or set it
-                await setDoc(settingsRef, {
-                    ignoredTerms: arrayUnion(candidate.name.toLowerCase())
-                }, { merge: true });
-
-                toast.info(`Descartado y Silenciado: ${candidate.name}`);
-            } catch (e) {
-                console.warn("Failed to update blacklist", e);
-                toast.info("Candidato Descartado");
-            }
-
             setCandidates(prev => prev.filter(c => c.id !== candidate.id));
+            toast.info("Candidato Descartado");
             return;
         }
 
         // 2. APPROVE: DB Operations
         if (action === 'APPROVE') {
-            const collectionPath = `${projectRoot}/entities`;
+            const db = getFirestore();
+            if (!user || !config?.folderId) {
+                toast.error("Error de sesión.");
+                return;
+            }
+
+            const projectId = config.folderId;
+            const collectionPath = `users/${user.uid}/projects/${projectId}/entities`;
 
             try {
                 // CASE A: MERGE
@@ -345,7 +335,6 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          type: type as EntityType,
                          projectId: projectId,
                          description: candidate.reasoning || "Imported via Nexus Tribunal",
-                         subtype: (candidate as any).subtype, // 🟢 Phase 2.4
                          relations: [],
                          // Map evidence
                          foundInFiles: candidate.foundInFiles?.map(f => ({
@@ -371,70 +360,6 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
-    // 🟢 TRIBUNAL EDIT (Phase 2.4)
-    const handleTribunalEdit = async (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string }) => {
-         const db = getFirestore();
-         if (!user || !config?.folderId) return;
-         const projectId = config.folderId;
-         const collectionPath = `users/${user.uid}/projects/${projectId}/entities`;
-
-         try {
-             const type = newValues.type.toLowerCase();
-
-             // 1. Generate NEW ID (Regenerate based on new name)
-             const newNodeId = generateId(projectId, newValues.name, type);
-
-             // 2. Check Collision
-             const nodeRef = doc(db, collectionPath, newNodeId);
-             const snap = await getDoc(nodeRef);
-             if (snap.exists()) {
-                 toast.error(`¡Error! Ya existe un nodo con ID similar para '${newValues.name}'. Fusiónalo manualmente.`);
-                 return;
-             }
-
-             // 3. Save
-             const newNode: GraphNode = {
-                 id: newNodeId,
-                 name: newValues.name,
-                 type: type as EntityType,
-                 projectId: projectId,
-                 description: originalCandidate.reasoning || "Edited & Approved via Nexus Tribunal",
-                 subtype: newValues.subtype,
-                 relations: [],
-                 foundInFiles: originalCandidate.foundInFiles?.map(f => ({
-                     fileId: 'nexus-scan',
-                     fileName: f.fileName,
-                     lastSeen: new Date().toISOString()
-                 })) || [],
-                 meta: {},
-             };
-
-             await setDoc(nodeRef, newNode);
-             toast.success(`Nodo Corregido y Creado: ${newValues.name}`);
-
-             // 4. Remove Original
-             setCandidates(prev => prev.filter(c => c.id !== originalCandidate.id));
-
-         } catch (e: any) {
-             toast.error(`Error al editar: ${e.message}`);
-         }
-    };
-
-    // 🟢 RESTORE IGNORED (Phase 2.5)
-    const handleRestoreIgnored = async (term: string) => {
-        if (!user || !config?.folderId) return;
-        const db = getFirestore();
-        const settingsRef = doc(db, `users/${user.uid}/projects/${config.folderId}/settings/general`);
-        try {
-            await updateDoc(settingsRef, {
-                ignoredTerms: arrayRemove(term)
-            });
-            toast.success(`Restaurado: ${term}`);
-        } catch (e: any) {
-            toast.error("Error al restaurar: " + e.message);
-        }
-    };
-
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
              {/* WARMUP LOADER */}
@@ -456,7 +381,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 wheel={{ step: 0.1 }}
                 panning={{ activationKeys: ["Shift"], excluded: ["nodrag"] }}
                 onPanning={() => linksOverlayRef.current?.forceUpdate()}
-                onZoom={() => linksOverlayRef.current?.forceUpdate()}
+                onZooming={() => linksOverlayRef.current?.forceUpdate()}
                 onTransformed={(ref) => {
                     linksOverlayRef.current?.forceUpdate();
                     const s = ref.state.scale;
@@ -532,10 +457,28 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
              {/* 🟢 COMMAND BAR (The Mouth - Bottom Center) */}
              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
-                <CommandBar
-                    onClearAll={() => setIsClearAllOpen(true)}
-                />
+                <CommandBar />
              </div>
+
+             {/* 🟢 DEBUG ARTIFACTS (Ghost Mode Only) */}
+             {IS_GHOST_MODE && (
+                 <div className="absolute top-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
+                     <button
+                        onClick={() => spawnDebugNodes(50)}
+                        className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
+                        title="Swarm Generator"
+                     >
+                        <Bug size={20} />
+                     </button>
+                     <button
+                        onClick={handleClearAll}
+                        className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
+                        title="Nuclear Trash"
+                     >
+                        <Trash2 size={20} />
+                     </button>
+                 </div>
+             )}
 
              {/* MODAL */}
              <AnimatePresence>
@@ -562,40 +505,9 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                         onClose={() => setShowTribunal(false)}
                         candidates={candidates}
                         onAction={handleTribunalAction}
-                        onEditApprove={handleTribunalEdit}
-                        ignoredTerms={ignoredTerms} // 🟢 PASSING
-                        onRestoreIgnored={handleRestoreIgnored} // 🟢 PASSING
                      />
                  )}
              </AnimatePresence>
-
-             {/* CONFIRMATION MODAL (NUCLEAR) */}
-             {isClearAllOpen && (
-                 <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm">
-                     <div className="w-[400px] bg-red-950/20 border border-red-500 rounded-xl p-6 text-center shadow-[0_0_50px_rgba(220,38,38,0.2)]">
-                         <h2 className="text-xl font-bold text-red-500 mb-4 tracking-widest">⚠️ ZONA DE PELIGRO</h2>
-                         <p className="text-sm text-red-200 mb-6 leading-relaxed">
-                             Estás a punto de ejecutar el <strong>Protocolo de Incineración</strong>.
-                             <br/><br/>
-                             Esto eliminará PERMANENTEMENTE todos los nodos y conexiones de este proyecto. No hay vuelta atrás.
-                         </p>
-                         <div className="flex gap-4 justify-center">
-                             <button
-                                 onClick={() => setIsClearAllOpen(false)}
-                                 className="px-4 py-2 rounded text-sm font-bold text-slate-400 hover:text-white transition-colors"
-                             >
-                                 CANCELAR
-                             </button>
-                             <button
-                                 onClick={handleClearAll}
-                                 className="px-6 py-2 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-lg transition-all"
-                             >
-                                 CONFIRMAR DESTRUCCIÓN
-                             </button>
-                         </div>
-                     </div>
-                 </div>
-             )}
         </div>
     );
 };

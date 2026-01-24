@@ -125,8 +125,7 @@ export const scanProjectFiles = async (
     fileTree: FileNode[],
     canonConfigs: { id: string }[],
     existingNodes: GraphNode[],
-    onProgress: ScanProgressCallback,
-    ignoredTerms: string[] = [] // 🟢 NEW: Passed from caller
+    onProgress: ScanProgressCallback
 ): Promise<AnalysisCandidate[]> => {
 
     // 0. PRE-FLIGHT CHECK (TOKEN)
@@ -155,19 +154,19 @@ export const scanProjectFiles = async (
     let allCandidates: AnalysisCandidate[] = [];
     let processedCount = 0;
 
-    // Sequential Processing
+    // Sequential Processing (to allow progress updates and avoid rate limits)
+    // We could batch 3-5 in parallel if needed, but sequential is safer for progress bar UX.
     for (const file of targetFiles) {
         onProgress(`Reading ${file.name}...`, processedCount, targetFiles.length);
 
         try {
-            const token = localStorage.getItem('google_drive_token');
+            const token = localStorage.getItem('google_drive_token'); // Or get from context? Usually stored in localStorage.
             if (!token) throw new Error("Missing Drive Token");
 
             const result = await analyzeFn({
                 fileId: file.id,
                 accessToken: token,
-                contextType: file.context,
-                ignoredTerms: ignoredTerms // 🟢 PASS TO BACKEND
+                contextType: file.context
             });
 
             const data = result.data as { candidates: AnalysisCandidate[] };
@@ -182,6 +181,7 @@ export const scanProjectFiles = async (
 
         } catch (err) {
             console.error(`Error scanning ${file.name}:`, err);
+            // Continue scanning other files
         }
 
         processedCount++;
@@ -208,11 +208,17 @@ export const scanProjectFiles = async (
         }
 
         // Threshold Logic:
+        // Strict: Distance <= 2 for short names (<10 chars), <= 3 for long.
+        // Or strict ratio.
         const threshold = candidate.name.length < 5 ? 1 : 2;
 
         if (bestMatch && minDist <= threshold) {
+            // Check for Identity (Same Type?)
             const candType = candidate.type || 'concept';
             if (bestMatch.type !== candType.toLowerCase()) {
+                 // Conflict (Name match but type mismatch? or just duplicate?)
+                 // Actually, if name matches "Madre" vs "Elsa", distance is high.
+                 // Levenshtein catches typos "Elsaa" vs "Elsa".
                  return {
                      ...candidate,
                      ambiguityType: 'CONFLICT' as const,

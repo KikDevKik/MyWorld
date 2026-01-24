@@ -1,6 +1,6 @@
 
 // El "Qué" o "Quién" (Unifica Characters, Locations, Objects, Events)
-export type EntityType = 'character' | 'location' | 'object' | 'event' | 'faction' | 'concept' | 'idea' | 'creature' | 'race';
+export type EntityType = 'character' | 'location' | 'object' | 'event' | 'faction' | 'concept' | 'idea';
 
 export interface NodeRelation {
   targetId: string;
@@ -22,7 +22,6 @@ export interface GraphNode {
   description?: string;
   aliases?: string[];
   locked?: boolean;      // True = Un humano ha verificado esto. La IA no debe sobrescribir description/type.
-  subtype?: string;      // Nuevo campo Fase 2.4 (e.g. 'City', 'Ruins', 'Weapon')
 
   relations?: NodeRelation[];
 
