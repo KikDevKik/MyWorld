@@ -147,7 +147,12 @@ export const scanProjectFiles = async (
 
             const data = result.data as { candidates: AnalysisCandidate[] };
             if (data.candidates && Array.isArray(data.candidates)) {
-                allCandidates = [...allCandidates, ...data.candidates];
+                // 🟢 ID GENERATION: Ensure every candidate has a temporary ID for the UI
+                const candidatesWithIds = data.candidates.map(c => ({
+                    ...c,
+                    id: c.id || `cand-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+                }));
+                allCandidates = [...allCandidates, ...candidatesWithIds];
             }
 
         } catch (err) {

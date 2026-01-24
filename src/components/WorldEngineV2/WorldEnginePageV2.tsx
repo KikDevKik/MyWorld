@@ -8,7 +8,7 @@ import {
     Trash2,
     Globe
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
@@ -274,6 +274,77 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
+    // 🟢 TRIBUNAL ACTIONS (Phase 2.3)
+    const handleTribunalAction = async (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => {
+        // 1. REJECT: Simple removal
+        if (action === 'REJECT') {
+            setCandidates(prev => prev.filter(c => c.id !== candidate.id));
+            toast.info("Candidato Descartado");
+            return;
+        }
+
+        // 2. APPROVE: DB Operations
+        if (action === 'APPROVE') {
+            const db = getFirestore();
+            if (!user || !config?.folderId) {
+                toast.error("Error de sesión.");
+                return;
+            }
+
+            const projectId = config.folderId;
+            const collectionPath = `users/${user.uid}/projects/${projectId}/entities`;
+
+            try {
+                // CASE A: MERGE
+                if (candidate.suggestedAction === 'MERGE' && candidate.mergeWithId) {
+                     const targetRef = doc(db, collectionPath, candidate.mergeWithId);
+                     await updateDoc(targetRef, {
+                         aliases: arrayUnion(candidate.name)
+                     });
+                     toast.success(`Fusión Completada: ${candidate.name} -> ID: ${candidate.mergeWithId.substring(0,6)}...`);
+                }
+                // CASE B: CREATE / CONVERT
+                else {
+                     // We need 'type' which comes from backend but might be missing in strict interface
+                     const rawCandidate = candidate as any;
+                     const typeRaw = rawCandidate.type || 'concept';
+                     const type = typeRaw.toLowerCase();
+
+                     // Generate Deterministic ID
+                     const newNodeId = generateId(projectId, candidate.name, type);
+                     const nodeRef = doc(db, collectionPath, newNodeId);
+
+                     const newNode: GraphNode = {
+                         id: newNodeId,
+                         name: candidate.name,
+                         type: type as EntityType,
+                         projectId: projectId,
+                         description: candidate.reasoning || "Imported via Nexus Tribunal",
+                         relations: [],
+                         // Map evidence
+                         foundInFiles: candidate.foundInFiles?.map(f => ({
+                             fileId: 'nexus-scan', // Placeholder as we don't have exact ID here
+                             fileName: f.fileName,
+                             lastSeen: new Date().toISOString()
+                         })) || [],
+                         meta: {},
+                         // STRICT: No Coordinates (Let Physics decide)
+                     };
+
+                     await setDoc(nodeRef, newNode);
+                     toast.success(`Nodo Creado: ${candidate.name}`);
+                }
+
+                // Update UI: Remove processed candidate
+                setCandidates(prev => prev.filter(c => c.id !== candidate.id));
+
+            } catch (e: any) {
+                console.error("Tribunal Action Failed:", e);
+                toast.error(`Error: ${e.message}`);
+            }
+        }
+    };
+
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
              {/* WARMUP LOADER */}
@@ -418,6 +489,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                         isOpen={showTribunal}
                         onClose={() => setShowTribunal(false)}
                         candidates={candidates}
+                        onAction={handleTribunalAction}
                      />
                  )}
              </AnimatePresence>

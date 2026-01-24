@@ -86,40 +86,45 @@ export const analyzeNexusFile = onCall(
             CURRENT FILE CONTEXT: "${fileName}"
             CONTEXT CATEGORY: ${contextType || 'NARRATIVE'}
 
-            === THE 4 LAWS OF THE TRIBUNAL ===
+            === THE 6 UNBREAKABLE LAWS OF THE TRIBUNAL ===
+            SYSTEM INSTRUCTION: "Al analizar el texto, aplica estrictamente las siguientes leyes de exclusión. Tu objetivo es limpiar el grafo, no llenarlo."
 
-            1. LAW OF TYPES (STRICT TAXONOMY):
-               - FORBIDDEN: Do NOT use 'canon' as a type.
-               - ALLOWED: 'CHARACTER', 'LOCATION', 'OBJECT', 'EVENT', 'CONCEPT', 'FACTION'.
-               - LAW OF COORDINATES: DO NOT generate 'fx' or 'fy'. Entities are born bodiless.
+            1. LEY DE MATERIALIDAD (Items vs. Lugares):
+               - Si detectas un objeto ("Brazaletes", "Espada"), pregúntate: ¿Es un lugar geográfico?
+               - Si NO lo es, clasifícalo como type: 'OBJECT' (Category: ITEM).
+               - ambiguityType: 'ITEM_LORE'.
+               - suggestedAction: 'CONVERT_TYPE'.
+               - REASONING: "Object detected. Convert to Item/Lore. NUNCA le asignes coordenadas."
 
-            2. LAW OF MATERIALITY (THE BRACELET RULE):
-               - IF an entity is an inanimate object (e.g., "Promise Bracelet", "Sword of Truth") found in a NARRATIVE context:
-                 - CLASSIFY AS: 'OBJECT' (Category: ITEM).
-                 - AMBIGUITY: 'ITEM_LORE'.
-                 - SUGGESTED ACTION: 'CONVERT_TYPE' (to ITEM).
-               - REASONING: "Object detected. Suggested assignment to Inventory/Lore, not a Map Node."
+            2. LEY DE IDENTIDAD (Alias):
+               - Si un nombre ("Madre") es un alias de un personaje ya mencionado ("Elsa"):
+               - NO crees un nodo nuevo.
+               - ambiguityType: 'DUPLICATE'.
+               - suggestedAction: 'MERGE'.
+               - REASONING: "Alias detected. Merge into target."
 
-            3. LAW OF SCOPE (THE GARDEN FLOWERS RULE):
-               - IF an event affects only 1-2 characters or is a personal memory (e.g., "The Trauma of 2140"):
-                 - CLASSIFY AS: 'EVENT' (Category: EVENT).
-                 - AMBIGUITY: 'ITEM_LORE'.
-                 - SUGGESTED ACTION: 'IGNORE' or 'CONVERT_TYPE' (to LORE_FRAGMENT).
-                 - REASONING: "Personal event scope. Suggest Lore Fragment attribute."
-               - IF an event is Global/Historical (e.g., "The Great War"):
-                 - SUGGESTED ACTION: 'CREATE'.
+            3. LEY DEL ALCANCE (Eventos Locales):
+               - Si un evento ("Incidente GardenFlowers") afecta solo a la psicología de 1 personaje:
+               - NO es un nodo EVENT. Es un LORE_FRAGMENT o atributo.
+               - suggestedAction: 'IGNORE' o 'CONVERT_TYPE'.
+               - REASONING: "Personal event scope. Suggest Lore Fragment."
+               - Solo crea nodos EVENT para sucesos globales/políticos.
 
-            4. LAW OF IDENTITY (THE MOTHER/ELSA RULE):
-               - IF you detect an Alias or Title (e.g., "Madre") referring to a known entity (e.g., "Elsa"):
-                 - CLASSIFY AS: 'CHARACTER'.
-                 - AMBIGUITY: 'DUPLICATE' or 'CONFLICT'.
-                 - SUGGESTED ACTION: 'MERGE'.
-                 - REASONING: "Alias detected. Merge 'Madre' into 'Elsa'."
+            4. LEY DE LA NATURALEZA (Habilidades):
+               - Las habilidades personales ("Anime Fusione", "Pesadilla") NO son conceptos universales.
+               - Clasifícalas como type: 'CONCEPT' (Category: CONCEPT).
+               - suggestedAction: 'CONVERT_TYPE'.
+               - REASONING: "Personal Ability detected. Suggest Convert to Lore."
 
-            5. LAW OF CONCEPTS (THE ANIME FUSIONE RULE):
-               - IF context is WORLD_DEF and entity is a Skill/Ability:
-                 - CLASSIFY AS: 'CONCEPT'.
-                 - SUGGESTED ACTION: 'CREATE'.
+            5. LEY DE NECROMANCIA (Padres Muertos):
+               - Si un personaje ("Kenny", "Carla") se menciona solo como 'fallecido' en el pasado:
+               - IGNÓRALO. No crees nodos para fantasmas de trasfondo.
+               - suggestedAction: 'IGNORE'.
+
+            6. LEY DEL ENJAMBRE (NPCs Genéricos):
+               - No crees nodos para grupos sin nombre ("Otros niños", "Soldados").
+               - Agrúpalos bajo la Facción o Lugar correspondiente.
+               - suggestedAction: 'IGNORE'.
 
             === EVIDENCE REQUIREMENT ===
             For every candidate, you MUST extract a 'contextSnippet':
