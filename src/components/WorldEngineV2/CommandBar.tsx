@@ -30,6 +30,7 @@ export const CommandBar: React.FC = () => {
 
                 <input
                     type="text"
+                    aria-label="Comando para el motor"
                     placeholder="¿Qué quieres crear o consultar?"
                     className={`relative w-full bg-transparent px-6 py-4 text-lg font-light placeholder-slate-600 outline-none rounded-t-xl text-center font-mono transition-colors duration-300 ${
                         mode === 'RIGOR' ? 'text-sky-100 selection:bg-sky-500/30' :
@@ -42,15 +43,29 @@ export const CommandBar: React.FC = () => {
             </div>
 
             {/* COMPONENT B: REALITY SLIDER */}
-            <div className="relative w-full h-12 bg-[#0a0a0a] border border-t-0 border-white/10 rounded-b-xl flex items-center p-1 z-10">
+            <div
+                className="relative w-full h-12 bg-[#0a0a0a] border border-t-0 border-white/10 rounded-b-xl flex items-center p-1 z-10"
+                role="radiogroup"
+                aria-label="Modo de Realidad"
+            >
 
                 {/* Background Track (Clickable Areas) */}
                 <div className="absolute inset-1 grid grid-cols-3 z-20">
                     {MODES.map((m) => (
                         <div
                             key={m.id}
+                            role="radio"
+                            aria-checked={mode === m.id}
+                            aria-label={`Modo ${m.label}`}
+                            tabIndex={0}
                             onClick={() => setMode(m.id)}
-                            className="flex items-center justify-center cursor-pointer group"
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                    e.preventDefault();
+                                    setMode(m.id);
+                                }
+                            }}
+                            className="flex items-center justify-center cursor-pointer group outline-none focus-visible:bg-white/5 rounded"
                         >
                             <span className={`text-[10px] font-bold tracking-[0.2em] transition-colors duration-300 ${
                                 mode === m.id
