@@ -17,6 +17,7 @@ interface NexusTribunalModalProps {
     isOpen: boolean;
     onClose: () => void;
     candidates: AnalysisCandidate[];
+    onAction: (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => void;
 }
 
 // 🟢 UTILS: COLOR MAPPING
@@ -40,32 +41,35 @@ const getTypeIcon = (type: AnalysisAmbiguityType) => {
     }
 };
 
-const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates }) => {
+const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction }) => {
     // Auto-select first candidate on mount if not empty
     const [selectedId, setSelectedId] = useState<string | null>(candidates.length > 0 ? candidates[0].id : null);
-    const [processedIds, setProcessedIds] = useState<Set<string>>(new Set());
 
+    // Derived state
     const selectedCandidate = candidates.find(c => c.id === selectedId);
 
-    // Sync selection when candidates load (if mock was removed)
+    // Sync selection when candidates list changes (e.g., item removed)
     React.useEffect(() => {
-        if (!selectedId && candidates.length > 0) {
+        // If list is empty, clear selection
+        if (candidates.length === 0) {
+            setSelectedId(null);
+            return;
+        }
+
+        // If current selection is gone, select the first one
+        if (selectedId && !candidates.find(c => c.id === selectedId)) {
             setSelectedId(candidates[0].id);
         }
-    }, [candidates]);
+
+        // If nothing selected but we have items, select first
+        if (!selectedId) {
+             setSelectedId(candidates[0].id);
+        }
+    }, [candidates, selectedId]);
 
     const handleAction = (action: 'APPROVE' | 'REJECT') => {
-        if (!selectedId) return;
-        console.log(`[TRIBUNAL] Action: ${action} on ${selectedId}`);
-        setProcessedIds(prev => new Set(prev).add(selectedId));
-
-        // Auto-select next available
-        const remaining = candidates.filter(c => c.id !== selectedId && !processedIds.has(c.id));
-        if (remaining.length > 0) {
-            setSelectedId(remaining[0].id);
-        } else {
-            setSelectedId(null);
-        }
+        if (!selectedCandidate) return;
+        onAction(action, selectedCandidate);
     };
 
     if (!isOpen) return null;
@@ -106,9 +110,6 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         ) : (
                             candidates.map(candidate => {
                                 const isSelected = selectedId === candidate.id;
-                                const isProcessed = processedIds.has(candidate.id);
-
-                                if (isProcessed) return null; // Hide processed for now
 
                                 return (
                                     <button
@@ -141,12 +142,6 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                             })
                         )}
 
-                        {candidates.length > 0 && processedIds.size === candidates.length && (
-                             <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
-                                <Check size={32} className="text-green-900" />
-                                <span className="text-xs font-mono">ALL CLEAR</span>
-                             </div>
-                        )}
                     </div>
                 </div>
 
