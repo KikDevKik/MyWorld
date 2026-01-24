@@ -6,9 +6,10 @@ import {
     Loader2,
     Bug,
     Trash2,
-    Globe
+    Globe,
+    Eraser
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
@@ -198,6 +199,40 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
          toast.success(`🪲 +${count} Nodos`);
     };
 
+    const handleClearDebug = async () => {
+        if (!confirm("⚠️ ¿ELIMINAR SOLO NODOS DEBUG? Esto borrará los nodos 'DEBUG' locales y de base de datos.")) return;
+
+        // 1. Clear Ghosts (Local)
+        const debugGhostIds = ghostNodes.filter(n => n.name.startsWith('DEBUG') || n.id.startsWith('debug-')).map(n => n.id);
+        if (debugGhostIds.length > 0) {
+            setGhostNodes(prev => prev.filter(n => !debugGhostIds.includes(n.id)));
+        }
+
+        // 2. Clear DB Nodes (Firebase)
+        if (user && config?.folderId) {
+             const db = getFirestore();
+             // Filter DB nodes that look like debug nodes
+             const debugDbNodes = dbNodes.filter(n => n.name.startsWith('DEBUG') || n.id.startsWith('debug-'));
+
+             if (debugDbNodes.length > 0) {
+                 try {
+                     const batch = writeBatch(db);
+                     debugDbNodes.forEach(node => {
+                         const docRef = doc(db, "users", user.uid, "projects", config.folderId, "entities", node.id);
+                         batch.delete(docRef);
+                     });
+                     await batch.commit();
+                     toast.success(`🗑️ ${debugDbNodes.length} Nodos Debug eliminados (DB).`);
+                 } catch (e: any) {
+                     console.error("Error clearing debug nodes:", e);
+                     toast.error("Error borrando nodos DB: " + e.message);
+                 }
+             }
+        }
+
+        toast.success("🧹 Limpieza de Debug completada.");
+    };
+
     const handleClearAll = async () => {
         if (!confirm("⚠️ ¿ELIMINAR TODO? Esto borrará todos los nodos de la base de datos y la vista local.")) return;
         setGhostNodes([]);
@@ -305,8 +340,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
              </div>
 
              {/* 🟢 DEBUG ARTIFACTS (Ghost Mode Only) */}
-             {IS_GHOST_MODE && (
-                 <div className="absolute top-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
+             <div className="absolute top-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
+                 {IS_GHOST_MODE && (
                      <button
                         onClick={() => spawnDebugNodes(50)}
                         className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
@@ -314,15 +349,22 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      >
                         <Bug size={20} />
                      </button>
-                     <button
-                        onClick={handleClearAll}
-                        className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
-                        title="Nuclear Trash"
-                     >
-                        <Trash2 size={20} />
-                     </button>
-                 </div>
-             )}
+                 )}
+                 <button
+                    onClick={handleClearDebug}
+                    className="p-3 bg-yellow-950/20 border border-yellow-500/30 rounded-xl text-yellow-400 hover:bg-yellow-900/40 hover:text-yellow-200 hover:border-yellow-400 transition-all"
+                    title="Limpiar Debugs"
+                 >
+                    <Eraser size={20} />
+                 </button>
+                 <button
+                    onClick={handleClearAll}
+                    className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
+                    title="Nuclear Trash"
+                 >
+                    <Trash2 size={20} />
+                 </button>
+             </div>
 
              {/* MODAL */}
              <AnimatePresence>
