@@ -1,0 +1,45 @@
+REPORTE DE EJECUCIÓN: FASE 2.3 - "ACTIVACIÓN DE BOTONES Y CÓDIGO PENAL"
+=======================================================================
+FECHA: 2024-05-24
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+
+RESUMEN EJECUTIVO
+-----------------
+Se ha completado la implementación de la lógica interactiva del Tribunal Nexus y la actualización crítica del Prompt del Sistema (Backend). La interfaz ya no es inerte; ahora conecta directamente las decisiones del usuario (Aprobar/Rechazar/Fusionar) con la base de datos Firestore y el estado local.
+
+CAMBIOS REALIZADOS
+------------------
+
+1.  BACKEND (Cloud Function - `nexus_scan.ts`):
+    *   **"Código Penal" (6 Leyes Inquebrantables):** Se reemplazó el prompt anterior por las 6 reglas estrictas (Materialidad, Identidad, Alcance, Naturaleza, Necromancia, Enjambre) para reducir drásticamente el ruido semántico ("basura") en el grafo.
+    *   **Protocolo de Espejo de Lenguaje:** Se inyectó la instrucción "LANGUAGE MIRRORING PROTOCOL" para obligar a la IA a generar explicaciones y razonamientos en el mismo idioma del texto analizado (Español detectado -> Salida en Español).
+    *   **Exclusión de Coordenadas:** Se reforzó la instrucción para que la IA *nunca* invente coordenadas `fx` o `fy`, dejando que el motor de física (D3) del frontend decida la posición inicial.
+
+2.  FRONTEND (`WorldEnginePageV2.tsx` & `NexusTribunalModal.tsx`):
+    *   **Activación de Botones:** Se conectaron los eventos `onApprove`, `onReject` y `onMerge`.
+    *   **Lógica de Creación (APPROVE):** Ahora crea documentos reales en la colección `entities` de Firestore. Genera IDs deterministas (`generateId`) basados en el nombre y tipo para evitar duplicados técnicos.
+    *   **Lógica de Fusión (MERGE):** Si la IA sugiere una fusión, el sistema actualiza el nodo objetivo añadiendo el nombre del candidato al array `aliases` usando `arrayUnion`.
+    *   **Lógica de Rechazo (REJECT):** Elimina instantáneamente el candidato de la lista de pendientes local.
+    *   **Feedback Inmediato:** Se implementaron notificaciones "Toast" (`sonner`) para confirmar cada acción ("Nodo Creado", "Fusión Completada", "Candidato Descartado").
+
+3.  UTILIDADES (`NexusScanner.ts`):
+    *   **Generación de IDs Temporales:** Se añadió una capa de seguridad para garantizar que cada candidato tenga un `id` único temporal en el frontend, evitando errores de renderizado en React si la IA no devolvía un ID.
+
+PROBLEMAS ENCONTRADOS Y SOLUCIONES
+----------------------------------
+*   **Desafío:** La IA generativa a veces omite campos opcionales o devuelve estructuras ligeramente diferentes.
+    *   *Solución:* Se tipó fuertemente la respuesta y se añadieron valores por defecto (ej. `type = 'concept'` si falta) en la lógica de ingestión.
+*   **Desafío:** Reactividad de la UI al eliminar ítems de una lista.
+    *   *Solución:* Se mejoró la lógica en `NexusTribunalModal` para auto-seleccionar el siguiente candidato disponible inmediatamente después de aprobar/rechazar el actual, mejorando el flujo de trabajo masivo.
+*   **Desafío:** Interrupción de flujo por requerimiento de idioma.
+    *   *Solución:* Se integró el "Language Mirroring Protocol" como una directiva prioritaria en el Prompt del Sistema sin alterar la estructura JSON de salida.
+
+OBSERVACIONES ADICIONALES
+-------------------------
+*   **Evolución del Prompt:** Las "6 Leyes" son un excelente filtro, pero podrían ser demasiado estrictas para ciertos géneros literarios experimentales. Se recomienda monitorear si nodos valiosos están siendo descartados como "LORE_FRAGMENT".
+*   **Rendimiento:** La creación de nodos es optimista en la UI pero asíncrona en DB. En redes muy lentas, podría haber una discrepancia de milisegundos, aunque el Toast mitiga la sensación de latencia.
+*   **Próximos Pasos:** Considerar una vista de "Historial de Tribunal" para deshacer acciones si el usuario rechaza algo por error (actualmente es destructivo localmente).
+
+Jules.
+Terminado.
