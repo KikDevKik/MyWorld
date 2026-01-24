@@ -1,0 +1,48 @@
+REPORTE DE MISIÓN: REFACTORIZACIÓN NEXUS (FIX DOUBLE SCALE)
+==========================================================
+AGENTE: Jules
+FECHA: 2025-05-20 (Simulada)
+OBJETIVO: Eliminar el glitch visual de "Doble Escala" en las conexiones del grafo al hacer Zoom.
+
+RESUMEN EJECUTIVO
+-----------------
+Se ha completado con éxito la refactorización de `NexusCanvas.tsx` implementando la arquitectura de "Capas Divorciadas" (Divorced Layers). Las líneas de conexión ahora viven en un plano estático (Screen Space) mientras que los nodos permanecen en el plano transformable (World Space), eliminando la distorsión visual al aplicar zoom.
+
+ARQUITECTURA IMPLEMENTADA
+-------------------------
+1. SEPARACIÓN DE PODERES:
+   - Antes: `GraphSimulation` renderizaba Nodos + Líneas dentro del `TransformComponent`.
+   - Ahora:
+     * `GraphSimulation` (Hijo del Zoom): Solo renderiza Nodos y maneja la física D3.
+     * `LinksOverlay` (Hermano del Zoom): Componente nuevo que renderiza `Xarrow`s en una capa estática absoluta (`inset-0`).
+
+2. SINCRONIZACIÓN AGRESIVA (The Glue):
+   - Se crearon "túneles imperativos" (Refs) para comunicar las dos capas sin re-renderizados costosos de React.
+   - Eventos Conectados:
+     * `onPanning` / `onZooming` (TransformWrapper): Fuerzan al Overlay a redibujar las líneas instantáneamente.
+     * `onTick` (D3 Simulation): Cada frame de física dispara una actualización al Overlay para que las líneas persigan a los nodos que se mueven.
+
+3. GESTIÓN DE INTERACCIÓN (El Desafío Z-Index):
+   - Problema: Al poner las líneas (Overlay) visualmente detrás de los nodos (Z-0 vs Z-10), el contenedor de los nodos tapaba los eventos del mouse sobre las líneas.
+   - Solución: Se aplicó `pointer-events-none` al contenedor del `TransformComponent`, convirtiéndolo en un "fantasma" para los clics. Los Nodos individuales (`EntityCard`) mantienen `pointer-events-auto`, permitiendo que sean arrastrables mientras que los espacios vacíos permiten interactuar con las líneas de abajo.
+
+DESAFÍOS Y RESOLUCIONES
+-----------------------
+1. EL DILEMA DEL PUNTERO:
+   - Inicialmente, las líneas no eran clickeables porque el `TransformWrapper` (que está encima en el DOM para contener los nodos) absorbía los eventos.
+   - Resolución: Uso quirúrgico de clases CSS. El contenedor padre es transparente a eventos, los hijos (nodos) son sólidos.
+
+2. VERIFICACIÓN EN MODO FANTASMA:
+   - El entorno de desarrollo carecía de conexión real a Firebase.
+   - Se utilizó `VITE_JULES_MODE=true` y el botón de depuración "Spawn Swarm" para generar entidades locales y verificar la física y el renderizado de líneas sin base de datos.
+
+OBSERVACIONES ADICIONALES
+-------------------------
+- Rendimiento: La separación mejora teóricamente el rendimiento al evitar que el navegador recalcule la escala de cientos de SVGs complejos; ahora solo recalcula sus coordenadas de inicio/fin.
+- LOD (Nivel de Detalle): El `LinksOverlay` respeta la lógica MACRO, desmontándose completamente cuando el zoom es lejano (<0.6), ahorrando memoria.
+
+ESTADO FINAL
+------------
+El sistema es estable. Las conexiones son sólidas como cables de acero y la ilusión de profundidad se mantiene. El Perforador de Mundos está listo para operar.
+
+FIN DEL REPORTE.
