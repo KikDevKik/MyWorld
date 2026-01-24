@@ -340,8 +340,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
              </div>
 
              {/* 🟢 DEBUG ARTIFACTS (Ghost Mode Only) */}
-             <div className="absolute top-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
-                 {IS_GHOST_MODE && (
+             {IS_GHOST_MODE && (
+                 <div className="absolute top-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
                      <button
                         onClick={() => spawnDebugNodes(50)}
                         className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
@@ -349,22 +349,22 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      >
                         <Bug size={20} />
                      </button>
-                 )}
-                 <button
-                    onClick={handleClearDebug}
-                    className="p-3 bg-yellow-950/20 border border-yellow-500/30 rounded-xl text-yellow-400 hover:bg-yellow-900/40 hover:text-yellow-200 hover:border-yellow-400 transition-all"
-                    title="Limpiar Debugs"
-                 >
-                    <Eraser size={20} />
-                 </button>
-                 <button
-                    onClick={handleClearAll}
-                    className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
-                    title="Nuclear Trash"
-                 >
-                    <Trash2 size={20} />
-                 </button>
-             </div>
+                     <button
+                        onClick={handleClearDebug}
+                        className="p-3 bg-yellow-950/20 border border-yellow-500/30 rounded-xl text-yellow-400 hover:bg-yellow-900/40 hover:text-yellow-200 hover:border-yellow-400 transition-all"
+                        title="Limpiar Debugs"
+                     >
+                        <Eraser size={20} />
+                     </button>
+                     <button
+                        onClick={handleClearAll}
+                        className="p-3 bg-red-950/20 border border-red-500/30 rounded-xl text-red-400 hover:bg-red-900/40 hover:text-red-200 hover:border-red-400 transition-all"
+                        title="Nuclear Trash"
+                     >
+                        <Trash2 size={20} />
+                     </button>
+                 </div>
+             )}
 
              {/* MODAL */}
              <AnimatePresence>
