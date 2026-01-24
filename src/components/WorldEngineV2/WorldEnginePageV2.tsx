@@ -27,6 +27,15 @@ const PENDING_KEY = 'nexus_pending_crystallization';
 const DRAFTS_KEY = 'nexus_drafts_v1';
 const IS_GHOST_MODE = import.meta.env.VITE_JULES_MODE === 'true';
 
+// 🟢 HELPER: ID GENERATION
+const generateId = (projectId: string, name: string, type: string) => {
+    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    const shortHash = Math.random().toString(36).substring(2, 8);
+    // Use substring of project ID for compactness
+    const cleanProject = projectId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
+    return `${cleanProject}-${slug}-${shortHash}`;
+};
+
 interface PendingCrystallization {
     node: VisualNode;
     targetData: {
@@ -296,7 +305,13 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
             try {
                 // CASE A: MERGE
-                if (candidate.suggestedAction === 'MERGE' && candidate.mergeWithId) {
+                if (candidate.suggestedAction === 'MERGE') {
+                     if (!candidate.mergeWithId) {
+                         console.error("Merge failed: Missing mergeWithId", candidate);
+                         toast.error("Error: No se identificó con quién fusionar.");
+                         return;
+                     }
+
                      const targetRef = doc(db, collectionPath, candidate.mergeWithId);
                      await updateDoc(targetRef, {
                          aliases: arrayUnion(candidate.name)

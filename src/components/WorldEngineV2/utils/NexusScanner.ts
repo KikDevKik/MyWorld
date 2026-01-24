@@ -1,6 +1,20 @@
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { AnalysisCandidate } from '../types';
-import { GraphNode } from '../../types/graph';
+import { GraphNode } from '../../../types/graph';
+
+// 🟢 HELPER: TOKEN VALIDATION (PING)
+const validateToken = async (token: string): Promise<boolean> => {
+    try {
+        const response = await fetch('https://www.googleapis.com/drive/v3/about?fields=user', {
+            method: 'GET',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        return response.ok;
+    } catch (e) {
+        console.warn("Token validation failed (Network error):", e);
+        return false;
+    }
+};
 
 // Type definitions matching the context/backend
 export interface FileNode {
@@ -114,6 +128,16 @@ export const scanProjectFiles = async (
     onProgress: ScanProgressCallback
 ): Promise<AnalysisCandidate[]> => {
 
+    // 0. PRE-FLIGHT CHECK (TOKEN)
+    const token = localStorage.getItem('google_drive_token');
+    if (!token) throw new Error("No hay token de sesión.");
+
+    // Validate connectivity before starting heavy operations
+    const isTokenValid = await validateToken(token);
+    if (!isTokenValid) {
+        throw new Error("Sesión de Drive caducada. Reconecta en Configuración.");
+    }
+
     // 1. Filter Files
     const canonIds = new Set(canonConfigs.map(c => c.id));
     const targetFiles = extractValidFiles(fileTree, canonIds);
@@ -190,7 +214,8 @@ export const scanProjectFiles = async (
 
         if (bestMatch && minDist <= threshold) {
             // Check for Identity (Same Type?)
-            if (bestMatch.type !== candidate.type.toLowerCase()) {
+            const candType = candidate.type || 'concept';
+            if (bestMatch.type !== candType.toLowerCase()) {
                  // Conflict (Name match but type mismatch? or just duplicate?)
                  // Actually, if name matches "Madre" vs "Elsa", distance is high.
                  // Levenshtein catches typos "Elsaa" vs "Elsa".

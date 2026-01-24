@@ -42,6 +42,19 @@ const getTypeIcon = (type: AnalysisAmbiguityType) => {
 };
 
 const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction }) => {
+    // STATE: FILTER
+    const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW'>('ALL');
+
+    // DERIVED: FILTERED LIST
+    const filteredCandidates = React.useMemo(() => {
+        return candidates.filter(c => {
+            if (filterMode === 'ALL') return true;
+            if (filterMode === 'CONFLICT') return c.ambiguityType === 'CONFLICT' || c.ambiguityType === 'DUPLICATE';
+            if (filterMode === 'NEW') return c.ambiguityType === 'NEW' || c.ambiguityType === 'ITEM_LORE';
+            return true;
+        });
+    }, [candidates, filterMode]);
+
     // Auto-select first candidate on mount if not empty
     const [selectedId, setSelectedId] = useState<string | null>(candidates.length > 0 ? candidates[0].id : null);
 
@@ -51,21 +64,18 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     // Sync selection when candidates list changes (e.g., item removed)
     React.useEffect(() => {
         // If list is empty, clear selection
-        if (candidates.length === 0) {
+        if (filteredCandidates.length === 0) {
             setSelectedId(null);
             return;
         }
 
-        // If current selection is gone, select the first one
-        if (selectedId && !candidates.find(c => c.id === selectedId)) {
-            setSelectedId(candidates[0].id);
-        }
+        // If current selection is gone (or filtered out), select the first one of the current view
+        const isSelectedVisible = selectedId && filteredCandidates.find(c => c.id === selectedId);
 
-        // If nothing selected but we have items, select first
-        if (!selectedId) {
-             setSelectedId(candidates[0].id);
+        if (!isSelectedVisible) {
+            setSelectedId(filteredCandidates[0].id);
         }
-    }, [candidates, selectedId]);
+    }, [filteredCandidates, selectedId]);
 
     const handleAction = (action: 'APPROVE' | 'REJECT') => {
         if (!selectedCandidate) return;
@@ -93,22 +103,39 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         </div>
                     </div>
 
-                    {/* Filters/Tabs (Visual Only for now) */}
+                    {/* Filters/Tabs */}
                     <div className="flex border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                        <div className="flex-1 py-3 text-center border-b-2 border-cyan-500 text-cyan-100 bg-cyan-950/10">All Pending</div>
-                        <div className="flex-1 py-3 text-center hover:bg-slate-900/50 cursor-not-allowed opacity-50">Conflicts</div>
-                        <div className="flex-1 py-3 text-center hover:bg-slate-900/50 cursor-not-allowed opacity-50">New</div>
+                        <button
+                            onClick={() => setFilterMode('ALL')}
+                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'ALL' ? 'border-b-2 border-cyan-500 text-cyan-100 bg-cyan-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
+                        >
+                            All Pending
+                        </button>
+                        <button
+                            onClick={() => setFilterMode('CONFLICT')}
+                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'CONFLICT' ? 'border-b-2 border-orange-500 text-orange-100 bg-orange-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
+                        >
+                            Conflicts
+                        </button>
+                        <button
+                            onClick={() => setFilterMode('NEW')}
+                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'NEW' ? 'border-b-2 border-purple-500 text-purple-100 bg-purple-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
+                        >
+                            New
+                        </button>
                     </div>
 
                     {/* List */}
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {candidates.length === 0 ? (
+                        {filteredCandidates.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
                                 <Check size={32} className="text-green-900" />
-                                <span className="text-xs font-mono">NO ISSUES FOUND</span>
+                                <span className="text-xs font-mono">
+                                    {candidates.length === 0 ? "NO ISSUES FOUND" : "NO MATCHES"}
+                                </span>
                             </div>
                         ) : (
-                            candidates.map(candidate => {
+                            filteredCandidates.map(candidate => {
                                 const isSelected = selectedId === candidate.id;
 
                                 return (
