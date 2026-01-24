@@ -18,6 +18,7 @@ import CrystallizeModal from '../ui/CrystallizeModal';
 import { VisualNode } from './types';
 import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
+import NexusTribunalModal from './NexusTribunalModal';
 import { CommandBar } from './CommandBar';
 
 // 🟢 CONFIGURATION
@@ -55,6 +56,11 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
     const [crystallizeModal, setCrystallizeModal] = useState<{ isOpen: boolean, node: VisualNode | null }>({ isOpen: false, node: null });
     const [isCrystallizing, setIsCrystallizing] = useState(false);
+
+    // STATE: NEXUS TRIBUNAL (Scanning)
+    const [isScanning, setIsScanning] = useState(false);
+    const [scanStatus, setScanStatus] = useState('');
+    const [showTribunal, setShowTribunal] = useState(false);
 
     // 🟢 DATA SUBSCRIPTION (Mirrors V1)
     useEffect(() => {
@@ -113,6 +119,22 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     }, [ghostNodes]);
 
     // 🟢 HANDLERS (Replicated)
+    const handleNexusClick = () => {
+        if (isScanning || showTribunal) return;
+
+        setIsScanning(true);
+        setScanStatus("INICIALIZANDO PROTOCOLO TITANIUM...");
+
+        // Sequence
+        setTimeout(() => setScanStatus("FILTRANDO RUTAS CANON..."), 1000);
+        setTimeout(() => setScanStatus("ANALIZANDO ENTIDADES..."), 2500);
+        setTimeout(() => {
+            setIsScanning(false);
+            setScanStatus("");
+            setShowTribunal(true);
+        }, 4000);
+    };
+
     const handleUpdateGhost = (nodeId: string, updates: any) => {
         setGhostNodes(prev => prev.map(g => g.id === nodeId ? { ...g, ...updates } : g));
     };
@@ -293,9 +315,27 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
              {/* 🟢 NEXUS BUTTON (The Eye - Top Center) */}
              <div className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
-                 <button className="group relative flex items-center justify-center px-8 py-4 bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full hover:bg-cyan-900/30 hover:border-cyan-400/50 transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.1)] hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]">
-                     <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
-                     <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">NEXUS</span>
+                 <button
+                    onClick={handleNexusClick}
+                    disabled={isScanning}
+                    className={`
+                        group relative flex items-center justify-center px-8 py-4
+                        bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full
+                        transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.1)]
+                        ${isScanning ? 'w-[400px] cursor-wait border-cyan-500/80 bg-cyan-950/50' : 'hover:bg-cyan-900/30 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
+                    `}
+                 >
+                     {isScanning ? (
+                         <div className="flex items-center gap-3">
+                             <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                             <span className="font-mono text-xs font-bold text-cyan-300 tracking-widest animate-pulse">{scanStatus}</span>
+                         </div>
+                     ) : (
+                         <>
+                            <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
+                            <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">NEXUS</span>
+                         </>
+                     )}
                  </button>
              </div>
 
@@ -339,6 +379,16 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                         isProcessing={isCrystallizing}
                     />
                 )}
+             </AnimatePresence>
+
+             {/* TRIBUNAL MODAL */}
+             <AnimatePresence>
+                 {showTribunal && (
+                     <NexusTribunalModal
+                        isOpen={showTribunal}
+                        onClose={() => setShowTribunal(false)}
+                     />
+                 )}
              </AnimatePresence>
         </div>
     );
