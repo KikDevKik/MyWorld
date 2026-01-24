@@ -278,30 +278,25 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
 
 // 🟢 GRAPH SIMULATION (D3 Logic + Direct DOM)
 export interface GraphSimulationHandle {
-    forceUpdateArrows: () => void;
+    // No methods needed currently, but keeping for future extensibility or D3 control
 }
 
 const GraphSimulation = forwardRef<GraphSimulationHandle, {
     nodes: VisualNode[];
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
-    hoveredNodeId: string | null;
-    hoveredLineId: string | null;
-    setHoveredLineId: (id: string | null) => void;
     onNodeClick: (node: VisualNode) => void;
     onUpdateGhost: (id: string, updates: any) => void;
     onCrystallize: (node: VisualNode) => void;
     isLoading: boolean;
-}>(({ nodes, lodTier, setHoveredNodeId, hoveredNodeId, hoveredLineId, setHoveredLineId, onNodeClick, onUpdateGhost, onCrystallize, isLoading }, ref) => {
-    const updateXarrow = useXarrow();
+    onTick: () => void;
+}>(({ nodes, lodTier, setHoveredNodeId, onNodeClick, onUpdateGhost, onCrystallize, isLoading, onTick }, ref) => {
     const nodeRefs = useRef<Record<string, HTMLDivElement>>({});
     const simulationRef = useRef<any>(null);
     const [simNodes, setSimNodes] = useState<VisualNode[]>([]); // For React Rendering only (Mount/Unmount)
 
     // 1. IMPERATIVE HANDLE (Sync from Parent)
-    useImperativeHandle(ref, () => ({
-        forceUpdateArrows: () => updateXarrow()
-    }));
+    useImperativeHandle(ref, () => ({}));
 
     // Sync React State with Props (Initialization)
     useEffect(() => {
@@ -330,7 +325,7 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
 
     // 🐛 SWARM FIX: Watch Links Explicitly
     useEffect(() => {
-        updateXarrow();
+        onTick();
     }, [links.length]);
 
     // ⚡ D3 PHYSICS & DRAG
@@ -370,11 +365,11 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
             });
 
             // 2. Sync Lines
-            updateXarrow();
+            onTick();
         });
 
         simulation.on("end", () => {
-            updateXarrow();
+            onTick();
         });
 
         // ✋ DRAG BEHAVIOR (SLEEP & WAKE)
@@ -391,7 +386,7 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
                 // Force immediate update of this node for smoothness (though tick handles it)
                 const el = nodeRefs.current[d.id];
                 if (el) el.style.transform = `translate(${event.x}px, ${event.y}px)`;
-                updateXarrow(); // ⚡ SURGICAL PRECISION
+                onTick(); // ⚡ SURGICAL PRECISION
             })
             .on("end", (event, d) => {
                 if (!event.active) simulation.alphaTarget(0); // Go back to sleep
@@ -444,61 +439,90 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
                 />
             ))}
 
-            {/* LINES (React-XArrows) */}
-            {lodTier !== 'MACRO' && simNodes.map((node) => {
-                if (!node.relations) return null;
-                return node.relations.map((rel, idx) => {
-                    // Check validity
-                    if (!simNodes.find(n => n.id === rel.targetId)) return null;
+        </div>
+    );
+});
 
-                    const lineId = `${node.id}-${rel.targetId}-${idx}`;
-                    const isFocused = hoveredNodeId === node.id || hoveredNodeId === rel.targetId || hoveredLineId === lineId;
-                    const relColor = getRelationColor(rel.relation);
-                     const labelText = rel.context
-                        ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
-                        : rel.relation;
 
-                    return (
-                        <Xarrow
-                            key={lineId}
-                            start={node.id}
-                            end={rel.targetId}
-                            startAnchor="middle"
-                            endAnchor="middle"
-                            color={relColor}
-                            strokeWidth={1.5}
-                            headSize={3}
-                            curveness={0.3}
-                            path="smooth"
-                            zIndex={0}
-                            animateDrawing={false}
-                            passProps={{
-                                onMouseEnter: () => setHoveredLineId(lineId),
-                                onMouseLeave: () => setHoveredLineId(null),
-                                style: { cursor: 'pointer' }
-                            }}
-                            labels={{
-                                middle: (
-                                    <div
-                                        className={`
-                                            bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
-                                            ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
-                                        `}
-                                        style={{
-                                            borderColor: relColor,
-                                            color: relColor,
-                                            boxShadow: `0 0 5px ${relColor}20`
-                                        }}
-                                        title={`${rel.relation}: ${rel.context || 'Sin contexto'}`}
-                                    >
-                                        {labelText}
-                                    </div>
-                                )
-                            }}
-                        />
-                    );
-                });
-            })}
+// 🟢 LINKS OVERLAY (Static Layer - "The Divorce")
+export interface LinksOverlayHandle {
+    forceUpdate: () => void;
+}
+
+const LinksOverlay = forwardRef<LinksOverlayHandle, {
+    nodes: VisualNode[];
+    lodTier: 'MACRO' | 'MESO' | 'MICRO';
+    hoveredNodeId: string | null;
+    hoveredLineId: string | null;
+    setHoveredLineId: (id: string | null) => void;
+}>(({ nodes, lodTier, hoveredNodeId, hoveredLineId, setHoveredLineId }, ref) => {
+    const updateXarrow = useXarrow();
+
+    useImperativeHandle(ref, () => ({
+        forceUpdate: () => updateXarrow()
+    }));
+
+    if (lodTier === 'MACRO') return null;
+
+    return (
+        <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+            <Xwrapper>
+                {nodes.map((node) => {
+                    if (!node.relations) return null;
+                    return node.relations.map((rel, idx) => {
+                        // Check validity
+                        if (!nodes.find(n => n.id === rel.targetId)) return null;
+
+                        const lineId = `${node.id}-${rel.targetId}-${idx}`;
+                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === rel.targetId || hoveredLineId === lineId;
+                        const relColor = getRelationColor(rel.relation);
+                        const labelText = rel.context
+                            ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
+                            : rel.relation;
+
+                        return (
+                            <Xarrow
+                                key={lineId}
+                                start={node.id}
+                                end={rel.targetId}
+                                startAnchor="middle"
+                                endAnchor="middle"
+                                color={relColor}
+                                strokeWidth={1.5}
+                                headSize={3}
+                                curveness={0.3}
+                                path="smooth"
+                                zIndex={0}
+                                animateDrawing={false}
+                                passProps={{
+                                    onMouseEnter: () => setHoveredLineId(lineId),
+                                    onMouseLeave: () => setHoveredLineId(null),
+                                    style: { cursor: 'pointer', pointerEvents: 'auto' }
+                                }}
+                                labels={{
+                                    middle: (
+                                        <div
+                                            className={`
+                                                bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
+                                                ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
+                                            `}
+                                            style={{
+                                                borderColor: relColor,
+                                                color: relColor,
+                                                boxShadow: `0 0 5px ${relColor}20`,
+                                                pointerEvents: 'auto'
+                                            }}
+                                            title={`${rel.relation}: ${rel.context || 'Sin contexto'}`}
+                                        >
+                                            {labelText}
+                                        </div>
+                                    )
+                                }}
+                            />
+                        );
+                    });
+                })}
+            </Xwrapper>
         </div>
     );
 });
@@ -507,6 +531,7 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
 // 🟢 MAIN COMPONENT
 const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
     const graphRef = useRef<GraphSimulationHandle>(null);
+    const linksOverlayRef = useRef<LinksOverlayHandle>(null);
     const { config, user } = useProjectConfig();
     const [dbNodes, setDbNodes] = useState<GraphNode[]>([]);
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
@@ -772,10 +797,10 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 limitToBounds={false}
                 wheel={{ step: 0.1 }}
                 panning={{ activationKeys: ["Shift"], excluded: ["nodrag"] }} // 🔒 EXCLUDED CLASS
-                onPanning={() => graphRef.current?.forceUpdateArrows()}
-                onZooming={() => graphRef.current?.forceUpdateArrows()}
+                onPanning={() => linksOverlayRef.current?.forceUpdate()}
+                onZooming={() => linksOverlayRef.current?.forceUpdate()}
                 onTransformed={(ref) => {
-                    graphRef.current?.forceUpdateArrows();
+                    linksOverlayRef.current?.forceUpdate();
                     const s = ref.state.scale;
                     if (s < 0.6) setLodTier('MACRO');
                     else if (s > 2.0) setLodTier('MICRO');
@@ -784,25 +809,31 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
              >
                 {({ zoomIn, zoomOut }) => (
                     <>
+                        {/* 🟢 LINKS OVERLAY (Separated Layer) */}
+                        <LinksOverlay
+                            ref={linksOverlayRef}
+                            nodes={unifiedNodes}
+                            lodTier={lodTier}
+                            hoveredNodeId={hoveredNodeId}
+                            hoveredLineId={hoveredLineId}
+                            setHoveredLineId={setHoveredLineId}
+                        />
+
                         <TransformComponent
                             wrapperClass="!w-full !h-full"
-                            contentClass="!w-full !h-full"
+                            contentClass="!w-full !h-full !z-10 relative !pointer-events-none"
                         >
-                            <Xwrapper>
-                                <GraphSimulation
-                                    ref={graphRef}
-                                    nodes={unifiedNodes}
-                                    lodTier={lodTier}
-                                    setHoveredNodeId={setHoveredNodeId}
-                                    hoveredNodeId={hoveredNodeId}
-                                    hoveredLineId={hoveredLineId}
-                                    setHoveredLineId={setHoveredLineId}
-                                    onNodeClick={(n) => console.log("Clicked", n.name)}
-                                    onUpdateGhost={handleUpdateGhost}
-                                    onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
-                                    isLoading={loading}
-                                />
-                            </Xwrapper>
+                            <GraphSimulation
+                                ref={graphRef}
+                                nodes={unifiedNodes}
+                                lodTier={lodTier}
+                                setHoveredNodeId={setHoveredNodeId}
+                                onNodeClick={(n) => console.log("Clicked", n.name)}
+                                onUpdateGhost={handleUpdateGhost}
+                                onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
+                                isLoading={loading}
+                                onTick={() => linksOverlayRef.current?.forceUpdate()}
+                            />
                         </TransformComponent>
 
                          {/* ZOOM CONTROLS */}
