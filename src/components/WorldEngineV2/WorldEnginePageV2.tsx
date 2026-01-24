@@ -18,6 +18,7 @@ import CrystallizeModal from '../ui/CrystallizeModal';
 import { VisualNode } from './types';
 import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
+import { CommandBar } from './CommandBar';
 
 // 🟢 CONFIGURATION
 const PENDING_KEY = 'nexus_pending_crystallization';
@@ -200,6 +201,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     const handleClearAll = async () => {
         if (!confirm("⚠️ ¿ELIMINAR TODO? Esto borrará todos los nodos de la base de datos y la vista local.")) return;
         setGhostNodes([]);
+        setDbNodes([]); // Force clear local state immediately to prevent ghosts
         localStorage.removeItem('nexus_drafts_v1');
         if (user && config?.folderId) {
              const db = getFirestore();
@@ -289,12 +291,17 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 )}
              </TransformWrapper>
 
-             {/* 🟢 NEXUS BUTTON (The Seed) */}
-             <div className="absolute bottom-8 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
+             {/* 🟢 NEXUS BUTTON (The Eye - Top Center) */}
+             <div className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
                  <button className="group relative flex items-center justify-center px-8 py-4 bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full hover:bg-cyan-900/30 hover:border-cyan-400/50 transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.1)] hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]">
                      <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
                      <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">NEXUS</span>
                  </button>
+             </div>
+
+             {/* 🟢 COMMAND BAR (The Mouth - Bottom Center) */}
+             <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
+                <CommandBar />
              </div>
 
              {/* 🟢 DEBUG ARTIFACTS (Ghost Mode Only) */}
