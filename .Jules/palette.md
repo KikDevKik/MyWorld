@@ -66,3 +66,15 @@ Dropdowns (`<select>`) that rely on a default option (like "Global View") as the
 
 **Action:**
 If a visible `<label>` is design-prohibited, explicitly add `aria-label` to the `<select>` element to describe its function (e.g., "Filter by Saga").
+
+## 2026-05-18 - Render Loop Decoupling for High-Performance Graphs
+
+**Learning:**
+React's render cycle is too slow for 60FPS physics simulations with hundreds of nodes. Updating React state (`useState`) on every tick causes massive re-render chains that freeze the UI.
+
+**Action:**
+For heavy physics or animation loops:
+1.  **Bypass React State:** Use `useRef` to hold direct references to DOM elements.
+2.  **Direct Manipulation:** Update `style.transform` directly within the simulation tick loop (e.g., `requestAnimationFrame` or D3 `tick`).
+3.  **Sync External Layers:** If using a React-based layer for connections (like `react-xarrows`), explicitly trigger its update method (`updateXarrow`) within the tick loop, ensuring it syncs with the DOM-moved elements without re-rendering the nodes themselves.
+4.  **Memoize Nodes:** Wrap node components in `React.memo` and ensure their props remain stable (i.e., do not pass changing `x`/`y` coordinates via props).
