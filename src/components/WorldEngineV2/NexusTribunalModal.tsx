@@ -105,7 +105,15 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
     const handleAction = (action: 'APPROVE' | 'REJECT') => {
         if (!selectedCandidate) return;
-        onAction(action, selectedCandidate);
+
+        // 🟢 HIGIENE DE DATOS: Strip Physics Coordinates
+        // The backend might return residual coordinates. We must strip them
+        // to ensure D3 calculates fresh positions.
+        const cleanCandidate = { ...selectedCandidate };
+        const dirtyProps = ['fx', 'fy', 'vx', 'vy', 'index', 'x', 'y'];
+        dirtyProps.forEach(prop => delete (cleanCandidate as any)[prop]);
+
+        onAction(action, cleanCandidate);
     };
 
     const handleSaveEdit = () => {
