@@ -23,4 +23,7 @@ Se han implementado dos medidas de seguridad críticas en la función `scanProje
 *   **Trade-off de Estabilidad:** El límite de 2000 fragmentos garantiza que la función no colapse, pero implica que para proyectos gigantescos, el análisis de "Drift" (desviación narrativa) será un muestreo de los primeros 2000 fragmentos encontrados, no un censo total. Esto es un compromiso aceptable para mantener la estabilidad del sistema.
 *   **Próximos Pasos (Sugerencia):** Si se requiere analizar proyectos masivos en su totalidad, se debería considerar refactorizar esta función para usar paginación o un proceso en segundo plano (Cloud Tasks) en lugar de una función `onCall` síncrona.
 
+## 5. RECOMENDACIÓN DE MONITOREO
+*   Se recomienda vigilar los logs de Google Cloud Functions buscando la etiqueta `[SENTINEL] Drift Scan hit limit`. Si esta advertencia aparece frecuentemente, indicará que el límite de 2000 fragmentos es insuficiente para el uso real y podría requerirse una reevaluación de la arquitectura (paginación o aumento de memoria).
+
 -- FIN DEL REPORTE --
