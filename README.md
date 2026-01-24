@@ -15,7 +15,7 @@ Plataforma de escritura avanzada potenciada por IA para novelistas y creadores d
 
 * **Frontend:** React + Vite + TailwindCSS (Titanium Dark Theme).
 * **Backend:** Firebase Cloud Functions v2.
-* **IA:** Google Gemini 2.0 Flash + Imagen 3 (Vertex AI).
+* **IA:** Google Gemini 3.0 Pro y Flash.
 * **Base de Datos:** Firestore (Vector Search).
 
 ---
