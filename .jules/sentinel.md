@@ -46,3 +46,11 @@
 **Vulnerability:** Maximum Call Stack Size Exceeded (DoS)
 **Learning:** The `compileManuscript` function used a recursive helper `injectPageBreaks` to process deeply nested content structures (from `html-to-pdfmake`). A malicious or complex Markdown document (e.g., 10,000 nested lists) could cause a stack overflow, crashing the Cloud Function instance. Recursion is dangerous when processing user-controlled tree depth.
 **Prevention:** Replaced the recursive algorithm with an iterative approach using a stack. Iterative solutions move the state from the call stack (limited) to the heap (limited only by available memory), which is much more robust for deep trees.
+
+## 2025-02-20 - [DoS Prevention & CORS Hardening]
+**Vulnerability:** Unbounded Query Result Size / Wildcard CORS
+**Learning:** The `scanProjectDrift` function attempted to fetch *all* chunks for a project (`.get()`) without a limit. For large projects (>10k chunks), this would exceed the function's memory limit (1GiB) and crash. Additionally, `cors: true` was left active from a beta phase, exposing the endpoint to any origin.
+**Prevention:**
+1. Implemented `MAX_SCAN_LIMIT` (2000) to ensure predictable memory usage.
+2. Replaced `cors: true` with strict `ALLOWED_ORIGINS` to close the open door.
+3. Added warning logs when the limit is hit to inform the user/system that analysis might be partial.

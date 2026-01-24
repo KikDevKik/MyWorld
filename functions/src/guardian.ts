@@ -10,6 +10,7 @@ import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION } f
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
+const MAX_SCAN_LIMIT = 10000; // 🛡️ SENTINEL: Optimized for Multigenerational Sagas (Node.js Gen2)
 
 // Helper: JSON Sanitizer (Simplified for Guardian)
 function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
@@ -581,7 +582,7 @@ export const purgeEcho = onCall(
 export const scanProjectDrift = onCall(
   {
     region: FUNCTIONS_REGION,
-    cors: true, // 🟢 USER MANDATE: Wildcard CORS for Beta
+    cors: ALLOWED_ORIGINS, // 🛡️ SENTINEL: Enforce strict CORS
     enforceAppCheck: true,
     timeoutSeconds: 540, // Long running
     memory: "1GiB",
@@ -623,8 +624,15 @@ export const scanProjectDrift = onCall(
         const chunksSnapshot = await db.collectionGroup("chunks")
             .where("userId", "==", userId)
             .where("projectId", "==", projectId)
+            .limit(MAX_SCAN_LIMIT) // 🛡️ SENTINEL: Safety limit
             .select("embedding", "fileName", "text", "path", "category") // Fetch only necessary fields
             .get();
+
+        let partialAnalysis = false;
+        if (chunksSnapshot.size === MAX_SCAN_LIMIT) {
+             logger.warn(`⚠️ [SENTINEL] Drift Scan hit limit of ${MAX_SCAN_LIMIT}. Analysis may be incomplete.`);
+             partialAnalysis = true;
+        }
 
         const alerts: any = {
             identity: [],
@@ -695,7 +703,8 @@ export const scanProjectDrift = onCall(
         return {
             success: true,
             alerts: alerts,
-            total_critical: count
+            total_critical: count,
+            partialAnalysis: partialAnalysis // 🛡️ SENTINEL: Soft Cap Warning
         };
 
     } catch (error: any) {
