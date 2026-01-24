@@ -292,11 +292,22 @@ const GraphSimulation: React.FC<{
     onNodeClick: (node: VisualNode) => void;
     onUpdateGhost: (id: string, updates: any) => void;
     onCrystallize: (node: VisualNode) => void;
-}> = ({ nodes, lodTier, setHoveredNodeId, hoveredNodeId, hoveredLineId, setHoveredLineId, onNodeClick, onUpdateGhost, onCrystallize }) => {
+    isLoading: boolean;
+}> = ({ nodes, lodTier, setHoveredNodeId, hoveredNodeId, hoveredLineId, setHoveredLineId, onNodeClick, onUpdateGhost, onCrystallize, isLoading }) => {
     const updateXarrow = useXarrow();
     const nodeRefs = useRef<Record<string, HTMLDivElement>>({});
     const simulationRef = useRef<any>(null);
     const [simNodes, setSimNodes] = useState<VisualNode[]>([]); // For React Rendering only (Mount/Unmount)
+
+    // 2. KICKSTART (Fix Initial Line Positions)
+    useEffect(() => {
+        if (!isLoading) {
+            const timer = setTimeout(() => {
+                updateXarrow();
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [isLoading]);
 
     // Sync React State with Props (Initialization)
     useEffect(() => {
@@ -451,6 +462,7 @@ const GraphSimulation: React.FC<{
                             curveness={0.3}
                             path="smooth"
                             zIndex={0}
+                            animateDrawing={false}
                             passProps={{
                                 onMouseEnter: () => setHoveredLineId(lineId),
                                 onMouseLeave: () => setHoveredLineId(null),
@@ -722,6 +734,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                                     onNodeClick={(n) => console.log("Clicked", n.name)}
                                     onUpdateGhost={handleUpdateGhost}
                                     onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
+                                    isLoading={loading}
                                 />
                             </Xwrapper>
                         </TransformComponent>

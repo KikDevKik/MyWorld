@@ -1,0 +1,42 @@
+REPORTE TÉCNICO: SINCRONIZACIÓN DE LÍNEAS NEXUS (TICK INJECTION & KICKSTART)
+FECHA: 2025-05-23
+AGENTE: Jules (JUL-0B)
+ASUNTO: Implementación de Protocolo de Sincronización en Tiempo Real (D3 + React-Xarrows)
+
+1. RESUMEN DE ACCIONES
+Siguiendo las instrucciones precisas del Comandante, se ejecutaron las siguientes modificaciones en `src/components/NexusCanvas.tsx`:
+
+A. INYECCIÓN EN EL BUCLE DE FÍSICA (Confirmado)
+   - Se verificó el código existente. La llamada a `updateXarrow()` ya estaba presente dentro del evento `simulation.on("tick")`.
+   - ACCIÓN: Se mantuvo la implementación actual, respetando la directriz de "Si ya existe, MANTENLO".
+
+B. EL "KICKSTART" (Corrección de Montaje)
+   - Se identificó que las líneas aparecían en (0,0) inicialmente debido a que el primer renderizado ocurría antes de que el layout físico se estabilizara y el DOM tuviera dimensiones.
+   - ACCIÓN: Se implementó un `useEffect` específico que observa la prop `isLoading`.
+   - LÓGICA: Al cambiar `isLoading` a `false`, se dispara un `setTimeout` de 100ms que fuerza una llamada a `updateXarrow()`. Esto asegura que las líneas "daten" su posición una vez que las tarjetas son visibles y tienen dimensiones reales.
+
+C. OPTIMIZACIÓN VISUAL (Zero Latency)
+   - ACCIÓN: Se añadió la propiedad `animateDrawing={false}` a todos los componentes `<Xarrow>`.
+   - RESULTADO: Se eliminó la animación de "dibujado" del SVG. Ahora la línea se comporta como un objeto físico rígido, actualizándose instantáneamente en cada frame de la simulación física (60fps) sin "temblequeo" ni retraso visual.
+
+D. SEGURIDAD DE DEPENDENCIAS
+   - ACCIÓN: Se excluyó explícitamente `updateXarrow` del array de dependencias del `useEffect` principal de la simulación.
+   - RAZÓN: `useXarrow` puede retornar una nueva referencia de función en cada render. Incluirla reiniciaría la simulación D3 constantemente (bucle infinito / explosión de nodos). Se optó por la estabilidad del closure.
+
+2. VERIFICACIÓN Y PRUEBAS
+Se realizó una verificación visual automatizada utilizando Playwright (`verification/verify_lines.py`):
+   - Escenario: Carga inicial del proyecto vacío -> Navegación al Perforador -> Generación de Enjambre de Debug (50 nodos).
+   - Validación: Se confirmó que las líneas SVG (path) tienen coordenadas válidas (no "M 0 0") y son visibles.
+   - Resultado: Las capturas de pantalla confirmaron que las líneas conectan los nodos correctamente y soportan el zoom/pan sin desconectarse.
+
+3. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+   - Problema: Al principio, la verificación automática fallaba por timeouts al buscar selectores.
+   - Causa: El entorno de prueba (Ghost Mode) no estaba cargando el botón de Debug inmediatamente o el selector era ambiguo.
+   - Solución: Se ajustó el script para esperar explícitamente a la desaparición del loader ("CARGANDO NEXUS...") y se robusteció la búsqueda de elementos UI.
+   - Observación: La clase `.xarrow-line` no existía por defecto en el componente `Xarrow`, lo que dificultaba su selección específica en los tests. Se añadió `passProps={{ className: 'xarrow-line' ... }}` temporalmente para validar y luego se retiró para mantener el código limpio según instrucciones estrictas (aunque se podría considerar dejarlo para futuros tests).
+
+4. NOTAS ADICIONALES
+   - El sistema ahora responde con una solidez "metálica". Las conexiones se sienten parte de la estructura y no un adorno superpuesto.
+   - Recomendación futura: Si el número de nodos supera los 200, la llamada imperativa a `updateXarrow()` en cada tick podría convertirse en un cuello de botella de CPU. En ese caso, se sugeriría migrar a un sistema de líneas basado en HTML Canvas o WebGL, pero para la escala actual (<100 nodos), la solución actual es óptima y mantiene la arquitectura React pura.
+
+FIN DEL REPORTE.
