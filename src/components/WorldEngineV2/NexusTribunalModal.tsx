@@ -16,47 +16,14 @@ import { AnalysisCandidate, AnalysisAmbiguityType } from './types';
 interface NexusTribunalModalProps {
     isOpen: boolean;
     onClose: () => void;
+    candidates: AnalysisCandidate[];
 }
-
-// 🟢 MOCK DATA FOR FASE 2.1
-const MOCK_CANDIDATES: AnalysisCandidate[] = [
-    {
-        id: 'cand-1',
-        name: 'Madre',
-        text_preview: '...cuando Madre le entregó el amuleto a Elsa antes de partir...',
-        ambiguityType: 'CONFLICT',
-        suggestedAction: 'MERGE',
-        category: 'ENTITY',
-        mergeWithId: 'elsa-liselotte',
-        confidence: 85,
-        reasoning: "El término 'Madre' parece referirse a 'Elsa Liselotte' basado en el contexto familiar detectado."
-    },
-    {
-        id: 'cand-2',
-        name: 'Brazaletes de la Promesa',
-        text_preview: '...los Brazaletes de la Promesa brillaron con una luz tenue...',
-        ambiguityType: 'ITEM_LORE',
-        suggestedAction: 'CONVERT_TYPE',
-        category: 'ITEM',
-        confidence: 92,
-        reasoning: "Sintaxis indica objeto único/místico. Se sugiere clasificación como ITEM en lugar de PERSONAJE."
-    },
-    {
-        id: 'cand-3',
-        name: 'Incidente GardenFlowers',
-        text_preview: '...recordando el catastrófico Incidente GardenFlowers de 2140...',
-        ambiguityType: 'ITEM_LORE',
-        suggestedAction: 'CREATE',
-        category: 'EVENT',
-        confidence: 88,
-        reasoning: "Parece ser un evento histórico crítico. Se sugiere crear nodo de LORE/EVENTO."
-    }
-];
 
 // 🟢 UTILS: COLOR MAPPING
 const getTypeColor = (type: AnalysisAmbiguityType) => {
     switch (type) {
         case 'CONFLICT': return 'text-orange-400 border-orange-500/50 bg-orange-950/20';
+        case 'DUPLICATE': return 'text-yellow-400 border-yellow-500/50 bg-yellow-950/20';
         case 'NEW': return 'text-cyan-400 border-cyan-500/50 bg-cyan-950/20';
         case 'ITEM_LORE': return 'text-purple-400 border-purple-500/50 bg-purple-950/20';
         default: return 'text-slate-400 border-slate-500/50 bg-slate-950/20';
@@ -66,16 +33,26 @@ const getTypeColor = (type: AnalysisAmbiguityType) => {
 const getTypeIcon = (type: AnalysisAmbiguityType) => {
     switch (type) {
         case 'CONFLICT': return <AlertTriangle size={16} />;
+        case 'DUPLICATE': return <AlertTriangle size={16} />;
         case 'NEW': return <Sparkles size={16} />;
         case 'ITEM_LORE': return <Archive size={16} />; // Or Scroll
+        default: return <Sparkles size={16} />;
     }
 };
 
-const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose }) => {
-    const [selectedId, setSelectedId] = useState<string | null>(MOCK_CANDIDATES[0]?.id || null);
+const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates }) => {
+    // Auto-select first candidate on mount if not empty
+    const [selectedId, setSelectedId] = useState<string | null>(candidates.length > 0 ? candidates[0].id : null);
     const [processedIds, setProcessedIds] = useState<Set<string>>(new Set());
 
-    const selectedCandidate = MOCK_CANDIDATES.find(c => c.id === selectedId);
+    const selectedCandidate = candidates.find(c => c.id === selectedId);
+
+    // Sync selection when candidates load (if mock was removed)
+    React.useEffect(() => {
+        if (!selectedId && candidates.length > 0) {
+            setSelectedId(candidates[0].id);
+        }
+    }, [candidates]);
 
     const handleAction = (action: 'APPROVE' | 'REJECT') => {
         if (!selectedId) return;
@@ -83,7 +60,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         setProcessedIds(prev => new Set(prev).add(selectedId));
 
         // Auto-select next available
-        const remaining = MOCK_CANDIDATES.filter(c => c.id !== selectedId && !processedIds.has(c.id));
+        const remaining = candidates.filter(c => c.id !== selectedId && !processedIds.has(c.id));
         if (remaining.length > 0) {
             setSelectedId(remaining[0].id);
         } else {
@@ -121,43 +98,50 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
                     {/* List */}
                     <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {MOCK_CANDIDATES.map(candidate => {
-                            const isSelected = selectedId === candidate.id;
-                            const isProcessed = processedIds.has(candidate.id);
+                        {candidates.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
+                                <Check size={32} className="text-green-900" />
+                                <span className="text-xs font-mono">NO ISSUES FOUND</span>
+                            </div>
+                        ) : (
+                            candidates.map(candidate => {
+                                const isSelected = selectedId === candidate.id;
+                                const isProcessed = processedIds.has(candidate.id);
 
-                            if (isProcessed) return null; // Hide processed for now
+                                if (isProcessed) return null; // Hide processed for now
 
-                            return (
-                                <button
-                                    key={candidate.id}
-                                    onClick={() => setSelectedId(candidate.id)}
-                                    className={`w-full text-left p-4 rounded-lg border transition-all duration-200 group relative overflow-hidden ${
-                                        isSelected
-                                            ? 'bg-slate-800/80 border-slate-600 shadow-lg'
-                                            : 'bg-transparent border-transparent hover:bg-slate-900/50 hover:border-slate-800'
-                                    }`}
-                                >
-                                    {/* Selection Indicator */}
-                                    {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />}
+                                return (
+                                    <button
+                                        key={candidate.id}
+                                        onClick={() => setSelectedId(candidate.id)}
+                                        className={`w-full text-left p-4 rounded-lg border transition-all duration-200 group relative overflow-hidden ${
+                                            isSelected
+                                                ? 'bg-slate-800/80 border-slate-600 shadow-lg'
+                                                : 'bg-transparent border-transparent hover:bg-slate-900/50 hover:border-slate-800'
+                                        }`}
+                                    >
+                                        {/* Selection Indicator */}
+                                        {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />}
 
-                                    <div className="flex justify-between items-start mb-1">
-                                        <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
-                                            {candidate.name}
-                                        </span>
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(candidate.ambiguityType)}`}>
-                                            {candidate.category}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-                                        {getTypeIcon(candidate.ambiguityType)}
-                                        <span>{candidate.suggestedAction}</span>
-                                        <span className="ml-auto text-slate-600">{candidate.confidence}% CF</span>
-                                    </div>
-                                </button>
-                            );
-                        })}
+                                        <div className="flex justify-between items-start mb-1">
+                                            <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                                                {candidate.name}
+                                            </span>
+                                            <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(candidate.ambiguityType)}`}>
+                                                {candidate.category}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+                                            {getTypeIcon(candidate.ambiguityType)}
+                                            <span>{candidate.suggestedAction}</span>
+                                            <span className="ml-auto text-slate-600">{candidate.confidence}% CF</span>
+                                        </div>
+                                    </button>
+                                );
+                            })
+                        )}
 
-                        {processedIds.size === MOCK_CANDIDATES.length && (
+                        {candidates.length > 0 && processedIds.size === candidates.length && (
                              <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
                                 <Check size={32} className="text-green-900" />
                                 <span className="text-xs font-mono">ALL CLEAR</span>
@@ -209,9 +193,21 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
                                         <div>
                                             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Source Context</h3>
-                                            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-400 text-sm font-serif italic leading-relaxed relative">
-                                                <span className="absolute top-2 left-2 text-4xl text-slate-800 font-serif">"</span>
-                                                <span className="relative z-10">{selectedCandidate.text_preview}</span>
+                                            <div className="space-y-3">
+                                                {selectedCandidate.foundInFiles?.map((evidence, idx) => (
+                                                    <div key={idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-400 text-sm leading-relaxed relative">
+                                                        <div className="flex items-center gap-2 mb-2 text-xs font-mono text-cyan-700">
+                                                            <Database size={10} />
+                                                            <span>{evidence.fileName}</span>
+                                                        </div>
+                                                        <div className="font-serif italic pl-2 border-l-2 border-slate-800">
+                                                            "{evidence.contextSnippet}"
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                                {(!selectedCandidate.foundInFiles || selectedCandidate.foundInFiles.length === 0) && (
+                                                    <div className="text-xs text-slate-600 italic">No direct context provided.</div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>

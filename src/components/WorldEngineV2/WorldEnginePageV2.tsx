@@ -15,11 +15,12 @@ import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { GraphNode, EntityType } from '../../types/graph';
 import CrystallizeModal from '../ui/CrystallizeModal';
-import { VisualNode } from './types';
+import { VisualNode, AnalysisCandidate } from './types';
 import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
 import NexusTribunalModal from './NexusTribunalModal';
 import { CommandBar } from './CommandBar';
+import { scanProjectFiles } from './utils/NexusScanner';
 
 // 🟢 CONFIGURATION
 const PENDING_KEY = 'nexus_pending_crystallization';
@@ -42,12 +43,13 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     const linksOverlayRef = useRef<LinksOverlayHandle>(null);
 
     // CONTEXT
-    const { config, user } = useProjectConfig();
+    const { config, user, fileTree } = useProjectConfig();
 
     // STATE: DATA
     const [dbNodes, setDbNodes] = useState<GraphNode[]>([]);
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
     const [pendingNodes, setPendingNodes] = useState<PendingCrystallization[]>([]);
+    const [candidates, setCandidates] = useState<AnalysisCandidate[]>([]);
 
     // STATE: UI
     const [loading, setLoading] = useState(true);
@@ -119,20 +121,48 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     }, [ghostNodes]);
 
     // 🟢 HANDLERS (Replicated)
-    const handleNexusClick = () => {
+    const handleNexusClick = async () => {
         if (isScanning || showTribunal) return;
 
+        // Guard: Check Prerequisites
+        if (!fileTree || !config?.canonPaths) {
+            toast.error("⚠️ Configuración incompleta. Verifica 'Carpetas Canon'.");
+            return;
+        }
+
         setIsScanning(true);
+        setCandidates([]);
         setScanStatus("INICIALIZANDO PROTOCOLO TITANIUM...");
 
-        // Sequence
-        setTimeout(() => setScanStatus("FILTRANDO RUTAS CANON..."), 1000);
-        setTimeout(() => setScanStatus("ANALIZANDO ENTIDADES..."), 2500);
-        setTimeout(() => {
-            setIsScanning(false);
-            setScanStatus("");
-            setShowTribunal(true);
-        }, 4000);
+        try {
+            // EXECUTE HYBRID SCAN
+            const results = await scanProjectFiles(
+                fileTree,
+                config.canonPaths,
+                dbNodes,
+                (status, progress, total) => {
+                    // Update UI with granular progress
+                    const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
+                    setScanStatus(`${status.toUpperCase()} [${pct}%]`);
+                }
+            );
+
+            setCandidates(results);
+
+            // Success Sequence
+            setScanStatus("ANÁLISIS COMPLETADO");
+            setTimeout(() => {
+                setIsScanning(false);
+                setScanStatus("");
+                setShowTribunal(true);
+            }, 800);
+
+        } catch (error: any) {
+            console.error("Nexus Scan Failed:", error);
+            setScanStatus("ERROR EN ESCANEO");
+            toast.error(`Fallo del Sistema: ${error.message || 'Error desconocido'}`);
+            setTimeout(() => setIsScanning(false), 2000);
+        }
     };
 
     const handleUpdateGhost = (nodeId: string, updates: any) => {
@@ -387,6 +417,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      <NexusTribunalModal
                         isOpen={showTribunal}
                         onClose={() => setShowTribunal(false)}
+                        candidates={candidates}
                      />
                  )}
              </AnimatePresence>
