@@ -27,6 +27,9 @@ import JSON5 from 'json5';
 import { generateDeterministicId } from "./utils/idGenerator";
 import { sanitizeHtml } from "./utils/sanitizer";
 import { GraphNode, EntityType } from "./types/graph";
+import { _getDriveFileContentInternal, streamToString } from "./utils/drive";
+import { parseSecureJSON } from "./utils/json";
+import { maskLog } from "./utils/logger";
 
 const htmlToPdfmake = require('html-to-pdfmake');
 const { JSDOM } = require('jsdom');
@@ -92,102 +95,6 @@ const MAX_CHAT_MESSAGE_LIMIT = 30000; // 30k chars limit for chat messages/queri
 
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
-// 🛡️ SENTINEL: Log Sanitizer (PII Protection)
-function maskLog(text: string, maxLength: number = 50): string {
-  if (!text) return "";
-  if (text.length <= maxLength) return text;
-  return text.substring(0, maxLength) + `... [TRUNCATED ${text.length - maxLength} chars]`;
-}
-
-// 🟢 NEW: JSON SANITIZER (ANTI-CRASH) - REVISION 2.0 (IRON JSON)
-function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
-  try {
-    // 1. Basic Clean: Trim whitespace
-    let clean = jsonString.trim();
-
-    // 2. Aggressive Markdown Strip (Start)
-    // Sometimes Gemini adds text before the block. We look for the FIRST ```json or ```
-    const codeBlockStart = clean.indexOf("```");
-    if (codeBlockStart !== -1) {
-       // Check if it's ```json
-       const jsonTag = clean.indexOf("```json", codeBlockStart);
-       const startOffset = (jsonTag !== -1 && jsonTag === codeBlockStart) ? 7 : 3;
-
-       // Cut everything before the code block
-       clean = clean.substring(codeBlockStart + startOffset);
-    }
-
-    // 3. Aggressive Markdown Strip (End)
-    const codeBlockEnd = clean.lastIndexOf("```");
-    if (codeBlockEnd !== -1) {
-       clean = clean.substring(0, codeBlockEnd);
-    }
-
-    clean = clean.trim();
-
-    // 4. Extract JSON Block (Find first '{' or '[' and last '}' or ']')
-    // We determine if it's an object or array candidate
-    const firstBrace = clean.indexOf('{');
-    const firstBracket = clean.indexOf('[');
-    let startIndex = -1;
-    let endIndex = -1;
-
-    // Determine start
-    if (firstBrace !== -1 && firstBracket !== -1) {
-       startIndex = Math.min(firstBrace, firstBracket);
-    } else if (firstBrace !== -1) {
-       startIndex = firstBrace;
-    } else if (firstBracket !== -1) {
-       startIndex = firstBracket;
-    }
-
-    if (startIndex !== -1) {
-        // Look for end based on start type (naive but better than nothing)
-        const lastBrace = clean.lastIndexOf('}');
-        const lastBracket = clean.lastIndexOf(']');
-        endIndex = Math.max(lastBrace, lastBracket);
-
-        if (endIndex !== -1 && endIndex > startIndex) {
-             clean = clean.substring(startIndex, endIndex + 1);
-        }
-    }
-
-    // 5. Control Characters (ASCII 0-31 excl \t \n \r)
-    clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
-
-    // 6. IRON PARSING STRATEGY
-    try {
-      // Plan A: Speed (Standard JSON)
-      return JSON.parse(clean);
-    } catch (standardError) {
-      try {
-        // Plan B: Robustness (JSON5 - handles trailing commas, comments, unquoted keys)
-        // Note: JSON5 is heavier but much more forgiving for LLM output
-        return JSON5.parse(clean);
-      } catch (json5Error: any) {
-        // Plan C: Hail Mary (Escaping Newlines)
-        try {
-           const rescued = clean.replace(/\n/g, '\\n');
-           return JSON5.parse(rescued);
-        } catch (finalError) {
-           throw json5Error; // Throw the JSON5 error as it's usually more descriptive
-        }
-      }
-    }
-
-  } catch (error: any) {
-    logger.error(`💥 [JSON PARSE ERROR] in ${contextLabel}:`, error);
-    logger.debug(`💥 [JSON FAIL DUMP] Content: ${jsonString.substring(0, 200)}...`);
-
-    // Return a controlled error object instead of throwing 500
-    return {
-      error: "JSON_PARSE_FAILED",
-      details: error.message,
-      partial_content: jsonString.substring(0, 500)
-    };
-  }
-}
-
 async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig> {
   const db = getFirestore();
   const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
@@ -205,135 +112,6 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
     return defaultConfig;
   }
   return { ...defaultConfig, ...doc.data() };
-}
-
-// --- NUEVO HELPER: Convertir Tubería a Texto ---
-// 🛡️ SENTINEL UPDATE: Added maxSizeBytes to prevent DoS/OOM
-const MAX_STREAM_SIZE_BYTES = 10 * 1024 * 1024; // 10MB Default
-
-async function streamToString(stream: Readable, debugLabel: string = "UNKNOWN", maxSizeBytes: number = MAX_STREAM_SIZE_BYTES): Promise<string> {
-  const chunks: Buffer[] = [];
-  let currentSize = 0;
-
-  return new Promise((resolve, reject) => {
-    stream.on('data', (chunk) => {
-      currentSize += chunk.length;
-
-      // 🛡️ SECURITY CHECK: Prevent OOM/DoS
-      if (currentSize > maxSizeBytes) {
-        logger.error(`🛑 [SECURITY] Stream Limit Exceeded for ${debugLabel}. Size: ${currentSize} > ${maxSizeBytes}. Aborting.`);
-        stream.destroy(); // Abort the stream to save bandwidth/memory
-        reject(new Error(`Security Limit Exceeded: File ${debugLabel} exceeds max size of ${maxSizeBytes} bytes.`));
-        return;
-      }
-
-      chunks.push(Buffer.from(chunk));
-    });
-
-    stream.on('error', (err) => reject(err));
-    stream.on('end', () => {
-      const fullBuffer = Buffer.concat(chunks);
-      logger.debug(`📉 [STREAM DEBUG] Buffer size for ${debugLabel}: ${fullBuffer.length} bytes`);
-
-      let text = "";
-      try {
-        text = fullBuffer.toString('utf8');
-        // Sanitize NULL bytes for Firestore safety
-        // eslint-disable-next-line no-control-regex
-        text = text.replace(/\0/g, '');
-      } catch (err) {
-        logger.error(`💥 [STREAM ERROR] Failed to convert buffer to string for ${debugLabel}:`, err);
-        text = ""; // Fallback to empty
-      }
-
-      if (text) {
-        // 🛡️ SENTINEL: Use maskLog for consistency
-        logger.debug(`📉 [STREAM DEBUG] Preview (${debugLabel}): ${maskLog(text.replace(/\n/g, ' '), 100)}`);
-      } else {
-        logger.warn(`📉 [STREAM DEBUG] Preview (${debugLabel}): [EMPTY OR NULL CONTENT]`);
-      }
-
-      resolve(text);
-    });
-  });
-}
-
-async function _getDriveFileContentInternal(drive: any, fileId: string): Promise<string> {
-  try {
-    logger.info(`📖 [LECTOR V5] Analizando archivo: ${fileId}`);
-
-    // 1. PASO DE RECONOCIMIENTO
-    const meta = await drive.files.get({
-      fileId: fileId,
-      fields: "mimeType, name",
-      supportsAllDrives: true
-    }, {
-      headers: { 'Cache-Control': 'no-cache' }
-    });
-
-    const mimeType = meta.data.mimeType;
-    const fileName = meta.data.name || fileId;
-    logger.info(`   - Tipo Identificado: ${mimeType}`);
-
-    let res;
-
-    // 🛑 DEFENSA 1: SI ES UNA CARPETA, ABORTAR MISIÓN
-    if (mimeType === "application/vnd.google-apps.folder") {
-      logger.warn("   -> ¡Es una carpeta! Deteniendo descarga.");
-      return "📂 [INFO] Has seleccionado una carpeta. Abre el árbol para ver sus archivos.";
-    }
-
-    // 2. SELECCIÓN DE ARMA
-    if (mimeType === "application/vnd.google-apps.document") {
-      // A) ES UN GOOGLE DOC
-      logger.info("   -> Estrategia: EXPORT (Google Doc a Texto)");
-      res = await drive.files.export({
-        fileId: fileId,
-        mimeType: "text/plain",
-      }, {
-        responseType: 'stream',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-
-    } else if (mimeType === "application/vnd.google-apps.spreadsheet") {
-      // B) ES UNA HOJA DE CÁLCULO
-      logger.info("   -> Estrategia: EXPORT (Sheet a CSV)");
-      res = await drive.files.export({
-        fileId: fileId,
-        mimeType: "text/csv",
-      }, {
-        responseType: 'stream',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-
-    } else {
-      // C) ES UN ARCHIVO NORMAL (.md, .txt)
-      logger.info("   -> Estrategia: DOWNLOAD (Binario)");
-      res = await drive.files.get({
-        fileId: fileId,
-        alt: "media",
-        supportsAllDrives: true
-      }, {
-        responseType: 'stream',
-        headers: { 'Cache-Control': 'no-cache' }
-      });
-    }
-
-    // 📉 [HEADER DEBUG]
-    if (res.headers && res.headers['content-length']) {
-      logger.debug(`📉 [HEADER DEBUG] Content-Length for ${fileName}: ${res.headers['content-length']}`);
-    } else {
-      logger.debug(`📉 [HEADER DEBUG] No Content-Length header received for ${fileName}`);
-    }
-
-    // 3. PROCESAR
-    return await streamToString(res.data, fileName);
-
-  } catch (error: any) {
-    logger.error(`💥 [ERROR LECTURA] Falló al procesar ${fileId}:`, error);
-    // 🟢 BLINDAJE DEL LECTOR: NO CRASHEAR. DEVOLVER AVISO.
-    return `[ERROR: No se pudo cargar el archivo. Verifica permisos o existencia. Detalle: ${error.message}]`;
-  }
 }
 
 /**
@@ -702,6 +480,12 @@ export const checkSentinelIntegrity = onCall(
     }
   }
 );
+
+/**
+ * 29. ANALYZE NEXUS FILE (High Reasoning)
+ * Analiza un archivo individual para el Tribunal Nexus.
+ */
+export { analyzeNexusFile } from "./nexus_scan";
 
 /**
  * 28. ANALYZE CONNECTION (El Abogado del Diablo)
