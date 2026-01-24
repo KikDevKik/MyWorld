@@ -1,0 +1,43 @@
+REPORTE DE OPERACIONES: REPARACIÓN NEXUS CANVAS V2
+FECHA: 2025-05-18
+AGENTE: Jules (Ingeniería)
+ASUNTO: Solución de Parálisis de Nodos y Desacople de Líneas
+
+--------------------------------------------------------------------------------
+1. RESUMEN DE LA MISIÓN
+--------------------------------------------------------------------------------
+El objetivo fue corregir dos errores críticos en la usabilidad del "Perforador de Mundos" (NexusCanvas):
+A. "La Parálisis": Imposibilidad de arrastrar nodos con click izquierdo debido al secuestro de eventos por el mapa (Pan).
+B. "El Desacople": Las líneas de conexión se separaban visualmente de los nodos al hacer Zoom In/Out, flotando como "elásticos rotos".
+
+--------------------------------------------------------------------------------
+2. ACCIONES EJECUTADAS
+--------------------------------------------------------------------------------
+
+A. REFACTORIZACIÓN DE JERARQUÍA DOM (Solución al Desacople)
+   - Diagnóstico: La librería `react-xarrows` calculaba posiciones absolutas basándose en el DOM estático, mientras que `react-zoom-pan-pinch` transformaba visualmente los nodos. Esto creaba una discrepancia de coordenadas.
+   - Solución: Se movió el componente `<Xwrapper>` para ser HIJO DIRECTO de `<TransformComponent>`.
+   - Resultado: Ahora el contexto SVG de las flechas vive *dentro* del contenedor que recibe la transformación CSS (`transform: scale(...)`). El navegador escala todo junto (nodos + líneas) como una sola unidad gráfica, eliminando el lag de cálculo.
+
+B. PROTOCOLO DE INTERACCIÓN (Solución a la Parálisis)
+   - Diagnóstico: El evento `onMouseDown` del usuario en un nodo "burbujeaba" hasta el Canvas, que interpretaba que el usuario quería mover el mapa, no el nodo.
+   - Solución: Se implementó `e.stopPropagation()` en las fases de captura (`onMouseDownCapture`, `onPointerDownCapture`) del componente `EntityCard`.
+   - Adicional: Se añadió la clase CSS `pointer-events-auto` para asegurar que el nodo sea clickeable incluso si contenedores superiores tienen restricciones.
+
+--------------------------------------------------------------------------------
+3. OBSTÁCULOS Y RESOLUCIÓN
+--------------------------------------------------------------------------------
+Durante la fase de verificación automatizada (Playwright), enfrentamos problemas de "Timing":
+- El cargador "ESTABILIZANDO GRAVEDAD" ocultaba los nodos al inicio, causando fallos en los selectores de prueba.
+- Solución: Se ajustaron los scripts para esperar explícitamente a que los loaders desaparecieran (`state="detached"`) antes de interactuar.
+
+--------------------------------------------------------------------------------
+4. OBSERVACIONES Y RECOMENDACIONES
+--------------------------------------------------------------------------------
+- Rendimiento: La solución de Jerarquía es mucho más eficiente que la propuesta alternativa ("CanvasUpdater"). No fue necesario forzar re-renders frame a frame, lo que ahorra CPU y batería.
+- Ghost Mode: La verificación se realizó en un entorno simulado con 50 nodos (Enjambre). El sistema se mantiene estable y fluido.
+- Nota de UX: Se mantuvo la restricción de `Shift` para Panear el mapa. Esto es correcto para evitar conflictos, pero requiere que el usuario aprenda ese atajo. Se recomienda añadir un "Tip" visual en la UI si los usuarios reportan confusión.
+
+--------------------------------------------------------------------------------
+ESTADO FINAL: MISIÓN CUMPLIDA. SISTEMA OPERATIVO.
+--------------------------------------------------------------------------------
