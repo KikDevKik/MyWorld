@@ -1,0 +1,44 @@
+REPORTE DE CAMBIOS - PARCHE DE SINCRONIZACIÓN DE DIBUJADO
+FECHA: 2024-05-22
+AGENTE: Jules (JUL-0B)
+ASUNTO: Fix Líneas Flotantes (NexusCanvas)
+
+1. RESUMEN DE CAMBIOS TÉCNICOS
+--------------------------------------------------
+Se implementaron los 3 protocolos solicitados para garantizar la cohesión visual entre los nodos D3 y las flechas de react-xarrows.
+
+A. PROTOCOLO "LATIDO" (Sync on Tick)
+   - Estado: IMPLEMENTADO.
+   - Detalle: Se inyectó `updateXarrow()` directamente en el evento `tick` de la simulación D3.
+   - Decisión: Se optó por NO usar throttling (frenado) para priorizar la fidelidad visual, manteniendo el framerate desbloqueado según la orden de "Presión Máxima".
+
+B. PROTOCOLO "OBSERVADOR DE ZOOM" (Zoom Bindings)
+   - Estado: IMPLEMENTADO (Arquitectura Imperativa).
+   - Detalle:
+     - Se refactorizó `GraphSimulation` para usar `forwardRef` y `useImperativeHandle`.
+     - Se expuso el método `forceUpdateArrows()`.
+     - En `NexusCanvas` (padre), se vinculó este método a los eventos `onPanning`, `onZooming` y `onTransformed` del `TransformWrapper`.
+   - Resultado: Las líneas ahora se redibujan sincrónicamente con el escalado y paneo del lienzo, eliminando el "lag" visual.
+
+C. PROTOCOLO "PATADA DE ARRANQUE" (Kickstart)
+   - Estado: IMPLEMENTADO (Event-Driven).
+   - Detalle: Se eliminó el `setTimeout` arbitrario de 100ms. Se reemplazó por un listener nativo `simulation.on("end", ...)` que fuerza una actualización final cuando la física alcanza el equilibrio (Alpha Target 0).
+
+2. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+--------------------------------------------------
+
+A. BLOQUEO DE AUTENTICACIÓN EN VERIFICACIÓN (PLAYWRIGHT)
+   - Problema: Los scripts de verificación automatizada fallaban al intentar acceder a `localhost:3000` debido a la pantalla de "Acceso Restringido" (LoginScreen), ya que el entorno de pruebas no tiene credenciales de Google persistentes.
+   - Solución: Se activó el modo de desarrollo fantasma (`VITE_JULES_MODE=true`) en el servidor de pruebas. Esto inyecta un usuario mock (`jules-dev`) y permite el paso directo a la interfaz, permitiendo validar la carga del grafo y los nodos.
+
+B. ERROR DE COMPILACIÓN (VITE)
+   - Problema: Durante la integración del `forwardRef`, se introdujo un error de sintaxis (punto y coma faltante/sobrante) en el cierre del componente `GraphSimulation`.
+   - Solución: Se corrigió la sintaxis en `NexusCanvas.tsx` asegurando el cierre correcto `});` del componente envuelto en `forwardRef`.
+
+3. ESTADO FINAL
+--------------------------------------------------
+- Compilación: EXITOSA.
+- Verificación Visual: EXITOSA (Nodos visibles, interfaz de depuración accesible).
+- Código: Entregado en la rama `fix-floating-arrows-sync`.
+
+FIN DEL REPORTE.
