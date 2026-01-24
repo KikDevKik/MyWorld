@@ -1,0 +1,72 @@
+REPORTE TÉCNICO - FASE 2.2: LÓGICA DE INGESTA REAL
+AUTOR: Jules (Agente de Ingeniería)
+FECHA: 2024-05-23
+
+--------------------------------------------------------------------------------
+1. RESUMEN EJECUTIVO
+--------------------------------------------------------------------------------
+Se ha implementado con éxito la lógica de "Ingesta Real" para el Tribunal Nexus. El sistema ha evolucionado de un prototipo con datos simulados (mocks) a una arquitectura híbrida funcional que analiza archivos reales de Google Drive utilizando Inteligencia Artificial (Gemini Pro) y cruza referencias localmente.
+
+El objetivo principal de eliminar la "Caja Negra" y aplicar las "4 Leyes del Tribunal" (Tipos, Materialidad, Alcance, Identidad) se ha cumplido mediante un Prompt de Alto Razonamiento en el backend.
+
+--------------------------------------------------------------------------------
+2. QUÉ SE HIZO (IMPLEMENTACIÓN)
+--------------------------------------------------------------------------------
+
+A. ARQUITECTURA HÍBRIDA (Cliente-Servidor)
+   - Frontend (NexusScanner.ts): Actúa como el "Director". Itera sobre los archivos, gestiona la barra de progreso granular en la UI ("Leídos 3/10") y realiza el cruce de referencias (Levenshtein) para detectar duplicados sin saturar el backend.
+   - Backend (Cloud Function `analyzeNexusFile`): Actúa como el "Cerebro". Recibe el ID del archivo, descarga el contenido de forma segura (sin pasar por el cliente) y ejecuta el análisis de IA.
+
+B. CLOUD FUNCTION (`functions/src/nexus_scan.ts`)
+   - Se creó un nuevo endpoint dedicado para el análisis unitario de archivos.
+   - Se implementó el "Prompt del Bibliotecario Real" que instruye a Gemini a:
+     * Clasificar estrictamente (NO 'canon', SI 'CHARACTER', 'LOCATION', etc.).
+     * Detectar objetos disfrazados de entes (Ley de Materialidad).
+     * Evaluar la relevancia de eventos (Ley de Alcance).
+     * Identificar alias (Ley de Identidad).
+   - Se refactorizó `functions/src/index.ts` para usar utilidades compartidas (`drive.ts`, `json.ts`), mejorando la limpieza del código.
+
+C. CAPA DE EVIDENCIA (Evidence Layer)
+   - Se modificó la interfaz `AnalysisCandidate` para incluir `foundInFiles`.
+   - Ahora, cada nodo propuesto viene acompañado de:
+     * Nombre del archivo de origen.
+     * `contextSnippet`: Una cita textual que justifica por qué la IA creó ese nodo.
+   - La UI del Modal (`NexusTribunalModal.tsx`) se actualizó para mostrar esta evidencia, permitiendo al Comandante auditar la fuente de la información.
+
+D. LIMPIEZA DE MOCKS
+   - Se eliminaron todos los datos falsos (`MOCK_CANDIDATES`) de la interfaz.
+   - El Tribunal ahora inicia vacío y maneja estados de "Sin Hallazgos" correctamente.
+
+--------------------------------------------------------------------------------
+3. POR QUÉ SE HIZO ASÍ (JUSTIFICACIÓN)
+--------------------------------------------------------------------------------
+
+- Híbrido vs. Todo Backend: Procesar todo el árbol de archivos en una sola llamada de Cloud Function corría el riesgo de timeout (límites de 540s de Firebase) si el proyecto era grande. Al iterar desde el frontend, tenemos control total del progreso y podemos manejar reintentos por archivo.
+- Fetch Backend (`_getDriveFileContentInternal`): Leer el contenido directamente en la nube es más rápido y seguro que descargarlo al cliente y volver a subirlo a la IA. Ahorra ancho de banda y latencia.
+- JSON Sanitizer Refactor: Al mover la lógica de limpieza JSON a `utils/json.ts`, aseguramos que tanto el escaneo antiguo como el nuevo usen el mismo estándar de robustez contra alucinaciones de formato de la IA.
+
+--------------------------------------------------------------------------------
+4. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+--------------------------------------------------------------------------------
+
+A. Dependencias en Cloud Functions:
+   - Problema: Al crear nuevos archivos en `functions/src`, hubo conflictos iniciales de importación y duplicación de código en `index.ts`.
+   - Solución: Se realizó una refactorización modular, extrayendo la lógica de Drive y JSON a archivos utilitarios compartidos.
+
+B. Verificación con Playwright:
+   - Problema: El script de verificación fallaba al intentar conectar con el servidor de desarrollo (`localhost:3000`) debido a tiempos de espera y configuración de red.
+   - Solución: Se ajustaron los scripts de inicio para asegurar que Vite escuchara en `0.0.0.0` y se aumentó el timeout de espera para elementos UI críticos como el botón NEXUS.
+
+C. Contexto de Proyecto (Ghost Mode):
+   - Problema: En el entorno de desarrollo local, no tenemos acceso real a Google Drive, lo que dificultaba probar el flujo completo de escaneo.
+   - Solución: Se implementó un mock temporal en `ProjectConfigContext` para simular un árbol de archivos y permitir que el `NexusScanner` disparara su lógica (aunque la llamada al backend fallaría o sería simulada en pruebas unitarias, la UI reaccionaba correctamente). Este mock se revirtió antes del envío final.
+
+--------------------------------------------------------------------------------
+5. RECOMENDACIONES Y SIGUIENTES PASOS
+--------------------------------------------------------------------------------
+
+- Rate Limiting: Actualmente, `NexusScanner` procesa archivos secuencialmente. Si el proyecto tiene cientos de archivos, esto será lento pero seguro. Si se requiere más velocidad, se podría implementar un procesamiento por lotes (batching) de 3-5 archivos simultáneos, cuidando no exceder la cuota de la API de Google Drive.
+- Ajuste de Levenshtein: El umbral de distancia para detectar duplicados está fijo en una lógica simple (distancia <= 2). Podría ser necesario hacerlo dinámico basado en la longitud del nombre (ej. "Al" vs "El" es distancia 1 pero son nombres distintos; "Alejandro" vs "Alejandra" es distancia 1 y probablemente sea el mismo o familia).
+- Persistencia de Escaneos: Ahora mismo, si recargas la página, el análisis del Tribunal se pierde. En una fase futura, se podría guardar el estado del análisis en `localStorage` o Firestore para no tener que re-escanear todo si se cierra el modal accidentalmente.
+
+Fin del Reporte.
