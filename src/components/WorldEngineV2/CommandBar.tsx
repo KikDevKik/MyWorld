@@ -20,13 +20,13 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll }) => {
     const [focused, setFocused] = useState(false);
 
     return (
-        <div className="flex gap-4 items-end pointer-events-auto">
+        <div className="flex gap-4 items-end pointer-events-auto relative z-50">
 
             {/* NUCLEAR BUTTON (Left Side) */}
             {onClearAll && (
                 <button
                     onClick={onClearAll}
-                    className="mb-2 p-3 rounded-full bg-red-950/20 border border-red-500/20 text-red-700 hover:bg-red-900/40 hover:text-red-400 hover:border-red-500/50 transition-all shadow-lg hover:shadow-red-900/20 group"
+                    className="mb-2 p-3 rounded-full bg-red-950/20 border border-red-500/20 text-red-700 hover:bg-red-900/40 hover:text-red-400 hover:border-red-500/50 transition-all shadow-lg hover:shadow-red-900/20 group relative z-50 pointer-events-auto"
                     title="ELIMINAR TODO"
                 >
                     <Trash2 size={20} className="group-hover:scale-110 transition-transform" />
