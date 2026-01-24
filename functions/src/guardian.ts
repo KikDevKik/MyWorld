@@ -10,6 +10,7 @@ import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION } f
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
+const MAX_SCAN_LIMIT = 2000; // 🛡️ SENTINEL: Prevent OOM on large projects
 
 // Helper: JSON Sanitizer (Simplified for Guardian)
 function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
@@ -581,7 +582,7 @@ export const purgeEcho = onCall(
 export const scanProjectDrift = onCall(
   {
     region: FUNCTIONS_REGION,
-    cors: true, // 🟢 USER MANDATE: Wildcard CORS for Beta
+    cors: ALLOWED_ORIGINS, // 🛡️ SENTINEL: Enforce strict CORS
     enforceAppCheck: true,
     timeoutSeconds: 540, // Long running
     memory: "1GiB",
@@ -623,8 +624,13 @@ export const scanProjectDrift = onCall(
         const chunksSnapshot = await db.collectionGroup("chunks")
             .where("userId", "==", userId)
             .where("projectId", "==", projectId)
+            .limit(MAX_SCAN_LIMIT) // 🛡️ SENTINEL: Safety limit
             .select("embedding", "fileName", "text", "path", "category") // Fetch only necessary fields
             .get();
+
+        if (chunksSnapshot.size === MAX_SCAN_LIMIT) {
+             logger.warn(`⚠️ [SENTINEL] Drift Scan hit limit of ${MAX_SCAN_LIMIT}. Analysis may be incomplete.`);
+        }
 
         const alerts: any = {
             identity: [],
