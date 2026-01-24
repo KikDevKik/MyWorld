@@ -1,0 +1,38 @@
+REPORTE DE EJECUCIÓN: ACTUALIZACIÓN DE SEGURIDAD Y FÍSICA
+FECHA: 2026-01-24
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+
+ASUNTO: RESOLUCIÓN DE INCIDENCIAS CRÍTICAS (PERMISOS Y FÍSICA)
+
+1. OBJETIVOS
+   - Habilitar la "Opción Nuclear" (Borrado Total) que fallaba por denegación de permisos.
+   - Corregir el comportamiento de "Nodos Clavados" (Fixed Physics) al importar desde el Tribunal.
+
+2. ACCIONES REALIZADAS
+
+   A. ACTUALIZACIÓN DE FIRESTORE (firestore.rules)
+      - Diagnóstico: La colección `edges` no tenía reglas explícitas, lo que provocaba que Firestore rechazara cualquier intento de escritura o borrado por defecto (default deny).
+      - Solución: Se añadió una regla explícita dentro del bloque del proyecto:
+        match /edges/{edgeId} { allow read, write: if request.auth != null && request.auth.uid == userId; }
+      - Resultado: El motor ahora tiene autoridad para purgar conexiones.
+
+   B. PARCHE DE HIGIENE DE DATOS (NexusTribunalModal.tsx)
+      - Diagnóstico: Los candidatos de análisis traían propiedades residuales (`fx`, `fy`, etc.) o el backend las inyectaba. Al guardarse así, D3 Force interpretaba que el nodo debía permanecer estático en esa posición.
+      - Solución: Se implementó un "lavado" de propiedades en la función `handleAction`. Antes de aprobar, se eliminan explícitamente:
+        - fx, fy (Coordenadas fijas)
+        - vx, vy (Velocidad)
+        - x, y (Posición actual)
+        - index (Índice interno de D3)
+      - Resultado: Los nodos nacen "libres" y la simulación calcula su posición orbital correcta basada en la gravedad solar definida (Personajes al centro, Conceptos fuera).
+
+3. PROBLEMAS Y OBSTÁCULOS
+   - Ambigüedad en Nomenclatura: Hubo una discrepancia inicial entre el término "nodes" (usado en la solicitud) y "entities" (nombre real de la colección en código). Se verificó mediante inspección profunda (`WorldEnginePageV2.tsx`) para asegurar que la regla se aplicara a la colección correcta (`entities` ya existía, `edges` faltaba).
+   - Riesgo de Mutación: Se tuvo cuidado de no modificar el objeto `selectedCandidate` original directamente para evitar efectos secundarios en la UI, optando por crear una copia superficial antes de la limpieza (`const cleanCandidate = { ...selectedCandidate }`).
+
+4. NOTAS ADICIONALES
+   - La regla `write` habilitada incluye `create`, `update` y `delete`. Esto es consistente con la política de "Propietario Total" del usuario sobre su proyecto.
+   - No se requirieron cambios en `GraphSimulationV2.tsx`, ya que el problema era puramente de datos de entrada (garbage in).
+   - Se recomienda monitorear la consola tras la importación masiva para confirmar que no queden propiedades `NaN` en las posiciones, aunque el parche debería prevenirlo.
+
+FIN DEL REPORTE.
