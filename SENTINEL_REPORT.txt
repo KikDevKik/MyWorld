@@ -1,0 +1,26 @@
+# REPORTE DE OPERACIONES SENTINEL 🛡️
+FECHA: 20 de Febrero, 2025
+AGENTE: Jules (Role: Sentinel)
+OBJETIVO: Fortalecimiento de Seguridad en Cloud Functions (`scanProjectDrift`)
+
+## 1. RESUMEN DE CAMBIOS EJECUTADOS
+Se han implementado dos medidas de seguridad críticas en la función `scanProjectDrift` ubicada en `functions/src/guardian.ts`:
+
+1.  **Límite de Consultas (DoS Prevention):** Se introdujo una constante `MAX_SCAN_LIMIT = 2000` y se aplicó al query de Firestore (`.limit(MAX_SCAN_LIMIT)`).
+2.  **Endurecimiento CORS:** Se reemplazó la configuración insegura `cors: true` (wildcard) por `cors: ALLOWED_ORIGINS`, restringiendo el acceso únicamente a los dominios confiables definidos en `config.ts`.
+3.  **Observabilidad:** Se agregaron logs de advertencia (`logger.warn`) que se activan si el escaneo alcanza el límite, informando que el análisis podría ser parcial.
+
+## 2. MOTIVACIÓN (EL PORQUÉ)
+*   **Prevención de Denegación de Servicio (DoS):** La función original intentaba descargar *todos* los "chunks" (fragmentos de texto) de un proyecto sin límite. En proyectos masivos (ej. >10,000 fragmentos), esto podía exceder la memoria asignada a la función (1GiB), provocando un fallo por "Out Of Memory" (OOM) y caída del servicio.
+*   **Seguridad de Acceso:** La configuración `cors: true` permitía que cualquier sitio web en internet invocara esta función costosa. Al restringirlo a `ALLOWED_ORIGINS`, cerramos esta superficie de ataque.
+
+## 3. DESAFÍOS Y VERIFICACIONES
+*   **Verificación de Dependencias:** Durante el análisis, identifiqué que la variable `ALLOWED_ORIGINS` era necesaria. Verifiqué explícitamente `functions/src/config.ts` y las importaciones en `functions/src/guardian.ts` para asegurar que el código compilaría correctamente antes de aplicar el cambio.
+*   **Compilación TypeScript:** Ejecuté `npm run build` en el directorio `functions/` para confirmar que los tipos y las importaciones eran correctos y no rompían el build de producción.
+*   **Coherencia del Journal:** Documenté este hallazgo en `.jules/sentinel.md` siguiendo el protocolo estricto de aprendizaje.
+
+## 4. OBSERVACIONES ADICIONALES
+*   **Trade-off de Estabilidad:** El límite de 2000 fragmentos garantiza que la función no colapse, pero implica que para proyectos gigantescos, el análisis de "Drift" (desviación narrativa) será un muestreo de los primeros 2000 fragmentos encontrados, no un censo total. Esto es un compromiso aceptable para mantener la estabilidad del sistema.
+*   **Próximos Pasos (Sugerencia):** Si se requiere analizar proyectos masivos en su totalidad, se debería considerar refactorizar esta función para usar paginación o un proceso en segundo plano (Cloud Tasks) en lugar de una función `onCall` síncrona.
+
+-- FIN DEL REPORTE --
