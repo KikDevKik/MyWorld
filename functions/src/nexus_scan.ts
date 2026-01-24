@@ -89,6 +89,11 @@ export const analyzeNexusFile = onCall(
             === THE 6 UNBREAKABLE LAWS OF THE TRIBUNAL ===
             SYSTEM INSTRUCTION: "Al analizar el texto, aplica estrictamente las siguientes leyes de exclusión. Tu objetivo es limpiar el grafo, no llenarlo."
 
+            *** LANGUAGE MIRRORING PROTOCOL ***
+            Detect the dominant language of the input text (e.g., Spanish, English, French). You MUST generate all reasoning, description, suggestedAction, and ambiguityType explanations in that SAME DOMINANT LANGUAGE.
+            • Example: If input is Spanish, output: 'Razón: Detectado posible duplicado...'
+            • Example: If input is English, output: 'Reason: Detected possible duplicate...' DO NOT output English descriptions for Spanish texts.
+
             1. LEY DE MATERIALIDAD (Items vs. Lugares):
                - Si detectas un objeto ("Brazaletes", "Espada"), pregúntate: ¿Es un lugar geográfico?
                - Si NO lo es, clasifícalo como type: 'OBJECT' (Category: ITEM).
