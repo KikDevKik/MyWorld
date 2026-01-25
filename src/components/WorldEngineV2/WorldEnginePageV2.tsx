@@ -475,7 +475,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      const mappedRelations = (candidate.relations || []).map(r => ({
                          targetId: generateId(projectId, r.target, 'concept'), // Predict ID (Deterministic)
                          targetName: r.target,
-                         targetType: 'concept', // We assume concept if unknown
+                         targetType: 'concept' as EntityType, // We assume concept if unknown
                          relation: r.type as any,
                          context: r.context,
                          sourceFileId: 'nexus-scan'
