@@ -1,0 +1,48 @@
+REPORTE DE DIAGNÓSTICO - ERROR "NO VALID CANON FILES FOUND"
+===========================================================
+
+FECHA: 24 de Mayo, 2024
+ASUNTO: Fallo de Indexado Silencioso por Token Expirado
+
+1. SÍNTOMA REPORTADO
+--------------------
+Al intentar el análisis Nexus después de aplicar el parche anterior, el sistema arroja el error:
+`NexusScanner: No valid canon files found.`
+
+Esto indica que el "mapa de archivos" (fileTree) que Nexus consulta está vacío o corrupto, a pesar de que el usuario ha configurado las carpetas correctamente.
+
+2. CAUSA RAÍZ IDENTIFICADA (HIPÓTESIS CONFIRMADA)
+-------------------------------------------------
+El problema reside en el manejo de errores de autenticación durante la operación de guardado automático (`persist: true`).
+
+A. La Secuencia del Fallo:
+   1. El usuario abre "Configuración del Proyecto". El token de Google Drive en `localStorage` puede estar caducado o ser inválido.
+   2. El usuario hace clic en "Guardar".
+   3. `ProjectSettingsModal` envía el token antiguo al backend (`getDriveFiles`).
+   4. El Backend (`functions/src/index.ts`) intenta leer las carpetas. Google Drive rechaza el token (401 Unauthorized).
+   5. **EL ERROR CRÍTICO:** El backend captura el error (`catch (err)`) para no tumbar el proceso, PERO como resultado, la lista de archivos obtenidos es `[]` (vacía).
+   6. El backend procede a "persistir" esta lista vacía en la base de datos (`TDB_Index`), SOBREESCRIBIENDO cualquier índice válido anterior con un mapa en blanco.
+   7. El Frontend recibe "éxito" (porque no hubo crash) y muestra "Índice actualizado".
+   8. Al abrir Nexus, este lee el mapa en blanco y dice "No encuentro archivos".
+
+3. SOLUCIÓN TÉCNICA REQUERIDA (PARA EL SIGUIENTE JULES)
+-------------------------------------------------------
+Para arreglar esto definitivamente, se deben aplicar dos correcciones:
+
+A. Backend (`functions/src/index.ts`):
+   - Modificar la lógica de `getDriveFiles`. Si se solicitan carpetas (`folderIds`) y TODAS fallan (el array resultante está vacío), la función DEBE lanzar un error (`throw new HttpsError`) en lugar de guardar un árbol vacío.
+   - Esto evitará que un fallo de auth borre la memoria del proyecto.
+
+B. Frontend (`src/components/ui/ProjectSettingsModal.tsx`):
+   - Implementar una validación de token antes de llamar a `getDriveFiles`.
+   - Si el token es sospechoso o antiguo, forzar una renovación (o pedir al usuario que re-autentique) antes de intentar la indexación.
+
+4. SOLUCIÓN TEMPORAL INMEDIATA (WORKAROUND)
+-------------------------------------------
+Para que funcione AHORA MISMO sin cambiar código:
+1. Recargar la página (F5) para forzar un login fresco.
+2. Abrir Configuración -> Guardar Configuración nuevamente.
+3. Esto enviará un token válido, el backend podrá leer los archivos, y el índice se reparará.
+
+Fin del Reporte.
+Jules.
