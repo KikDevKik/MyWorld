@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { toast } from 'sonner';
 import { X, Plus, Trash2, Save, Folder, Book, Clock, Star } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import useDrivePicker from 'react-google-drive-picker';
@@ -39,9 +41,41 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                 resourcePaths,
                 chronologyPath
             });
+
+            // 🟢 TRIGGER INDEX REFRESH (Lightweight)
+            const token = localStorage.getItem('google_drive_token');
+            if (token) {
+                try {
+                    const allPaths = [...canonPaths, ...resourcePaths];
+                    const folderIds = allPaths.map(p => p.id);
+                    // Add legacy/root folderId if exists
+                    if (config.folderId) folderIds.push(config.folderId);
+
+                    if (folderIds.length > 0) {
+                         const functions = getFunctions();
+                         const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
+
+                         // Fire and forget (or await if critical) - Awaiting to ensure consistency
+                         toast.info("Actualizando índice de archivos...");
+                         await getDriveFiles({
+                             folderIds,
+                             accessToken: token,
+                             recursive: true,
+                             persist: true // 🟢 ENABLE PERSISTENCE
+                         });
+                         toast.success("Índice actualizado.");
+                    }
+                } catch (e) {
+                    console.error("Failed to refresh index:", e);
+                    toast.warning("Configuración guardada, pero falló la indexación automática.");
+                }
+            }
+
             onClose();
         } catch (error) {
-            // Error handling is done in context
+            // Error handling is done in context (updateConfig throws?)
+            // updateConfig throws, so we catch here
+            toast.error("Error al guardar la configuración.");
         } finally {
             setIsSaving(false);
         }
