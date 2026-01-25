@@ -981,6 +981,24 @@ export const getDriveFiles = onCall(
          }
       }
 
+      // 🟢 NEW: OPTIONAL PERSISTENCE (Lightweight Index Refresh)
+      if (request.data.persist === true) {
+          const db = getFirestore();
+          const userId = request.auth.uid;
+          try {
+            // Must clone to avoid reference issues if fileTree is modified later (though here it's returned)
+            const treePayload = JSON.parse(JSON.stringify(fileTree));
+            await db.collection("TDB_Index").doc(userId).collection("structure").doc("tree").set({
+              tree: treePayload,
+              updatedAt: new Date().toISOString()
+            });
+            logger.info(`🌳 [PERSIST] File Tree updated via getDriveFiles for ${userId}`);
+          } catch (e) {
+            logger.error("Failed to persist tree:", e);
+            // Don't fail the request, just log
+          }
+      }
+
       return fileTree;
     } catch (error: any) {
       logger.error("Error en getDriveFiles:", error);
