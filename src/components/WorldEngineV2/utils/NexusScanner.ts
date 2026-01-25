@@ -189,7 +189,8 @@ export const scanProjectFiles = async (
 
     // 3. Process Batches
     const functions = getFunctions();
-    const analyzeFn = httpsCallable(functions, 'analyzeNexusFile'); // Maps to analyzeNexusBatch backend
+    // 🟢 UPDATE: INCREASED TIMEOUT (9 Minutes)
+    const analyzeFn = httpsCallable(functions, 'analyzeNexusFile', { timeout: 540000 });
 
     let allCandidates: AnalysisCandidate[] = [];
     let processedCount = 0;
@@ -200,7 +201,8 @@ export const scanProjectFiles = async (
         const batchIds = batchFiles.map(f => f.id);
         const contextType = batchFiles[0].context; // Assume batch shares context type (usually per folder)
 
-        onProgress(`Reading Batch ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} files)...`, processedCount, batchKeys.length);
+        // 🟢 UI FEEDBACK: PATIENCE PROTOCOL
+        onProgress(`Analizando Lote Masivo ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} archivos)... esto puede tomar varios minutos. No cierres la ventana.`, processedCount, batchKeys.length);
 
         try {
             const token = localStorage.getItem('google_drive_token');
@@ -230,7 +232,7 @@ export const scanProjectFiles = async (
         }
 
         processedCount++;
-        onProgress(`Analyzed Batch ${processedCount}`, processedCount, batchKeys.length);
+        onProgress(`Lote ${processedCount} completado. Preparando siguiente...`, processedCount, batchKeys.length);
     }
 
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
@@ -263,6 +265,7 @@ export const scanProjectFiles = async (
                 ambiguityType: 'CONFLICT' as const,
                 suggestedAction: 'MERGE' as const,
                 mergeWithId: bestMatch.id,
+                mergeTargetName: bestMatch.name, // 🟢 NEW: Store name for UI Cosmetic
                 reasoning: `⚠️ Posible duplicado detectado (${pct}% similitud con '${bestMatch.name}'). Se sugiere FUSIÓN para consolidar evidencia.`
             };
         }

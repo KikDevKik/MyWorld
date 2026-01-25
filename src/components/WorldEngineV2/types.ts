@@ -28,6 +28,7 @@ export interface AnalysisCandidate {
 
     // Logic
     mergeWithId?: string; // If 'MERGE', who is the parent?
+    mergeTargetName?: string; // 🟢 NEW: Friendly name for display
     confidence: number; // 0-100
     reasoning: string; // AI Explanation
 
