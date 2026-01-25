@@ -30,6 +30,7 @@ interface NexusTribunalModalProps {
     onBatchMerge: (winner: AnalysisCandidate, losers: AnalysisCandidate[]) => Promise<void>;
     ignoredTerms?: string[];
     onRestoreIgnored?: (term: string) => void;
+    onAddIgnored?: (term: string) => void;
 }
 
 // 🟢 UTILS: COLOR MAPPING
@@ -59,10 +60,11 @@ const cleanName = (name: string) => {
     return name.replace(/\(id:.*\)/, "").trim();
 };
 
-const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored }) => {
+const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored, onAddIgnored }) => {
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
+    const [newIgnoredTerm, setNewIgnoredTerm] = useState('');
 
     // STATE: EDIT MODE
     const [isEditing, setIsEditing] = useState(false);
@@ -346,25 +348,56 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                     <div className="flex-1 overflow-y-auto p-2 space-y-1 mb-14">
                         {filterMode === 'TRASH' ? (
                             // TRASH LIST
-                            ignoredTerms.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
-                                    <Trash2 size={24} className="text-slate-800" />
-                                    <span className="text-xs font-mono">PAPER BIN EMPTY</span>
+                            <div className="flex flex-col gap-2 min-h-0">
+                                {/* 🟢 NEW: Add Manual Ban */}
+                                <div className="p-2 border border-slate-800 bg-slate-900/50 rounded-lg flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={newIgnoredTerm}
+                                        onChange={(e) => setNewIgnoredTerm(e.target.value)}
+                                        placeholder="Add term to ban list..."
+                                        className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1.5 text-xs text-white placeholder:text-slate-600 outline-none focus:border-red-500/50"
+                                        onKeyDown={(e) => {
+                                             if (e.key === 'Enter' && newIgnoredTerm.trim()) {
+                                                 onAddIgnored?.(newIgnoredTerm.trim());
+                                                 setNewIgnoredTerm('');
+                                             }
+                                        }}
+                                    />
+                                    <button
+                                        onClick={() => {
+                                            if (newIgnoredTerm.trim()) {
+                                                onAddIgnored?.(newIgnoredTerm.trim());
+                                                setNewIgnoredTerm('');
+                                            }
+                                        }}
+                                        disabled={!newIgnoredTerm.trim()}
+                                        className="px-3 py-1.5 bg-red-900/30 border border-red-500/30 text-red-400 hover:bg-red-900/50 hover:text-red-200 rounded text-xs font-bold transition-colors disabled:opacity-50"
+                                    >
+                                        BAN
+                                    </button>
                                 </div>
-                            ) : (
-                                ignoredTerms.map((term, idx) => (
-                                    <div key={idx} className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-slate-900/30">
-                                        <span className="text-sm text-slate-400 font-mono truncate max-w-[150px]">{term}</span>
-                                        <button
-                                            onClick={() => onRestoreIgnored && onRestoreIgnored(term)}
-                                            className="p-1.5 rounded bg-slate-800 hover:bg-green-900 hover:text-green-300 text-slate-500 transition-colors"
-                                            title="Restaurar"
-                                        >
-                                            <Undo2 size={14} />
-                                        </button>
+
+                                {ignoredTerms.length === 0 ? (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-slate-600 gap-2 min-h-[200px]">
+                                        <Trash2 size={24} className="text-slate-800" />
+                                        <span className="text-xs font-mono">PAPER BIN EMPTY</span>
                                     </div>
-                                ))
-                            )
+                                ) : (
+                                    ignoredTerms.map((term, idx) => (
+                                        <div key={idx} className="w-full flex items-center justify-between p-3 rounded-lg border border-slate-800 bg-slate-900/30">
+                                            <span className="text-sm text-slate-400 font-mono truncate max-w-[150px]">{term}</span>
+                                            <button
+                                                onClick={() => onRestoreIgnored && onRestoreIgnored(term)}
+                                                className="p-1.5 rounded bg-slate-800 hover:bg-green-900 hover:text-green-300 text-slate-500 transition-colors"
+                                                title="Restaurar"
+                                            >
+                                                <Undo2 size={14} />
+                                            </button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
                         ) : (
                             // CANDIDATE LIST
                             filteredCandidates.length === 0 ? (

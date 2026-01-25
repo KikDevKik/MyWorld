@@ -146,6 +146,36 @@ export const analyzeNexusBatch = onCall(
 
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
 
+            // 🟢 PRE-FETCH: BLACKLIST & VIP CONTEXT
+            // Fetch server blacklist early to inject into prompts
+            let serverIgnoredTerms: string[] = [];
+            let vipContext = "";
+
+            try {
+                const db = getFirestore();
+                const settingsRef = db.collection("users").doc(request.auth.uid).collection("projects").doc(projectId).collection("settings").doc("general");
+                const [settingsDoc, context] = await Promise.all([
+                    settingsRef.get(),
+                    getVipContext(request.auth.uid, projectId)
+                ]);
+
+                if (settingsDoc.exists) {
+                    const data = settingsDoc.data();
+                    if (data && Array.isArray(data.ignoredTerms)) {
+                        serverIgnoredTerms = data.ignoredTerms;
+                    }
+                }
+                vipContext = context;
+            } catch (e) {
+                logger.warn("⚠️ Failed to pre-fetch context/blacklist:", e);
+                // Try fallback for VIP Context if it was the one failing
+                if (!vipContext) vipContext = await getVipContext(request.auth.uid, projectId).catch(() => "");
+            }
+
+            const combinedIgnoredTerms = [...(ignoredTerms || []), ...serverIgnoredTerms];
+            // Helper for prompt injection
+            const ignoredTermsString = combinedIgnoredTerms.length > 0 ? JSON.stringify(combinedIgnoredTerms) : "[]";
+
             // 🟢 SAFETY OVERRIDE (Sin Censura)
             const safetySettings = [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -175,6 +205,7 @@ export const analyzeNexusBatch = onCall(
             2. Identify the Name, Type, and a short Snippet of context.
             3. Ignore common words, focus on proper nouns and capitalized terms.
             4. **SOURCE IDENTIFICATION**: Identify the Source File Name (look for '--- FILE START: Name ---' markers).
+            5. **META-DATA FILTER**: Distinguish between NARRATIVE text (story) and META text (author notes, drafts). If a sentence sounds like a note (e.g., 'Check this later', 'appears in book X', 'Draft V1', 'Copyright'), IGNORE IT.
 
             CONTEXT TYPE: ${contextType || 'NARRATIVE'}
 
@@ -199,9 +230,6 @@ export const analyzeNexusBatch = onCall(
 
             logger.info(`🤖 STAGE 1 COMPLETE. Extracted ${rawEntities.length} raw entities.`);
 
-            // 2. VIP CONTEXT (Fetch while Stage 1 runs? No, depend on it for flow clarity, but ideally parallel)
-            const vipContext = await getVipContext(request.auth.uid, projectId);
-
             // 🟢 STAGE 2: THE JUDGE (MODEL HIGH REASONING)
             logger.info("⚖️ STAGE 2: JUDGE (Pro) Initiated...");
 
@@ -223,6 +251,10 @@ export const analyzeNexusBatch = onCall(
 
             INPUT 2: RAW ENTITY LIST (From Harvester):
             ${JSON.stringify(rawEntities.slice(0, 500))}
+
+            INPUT 3: GLOBAL BAN LIST (IGNORE THESE TERMS):
+            The following terms are forbidden. Do not extract them. Do not create entities for them.
+            ${ignoredTermsString}
 
             === THE 8 UNBREAKABLE LAWS OF THE TRIBUNAL ===
             SYSTEM INSTRUCTION: "Al analizar la lista bruta, aplica estrictamente las siguientes leyes. Tu objetivo es limpiar, deduplicar y conectar."
@@ -297,29 +329,8 @@ export const analyzeNexusBatch = onCall(
                 foundInFiles: c.foundInFiles || [{ fileName: "Batch", contextSnippet: "Snippet missing." }]
             }));
 
-            // 🟢 BLACKLIST FILTER (Combined Client & Server)
-            let serverIgnoredTerms: string[] = [];
-            try {
-                // 🛡️ SECURITY: Enforce Server-Side Blacklist (Hard Rejects)
-                const db = getFirestore();
-                const settingsRef = db.collection("users").doc(request.auth.uid).collection("projects").doc(projectId).collection("settings").doc("general");
-                const settingsDoc = await settingsRef.get();
-
-                if (settingsDoc.exists) {
-                    const data = settingsDoc.data();
-                    if (data && Array.isArray(data.ignoredTerms)) {
-                        serverIgnoredTerms = data.ignoredTerms;
-                        logger.info(`🛡️ Loaded ${serverIgnoredTerms.length} ignored terms from Server Blacklist.`);
-                    }
-                }
-            } catch (e) {
-                logger.warn("⚠️ Failed to fetch server-side blacklist (Security Warning):", e);
-                // Fail Open (Proceed) or Fail Closed?
-                // We choose Fail Open to avoid blocking functionality, but log heavily.
-            }
-
-            const combinedIgnoredTerms = [...(ignoredTerms || []), ...serverIgnoredTerms];
-
+            // 🟢 BLACKLIST FILTER (Safety Net - Double Check)
+            // We still filter here just in case the LLM ignored the instructions
             if (combinedIgnoredTerms.length > 0) {
                 const ignoredSet = new Set(combinedIgnoredTerms.map(t => t.toLowerCase()));
                 validCandidates = validCandidates.filter((c: any) => {

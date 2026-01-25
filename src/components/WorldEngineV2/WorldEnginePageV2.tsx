@@ -645,6 +645,21 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
+    // 🟢 ADD IGNORED MANUALLY (Phase 2.5)
+    const handleAddIgnored = async (term: string) => {
+        if (!user || !config?.folderId) return;
+        const db = getFirestore();
+        const settingsRef = doc(db, `users/${user.uid}/projects/${config.folderId}/settings/general`);
+        try {
+            await setDoc(settingsRef, {
+                ignoredTerms: arrayUnion(term)
+            }, { merge: true });
+            toast.success(`Añadido a lista negra: ${term}`);
+        } catch (e: any) {
+            toast.error("Error al añadir: " + e.message);
+        }
+    };
+
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
              {/* WARMUP LOADER */}
@@ -776,6 +791,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                         onBatchMerge={handleBatchMerge} // 🟢 NEW PROP
                         ignoredTerms={ignoredTerms}
                         onRestoreIgnored={handleRestoreIgnored}
+                        onAddIgnored={handleAddIgnored} // 🟢 NEW PROP
                      />
                  )}
              </AnimatePresence>
