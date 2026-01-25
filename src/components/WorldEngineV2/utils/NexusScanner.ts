@@ -111,20 +111,30 @@ function extractValidFiles(
     canonPathIds: Set<string>,
     isParentCanon: boolean = false,
     currentPath: string = '',
-    parentId: string = 'root' // 🟢 NEW: Track Parent for Batching
+    parentId: string = 'root', // 🟢 NEW: Track Parent for Batching
+    forceAll: boolean = false // 🟢 NEW: Fallback Protocol
 ): { id: string; name: string; fullPath: string; context: 'NARRATIVE' | 'WORLD_DEF'; parentId: string }[] {
     let results: any[] = [];
 
     for (const node of nodes) {
         const nodePath = currentPath ? `${currentPath}/${node.name}` : node.name;
 
-        // Check if this folder is a Canon Root
-        const isCanon = isParentCanon || canonPathIds.has(node.id);
+        // Check if this folder is a Canon Root (or if Force Protocol is active)
+        const isCanon = forceAll || isParentCanon || canonPathIds.has(node.id);
+
+        // 🟢 DEBUG LOGGING FOR ID MISMATCH
+        if (node.mimeType === 'application/vnd.google-apps.folder' && !isCanon && !forceAll) {
+             // Only log if it's a top-level rejection (parent wasn't canon either)
+             if (!isParentCanon) {
+                 console.log(`[NexusScanner] Skipping Folder: '${node.name}' (ID: ${node.id}). Not in Canon List.`);
+             }
+        }
 
         if (node.mimeType === 'application/vnd.google-apps.folder') {
             if (node.children) {
                 // Pass current node ID as parentId for children
-                results = results.concat(extractValidFiles(node.children, canonPathIds, isCanon, nodePath, node.id));
+                // 🟢 RECURSION: Pass 'forceAll' down
+                results = results.concat(extractValidFiles(node.children, canonPathIds, isCanon, nodePath, node.id, forceAll));
             }
         } else {
             // File Handling
@@ -167,12 +177,23 @@ export const scanProjectFiles = async (
         throw new Error("Sesión de Drive caducada. Reconecta en Configuración.");
     }
 
-    // 1. Filter Files
+    // 1. Filter Files (Strict Mode)
+    console.log(`[NexusScanner] Starting Scan. Configured Canon Paths: ${canonConfigs.length}`);
     const canonIds = new Set(canonConfigs.map(c => c.id));
-    const targetFiles = extractValidFiles(fileTree, canonIds);
+    let targetFiles = extractValidFiles(fileTree, canonIds);
+
+    // 🟢 FALLBACK PROTOCOL: If strict mode fails (ID Mismatch), engage "Trust the Tree" Mode
+    if (targetFiles.length === 0 && fileTree.length > 0) {
+        console.warn("NexusScanner: No valid canon files found in STRICT mode. Possible ID Mismatch (Shortcuts?). Engaging FALLBACK PROTOCOL (Force All).");
+        onProgress("⚠️ Protocolo de Respaldo activado...", 0, 100);
+
+        // Retry with forceAll = true
+        targetFiles = extractValidFiles(fileTree, canonIds, false, '', 'root', true);
+        console.log(`[NexusScanner] Fallback Scan yielded: ${targetFiles.length} files.`);
+    }
 
     if (targetFiles.length === 0) {
-        console.warn("NexusScanner: No valid canon files found.");
+        console.warn("NexusScanner: No valid canon files found (even with Fallback).");
         return [];
     }
 
