@@ -291,6 +291,10 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 if (!event.active) simulation.alphaTarget(0.3).restart(); // Wake up!
                 d.fx = d.x;
                 d.fy = d.y;
+                // 🟢 LOGIC GATE: Start Tracking
+                d._dragStartX = event.x;
+                d._dragStartY = event.y;
+
                 if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grabbing';
             })
             .on("drag", (event, d) => {
@@ -306,6 +310,16 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 d.fx = null;
                 d.fy = null;
                 if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grab';
+
+                // 🟢 LOGIC GATE: Click Detection (< 5px movement)
+                const dist = Math.sqrt(
+                    Math.pow(event.x - (d._dragStartX || 0), 2) +
+                    Math.pow(event.y - (d._dragStartY || 0), 2)
+                );
+
+                if (dist < 5) {
+                    onNodeClick(d);
+                }
             });
 
         // Attach Drag to Refs

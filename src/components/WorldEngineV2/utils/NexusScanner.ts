@@ -67,6 +67,30 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 /**
+ * Normalize Name Protocol
+ * - Lowercase
+ * - Remove Accents
+ * - Remove special chars (-, _)
+ */
+function normalizeName(name: string): string {
+    return name
+        .toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        .replace(/[-_]/g, "")
+        .trim();
+}
+
+/**
+ * Calculate Similarity (0.0 - 1.0)
+ */
+function calculateSimilarity(a: string, b: string): number {
+    const distance = levenshteinDistance(a, b);
+    const maxLength = Math.max(a.length, b.length);
+    if (maxLength === 0) return 1.0;
+    return 1.0 - (distance / maxLength);
+}
+
+/**
  * Determines the context category based on file path/name
  */
 function determineContextType(filePath: string): 'NARRATIVE' | 'WORLD_DEF' {
@@ -188,48 +212,38 @@ export const scanProjectFiles = async (
         onProgress(`Analyzed ${file.name}`, processedCount, targetFiles.length);
     }
 
-    // 3. Cross-Reference (Local Levenshtein)
+    // 3. Cross-Reference (Local Levenshtein & Fuzzy Matching)
     onProgress("Cross-referencing...", targetFiles.length, targetFiles.length);
 
     const finalizedCandidates = allCandidates.map(candidate => {
         // Skip if already flagged as duplicate by AI (Law of Identity)
         if (candidate.ambiguityType === 'DUPLICATE') return candidate;
 
+        const normCandidate = normalizeName(candidate.name);
+
         // Check against Existing Nodes
         let bestMatch: GraphNode | null = null;
-        let minDist = Infinity;
+        let maxSim = 0;
 
         for (const node of existingNodes) {
-            const dist = levenshteinDistance(candidate.name.toLowerCase(), node.name.toLowerCase());
-            if (dist < minDist) {
-                minDist = dist;
+            const normNode = normalizeName(node.name);
+            const sim = calculateSimilarity(normCandidate, normNode);
+            if (sim > maxSim) {
+                maxSim = sim;
                 bestMatch = node;
             }
         }
 
-        // Threshold Logic:
-        const threshold = candidate.name.length < 5 ? 1 : 2;
-
-        if (bestMatch && minDist <= threshold) {
-            const candType = candidate.type || 'concept';
-            if (bestMatch.type !== candType.toLowerCase()) {
-                 return {
-                     ...candidate,
-                     ambiguityType: 'CONFLICT' as const,
-                     suggestedAction: 'MERGE' as const,
-                     mergeWithId: bestMatch.id,
-                     reasoning: `High similarity to existing node '${bestMatch.name}' (${bestMatch.type}). Potential duplicate.`
-                 };
-            } else {
-                 // Exact/Close Match -> Duplicate
-                 return {
-                     ...candidate,
-                     ambiguityType: 'DUPLICATE' as const,
-                     suggestedAction: 'MERGE' as const,
-                     mergeWithId: bestMatch.id,
-                     reasoning: `Found existing node '${bestMatch.name}'. Merging evidence.`
-                 };
-            }
+        // Threshold Logic: 85% Similarity
+        if (bestMatch && maxSim > 0.85) {
+            const pct = Math.round(maxSim * 100);
+            return {
+                ...candidate,
+                ambiguityType: 'CONFLICT' as const,
+                suggestedAction: 'MERGE' as const,
+                mergeWithId: bestMatch.id,
+                reasoning: `⚠️ Posible duplicado detectado (${pct}% similitud con '${bestMatch.name}'). Se sugiere FUSIÓN para consolidar evidencia.`
+            };
         }
 
         return candidate;
