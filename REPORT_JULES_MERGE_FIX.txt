@@ -1,0 +1,49 @@
+REPORTE DE MISIÓN: PROTOCOLO DE FUSIÓN Y UNIFICADOR
+AGENTE: Jules (JUL-0B)
+FECHA: 2024-05-23
+ASUNTO: Solución de Bug Crítico en Fusión y Nueva Funcionalidad "El Unificador"
+
+--------------------------------------------------------------------------------
+1. RESUMEN DE EJECUCIÓN
+--------------------------------------------------------------------------------
+Se han completado exitosamente las tres directivas solicitadas por El Comandante:
+
+A. FIX CRÍTICO: LÓGICA DE FUSIÓN (MERGE)
+   - Implementado un sistema de resolución de IDs robusto (`resolveNodeId`).
+   - Ahora, si el sistema sugiere una fusión pero solo provee un nombre (ej. "Juan") en lugar de un ID técnico, el sistema busca activamente en la base de datos ese nombre para obtener el ID real antes de intentar escribir.
+   - Esto elimina el error `FirebaseError: No document to update`.
+
+B. NUEVA FUNCIONALIDAD: "EL UNIFICADOR" (BATCH MERGE)
+   - Se añadieron checkboxes a las tarjetas del Tribunal.
+   - Se creó una barra de acción flotante "FUSIONAR SELECCIONADOS" que aparece al marcar 2+ candidatos.
+   - Se implementó un modal para elegir al "Maestro" (Winner).
+   - Lógica Backend: Los "Perdedores" no se borran simplemente; sus nombres se agregan al array `aliases` del Maestro. Esto hace que el Grafo sea más inteligente en futuros escaneos.
+
+C. REFINAMIENTO: REJECT VS. BAN
+   - Se reemplazó el botón simple de "REJECT" por un menú desplegable (Popover).
+   - Opción 1: "Descartar Instancia" (Soft Reject) -> Solo limpia la UI. Ideal para errores de lectura o "ahora no".
+   - Opción 2: "Banear Término" (Hard Reject) -> Agrega a la Blacklist (`ignoredTerms`). Ideal para basura o typos recurrentes.
+
+--------------------------------------------------------------------------------
+2. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+--------------------------------------------------------------------------------
+DESAFÍO: Ambigüedad ID vs Nombre en Fusión
+- Problema: La IA a veces sugiere `mergeWithId: "Juan"` (un nombre) en lugar de un UUID. Intentar actualizar el documento con ID "Juan" fallaba porque no existía.
+- Solución: Creé la función `resolveNodeId`.
+  1. Primero verifica si el string es un ID válido que existe.
+  2. Si no, ejecuta una query: `collection("entities").where("name", "==", string)`.
+  3. Usa el ID del resultado encontrado.
+
+DESAFÍO: UI de Selección Múltiple
+- Problema: Integrar checkboxes en tarjetas que ya eran botones clicables causaba conflictos de eventos (clicar el checkbox abría el detalle).
+- Solución: Implementé `e.stopPropagation()` en el manejador del checkbox para aislar la acción de selección de la acción de navegación.
+
+--------------------------------------------------------------------------------
+3. NOTAS ADICIONALES PARA EL COMANDANTE
+--------------------------------------------------------------------------------
+- La lógica de "Alias" en el Unificador es muy potente. Recomiendo que en el futuro la Búsqueda del Grafo también busque por alias, no solo por nombre principal.
+- He verificado visualmente los cambios usando scripts de automatización (Playwright) para asegurar que los modales y popovers aparecen correctamente.
+- El sistema ahora prioriza la seguridad de los datos: es mucho más difícil banear algo por accidente gracias al nuevo menú de rechazo.
+
+Misión Cumplida.
+Jules.
