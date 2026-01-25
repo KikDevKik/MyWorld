@@ -53,6 +53,12 @@ const getTypeIcon = (type: AnalysisAmbiguityType) => {
     }
 };
 
+// 🟢 HELPER: MASK PROTOCOL (Clean IDs from Name)
+const cleanName = (name: string) => {
+    if (!name) return "";
+    return name.replace(/\(id:.*\)/, "").trim();
+};
+
 const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored }) => {
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
@@ -339,7 +345,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start">
                                                         <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'} ${isStaged ? 'text-[#ddbf61]' : ''}`}>
-                                                            {candidate.name}
+                                                            {cleanName(candidate.name)}
                                                             {isStaged && <span className="ml-2 text-[9px] bg-[#ddbf61] text-black px-1.5 py-0.5 rounded font-black tracking-wider">FUSIONADO</span>}
                                                         </span>
                                                         <span className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ${getTypeColor(candidate.ambiguityType)}`}>
@@ -447,7 +453,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         <div className={`p-2 rounded-lg border ${getTypeColor(selectedCandidate.ambiguityType)}`}>
                                             {getTypeIcon(selectedCandidate.ambiguityType)}
                                         </div>
-                                        <h1 className="text-2xl font-bold text-white tracking-tight">{selectedCandidate.name}</h1>
+                                        <h1 className="text-2xl font-bold text-white tracking-tight">{cleanName(selectedCandidate.name)}</h1>
 
                                         {/* EDIT BUTTON */}
                                         <button
@@ -549,7 +555,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                                 <div className="flex-1">
                                                                     <div className="text-xs text-slate-500">Merge into Target:</div>
                                                                     <div className="text-sm font-bold text-orange-400">
-                                                                        {selectedCandidate.mergeWithId || 'Unknown'}
+                                                                        {selectedCandidate.mergeTargetName || cleanName(selectedCandidate.mergeWithId || 'Unknown')}
                                                                     </div>
                                                                 </div>
                                                             </div>

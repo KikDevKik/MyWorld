@@ -89,7 +89,7 @@ export const analyzeNexusBatch = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
-        timeoutSeconds: 300,
+        timeoutSeconds: 540,
         memory: "2GiB",
         secrets: [googleApiKey],
     },
