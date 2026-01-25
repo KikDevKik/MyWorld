@@ -1,48 +1,70 @@
-REPORTE DE DIAGNÓSTICO - ERROR "NO VALID CANON FILES FOUND"
-===========================================================
+REPORTE DE DIAGNÓSTICO ACTUALIZADO - ERROR "NO VALID CANON FILES FOUND"
+=======================================================================
 
 FECHA: 24 de Mayo, 2024
-ASUNTO: Fallo de Indexado Silencioso por Token Expirado
+ASUNTO: Discordancia entre Estructura de Índice y Filtro de Seguridad
 
-1. SÍNTOMA REPORTADO
---------------------
-Al intentar el análisis Nexus después de aplicar el parche anterior, el sistema arroja el error:
-`NexusScanner: No valid canon files found.`
+1. SÍNTOMA REVISADO
+-------------------
+El usuario confirma que el "Laboratorio de Ideas" (File Selector) SÍ puede ver y abrir los archivos. Esto descarta un problema de autenticación o de índice vacío.
+Sin embargo, `NexusScanner` sigue arrojando: `NexusScanner: No valid canon files found.`
 
-Esto indica que el "mapa de archivos" (fileTree) que Nexus consulta está vacío o corrupto, a pesar de que el usuario ha configurado las carpetas correctamente.
+2. ANÁLISIS DE CÓDIGO (NexusScanner.ts)
+---------------------------------------
+La función `extractValidFiles` es la responsable de filtrar qué archivos del índice son "dignos" de ser analizados.
 
-2. CAUSA RAÍZ IDENTIFICADA (HIPÓTESIS CONFIRMADA)
--------------------------------------------------
-El problema reside en el manejo de errores de autenticación durante la operación de guardado automático (`persist: true`).
+Su lógica actual es estricta:
+```typescript
+// Check if this folder is a Canon Root
+const isCanon = isParentCanon || canonPathIds.has(node.id);
+```
 
-A. La Secuencia del Fallo:
-   1. El usuario abre "Configuración del Proyecto". El token de Google Drive en `localStorage` puede estar caducado o ser inválido.
-   2. El usuario hace clic en "Guardar".
-   3. `ProjectSettingsModal` envía el token antiguo al backend (`getDriveFiles`).
-   4. El Backend (`functions/src/index.ts`) intenta leer las carpetas. Google Drive rechaza el token (401 Unauthorized).
-   5. **EL ERROR CRÍTICO:** El backend captura el error (`catch (err)`) para no tumbar el proceso, PERO como resultado, la lista de archivos obtenidos es `[]` (vacía).
-   6. El backend procede a "persistir" esta lista vacía en la base de datos (`TDB_Index`), SOBREESCRIBIENDO cualquier índice válido anterior con un mapa en blanco.
-   7. El Frontend recibe "éxito" (porque no hubo crash) y muestra "Índice actualizado".
-   8. Al abrir Nexus, este lee el mapa en blanco y dice "No encuentro archivos".
+Para que un archivo sea aceptado, debe cumplir una de dos condiciones:
+1. Su ID directo está en la lista de `canonPathIds`.
+2. O su *padre* ya fue marcado como `isCanon` en la recursión.
 
-3. SOLUCIÓN TÉCNICA REQUERIDA (PARA EL SIGUIENTE JULES)
--------------------------------------------------------
-Para arreglar esto definitivamente, se deben aplicar dos correcciones:
+3. CAUSA RAÍZ IDENTIFICADA (EL ESLABÓN PERDIDO)
+-----------------------------------------------
+El problema es una desconexión entre los IDs que el usuario guarda en Configuración (`canonPathIds`) y la estructura del árbol que devuelve Google Drive (`fileTree`).
 
-A. Backend (`functions/src/index.ts`):
-   - Modificar la lógica de `getDriveFiles`. Si se solicitan carpetas (`folderIds`) y TODAS fallan (el array resultante está vacío), la función DEBE lanzar un error (`throw new HttpsError`) en lugar de guardar un árbol vacío.
-   - Esto evitará que un fallo de auth borre la memoria del proyecto.
+Escenario de Fallo:
+- El usuario selecciona la carpeta "Lore" (ID: 123) como Canon.
+- En el índice (`fileTree`), "Lore" aparece como una carpeta raíz.
+- `extractValidFiles` revisa "Lore". `canonPathIds.has('123')` es TRUE. -> Entra.
+- PERO, si Google Drive (o el indexador) devuelve una estructura donde "Lore" está dentro de otra carpeta (ej. "Mi Unidad"), y esa carpeta padre NO está en Canon, la recursión empieza desde arriba.
+- Si el nodo raíz no hace match, `isCanon` es FALSE.
+- Al bajar a los hijos, si la lógica no "re-verifica" cada carpeta contra el Set de IDs (solo confía en `isParentCanon`), se rompe la cadena de confianza.
 
-B. Frontend (`src/components/ui/ProjectSettingsModal.tsx`):
-   - Implementar una validación de token antes de llamar a `getDriveFiles`.
-   - Si el token es sospechoso o antiguo, forzar una renovación (o pedir al usuario que re-autentique) antes de intentar la indexación.
+Revisión de `extractValidFiles`:
+```typescript
+const isCanon = isParentCanon || canonPathIds.has(node.id);
+```
+Esta línea *parece* correcta (re-verifica el nodo actual).
 
-4. SOLUCIÓN TEMPORAL INMEDIATA (WORKAROUND)
--------------------------------------------
-Para que funcione AHORA MISMO sin cambiar código:
-1. Recargar la página (F5) para forzar un login fresco.
-2. Abrir Configuración -> Guardar Configuración nuevamente.
-3. Esto enviará un token válido, el backend podrá leer los archivos, y el índice se reparará.
+Sin embargo, hay otra posibilidad: **IDs de Atajos (Shortcuts)**.
+Si las carpetas que el usuario ve son "Accesos Directos" en Drive, tienen un ID diferente al de la carpeta real.
+- Configuración guarda ID del Shortcut.
+- Indexador (getDriveFiles) resuelve el Shortcut y trae el ID real (Target ID).
+- Resultado: `canonPathIds.has(realID)` devuelve FALSE.
+
+O viceversa:
+- Configuración tiene el ID Real.
+- El árbol tiene el ID del Shortcut.
+
+4. SOLUCIÓN REQUERIDA (PARA JULES)
+----------------------------------
+Debemos relajar o "inteligenciar" la función `extractValidFiles` en `src/components/WorldEngineV2/utils/NexusScanner.ts`.
+
+A. Debugging (Paso 1):
+   - Agregar `console.log` dentro de `extractValidFiles` para ver qué IDs está procesando y contra qué IDs está comparando. Esto confirmará si hay un desajuste de IDs.
+
+B. Parche de Lógica (Paso 2):
+   - Si el problema son los IDs (MimeType `application/vnd.google-apps.shortcut`), necesitamos normalizarlos.
+   - Alternativamente, permitir que Nexus escanee *todo* lo que le pasamos si la lista filtrada resulta vacía, asumiendo que si el usuario ya cargó el árbol, es porque confía en él (Fallback Mode).
+
+5. CONCLUSIÓN
+-------------
+El sistema de seguridad de Nexus ("Solo escanear lo sagrado") está siendo demasiado celoso y bloqueando el acceso a carpetas válidas por una tecnicismo de IDs o estructura. La solución está en `NexusScanner.ts`, no en el Backend.
 
 Fin del Reporte.
 Jules.
