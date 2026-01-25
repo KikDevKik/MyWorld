@@ -13,7 +13,8 @@ import {
     Pencil,
     Save,
     Trash2,
-    Undo2
+    Undo2,
+    Loader2
 } from 'lucide-react';
 import { AnalysisCandidate, AnalysisAmbiguityType } from './types';
 
@@ -21,8 +22,8 @@ interface NexusTribunalModalProps {
     isOpen: boolean;
     onClose: () => void;
     candidates: AnalysisCandidate[];
-    onAction: (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => void;
-    onEditApprove: (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string }) => void;
+    onAction: (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => Promise<void>;
+    onEditApprove: (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string }) => Promise<void>;
     ignoredTerms?: string[];
     onRestoreIgnored?: (term: string) => void;
 }
@@ -55,6 +56,9 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     // STATE: EDIT MODE
     const [isEditing, setIsEditing] = useState(false);
     const [editValues, setEditValues] = useState({ name: '', type: 'concept', subtype: '' });
+
+    // STATE: PROCESSING
+    const [isProcessing, setIsProcessing] = useState(false);
 
     // DERIVED: FILTERED LIST
     const filteredCandidates = React.useMemo(() => {
@@ -103,7 +107,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         }
     }, [selectedCandidate]);
 
-    const handleAction = (action: 'APPROVE' | 'REJECT') => {
+    const handleAction = async (action: 'APPROVE' | 'REJECT') => {
         if (!selectedCandidate) return;
 
         // 🟢 HIGIENE DE DATOS: Strip Physics Coordinates
@@ -113,12 +117,22 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         const dirtyProps = ['fx', 'fy', 'vx', 'vy', 'index', 'x', 'y'];
         dirtyProps.forEach(prop => delete (cleanCandidate as any)[prop]);
 
-        onAction(action, cleanCandidate);
+        setIsProcessing(true);
+        try {
+            await onAction(action, cleanCandidate);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
-    const handleSaveEdit = () => {
+    const handleSaveEdit = async () => {
         if (!selectedCandidate) return;
-        onEditApprove(selectedCandidate, editValues);
+        setIsProcessing(true);
+        try {
+            await onEditApprove(selectedCandidate, editValues);
+        } finally {
+            setIsProcessing(false);
+        }
     };
 
     if (!isOpen) return null;
@@ -425,33 +439,45 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                     <>
                                         <button
                                             onClick={() => setIsEditing(false)}
-                                            className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-bold"
+                                            disabled={isProcessing}
+                                            className={`px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 transition-all text-sm font-bold ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:text-white'}`}
                                         >
                                             CANCELAR
                                         </button>
                                         <button
                                             onClick={handleSaveEdit}
-                                            className="px-8 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20 transition-all text-sm font-bold flex items-center gap-2 group"
+                                            disabled={isProcessing}
+                                            className={`px-8 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20 transition-all text-sm font-bold flex items-center gap-2 group ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
-                                            <Save size={16} />
-                                            GUARDAR Y APROBAR
+                                            {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                                            {isProcessing ? 'PROCESANDO...' : 'GUARDAR Y APROBAR'}
                                         </button>
                                     </>
                                 ) : (
                                     <>
                                         <button
                                             onClick={() => handleAction('REJECT')}
-                                            className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white transition-all text-sm font-bold"
+                                            disabled={isProcessing}
+                                            className={`px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 transition-all text-sm font-bold ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:text-white'}`}
                                         >
                                             REJECT
                                         </button>
-                                        <button
-                                            onClick={() => handleAction('APPROVE')}
-                                            className="px-8 py-2.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/20 transition-all text-sm font-bold flex items-center gap-2 group"
-                                        >
-                                            <Check size={16} className="group-hover:scale-110 transition-transform" />
-                                            APPROVE ACTION
-                                        </button>
+                                        {(() => {
+                                            const isMerge = selectedCandidate.suggestedAction === 'MERGE';
+                                            const baseColor = isMerge ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20' : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20';
+                                            const label = isProcessing ? 'PROCESSING...' : (isMerge ? 'MERGE' : 'APPROVE');
+
+                                            return (
+                                                <button
+                                                    onClick={() => handleAction('APPROVE')}
+                                                    disabled={isProcessing}
+                                                    className={`px-8 py-2.5 rounded-lg text-white shadow-lg transition-all text-sm font-bold flex items-center gap-2 group ${baseColor} ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                >
+                                                    {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} className="group-hover:scale-110 transition-transform" />}
+                                                    {label}
+                                                </button>
+                                            );
+                                        })()}
                                     </>
                                 )}
                             </div>
