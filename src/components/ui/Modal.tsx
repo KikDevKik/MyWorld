@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -18,6 +18,8 @@ export const Modal: React.FC<ModalProps> = ({
     footer,
     className = ''
 }) => {
+    const contentRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         const handleEscape = (e: KeyboardEvent) => {
             if (e.key === 'Escape') onClose();
@@ -26,6 +28,8 @@ export const Modal: React.FC<ModalProps> = ({
         if (isOpen) {
             document.addEventListener('keydown', handleEscape);
             document.body.style.overflow = 'hidden';
+            // 🎨 PALETTE: Auto-focus modal content for accessibility
+            contentRef.current?.focus();
         }
 
         return () => {
@@ -37,11 +41,17 @@ export const Modal: React.FC<ModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={onClose} // 🎨 PALETTE: Click outside to close
+        >
             <div
+                ref={contentRef}
+                tabIndex={-1} // 🎨 PALETTE: Make focusable
+                onClick={(e) => e.stopPropagation()} // 🎨 PALETTE: Prevent closing when clicking inside
                 className={`
                     w-full max-w-2xl bg-titanium-900 border border-titanium-500 rounded-lg shadow-2xl
-                    flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200
+                    flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200 focus:outline-none
                     ${className}
                 `}
                 role="dialog"
