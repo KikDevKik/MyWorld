@@ -1,0 +1,52 @@
+REPORTE DE AUDITORÍA: INTEGRIDAD DE LA FUNCIÓN "PROYECTO"
+FECHA: JUL-0B
+ASUNTO: VERIFICACIÓN DE USO DE CARPETAS CANON Y RECURSOS EN MÓDULOS
+
+Este documento detalla el análisis de código realizado para verificar si los distintos módulos de la aplicación (fuera de WorldEngine) están respetando la configuración central del proyecto (Carpetas Canon, Recursos, Cronología).
+
+1. LABORATORIO DE IDEAS (LaboratoryPanel.tsx)
+   [ESTADO: ✅ INTEGRADO]
+   - Utiliza: `useProjectConfig`.
+   - Mecanismo: Consume `fileTree` del contexto global.
+   - Lógica: Filtra los archivos basándose en la propiedad `category` ('canon' vs 'reference'). Esta propiedad es asignada originalmente por el indexador basándose en la configuración del proyecto.
+   - Veredicto: Respeta la separación de Canon y Referencia definida en Ajustes.
+
+2. FORJA DE ALMAS (ForgePanel.tsx)
+   [ESTADO: ✅ INTEGRADO (EXCELENTE)]
+   - Utiliza: `useProjectConfig`.
+   - Mecanismo: Lee explícitamente `config.characterVaultId`.
+   - Lógica: Si no hay una Bóveda de Personajes conectada, utiliza `config.canonPaths` y `config.resourcePaths` para ofrecer al usuario una lista de carpetas elegibles, agrupándolas visualmente por su tipo ("Canon Folders" vs "Resource Folders").
+   - Veredicto: Hace un uso activo y explícito de la clasificación del proyecto.
+
+3. CRONOGRAMA (TimelinePanel.tsx)
+   [ESTADO: ✅ INTEGRADO]
+   - Utiliza: `useProjectConfig`.
+   - Mecanismo: Lee `config.chronologyPath`.
+   - Lógica: Utiliza esta ruta específica para la función de "Auto-Restauración" (Time Anchor) desde el archivo maestro `timeline_master.json`.
+   - Veredicto: Cumple estrictamente con la ruta de cronología asignada.
+
+4. LA IMPRENTA (ExportPanel.tsx)
+   [ESTADO: ✅ INTEGRADO]
+   - Utiliza: `useProjectConfig`.
+   - Mecanismo: Consume `fileTree` y `config.projectName`.
+   - Lógica: Muestra la estructura completa de archivos para compilación. Usa el nombre del proyecto para los metadatos del PDF.
+   - Veredicto: Correcto. No filtra por Canon/Recursos intencionalmente para permitir exportar cualquier cosa, pero respeta la estructura del árbol indexado.
+
+5. DIRECTOR (DirectorPanel.tsx / useDirectorChat)
+   [ESTADO: ✅ INTEGRADO (VÍA BACKEND)]
+   - Utiliza: Backend (`functions/src/index.ts`).
+   - Mecanismo: El frontend pasa el contexto, pero la inteligencia real reside en la Cloud Function `chatWithGem`.
+   - Lógica: La función `chatWithGem` llama internamente a `_getProjectConfigInternal(userId)` para inyectar reglas de estilo y contexto del proyecto en el prompt del sistema.
+   - Veredicto: El cerebro del Director tiene acceso total a la configuración del proyecto.
+
+6. GUARDIÁN DEL CANON (CanonRadar.tsx / useGuardian)
+   [ESTADO: ✅ INTEGRADO (VÍA BACKEND)]
+   - Utiliza: Backend (`auditContent`).
+   - Mecanismo: Similar al Director, el frontend es una interfaz visual.
+   - Lógica: La función `auditContent` (en el servidor) recupera la configuración del proyecto para saber qué reglas ("Leyes del Mundo") aplicar al detectar conflictos.
+   - Veredicto: Integridad asegurada por el servidor.
+
+CONCLUSIÓN GENERAL:
+La "Función Proyecto" está actuando correctamente como la Fuente de Verdad Única (Single Source of Truth). No se detectaron módulos "ciegos" o desconectados. Todos los sistemas principales consumen la configuración ya sea directamente en el frontend (para UI/Navegación) o a través de las Cloud Functions (para Razonamiento IA).
+
+FIN DEL REPORTE.
