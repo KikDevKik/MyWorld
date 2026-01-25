@@ -61,10 +61,12 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
     }, [userId, isSecurityReady]);
 
     // 🟢 2. AUTO-SYNC LOGIC (MOUNT ONLY)
+    // DEPRECATED: Chronology Path removed. This logic is dormant until future "Auto-Extraction" feature.
+    /*
     useEffect(() => {
         const checkAndRestore = async () => {
             // Only run if loaded, empty, and config exists
-            if (!loading && events.length === 0 && config?.chronologyPath && accessToken && !isRestoring) {
+            if (!loading && events.length === 0 && accessToken && !isRestoring) {
                 console.log("⏳ [TIME ANCHOR] Timeline Empty. Attempting restore from Master...");
                 setIsRestoring(true);
 
@@ -96,6 +98,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
 
         return () => clearTimeout(timer);
     }, [loading, events.length, config, accessToken]); // careful with deps
+    */
 
     const handleAnalyze = async () => {
         if (!currentFileId) {

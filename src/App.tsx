@@ -246,12 +246,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const allPaths = [...(config.canonPaths || []), ...(config.resourcePaths || [])];
         const folderIds = allPaths.map(p => p.id);
 
-        if (folderIds.length === 0 && config.folderId) {
-            folderIds.push(config.folderId);
-        }
+        // 🟢 STRICT INDEXING: NO FALLBACK
+        // If folderIds is empty, we send an empty list. The backend will interpret this as "Clear Index".
+        // if (folderIds.length === 0 && config.folderId) { folderIds.push(config.folderId); } // REMOVED
 
         try {
-            console.log("Iniciando indexado incremental...", folderIds);
+            console.log("Iniciando indexado estricto...", folderIds);
 
             const promise = indexTDB({
                 folderIds: folderIds,

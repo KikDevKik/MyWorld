@@ -65,7 +65,7 @@ interface ProjectConfig {
   canonPaths: ProjectPath[];
   primaryCanonPathId?: string | null;
   resourcePaths: ProjectPath[];
-  chronologyPath: ProjectPath | null;
+  chronologyPath?: ProjectPath | null; // ⚠️ DEPRECATED/REMOVED in UI
   activeBookContext: string;
   folderId?: string;
   lastIndexed?: string;
@@ -103,7 +103,7 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
     canonPaths: [],
     primaryCanonPathId: null,
     resourcePaths: [],
-    chronologyPath: null,
+    // chronologyPath: null, // Removed
     activeBookContext: "Just Megu",
     lastIndexed: undefined
   };
@@ -910,10 +910,6 @@ export const getDriveFiles = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
     }
 
-    if (!folderId && (!folderIds || folderIds.length === 0)) {
-      throw new HttpsError("invalid-argument", "Falta el ID de la carpeta (folderId o folderIds).");
-    }
-
     if (!accessToken) {
       throw new HttpsError("unauthenticated", "Falta el Token de Acceso de Google.");
     }
@@ -928,57 +924,45 @@ export const getDriveFiles = onCall(
 
       let fileTree: DriveFile[] = [];
 
-      // 🟢 MULTI-ROOT SUPPORT
-      if (folderIds && Array.isArray(folderIds) && folderIds.length > 0) {
-         logger.info(`🚀 Iniciando escaneo MULTI-ROOT para ${folderIds.length} carpetas.`);
+      // 🟢 STRICT MULTI-ROOT SUPPORT (Logic Updated: No Fallback to Root)
+      // If folderIds is empty, we return empty tree (clearing the view).
+      if (folderIds && Array.isArray(folderIds)) {
+         if (folderIds.length > 0) {
+             logger.info(`🚀 Iniciando escaneo MULTI-ROOT para ${folderIds.length} carpetas.`);
 
-         for (const fid of folderIds) {
-             let cleanId = fid;
-             if (cleanId.includes("drive.google.com")) {
-                 const match = cleanId.match(/folders\/([a-zA-Z0-9-_]+)/);
-                 if (match && match[1]) cleanId = match[1];
+             for (const fid of folderIds) {
+                 let cleanId = fid;
+                 if (cleanId.includes("drive.google.com")) {
+                     const match = cleanId.match(/folders\/([a-zA-Z0-9-_]+)/);
+                     if (match && match[1]) cleanId = match[1];
+                 }
+
+                 let category: 'canon' | 'reference' = 'canon';
+                 if (config.resourcePaths && config.resourcePaths.some(p => p.id === cleanId)) {
+                     category = 'reference';
+                 }
+
+                 try {
+                    // Get Root Name for correct Path Construction
+                    const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
+                    const rootName = rootMeta.data.name || 'Root';
+
+                    // Initial Path is the Root Name
+                    const tree = await fetchFolderContents(drive, cleanId, config, recursive, category, rootName);
+                    fileTree = [...fileTree, ...tree];
+                 } catch (err) {
+                     logger.error(`⚠️ Error escaneando root ${cleanId}:`, err);
+                 }
              }
-
-             let category: 'canon' | 'reference' = 'canon';
-             if (config.resourcePaths && config.resourcePaths.some(p => p.id === cleanId)) {
-                 category = 'reference';
-             }
-
-             try {
-                // Get Root Name for correct Path Construction
-                const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
-                const rootName = rootMeta.data.name || 'Root';
-
-                // Initial Path is the Root Name
-                const tree = await fetchFolderContents(drive, cleanId, config, recursive, category, rootName);
-                fileTree = [...fileTree, ...tree];
-             } catch (err) {
-                 logger.error(`⚠️ Error escaneando root ${cleanId}:`, err);
-             }
+         } else {
+             logger.info("ℹ️ Lista de carpetas vacía. Limpiando árbol de archivos.");
+             fileTree = [];
          }
-
       } else {
-         // 🟢 LEGACY SINGLE ROOT LOGIC
-         let cleanFolderId = folderId;
-         if (cleanFolderId && cleanFolderId.includes("drive.google.com")) {
-           const match = cleanFolderId.match(/folders\/([a-zA-Z0-9-_]+)/);
-           if (match && match[1]) {
-             logger.info(`🧹 URL detectada. ID extraído: ${match[1]}`);
-             cleanFolderId = match[1];
-           }
-         }
-
-         logger.info(`🚀 Iniciando escaneo SINGLE-ROOT para ID: ${cleanFolderId}`);
-
-         try {
-           const rootMeta = await drive.files.get({ fileId: cleanFolderId, fields: 'name' });
-           const rootName = rootMeta.data.name || 'Root';
-
-           fileTree = await fetchFolderContents(drive, cleanFolderId, config, recursive, 'canon', rootName);
-         } catch (pingError: any) {
-           logger.error(`⛔ ACCESS DENIED to folder ${cleanFolderId}:`, pingError);
-           throw new HttpsError('permission-denied', `ACCESS DENIED to [${cleanFolderId}].`);
-         }
+         // Legacy Fallback (Only if folderIds was NOT passed at all)
+         // But we assume frontend always passes it now.
+         logger.warn("⚠️ Legacy call to getDriveFiles without folderIds. Returning empty.");
+         fileTree = [];
       }
 
       // 🟢 NEW: OPTIONAL PERSISTENCE (Lightweight Index Refresh)
@@ -1334,7 +1318,7 @@ export const getProjectConfig = onCall(
         canonPaths: [],
         primaryCanonPathId: null,
         resourcePaths: [],
-        chronologyPath: null,
+        // chronologyPath: null, // Removed
         activeBookContext: "Just Megu"
       };
 
@@ -1574,39 +1558,39 @@ export const indexTDB = onCall(
 
       let fileTree: DriveFile[] = [];
 
-      // 🟢 MULTI-ROOT SCANNING
-      if (folderIds && Array.isArray(folderIds) && folderIds.length > 0) {
-         logger.info(`🚀 Indexando MULTI-ROOT (${folderIds.length} carpetas)...`);
-         for (const fid of folderIds) {
-             let cleanId = fid;
-             if (cleanId.includes("drive.google.com")) {
-                 const match = cleanId.match(/folders\/([a-zA-Z0-9-_]+)/);
-                 if (match && match[1]) cleanId = match[1];
-             }
+      // 🟢 STRICT MULTI-ROOT SCANNING (Logic Updated: No Fallback to Root)
+      if (folderIds && Array.isArray(folderIds)) {
+         if (folderIds.length > 0) {
+             logger.info(`🚀 Indexando MULTI-ROOT (${folderIds.length} carpetas)...`);
+             for (const fid of folderIds) {
+                 let cleanId = fid;
+                 if (cleanId.includes("drive.google.com")) {
+                     const match = cleanId.match(/folders\/([a-zA-Z0-9-_]+)/);
+                     if (match && match[1]) cleanId = match[1];
+                 }
 
-             let category: 'canon' | 'reference' = 'canon';
-             if (config.resourcePaths && config.resourcePaths.some(p => p.id === cleanId)) {
-                 category = 'reference';
-             }
+                 let category: 'canon' | 'reference' = 'canon';
+                 if (config.resourcePaths && config.resourcePaths.some(p => p.id === cleanId)) {
+                     category = 'reference';
+                 }
 
-             try {
-                // Get Root Name for correct Path Construction
-                const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
-                const rootName = rootMeta.data.name || 'Root';
+                 try {
+                    // Get Root Name for correct Path Construction
+                    const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
+                    const rootName = rootMeta.data.name || 'Root';
 
-                const tree = await fetchFolderContents(drive, cleanId, config, true, category, rootName);
-                fileTree = [...fileTree, ...tree];
-             } catch (err) {
-                logger.error(`⚠️ Error indexando root ${cleanId}:`, err);
+                    const tree = await fetchFolderContents(drive, cleanId, config, true, category, rootName);
+                    fileTree = [...fileTree, ...tree];
+                 } catch (err) {
+                    logger.error(`⚠️ Error indexando root ${cleanId}:`, err);
+                 }
              }
+         } else {
+             logger.warn("☢️ Lista de carpetas vacía. Ejecutando limpieza total de índice.");
+             fileTree = []; // Will trigger ghost pruning of EVERYTHING
          }
-      } else if (cleanFolderId) {
-         logger.info(`🚀 Indexando SINGLE-ROOT: ${cleanFolderId}`);
-         const rootMeta = await drive.files.get({ fileId: cleanFolderId, fields: 'name' });
-         const rootName = rootMeta.data.name || 'Root';
-         fileTree = await fetchFolderContents(drive, cleanFolderId, config, true, 'canon', rootName);
       } else {
-         throw new HttpsError("invalid-argument", "No se proporcionaron carpetas para indexar.");
+         throw new HttpsError("invalid-argument", "No se proporcionaron carpetas para indexar (folderIds required).");
       }
 
       // 🟢 C. SAVE FILE TREE STRUCTURE (SNAPSHOT)

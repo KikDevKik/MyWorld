@@ -60,7 +60,7 @@ export interface ProjectConfig {
   canonPaths: ProjectPath[];
   primaryCanonPathId?: string | null; // 👈 SINGLE SOURCE OF TRUTH
   resourcePaths: ProjectPath[];
-  chronologyPath: ProjectPath | null;
+  // chronologyPath: ProjectPath | null; // ❌ REMOVED (Legacy)
   activeBookContext: string;
   folderId?: string;
   characterVaultId?: string | null;
