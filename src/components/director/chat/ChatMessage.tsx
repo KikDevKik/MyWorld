@@ -174,9 +174,9 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     ? 'bg-red-950/30 border border-red-900/50 text-red-200'
                     : 'bg-titanium-900/50 border border-titanium-800 text-titanium-200'}
             `}>
+                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
-                    className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words"
                     components={{
                         // Optional: Custom renderer overrides if needed for specific aesthetic
                         code({node, inline, className, children, ...props}: any) {
@@ -188,6 +188,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 >
                     {message.text}
                 </ReactMarkdown>
+                </div>
             </div>
         </div>
     );
