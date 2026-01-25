@@ -6,7 +6,7 @@ import {
     Loader2,
     Globe
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove, query, where, limit } from 'firebase/firestore';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
@@ -309,8 +309,36 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
+    // 🟢 HELPER: Resolve ID or Name to Real ID
+    const resolveNodeId = async (nameOrId: string, projectId: string, entitiesPath: string): Promise<string | null> => {
+        const db = getFirestore();
+
+        // 1. Check if valid ID
+        try {
+            const docRef = doc(db, entitiesPath, nameOrId);
+            const docSnap = await getDoc(docRef);
+            if (docSnap.exists()) return nameOrId;
+        } catch (e) {
+            // Not a valid ID format or other error
+        }
+
+        // 2. Query by Name
+        try {
+            const q = query(collection(db, entitiesPath), where("name", "==", nameOrId), limit(1));
+            const querySnap = await getDocs(q);
+            if (!querySnap.empty) {
+                return querySnap.docs[0].id;
+            }
+        } catch (e) {
+            console.error("Error resolving node ID:", e);
+        }
+
+        return null;
+    };
+
     // 🟢 TRIBUNAL ACTIONS (Phase 2.4/2.5)
-    const handleTribunalAction = async (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => {
+    // Updated signature to handle specific REJECT variants
+    const handleTribunalAction = async (action: 'APPROVE' | 'REJECT_SOFT' | 'REJECT_HARD', candidate: AnalysisCandidate) => {
         const db = getFirestore();
         if (!user || !config?.folderId) {
             toast.error("Error de sesión.");
@@ -319,8 +347,13 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         const projectId = config.folderId;
         const projectRoot = `users/${user.uid}/projects/${projectId}`;
 
-        // 1. REJECT: Protocolo de Rencor (Blacklist)
-        if (action === 'REJECT') {
+        // 1. REJECT: Protocolo de Rencor (Blacklist) or Soft Skip
+        if (action === 'REJECT_SOFT') {
+             setCandidates(prev => prev.filter(c => c.id !== candidate.id));
+             return;
+        }
+
+        if (action === 'REJECT_HARD') {
             try {
                 const settingsRef = doc(db, `${projectRoot}/settings/general`);
                 // Ensure document exists or set it
@@ -351,11 +384,19 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          return;
                      }
 
-                     const targetRef = doc(db, collectionPath, candidate.mergeWithId);
+                     // 🟢 FIX CRITICAL: Resolve Real ID
+                     const realTargetId = await resolveNodeId(candidate.mergeWithId, projectId, collectionPath);
+
+                     if (!realTargetId) {
+                         toast.error(`Error: No se encontró el nodo maestro '${candidate.mergeWithId}'`);
+                         return;
+                     }
+
+                     const targetRef = doc(db, collectionPath, realTargetId);
                      await updateDoc(targetRef, {
                          aliases: arrayUnion(candidate.name)
                      });
-                     toast.success(`Fusión Completada: ${candidate.name} -> ID: ${candidate.mergeWithId.substring(0,6)}...`);
+                     toast.success(`Fusión Completada: ${candidate.name} -> ID: ${realTargetId.substring(0,6)}...`);
                 }
                 // CASE B: CREATE / CONVERT
                 else {
@@ -397,6 +438,63 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 console.error("Tribunal Action Failed:", e);
                 toast.error(`Error: ${e.message}`);
             }
+        }
+    };
+
+    // 🟢 TRIBUNAL BATCH MERGE ("The Unifier")
+    const handleBatchMerge = async (winner: AnalysisCandidate, losers: AnalysisCandidate[]) => {
+        const db = getFirestore();
+        if (!user || !config?.folderId) return;
+        const projectId = config.folderId;
+        const collectionPath = `users/${user.uid}/projects/${projectId}/entities`;
+
+        try {
+            // 1. Resolve or Create Winner
+            let winnerId = await resolveNodeId(winner.name, projectId, collectionPath);
+
+            // If winner doesn't exist, create it!
+            if (!winnerId) {
+                 const rawCandidate = winner as any;
+                 const typeRaw = rawCandidate.type || 'concept';
+                 const type = typeRaw.toLowerCase();
+                 winnerId = generateId(projectId, winner.name, type);
+
+                 const newNode: GraphNode = {
+                     id: winnerId,
+                     name: winner.name,
+                     type: type as EntityType,
+                     projectId: projectId,
+                     description: winner.reasoning || "Unified via Nexus Tribunal",
+                     subtype: (winner as any).subtype,
+                     relations: [],
+                     foundInFiles: winner.foundInFiles?.map(f => ({
+                         fileId: 'nexus-scan',
+                         fileName: f.fileName,
+                         lastSeen: new Date().toISOString()
+                     })) || [],
+                     meta: {},
+                 };
+                 await setDoc(doc(db, collectionPath, winnerId), newNode);
+                 toast.success(`Maestro Creado: ${winner.name}`);
+            }
+
+            // 2. Add Losers as Aliases
+            const aliasesToAdd = losers.map(l => l.name);
+            const winnerRef = doc(db, collectionPath, winnerId);
+
+            await updateDoc(winnerRef, {
+                aliases: arrayUnion(...aliasesToAdd)
+            });
+
+            // 3. Cleanup UI
+            const processedIds = new Set([winner.id, ...losers.map(l => l.id)]);
+            setCandidates(prev => prev.filter(c => !processedIds.has(c.id)));
+
+            toast.success(`Fusión Masiva: ${losers.length + 1} nodos unificados en ${winner.name}`);
+
+        } catch (e: any) {
+            console.error("Batch Merge Failed", e);
+            toast.error("Error en fusión masiva: " + e.message);
         }
     };
 
@@ -592,8 +690,9 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                         candidates={candidates}
                         onAction={handleTribunalAction}
                         onEditApprove={handleTribunalEdit}
-                        ignoredTerms={ignoredTerms} // 🟢 PASSING
-                        onRestoreIgnored={handleRestoreIgnored} // 🟢 PASSING
+                        onBatchMerge={handleBatchMerge} // 🟢 NEW PROP
+                        ignoredTerms={ignoredTerms}
+                        onRestoreIgnored={handleRestoreIgnored}
                      />
                  )}
              </AnimatePresence>

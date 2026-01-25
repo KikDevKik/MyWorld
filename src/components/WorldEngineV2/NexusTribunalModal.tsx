@@ -14,7 +14,9 @@ import {
     Save,
     Trash2,
     Undo2,
-    Loader2
+    Loader2,
+    Users,
+    GitMerge
 } from 'lucide-react';
 import { AnalysisCandidate, AnalysisAmbiguityType } from './types';
 
@@ -22,8 +24,9 @@ interface NexusTribunalModalProps {
     isOpen: boolean;
     onClose: () => void;
     candidates: AnalysisCandidate[];
-    onAction: (action: 'APPROVE' | 'REJECT', candidate: AnalysisCandidate) => Promise<void>;
+    onAction: (action: 'APPROVE' | 'REJECT_SOFT' | 'REJECT_HARD', candidate: AnalysisCandidate) => Promise<void>;
     onEditApprove: (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string }) => Promise<void>;
+    onBatchMerge: (winner: AnalysisCandidate, losers: AnalysisCandidate[]) => Promise<void>;
     ignoredTerms?: string[];
     onRestoreIgnored?: (term: string) => void;
 }
@@ -49,13 +52,24 @@ const getTypeIcon = (type: AnalysisAmbiguityType) => {
     }
 };
 
-const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, ignoredTerms = [], onRestoreIgnored }) => {
+const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored }) => {
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
 
     // STATE: EDIT MODE
     const [isEditing, setIsEditing] = useState(false);
     const [editValues, setEditValues] = useState({ name: '', type: 'concept', subtype: '' });
+
+    // STATE: SELECTION
+    const [selectedId, setSelectedId] = useState<string | null>(candidates.length > 0 ? candidates[0].id : null);
+    const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
+    // STATE: REJECT POPOVER
+    const [showRejectPopover, setShowRejectPopover] = useState(false);
+
+    // STATE: BATCH MERGE MODAL
+    const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
+    const [batchMasterId, setBatchMasterId] = useState<string | null>(null);
 
     // STATE: PROCESSING
     const [isProcessing, setIsProcessing] = useState(false);
@@ -71,25 +85,29 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         });
     }, [candidates, filterMode]);
 
-    // Auto-select first candidate on mount if not empty
-    const [selectedId, setSelectedId] = useState<string | null>(candidates.length > 0 ? candidates[0].id : null);
-
     // Derived state
     const selectedCandidate = candidates.find(c => c.id === selectedId);
 
-    // Sync selection when candidates list changes (e.g., item removed)
+    // Sync selection when candidates list changes
     React.useEffect(() => {
-        if (filterMode === 'TRASH') return; // Selection logic irrelevant in Trash mode
+        if (filterMode === 'TRASH') return;
 
-        // If list is empty, clear selection
+        // Cleanup checked IDs that no longer exist
+        const currentIds = new Set(candidates.map(c => c.id));
+        setCheckedIds(prev => {
+            const next = new Set(prev);
+            next.forEach(id => {
+                if (!currentIds.has(id)) next.delete(id);
+            });
+            return next;
+        });
+
         if (filteredCandidates.length === 0) {
             setSelectedId(null);
             return;
         }
 
-        // If current selection is gone (or filtered out), select the first one of the current view
         const isSelectedVisible = selectedId && filteredCandidates.find(c => c.id === selectedId);
-
         if (!isSelectedVisible) {
             setSelectedId(filteredCandidates[0].id);
         }
@@ -98,6 +116,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     // Reset Edit Mode when changing selection
     React.useEffect(() => {
         setIsEditing(false);
+        setShowRejectPopover(false);
         if (selectedCandidate) {
             setEditValues({
                 name: selectedCandidate.name,
@@ -107,17 +126,26 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         }
     }, [selectedCandidate]);
 
-    const handleAction = async (action: 'APPROVE' | 'REJECT') => {
-        if (!selectedCandidate) return;
+    const toggleCheck = (e: React.MouseEvent, id: string) => {
+        e.stopPropagation();
+        setCheckedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id);
+            else next.add(id);
+            return next;
+        });
+    };
 
-        // 🟢 HIGIENE DE DATOS: Strip Physics Coordinates
-        // The backend might return residual coordinates. We must strip them
-        // to ensure D3 calculates fresh positions.
+    const handleAction = async (action: 'APPROVE' | 'REJECT_SOFT' | 'REJECT_HARD') => {
+        if (!selectedCandidate) return;
+        setIsProcessing(true);
+        setShowRejectPopover(false);
+
+        // 🟢 Clean Data
         const cleanCandidate = { ...selectedCandidate };
         const dirtyProps = ['fx', 'fy', 'vx', 'vy', 'index', 'x', 'y'];
         dirtyProps.forEach(prop => delete (cleanCandidate as any)[prop]);
 
-        setIsProcessing(true);
         try {
             await onAction(action, cleanCandidate);
         } finally {
@@ -135,6 +163,32 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         }
     };
 
+    const handleBatchMergeInit = () => {
+        if (checkedIds.size < 2) return;
+        // Default master: First selected
+        const first = Array.from(checkedIds)[0];
+        setBatchMasterId(first);
+        setIsBatchModalOpen(true);
+    };
+
+    const confirmBatchMerge = async () => {
+        if (!batchMasterId || checkedIds.size < 2) return;
+
+        const winner = candidates.find(c => c.id === batchMasterId);
+        const losers = candidates.filter(c => checkedIds.has(c.id) && c.id !== batchMasterId);
+
+        if (!winner) return;
+
+        setIsProcessing(true);
+        try {
+            await onBatchMerge(winner, losers);
+            setIsBatchModalOpen(false);
+            setCheckedIds(new Set());
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     if (!isOpen) return null;
 
     return (
@@ -146,7 +200,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                 className="w-[90%] max-w-6xl h-[80vh] bg-[#0a0a0b] border border-slate-800 rounded-2xl shadow-2xl flex overflow-hidden ring-1 ring-white/10"
             >
                 {/* 🟢 LEFT PANEL: LIST (30%) */}
-                <div className="w-[30%] border-r border-slate-800 bg-[#0f0f10] flex flex-col">
+                <div className="w-[30%] border-r border-slate-800 bg-[#0f0f10] flex flex-col relative">
                     {/* Header */}
                     <div className="h-16 border-b border-slate-800 flex items-center px-6 gap-3 bg-gradient-to-r from-slate-900 to-transparent">
                         <ShieldAlert className="text-cyan-500" size={20} />
@@ -185,7 +239,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                     </div>
 
                     {/* List */}
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                    <div className="flex-1 overflow-y-auto p-2 space-y-1 mb-14">
                         {filterMode === 'TRASH' ? (
                             // TRASH LIST
                             ignoredTerms.length === 0 ? (
@@ -219,6 +273,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                             ) : (
                                 filteredCandidates.map(candidate => {
                                     const isSelected = selectedId === candidate.id;
+                                    const isChecked = checkedIds.has(candidate.id);
 
                                     return (
                                         <button
@@ -233,26 +288,61 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                             {/* Selection Indicator */}
                                             {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />}
 
-                                            <div className="flex justify-between items-start mb-1">
-                                                <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
-                                                    {candidate.name}
-                                                </span>
-                                                <span className={`text-[10px] px-1.5 py-0.5 rounded border ${getTypeColor(candidate.ambiguityType)}`}>
-                                                    {candidate.category}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-                                                {getTypeIcon(candidate.ambiguityType)}
-                                                <span>{candidate.suggestedAction}</span>
-                                                <span className="ml-auto text-slate-600">{candidate.confidence}% CF</span>
+                                            <div className="flex justify-between items-start mb-1 gap-2">
+                                                {/* Checkbox for Batch */}
+                                                <div
+                                                    onClick={(e) => toggleCheck(e, candidate.id)}
+                                                    className={`mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                                                        isChecked
+                                                            ? 'bg-cyan-500 border-cyan-500 text-black'
+                                                            : 'border-slate-600 hover:border-slate-400'
+                                                    }`}
+                                                >
+                                                    {isChecked && <Check size={10} strokeWidth={4} />}
+                                                </div>
+
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex justify-between items-start">
+                                                        <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                                                            {candidate.name}
+                                                        </span>
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ${getTypeColor(candidate.ambiguityType)}`}>
+                                                            {candidate.category}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono mt-1">
+                                                        {getTypeIcon(candidate.ambiguityType)}
+                                                        <span>{candidate.suggestedAction}</span>
+                                                        <span className="ml-auto text-slate-600">{candidate.confidence}% CF</span>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </button>
                                     );
                                 })
                             )
                         )}
-
                     </div>
+
+                    {/* 🟢 FLOAT: BATCH ACTION */}
+                    <AnimatePresence>
+                        {checkedIds.size > 1 && (
+                            <motion.div
+                                initial={{ y: 50, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                exit={{ y: 50, opacity: 0 }}
+                                className="absolute bottom-4 left-4 right-4 z-20"
+                            >
+                                <button
+                                    onClick={handleBatchMergeInit}
+                                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-xl shadow-indigo-900/30 font-bold text-sm flex items-center justify-center gap-2"
+                                >
+                                    <GitMerge size={16} />
+                                    FUSIONAR SELECCIONADOS ({checkedIds.size})
+                                </button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
                 </div>
 
                 {/* 🟢 RIGHT PANEL: DETAILS (70%) */}
@@ -434,7 +524,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                             </div>
 
                             {/* Footer Actions */}
-                            <div className="h-20 border-t border-slate-800/50 flex items-center justify-end px-8 gap-4 bg-[#0f0f10]">
+                            <div className="h-20 border-t border-slate-800/50 flex items-center justify-end px-8 gap-4 bg-[#0f0f10] relative">
                                 {isEditing ? (
                                     <>
                                         <button
@@ -455,13 +545,44 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                     </>
                                 ) : (
                                     <>
-                                        <button
-                                            onClick={() => handleAction('REJECT')}
-                                            disabled={isProcessing}
-                                            className={`px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 transition-all text-sm font-bold ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:text-white'}`}
-                                        >
-                                            REJECT
-                                        </button>
+                                        {/* REJECT WITH POPOVER */}
+                                        <div className="relative">
+                                            <AnimatePresence>
+                                                {showRejectPopover && (
+                                                    <motion.div
+                                                        initial={{ opacity: 0, y: 10 }}
+                                                        animate={{ opacity: 1, y: 0 }}
+                                                        exit={{ opacity: 0, y: 10 }}
+                                                        className="absolute bottom-full right-0 mb-3 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl p-2 flex flex-col gap-1 overflow-hidden z-50"
+                                                    >
+                                                        <button
+                                                            onClick={() => handleAction('REJECT_SOFT')}
+                                                            className="text-left px-3 py-2 rounded hover:bg-slate-800 text-slate-300 text-sm font-bold"
+                                                        >
+                                                            Descartar Instancia
+                                                            <div className="text-[10px] font-normal text-slate-500">Solo quitar de la lista (Skip)</div>
+                                                        </button>
+                                                        <div className="h-[1px] bg-slate-800 my-1" />
+                                                        <button
+                                                            onClick={() => handleAction('REJECT_HARD')}
+                                                            className="text-left px-3 py-2 rounded hover:bg-red-950/30 text-red-400 hover:text-red-300 text-sm font-bold flex items-center gap-2"
+                                                        >
+                                                            <ShieldAlert size={14} />
+                                                            Banear Término
+                                                            <div className="text-[10px] font-normal text-red-500/50 absolute bottom-2 right-2">BLACKLIST</div>
+                                                        </button>
+                                                    </motion.div>
+                                                )}
+                                            </AnimatePresence>
+                                            <button
+                                                onClick={() => setShowRejectPopover(!showRejectPopover)}
+                                                disabled={isProcessing}
+                                                className={`px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 transition-all text-sm font-bold ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:text-white'} ${showRejectPopover ? 'bg-slate-800 text-white' : ''}`}
+                                            >
+                                                REJECT...
+                                            </button>
+                                        </div>
+
                                         {(() => {
                                             const isMerge = selectedCandidate.suggestedAction === 'MERGE';
                                             const baseColor = isMerge ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20' : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20';
@@ -492,6 +613,74 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         </div>
                     )}
                 </div>
+
+                {/* 🟢 BATCH MERGE MODAL (INTERNAL) */}
+                <AnimatePresence>
+                    {isBatchModalOpen && (
+                        <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                className="w-[500px] bg-[#0f0f10] border border-slate-700 rounded-xl p-6 shadow-2xl"
+                            >
+                                <div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4">
+                                    <div className="p-2 bg-indigo-900/30 rounded-lg text-indigo-400">
+                                        <GitMerge size={24} />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-lg font-bold text-white">The Unifier Protocol</h2>
+                                        <p className="text-xs text-slate-400">Selecciona la versión maestra para la fusión.</p>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2 mb-6 max-h-[300px] overflow-y-auto">
+                                    {candidates
+                                        .filter(c => checkedIds.has(c.id))
+                                        .map(candidate => (
+                                            <div
+                                                key={candidate.id}
+                                                onClick={() => setBatchMasterId(candidate.id)}
+                                                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                                                    batchMasterId === candidate.id
+                                                        ? 'bg-indigo-600/20 border-indigo-500'
+                                                        : 'bg-slate-900 border-slate-800 hover:border-slate-600'
+                                                }`}
+                                            >
+                                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                                    batchMasterId === candidate.id ? 'border-indigo-400 bg-indigo-400' : 'border-slate-600'
+                                                }`}>
+                                                    {batchMasterId === candidate.id && <Check size={12} className="text-black" />}
+                                                </div>
+                                                <span className={`font-bold ${batchMasterId === candidate.id ? 'text-white' : 'text-slate-400'}`}>
+                                                    {candidate.name}
+                                                </span>
+                                            </div>
+                                        ))
+                                    }
+                                </div>
+
+                                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                                    <button
+                                        onClick={() => setIsBatchModalOpen(false)}
+                                        className="px-4 py-2 rounded-lg text-slate-400 hover:text-white font-bold text-sm"
+                                    >
+                                        CANCELAR
+                                    </button>
+                                    <button
+                                        onClick={confirmBatchMerge}
+                                        disabled={!batchMasterId || isProcessing}
+                                        className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg flex items-center gap-2"
+                                    >
+                                        {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}
+                                        CONFIRMAR FUSIÓN
+                                    </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
             </motion.div>
         </div>
     );
