@@ -14,6 +14,7 @@ import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { GraphNode, EntityType } from '../../types/graph';
 import CrystallizeModal from '../ui/CrystallizeModal';
 import { VisualNode, AnalysisCandidate } from './types';
+import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
 import NexusTribunalModal from './NexusTribunalModal';
 import { NodeDetailsSidebar } from './NodeDetailsSidebar';
@@ -56,6 +57,7 @@ interface PendingCrystallization {
 const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, activeGemId?: string }> = ({ isOpen = true }) => {
     // REFS
     const graphRef = useRef<GraphSimulationHandle>(null);
+    const linksOverlayRef = useRef<LinksOverlayHandle>(null);
 
     // CONTEXT
     const { config, user, fileTree } = useProjectConfig();
@@ -73,6 +75,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     const [selectedNode, setSelectedNode] = useState<VisualNode | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
+    const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
     const [crystallizeModal, setCrystallizeModal] = useState<{ isOpen: boolean, node: VisualNode | null }>({ isOpen: false, node: null });
     const [isCrystallizing, setIsCrystallizing] = useState(false);
 
@@ -472,7 +475,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      const mappedRelations = (candidate.relations || []).map(r => ({
                          targetId: generateId(projectId, r.target, 'concept'), // Predict ID (Deterministic)
                          targetName: r.target,
-                         targetType: 'concept' as EntityType, // We assume concept if unknown
+                         targetType: 'concept', // We assume concept if unknown
                          relation: r.type as any,
                          context: r.context,
                          sourceFileId: 'nexus-scan'
@@ -662,7 +665,10 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 limitToBounds={false}
                 wheel={{ step: 0.1 }}
                 panning={{ activationKeys: ["Shift"], excluded: ["nodrag"] }}
+                onPanning={() => linksOverlayRef.current?.forceUpdate()}
+                onZoom={() => linksOverlayRef.current?.forceUpdate()}
                 onTransformed={(ref) => {
+                    linksOverlayRef.current?.forceUpdate();
                     const s = ref.state.scale;
                     if (s < 0.6) setLodTier('MACRO');
                     else if (s > 2.0) setLodTier('MICRO');
@@ -671,6 +677,16 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
              >
                 {({ zoomIn, zoomOut }) => (
                     <>
+                        {/* 🟢 LINKS LAYER (OUTSIDE TRANSFORM) */}
+                        <LinksOverlayV2
+                            ref={linksOverlayRef}
+                            nodes={unifiedNodes}
+                            lodTier={lodTier}
+                            hoveredNodeId={hoveredNodeId}
+                            hoveredLineId={hoveredLineId}
+                            setHoveredLineId={setHoveredLineId}
+                        />
+
                         {/* 🟢 NODES LAYER (INSIDE TRANSFORM) */}
                         <TransformComponent
                             wrapperClass="!w-full !h-full"
@@ -685,7 +701,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                                 onUpdateGhost={handleUpdateGhost}
                                 onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
                                 isLoading={loading}
-                                onTick={() => {}}
+                                onTick={() => linksOverlayRef.current?.forceUpdate()}
                             />
                         </TransformComponent>
 
