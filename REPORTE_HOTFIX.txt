@@ -1,0 +1,38 @@
+REPORTE DE HOTFIX: ERROR JSON CIRCULAR
+FECHA: 2024-05-23
+AGENTE: Jules (JUL-0B)
+
+RESUMEN DE OPERACIONES
+----------------------
+Se ha completado la misión de reparación para solucionar el error "TypeError: Converting circular structure to JSON" que bloqueaba el despliegue y la construcción.
+
+ACCIONES REALIZADAS
+-------------------
+1. SANEAMIENTO DE `handleBatchMerge` (WorldEnginePageV2.tsx):
+   - SE ELIMINÓ el uso del operador de propagación (`...winner`) al crear `stagedCandidate`.
+   - SE IMPLEMENTÓ la construcción explícita del objeto, copiando propiedad por propiedad (id, name, type, etc.).
+   - RAZÓN: Los objetos provenientes de Firestore pueden contener referencias internas no enumerables o prototipos que causan ciclos al ser serializados.
+
+2. INYECCIÓN DE ID EN FIRESTORE (WorldEnginePageV2.tsx):
+   - SE MODIFICÓ el listener `onSnapshot` para extraer los datos usando `{ ...doc.data(), id: doc.id }`.
+   - RAZÓN: `doc.data()` devuelve el payload sin el ID y puede mantener referencias internas. Al desestructurar en un nuevo objeto, garantizamos que sea un "Plain Old JavaScript Object" (POJO) seguro.
+
+3. LOGGING SEGURO (WorldEnginePageV2.tsx y NexusScanner.ts):
+   - SE REEMPLAZARON todas las instancias de `console.error(error)` por `console.error(error instanceof Error ? error.message : String(error))`.
+   - RAZÓN: Intentar imprimir un objeto de error crudo que contiene sockets de red (TLSSocket) provoca el error circular inmediatamente en la consola, fallando el build.
+
+OBSERVACIONES Y PROBLEMAS DETECTADOS
+------------------------------------
+- Durante la verificación (Pre-Commit), se detectaron múltiples errores de TypeScript preexistentes en el proyecto (ej. propiedades faltantes en `VisualNode` como `content`, módulos no encontrados). Estos errores NO fueron introducidos por este hotfix y no bloquean la solución actual, pero se recomienda una limpieza técnica futura.
+- El componente `NexusTribunalModal.tsx` fue auditado y se confirmó que está limpio de logs peligrosos.
+
+RECOMENDACIONES ADICIONALES
+---------------------------
+- Mantener estrictamente la política de "Solo Strings en Logs" para evitar regresiones.
+- Evitar pasar objetos directos de Firestore a componentes de React o al estado global sin antes "aplanarlos" o sanitizarlos.
+
+ESTADO FINAL
+------------
+CÓDIGO: SANEADO
+LOGS: SEGUROS
+MISIÓN: CUMPLIDA
