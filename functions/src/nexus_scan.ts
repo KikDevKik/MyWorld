@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
@@ -146,6 +146,14 @@ export const analyzeNexusBatch = onCall(
 
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
 
+            // 🟢 SAFETY OVERRIDE (Sin Censura)
+            const safetySettings = [
+                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
+                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
+            ];
+
             // 🟢 STAGE 1: THE HARVESTER (MODEL LOW COST)
             logger.info("🤖 STAGE 1: HARVESTER (Flash) Initiated...");
 
@@ -154,7 +162,8 @@ export const analyzeNexusBatch = onCall(
                 generationConfig: {
                     temperature: 0.2, // Low temp for extraction
                     responseMimeType: "application/json"
-                } as any
+                } as any,
+                safetySettings
             });
 
             const harvesterPrompt = `
@@ -200,7 +209,8 @@ export const analyzeNexusBatch = onCall(
                 generationConfig: {
                     temperature: TEMP_PRECISION,
                     responseMimeType: "application/json"
-                } as any
+                } as any,
+                safetySettings
             });
 
             const judgePrompt = `

@@ -48,6 +48,44 @@ interface DriveFile {
   children?: DriveFile[];
   category?: 'canon' | 'reference';
   parentId?: string; // 👈 Added for Strict Schema
+  driveId?: string; // 👈 Real Target ID (if shortcut)
+}
+
+/**
+ * 🛡️ HELPER: RESOLVE SHORTCUTS (The Bridge)
+ * Resuelve si un ID es un Shortcut y devuelve el Target ID real.
+ */
+async function resolveDriveFolder(drive: any, fileId: string): Promise<{ id: string, name: string, originalId: string, isShortcut: boolean }> {
+  try {
+    const res = await drive.files.get({
+      fileId: fileId,
+      fields: "id, name, mimeType, shortcutDetails",
+      supportsAllDrives: true
+    });
+
+    const file = res.data;
+    if (file.mimeType === 'application/vnd.google-apps.shortcut' && file.shortcutDetails?.targetId) {
+       logger.info(`🌉 [SHORTCUT BRIDGE] Resolved ${file.name} (${file.id}) -> Target: ${file.shortcutDetails.targetId}`);
+       return {
+         id: file.shortcutDetails.targetId,
+         name: file.name,
+         originalId: file.id,
+         isShortcut: true
+       };
+    }
+
+    return {
+      id: file.id!,
+      name: file.name!,
+      originalId: file.id!,
+      isShortcut: false
+    };
+
+  } catch (e: any) {
+    logger.warn(`⚠️ Failed to resolve folder ${fileId}:`, e.message);
+    // Return original as fallback, let downstream fail if invalid
+    return { id: fileId, name: 'Unknown', originalId: fileId, isShortcut: false };
+  }
 }
 
 interface WriterProfile {
@@ -633,7 +671,10 @@ export const syncWorldManifest = onCall(
                  // Iterate and scan ONLY canon folders
                  for (const p of config.canonPaths) {
                       logger.info(`   -> Whitelisted Folder: ${p.name} (${p.id})`);
-                      const folderTree = await fetchFolderContents(drive, p.id, config, true);
+                      // 🟢 RESOLVE SHORTCUT
+                      const resolved = await resolveDriveFolder(drive, p.id);
+
+                      const folderTree = await fetchFolderContents(drive, resolved.id, config, true);
                       const flatTree = flattenFileTree(folderTree);
                       candidates = [...candidates, ...flatTree];
                  }
@@ -943,13 +984,28 @@ export const getDriveFiles = onCall(
                  }
 
                  try {
-                    // Get Root Name for correct Path Construction
-                    const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
-                    const rootName = rootMeta.data.name || 'Root';
+                    // 1. RESOLVE SHORTCUT (The Bridge)
+                    const resolved = await resolveDriveFolder(drive, cleanId);
 
-                    // Initial Path is the Root Name
-                    const tree = await fetchFolderContents(drive, cleanId, config, recursive, category, rootName);
-                    fileTree = [...fileTree, ...tree];
+                    // 2. FETCH CONTENTS (Using Real Target ID)
+                    // Root Name is the name of the Shortcut/Folder we started with
+                    const tree = await fetchFolderContents(drive, resolved.id, config, recursive, category, resolved.name);
+
+                    // 3. CONSTRUCT ROOT NODE (Container Architecture)
+                    const rootNode: DriveFile = {
+                        id: cleanId, // ⚠️ KEEP ORIGINAL ID (Shortcut) so frontend matches config
+                        driveId: resolved.id, // 🟢 REAL ID (Target)
+                        name: resolved.name,
+                        path: resolved.name,
+                        type: 'folder',
+                        mimeType: 'application/vnd.google-apps.folder',
+                        category: category,
+                        children: tree,
+                        saga: resolved.name
+                    };
+
+                    fileTree.push(rootNode);
+
                  } catch (err) {
                      logger.error(`⚠️ Error escaneando root ${cleanId}:`, err);
                  }
@@ -1575,12 +1631,26 @@ export const indexTDB = onCall(
                  }
 
                  try {
-                    // Get Root Name for correct Path Construction
-                    const rootMeta = await drive.files.get({ fileId: cleanId, fields: 'name' });
-                    const rootName = rootMeta.data.name || 'Root';
+                    // 1. RESOLVE SHORTCUT
+                    const resolved = await resolveDriveFolder(drive, cleanId);
 
-                    const tree = await fetchFolderContents(drive, cleanId, config, true, category, rootName);
-                    fileTree = [...fileTree, ...tree];
+                    // 2. FETCH CONTENTS (Deep)
+                    const tree = await fetchFolderContents(drive, resolved.id, config, true, category, resolved.name);
+
+                    // 3. CONSTRUCT ROOT NODE
+                    const rootNode: DriveFile = {
+                        id: cleanId,
+                        driveId: resolved.id,
+                        name: resolved.name,
+                        path: resolved.name,
+                        type: 'folder',
+                        mimeType: 'application/vnd.google-apps.folder',
+                        category: category,
+                        children: tree,
+                        saga: resolved.name
+                    };
+
+                    fileTree.push(rootNode);
                  } catch (err) {
                     logger.error(`⚠️ Error indexando root ${cleanId}:`, err);
                  }
