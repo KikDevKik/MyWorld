@@ -270,7 +270,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 accessToken: token,
                 folderId: data.folderId,
                 fileName: data.fileName,
-                content: targetNode.content || `# ${targetNode.name}\n\n*Creado via NexusCanvas*`,
+                content: (targetNode as any).content || `# ${targetNode.name}\n\n*Creado via NexusCanvas*`,
                 frontmatter: data.frontmatter
             });
             setGhostNodes(prev => prev.filter(g => g.id !== targetNode.id));
@@ -424,7 +424,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      const newRelations = candidate.relations?.map(r => ({
                          targetId: generateId(projectId, r.target, 'concept'), // Predict ID
                          targetName: r.target,
-                         targetType: 'concept',
+                            targetType: 'concept' as EntityType,
                          relation: r.type as any,
                          context: r.context,
                          sourceFileId: 'nexus-scan-merge'
@@ -606,7 +606,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                  relations: originalCandidate.relations?.map(r => ({
                      targetId: generateId(projectId, r.target, 'concept'),
                      targetName: r.target,
-                     targetType: 'concept',
+                            targetType: 'concept' as EntityType,
                      relation: r.type as any,
                      context: r.context,
                      sourceFileId: 'nexus-scan'
