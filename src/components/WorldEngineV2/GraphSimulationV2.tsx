@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, forwardRef, useImperativeH
 import * as d3Force from 'd3-force';
 import { drag as d3Drag } from 'd3-drag';
 import { select as d3Select } from 'd3-selection';
+import { polygonHull } from 'd3-polygon';
 import {
     Zap,
     Save,
@@ -45,7 +46,53 @@ const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: s
     }
 };
 
-// 🟢 ENTITY CARD (OPTIMIZED: Memo + Ref + No Internal Drag)
+// 🟢 HELPER: Deterministic Neon Color Generator
+const deterministicColor = (str: string): string => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+        hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const hue = Math.abs(hash % 360);
+    return `hsl(${hue}, 90%, 60%)`; // High Saturation, Medium Lightness
+};
+
+// 🟢 HELPER: Grouping Logic
+const getPrimaryGroup = (node: VisualNode): string | null => {
+    // 1. Metadata Faction
+    if (node.meta?.faction) return node.meta.faction;
+
+    // 2. Relations to Faction (PART_OF, MEMBER_OF, OWNED_BY)
+    if (node.relations) {
+        const factionRel = node.relations.find(r =>
+            (r.targetType === 'faction' || (r.targetType as string) === 'group') &&
+            ['PART_OF', 'MEMBER_OF', 'OWNED_BY'].includes(r.relation)
+        );
+        if (factionRel) return factionRel.targetName;
+    }
+
+    // 3. Fallback for Items: Relations to Character (OWNED_BY)
+    if (node.type === 'object' || (node.type as string) === 'item') {
+        const ownerRel = node.relations?.find(r =>
+            r.targetType === 'character' && r.relation === 'OWNED_BY'
+        );
+        if (ownerRel) return ownerRel.targetName;
+    }
+
+    return null;
+};
+
+// 🟢 HELPER: Get Node Color for Gradient
+const getNodeBaseColor = (type: string): string => {
+    const t = type.toLowerCase();
+    if (t === 'character') return '#eab308'; // Yellow
+    if (t === 'location') return '#06b6d4'; // Cyan
+    if (t === 'faction') return '#f97316'; // Orange
+    if (t === 'idea') return '#a855f7'; // Purple
+    if (t === 'conflict' || t === 'enemy') return '#ef4444'; // Red
+    return '#64748b'; // Slate
+};
+
+// 🟢 ENTITY CARD (DOM Layer)
 const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     node: VisualNode;
     onClick: () => void;
@@ -62,7 +109,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     let nodeStyleKey = 'default';
     if (node.type === 'character') nodeStyleKey = 'character';
     else if (node.type === 'location') nodeStyleKey = 'location';
-    else if (node.meta?.node_type === 'conflict' || node.type === 'enemy') nodeStyleKey = 'conflict';
+    else if ((node.meta as any)?.node_type === 'conflict' || (node.type as string) === 'enemy') nodeStyleKey = 'conflict';
     else if (node.type === 'idea' || node.isGhost) nodeStyleKey = 'idea';
     else if (['faction', 'event', 'object'].includes(node.type)) nodeStyleKey = 'default';
 
@@ -193,7 +240,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     );
 }));
 
-// 🟢 GRAPH SIMULATION (D3 Logic + Direct DOM)
+// 🟢 GRAPH SIMULATION (Hybrid: DOM Nodes + Canvas Edges/Hulls)
 export interface GraphSimulationHandle {
     // No methods needed currently
 }
@@ -209,7 +256,9 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
     onTick: () => void;
 }>(({ nodes, lodTier, setHoveredNodeId, onNodeClick, onUpdateGhost, onCrystallize, isLoading, onTick }, ref) => {
     const nodeRefs = useRef<Record<string, HTMLDivElement>>({});
+    const canvasRef = useRef<HTMLCanvasElement>(null);
     const simulationRef = useRef<any>(null);
+    const lodTierRef = useRef(lodTier); // 🟢 Keep Fresh for D3 Closure
     const [simNodes, setSimNodes] = useState<VisualNode[]>([]); // For React Rendering only (Mount/Unmount)
 
     // 1. IMPERATIVE HANDLE (Sync from Parent)
@@ -221,25 +270,34 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
         setSimNodes(nextNodes);
     }, [nodes]);
 
+    // Sync LOD Ref & Wake up simulation on change
+    useEffect(() => {
+        lodTierRef.current = lodTier;
+        if (simulationRef.current) simulationRef.current.alpha(0.01).restart(); // Wake up briefly to redraw
+    }, [lodTier]);
+
     // 🧠 MEMOIZED LINKS (For Dependency Tracking)
     const links = useMemo(() => {
         const l: any[] = [];
         simNodes.forEach(node => {
             if (node.relations) {
                 node.relations.forEach(r => {
-                    if (simNodes.find(n => n.id === r.targetId)) {
-                        l.push({ source: node.id, target: r.targetId, label: r.context || r.relation, ...r });
+                    const target = simNodes.find(n => n.id === r.targetId);
+                    if (target) {
+                        l.push({
+                            source: node, // D3 will mutate this to object ref
+                            target: target,
+                            sourceId: node.id,
+                            targetId: r.targetId,
+                            label: r.context || r.relation,
+                            ...r
+                        });
                     }
                 });
             }
         });
         return l;
     }, [simNodes]);
-
-    // 🐛 SWARM FIX: Watch Links Explicitly
-    useEffect(() => {
-        onTick();
-    }, [links.length]);
 
     // ⚡ D3 PHYSICS & DRAG
     useEffect(() => {
@@ -267,9 +325,9 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 }, cx, cy).strength(0.6))
             .force("link", d3Force.forceLink(links).id((d: any) => d.id).distance(200));
 
-        // 🔄 TICK: DIRECT DOM MANIPULATION
+        // 🔄 TICK: HYBRID RENDER LOOP
         simulation.on("tick", () => {
-            // 1. Move Nodes
+            // 1. Move Nodes (DOM)
             simNodes.forEach((node: any) => {
                 const el = nodeRefs.current[node.id];
                 if (el) {
@@ -277,7 +335,93 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 }
             });
 
-            // 2. Sync Lines
+            // 2. Render Canvas (Hulls + Edges)
+            const canvas = canvasRef.current;
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    const { width, height } = canvas;
+                    ctx.clearRect(0, 0, width, height);
+
+                    // --- LAYER 1: TERRITORY HULLS (Macro View) ---
+                    // Group nodes by Faction/PrimaryGroup
+                    const groups: Record<string, [number, number][]> = {};
+                    simNodes.forEach((node: any) => {
+                        const group = getPrimaryGroup(node);
+                        if (group) {
+                            if (!groups[group]) groups[group] = [];
+                            groups[group].push([node.x, node.y]);
+                        }
+                    });
+
+                    // Draw Hulls
+                    ctx.lineJoin = "round";
+                    ctx.lineWidth = 40; // Soft corners
+
+                    Object.entries(groups).forEach(([groupName, points]) => {
+                        if (points.length < 3) return; // Need at least 3 points for a hull
+
+                        const hull = polygonHull(points);
+                        if (hull) {
+                            const color = deterministicColor(groupName);
+                            ctx.beginPath();
+                            ctx.moveTo(hull[0][0], hull[0][1]);
+                            for (let i = 1; i < hull.length; i++) {
+                                ctx.lineTo(hull[i][0], hull[i][1]);
+                            }
+                            ctx.closePath();
+
+                            // Style
+                            ctx.fillStyle = color.replace('hsl', 'hsla').replace(')', ', 0.15)'); // 15% opacity
+                            ctx.strokeStyle = color.replace('hsl', 'hsla').replace(')', ', 0.3)'); // 30% stroke
+                            ctx.shadowBlur = 60;
+                            ctx.shadowColor = color;
+
+                            ctx.fill();
+                            ctx.stroke();
+
+                            // Reset Shadow for next ops
+                            ctx.shadowBlur = 0;
+                        }
+                    });
+
+                    // --- LAYER 2: ENERGY BEAMS (Edges) ---
+                    ctx.globalCompositeOperation = 'lighter'; // Energy Glow
+                    ctx.lineWidth = 2;
+
+                    links.forEach((link: any) => {
+                        const source = link.source as VisualNode;
+                        const target = link.target as VisualNode;
+
+                        // Safety check if physics hasn't populated x/y yet
+                        if (source.x === undefined || source.y === undefined || target.x === undefined || target.y === undefined) return;
+
+                        const gradient = ctx.createLinearGradient(source.x, source.y, target.x, target.y);
+                        gradient.addColorStop(0, getNodeBaseColor(source.type));
+                        gradient.addColorStop(1, getNodeBaseColor(target.type));
+
+                        ctx.strokeStyle = gradient;
+                        ctx.beginPath();
+                        ctx.moveTo(source.x, source.y);
+                        ctx.lineTo(target.x, target.y);
+                        ctx.stroke();
+                    });
+
+                    ctx.globalCompositeOperation = 'source-over'; // Reset
+
+                    // --- LAYER 3: MACRO DOTS (When DOM is hidden) ---
+                    if (lodTierRef.current === 'MACRO') {
+                        simNodes.forEach((node: any) => {
+                             ctx.fillStyle = getNodeBaseColor(node.type);
+                             ctx.beginPath();
+                             ctx.arc(node.x, node.y, 4, 0, Math.PI * 2);
+                             ctx.fill();
+                        });
+                    }
+                }
+            }
+
+            // 3. Notify Parent (if needed for overlay sync, though we moved overlay to canvas)
             onTick();
         });
 
@@ -303,7 +447,8 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 // Force immediate update of this node for smoothness (though tick handles it)
                 const el = nodeRefs.current[d.id];
                 if (el) el.style.transform = `translate(${event.x}px, ${event.y}px)`;
-                onTick(); // ⚡ SURGICAL PRECISION
+                // NOTE: We don't manually tick here for performance, we let the simulation tick loop handle rendering
+                // But for super-smooth dragging we could call simulation.tick() or manually redraw canvas
             })
             .on("end", (event, d) => {
                 if (!event.active) simulation.alphaTarget(0); // Go back to sleep
@@ -352,7 +497,15 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 }}
             />
 
-            {/* NODES */}
+            {/* 🟢 CANVAS LAYER (Bottom) */}
+            <canvas
+                ref={canvasRef}
+                width={4000}
+                height={4000}
+                className="absolute inset-0 z-0 pointer-events-none"
+            />
+
+            {/* NODES (DOM Layer - Top) */}
             {simNodes.map((node) => (
                 <EntityCard
                     key={node.id}
