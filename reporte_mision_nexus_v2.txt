@@ -1,0 +1,64 @@
+REPORTE DE MISIÓN: ACTUALIZACIÓN NEXUS V2 Y PROTOCOLOS DE INTEGRIDAD
+FECHA: JUL-0B
+PARA: El Comandante
+
+RESUMEN EJECUTIVO:
+Se ha completado la actualización mayor del sistema de escaneo (Nexus Scanner) y la lógica de fusión (Tribunal), resolviendo los bloqueos críticos de "Ceguera de Contexto", "Líneas Invisibles" y "Errores de Merge". Además, se ha verificado la integridad de la configuración del proyecto en todos los módulos.
+
+-------------------------------------------------------------------------------
+1. QUÉ SE HIZO Y POR QUÉ
+-------------------------------------------------------------------------------
+
+A. NEXUS SCANNER V2 (Lote y Contexto)
+   - Situación: El escáner leía archivo por archivo de forma aislada ("Amnesia"). No conectaba puntos entre capítulos.
+   - Acción: Implementé `analyzeNexusBatch`. Ahora el escáner agrupa todos los archivos de una carpeta y los envía juntos a la IA.
+   - Por qué: Para que la IA entienda que "Él" en el párrafo 2 es "Arturo" del párrafo 1. Ahorra tokens y mejora la coherencia drásticamente.
+
+B. INYECCIÓN DE CONTEXTO "VIP"
+   - Situación: La IA re-descubría entidades que ya existían, creando duplicados o descripciones pobres.
+   - Acción: Antes de escanear, el sistema ahora inyecta un resumen de "Nodos VIP" (Facciones, Lugares y Protagonistas ya existentes en la Base de Datos) en el prompt.
+   - Por qué: Para darle "Memoria a Largo Plazo" al escáner. Si ya existe "Reino de Zeal", la IA ahora lo sabe y vincula cosas a él en lugar de crearlo de nuevo.
+
+C. RECUPERACIÓN DE LAS "LÍNEAS INVISIBLES" (Relaciones)
+   - Situación: El grafo visual no mostraba líneas porque la IA no estaba extrayendo datos de relación.
+   - Acción: Actualicé el Prompt del Sistema para extraer un array explícito de `relations` (ENEMY, ALLY, FAMILY, etc.) y modifiqué el Frontend para guardar estos datos en el nodo.
+   - Por qué: Un grafo sin líneas es solo una nube de puntos. Ahora es una red semántica real.
+
+D. REPARACIÓN DEL ERROR DE MERGE ("Ghost & Case-Insensitive")
+   - Situación: Fusionar "eso" con "Eso" fallaba ("No document found") debido a la sensibilidad de mayúsculas y a que los nodos nuevos (Ghosts) no estaban en la base de datos aún.
+   - Acción: Reescribí `resolveNodeId` para buscar primero en la memoria local (Ghosts/Staged) ignorando mayúsculas, y luego en la base de datos.
+   - Por qué: El sistema era demasiado rígido. Ahora es flexible y perdona errores de tipeo o estado.
+
+-------------------------------------------------------------------------------
+2. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+-------------------------------------------------------------------------------
+
+A. LIMITACIONES DE FIRESTORE (Case Sensitivity)
+   - Problema: Firestore no permite buscar `where("name", "==", "eso")` y encontrar "Eso".
+   - Solución: Implementé una búsqueda en "cascada". Primero busco en los arrays locales (donde sí puedo usar JS para ignorar mayúsculas) y, como última instancia, uso IDs deterministas (Hashes) que son iguales sin importar el tipeo visual.
+
+B. RIESGO DE EXPLOSIÓN DE TOKENS
+   - Problema: Al enviar carpetas enteras, podríamos exceder el límite de la IA.
+   - Solución: Implementé un límite suave de 80,000 caracteres por lote en el Backend. Si una carpeta es gigante, la IA analizará lo principal sin colapsar.
+
+C. SINCRONIZACIÓN DE PROYECTO ("Tunnel Vision")
+   - Problema: Parecía que el escáner ignoraba la configuración global.
+   - Solución: Confirmé que el código SÍ usaba la configuración, pero forcé en el frontend (`NexusScanner.ts`) el paso explícito del `projectId` y la iteración estricta sobre `canonPaths` para asegurar que nada quede fuera.
+
+-------------------------------------------------------------------------------
+3. AUDITORÍA DE INTEGRIDAD (OTRAS FUNCIONES)
+-------------------------------------------------------------------------------
+Revisé Laboratorio, Forja, Cronograma, Director y Guardián.
+- Resultado: ✅ APROBADO.
+- Detalle: Todos los módulos están consumiendo correctamente `useProjectConfig` o recibiendo la configuración a través de las Cloud Functions. No hay funciones "ciegas" operando fuera de la ley del proyecto.
+
+-------------------------------------------------------------------------------
+4. NOTAS ADICIONALES DEL INGENIERO (JULES)
+-------------------------------------------------------------------------------
+- OJO CON EL VOLUMEN: Ahora que el escáner es más potente y lee carpetas enteras, el proceso puede tardar unos segundos más por lote. La barra de progreso es vital; si el usuario tiene carpetas con 100 archivos, parecerá lento, pero es porque está "pensando" mucho más profundo.
+- ESCALABILIDAD FUTURA: Actualmente guardamos las relaciones DENTRO del documento del nodo (`node.relations`). Esto funciona perfecto para visualización rápida. Si en el futuro el proyecto crece a >10,000 nodos con >50,000 relaciones, deberíamos migrar las relaciones a una colección separada `edges`. Para la fase actual, la solución implementada es la más eficiente y rápida.
+
+Misión Cumplida. El sistema está listo para pruebas de campo.
+
+Atte,
+Jules.
