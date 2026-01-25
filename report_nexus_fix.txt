@@ -1,0 +1,43 @@
+REPORTE DE INTERVENCIÓN TÉCNICA - PROTOCOLO NEXUS SCAN
+======================================================
+
+FECHA: 24 de Mayo, 2024
+ASUNTO: Corrección de Indexado Parcial en Nexus (Carpetas Ignoradas)
+
+1. RESUMEN DE LA INTERVENCIÓN
+-----------------------------
+Se ha realizado una modificación en el flujo de "Configuración del Proyecto" para garantizar que todas las carpetas seleccionadas (Canon y Recursos) sean reconocidas inmediatamente por el sistema Nexus.
+
+CAMBIOS REALIZADOS:
+A. Backend (Cloud Functions - `functions/src/index.ts`):
+   - Se actualizó la función `getDriveFiles` para aceptar un nuevo parámetro opcional `persist: true`.
+   - Cuando este parámetro está activo, la función guarda la estructura de archivos escaneada directamente en la base de datos Firestore (`TDB_Index/{userId}/structure/tree`).
+   - Esto asegura que el "mapa" que usa el sistema sea idéntico a la realidad de Google Drive.
+
+B. Frontend (Interfaz - `src/components/ui/ProjectSettingsModal.tsx`):
+   - Se modificó la función `handleSave` (Guardar Configuración).
+   - Ahora, al guardar, el sistema dispara automáticamente una actualización del índice ("Actualizando índice de archivos...").
+   - Se envían explícitamente TODOS los IDs de las carpetas configuradas (Canon + Recursos) para forzar su reconocimiento.
+
+2. DIAGNÓSTICO DEL PROBLEMA (EL "POR QUÉ")
+------------------------------------------
+El problema original era que el Nexus (el escáner) confiaba en un índice almacenado en la base de datos (`TDB_Index`) que no se actualizaba automáticamente al añadir nuevas carpetas en la configuración.
+
+- Antes: Al añadir una carpeta Canon, la configuración se guardaba, pero el índice de archivos seguía "viendo" solo la carpeta antigua hasta que ocurriera una re-indexación manual o completa.
+- Resultado: Nexus decía "Lote 1/1, Archivos 6" porque su mapa mental estaba desactualizado.
+
+- Ahora: Al guardar la configuración, forzamos al "Cartógrafo" a redibujar el mapa inmediatamente. Nexus ahora verá todas las carpetas nuevas al instante.
+
+3. DESAFÍOS Y SOLUCIONES TÉCNICAS
+---------------------------------
+- Seguridad de Datos: Firestore no acepta valores `undefined`. Al guardar el árbol de archivos, tuve que asegurarme de clonar y limpiar el objeto JSON (`JSON.parse(JSON.stringify(fileTree))`) para evitar errores de escritura que pudieran bloquear el backend.
+- Experiencia de Usuario: La operación de escaneo puede tardar unos segundos. Implementé notificaciones visuales (Toasts: "Actualizando índice...", "Índice actualizado") para que sepas que el sistema está trabajando y no pienses que se congeló.
+- Robustez: Envolví la llamada en un bloque de seguridad (try/catch). Si por alguna razón falla la conexión con Drive (token expirado, etc.), la configuración se guarda de todos modos y te avisa con una advertencia en lugar de bloquear todo el proceso.
+
+4. OBSERVACIONES ADICIONALES PARA EL COMANDANTE
+-----------------------------------------------
+- Acción Requerida: Para que este arreglo surta efecto en proyectos ya abiertos, es necesario entrar a "Configuración del Proyecto" y hacer clic en "Guardar Configuración" una vez. Esto disparará la actualización del índice con las carpetas que ya tienes seleccionadas.
+- Alcance: Esta corrección actualiza la *estructura* (la lista de archivos). El contenido profundo de los archivos nuevos será leído por Nexus en el momento del escaneo ("Inicializando Protocolo Titanium"), lo cual es el comportamiento correcto y eficiente.
+
+Fin del Reporte.
+Jules.
