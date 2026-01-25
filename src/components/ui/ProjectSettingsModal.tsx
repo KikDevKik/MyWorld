@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
-import { X, Plus, Trash2, Save, Folder, Book, Clock, Star } from 'lucide-react';
+import { X, Plus, Trash2, Save, Folder, Book, Star } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import useDrivePicker from 'react-google-drive-picker';
 import { ProjectPath } from '../../types';
@@ -16,7 +16,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     // Local state for form handling
     const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
     const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>([]);
-    const [chronologyPath, setChronologyPath] = useState<ProjectPath | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
     // Google Drive Picker Hook
@@ -27,7 +26,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         if (config) {
             setCanonPaths(config.canonPaths || []);
             setResourcePaths(config.resourcePaths || []);
-            setChronologyPath(config.chronologyPath || null);
         }
     }, [config]);
 
@@ -39,32 +37,34 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                 ...config,
                 canonPaths,
                 resourcePaths,
-                chronologyPath
+                // chronologyPath: null // Removed
             });
 
-            // 🟢 TRIGGER INDEX REFRESH (Lightweight)
+            // 🟢 TRIGGER INDEX REFRESH (Lightweight & Strict)
             const token = localStorage.getItem('google_drive_token');
             if (token) {
                 try {
                     const allPaths = [...canonPaths, ...resourcePaths];
                     const folderIds = allPaths.map(p => p.id);
-                    // Add legacy/root folderId if exists
-                    if (config.folderId) folderIds.push(config.folderId);
 
-                    if (folderIds.length > 0) {
-                         const functions = getFunctions();
-                         const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
+                    // 🟢 STRICT LOGIC: Do NOT append config.folderId fallback.
+                    // If the list is empty, we MUST send empty list to clear the tree.
 
-                         // Fire and forget (or await if critical) - Awaiting to ensure consistency
-                         toast.info("Actualizando índice de archivos...");
-                         await getDriveFiles({
-                             folderIds,
-                             accessToken: token,
-                             recursive: true,
-                             persist: true // 🟢 ENABLE PERSISTENCE
-                         });
-                         toast.success("Índice actualizado.");
-                    }
+                    const functions = getFunctions();
+                    const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
+
+                    // Fire and forget (or await if critical) - Awaiting to ensure consistency
+                    toast.info(folderIds.length > 0 ? "Actualizando índice de archivos..." : "Limpiando índice...");
+
+                    await getDriveFiles({
+                        folderIds, // Can be empty []
+                        accessToken: token,
+                        recursive: true,
+                        persist: true // 🟢 ENABLE PERSISTENCE (Wipes tree if empty)
+                    });
+
+                    toast.success("Índice actualizado.");
+
                 } catch (e) {
                     console.error("Failed to refresh index:", e);
                     toast.warning("Configuración guardada, pero falló la indexación automática.");
@@ -136,43 +136,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             },
         });
     };
-
-    // Helper for single select (Chronology)
-    const handlePickSingle = () => {
-         const token = localStorage.getItem('google_drive_token');
-         if (!token) {
-             alert("No hay token de acceso. Por favor recarga la página.");
-             return;
-         }
-
-         const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-         const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
-
-         if (!clientId || !developerKey) {
-            alert("Falta configuración de API Key o Client ID.");
-            return;
-         }
-
-         openPicker({
-            clientId: clientId,
-            developerKey: developerKey,
-            viewId: "FOLDERS",
-            viewMimeTypes: "application/vnd.google-apps.folder",
-            setSelectFolderEnabled: true,
-            setIncludeFolders: true,
-            setOrigin: window.location.protocol + '//' + window.location.host,
-            token: token,
-            supportDrives: true,
-            multiselect: false,
-            callbackFunction: (data) => {
-                if (data.action === 'picked') {
-                    const doc = data.docs[0];
-                    setChronologyPath({ id: doc.id, name: doc.name });
-                }
-            }
-         });
-    }
-
 
     // Helper to manage list inputs
     const removePath = (list: ProjectPath[], setList: (l: ProjectPath[]) => void, index: number) => {
@@ -262,36 +225,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             setPaths={setResourcePaths}
                             icon={Folder}
                         />
-                    </div>
-
-                    {/* Chronology Path */}
-                    <div className="mt-4">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                            <Clock size={14} /> Ruta de Cronología
-                        </label>
-
-                        {chronologyPath ? (
-                             <div className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50">
-                                <div className="flex flex-col">
-                                    <span className="text-sm text-titanium-200 font-medium">{chronologyPath.name}</span>
-                                    <span className="text-[10px] text-titanium-500 font-mono">{chronologyPath.id}</span>
-                                </div>
-                                <button
-                                    onClick={() => setChronologyPath(null)}
-                                    className="text-titanium-500 hover:text-red-400 transition-colors"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        ) : (
-                             <button
-                                onClick={handlePickSingle}
-                                className="w-full flex items-center justify-center gap-2 py-2 bg-titanium-800/30 hover:bg-titanium-800 border border-dashed border-titanium-600 rounded-md text-titanium-400 hover:text-titanium-200 transition-all text-sm"
-                            >
-                                <Plus size={14} /> Seleccionar Carpeta de Cronología
-                            </button>
-                        )}
-
                     </div>
 
                 </div>

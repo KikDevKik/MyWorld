@@ -121,7 +121,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
         setConfig({
             canonPaths: [],
             resourcePaths: [],
-            chronologyPath: null,
+            // chronologyPath: null, // REMOVED
             activeBookContext: "Prototipo Titanium",
             folderId: "" // Empty to trigger "Connect Drive" button for testing
         });
