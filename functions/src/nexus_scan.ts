@@ -277,9 +277,31 @@ export const analyzeNexusBatch = onCall(
                 foundInFiles: c.foundInFiles || [{ fileName: "Batch", contextSnippet: "Snippet missing." }]
             }));
 
-            // 🟢 BLACKLIST FILTER
-            if (ignoredTerms && Array.isArray(ignoredTerms) && ignoredTerms.length > 0) {
-                const ignoredSet = new Set(ignoredTerms.map(t => t.toLowerCase()));
+            // 🟢 BLACKLIST FILTER (Combined Client & Server)
+            let serverIgnoredTerms: string[] = [];
+            try {
+                // 🛡️ SECURITY: Enforce Server-Side Blacklist (Hard Rejects)
+                const db = getFirestore();
+                const settingsRef = db.collection("users").doc(request.auth.uid).collection("projects").doc(projectId).collection("settings").doc("general");
+                const settingsDoc = await settingsRef.get();
+
+                if (settingsDoc.exists) {
+                    const data = settingsDoc.data();
+                    if (data && Array.isArray(data.ignoredTerms)) {
+                        serverIgnoredTerms = data.ignoredTerms;
+                        logger.info(`🛡️ Loaded ${serverIgnoredTerms.length} ignored terms from Server Blacklist.`);
+                    }
+                }
+            } catch (e) {
+                logger.warn("⚠️ Failed to fetch server-side blacklist (Security Warning):", e);
+                // Fail Open (Proceed) or Fail Closed?
+                // We choose Fail Open to avoid blocking functionality, but log heavily.
+            }
+
+            const combinedIgnoredTerms = [...(ignoredTerms || []), ...serverIgnoredTerms];
+
+            if (combinedIgnoredTerms.length > 0) {
+                const ignoredSet = new Set(combinedIgnoredTerms.map(t => t.toLowerCase()));
                 validCandidates = validCandidates.filter((c: any) => {
                     return !ignoredSet.has(c.name.trim().toLowerCase());
                 });

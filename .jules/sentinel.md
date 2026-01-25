@@ -54,3 +54,11 @@
 1. Implemented `MAX_SCAN_LIMIT` (2000) to ensure predictable memory usage.
 2. Replaced `cors: true` with strict `ALLOWED_ORIGINS` to close the open door.
 3. Added warning logs when the limit is hit to inform the user/system that analysis might be partial.
+
+## 2025-05-24 - [Broken Access Control: Client-Side Trust]
+**Vulnerability:** Client-Side Enforcement of Blacklist
+**Learning:** The `analyzeNexusBatch` function in `functions/src/nexus_scan.ts` trusted the client to provide the `ignoredTerms` array for filtering candidates. A malicious or modified client could simply omit these terms, allowing "Hard Rejected" (blacklisted) entities to reappear in the system, effectively bypassing the blacklist protocol.
+**Prevention:**
+1. Do not rely on client inputs for security or critical business logic rules.
+2. Implemented a server-side fetch of the blacklist (`settings/general`) directly within the Cloud Function.
+3. Merged the server-side authoritative list with the client's list (defense in depth), ensuring that even if the client input is manipulated, the persistent blacklist is enforced.
