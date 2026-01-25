@@ -393,9 +393,18 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      }
 
                      const targetRef = doc(db, collectionPath, realTargetId);
-                     await updateDoc(targetRef, {
-                         aliases: arrayUnion(candidate.name)
-                     });
+
+                     // Prepare Updates (Aliases + Description if edited)
+                     const updates: any = {
+                         aliases: arrayUnion(...(candidate.aliases || [candidate.name]))
+                     };
+
+                     // If description was explicitly edited/staged, update it too
+                     if (candidate.description && candidate.description !== candidate.reasoning) {
+                         updates.description = candidate.description;
+                     }
+
+                     await updateDoc(targetRef, updates);
                      toast.success(`Fusión Completada: ${candidate.name} -> ID: ${realTargetId.substring(0,6)}...`);
                 }
                 // CASE B: CREATE / CONVERT
@@ -414,8 +423,9 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          name: candidate.name,
                          type: type as EntityType,
                          projectId: projectId,
-                         description: candidate.reasoning || "Imported via Nexus Tribunal",
+                         description: candidate.description || candidate.reasoning || "Imported via Nexus Tribunal",
                          subtype: (candidate as any).subtype, // 🟢 Phase 2.4
+                         aliases: candidate.aliases || [],
                          relations: [],
                          // Map evidence
                          foundInFiles: candidate.foundInFiles?.map(f => ({
@@ -441,65 +451,45 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
-    // 🟢 TRIBUNAL BATCH MERGE ("The Unifier")
+    // 🟢 TRIBUNAL BATCH MERGE ("The Unifier" - STAGING PHASE)
     const handleBatchMerge = async (winner: AnalysisCandidate, losers: AnalysisCandidate[]) => {
-        const db = getFirestore();
-        if (!user || !config?.folderId) return;
-        const projectId = config.folderId;
-        const collectionPath = `users/${user.uid}/projects/${projectId}/entities`;
+        // 1. Create Staged Super-Card (In-Memory Only)
+        // Combine Descriptions
+        let combinedDesc = winner.description || winner.reasoning || "";
 
-        try {
-            // 1. Resolve or Create Winner
-            let winnerId = await resolveNodeId(winner.name, projectId, collectionPath);
+        losers.forEach(loser => {
+            const loserDesc = loser.description || loser.reasoning || "Sin descripción";
+            combinedDesc += `\n\n--- Info de: ${loser.name} ---\n${loserDesc}`;
+        });
 
-            // If winner doesn't exist, create it!
-            if (!winnerId) {
-                 const rawCandidate = winner as any;
-                 const typeRaw = rawCandidate.type || 'concept';
-                 const type = typeRaw.toLowerCase();
-                 winnerId = generateId(projectId, winner.name, type);
+        // Combine Aliases (Current + Loser Names)
+        const currentAliases = winner.aliases || [];
+        const loserNames = losers.map(l => l.name);
+        const newAliases = Array.from(new Set([...currentAliases, ...loserNames]));
 
-                 const newNode: GraphNode = {
-                     id: winnerId,
-                     name: winner.name,
-                     type: type as EntityType,
-                     projectId: projectId,
-                     description: winner.reasoning || "Unified via Nexus Tribunal",
-                     subtype: (winner as any).subtype,
-                     relations: [],
-                     foundInFiles: winner.foundInFiles?.map(f => ({
-                         fileId: 'nexus-scan',
-                         fileName: f.fileName,
-                         lastSeen: new Date().toISOString()
-                     })) || [],
-                     meta: {},
-                 };
-                 await setDoc(doc(db, collectionPath, winnerId), newNode);
-                 toast.success(`Maestro Creado: ${winner.name}`);
-            }
+        // Create the Staged Candidate
+        const stagedCandidate: AnalysisCandidate = {
+            ...winner,
+            description: combinedDesc,
+            aliases: newAliases,
+            isStaged: true,
+            // If it was a conflict, it remains a conflict until approved.
+            // If we are merging multiple "NEW" items, it becomes a single "NEW" item.
+            // We keep the ambiguityType of the winner for now, or ensure it's NEW if the winner is NEW.
+        };
 
-            // 2. Add Losers as Aliases
-            const aliasesToAdd = losers.map(l => l.name);
-            const winnerRef = doc(db, collectionPath, winnerId);
+        // 2. Update UI State (Remove Losers, Replace Winner with Staged)
+        const loserIds = new Set(losers.map(l => l.id));
+        setCandidates(prev => {
+            const filtered = prev.filter(c => !loserIds.has(c.id));
+            return filtered.map(c => c.id === winner.id ? stagedCandidate : c);
+        });
 
-            await updateDoc(winnerRef, {
-                aliases: arrayUnion(...aliasesToAdd)
-            });
-
-            // 3. Cleanup UI
-            const processedIds = new Set([winner.id, ...losers.map(l => l.id)]);
-            setCandidates(prev => prev.filter(c => !processedIds.has(c.id)));
-
-            toast.success(`Fusión Masiva: ${losers.length + 1} nodos unificados en ${winner.name}`);
-
-        } catch (e: any) {
-            console.error("Batch Merge Failed", e);
-            toast.error("Error en fusión masiva: " + e.message);
-        }
+        toast.info("Fusión en fase de preparación. Revisa y aprueba la Super-Tarjeta.");
     };
 
     // 🟢 TRIBUNAL EDIT (Phase 2.4)
-    const handleTribunalEdit = async (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string }) => {
+    const handleTribunalEdit = async (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string, description?: string }) => {
          const db = getFirestore();
          if (!user || !config?.folderId) return;
          const projectId = config.folderId;
@@ -525,8 +515,9 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                  name: newValues.name,
                  type: type as EntityType,
                  projectId: projectId,
-                 description: originalCandidate.reasoning || "Edited & Approved via Nexus Tribunal",
+                 description: newValues.description || originalCandidate.description || originalCandidate.reasoning || "Edited & Approved via Nexus Tribunal",
                  subtype: newValues.subtype,
+                 aliases: originalCandidate.aliases || [],
                  relations: [],
                  foundInFiles: originalCandidate.foundInFiles?.map(f => ({
                      fileId: 'nexus-scan',
