@@ -82,6 +82,46 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     // STATE: PROCESSING
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // DERIVED: HIGH CONFIDENCE SETS
+    const highConfidenceCreates = React.useMemo(() => {
+        return candidates.filter(c => c.confidence >= 85 && c.suggestedAction !== 'MERGE' && c.ambiguityType !== 'CONFLICT' && c.ambiguityType !== 'DUPLICATE');
+    }, [candidates]);
+
+    const highConfidenceMerges = React.useMemo(() => {
+        return candidates.filter(c => c.confidence >= 85 && c.suggestedAction === 'MERGE');
+    }, [candidates]);
+
+    const handleMassApprove = async () => {
+        if (highConfidenceCreates.length === 0) return;
+        setIsProcessing(true);
+        try {
+            // Process sequentially to avoid race conditions in Firestore
+            for (const candidate of highConfidenceCreates) {
+                const cleanCandidate = { ...candidate };
+                const dirtyProps = ['fx', 'fy', 'vx', 'vy', 'index', 'x', 'y'];
+                dirtyProps.forEach(prop => delete (cleanCandidate as any)[prop]);
+                await onAction('APPROVE', cleanCandidate);
+            }
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleAutoMerge = async () => {
+        if (highConfidenceMerges.length === 0) return;
+        setIsProcessing(true);
+        try {
+            for (const candidate of highConfidenceMerges) {
+                const cleanCandidate = { ...candidate };
+                const dirtyProps = ['fx', 'fy', 'vx', 'vy', 'index', 'x', 'y'];
+                dirtyProps.forEach(prop => delete (cleanCandidate as any)[prop]);
+                await onAction('APPROVE', cleanCandidate);
+            }
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
     // DERIVED: FILTERED LIST
     const filteredCandidates = React.useMemo(() => {
         if (filterMode === 'TRASH') return []; // Trash handled separately in UI
@@ -161,6 +201,12 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
         // 🟢 Clean Data (Physics only - Preserve IDs)
         const cleanCandidate = { ...selectedCandidate };
+
+        // 🟢 FORCED MERGE LOGIC: If ID exists but action wasn't set (Ambiguous Case)
+        if (action === 'APPROVE' && cleanCandidate.suggestedAction !== 'MERGE' && cleanCandidate.mergeWithId) {
+            cleanCandidate.suggestedAction = 'MERGE';
+        }
+
         const dirtyProps = ['fx', 'fy', 'vx', 'vy', 'index', 'x', 'y'];
         dirtyProps.forEach(prop => delete (cleanCandidate as any)[prop]);
 
@@ -220,11 +266,37 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                 {/* 🟢 LEFT PANEL: LIST (30%) */}
                 <div className="w-[30%] border-r border-slate-800 bg-[#0f0f10] flex flex-col relative">
                     {/* Header */}
-                    <div className="h-16 border-b border-slate-800 flex items-center px-6 gap-3 bg-gradient-to-r from-slate-900 to-transparent">
-                        <ShieldAlert className="text-cyan-500" size={20} />
-                        <div>
-                            <h2 className="text-sm font-bold text-slate-200 tracking-wider">NEXUS TRIBUNAL</h2>
-                            <div className="text-[10px] text-cyan-500/80 font-mono">ANALYSIS PROTOCOL ACTIVE</div>
+                    <div className="h-16 border-b border-slate-800 flex items-center justify-between px-6 gap-3 bg-gradient-to-r from-slate-900 to-transparent">
+                        <div className="flex items-center gap-3">
+                            <ShieldAlert className="text-cyan-500" size={20} />
+                            <div>
+                                <h2 className="text-sm font-bold text-slate-200 tracking-wider">NEXUS TRIBUNAL</h2>
+                                <div className="text-[10px] text-cyan-500/80 font-mono">ANALYSIS PROTOCOL ACTIVE</div>
+                            </div>
+                        </div>
+
+                        {/* 🟢 MASS ACTIONS */}
+                        <div className="flex items-center gap-2">
+                            {highConfidenceMerges.length > 0 && (
+                                <button
+                                    onClick={handleAutoMerge}
+                                    disabled={isProcessing}
+                                    className="px-3 py-1.5 bg-purple-900/50 border border-purple-500/30 rounded text-[10px] font-bold text-purple-200 hover:bg-purple-800 hover:border-purple-400 transition-colors flex items-center gap-1"
+                                >
+                                    <GitMerge size={12} />
+                                    AUTO-MERGE ({highConfidenceMerges.length})
+                                </button>
+                            )}
+                            {highConfidenceCreates.length > 0 && (
+                                <button
+                                    onClick={handleMassApprove}
+                                    disabled={isProcessing}
+                                    className="px-3 py-1.5 bg-green-900/50 border border-green-500/30 rounded text-[10px] font-bold text-green-200 hover:bg-green-800 hover:border-green-400 transition-colors flex items-center gap-1"
+                                >
+                                    <Check size={12} />
+                                    APPROVE ALL ({highConfidenceCreates.length})
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -638,7 +710,8 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         </div>
 
                                         {(() => {
-                                            const isMerge = selectedCandidate.suggestedAction === 'MERGE';
+                                            const hasMergeTarget = !!selectedCandidate.mergeWithId;
+                                            const isMerge = selectedCandidate.suggestedAction === 'MERGE' || hasMergeTarget;
                                             const baseColor = isMerge ? 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20' : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20';
                                             const label = isProcessing ? 'PROCESSING...' : (isMerge ? 'MERGE' : 'APPROVE');
 

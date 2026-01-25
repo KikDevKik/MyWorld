@@ -174,12 +174,13 @@ export const analyzeNexusBatch = onCall(
             1. DO NOT REASON DEEPLY. DO NOT FILTER. Just extract raw data.
             2. Identify the Name, Type, and a short Snippet of context.
             3. Ignore common words, focus on proper nouns and capitalized terms.
+            4. **SOURCE IDENTIFICATION**: Identify the Source File Name (look for '--- FILE START: Name ---' markers).
 
             CONTEXT TYPE: ${contextType || 'NARRATIVE'}
 
             OUTPUT JSON FORMAT (Array):
             [
-              { "name": "Exact Name", "type": "Possible Type", "contextSnippet": "Quote from text..." }
+              { "name": "Exact Name", "type": "Possible Type", "sourceFile": "Filename", "contextSnippet": "Quote from text..." }
             ]
 
             TEXT BATCH (Expanded Window):
@@ -237,6 +238,15 @@ export const analyzeNexusBatch = onCall(
             6. LEY DEL ENJAMBRE: Ignora grupos sin nombre.
             7. LEY DE BIOLOGÍA: CREATURE (Animal) vs RACE (Especie) vs FACTION (Política).
             8. LEY DE DETALLE: Subtype obligatorio de 1 palabra.
+
+            *** SOURCE PROVENANCE DIRECTIVE ***
+            - When merging or identifying an entity, you MUST preserve the source filenames from the input list.
+            - If an entity appears in multiple files, join them: 'Chapter 1, Chapter 3'.
+            - Populate 'foundInFiles' correctly.
+
+            *** MANUAL MERGE SUSPICION ***
+            - If there is ANY suspicion that a new entity matches an existing VIP entity (even with low confidence), you MUST return 'mergeWithId' (Target Name).
+            - Do not hide potential matches.
 
             === RELATIONSHIP EXTRACTION ===
             You must extract explicit relationships between entities based on the context snippets.
