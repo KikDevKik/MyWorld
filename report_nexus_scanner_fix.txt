@@ -1,0 +1,37 @@
+REPORTE DE INTERVENCIÓN TÉCNICA: NEXUS SCANNER FALLBACK PROTOCOL
+------------------------------------------------------------
+FECHA: 2024-05-23
+AUTOR: Jules (Agent)
+ASUNTO: Resolución de Ceguera de Escáner por Desajuste de IDs (Shortcuts)
+
+1. RESUMEN DE LA INTERVENCIÓN
+   Se ha modificado el archivo `src/components/WorldEngineV2/utils/NexusScanner.ts` para implementar un "Protocolo de Respaldo" (Fallback Protocol).
+   Ahora, el escáner intenta primero un filtrado estricto (coincidencia exacta de IDs). Si este método devuelve 0 archivos, el sistema asume un desajuste técnico (probablemente por Atajos de Drive) y activa automáticamente una segunda pasada en modo `forceAll`, aceptando todos los archivos Markdown presentes en el árbol de carpetas entregado por el Backend.
+
+2. EL POR QUÉ (CAUSA RAÍZ)
+   El problema original (`NexusScanner: No valid canon files found`) ocurría porque el usuario seleccionaba una carpeta "Canon" en la configuración, pero Google Drive devolvía esa carpeta como un "Acceso Directo" (Shortcut) en el árbol de archivos.
+   - ID en Configuración: ID Real (Target).
+   - ID en Árbol de Archivos: ID del Shortcut.
+   - Resultado: La comparación `canonPathIds.has(node.id)` fallaba siempre.
+
+3. OBSTÁCULOS TÉCNICOS ENCONTRADOS
+   - Ceguera del Backend: La función Cloud `getDriveFiles` no solicita el campo `shortcutDetails` a la API de Drive. Esto significa que el Frontend recibe el ID del Shortcut pero NO TIENE FORMA de saber a qué ID Real apunta. Esto hizo imposible una solución de "mapeo inteligente" en el Frontend.
+   - Restricción de Alcance: La instrucción explícita fue "La solución está en NexusScanner.ts, no en el Backend". Esto descartó modificar la Cloud Function para traer los metadatos necesarios.
+
+4. DETALLES DE LA SOLUCIÓN (CÓDIGO)
+   - Se añadió el parámetro `forceAll` (booleano) a `extractValidFiles`.
+   - Lógica de aceptación: `const isCanon = forceAll || isParentCanon || canonPathIds.has(node.id);`.
+   - Lógica de Activación:
+     ```typescript
+     if (targetFiles.length === 0 && fileTree.length > 0) {
+         // Activar Fallback
+         targetFiles = extractValidFiles(..., true);
+     }
+     ```
+   - Se mantuvieron los `console.log` para monitorear cuándo se activa este protocolo.
+
+5. NOTAS ADICIONALES
+   - Los logs de depuración (`console.log` y `console.warn`) se han dejado permanentes en el código de producción temporalmente, según su solicitud, para facilitar el monitoreo en vivo del comportamiento del escáner.
+   - La recursión ahora propaga el estado `forceAll`, asegurando que si se fuerza la raíz, todos los subarchivos se procesen correctamente, manteniendo su contexto de carpeta (`parentId`).
+
+Fin del Reporte.
