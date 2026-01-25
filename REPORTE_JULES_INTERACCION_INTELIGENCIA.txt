@@ -1,0 +1,51 @@
+REPORTE DE MISIÓN: PROTOCOLO DE INTERACCIÓN Y LIMPIEZA DE DATOS
+FECHA: 2024-05-22
+AGENTE: Jules (v3.4)
+ASUNTO: Fix Interaction & Fuzzy Matching
+
+--------------------------------------------------------------------------------
+1. RESUMEN DE EJECUCIÓN (QUÉ HICE)
+--------------------------------------------------------------------------------
+He implementado tres módulos críticos para mejorar la estabilidad y usabilidad del World Engine V2:
+
+A. CORRECCIÓN DE INTERACCIÓN (D3 CLICK vs DRAG)
+   - Implementé una "Compuerta Lógica" (Logic Gate) dentro del comportamiento de arrastre de D3 (`GraphSimulationV2.tsx`).
+   - Lógica: Se registran las coordenadas al presionar (`mousedown`). Al soltar (`mouseup`), calculo la distancia euclidiana.
+   - Si el movimiento es < 5px, el sistema lo clasifica forzosamente como CLICK, abriendo los detalles.
+   - Si es mayor, se mantiene la física de arrastre (DRAG).
+
+B. INTERFAZ DE DETALLES Y EDICIÓN
+   - Creé `NodeDetailsSidebar.tsx`: Un panel deslizante (off-canvas) desde la derecha para inspeccionar nodos sin bloquear la vista.
+   - Creé `NodeEditModal.tsx`: Un formulario modal que permite editar Nombre, Tipo, Subtipo y Descripción.
+   - Integré ambos en `WorldEnginePageV2.tsx`, permitiendo la edición tanto de nodos "Fantasma" (Borradores locales) como de nodos "Canon" (Firestore).
+
+C. INTELIGENCIA DE DEDUPLICACIÓN (FUZZY MATCHING)
+   - Actualicé `NexusScanner.ts` para incluir un protocolo de normalización estricta.
+   - Normalización: Conversión a minúsculas, eliminación de acentos (NFD) y caracteres especiales.
+   - Algoritmo: Implementé distancia de Levenshtein.
+   - Umbral: Si la similitud entre un Candidato (Scan) y un Nodo Existente (DB) es > 85%, el sistema marca el candidato como `CONFLICT` y sugiere `MERGE` automáticamente.
+
+--------------------------------------------------------------------------------
+2. JUSTIFICACIÓN (POR QUÉ)
+--------------------------------------------------------------------------------
+- Bloqueo de Clicks: La simulación de física D3 es agresiva y consumía los eventos de click como "micro-arrastres", frustrando al usuario al intentar seleccionar entidades.
+- Duplicados "Sucios": El Tribunal sugería crear "Zooriáns" cuando ya existía "Zoorians" o "Zoorians". Esto ensuciaba la base de datos. El nuevo filtro actúa como un portero inteligente.
+- Edición Rápida: Antes, corregir un error tipográfico requería procesos complejos. Ahora es directo desde el grafo.
+
+--------------------------------------------------------------------------------
+3. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+--------------------------------------------------------------------------------
+- Reto D3: D3 captura eventos del DOM de forma muy bajo nivel. Simplemente agregar `onClick` a React no funcionaba porque `d3-drag` interceptaba la propagación.
+  -> Solución: Implementar la detección de click manualmente dentro del ciclo de vida de `d3-drag`.
+
+- Tipado TypeScript: Hubo conflictos menores con las definiciones de tipos al pasar funciones de estado entre componentes nuevos.
+  -> Solución: Definí interfaces estrictas para las props de los nuevos modales.
+
+--------------------------------------------------------------------------------
+4. NOTAS ADICIONALES
+--------------------------------------------------------------------------------
+- El sistema de "Normalización" ahora es agnóstico al idioma en cuanto a acentos (tildes), lo cual es vital para proyectos en Español.
+- La edición de nodos actualiza Firestore en tiempo real. Recomiendo monitorear si esto genera muchas escrituras si el usuario edita compulsivamente (aunque no debería ser problema con el uso normal).
+- El "Ghost Mode" (`VITE_JULES_MODE`) facilitó enormemente las pruebas de interfaz sin tener que autenticarme constantemente con Google Drive.
+
+FIN DEL REPORTE.
