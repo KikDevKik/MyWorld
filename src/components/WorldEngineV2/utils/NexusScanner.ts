@@ -11,7 +11,7 @@ const validateToken = async (token: string): Promise<boolean> => {
         });
         return response.ok;
     } catch (e) {
-        console.warn("Token validation failed (Network error):", e);
+        console.warn(`[Token Check] Failed: ${e instanceof Error ? e.message : String(e)}`);
         return false;
     }
 };
@@ -205,7 +205,7 @@ export const scanProjectFiles = async (
             }
 
         } catch (err) {
-            console.error(`Error scanning ${file.name}:`, err);
+            console.error(`[Scan File] Failed for ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
         }
 
         processedCount++;
