@@ -1,0 +1,49 @@
+REPORTE DE MISIÓN: LIMPIEZA UI (MASK PROTOCOL) Y INFRAESTRUCTURA (PATIENCE PROTOCOL)
+FECHA: 2024-05-23
+AGENTE: Jules
+
+--------------------------------------------------------------------------------
+1. RESUMEN DE CAMBIOS
+--------------------------------------------------------------------------------
+Se han completado los dos objetivos principales de la misión:
+
+A. UI COSMETICS: "MASK PROTOCOL" (Ocultar IDs)
+   - Objetivo: Mantener la estética "Holográfica/Minimalista" ocultando los IDs internos (ej. "(id:123)") en la interfaz del Tribunal.
+   - Implementación:
+     - Se añadió un helper `cleanName` en `NexusTribunalModal.tsx` que aplica un regex `name.replace(/\(id:.*\)/, "").trim()` antes de renderizar.
+     - Se aplicó esta limpieza en la Lista de Candidatos y en el Encabezado de Detalle.
+     - Se extendió la interfaz `AnalysisCandidate` (types.ts) para incluir `mergeTargetName`.
+     - `NexusScanner.ts` ahora rellena `mergeTargetName` con el nombre limpio del nodo existente cuando detecta un conflicto.
+     - La tarjeta de "Fusión" (Merge Card) ahora muestra este nombre amigable en lugar del ID crudo.
+
+B. INFRAESTRUCTURA: "PATIENCE PROTOCOL" (Timeouts)
+   - Objetivo: Evitar errores `DEADLINE_EXCEEDED` durante el análisis de lotes masivos.
+   - Implementación:
+     - Backend (`functions/src/nexus_scan.ts`): Se aumentó `timeoutSeconds` de 300s a 540s (9 minutos). Se verificó memoria de 2GiB.
+     - Frontend (`NexusScanner.ts`): Se actualizó la llamada `httpsCallable` para incluir explícitamente `{ timeout: 540000 }`, asegurando que el cliente espere lo suficiente.
+     - UX: Se actualizó el mensaje de progreso para advertir al usuario: "Analizando Lote Masivo... esto puede tomar varios minutos".
+
+--------------------------------------------------------------------------------
+2. RAZONAMIENTO ("POR QUÉ")
+--------------------------------------------------------------------------------
+- Estética vs. Lógica: El backend necesita IDs únicos para fusiones precisas, pero el usuario necesita limpieza visual. Separar la "capa lógica" (IDs) de la "capa visual" (Nombres limpios) resuelve esto sin romper la funcionalidad.
+- Realidad de la IA: El análisis profundo de carpetas completas con Gemini 1.5/3.0 toma tiempo. 60 segundos es insuficiente para lotes de >10 archivos. 9 minutos es el límite estándar seguro para funciones HTTP en Cloud Functions Gen 2.
+
+--------------------------------------------------------------------------------
+3. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+--------------------------------------------------------------------------------
+A. Verificación Visual (Playwright):
+   - Problema: Al intentar verificar que "Juan (id:123)" aparecía como "Juan", el test fallaba porque encontraba múltiples elementos con el texto "Juan" (el botón de la lista y el encabezado del detalle).
+   - Solución: Se refinó el script de prueba para ser más específico (`.first` o selectores por contexto) y asegurar que *ningún* elemento visible contuviera el texto prohibido "(id:123)".
+
+B. Entorno de Desarrollo:
+   - Problema: Faltaban dependencias locales (`tsc`, `playwright`) en el entorno de ejecución inmediata, lo que dificultó la validación estática inicial.
+   - Solución: Se procedió con la instalación de dependencias críticas y se priorizó la verificación visual mediante "Ghost Mode" (simulación de datos UI) que probó ser más efectiva para cambios puramente cosméticos.
+
+--------------------------------------------------------------------------------
+4. NOTAS ADICIONALES
+--------------------------------------------------------------------------------
+- El regex utilizado asume que el ID siempre está al final y entre paréntesis con el prefijo `id:`. Si el formato del backend cambia drásticamente, este regex deberá actualizarse.
+- El aumento de timeout a 9 minutos implica que el usuario podría estar esperando mucho tiempo. El mensaje de "No cierres la ventana" es crucial. A futuro, considerar mover esto a un "Background Job" con notificaciones si los tiempos superan los 10 minutos.
+
+FIN DEL REPORTE.
