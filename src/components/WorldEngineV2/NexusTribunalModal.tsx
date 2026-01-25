@@ -159,7 +159,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         setIsProcessing(true);
         setShowRejectPopover(false);
 
-        // 🟢 Clean Data
+        // 🟢 Clean Data (Physics only - Preserve IDs)
         const cleanCandidate = { ...selectedCandidate };
         const dirtyProps = ['fx', 'fy', 'vx', 'vy', 'index', 'x', 'y'];
         dirtyProps.forEach(prop => delete (cleanCandidate as any)[prop]);

@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING, TEMP_PRECISION } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 
@@ -107,7 +107,7 @@ export const analyzeNexusBatch = onCall(
         if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
         if (!projectId) throw new HttpsError("invalid-argument", "Falta projectId.");
 
-        logger.info(`🔍 NEXUS BATCH SCAN: Analyzing ${targetIds.length} files. Context: ${contextType || 'NARRATIVE'}`);
+        logger.info(`🔍 NEXUS BICAMERAL ENGINE: Analyzing ${targetIds.length} files. Context: ${contextType || 'NARRATIVE'}`);
 
         try {
             const auth = new google.auth.OAuth2();
@@ -144,32 +144,80 @@ export const analyzeNexusBatch = onCall(
                 return { candidates: [] };
             }
 
-            // 2. VIP CONTEXT
+            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+
+            // 🟢 STAGE 1: THE HARVESTER (MODEL LOW COST)
+            logger.info("🤖 STAGE 1: HARVESTER (Flash) Initiated...");
+
+            const harvesterModel = genAI.getGenerativeModel({
+                model: MODEL_LOW_COST, // Flash
+                generationConfig: {
+                    temperature: 0.2, // Low temp for extraction
+                    responseMimeType: "application/json"
+                } as any
+            });
+
+            const harvesterPrompt = `
+            ACT AS: The Harvester (Hive Mind Mode).
+            TASK: Extract ALL entities (Characters, Locations, Factions, Items, Concepts) and potential relationships from the text.
+
+            INSTRUCTIONS:
+            1. DO NOT REASON DEEPLY. DO NOT FILTER. Just extract raw data.
+            2. Identify the Name, Type, and a short Snippet of context.
+            3. Ignore common words, focus on proper nouns and capitalized terms.
+
+            CONTEXT TYPE: ${contextType || 'NARRATIVE'}
+
+            OUTPUT JSON FORMAT (Array):
+            [
+              { "name": "Exact Name", "type": "Possible Type", "contextSnippet": "Quote from text..." }
+            ]
+
+            TEXT BATCH (Expanded Window):
+            ${combinedContent.substring(0, 300000)}
+            `;
+            // Increased to 300k chars for Flash
+
+            const harvesterResult = await harvesterModel.generateContent(harvesterPrompt);
+            const harvesterText = harvesterResult.response.text();
+            const rawEntities = parseSecureJSON(harvesterText, "NexusHarvester");
+
+            if (!Array.isArray(rawEntities) || rawEntities.length === 0) {
+                logger.warn("⚠️ Harvester found no entities.");
+                return { candidates: [] };
+            }
+
+            logger.info(`🤖 STAGE 1 COMPLETE. Extracted ${rawEntities.length} raw entities.`);
+
+            // 2. VIP CONTEXT (Fetch while Stage 1 runs? No, depend on it for flow clarity, but ideally parallel)
             const vipContext = await getVipContext(request.auth.uid, projectId);
 
-            // 3. AI ANALYSIS
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
-            const model = genAI.getGenerativeModel({
-                model: MODEL_HIGH_REASONING,
+            // 🟢 STAGE 2: THE JUDGE (MODEL HIGH REASONING)
+            logger.info("⚖️ STAGE 2: JUDGE (Pro) Initiated...");
+
+            const judgeModel = genAI.getGenerativeModel({
+                model: MODEL_HIGH_REASONING, // Pro
                 generationConfig: {
                     temperature: TEMP_PRECISION,
                     responseMimeType: "application/json"
                 } as any
             });
 
-            const prompt = `
+            const judgePrompt = `
             ACT AS: The Royal Librarian & Taxonomist (Hive Mind Mode).
-            TASK: Analyze the provided BATCH OF TEXTS and extract SIGNIFICANT ENTITIES (Candidates) AND THEIR RELATIONSHIPS for the World Database.
+            TASK: Analyze the provided RAW LIST of entities and the VIP Context to produce the Final Tribunal Candidates.
 
-            CONTEXT TYPE: ${contextType || 'NARRATIVE'}
-
+            INPUT 1: VIP CONTEXT (Existing Database Knowledge):
             ${vipContext}
 
+            INPUT 2: RAW ENTITY LIST (From Harvester):
+            ${JSON.stringify(rawEntities.slice(0, 500))}
+
             === THE 8 UNBREAKABLE LAWS OF THE TRIBUNAL ===
-            SYSTEM INSTRUCTION: "Al analizar el texto, aplica estrictamente las siguientes leyes. Tu objetivo es limpiar el grafo y CONECTARLO."
+            SYSTEM INSTRUCTION: "Al analizar la lista bruta, aplica estrictamente las siguientes leyes. Tu objetivo es limpiar, deduplicar y conectar."
 
             *** LANGUAGE MIRRORING PROTOCOL ***
-            Detect the dominant language. GENERATE ALL OUTPUT IN THAT LANGUAGE.
+            Detect the dominant language of the input. GENERATE ALL OUTPUT IN THAT LANGUAGE.
 
             1. LEY DE MATERIALIDAD: Distingue Objetos de Lugares.
             2. LEY DE IDENTIDAD (Alias): Si "Madre" es "Elsa", FUSIÓNALOS (MERGE).
@@ -180,8 +228,8 @@ export const analyzeNexusBatch = onCall(
             7. LEY DE BIOLOGÍA: CREATURE (Animal) vs RACE (Especie) vs FACTION (Política).
             8. LEY DE DETALLE: Subtype obligatorio de 1 palabra.
 
-            === NEW: RELATIONSHIP EXTRACTION ===
-            You must extract explicit relationships between entities.
+            === RELATIONSHIP EXTRACTION ===
+            You must extract explicit relationships between entities based on the context snippets.
             Types: 'ENEMY', 'ALLY', 'FAMILY', 'MENTOR', 'NEUTRAL', 'OWNED_BY', 'LOCATED_IN'.
 
             OUTPUT JSON FORMAT (Array):
@@ -195,10 +243,10 @@ export const analyzeNexusBatch = onCall(
                 "suggestedAction": "CREATE", // CREATE, MERGE, CONVERT_TYPE, IGNORE
                 "confidence": 95,
                 "reasoning": "Brief explanation.",
-                "mergeWithId": "TargetNameIfMerge",
+                "mergeWithId": "TargetNameIfMerge", // IMPORTANT: Return the NAME of the target if merging.
                 "foundInFiles": [
                    {
-                     "fileName": "Extracted from FILE START header",
+                     "fileName": "Source",
                      "contextSnippet": "Quote..."
                    }
                 ],
@@ -211,17 +259,14 @@ export const analyzeNexusBatch = onCall(
                 ]
               }
             ]
-
-            TEXT BATCH TO ANALYZE (Truncated to 80k chars):
-            ${combinedContent.substring(0, 80000)}
             `;
 
-            const result = await model.generateContent(prompt);
-            const responseText = result.response.text();
-            const candidates = parseSecureJSON(responseText, "NexusBatchScan");
+            const judgeResult = await judgeModel.generateContent(judgePrompt);
+            const judgeText = judgeResult.response.text();
+            const candidates = parseSecureJSON(judgeText, "NexusJudge");
 
             if (candidates.error || !Array.isArray(candidates)) {
-                logger.warn(`⚠️ Nexus Batch Scan failed: Invalid JSON.`);
+                logger.warn(`⚠️ Nexus Judge failed: Invalid JSON.`);
                 return { candidates: [] };
             }
 
@@ -240,10 +285,11 @@ export const analyzeNexusBatch = onCall(
                 });
             }
 
+            logger.info(`✅ BICAMERAL ENGINE COMPLETE. Returned ${validCandidates.length} candidates.`);
             return { candidates: validCandidates };
 
         } catch (error: any) {
-            logger.error(`💥 Nexus Batch Scan Error:`, error);
+            logger.error(`💥 Nexus Bicameral Engine Error:`, error);
             throw new HttpsError("internal", error.message);
         }
     }
