@@ -24,11 +24,17 @@ export interface AnalysisCandidate {
     suggestedAction: AnalysisAction;
     category: 'ENTITY' | 'ITEM' | 'CONCEPT' | 'EVENT';
     type?: string; // Backend provided type (e.g. 'character')
+    subtype?: string; // Specific subtype (e.g. 'City', 'Weapon')
 
     // Logic
     mergeWithId?: string; // If 'MERGE', who is the parent?
     confidence: number; // 0-100
     reasoning: string; // AI Explanation
+
+    // Staging / Edited Data
+    aliases?: string[];
+    description?: string; // User-edited or Staged description (Overrides reasoning)
+    isStaged?: boolean; // UI Flag for Super-Card (Gold Border)
 
     // Evidence Layer (Phase 2.2)
     foundInFiles: Array<{

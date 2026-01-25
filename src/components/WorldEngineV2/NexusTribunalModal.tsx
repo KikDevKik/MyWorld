@@ -16,7 +16,8 @@ import {
     Undo2,
     Loader2,
     Users,
-    GitMerge
+    GitMerge,
+    Search
 } from 'lucide-react';
 import { AnalysisCandidate, AnalysisAmbiguityType } from './types';
 
@@ -55,10 +56,11 @@ const getTypeIcon = (type: AnalysisAmbiguityType) => {
 const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored }) => {
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
+    const [searchTerm, setSearchTerm] = useState('');
 
     // STATE: EDIT MODE
     const [isEditing, setIsEditing] = useState(false);
-    const [editValues, setEditValues] = useState({ name: '', type: 'concept', subtype: '' });
+    const [editValues, setEditValues] = useState({ name: '', type: 'concept', subtype: '', description: '' });
 
     // STATE: SELECTION
     const [selectedId, setSelectedId] = useState<string | null>(candidates.length > 0 ? candidates[0].id : null);
@@ -78,12 +80,21 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     const filteredCandidates = React.useMemo(() => {
         if (filterMode === 'TRASH') return []; // Trash handled separately in UI
         return candidates.filter(c => {
+            // 🟢 SEARCH FILTER
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const matchName = c.name.toLowerCase().includes(term);
+                const desc = c.description || c.reasoning || "";
+                const matchDesc = desc.toLowerCase().includes(term);
+                if (!matchName && !matchDesc) return false;
+            }
+
             if (filterMode === 'ALL') return true;
             if (filterMode === 'CONFLICT') return c.ambiguityType === 'CONFLICT' || c.ambiguityType === 'DUPLICATE';
             if (filterMode === 'NEW') return c.ambiguityType === 'NEW' || c.ambiguityType === 'ITEM_LORE';
             return true;
         });
-    }, [candidates, filterMode]);
+    }, [candidates, filterMode, searchTerm]);
 
     // Derived state
     const selectedCandidate = candidates.find(c => c.id === selectedId);
@@ -121,7 +132,8 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
             setEditValues({
                 name: selectedCandidate.name,
                 type: (selectedCandidate as any).type || 'concept',
-                subtype: (selectedCandidate as any).subtype || ''
+                subtype: (selectedCandidate as any).subtype || '',
+                description: selectedCandidate.description || selectedCandidate.reasoning || ''
             });
         }
     }, [selectedCandidate]);
@@ -210,6 +222,20 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         </div>
                     </div>
 
+                    {/* 🟢 SEARCH BAR */}
+                    <div className="px-4 py-3 border-b border-slate-800 bg-[#0f0f10]">
+                        <div className="relative group">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-500 transition-colors" size={14} />
+                            <input
+                                type="text"
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                placeholder="Buscar en Nexus..."
+                                className="w-full bg-slate-900/50 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-300 placeholder:text-slate-600 outline-none focus:border-cyan-500/50 focus:bg-slate-900 transition-all"
+                            />
+                        </div>
+                    </div>
+
                     {/* Filters/Tabs */}
                     <div className="flex border-b border-slate-800 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                         <button
@@ -274,19 +300,28 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                 filteredCandidates.map(candidate => {
                                     const isSelected = selectedId === candidate.id;
                                     const isChecked = checkedIds.has(candidate.id);
+                                    const isStaged = candidate.isStaged;
+
+                                    // 🟢 STAGING VISUALS
+                                    const borderClass = isStaged
+                                        ? 'border-[#ddbf61] shadow-[0_0_10px_rgba(221,191,97,0.2)]'
+                                        : (isSelected ? 'border-slate-600 shadow-lg' : 'border-transparent');
+
+                                    const bgClass = isStaged
+                                        ? 'bg-[#ddbf61]/10'
+                                        : (isSelected ? 'bg-slate-800/80' : 'bg-transparent');
 
                                     return (
                                         <button
                                             key={candidate.id}
                                             onClick={() => setSelectedId(candidate.id)}
-                                            className={`w-full text-left p-4 rounded-lg border transition-all duration-200 group relative overflow-hidden ${
-                                                isSelected
-                                                    ? 'bg-slate-800/80 border-slate-600 shadow-lg'
-                                                    : 'bg-transparent border-transparent hover:bg-slate-900/50 hover:border-slate-800'
-                                            }`}
+                                            className={`w-full text-left p-4 rounded-lg border transition-all duration-200 group relative overflow-hidden ${bgClass} ${borderClass} ${isStaged ? 'hover:bg-[#ddbf61]/20' : 'hover:bg-slate-900/50 hover:border-slate-800'}`}
                                         >
                                             {/* Selection Indicator */}
-                                            {isSelected && <div className="absolute left-0 top-0 bottom-0 w-1 bg-cyan-500" />}
+                                            {isSelected && <div className={`absolute left-0 top-0 bottom-0 w-1 ${isStaged ? 'bg-[#ddbf61]' : 'bg-cyan-500'}`} />}
+
+                                            {/* Staged Pulse */}
+                                            {isStaged && <div className="absolute inset-0 bg-[#ddbf61]/5 animate-pulse pointer-events-none" />}
 
                                             <div className="flex justify-between items-start mb-1 gap-2">
                                                 {/* Checkbox for Batch */}
@@ -303,8 +338,9 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex justify-between items-start">
-                                                        <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>
+                                                        <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'} ${isStaged ? 'text-[#ddbf61]' : ''}`}>
                                                             {candidate.name}
+                                                            {isStaged && <span className="ml-2 text-[9px] bg-[#ddbf61] text-black px-1.5 py-0.5 rounded font-black tracking-wider">FUSIONADO</span>}
                                                         </span>
                                                         <span className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ${getTypeColor(candidate.ambiguityType)}`}>
                                                             {candidate.category}
@@ -449,78 +485,90 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
                             {/* Content Body */}
                             <div className="flex-1 p-8 overflow-y-auto">
-                                <div className="grid grid-cols-2 gap-8">
-                                    {/* Left Column: Analysis */}
-                                    <div className="space-y-6">
-                                        <div>
-                                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Analysis Reasoning</h3>
-                                            <div className="p-4 bg-slate-900/30 rounded-xl border border-slate-800 text-slate-300 text-sm leading-relaxed">
-                                                {selectedCandidate.reasoning}
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Source Context</h3>
-                                            <div className="space-y-3">
-                                                {selectedCandidate.foundInFiles?.map((evidence, idx) => (
-                                                    <div key={idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-400 text-sm leading-relaxed relative">
-                                                        <div className="flex items-center gap-2 mb-2 text-xs font-mono text-cyan-700">
-                                                            <Database size={10} />
-                                                            <span>{evidence.fileName}</span>
-                                                        </div>
-                                                        <div className="font-serif italic pl-2 border-l-2 border-slate-800">
-                                                            "{evidence.contextSnippet}"
-                                                        </div>
-                                                    </div>
-                                                ))}
-                                                {(!selectedCandidate.foundInFiles || selectedCandidate.foundInFiles.length === 0) && (
-                                                    <div className="text-xs text-slate-600 italic">No direct context provided.</div>
-                                                )}
-                                            </div>
-                                        </div>
+                                {isEditing ? (
+                                    <div className="flex flex-col h-full space-y-2">
+                                         <label className="text-[10px] text-cyan-500 font-bold tracking-wider">DESCRIPCIÓN / REASONING (EDITABLE)</label>
+                                         <textarea
+                                             className="flex-1 w-full bg-slate-900/50 border border-slate-700 rounded-xl p-6 text-sm text-slate-300 outline-none focus:border-cyan-500 resize-none leading-relaxed font-mono custom-scrollbar"
+                                             value={editValues.description}
+                                             onChange={e => setEditValues({...editValues, description: e.target.value})}
+                                             placeholder="Escribe la descripción final para el nodo..."
+                                         />
                                     </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-8">
+                                        {/* Left Column: Analysis */}
+                                        <div className="space-y-6">
+                                            <div>
+                                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Analysis Reasoning</h3>
+                                                <div className="p-4 bg-slate-900/30 rounded-xl border border-slate-800 text-slate-300 text-sm leading-relaxed">
+                                                    {selectedCandidate.reasoning}
+                                                </div>
+                                            </div>
 
-                                    {/* Right Column: Proposal */}
-                                    <div className="space-y-6">
-                                        <div>
-                                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Proposed Action</h3>
-                                            <div className="p-1 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700">
-                                                <div className="bg-[#0a0a0b] rounded-lg p-5">
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <span className="text-sm font-bold text-white">{selectedCandidate.suggestedAction}</span>
-                                                        <span className={`text-xs px-2 py-1 rounded border ${getTypeColor(selectedCandidate.ambiguityType)}`}>
-                                                            {selectedCandidate.confidence}% Confidence
-                                                        </span>
-                                                    </div>
-
-                                                    {selectedCandidate.suggestedAction === 'MERGE' && (
-                                                        <div className="flex items-center gap-3 p-3 bg-slate-900 rounded border border-slate-800">
-                                                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500">
-                                                                OLD
+                                            <div>
+                                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Source Context</h3>
+                                                <div className="space-y-3">
+                                                    {selectedCandidate.foundInFiles?.map((evidence, idx) => (
+                                                        <div key={idx} className="p-4 bg-slate-950 rounded-xl border border-slate-800 text-slate-400 text-sm leading-relaxed relative">
+                                                            <div className="flex items-center gap-2 mb-2 text-xs font-mono text-cyan-700">
+                                                                <Database size={10} />
+                                                                <span>{evidence.fileName}</span>
                                                             </div>
-                                                            <ArrowRight size={14} className="text-slate-600" />
-                                                            <div className="flex-1">
-                                                                <div className="text-xs text-slate-500">Merge into Target:</div>
-                                                                <div className="text-sm font-bold text-orange-400">
-                                                                    {selectedCandidate.mergeWithId || 'Unknown'}
-                                                                </div>
+                                                            <div className="font-serif italic pl-2 border-l-2 border-slate-800">
+                                                                "{evidence.contextSnippet}"
                                                             </div>
                                                         </div>
-                                                    )}
-
-                                                    {selectedCandidate.suggestedAction === 'CONVERT_TYPE' && (
-                                                        <div className="flex items-center gap-3 p-3 bg-slate-900 rounded border border-slate-800">
-                                                             <div className="text-xs text-slate-500">Change Type:</div>
-                                                             <div className="text-sm font-bold text-purple-400">
-                                                                 ENTITY → {selectedCandidate.category}
-                                                             </div>
-                                                        </div>
+                                                    ))}
+                                                    {(!selectedCandidate.foundInFiles || selectedCandidate.foundInFiles.length === 0) && (
+                                                        <div className="text-xs text-slate-600 italic">No direct context provided.</div>
                                                     )}
                                                 </div>
                                             </div>
                                         </div>
+
+                                        {/* Right Column: Proposal */}
+                                        <div className="space-y-6">
+                                            <div>
+                                                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Proposed Action</h3>
+                                                <div className="p-1 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700">
+                                                    <div className="bg-[#0a0a0b] rounded-lg p-5">
+                                                        <div className="flex items-center justify-between mb-4">
+                                                            <span className="text-sm font-bold text-white">{selectedCandidate.suggestedAction}</span>
+                                                            <span className={`text-xs px-2 py-1 rounded border ${getTypeColor(selectedCandidate.ambiguityType)}`}>
+                                                                {selectedCandidate.confidence}% Confidence
+                                                            </span>
+                                                        </div>
+
+                                                        {selectedCandidate.suggestedAction === 'MERGE' && (
+                                                            <div className="flex items-center gap-3 p-3 bg-slate-900 rounded border border-slate-800">
+                                                                <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500">
+                                                                    OLD
+                                                                </div>
+                                                                <ArrowRight size={14} className="text-slate-600" />
+                                                                <div className="flex-1">
+                                                                    <div className="text-xs text-slate-500">Merge into Target:</div>
+                                                                    <div className="text-sm font-bold text-orange-400">
+                                                                        {selectedCandidate.mergeWithId || 'Unknown'}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {selectedCandidate.suggestedAction === 'CONVERT_TYPE' && (
+                                                            <div className="flex items-center gap-3 p-3 bg-slate-900 rounded border border-slate-800">
+                                                                 <div className="text-xs text-slate-500">Change Type:</div>
+                                                                 <div className="text-sm font-bold text-purple-400">
+                                                                     ENTITY → {selectedCandidate.category}
+                                                                 </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             {/* Footer Actions */}
