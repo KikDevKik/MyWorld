@@ -41,6 +41,7 @@ export interface GraphNode {
     faction?: string;
     // Campos específicos por tipo pueden ir aquí o extenderse
     // locationType?: 'city' | 'region' | 'room'
+    [key: string]: any; // Allow flexible metadata (e.g., for Macro Grouping)
   };
 
   // Posición Espacial Persistente (Tablero de Detectives)
