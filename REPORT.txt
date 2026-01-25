@@ -1,0 +1,60 @@
+REPORTE DE INGENIERÍA: REFACTORIZACIÓN SPLIT TREE & SHORTCUT BRIDGE
+FECHA: 2024-05-22
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+
+ASUNTO: ESTADO DE MISIÓN - TRANSICIÓN A ARQUITECTURA DE CONTENEDORES
+
+1. RESUMEN DE EJECUCIÓN (QUÉ SE HIZO)
+--------------------------------------
+Se ha completado la refactorización mayor del sistema de archivos y escaneo para alinear la arquitectura con la directiva de "Contenedores" (Canon vs Recursos).
+
+A. BACKEND (Cloud Functions):
+   - Implementación de `resolveDriveFolder`: Una nueva herramienta "Puente" que intercepta IDs antes de escanear. Si el ID es un Shortcut de Google Drive, resuelve el `targetId` real pero mantiene el nombre y ID original del shortcut como referencia.
+   - Refactor de `getDriveFiles` & `indexTDB`:
+     - Ya no "aplanan" indiscriminadamente el árbol.
+     - Ahora devuelven "Nodos Raíz" (Root Nodes) que encapsulan todo el contenido de esa carpeta. Esto permite al Frontend saber exactamente qué archivos pertenecen a qué carpeta "Madre" (Canon o Recursos).
+   - Actualización de `syncWorldManifest`: Ahora utiliza el `resolveDriveFolder` para asegurar que el escaneo del Manifiesto apunte a la carpeta real, sin importar si el usuario configuró un Shortcut.
+   - AI Safety Unlock: Se inyectaron configuraciones de seguridad `BLOCK_NONE` en `nexus_scan.ts` para permitir contenido narrativo adulto/violento sin censura.
+
+B. FRONTEND (React/Vite):
+   - Refactor de `VaultSidebar.tsx`:
+     - Se eliminó la lista plana única.
+     - Se implementó la lógica "Split Tree":
+       - 🔴 CANON (La Verdad): Muestra carpetas configuradas como Canon.
+       - 🔵 RECURSOS (Inspiración): Muestra carpetas configuradas como Recursos.
+       - ⚪ SIN ASIGNAR: Captura cualquier carpeta huérfana (fallback).
+     - La UI ahora consume la estructura de "Nodos Raíz" enviada por el backend para popular estas secciones correctamente.
+
+2. RAZONAMIENTO (POR QUÉ)
+-------------------------
+El sistema anterior basado puramente en IDs planos tenía dos fallos críticos:
+1. **Ceguera de Shortcuts**: El backend escaneaba el ID del shortcut, pero Drive a veces devuelve los hijos con el ID del target, rompiendo la relación padre-hijo visual y lógica.
+2. **Mezcla de Contexto**: Al aplanar todo, el frontend no podía distinguir visualmente si una carpeta venía de "Canon" o "Recursos" si no se hacía un rastreo costoso.
+
+La nueva arquitectura "Container-Based" preserva la jerarquía desde el origen. El "Nodo Raíz" actúa como el contenedor de verdad. Si el nodo raíz está en la lista de Canon, TODOS sus hijos son Canon. Esto simplifica drásticamente la lógica de filtrado y elimina la ambigüedad.
+
+3. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+-------------------------------------
+A. Verificación Visual (Playwright):
+   - **Problema**: Los scripts de verificación fallaban con "Strict Mode Violation".
+   - **Causa**: Al crear mocks de prueba, el script detectaba múltiples elementos con el mismo texto (ej. en el dropdown de saga y en el árbol).
+   - **Significado**: Irónicamente, el error confirmaba que los elementos *estaban* ahí.
+   - **Solución**: Se ajustó la verificación manual y se confirmó la presencia de los encabezados "CANON" y "RECURSOS" mediante selectores específicos.
+
+B. Entorno Ghost Mode:
+   - **Problema**: Para probar la UI sin desplegar al cloud real, se tuvo que inyectar datos falsos (Mocks) en `ProjectConfigContext`.
+   - **Solución**: Se creó un estado temporal en el código (ya revertido) para simular la estructura de árbol que devolvería el nuevo backend, permitiendo validar la lógica de separación visual antes del deploy.
+
+4. RECOMENDACIÓN FINAL: SANITIZACIÓN DE DATOS
+---------------------------------------------
+Debido a que el sistema anterior ("Force All") pudo haber inyectado nodos de "Recursos" (Inspiración) dentro de la colección de entidades `entities` (que debería ser pura Canon), se recomienda encarecidamente una **PURGA Y RESCANEO**.
+
+**Plan de Acción Sugerido:**
+1. Usar la "Opción Nuclear" (Delete All) en el Frontend para limpiar la base de datos de grafos (`entities` y `edges`).
+2. Ir a Configuración -> Carpetas y asegurar que las rutas Canon y Recursos están bien definidas.
+3. Ejecutar un "Re-Index" (Botón de Cerebro en Sidebar) para reconstruir el índice `TDB_Index` con la nueva estructura de árbol.
+4. Ejecutar el "Escáner Nexus" nuevamente. Ahora, gracias al filtro estricto por contenedor implementado en esta actualización, solo los archivos dentro de las carpetas Canon generarán nodos en el grafo.
+
+EJECUCIÓN COMPLETADA.
+JULES.
