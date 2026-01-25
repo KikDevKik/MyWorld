@@ -13,7 +13,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     // Local state for form handling
     const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
-    const [primaryCanonPathId, setPrimaryCanonPathId] = useState<string | null>(null);
     const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>([]);
     const [chronologyPath, setChronologyPath] = useState<ProjectPath | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -25,18 +24,18 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     useEffect(() => {
         if (config) {
             setCanonPaths(config.canonPaths || []);
-            setPrimaryCanonPathId(config.primaryCanonPathId || null);
             setResourcePaths(config.resourcePaths || []);
             setChronologyPath(config.chronologyPath || null);
         }
     }, [config]);
 
     const handleSave = async () => {
+        if (!config) return;
         setIsSaving(true);
         try {
             await updateConfig({
+                ...config,
                 canonPaths,
-                primaryCanonPathId,
                 resourcePaths,
                 chronologyPath
             });
@@ -59,16 +58,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             return;
         }
 
-        // 🧠 Retrieve Google API Key/Client ID securely if needed, but react-google-drive-picker usually needs them passed.
-        // Assuming environment variables or constants are available, but for now we'll assume the library handles it
-        // if the user is authenticated via the same Google session or we pass the token.
-        // ACTUALLY, react-google-drive-picker needs developerKey and clientId.
-        // Since I don't have them in constants, I will check if I can use the existing token solely or if I need to ask the user.
-        // BUT the user instruction said "Instala e implementa react-google-drive-picker".
-        // I'll try to use standard env vars if they exist in the codebase context, or placeholders.
-        // Wait, the project setup usually has these. Let's look at `firebase.json` or similar? No.
-        // I will use placeholders and rely on the existing token if possible, but the hook requires params.
-
         const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
         const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
@@ -85,7 +74,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             setSelectFolderEnabled: true,
             setIncludeFolders: true,
             setOrigin: window.location.protocol + '//' + window.location.host,
-            token: token, // Pass the existing access token
+            token: token,
             showUploadView: false,
             showUploadFolders: false,
             supportDrives: true,
@@ -98,9 +87,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                     }));
 
                     if (singleSelect) {
-                        // For chronologyPath, we expect a setter for a single object, but here we reuse the list setter signature?
-                        // No, handleOpenPicker logic needs to be flexible.
-                        // Actually, let's fix the call site logic.
+                        // For chronologyPath, we expect a setter for a single object
                     } else {
                         // Prevent duplicates
                         const uniquePaths = [...currentList];
@@ -165,8 +152,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         paths: ProjectPath[];
         setPaths: (l: ProjectPath[]) => void;
         icon: React.ElementType;
-        allowPrimary?: boolean; // 👈 Feature flag for Canon
-    }> = ({ label, paths, setPaths, icon: Icon, allowPrimary = false }) => {
+    }> = ({ label, paths, setPaths, icon: Icon }) => {
         return (
             <div className="mb-6">
                 <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider mb-2 flex items-center gap-2">
@@ -175,23 +161,12 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
                 <div className="space-y-2">
                     {paths.map((path, idx) => {
-                        const isPrimary = allowPrimary && primaryCanonPathId === path.id;
-
                         return (
-                            <div key={path.id} className={`flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border transition-all duration-300 ${isPrimary ? 'border-yellow-500/50 shadow-[0_0_10px_rgba(234,179,8,0.1)]' : 'border-titanium-700/50'}`}>
+                            <div key={path.id} className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50 transition-all duration-300">
                                 <div className="flex items-center gap-3">
-                                    {allowPrimary && (
-                                        <button
-                                            onClick={() => setPrimaryCanonPathId(isPrimary ? null : path.id)}
-                                            className={`transition-all duration-200 ${isPrimary ? 'text-yellow-400 scale-110' : 'text-titanium-600 hover:text-yellow-400/50'}`}
-                                            title={isPrimary ? "Fuente Primaria de Worldbuilding (Activa)" : "Marcar como Fuente Primaria de Reglas"}
-                                        >
-                                            <Star size={16} fill={isPrimary ? "currentColor" : "none"} />
-                                        </button>
-                                    )}
                                     <div className="flex flex-col">
-                                        <span className={`text-sm font-medium ${isPrimary ? 'text-yellow-100' : 'text-titanium-200'}`}>
-                                            {path.name} {isPrimary && <span className="text-[10px] text-yellow-500 font-bold ml-2 tracking-widest">[PRIMARY CORE]</span>}
+                                        <span className="text-sm font-medium text-titanium-200">
+                                            {path.name}
                                         </span>
                                         <span className="text-[10px] text-titanium-500 font-mono">{path.id}</span>
                                     </div>
@@ -244,7 +219,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             paths={canonPaths}
                             setPaths={setCanonPaths}
                             icon={Folder}
-                            allowPrimary={true}
                         />
 
                         {/* Resource Paths */}

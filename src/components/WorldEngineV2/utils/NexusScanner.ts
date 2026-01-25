@@ -201,8 +201,8 @@ export const scanProjectFiles = async (
         const batchIds = batchFiles.map(f => f.id);
         const contextType = batchFiles[0].context; // Assume batch shares context type (usually per folder)
 
-        // 🟢 UI FEEDBACK: PATIENCE PROTOCOL
-        onProgress(`Analizando Lote Masivo ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} archivos)... esto puede tomar varios minutos. No cierres la ventana.`, processedCount, batchKeys.length);
+        // 🟢 UI FEEDBACK: BICAMERAL PROTOCOL
+        onProgress(`EJECUTANDO CEREBRO BICAMERAL (FLASH + PRO)... Analizando Lote ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} archivos).`, processedCount, batchKeys.length);
 
         try {
             const token = localStorage.getItem('google_drive_token');
@@ -232,15 +232,36 @@ export const scanProjectFiles = async (
         }
 
         processedCount++;
-        onProgress(`Lote ${processedCount} completado. Preparando siguiente...`, processedCount, batchKeys.length);
+        onProgress(`Lote ${processedCount} completado.`, processedCount, batchKeys.length);
     }
 
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
     onProgress("Cross-referencing...", batchKeys.length, batchKeys.length);
 
     const finalizedCandidates = allCandidates.map(candidate => {
-        // Skip if already flagged as duplicate by AI (Law of Identity)
-        if (candidate.ambiguityType === 'DUPLICATE') return candidate;
+        // 🟢 CRITICAL FIX: Resolve ID if AI Suggested Merge
+        if (candidate.suggestedAction === 'MERGE' && candidate.mergeWithId) {
+            // Try explicit ID match first, then Name match
+            const targetName = normalizeName(candidate.mergeWithId);
+            const match = existingNodes.find(n => n.id === candidate.mergeWithId || normalizeName(n.name) === targetName);
+
+            if (match) {
+                // Resolved to Real ID
+                return {
+                    ...candidate,
+                    mergeWithId: match.id,
+                    mergeTargetName: match.name // Cosmetic
+                };
+            } else {
+                // Target not found -> Downgrade to Create (SafetyNet)
+                return {
+                    ...candidate,
+                    suggestedAction: 'CREATE' as const,
+                    ambiguityType: 'NEW' as const,
+                    reasoning: candidate.reasoning + " [NEXUS: Objetivo de fusión no encontrado localmente, cambiado a CREAR]"
+                };
+            }
+        }
 
         const normCandidate = normalizeName(candidate.name);
 

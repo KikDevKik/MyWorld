@@ -407,15 +407,17 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          return;
                      }
 
-                     // 🟢 FIX CRITICAL: Resolve Real ID
-                     const realTargetId = await resolveNodeId(candidate.mergeWithId, projectId, collectionPath);
+                     // 🟢 FIX CRITICAL: DIRECT ID BINDING (Skip Name Resolution)
+                     // We trust NexusScanner resolved this to a valid ID.
+                     const targetRef = doc(db, collectionPath, candidate.mergeWithId);
+                     const docSnap = await getDoc(targetRef);
 
-                     if (!realTargetId) {
-                         toast.error(`Error: No se encontró el nodo maestro '${candidate.mergeWithId}'`);
+                     if (!docSnap.exists()) {
+                         toast.error(`Error Crítico: El nodo destino (ID: ${candidate.mergeWithId}) no existe.`);
                          return;
                      }
 
-                     const targetRef = doc(db, collectionPath, realTargetId);
+                     const realTargetId = candidate.mergeWithId;
 
                      // Prepare Updates (Aliases + Description if edited + Relations)
                      // 🟢 Relations Merging
@@ -423,7 +425,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          targetId: generateId(projectId, r.target, 'concept'), // Predict ID
                          targetName: r.target,
                          targetType: 'concept',
-                         relation: r.type,
+                         relation: r.type as any,
                          context: r.context,
                          sourceFileId: 'nexus-scan-merge'
                      })) || [];
@@ -435,7 +437,6 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      // arrayUnion works for objects if they are EXACTLY same.
 
                      // Fetch current to avoid duplicates manually?
-                     const docSnap = await getDoc(targetRef);
                      const existingData = docSnap.data();
                      const existingRelations = existingData?.relations || [];
 
@@ -475,7 +476,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          targetId: generateId(projectId, r.target, 'concept'), // Predict ID (Deterministic)
                          targetName: r.target,
                          targetType: 'concept', // We assume concept if unknown
-                         relation: r.type,
+                         relation: r.type as any,
                          context: r.context,
                          sourceFileId: 'nexus-scan'
                      }));
@@ -606,7 +607,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      targetId: generateId(projectId, r.target, 'concept'),
                      targetName: r.target,
                      targetType: 'concept',
-                     relation: r.type,
+                     relation: r.type as any,
                      context: r.context,
                      sourceFileId: 'nexus-scan'
                  })) || [],
