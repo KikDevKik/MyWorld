@@ -1,0 +1,41 @@
+PARA: El Comandante
+DE: Jules (Agente de Ingeniería)
+FECHA: JUL-0B
+ASUNTO: REPORTE DE MISIÓN - RESTAURACIÓN DE INTERFAZ Y DATOS
+
+ESTADO DE MISIÓN: ÉXITO TÁCTICO CONFIRMADO
+
+1. RESUMEN DE OPERACIONES EJECUTADAS
+------------------------------------
+
+A. RESTAURACIÓN DE UI (LOS BOTONES PERDIDOS)
+   - Se han re-integrado los controles de masa en el encabezado del Tribunal: "APPROVE ALL" y "AUTO-MERGE".
+   - Lógica de Activación: Estos botones solo aparecen cuando existen candidatos de Alta Confianza (>= 85%).
+   - Seguridad: La ejecución es secuencial (uno a uno) para evitar condiciones de carrera en la base de datos (Firestore).
+
+B. RECUPERACIÓN DE FUENTES ("SOURCE PROVENANCE")
+   - Se actualizó el "System Prompt" del Backend (nexus_scan.ts).
+   - Fase 1 (Harvester): Instruida para detectar marcadores de inicio de archivo ('--- FILE START ---') y extraer el nombre del archivo origen.
+   - Fase 2 (Judge): Instruida para preservar y concatenar estos nombres en el campo 'foundInFiles', asegurando que el usuario sepa de dónde viene cada entidad.
+
+C. RETORNO DEL MERGE MANUAL
+   - Se implementó un "Forced Override" en la UI.
+   - Lógica: Si la IA tiene la más mínima sospecha de duplicidad (existe un 'mergeWithId'), el botón de acción principal cambiará a "MERGE" (Púrpura) por defecto, incluso si la IA sugería "CREATE".
+   - Esto devuelve el control al Comandante para decidir fusiones en casos ambiguos.
+
+2. ANÁLISIS DE INCIDENCIAS Y RETOS
+----------------------------------
+
+- Falso Positivo en Revisión de Código:
+  Durante la auto-evaluación, se detectó una posible falta de importaciones para los íconos 'GitMerge' y 'Check'. Tras una inspección profunda del código fuente existente, se confirmó que estas librerías ya estaban presentes, evitando una ruptura del build.
+
+- Fragilidad de Marcadores de Texto:
+  La detección de fuentes depende de que el texto de entrada contenga marcadores explícitos ("--- FILE START ---"). Si el proceso de ingestión (upload) cambia este formato, la detección de fuentes fallará silenciosamente. Se recomienda estandarizar el "Ingestion Pipeline".
+
+3. NOTAS ADICIONALES
+--------------------
+
+- Consumo de Tokens: Preservar los nombres de archivos añade peso al payload JSON de respuesta. Si se procesan lotes masivos (50+ archivos), podríamos rozar los límites de salida del modelo Gemini Pro. Se sugiere monitorear los logs de "Resource Exhausted".
+
+FIN DEL REPORTE.
+JULES OUT.
