@@ -1,0 +1,54 @@
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+FECHA: [FECHA_ACTUAL]
+ASUNTO: REPORTE DE EJECUCIÓN - PROTOCOLO UNIFICADOR (STAGING)
+
+1. RESUMEN DE CAMBIOS (QUÉ SE HIZO)
+-----------------------------------
+Se han implementado las tres directrices principales solicitadas para el "Nexus Tribunal":
+
+A. BUSCADOR TÁCTICO (SONAR):
+   - Se integró una barra de búsqueda en el Panel Izquierdo (Sticky Header).
+   - Filtra la lista de candidatos en tiempo real buscando coincidencias tanto en el Nombre como en la Descripción/Razonamiento.
+   - Diseño minimalista integrado con el estilo "Glassmorphism" de la interfaz.
+
+B. PROTOCOLO DE "STAGING" (FRENO DE DISPARO):
+   - Se modificó la lógica del botón "MERGE" (Fusión Masiva).
+   - ANTES: Escribía directamente en la base de datos y eliminaba los candidatos.
+   - AHORA: Crea una "Super-Tarjeta" en memoria (local).
+     - Combina las descripciones de los "Perdedores" en el campo de descripción del "Ganador".
+     - Mueve los nombres de los "Perdedores" al array de `aliases`.
+     - Oculta los originales y muestra solo la versión fusionada.
+
+C. VISUALIZACIÓN Y ASIMILACIÓN:
+   - Las tarjetas en estado de "Staging" se distinguen visualmente con un borde Dorado (#ddbf61), un badge "FUSIONADO" y una animación de pulso suave.
+   - Se habilitó un `textarea` en el modo de Edición para permitir la limpieza manual del texto concatenado ("El Protocolo Borg") antes de la aprobación final.
+
+2. JUSTIFICACIÓN (POR QUÉ)
+--------------------------
+- CONTROL: El Comandante requiere verificar la "Quimera" resultante antes de que sea canon. La fusión automática a menudo resulta en descripciones desordenadas.
+- SEGURIDAD: Evitar escrituras accidentales en la base de datos (DB). El paso intermedio actúa como un seguro.
+- USABILIDAD: En proyectos con cientos de candidatos, el scroll es ineficiente. El buscador permite atacar grupos específicos (ej. "Zoorians").
+
+3. OBSTÁCULOS TÉCNICOS Y SOLUCIONES
+-----------------------------------
+A. ESTADO VOLÁTIL VS PERSISTENTE:
+   - Reto: Cómo manejar una fusión que aún no existe en la DB pero debe verse en la UI.
+   - Solución: Se introdujo la bandera `isStaged` en la interfaz `AnalysisCandidate`. Esto permite que el renderizado trate a estos candidatos de forma especial sin confundir al sistema de física o guardado.
+
+B. RESOLUCIÓN DE IDs:
+   - Reto: Al fusionar, a veces el "Ganador" es un nodo que ya existe en la DB y a veces es un candidato nuevo.
+   - Solución: Se reforzó la función `resolveNodeId` para garantizar que, al aprobar, el sistema sepa si debe hacer un `updateDoc` (si ya existe) o un `setDoc` (si es nuevo), llevando correctamente los `aliases` y la nueva `description`.
+
+C. LIMPIEZA DE DATOS:
+   - Reto: La concatenación de descripciones crea bloques de texto repetitivos.
+   - Solución: Se confía en la "Pluma del Escriba" (Edición Manual). El sistema solo agrega; el humano refina.
+
+4. OBSERVACIONES ADICIONALES
+----------------------------
+- MEMORIA VOLÁTIL: Es importante recordar que si se cierra el modal del Tribunal, las fusiones en "Staging" se pierden (se "deshacen"). Esto es intencional por seguridad, pero implica que el usuario debe terminar la sesión de fusión antes de salir.
+- FUTURO: Si el volumen de fusiones crece, podríamos considerar guardar el estado de "Staging" en `localStorage` (similar a los borradores/drafts), pero por ahora la simplicidad de "Cerrar = Cancelar" es más robusta.
+
+Misión Cumplida. El sistema está listo para despliegue.
+
+Jules.
