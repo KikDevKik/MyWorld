@@ -89,7 +89,10 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
         const unsubscribe = onSnapshot(entitiesRef, (snapshot) => {
             const loaded: GraphNode[] = [];
-            snapshot.forEach(doc => loaded.push(doc.data() as GraphNode));
+            snapshot.forEach(doc => {
+                // 🟢 MANDATORY: Inject ID explicitly to prevent "blind merge" and ensure POJO
+                loaded.push({ ...doc.data(), id: doc.id } as GraphNode);
+            });
             setDbNodes(loaded);
             setLoading(false);
         });
@@ -190,9 +193,9 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
             }, 800);
 
         } catch (error: any) {
-            console.error("Nexus Scan Failed:", error);
+            console.error(`[Nexus Scan] Failed: ${error instanceof Error ? error.message : String(error)}`);
             setScanStatus("ERROR EN ESCANEO");
-            toast.error(`Fallo del Sistema: ${error.message || 'Error desconocido'}`);
+            toast.error(`Fallo del Sistema: ${error instanceof Error ? error.message : String(error)}`);
             setTimeout(() => setIsScanning(false), 2000);
         }
     };
@@ -221,8 +224,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
              toast.success("Nodo actualizado en Base de Datos.");
              setSelectedNode(prev => prev ? { ...prev, ...updates } : null);
         } catch (e: any) {
-             console.error(e);
-             toast.error("Error guardando cambios: " + e.message);
+             console.error(`[Save Node] Failed: ${e instanceof Error ? e.message : String(e)}`);
+             toast.error("Error guardando cambios: " + (e instanceof Error ? e.message : String(e)));
         }
     };
 
@@ -266,8 +269,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
             toast.success(`💎 ${data.fileName} cristalizado.`);
             if (!overrideNode) setCrystallizeModal({ isOpen: false, node: null });
         } catch (error: any) {
-            console.error(error);
-            toast.error(error.message);
+            console.error(`[Crystallize] Failed: ${error instanceof Error ? error.message : String(error)}`);
+            toast.error(error instanceof Error ? error.message : String(error));
             saveToLifeboat(targetNode, data);
             if (!overrideNode) setCrystallizeModal({ isOpen: false, node: null });
         } finally {
@@ -330,7 +333,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 return querySnap.docs[0].id;
             }
         } catch (e) {
-            console.error("Error resolving node ID:", e);
+            console.error(`[Resolve ID] Failed: ${e instanceof Error ? e.message : String(e)}`);
         }
 
         return null;
@@ -363,7 +366,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
                 toast.info(`Descartado y Silenciado: ${candidate.name}`);
             } catch (e) {
-                console.warn("Failed to update blacklist", e);
+                console.warn(`[Blacklist] Update Failed: ${e instanceof Error ? e.message : String(e)}`);
                 toast.info("Candidato Descartado");
             }
 
@@ -379,7 +382,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 // CASE A: MERGE
                 if (candidate.suggestedAction === 'MERGE') {
                      if (!candidate.mergeWithId) {
-                         console.error("Merge failed: Missing mergeWithId", candidate);
+                         console.error(`[Tribunal] Merge failed: Missing mergeWithId for ${candidate.name}`);
                          toast.error("Error: No se identificó con quién fusionar.");
                          return;
                      }
@@ -445,8 +448,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 setCandidates(prev => prev.filter(c => c.id !== candidate.id));
 
             } catch (e: any) {
-                console.error("Tribunal Action Failed:", e);
-                toast.error(`Error: ${e.message}`);
+                console.error(`[Tribunal Action] Failed: ${e instanceof Error ? e.message : String(e)}`);
+                toast.error(`Error: ${e instanceof Error ? e.message : String(e)}`);
             }
         }
     };
@@ -468,14 +471,24 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         const newAliases = Array.from(new Set([...currentAliases, ...loserNames]));
 
         // Create the Staged Candidate
+        // 🟢 SANITIZATION: Explicitly pick fields to avoid circular refs
         const stagedCandidate: AnalysisCandidate = {
-            ...winner,
+            id: winner.id,
+            name: winner.name,
+            ambiguityType: winner.ambiguityType,
+            suggestedAction: winner.suggestedAction,
+            category: winner.category,
+            type: winner.type,
+            subtype: winner.subtype,
+            confidence: winner.confidence,
+            reasoning: winner.reasoning,
+            foundInFiles: winner.foundInFiles ? [...winner.foundInFiles] : [],
+            mergeWithId: winner.mergeWithId,
+
+            // Merged Fields
             description: combinedDesc,
             aliases: newAliases,
             isStaged: true,
-            // If it was a conflict, it remains a conflict until approved.
-            // If we are merging multiple "NEW" items, it becomes a single "NEW" item.
-            // We keep the ambiguityType of the winner for now, or ensure it's NEW if the winner is NEW.
         };
 
         // 2. Update UI State (Remove Losers, Replace Winner with Staged)
