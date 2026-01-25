@@ -1,0 +1,43 @@
+REPORTE DE INGENIERÍA: MEJORA DE UX EN TRIBUNAL NEXUS
+======================================================
+FECHA: 2024-05-23
+PARA: El Comandante & Equipo Titanium
+DE: Jules (Agente de Ingeniería)
+ASUNTO: Implementación de Estados de Carga y Clarificación de Fusión
+
+1. RESUMEN EJECUTIVO
+--------------------
+Se ha implementado con éxito una mejora crítica en la Experiencia de Usuario (UX) del `NexusTribunalModal`. El objetivo principal era eliminar la incertidumbre del usuario durante operaciones de red lentas (latencia alta) y prevenir la duplicación de solicitudes ("rage-clicking").
+
+2. CAMBIOS IMPLEMENTADOS
+------------------------
+A. Estado de Carga (Loading State):
+   - Se introdujo una variable de estado local `isProcessing` (boolean).
+   - Se modificaron los manejadores de eventos (`handleAction`, `handleSaveEdit`) para activar este estado inmediatamente al iniciar una acción y desactivarlo en un bloque `finally`, garantizando que la UI nunca se quede bloqueada permanentemente, incluso si ocurre un error.
+
+B. Retroalimentación Visual:
+   - Los botones ahora muestran un spinner (`Loader2` animado) y cambian su texto a "PROCESANDO..." o "PROCESSING..." durante la operación.
+   - Se aplica una opacidad del 50% y el cursor `not-allowed` para indicar visualmente que la interfaz está ocupada.
+   - Se deshabilitan TODOS los botones interactivos (Aprobar, Rechazar, Editar, Cancelar) para prevenir condiciones de carrera.
+
+C. Identidad del Botón "MERGE":
+   - El botón principal de acción ahora es sensible al contexto.
+   - Si la acción sugerida es `MERGE`, el botón se vuelve PÚRPURA y dice "MERGE".
+   - Si la acción es `CREATE` o `CONVERT`, se mantiene en CYAN (Verde/Azul Nexus) y dice "APPROVE".
+   - Esto reduce la carga cognitiva del usuario al hacer explícita la acción destructiva/fusiva.
+
+3. JUSTIFICACIÓN TÉCNICA
+------------------------
+El problema original era que las operaciones de Firestore (especialmente en redes inestables) pueden tardar 2-5 segundos. Sin feedback, el usuario tendía a hacer clic múltiples veces.
+- **Solución Arquitectónica**: Se actualizaron las props `onAction` y `onEditApprove` para retornar `Promise<void>`. Esto obliga a la UI a esperar explícitamente (`await`) la confirmación del backend antes de liberar los controles.
+
+4. DESAFÍOS Y NOTAS
+-------------------
+- No hubo bloqueos significativos. La integración con el sistema de tipos de TypeScript requirió actualizar las interfaces para aceptar Promesas, lo cual es una buena práctica para operaciones asíncronas.
+- Se priorizó la fidelidad visual, manteniendo el estilo "Cyberpunk/Nexus" incluso en los estados deshabilitados.
+
+5. CONCLUSIÓN
+-------------
+El sistema ahora es robusto frente a la impaciencia del usuario y la latencia de la red. La distinción visual entre FUSIONAR y APROBAR añade una capa extra de seguridad semántica.
+
+-- FIN DEL REPORTE --
