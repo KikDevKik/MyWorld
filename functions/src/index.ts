@@ -1326,7 +1326,55 @@ export const getProjectConfig = onCall(
       }
 
       logger.info(`🏗️ Configuración del proyecto recuperada para ${userId}`);
-      return { ...defaultConfig, ...doc.data() };
+
+      const data = doc.data() || {};
+      const config = { ...defaultConfig, ...data };
+
+      // 🟢 MIGRATION LOGIC (ON-THE-FLY)
+      // Fix for "Structural Amnesia": Recover legacy IDs if canonPaths is empty
+      if (!config.canonPaths || config.canonPaths.length === 0) {
+          logger.info("⚠️ [MIGRATION] Empty canonPaths detected. Checking legacy fields...");
+
+          const legacyPaths: ProjectPath[] = [];
+          const seenIds = new Set<string>();
+
+          // 1. Check 'canonFolderIds' (Legacy Array)
+          if (Array.isArray(data.canonFolderIds) && data.canonFolderIds.length > 0) {
+              logger.info(`   -> Found legacy 'canonFolderIds': ${data.canonFolderIds.length} items.`);
+              data.canonFolderIds.forEach((id: any) => {
+                  if (typeof id === 'string' && !seenIds.has(id)) {
+                      legacyPaths.push({
+                          id: id,
+                          name: "Recovered Folder" // Placeholder to avoid Drive Latency
+                      });
+                      seenIds.add(id);
+                  }
+              });
+          }
+
+          // 2. Check 'universalRulesId' (Legacy Single)
+          if (typeof data.universalRulesId === 'string' && data.universalRulesId) {
+              const uId = data.universalRulesId;
+              if (!seenIds.has(uId)) {
+                  logger.info(`   -> Found legacy 'universalRulesId': ${uId}`);
+                  legacyPaths.push({
+                      id: uId,
+                      name: "Universal Rules (Legacy)"
+                  });
+                  seenIds.add(uId);
+              }
+          }
+
+          // Apply Migration
+          if (legacyPaths.length > 0) {
+              config.canonPaths = legacyPaths;
+              logger.info(`✅ [MIGRATION] Restored ${legacyPaths.length} canon paths on-the-fly.`);
+          } else {
+              logger.info("ℹ️ [MIGRATION] No legacy data found.");
+          }
+      }
+
+      return config;
 
     } catch (error: any) {
       logger.error(`💥 Error al recuperar config para ${userId}:`, error);
