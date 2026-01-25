@@ -53,8 +53,15 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
 
+    // 🟢 NEW: SPLIT TREE STATE
+    const [canonNodes, setCanonNodes] = useState<FileNode[]>([]);
+    const [resourceNodes, setResourceNodes] = useState<FileNode[]>([]);
+    const [unassignedNodes, setUnassignedNodes] = useState<FileNode[]>([]);
+    const [isCanonOpen, setIsCanonOpen] = useState(true);
+    const [isResourcesOpen, setIsResourcesOpen] = useState(true);
+
     // 🟢 CONSUME GLOBAL CONTEXT
-    const { fileTree, isFileTreeLoading } = useProjectConfig();
+    const { fileTree, isFileTreeLoading, config } = useProjectConfig();
 
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
@@ -90,15 +97,51 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     }, [isSecurityReady]);
 
 
-    // 🟢 UPDATE TOP LEVEL FOLDERS WHEN TREE CHANGES
+    // 🟢 UPDATE TREE SPLIT LOGIC
     useEffect(() => {
-        if (fileTree && Array.isArray(fileTree)) {
+        if (!fileTree) {
+             setTopLevelFolders([]);
+             setCanonNodes([]);
+             setResourceNodes([]);
+             setUnassignedNodes([]);
+             return;
+        }
+
+        if (Array.isArray(fileTree)) {
+             // 1. Saga Selector (Raw Folders)
              const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
              setTopLevelFolders(folders);
-        } else {
-             setTopLevelFolders([]);
+
+             // 2. Split Logic (Canon vs Resources)
+             if (config) {
+                 const canonIds = new Set(config.canonPaths?.map(p => p.id) || []);
+                 const resourceIds = new Set(config.resourcePaths?.map(p => p.id) || []);
+
+                 const cNodes: FileNode[] = [];
+                 const rNodes: FileNode[] = [];
+                 const uNodes: FileNode[] = [];
+
+                 fileTree.forEach(node => {
+                     // Check ID (Shortcut ID from config)
+                     // Note: node.id is the Original ID (Shortcut ID) as per backend update.
+                     if (canonIds.has(node.id)) {
+                         cNodes.push(node);
+                     } else if (resourceIds.has(node.id)) {
+                         rNodes.push(node);
+                     } else {
+                         uNodes.push(node);
+                     }
+                 });
+
+                 setCanonNodes(cNodes);
+                 setResourceNodes(rNodes);
+                 setUnassignedNodes(uNodes);
+             } else {
+                 // Fallback if config not loaded yet
+                 setUnassignedNodes(fileTree);
+             }
         }
-    }, [fileTree]);
+    }, [fileTree, config]);
 
 
     // 🟢 STATUS INDICATOR HELPER
@@ -180,11 +223,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
                 {isFileTreeLoading ? (
                     // 🟢 TITANIUM SKELETON (CIRCUIT BREAKER VISUAL)
-                    <div
-                        className="flex flex-col gap-3 p-2 animate-pulse"
-                        role="status"
-                        aria-label="Cargando estructura de archivos..."
-                    >
+                    <div className="flex flex-col gap-3 p-2 animate-pulse" role="status" aria-label="Cargando estructura de archivos...">
                         <div className="h-4 bg-titanium-700/50 rounded w-3/4"></div>
                         <div className="h-4 bg-titanium-700/30 rounded w-1/2 ml-4"></div>
                         <div className="h-4 bg-titanium-700/30 rounded w-2/3 ml-4"></div>
@@ -193,19 +232,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </div>
                 ) : (
                     <>
-                        {fileTree && fileTree.length > 0 ? (
-                            <FileTree
-                                folderId={folderId} // ⚠️ Ignored if preloadedTree is passed
-                                onFileSelect={onFileSelect}
-                                accessToken={accessToken}
-                                rootFilterId={selectedSagaId}
-                                // onLoad is handled by parent subscription now
-                                preloadedTree={fileTree} // 👈 PASS THE INDEXED TREE FROM CONTEXT
-                                conflictingFileIds={conflictingFileIds} // 👈 PASS CONFLICTS
-                                showOnlyHealthy={showOnlyHealthy} // 👈 PASS FILTER
-                                activeFileId={activeFileId} // 👈 PASS ACTIVE ID
-                            />
-                        ) : (
+                        {/* EMPTY STATE */}
+                        {(!fileTree || fileTree.length === 0) && (
                             <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10">
                                 <div className="p-3 bg-titanium-700/30 rounded-full">
                                     <FolderCog className="text-titanium-400" size={24} />
@@ -230,6 +258,86 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         Configuración Avanzada
                                     </button>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* 🔴 CANON SECTION (LA VERDAD) */}
+                        {canonNodes.length > 0 && (
+                            <div className="mb-4">
+                                <button
+                                    onClick={() => setIsCanonOpen(!isCanonOpen)}
+                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-emerald-900/10 transition-colors group"
+                                >
+                                    <ChevronDown size={12} className={`text-emerald-500 transition-transform ${isCanonOpen ? '' : '-rotate-90'}`} />
+                                    <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                                        CANON (La Verdad)
+                                    </div>
+                                    <div className="h-px flex-1 bg-emerald-900/30 ml-2 group-hover:bg-emerald-900/50 transition-colors"></div>
+                                </button>
+
+                                {isCanonOpen && (
+                                    <FileTree
+                                        folderId={folderId}
+                                        onFileSelect={onFileSelect}
+                                        accessToken={accessToken}
+                                        rootFilterId={selectedSagaId}
+                                        preloadedTree={canonNodes}
+                                        conflictingFileIds={conflictingFileIds}
+                                        showOnlyHealthy={showOnlyHealthy}
+                                        activeFileId={activeFileId}
+                                    />
+                                )}
+                            </div>
+                        )}
+
+                        {/* 🔵 RESOURCES SECTION (INSPIRACION) */}
+                        {resourceNodes.length > 0 && (
+                            <div className="mb-4">
+                                <button
+                                    onClick={() => setIsResourcesOpen(!isResourcesOpen)}
+                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-blue-900/10 transition-colors group"
+                                >
+                                    <ChevronDown size={12} className={`text-blue-500 transition-transform ${isResourcesOpen ? '' : '-rotate-90'}`} />
+                                    <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
+                                        RECURSOS (Inspiración)
+                                    </div>
+                                    <div className="h-px flex-1 bg-blue-900/30 ml-2 group-hover:bg-blue-900/50 transition-colors"></div>
+                                </button>
+
+                                {isResourcesOpen && (
+                                    <FileTree
+                                        folderId={folderId}
+                                        onFileSelect={onFileSelect}
+                                        accessToken={accessToken}
+                                        rootFilterId={selectedSagaId}
+                                        preloadedTree={resourceNodes}
+                                        conflictingFileIds={conflictingFileIds}
+                                        showOnlyHealthy={showOnlyHealthy}
+                                        activeFileId={activeFileId}
+                                    />
+                                )}
+                            </div>
+                        )}
+
+                        {/* ⚪ UNASSIGNED SECTION (Optional) */}
+                        {unassignedNodes.length > 0 && (
+                            <div className="mb-4">
+                                <div className="flex items-center gap-2 px-2 py-1.5 mb-1 text-titanium-500">
+                                    <div className="text-[10px] font-bold uppercase tracking-widest">
+                                        Sin Asignar
+                                    </div>
+                                    <div className="h-px flex-1 bg-titanium-800"></div>
+                                </div>
+                                <FileTree
+                                    folderId={folderId}
+                                    onFileSelect={onFileSelect}
+                                    accessToken={accessToken}
+                                    rootFilterId={selectedSagaId}
+                                    preloadedTree={unassignedNodes}
+                                    conflictingFileIds={conflictingFileIds}
+                                    showOnlyHealthy={showOnlyHealthy}
+                                    activeFileId={activeFileId}
+                                />
                             </div>
                         )}
                     </>
