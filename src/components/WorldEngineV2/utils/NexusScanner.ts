@@ -110,8 +110,9 @@ function extractValidFiles(
     nodes: FileNode[],
     canonPathIds: Set<string>,
     isParentCanon: boolean = false,
-    currentPath: string = ''
-): { id: string; name: string; fullPath: string; context: 'NARRATIVE' | 'WORLD_DEF' }[] {
+    currentPath: string = '',
+    parentId: string = 'root' // 🟢 NEW: Track Parent for Batching
+): { id: string; name: string; fullPath: string; context: 'NARRATIVE' | 'WORLD_DEF'; parentId: string }[] {
     let results: any[] = [];
 
     for (const node of nodes) {
@@ -122,13 +123,14 @@ function extractValidFiles(
 
         if (node.mimeType === 'application/vnd.google-apps.folder') {
             if (node.children) {
-                results = results.concat(extractValidFiles(node.children, canonPathIds, isCanon, nodePath));
+                // Pass current node ID as parentId for children
+                results = results.concat(extractValidFiles(node.children, canonPathIds, isCanon, nodePath, node.id));
             }
         } else {
             // File Handling
             const isMarkdown = node.mimeType === 'text/markdown' ||
                                node.name.endsWith('.md') ||
-                               node.mimeType === 'application/vnd.google-apps.document'; // Allow Docs too if needed? User said .md filter primarily.
+                               node.mimeType === 'application/vnd.google-apps.document';
 
             // Strict Filter: Must be Markdown AND (Inside Canon Folder OR Explicitly Whitelisted)
             if (isMarkdown && isCanon) {
@@ -136,7 +138,8 @@ function extractValidFiles(
                     id: node.id,
                     name: node.name,
                     fullPath: nodePath,
-                    context: determineContextType(nodePath)
+                    context: determineContextType(nodePath),
+                    parentId: parentId // 🟢 TRACK PARENT
                 });
             }
         }
@@ -146,11 +149,12 @@ function extractValidFiles(
 }
 
 export const scanProjectFiles = async (
+    projectId: string, // 🟢 NEW: Mandatory for Backend Context
     fileTree: FileNode[],
     canonConfigs: { id: string }[],
     existingNodes: GraphNode[],
     onProgress: ScanProgressCallback,
-    ignoredTerms: string[] = [] // 🟢 NEW: Passed from caller
+    ignoredTerms: string[] = []
 ): Promise<AnalysisCandidate[]> => {
 
     // 0. PRE-FLIGHT CHECK (TOKEN)
@@ -172,31 +176,48 @@ export const scanProjectFiles = async (
         return [];
     }
 
-    // 2. Process Files
+    // 🟢 2. GROUPING (BATCHING STRATEGY)
+    const batches: Record<string, typeof targetFiles> = {};
+    targetFiles.forEach(f => {
+        const pid = f.parentId || 'root';
+        if (!batches[pid]) batches[pid] = [];
+        batches[pid].push(f);
+    });
+
+    const batchKeys = Object.keys(batches);
+    onProgress("Batching...", 0, batchKeys.length);
+
+    // 3. Process Batches
     const functions = getFunctions();
-    const analyzeFn = httpsCallable(functions, 'analyzeNexusFile');
+    const analyzeFn = httpsCallable(functions, 'analyzeNexusFile'); // Maps to analyzeNexusBatch backend
 
     let allCandidates: AnalysisCandidate[] = [];
     let processedCount = 0;
 
-    // Sequential Processing
-    for (const file of targetFiles) {
-        onProgress(`Reading ${file.name}...`, processedCount, targetFiles.length);
+    // Sequential Processing of Batches
+    for (const pid of batchKeys) {
+        const batchFiles = batches[pid];
+        const batchIds = batchFiles.map(f => f.id);
+        const contextType = batchFiles[0].context; // Assume batch shares context type (usually per folder)
+
+        onProgress(`Reading Batch ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} files)...`, processedCount, batchKeys.length);
 
         try {
             const token = localStorage.getItem('google_drive_token');
             if (!token) throw new Error("Missing Drive Token");
 
             const result = await analyzeFn({
-                fileId: file.id,
+                fileIds: batchIds, // 🟢 SEND LIST
+                projectId: projectId, // 🟢 SEND PROJECT ID
                 accessToken: token,
-                contextType: file.context,
-                ignoredTerms: ignoredTerms // 🟢 PASS TO BACKEND
+                contextType: contextType,
+                ignoredTerms: ignoredTerms,
+                folderId: pid
             });
 
             const data = result.data as { candidates: AnalysisCandidate[] };
             if (data.candidates && Array.isArray(data.candidates)) {
-                // 🟢 ID GENERATION: Ensure every candidate has a temporary ID for the UI
+                // 🟢 ID GENERATION & RELATION MAPPING
                 const candidatesWithIds = data.candidates.map(c => ({
                     ...c,
                     id: c.id || `cand-${Date.now()}-${Math.floor(Math.random() * 10000)}`
@@ -205,15 +226,15 @@ export const scanProjectFiles = async (
             }
 
         } catch (err) {
-            console.error(`[Scan File] Failed for ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+            console.error(`[Scan Batch] Failed for Folder ${pid}: ${err instanceof Error ? err.message : String(err)}`);
         }
 
         processedCount++;
-        onProgress(`Analyzed ${file.name}`, processedCount, targetFiles.length);
+        onProgress(`Analyzed Batch ${processedCount}`, processedCount, batchKeys.length);
     }
 
-    // 3. Cross-Reference (Local Levenshtein & Fuzzy Matching)
-    onProgress("Cross-referencing...", targetFiles.length, targetFiles.length);
+    // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
+    onProgress("Cross-referencing...", batchKeys.length, batchKeys.length);
 
     const finalizedCandidates = allCandidates.map(candidate => {
         // Skip if already flagged as duplicate by AI (Law of Identity)

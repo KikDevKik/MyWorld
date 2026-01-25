@@ -42,5 +42,12 @@ export interface AnalysisCandidate {
         contextSnippet: string;
     }>;
 
+    // 🟢 NEW: Relation Extraction (Phase 2.4 - The Web)
+    relations?: Array<{
+        target: string;
+        type: string;
+        context: string;
+    }>;
+
     // Explicitly NO coordinates (fx, fy) - Simulation handles that later
 }

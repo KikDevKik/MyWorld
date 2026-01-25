@@ -27,10 +27,18 @@ const PENDING_KEY = 'nexus_pending_crystallization';
 const DRAFTS_KEY = 'nexus_drafts_v1';
 const IS_GHOST_MODE = import.meta.env.VITE_JULES_MODE === 'true';
 
-// 🟢 HELPER: ID GENERATION
+// 🟢 HELPER: ID GENERATION (DETERMINISTIC)
+// Phase 2.5 Upgrade: Removed Randomness to allow pre-linking
 const generateId = (projectId: string, name: string, type: string) => {
     const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-    const shortHash = Math.random().toString(36).substring(2, 8);
+
+    // Deterministic Hash (DJB2 variant)
+    let hash = 5381;
+    for (let i = 0; i < name.length; i++) {
+        hash = ((hash << 5) + hash) + name.charCodeAt(i); /* hash * 33 + c */
+    }
+    const shortHash = Math.abs(hash).toString(36).substring(0, 6);
+
     // Use substring of project ID for compactness
     const cleanProject = projectId.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8);
     return `${cleanProject}-${slug}-${shortHash}`;
@@ -171,6 +179,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
             // EXECUTE HYBRID SCAN
             // Note: ignoredTerms is now fetched via subscription and available in state
             const results = await scanProjectFiles(
+                config.folderId, // 🟢 NEW: Project Context
                 fileTree,
                 config.canonPaths,
                 dbNodes,
@@ -313,28 +322,39 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     };
 
     // 🟢 HELPER: Resolve ID or Name to Real ID
+    // UPDATED Phase 2.5: Case Insensitive + Staged/Ghost Awareness
     const resolveNodeId = async (nameOrId: string, projectId: string, entitiesPath: string): Promise<string | null> => {
         const db = getFirestore();
+        const normalized = nameOrId.toLowerCase().trim();
 
-        // 1. Check if valid ID
+        // 0. Check Staged/Candidates (Priority: Memory)
+        const stagedMatch = candidates.find(c => c.name.toLowerCase().trim() === normalized);
+        if (stagedMatch) return stagedMatch.id;
+
+        // 0.5 Check Ghost Nodes (Priority: Local Drafts)
+        const ghostMatch = ghostNodes.find(g => g.name.toLowerCase().trim() === normalized);
+        if (ghostMatch) return ghostMatch.id;
+
+        // 0.7 Check dbNodes (Priority: Loaded DB)
+        const dbMatch = dbNodes.find(n => n.name.toLowerCase().trim() === normalized);
+        if (dbMatch) return dbMatch.id;
+
+        // 1. Check if valid ID (Firestore Direct) - Fallback
         try {
             const docRef = doc(db, entitiesPath, nameOrId);
             const docSnap = await getDoc(docRef);
             if (docSnap.exists()) return nameOrId;
-        } catch (e) {
-            // Not a valid ID format or other error
-        }
+        } catch (e) {}
 
-        // 2. Query by Name
+        // 2. Fallback: Query by Name (Firestore Query)
+        // Only if local check failed (case sensitivity might fail here)
         try {
             const q = query(collection(db, entitiesPath), where("name", "==", nameOrId), limit(1));
             const querySnap = await getDocs(q);
             if (!querySnap.empty) {
                 return querySnap.docs[0].id;
             }
-        } catch (e) {
-            console.error(`[Resolve ID] Failed: ${e instanceof Error ? e.message : String(e)}`);
-        }
+        } catch (e) {}
 
         return null;
     };
@@ -397,9 +417,38 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
                      const targetRef = doc(db, collectionPath, realTargetId);
 
-                     // Prepare Updates (Aliases + Description if edited)
+                     // Prepare Updates (Aliases + Description if edited + Relations)
+                     // 🟢 Relations Merging
+                     const newRelations = candidate.relations?.map(r => ({
+                         targetId: generateId(projectId, r.target, 'concept'), // Predict ID
+                         targetName: r.target,
+                         targetType: 'concept',
+                         relation: r.type,
+                         context: r.context,
+                         sourceFileId: 'nexus-scan-merge'
+                     })) || [];
+
+                     // We use arrayUnion for primitives, but relations are objects.
+                     // We need to fetch, merge, update.
+                     // To be safe, we just push new relations.
+                     // Or we can assume the user will clean duplicates visually.
+                     // arrayUnion works for objects if they are EXACTLY same.
+
+                     // Fetch current to avoid duplicates manually?
+                     const docSnap = await getDoc(targetRef);
+                     const existingData = docSnap.data();
+                     const existingRelations = existingData?.relations || [];
+
+                     // Simple Merge: Filter out duplicates based on targetId + relation
+                     const mergedRelations = [...existingRelations];
+                     newRelations.forEach(newRel => {
+                         const exists = existingRelations.some((ex: any) => ex.targetId === newRel.targetId && ex.relation === newRel.relation);
+                         if (!exists) mergedRelations.push(newRel);
+                     });
+
                      const updates: any = {
-                         aliases: arrayUnion(...(candidate.aliases || [candidate.name]))
+                         aliases: arrayUnion(...(candidate.aliases || [candidate.name])),
+                         relations: mergedRelations
                      };
 
                      // If description was explicitly edited/staged, update it too
@@ -421,6 +470,16 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      const newNodeId = generateId(projectId, candidate.name, type);
                      const nodeRef = doc(db, collectionPath, newNodeId);
 
+                     // 🟢 MAP RELATIONS
+                     const mappedRelations = (candidate.relations || []).map(r => ({
+                         targetId: generateId(projectId, r.target, 'concept'), // Predict ID (Deterministic)
+                         targetName: r.target,
+                         targetType: 'concept', // We assume concept if unknown
+                         relation: r.type,
+                         context: r.context,
+                         sourceFileId: 'nexus-scan'
+                     }));
+
                      const newNode: GraphNode = {
                          id: newNodeId,
                          name: candidate.name,
@@ -429,7 +488,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          description: candidate.description || candidate.reasoning || "Imported via Nexus Tribunal",
                          subtype: (candidate as any).subtype, // 🟢 Phase 2.4
                          aliases: candidate.aliases || [],
-                         relations: [],
+                         relations: mappedRelations, // 🟢 INJECTED
                          // Map evidence
                          foundInFiles: candidate.foundInFiles?.map(f => ({
                              fileId: 'nexus-scan', // Placeholder as we don't have exact ID here
@@ -470,6 +529,17 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         const loserNames = losers.map(l => l.name);
         const newAliases = Array.from(new Set([...currentAliases, ...loserNames]));
 
+        // 🟢 COMBINE RELATIONS
+        const winnerRelations = winner.relations || [];
+        const loserRelations = losers.flatMap(l => l.relations || []);
+        const allRelations = [...winnerRelations, ...loserRelations];
+        // Deduplicate relations
+        const uniqueRelations = allRelations.filter((rel, index, self) =>
+            index === self.findIndex((t) => (
+                t.target === rel.target && t.type === rel.type
+            ))
+        );
+
         // Create the Staged Candidate
         // 🟢 SANITIZATION: Explicitly pick fields to avoid circular refs
         const stagedCandidate: AnalysisCandidate = {
@@ -488,6 +558,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
             // Merged Fields
             description: combinedDesc,
             aliases: newAliases,
+            relations: uniqueRelations, // 🟢 NEW
             isStaged: true,
         };
 
@@ -531,7 +602,14 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                  description: newValues.description || originalCandidate.description || originalCandidate.reasoning || "Edited & Approved via Nexus Tribunal",
                  subtype: newValues.subtype,
                  aliases: originalCandidate.aliases || [],
-                 relations: [],
+                 relations: originalCandidate.relations?.map(r => ({
+                     targetId: generateId(projectId, r.target, 'concept'),
+                     targetName: r.target,
+                     targetType: 'concept',
+                     relation: r.type,
+                     context: r.context,
+                     sourceFileId: 'nexus-scan'
+                 })) || [],
                  foundInFiles: originalCandidate.foundInFiles?.map(f => ({
                      fileId: 'nexus-scan',
                      fileName: f.fileName,

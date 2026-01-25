@@ -1,0 +1,30 @@
+REPORTE TÉCNICO: ESTADO DE LA FUNCIÓN PROYECTO Y USO DE CARPETAS CANON
+FECHA: JUL-0B
+ASUNTO: ANÁLISIS DE INTEGRIDAD DE "PROJECT FUNCTION" Y NEXUS SCANNER
+
+1. ESTADO DE LA FUNCIÓN PROYECTO (Backend & Contexto)
+   - Confirmado: El sistema de configuración (`ProjectConfigContext.tsx` y `functions/src/index.ts`) está diseñado correctamente para gestionar múltiples carpetas Canon.
+   - La estructura de datos `ProjectConfig` incluye `canonPaths: ProjectPath[]` (un array de objetos con ID y nombre), lo cual permite catalogar múltiples fuentes de verdad, no solo una.
+   - La función `getProjectConfig` recupera esta lista fielmente de la base de datos (`users/{uid}/profile/project_config`).
+   - Por lo tanto, la "Función Proyecto" ESTÁ cumpliendo su rol de catalogar las carpetas correctamente.
+
+2. REVISIÓN DE LA PÁGINA (WorldEnginePageV2.tsx)
+   - Función `handleNexusClick` (El disparador del escáner):
+     - ESTÁ USANDO la configuración correcta: Pasa `config.canonPaths` (el array completo) a `scanProjectFiles`.
+     - Código observado: `scanProjectFiles(fileTree, config.canonPaths, ...)`
+   - Función `NexusScanner.ts` (El motor de escaneo):
+     - ESTÁ USANDO la lista completa. La función `extractValidFiles` recibe el set de IDs y filtra recursivamente: `const isCanon = isParentCanon || canonPathIds.has(node.id);`.
+     - Esto significa que si una carpeta madre está en la lista Canon, todos sus hijos se escanean automáticamente.
+
+3. ¿POR QUÉ EL FALLO DE "TUNNEL VISION"? (Discrepancia detectada)
+   Aunque el código parece correcto, el "Tunnel Vision" (ceguera parcial) reportado por el usuario probablemente se debe a:
+   A. Desincronización del Árbol de Archivos (`fileTree`):
+      - `WorldEnginePageV2` depende de `fileTree` que viene del contexto. Si `getDriveFiles` (la función que construye el árbol) no escaneó profundamente esas carpetas Canon (por límites de recursividad o timeouts), `NexusScanner` no las verá, aunque estén en la config.
+   B. Configuración Vacía:
+      - Si el usuario nunca agregó explícitamente carpetas a `canonPaths` en la UI de Ajustes, el array está vacío y el escáner no hace nada. El código no tiene un "fallback" automático a la carpeta raíz del proyecto si no hay Canon definido (lo cual es un comportamiento correcto para evitar escanear basura, pero puede parecer un error).
+
+4. CONCLUSIÓN
+   No hay funciones en `WorldEnginePageV2` que estén "ignorando" maliciosamente la configuración. El sistema respeta la lista `canonPaths`.
+   El problema se resolverá con el nuevo plan "Project Authority" que forzará al escáner a iterar sobre los IDs de `canonPaths` explícitamente y solicitar sus contenidos en lote (Batch), independientemente del estado visual del `fileTree` local.
+
+FIN DEL REPORTE.
