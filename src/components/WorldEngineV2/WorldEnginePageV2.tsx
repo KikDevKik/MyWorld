@@ -17,6 +17,8 @@ import { VisualNode, AnalysisCandidate } from './types';
 import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
 import NexusTribunalModal from './NexusTribunalModal';
+import { NodeDetailsSidebar } from './NodeDetailsSidebar';
+import { NodeEditModal } from './NodeEditModal';
 import { CommandBar } from './CommandBar';
 import { scanProjectFiles } from './utils/NexusScanner';
 
@@ -62,6 +64,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     // STATE: UI
     const [loading, setLoading] = useState(true);
     const [lodTier, setLodTier] = useState<'MACRO' | 'MESO' | 'MICRO'>('MESO');
+    const [selectedNode, setSelectedNode] = useState<VisualNode | null>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
     const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
     const [crystallizeModal, setCrystallizeModal] = useState<{ isOpen: boolean, node: VisualNode | null }>({ isOpen: false, node: null });
@@ -195,6 +199,31 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
     const handleUpdateGhost = (nodeId: string, updates: any) => {
         setGhostNodes(prev => prev.map(g => g.id === nodeId ? { ...g, ...updates } : g));
+    };
+
+    const handleSaveNode = async (nodeId: string, updates: any) => {
+        // 1. Check if Ghost
+        const isGhost = ghostNodes.some(g => g.id === nodeId);
+        if (isGhost) {
+            handleUpdateGhost(nodeId, updates);
+            setSelectedNode(prev => prev ? { ...prev, ...updates } : null);
+            toast.success("Borrador actualizado locally.");
+            return;
+        }
+
+        // 2. Update DB
+        if (!user || !config?.folderId) return;
+        const db = getFirestore();
+        const nodeRef = doc(db, `users/${user.uid}/projects/${config.folderId}/entities`, nodeId);
+
+        try {
+             await updateDoc(nodeRef, updates);
+             toast.success("Nodo actualizado en Base de Datos.");
+             setSelectedNode(prev => prev ? { ...prev, ...updates } : null);
+        } catch (e: any) {
+             console.error(e);
+             toast.error("Error guardando cambios: " + e.message);
+        }
     };
 
     const saveToLifeboat = (node: VisualNode, targetData: any) => {
@@ -487,7 +516,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                                 nodes={unifiedNodes}
                                 lodTier={lodTier}
                                 setHoveredNodeId={setHoveredNodeId}
-                                onNodeClick={(n) => console.log("Node Clicked:", n.name)}
+                                onNodeClick={(n) => setSelectedNode(n)}
                                 onUpdateGhost={handleUpdateGhost}
                                 onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
                                 isLoading={loading}
@@ -568,6 +597,21 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                      />
                  )}
              </AnimatePresence>
+
+             {/* 🟢 SIDEBAR & EDIT MODAL */}
+             <NodeDetailsSidebar
+                node={selectedNode}
+                isOpen={!!selectedNode}
+                onClose={() => setSelectedNode(null)}
+                onEdit={() => setIsEditModalOpen(true)}
+             />
+
+             <NodeEditModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                node={selectedNode}
+                onSave={handleSaveNode}
+             />
 
              {/* CONFIRMATION MODAL (NUCLEAR) */}
              {isClearAllOpen && (
