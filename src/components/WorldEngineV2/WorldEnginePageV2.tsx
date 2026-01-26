@@ -21,6 +21,7 @@ import { NodeDetailsSidebar } from './NodeDetailsSidebar';
 import { NodeEditModal } from './NodeEditModal';
 import { CommandBar } from './CommandBar';
 import { scanProjectFiles } from './utils/NexusScanner';
+import TheBuilder from './TheBuilder';
 
 // 🟢 CONFIGURATION
 const PENDING_KEY = 'nexus_pending_crystallization';
@@ -81,6 +82,10 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
     // STATE: CONFIRMATION MODALS
     const [isClearAllOpen, setIsClearAllOpen] = useState(false);
+
+    // STATE: THE BUILDER
+    const [isBuilderOpen, setIsBuilderOpen] = useState(false);
+    const [builderInitialPrompt, setBuilderInitialPrompt] = useState("");
 
     // STATE: NEXUS TRIBUNAL (Scanning)
     const [isScanning, setIsScanning] = useState(false);
@@ -645,6 +650,11 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         }
     };
 
+    const handleBuilderTrigger = (text: string) => {
+        setBuilderInitialPrompt(text);
+        setIsBuilderOpen(true);
+    };
+
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
              {/* WARMUP LOADER */}
@@ -746,8 +756,16 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
              <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
                 <CommandBar
                     onClearAll={() => setIsClearAllOpen(true)}
+                    onCommit={handleBuilderTrigger}
                 />
              </div>
+
+             {/* THE BUILDER */}
+             <TheBuilder
+                isOpen={isBuilderOpen}
+                onClose={() => setIsBuilderOpen(false)}
+                initialPrompt={builderInitialPrompt}
+             />
 
              {/* MODAL */}
              <AnimatePresence>
