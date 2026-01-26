@@ -15,6 +15,7 @@ import { GraphNode, EntityType } from '../../types/graph';
 import CrystallizeModal from '../ui/CrystallizeModal';
 import { VisualNode, AnalysisCandidate } from './types';
 import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
+import FactionOverlay, { FactionOverlayHandle } from './FactionOverlay';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
 import NexusTribunalModal from './NexusTribunalModal';
 import { NodeDetailsSidebar } from './NodeDetailsSidebar';
@@ -58,6 +59,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     // REFS
     const graphRef = useRef<GraphSimulationHandle>(null);
     const linksOverlayRef = useRef<LinksOverlayHandle>(null);
+    const factionOverlayRef = useRef<FactionOverlayHandle>(null);
 
     // CONTEXT
     const { config, user, fileTree } = useProjectConfig();
@@ -692,6 +694,13 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                             wrapperClass="!w-full !h-full"
                             contentClass="!w-full !h-full !z-10 relative !pointer-events-none"
                         >
+                            {/* 🟢 FACTION LAYER (Bottom Z-Index) */}
+                            <FactionOverlay
+                                ref={factionOverlayRef}
+                                nodes={unifiedNodes}
+                                lodTier={lodTier}
+                            />
+
                             <GraphSimulationV2
                                 ref={graphRef}
                                 nodes={unifiedNodes}
@@ -701,7 +710,10 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                                 onUpdateGhost={handleUpdateGhost}
                                 onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
                                 isLoading={loading}
-                                onTick={() => linksOverlayRef.current?.forceUpdate()}
+                                onTick={() => {
+                                    linksOverlayRef.current?.forceUpdate();
+                                    factionOverlayRef.current?.forceUpdate();
+                                }}
                             />
                         </TransformComponent>
 
