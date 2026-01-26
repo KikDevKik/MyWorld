@@ -1,0 +1,108 @@
+================================================================================
+REPORTE DE ESTADO: SISTEMA NEXUS & PERFORADOR V2
+================================================================================
+FECHA: Actualidad (v3.5)
+ESTADO: OPERATIVO / FASE DE PULIDO
+--------------------------------------------------------------------------------
+
+1. CAMBIOS RECIENTES EN EL NÚCLEO (ÚLTIMA ITERACIÓN)
+--------------------------------------------------------------------------------
+Los esfuerzos recientes se han concentrado en la "estabilización del caos".
+Hemos pasado de un sistema de generación aleatoria a uno determinista y controlado.
+
+A. PROTOCOLO DE IDENTIDAD DETERMINISTA
+   - Se eliminó la generación de IDs aleatorios.
+   - Ahora los IDs se generan mediante un hash determinista basado en el nombre del
+     proyecto y el nombre de la entidad (Slug + Hash).
+   - BENEFICIO: Permite predecir enlaces. Si Nexus escanea "Gondor" en dos archivos
+     diferentes, generará el mismo ID, permitiendo una fusión implícita inmediata.
+
+B. PROTOCOLO DE FUSIÓN (THE UNIFIER)
+   - Implementación del "Tribunal Nexus" (ver abajo).
+   - Capacidad de "Staging" (Fase de Preparación): El usuario puede fusionar
+     múltiples candidatos (ej: "Frodo", "Frodo Baggins", "Señor Bolsón") en una
+     sola "Super-Tarjeta" temporal antes de confirmar la escritura en base de datos.
+   - Lógica de "Merge with ID": El sistema ahora prioriza la fusión directa con
+     nodos existentes basada en IDs reales de Firestore, evitando duplicados fantasmas.
+
+C. PROTOCOLO DE LISTA NEGRA (EL RENCOR)
+   - Implementación de "Hard Reject". Cuando un usuario rechaza un término con
+     la opción de "Banear", este se añade a una lista negra (`ignoredTerms`) en la
+     configuración del proyecto.
+   - Nexus pre-filtra estos términos en futuros escaneos, reduciendo el ruido.
+   - Se añadió una vista de "Papelera" en el Tribunal para restaurar términos baneados.
+
+--------------------------------------------------------------------------------
+2. EXPERIENCIA VISUAL: EL PERFORADOR DE MUNDOS V2
+--------------------------------------------------------------------------------
+Al abrir el "World Engine", el usuario se encuentra con una interfaz inmersiva
+diseñada para evocar un centro de mando estelar o una red neuronal oscura.
+
+[EL LIENZO]
+* Fondo: Negro profundo (`#141413`). Oscuridad casi total.
+* Grafo: Una constelación viva. Los nodos no están estáticos; flotan con una física
+  de repulsión suave (constelación) o fuerte (según el nivel de zoom).
+* Conexiones: Rayos de energía (gradientes lineales) que conectan conceptos.
+* Territorios: Las facciones generan "Cáscaras Convexas" (Convex Hulls) de luz neón
+  suave que agrupan visualmente a sus miembros.
+
+[HUD - HEADS UP DISPLAY]
+La interfaz flota sobre el lienzo, dividida en zonas funcionales claras:
+
+A. EL OJO (TOP CENTER)
+   * Qué es: El botón "NEXUS". Un orbe brillante con icono de Globo.
+   * Visual: Estética Cyber-Glass. Translúcido con bordes cian neón.
+   * Comportamiento: Al pulsar, inicia el escaneo. Muestra un pulso de "Cargando..."
+     con estados granulares ("ESCANEANDO...", "ANALIZANDO...", "DEDUPLICANDO...").
+
+B. LA BOCA (BOTTOM CENTER - COMMAND BAR)
+   * Qué es: Barra de comandos y control de realidad.
+   * Componente 1 (Input): Una caja de texto minimalista ("¿Qué quieres crear o consultar?")
+     que brilla según el modo activo.
+   * Componente 2 (Reality Slider): Un deslizador físico con "clack" satisfactorio que
+     cambia el modo de operación del grafo:
+     - RIGOR (Azul): Física estricta, estructura cristalina.
+     - FUSIÓN (Gris/Plata): Modo estándar, equilibrado.
+     - ENTROPÍA (Violeta): Física caótica, alta repulsión, ideal para brainstorming.
+   * Botón Nuclear (Izquierda): Un pequeño icono de basura roja. Abre la "Zona de Peligro"
+     para purgar todo el grafo.
+
+C. EL ARSENAL (DERECHA - ZOOM)
+   * Controles simples de Zoom (+ / -) flotando discretamente en la esquina inferior derecha.
+
+D. PANELES LATERALES (SLIDEOVERS)
+   * Izquierda (Tribunal Nexus): Se despliega al terminar un escaneo. Es un modal
+     masivo y oscuro que ocupa casi toda la pantalla (ver sección 3).
+   * Derecha (Detalle de Nodo): Al hacer clic en un nodo, desliza un panel con
+     la información, descripción y conexiones del nodo seleccionado.
+
+--------------------------------------------------------------------------------
+3. LA CORTE DE LOS DATOS (NEXUS TRIBUNAL UI)
+--------------------------------------------------------------------------------
+No es una simple lista. Es una interfaz de juicio forense.
+
+* Diseño: Modal oscuro a pantalla casi completa (Glassmorphism).
+* Columna Izquierda (La Lista):
+  - Buscador integrado.
+  - Pestañas de Filtro: ALL, CONFLICT (Naranja), NEW (Violeta), TRASH (Rojo).
+  - Los ítems candidatos aparecen con badges de confianza (ej: "85% CF").
+  - Botones de Acción Masiva: "APPROVE ALL" y "AUTO-MERGE" aparecen solo si hay
+    candidatos de alta confianza.
+
+* Columna Derecha (El Estrado):
+  - Muestra el detalle del candidato seleccionado.
+  - "Analysis Reasoning": El "por qué" la IA detectó esto.
+  - "Source Context": Fragmentos del texto original donde aparece la entidad.
+  - Acciones:
+    - Botón "APPROVE/MERGE" (Grande, color según acción).
+    - Botón "REJECT..." (Despliega menú: "Descartar Instancia" o "Banear Término").
+    - Botón "Editar" (Lápiz): Permite corregir el nombre/tipo antes de crear.
+
+--------------------------------------------------------------------------------
+CONCLUSIÓN
+--------------------------------------------------------------------------------
+El sistema ha evolucionado de una herramienta de visualización pasiva a un
+entorno de gestión de datos activo ("Data Gardening"). La integración del
+Tribunal Nexus dentro del propio lienzo del Perforador cierra el ciclo entre
+la escritura (Drive) y la estructura (Grafo), permitiendo al autor "curar"
+su mundo sin salir de la inmersión visual.
