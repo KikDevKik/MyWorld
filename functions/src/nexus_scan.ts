@@ -346,12 +346,24 @@ export const analyzeNexusBatch = onCall(
                         existing.relations = mergedRels;
                     }
 
-                    // 3. Keep highest confidence
+                    // 3. Keep highest confidence BUT aggregate descriptions
                     if (c.confidence > existing.confidence) {
+                        // Old reasoning becomes alternative
+                        if (existing.reasoning && existing.reasoning !== c.reasoning) {
+                            if (!c.reasoning.includes(existing.reasoning)) { // Avoid dupes
+                                c.reasoning += `\n\n[Alternative View]: ${existing.reasoning}`;
+                            }
+                        }
+
                         existing.confidence = c.confidence;
-                        existing.reasoning = c.reasoning; // Update reasoning to best one
-                        existing.suggestedAction = c.suggestedAction; // Trust the most confident action
+                        existing.reasoning = c.reasoning;
+                        existing.suggestedAction = c.suggestedAction;
                         if (c.mergeWithId) existing.mergeWithId = c.mergeWithId;
+                    } else {
+                        // Append current lower-confidence reasoning to existing if unique
+                        if (c.reasoning && existing.reasoning && !existing.reasoning.includes(c.reasoning)) {
+                             existing.reasoning += `\n\n[Alternative View]: ${c.reasoning}`;
+                        }
                     }
 
                 } else {
