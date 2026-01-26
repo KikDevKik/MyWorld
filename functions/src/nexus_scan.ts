@@ -67,8 +67,8 @@ async function getProjectRoster(userId: string, projectId: string): Promise<stri
             const aliases = Array.isArray(data.aliases) && data.aliases.length > 0
                 ? ` [Aliases: ${data.aliases.join(", ")}]`
                 : "";
-            // We use name for matching as instructed by user prompt history
-            entries.push(`- ${name} (${type})${aliases}`);
+            // 🟢 CRITICAL: Inject ID for strict matching
+            entries.push(`- ${name} (${type})${aliases} [ID: ${doc.id}]`);
         });
 
         // 🛡️ TOKEN SAFETY: Truncate if too huge
@@ -263,8 +263,9 @@ export const analyzeNexusBatch = onCall(
 
             *** MATCHING PROTOCOL (ROSTER CHECK) ***
             - CHECK EVERY NEW ENTITY against the EXISTING ROSTER.
-            - If "Madre" is found in raw list, and "Elsa Liselotte [Aliases: Madre]" is in Roster -> MERGE IT.
-            - Return 'suggestedAction': 'MERGE' and 'mergeWithId': 'Elsa Liselotte'.
+            - If "Madre" is found in raw list, and "Elsa Liselotte [Aliases: Madre] [ID: 12345]" is in Roster -> MERGE IT.
+            - Return 'suggestedAction': 'MERGE'.
+            - **CRITICAL**: 'mergeWithId' MUST BE THE ID IN BRACKETS (e.g., '12345'). DO NOT RETURN THE NAME.
 
             *** SOURCE PROVENANCE DIRECTIVE ***
             - When merging or identifying an entity, you MUST preserve the source filenames from the input list.
@@ -290,7 +291,7 @@ export const analyzeNexusBatch = onCall(
                 "suggestedAction": "CREATE", // CREATE, MERGE, CONVERT_TYPE, IGNORE
                 "confidence": 95,
                 "reasoning": "Brief explanation.",
-                "mergeWithId": "TargetNameIfMerge", // IMPORTANT: Return the NAME of the target if merging.
+                "mergeWithId": "TargetID_IfMerge", // IMPORTANT: Return the extracted ID (e.g. 'project-name-123') NOT the Name.
                 "foundInFiles": [
                    {
                      "fileName": "Source",

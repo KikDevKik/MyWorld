@@ -770,38 +770,42 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                             </button>
                                         </div>
 
-                                        {(() => {
-                                            const hasMergeTarget = !!selectedCandidate.mergeWithId;
-                                            const isMerge = selectedCandidate.suggestedAction === 'MERGE' || hasMergeTarget;
-                                            // 🟢 SAFETY: If it's a merge but no target, we can't approve.
-                                            const missingTarget = isMerge && !hasMergeTarget;
+                                        {/* 🟢 ACTION BUTTON (Refactored to avoid ReferenceError) */}
+                                        {selectedCandidate && (
+                                            (() => {
+                                                const hasMergeTarget = !!selectedCandidate.mergeWithId;
+                                                const isMerge = selectedCandidate.suggestedAction === 'MERGE' || hasMergeTarget;
+                                                const missingTarget = isMerge && !hasMergeTarget;
 
-                                            const baseColor = isMerge
-                                                ? (missingTarget ? 'bg-slate-700 hover:bg-slate-600 border border-slate-500' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20')
-                                                : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20';
+                                                const baseColor = isMerge
+                                                    ? (missingTarget ? 'bg-slate-700 hover:bg-slate-600 border border-slate-500' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20')
+                                                    : 'bg-cyan-600 hover:bg-cyan-500 shadow-cyan-900/20';
 
-                                            let label = isProcessing ? 'PROCESSING...' : (isMerge ? 'MERGE' : 'APPROVE');
-                                            if (missingTarget) label = 'SELECT TARGET...';
+                                                let label = isProcessing ? 'PROCESSING...' : (isMerge ? 'MERGE' : 'APPROVE');
+                                                if (missingTarget) label = 'SELECT TARGET...';
 
-                                            return (
-                                                <button
-                                                    onClick={() => {
-                                                        if (missingTarget) {
-                                                            setIsMergeSelectOpen(true);
-                                                        } else {
-                                                            handleAction('APPROVE');
-                                                        }
-                                                    }}
-                                                    disabled={isProcessing}
-                                                    className={`px-8 py-2.5 rounded-lg text-white shadow-lg transition-all text-sm font-bold flex items-center gap-2 group ${baseColor} ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                >
-                                                    {isProcessing ? <Loader2 size={16} className="animate-spin" /> :
-                                                        (missingTarget ? <Search size={16} /> : <Check size={16} className="group-hover:scale-110 transition-transform" />)
+                                                const handleButtonClick = () => {
+                                                    if (missingTarget) {
+                                                        setIsMergeSelectOpen(true);
+                                                    } else {
+                                                        handleAction('APPROVE');
                                                     }
-                                                    {label}
-                                                </button>
-                                            );
-                                        })()}
+                                                };
+
+                                                return (
+                                                    <button
+                                                        onClick={handleButtonClick}
+                                                        disabled={isProcessing}
+                                                        className={`px-8 py-2.5 rounded-lg text-white shadow-lg transition-all text-sm font-bold flex items-center gap-2 group ${baseColor} ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                    >
+                                                        {isProcessing ? <Loader2 size={16} className="animate-spin" /> :
+                                                            (missingTarget ? <Search size={16} /> : <Check size={16} className="group-hover:scale-110 transition-transform" />)
+                                                        }
+                                                        {label}
+                                                    </button>
+                                                );
+                                            })()
+                                        )}
                                     </>
                                 )}
                             </div>

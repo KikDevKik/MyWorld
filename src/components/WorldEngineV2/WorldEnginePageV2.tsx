@@ -418,17 +418,29 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          return;
                      }
 
-                     // 🟢 FIX CRITICAL: DIRECT ID BINDING (Skip Name Resolution)
-                     // We trust NexusScanner resolved this to a valid ID.
-                     const targetRef = doc(db, collectionPath, candidate.mergeWithId);
-                     const docSnap = await getDoc(targetRef);
+                     // 🟢 FIX: Handle both ID (Preferred) and Name (Legacy/AI Fallback)
+                     let targetId = candidate.mergeWithId;
+                     let targetRef = doc(db, collectionPath, targetId);
+                     let docSnap = await getDoc(targetRef);
 
+                     // Fallback: If ID not found, try resolving as Name
                      if (!docSnap.exists()) {
-                         toast.error(`Error Crítico: El nodo destino (ID: ${candidate.mergeWithId}) no existe.`);
-                         return;
+                         console.warn(`[Tribunal] ID ${targetId} not found. Attempting name resolution...`);
+                         // entitiesPath is effectively collectionPath here
+                         const resolvedId = await resolveNodeId(targetId, projectId, "users/" + user.uid + "/projects/" + projectId + "/entities");
+
+                         if (resolvedId) {
+                             targetId = resolvedId;
+                             targetRef = doc(db, collectionPath, targetId);
+                             docSnap = await getDoc(targetRef);
+                             console.log(`[Tribunal] Resolved Name '${candidate.mergeWithId}' to ID '${targetId}'`);
+                         } else {
+                             toast.error(`Error Crítico: No se encontró el nodo destino '${candidate.mergeWithId}' (ni por ID ni por Nombre).`);
+                             return;
+                         }
                      }
 
-                     const realTargetId = candidate.mergeWithId;
+                     const realTargetId = targetId;
 
                      // Prepare Updates (Aliases + Description if edited + Relations)
                      // 🟢 Relations Merging
