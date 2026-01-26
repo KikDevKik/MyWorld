@@ -658,7 +658,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
 
              {/* CANVAS WRAPPER */}
              <TransformWrapper
-                initialScale={0.8}
+                initialScale={0.4}
                 minScale={0.1}
                 maxScale={3}
                 centerOnInit={true}
