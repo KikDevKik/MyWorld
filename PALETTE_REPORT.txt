@@ -1,0 +1,25 @@
+REPORTE DE PALETTE 🎨
+Fecha: 2024-05-22
+Misión: Accesibilidad en el Panel de Cronograma (TimelinePanel)
+
+1. ¿QUÉ HICE?
+   - Modifiqué `src/components/TimelinePanel.tsx`.
+   - Agregué atributos `aria-label` a los botones que solo contenían iconos (Cerrar, Confirmar Evento, Descartar Evento).
+   - Vinculé explícitamente las etiquetas de texto ("Año Actual", "Era") con sus inputs correspondientes usando `htmlFor` e `id`.
+
+2. ¿POR QUÉ?
+   - **Filosofía Palette**: "La accesibilidad no es opcional". Los usuarios que dependen de lectores de pantalla no sabían qué hacían esos botones ni a qué se referían los campos de texto.
+   - Los botones de solo icono son una trampa de UX común; sin una etiqueta ARIA, un lector de pantalla solo diría "botón", lo cual es confuso.
+   - Vincular etiquetas (labels) aumenta el área de clic y asegura que el foco programático sea lógico.
+
+3. PROBLEMAS ENCONTRADOS
+   - Al principio, tuve que identificar qué inputs específicos carecían de asociación. El código usaba etiquetas visuales (`<label>`) pero sin conexión semántica con el `<input>`.
+   - La verificación requirió simular un entorno de navegador para asegurar que los selectores funcionaran. Usé un script de Playwright (`verify_timeline.py`) para navegar hasta el panel y confirmar que los atributos estaban presentes en el DOM real.
+
+4. PENSAMIENTOS ADICIONALES
+   - El `TimelinePanel` tiene un diseño visual fuerte (tema Titanium/Orange), pero la UX interactiva podía pulirse.
+   - Noté que los botones de "Confirmar" y "Descartar" solo aparecen cuando hay eventos sugeridos. Mi script de prueba validó los elementos estáticos (Header e Inputs) que siempre están presentes.
+   - Siguiente oportunidad: El panel de "Chat" también podría beneficiarse de etiquetas similares en sus controles de mensaje.
+
+Firma,
+Palette 🎨

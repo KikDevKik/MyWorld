@@ -178,6 +178,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                     <button
                         onClick={onClose}
                         className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
+                        aria-label="Cerrar cronograma"
                     >
                         <X size={24} />
                     </button>
@@ -186,8 +187,9 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                 {/* CONTROLS */}
                 <div className="px-6 pb-4 flex items-center gap-4 text-sm">
                     <div className="flex flex-col gap-1">
-                        <label className="text-titanium-500 text-xs uppercase font-bold">Año Actual</label>
+                        <label htmlFor="timeline-current-year" className="text-titanium-500 text-xs uppercase font-bold">Año Actual</label>
                         <input
+                            id="timeline-current-year"
                             type="number"
                             value={currentYear}
                             onChange={(e) => setCurrentYear(parseInt(e.target.value) || 0)}
@@ -195,8 +197,9 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                         />
                     </div>
                     <div className="flex flex-col gap-1 flex-1">
-                        <label className="text-titanium-500 text-xs uppercase font-bold">Era</label>
+                        <label htmlFor="timeline-era-name" className="text-titanium-500 text-xs uppercase font-bold">Era</label>
                         <input
+                            id="timeline-era-name"
                             type="text"
                             value={eraName}
                             onChange={(e) => setEraName(e.target.value)}
@@ -321,6 +324,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                                                                 onClick={() => handleApprove(event.id)}
                                                                 className="p-1.5 rounded bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors"
                                                                 title="Confirmar"
+                                                                aria-label="Confirmar evento"
                                                             >
                                                                 <Check size={16} />
                                                             </button>
@@ -328,6 +332,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                                                                 onClick={() => handleDiscard(event.id)}
                                                                 className="p-1.5 rounded bg-red-500/10 text-red-500 hover:bg-red-500/20 transition-colors"
                                                                 title="Descartar"
+                                                                aria-label="Descartar evento"
                                                             >
                                                                 <Trash2 size={16} />
                                                             </button>
