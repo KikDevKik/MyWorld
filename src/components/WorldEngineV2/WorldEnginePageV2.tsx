@@ -418,33 +418,17 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          return;
                      }
 
-                     // 🟢 FIX CRITICAL: NAME-TO-ID RESOLUTION
-                     // If the AI returns a Name instead of an ID, we must resolve it.
-                     let targetId = candidate.mergeWithId;
-
-                     // Check if it's already a valid ID (exists in memory)
-                     const existsInMemory = unifiedNodes.some(n => n.id === targetId);
-
-                     if (!existsInMemory) {
-                         // Try to resolve via DB/Index
-                         const resolved = await resolveNodeId(targetId, projectId, collectionPath);
-                         if (resolved) {
-                             targetId = resolved;
-                         } else {
-                             toast.error(`Error: No se encontró el nodo destino '${candidate.mergeWithId}'. Selecciónalo manualmente.`);
-                             return;
-                         }
-                     }
-
-                     const targetRef = doc(db, collectionPath, targetId);
+                     // 🟢 FIX CRITICAL: DIRECT ID BINDING (Skip Name Resolution)
+                     // We trust NexusScanner resolved this to a valid ID.
+                     const targetRef = doc(db, collectionPath, candidate.mergeWithId);
                      const docSnap = await getDoc(targetRef);
 
                      if (!docSnap.exists()) {
-                         toast.error(`Error Crítico: El nodo destino (ID: ${targetId}) no existe.`);
+                         toast.error(`Error Crítico: El nodo destino (ID: ${candidate.mergeWithId}) no existe.`);
                          return;
                      }
 
-                     const realTargetId = targetId;
+                     const realTargetId = candidate.mergeWithId;
 
                      // Prepare Updates (Aliases + Description if edited + Relations)
                      // 🟢 Relations Merging
