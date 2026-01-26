@@ -1,0 +1,24 @@
+# Reporte de UX y Visualización - World Engine V2
+
+Durante la reparación del problema de visualización en la vista Macro, se observaron los siguientes puntos que podrían mejorar la experiencia del usuario:
+
+## 1. El Efecto "Vacío" (The Void Effect)
+**Observación:** Al alejarse a la vista Macro, si el usuario desplaza la cámara lejos de los nodos, la pantalla queda completamente negra. A diferencia de la vista táctica donde se ven los nodos, aquí solo se ven las siluetas de las facciones.
+**Problema Potencial:** Un usuario nuevo podría pensar que la aplicación se ha congelado o que no hay datos si entra en esta vista y no ve nada inmediatamente.
+**Sugerencia:** Implementar un fondo sutil (como una grilla muy tenue o un campo de estrellas estático) que solo sea visible en la vista Macro. Esto daría una referencia visual de movimiento al hacer paneo.
+
+## 2. Indicadores Fuera de Pantalla
+**Observación:** En un lienzo infinito (4000x4000), es fácil perder de vista dónde están los clústeres de información.
+**Sugerencia:** Agregar flechas indicadoras en los bordes de la pantalla que apunten hacia los grupos de nodos más cercanos cuando estos quedan fuera del área visible.
+
+## 3. Legibilidad de Etiquetas (Giant Labels)
+**Observación:** Las etiquetas de las facciones ("REBELS IMPERIUM" en la prueba) son estáticas.
+**Sugerencia:** Si dos facciones grandes están muy cerca, sus textos podrían solaparse. Un sistema simple de "repulsión" para las etiquetas o un desvanecimiento dinámico basado en la densidad podría mejorar esto.
+
+## 4. Feedback de Carga
+**Observación:** Al entrar por primera vez, el motor de físicas tarda unos segundos en estabilizar las posiciones.
+**Sugerencia:** Asegurar que el loader (spinner) se mantenga hasta que la simulación haya completado su "calentamiento" inicial (los primeros ~100 ticks) para evitar que el usuario vea los nodos "explotando" hacia sus posiciones finales.
+
+---
+**Nota sobre la corrección actual:**
+La solución implementada conecta directamente el `FactionOverlay` al ciclo de renderizado (`tick`) de D3. Esto asegura que las siluetas sigan perfectamente a los nodos sin retraso (lag) perceptible, lo cual es una mejora significativa en la "sensación" de fluidez de la aplicación.

@@ -15,6 +15,7 @@ import {
     AlertTriangle
 } from 'lucide-react';
 import { VisualNode } from './types';
+import FactionOverlay, { FactionOverlayHandle } from './FactionOverlay';
 
 // 🟢 DUPLICATED STYLES (Refined Cyberpunk Palette)
 const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: string }> = {
@@ -210,6 +211,7 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
 }>(({ nodes, lodTier, setHoveredNodeId, onNodeClick, onUpdateGhost, onCrystallize, isLoading, onTick }, ref) => {
     const nodeRefs = useRef<Record<string, HTMLDivElement>>({});
     const simulationRef = useRef<any>(null);
+    const factionOverlayRef = useRef<FactionOverlayHandle>(null);
     const [simNodes, setSimNodes] = useState<VisualNode[]>([]); // For React Rendering only (Mount/Unmount)
 
     // 1. IMPERATIVE HANDLE (Sync from Parent)
@@ -287,10 +289,12 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
 
             // 2. Sync Lines
             onTick();
+            factionOverlayRef.current?.forceUpdate();
         });
 
         simulation.on("end", () => {
             onTick();
+            factionOverlayRef.current?.forceUpdate();
         });
 
         // ✋ DRAG BEHAVIOR (SLEEP & WAKE)
@@ -312,6 +316,7 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 const el = nodeRefs.current[d.id];
                 if (el) el.style.transform = `translate(${event.x}px, ${event.y}px)`;
                 onTick(); // ⚡ SURGICAL PRECISION
+                factionOverlayRef.current?.forceUpdate();
             })
             .on("end", (event, d) => {
                 if (!event.active) simulation.alphaTarget(0); // Go back to sleep
@@ -358,6 +363,13 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                     backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
                     backgroundSize: '50px 50px'
                 }}
+            />
+
+            {/* 🟢 FACTION OVERLAY (Internalized for Coordinate Access) */}
+            <FactionOverlay
+                ref={factionOverlayRef}
+                nodes={simNodes}
+                lodTier={lodTier}
             />
 
             {/* NODES */}
