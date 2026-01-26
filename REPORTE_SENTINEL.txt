@@ -1,0 +1,21 @@
+REPORTE DE ACCIONES SENTINEL - PREVENCIÓN DOS NEXUS
+
+1. ¿QUÉ HICE?
+   Implementé límites estrictos de recursos en la función `analyzeNexusBatch` (ubicada en `functions/src/nexus_scan.ts`):
+   - Definí `MAX_BATCH_SIZE = 50`: Limita el número de archivos que se pueden procesar en una sola llamada.
+   - Definí `MAX_TOTAL_CONTENT_CHARS = 500000`: Limita la cantidad total de texto (caracteres) que se acumula en memoria antes de enviarlo a la IA.
+   - Agregué validaciones al inicio de la función para rechazar peticiones que excedan estos límites con un error `resource-exhausted`.
+   - Agregué lógica de truncamiento seguro: si la suma de archivos excede los 500k caracteres, se procesan los primeros hasta llenar el cupo y se ignora el resto (con una advertencia en los logs), evitando que el servidor colapse.
+
+2. ¿POR QUÉ?
+   - **Riesgo de DoS (Denial of Service):** Sin límites, un usuario malintencionado (o un error de frontend) podría enviar una petición con 10,000 IDs de archivo. Esto dispararía 10,000 peticiones simultáneas a la API de Google Drive, agotando la cuota del proyecto.
+   - **Riesgo de OOM (Out Of Memory):** Si esos archivos fueran grandes (ej. novelas completas), la variable `combinedContent` crecería indefinidamente hasta consumir toda la memoria RAM de la Cloud Function (2GiB), provocando un "crash" del servidor.
+   - **Costos de IA:** Enviar millones de tokens a Gemini sin control generaría costos excesivos.
+
+3. ¿QUÉ PROBLEMAS TUVE?
+   - **Entorno de Construcción:** Al intentar verificar el código con `npm run build`, falló porque `tsc` no estaba en el path estándar. Tuve que usar `pnpm` explícitamente dentro de la carpeta `functions`.
+   - **Lockfile Gigante:** Al ejecutar `pnpm install` para poder compilar, se generó un archivo `pnpm-lock.yaml` nuevo de más de 8,000 líneas. Esto violaba mi directiva de mantener los cambios "pequeños" (menores a 50 líneas). Tuve que borrar este archivo antes de enviar los cambios para no ensuciar el historial del repositorio, confiando en que el entorno de despliegue real (Firebase) manejará las dependencias correctamente basándose en `package.json`.
+
+4. OTRAS OBSERVACIONES
+   - **Capa de Seguridad:** Esta es una defensa de "Backend". El Frontend también debería limitar la selección visual a 50 archivos para mejorar la experiencia de usuario (UX), pero la seguridad real está ahora garantizada en el servidor.
+   - **Logs:** Se han mantenido los logs detallados (`logger.info`, `logger.warn`) para monitorear si los usuarios legítimos están alcanzando estos límites frecuentemente.
