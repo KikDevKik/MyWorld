@@ -161,8 +161,16 @@ const FactionOverlayRenderer: React.FC<{ territories: any[], lodTier: 'MACRO' | 
 
     return (
         <svg
-            className="absolute inset-0 w-[4000px] h-[4000px] overflow-visible pointer-events-none"
-            style={{ zIndex: 0 }}
+            width="4000"
+            height="4000"
+            className="overflow-visible"
+            style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                pointerEvents: 'none',
+                zIndex: 0
+            }}
         >
             <defs>
                 {/* Glow Filter */}
