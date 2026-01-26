@@ -25,10 +25,8 @@ interface NexusTribunalModalProps {
     isOpen: boolean;
     onClose: () => void;
     candidates: AnalysisCandidate[];
-    existingNodes?: { id: string; name: string; type?: string }[]; // 🟢 NEW PROP
     onAction: (action: 'APPROVE' | 'REJECT_SOFT' | 'REJECT_HARD', candidate: AnalysisCandidate) => Promise<void>;
     onEditApprove: (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string }) => Promise<void>;
-    onUpdateCandidate?: (candidateId: string, updates: Partial<AnalysisCandidate>) => void; // 🟢 NEW PROP
     onBatchMerge: (winner: AnalysisCandidate, losers: AnalysisCandidate[]) => Promise<void>;
     ignoredTerms?: string[];
     onRestoreIgnored?: (term: string) => void;
@@ -61,7 +59,7 @@ const cleanName = (name: string) => {
     return name.replace(/\(id:.*\)/, "").trim();
 };
 
-const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, existingNodes = [], onAction, onEditApprove, onUpdateCandidate, onBatchMerge, ignoredTerms = [], onRestoreIgnored }) => {
+const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored }) => {
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
@@ -69,10 +67,6 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     // STATE: EDIT MODE
     const [isEditing, setIsEditing] = useState(false);
     const [editValues, setEditValues] = useState({ name: '', type: 'concept', subtype: '', description: '' });
-
-    // STATE: MANUAL MERGE SEARCH
-    const [mergeSearch, setMergeSearch] = useState('');
-    const [isMergeSelectOpen, setIsMergeSelectOpen] = useState(false);
 
     // STATE: SELECTION
     const [selectedId, setSelectedId] = useState<string | null>(candidates.length > 0 ? candidates[0].id : null);
@@ -180,8 +174,6 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     React.useEffect(() => {
         setIsEditing(false);
         setShowRejectPopover(false);
-        setIsMergeSelectOpen(false); // Close merge selector
-        setMergeSearch('');
         if (selectedCandidate) {
             setEditValues({
                 name: selectedCandidate.name,
@@ -649,58 +641,6 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                                  </div>
                                                             </div>
                                                         )}
-
-                                                        {/* 🟢 MANUAL MERGE SELECTOR */}
-                                                        <div className="mt-4 pt-4 border-t border-slate-800">
-                                                            <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 block">
-                                                                Manual Override: Force Merge
-                                                            </label>
-                                                            <div className="relative">
-                                                                <button
-                                                                    onClick={() => setIsMergeSelectOpen(!isMergeSelectOpen)}
-                                                                    className="w-full flex items-center justify-between bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-300 hover:border-slate-500 transition-colors"
-                                                                >
-                                                                    <span>{selectedCandidate.suggestedAction === 'MERGE' ? 'Change Target...' : 'Select Merge Target...'}</span>
-                                                                    <Search size={12} />
-                                                                </button>
-
-                                                                {isMergeSelectOpen && (
-                                                                    <div className="absolute top-full left-0 right-0 mt-2 bg-[#0f0f10] border border-slate-700 rounded-lg shadow-xl z-50 max-h-48 overflow-y-auto">
-                                                                         <input
-                                                                            autoFocus
-                                                                            className="w-full bg-slate-900 border-b border-slate-700 p-2 text-xs text-white outline-none"
-                                                                            placeholder="Search existing nodes..."
-                                                                            value={mergeSearch}
-                                                                            onChange={e => setMergeSearch(e.target.value)}
-                                                                            onClick={e => e.stopPropagation()}
-                                                                         />
-                                                                         {existingNodes
-                                                                            .filter(n => n.name.toLowerCase().includes(mergeSearch.toLowerCase()))
-                                                                            .slice(0, 50) // Limit results
-                                                                            .map(node => (
-                                                                             <div
-                                                                                key={node.id}
-                                                                                onClick={() => {
-                                                                                    onUpdateCandidate && onUpdateCandidate(selectedCandidate.id, {
-                                                                                        suggestedAction: 'MERGE',
-                                                                                        mergeWithId: node.id,
-                                                                                        mergeTargetName: node.name
-                                                                                    });
-                                                                                    setIsMergeSelectOpen(false);
-                                                                                }}
-                                                                                className="p-2 hover:bg-slate-800 cursor-pointer text-xs text-slate-300 flex justify-between"
-                                                                             >
-                                                                                <span className="truncate pr-2">{node.name}</span>
-                                                                                <span className="text-[10px] text-slate-500 uppercase whitespace-nowrap">{node.type}</span>
-                                                                             </div>
-                                                                         ))}
-                                                                         {existingNodes.filter(n => n.name.toLowerCase().includes(mergeSearch.toLowerCase())).length === 0 && (
-                                                                             <div className="p-2 text-[10px] text-slate-500 text-center">No matches found</div>
-                                                                         )}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
