@@ -84,9 +84,10 @@ const groupNodesByFaction = (nodes: VisualNode[]) => {
 interface FactionOverlayProps {
     nodes: VisualNode[];
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
+    tick?: number;
 }
 
-export const FactionOverlay: React.FC<FactionOverlayProps> = ({ nodes, lodTier }) => {
+export const FactionOverlay: React.FC<FactionOverlayProps> = ({ nodes, lodTier, tick }) => {
     // 🧠 MEMOIZE CALCULATIONS (Expensive Geometry)
     const territories = useMemo(() => {
         const groups = groupNodesByFaction(nodes);
@@ -132,7 +133,7 @@ export const FactionOverlay: React.FC<FactionOverlayProps> = ({ nodes, lodTier }
                 isSingle // Flag for Debug Rendering
             };
         });
-    }, [nodes]);
+    }, [nodes, tick]);
 
     return <FactionOverlayRenderer territories={territories} lodTier={lodTier} />;
 };
@@ -149,7 +150,7 @@ export const FactionOverlayWithRef = React.forwardRef<FactionOverlayHandle, Fact
         forceUpdate: () => setTick(t => t + 1)
     }));
 
-    return <FactionOverlay {...props} />;
+    return <FactionOverlay {...props} tick={tick} />;
 });
 
 const FactionOverlayRenderer: React.FC<{ territories: any[], lodTier: 'MACRO' | 'MESO' | 'MICRO' }> = ({ territories, lodTier }) => {
