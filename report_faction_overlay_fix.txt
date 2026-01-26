@@ -1,0 +1,33 @@
+REPORTE DE REPARACIÓN: FACTION OVERLAY (EL LIENZO PERDIDO)
+===========================================================
+AGENTE: Jules
+FECHA: 2024-05-22
+
+1. QUÉ SE HIZO (ACCIONES)
+-------------------------
+Se modificó el componente `src/components/WorldEngineV2/FactionOverlay.tsx`.
+- Se añadieron atributos explícitos `width="4000"` y `height="4000"` al elemento raíz `<svg>`.
+- Se reemplazaron las clases de Tailwind (`absolute inset-0`) por estilos en línea (`style={{ position: 'absolute', top: 0, left: 0, ... }}`) para garantizar que el posicionamiento no se vea afectado por conflictos de CSS o comportamientos inesperados del contenedor padre (`TransformComponent`).
+- Se verificó la solución inyectando temporalmente un borde rojo de depuración (`border: 5px solid red`) y confirmando su visibilidad mediante un script de automatización visual (Playwright).
+
+2. POR QUÉ (RAZONAMIENTO)
+-------------------------
+El diagnóstico inicial ("Visibilidad 0%") era correcto. El componente `FactionOverlay` vive dentro de un `TransformComponent` (de `react-zoom-pan-pinch`). En este contexto, los elementos hijos que dependen de `width="100%"` a menudo colapsan a 0px si el contenedor padre no tiene una dimensión explícita propagada o si el contexto de apilamiento (stacking context) lo impide.
+
+Al forzar las dimensiones a coincidir exactamente con el espacio de simulación física (`GraphSimulationV2` también usa 4000x4000), garantizamos que el SVG ocupe el espacio correcto independientemente del nivel de zoom o del tamaño de la ventana del navegador.
+
+3. PROBLEMAS ENCONTRADOS
+------------------------
+- **Entorno de Desarrollo:** Hubo dificultades iniciales para levantar el servidor de desarrollo (`vite not found`, `tsc not found`) debido a diferencias en el entorno del sandbox. Se resolvió usando rutas explícitas (`./node_modules/.bin/vite`) y reinstalando dependencias.
+- **Ruido en Dependencias:** `npm install` generó cambios masivos en `package-lock.json` (eliminación de flags `peer: true`). Para mantener la higiene del código, se revirtió este archivo antes de la entrega final.
+- **Automatización de Pruebas:** El primer script de verificación falló por `Timeout`. Fue necesario ajustar el script para navegar explícitamente a la vista "World Engine" (botón en el dock) y esperar a que el texto "NEXUS" apareciera, confirmando que la carga pesada del motor había terminado.
+
+4. OBSERVACIONES ADICIONALES (RECOMENDACIONES)
+----------------------------------------------
+- **Hardcoding de Dimensiones:** Actualmente, el valor `4000` está escrito manualmente ("hardcoded") tanto en `GraphSimulationV2.tsx` como en `FactionOverlay.tsx`.
+  - *Riesgo:* Si en el futuro decidimos ampliar el mundo a 8000x8000, es fácil olvidar actualizar uno de los dos archivos, rompiendo la sincronización visual (los territorios no coincidirían con los nodos).
+  - *Sugerencia:* Mover este valor a una constante compartida (ej. `WORLD_DIMENSIONS = 4000`) en un archivo de configuración o constantes (`src/constants.ts` o `src/components/WorldEngineV2/types.ts`).
+
+- **Debug Visual:** La técnica del "Borde Rojo" demostró ser extremadamente eficaz para diferenciar entre "no se renderiza" (error de lógica React) y "es invisible" (error de CSS/Dimensiones). Recomiendo mantener un modo de depuración visual activable en el futuro.
+
+FIN DEL REPORTE
