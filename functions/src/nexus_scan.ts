@@ -47,43 +47,44 @@ interface AnalysisCandidate {
     }>;
 }
 
-// 🟢 HELPER: VIP CONTEXT INJECTION
-async function getVipContext(userId: string, projectId: string): Promise<string> {
+// 🟢 HELPER: ROSTER CONTEXT INJECTION (Full Project Awareness)
+async function getProjectRoster(userId: string, projectId: string): Promise<string> {
     try {
         const db = getFirestore();
         const entitiesRef = db.collection("users").doc(userId).collection("projects").doc(projectId).collection("entities");
+        // Select minimal fields to save bandwidth/memory
+        const snapshot = await entitiesRef.select('name', 'type', 'aliases', 'subtype').get();
 
-        // Query High Value Nodes
-        // Firestore OR queries are limited, so we do parallel queries or just fetch one type if indices missing.
-        // Let's fetch FACTION and LOCATION for now, and maybe Main Characters.
+        if (snapshot.empty) return "";
 
-        const factionsQuery = entitiesRef.where("type", "==", "faction").limit(10).get();
-        const locationsQuery = entitiesRef.where("type", "==", "location").limit(10).get();
-        const mainCharsQuery = entitiesRef.where("subtype", "==", "MAIN_CHARACTER").limit(10).get();
+        let context = "### EXISTING WORLD ROSTER (Use for Merge Detection)\n";
+        const entries: string[] = [];
 
-        const [factionsSnap, locationsSnap, mainCharsSnap] = await Promise.all([factionsQuery, locationsQuery, mainCharsQuery]);
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            const name = data.name || "Unknown";
+            const type = data.type || "concept";
+            const aliases = Array.isArray(data.aliases) && data.aliases.length > 0
+                ? ` [Aliases: ${data.aliases.join(", ")}]`
+                : "";
+            // We use name for matching as instructed by user prompt history
+            entries.push(`- ${name} (${type})${aliases}`);
+        });
 
-        let context = "### CONOCIMIENTO PREVIO DEL MUNDO (VIP Context)\n";
-        const seen = new Set<string>();
+        // 🛡️ TOKEN SAFETY: Truncate if too huge
+        // 1000 entries * ~50 chars = 50k chars. Safe limit is ~100k for prompt input usually.
+        // Let's cap at 500 entries or 30k chars to be safe.
+        const SAFE_ROSTER_LIMIT = 500;
+        if (entries.length > SAFE_ROSTER_LIMIT) {
+             context += `(Showing top ${SAFE_ROSTER_LIMIT} of ${entries.length} entities)\n`;
+             context += entries.slice(0, SAFE_ROSTER_LIMIT).join("\n");
+        } else {
+             context += entries.join("\n");
+        }
 
-        const processSnap = (snap: FirebaseFirestore.QuerySnapshot) => {
-            snap.forEach(doc => {
-                const data = doc.data();
-                if (!seen.has(data.name)) {
-                    context += `- ${data.name} (${data.type}): ${data.description?.substring(0, 50)}...\n`;
-                    seen.add(data.name);
-                }
-            });
-        };
-
-        processSnap(factionsSnap);
-        processSnap(locationsSnap);
-        processSnap(mainCharsSnap);
-
-        if (seen.size === 0) return "";
         return context;
     } catch (e) {
-        logger.warn("⚠️ Failed to fetch VIP Context:", e);
+        logger.warn("⚠️ Failed to fetch Project Roster:", e);
         return "";
     }
 }
@@ -220,8 +221,8 @@ export const analyzeNexusBatch = onCall(
 
             logger.info(`🤖 STAGE 1 COMPLETE. Extracted ${rawEntities.length} raw entities.`);
 
-            // 2. VIP CONTEXT (Fetch while Stage 1 runs? No, depend on it for flow clarity, but ideally parallel)
-            const vipContext = await getVipContext(request.auth.uid, projectId);
+            // 2. ROSTER CONTEXT (Fetch while Stage 1 runs? No, depend on it for flow clarity, but ideally parallel)
+            const projectRoster = await getProjectRoster(request.auth.uid, projectId);
 
             // 🟢 STAGE 2: THE JUDGE (MODEL HIGH REASONING)
             logger.info("⚖️ STAGE 2: JUDGE (Pro) Initiated...");
@@ -237,10 +238,10 @@ export const analyzeNexusBatch = onCall(
 
             const judgePrompt = `
             ACT AS: The Royal Librarian & Taxonomist (Hive Mind Mode).
-            TASK: Analyze the provided RAW LIST of entities and the VIP Context to produce the Final Tribunal Candidates.
+            TASK: Analyze the provided RAW LIST of entities and the EXISTING ROSTER to produce the Final Tribunal Candidates.
 
-            INPUT 1: VIP CONTEXT (Existing Database Knowledge):
-            ${vipContext}
+            INPUT 1: EXISTING ROSTER (Database of Known Entities):
+            ${projectRoster}
 
             INPUT 2: RAW ENTITY LIST (From Harvester):
             ${JSON.stringify(rawEntities.slice(0, 500))}
@@ -252,7 +253,7 @@ export const analyzeNexusBatch = onCall(
             Detect the dominant language of the input. GENERATE ALL OUTPUT IN THAT LANGUAGE.
 
             1. LEY DE MATERIALIDAD: Distingue Objetos de Lugares.
-            2. LEY DE IDENTIDAD (Alias): Si "Madre" es "Elsa", FUSIÓNALOS (MERGE).
+            2. LEY DE IDENTIDAD (Alias): Si "Madre" es "Elsa" (según el Roster), FUSIÓNALOS (MERGE).
             3. LEY DEL ALCANCE: Ignora eventos personales menores.
             4. LEY DE LA NATURALEZA: Habilidades son CONCEPTOS.
             5. LEY DE NECROMANCIA: Ignora muertos irrelevantes.
@@ -260,13 +261,18 @@ export const analyzeNexusBatch = onCall(
             7. LEY DE BIOLOGÍA: CREATURE (Animal) vs RACE (Especie) vs FACTION (Política).
             8. LEY DE DETALLE: Subtype obligatorio de 1 palabra.
 
+            *** MATCHING PROTOCOL (ROSTER CHECK) ***
+            - CHECK EVERY NEW ENTITY against the EXISTING ROSTER.
+            - If "Madre" is found in raw list, and "Elsa Liselotte [Aliases: Madre]" is in Roster -> MERGE IT.
+            - Return 'suggestedAction': 'MERGE' and 'mergeWithId': 'Elsa Liselotte'.
+
             *** SOURCE PROVENANCE DIRECTIVE ***
             - When merging or identifying an entity, you MUST preserve the source filenames from the input list.
             - If an entity appears in multiple files, join them: 'Chapter 1, Chapter 3'.
             - Populate 'foundInFiles' correctly.
 
             *** MANUAL MERGE SUSPICION ***
-            - If there is ANY suspicion that a new entity matches an existing VIP entity (even with low confidence), you MUST return 'mergeWithId' (Target Name).
+            - If there is ANY suspicion that a new entity matches an existing Roster entity (even with low confidence), you MUST return 'mergeWithId' (Target Name).
             - Do not hide potential matches.
 
             === RELATIONSHIP EXTRACTION ===
