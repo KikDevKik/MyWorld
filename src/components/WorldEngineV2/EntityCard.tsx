@@ -62,7 +62,8 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     onEdit?: (nodeId: string, updates: { name: string, description: string }) => void;
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
-}>(({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId }, ref) => {
+    variant?: 'standard' | 'hologram';
+}>(({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId, variant = 'standard' }, ref) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(node.name);
     const [editDesc, setEditDesc] = useState(node.description || "");
@@ -71,7 +72,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     let nodeStyleKey = 'default';
     if (node.type === 'character') nodeStyleKey = 'character';
     else if (node.type === 'location') nodeStyleKey = 'location';
-    else if (node.meta?.node_type === 'conflict' || node.type === 'enemy') nodeStyleKey = 'conflict';
+    else if (node.meta?.node_type === 'conflict' || (node.type as string) === 'enemy') nodeStyleKey = 'conflict';
     else if (node.type === 'idea' || node.isGhost) nodeStyleKey = 'idea';
     else if (node.type === 'creature') nodeStyleKey = 'creature';
     else if (node.type === 'race') nodeStyleKey = 'race';
@@ -127,12 +128,14 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
             <div
                 className={`
                     relative w-full h-full flex flex-col gap-1
-                    bg-black/90 backdrop-blur-[4px] rounded-lg border
+                    rounded-lg border
+                    ${variant === 'hologram'
+                        ? 'bg-black/20 backdrop-blur-[2px] border-dashed opacity-80 hover:opacity-100 animate-pulse'
+                        : 'bg-black/90 backdrop-blur-[4px] hover:scale-110 hover:shadow-xl hover:bg-black/95'}
                     ${style.border}
                     ${isMicro ? 'p-3' : 'p-2 overflow-hidden'}
                     cursor-grab active:cursor-grabbing group transition-all duration-200
-                    hover:scale-110 hover:shadow-xl hover:bg-black/95
-                    ${style.shadow}
+                    ${variant === 'standard' ? style.shadow : ''}
                     select-none
                 `}
                 onClick={(e) => {
@@ -168,7 +171,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                                 {getIcon()}
                                 <span className="truncate max-w-[80px]">{node.type}</span>
                             </div>
-                            {isMicro && node.isGhost && (
+                            {isMicro && node.isGhost && variant !== 'hologram' && (
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {onEdit && (
                                         <button

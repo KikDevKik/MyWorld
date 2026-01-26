@@ -13,11 +13,23 @@ const MODES: { id: RealityMode; label: string }[] = [
 
 interface CommandBarProps {
     onClearAll?: () => void;
+    onCommit?: (text: string) => void;
 }
 
-export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll }) => {
+export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit }) => {
     const [mode, setMode] = useState<RealityMode>('FUSION');
     const [focused, setFocused] = useState(false);
+    const [input, setInput] = useState("");
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (input.trim() && onCommit) {
+                onCommit(input);
+                setInput("");
+            }
+        }
+    };
 
     return (
         <div className="flex gap-4 items-end pointer-events-auto">
@@ -57,6 +69,9 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll }) => {
                         }`}
                         onFocus={() => setFocused(true)}
                         onBlur={() => setFocused(false)}
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
                     />
                 </div>
 
