@@ -102,7 +102,7 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes }) => {
                         lodTier="MICRO"
                         setHoveredNodeId={() => {}}
                         onClick={() => {}}
-                        variant="hologram"
+                        variant={node.isAnchor ? 'anchor' : 'hologram'}
                     />
                 </div>
             ))}

@@ -1,0 +1,97 @@
+REPORTE DE ESTADO TÉCNICO DETALLADO - FASE 2 (THE BRAIN & BUILDER)
+FECHA: 2024-05-22
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+
+ASUNTO: ANÁLISIS EXHAUSTIVO DE CAMBIOS Y COMPORTAMIENTO ACTUAL DEL SISTEMA
+
+Este reporte detalla con precisión extrema ("excesiva") las modificaciones realizadas al código base tras la confusión en la orden "EXECUTE PLAN". A continuación, se describe cómo actúa el sistema ahora mismo, componente por componente.
+
+---
+
+### 1. LA EXPERIENCIA DE USUARIO (THE BUILDER UI)
+**Estado Anterior:** El chat era simulado o estático. El usuario escribía y esperaba sin feedback visual hasta que llegaba la respuesta completa.
+**Estado ACTUAL (Comportamiento Modificado):**
+
+*   **Streaming Real (Efecto Máquina de Escribir):**
+    *   Al enviar un prompt en `TheBuilder`, el frontend ahora abre una conexión HTTP persistente (`fetch` con `response.body.getReader()`) hacia el nuevo endpoint `builderStream`.
+    *   **Lo que ve el usuario:** El texto de "Razonamiento" de la IA aparece letra por letra o palabra por palabra en tiempo real. Ya no hay "3 puntos suspensivos" infinitos; el usuario ve a la IA "pensando".
+    *   **Técnica:** El frontend procesa flujos de texto en formato NDJSON (Newlines Delimited JSON). Cada línea recibida se parsea instantáneamente y se añade al estado del chat.
+
+*   **Renderizado de Grafos "Fantasmas" (Ghost Graph):**
+    *   Mientras la IA razona, el grafo permanece en espera.
+    *   Cuando la IA termina de pensar, envía un último paquete de datos (`type: 'data'`).
+    *   **Efecto Visual:** Inmediatamente después del razonamiento, aparecen los nodos en el panel derecho (`GhostGraph`). Estos nodos son interactivos y simulan físicas.
+
+*   **Visualización de "Anclas Holográficas" (Anchor Nodes):**
+    *   **Cambio Crítico:** Si la IA detecta que "Juan" ya existe en la base de datos, NO crea un nodo nuevo brillante.
+    *   **Apariencia:** Crea un nodo "Ancla". Este nodo se ve diferente en la pantalla:
+        *   **Opacidad:** 50% (semitransparente).
+        *   **Color:** Desaturado (Escala de grises / Glassmorphism).
+        *   **Borde:** Discontinuo (Dashed) para indicar que es una "Referencia" y no una nueva creación.
+        *   **Comportamiento:** Estos nodos actúan como puntos fijos gravitacionales alrededor de los cuales orbitan las nuevas ideas.
+
+---
+
+### 2. EL CEREBRO (BACKEND - CLOUD FUNCTIONS)
+**Estado Anterior:** Las funciones eran `onCall` (cerradas, sin streaming) y usaban modelos estándar sin herramientas de contexto.
+**Estado ACTUAL (Código Nuevo en `functions/src/builder.ts`):**
+
+*   **Nueva Función `builderStream`:**
+    *   Se implementó una Cloud Function de tipo `onRequest` (HTTP v2) en lugar de `onCall`. Esto permite mantener la conexión abierta y enviar datos por trozos ("chunked encoding").
+    *   **Seguridad Manual:** Como no es `onCall`, tuve que implementar manualmente la verificación del token de Firebase Auth (`Bearer Token`) para asegurar que solo usuarios autenticados puedan usarla.
+
+*   **Integración Gemini 3.0 Pro + Herramientas:**
+    *   El modelo `gemini-3-pro-preview` ha sido configurado con una "Herramienta" (Function Calling) llamada `get_entity_context`.
+    *   **El Protocolo de Inteligencia:**
+        1.  El usuario pide: "Crea un rival para Juan".
+        2.  La IA (Gemini) analiza la petición y piensa: *"Necesito saber quién es Juan primero"*.
+        3.  La IA **pausa** la generación de texto y ejecuta internamente la herramienta `get_entity_context("Juan")`.
+        4.  El Backend consulta Firestore (`users/.../entities`), encuentra a "Juan" y le devuelve un resumen JSON a la IA.
+        5.  La IA retoma la generación: *"Veo que Juan es un guerrero de nivel 5. Su rival será..."*.
+    *   **Resultado:** La IA ya no alucina duplicados. Sabe lo que existe.
+
+---
+
+### 3. INTEGRIDAD DE DATOS (DETERMINISTIC IDs)
+**Estado Anterior:** Los nodos nuevos podían tener IDs aleatorios, lo que dificultaba unirlos con los existentes.
+**Estado ACTUAL:**
+
+*   **Algoritmo de Hashing Compartido:**
+    *   Tanto el Frontend (`src/utils/sha256.ts`) como el Backend (`functions/src/utils/idGenerator.ts`) usan ahora la misma fórmula matemática para nombrar las cosas:
+        `ID = SHA256(projectId + ":" + nombre_normalizado + ":" + tipo)`
+    *   **Consecuencia:** Si creas un nodo llamado "Excalibur" hoy, y lo borras, y lo vuelves a crear mañana, tendrá **el mismo ID exacto**. Esto es vital para mantener los enlaces rotos y la historia del grafo.
+
+---
+
+### 4. ARCHIVOS MODIFICADOS (RESUMEN TÉCNICO)
+
+1.  `functions/src/builder.ts` (NUEVO): El cerebro del streaming y las herramientas.
+2.  `functions/src/index.ts`: Exportación de la nueva función pública.
+3.  `src/components/WorldEngineV2/TheBuilder.tsx`: Lógica de cliente para consumir el stream y manejar el estado de chat.
+4.  `src/components/WorldEngineV2/EntityCard.tsx`: Estilos CSS (Tailwind) para los nodos "Anchor" (borde dashed, opacidad).
+5.  `src/components/WorldEngineV2/GhostGraph.tsx`: Lógica para pasar la propiedad `isAnchor` a las tarjetas.
+6.  `src/components/WorldEngineV2/types.ts`: Definición de TypeScript actualizada (`isAnchor?: boolean`).
+
+---
+
+### 5. CLARIFICACIÓN DE INFRAESTRUCTURA DE DATOS (The Loop)
+**Pregunta del Comandante:** "¿Te refieres a que con la base de datos hablamos de la base de datos que usa el nexus scanner para guardar los nodos o tarjetas despues de aprovarlos?"
+
+**Respuesta:** **SÍ, ABSOLUTAMENTE.**
+
+*   **Single Source of Truth (Fuente Única de Verdad):**
+    El sistema opera sobre una única colección de Firestore: `users/{userId}/projects/{projectId}/entities`.
+
+    1.  **Nexus Scanner (Tribunal):** Cuando tú apruebas una tarjeta en el Tribunal, el sistema escribe el nodo en esa colección específica.
+    2.  **The Builder (Gemini 3.0):** Cuando la IA ejecuta la herramienta `get_entity_context("Juan")`, lee **EXACTAMENTE** de esa misma colección.
+
+    **El Ciclo Cerrado (Closed Loop):**
+    Esto significa que si escaneas un archivo hoy y apruebas a "Juan", y mañana abres el Builder y preguntas por él, la IA verá exactamente lo que escaneaste. No hay bases de datos separadas para la IA y para el usuario. Es un ecosistema unificado.
+
+---
+
+### 6. CONCLUSIÓN DEL REPORTE
+El sistema actúa ahora como un **asistente conversacional en tiempo real** con conciencia de la base de datos existente. No solo "inventa" datos, sino que "consulta" lo que ya existe antes de responder, y visualmente distingue entre "lo nuevo" (sólido, brillante) y "lo viejo" (transparente, ancla).
+
+Jules.
