@@ -1,0 +1,76 @@
+DOCUMENTACIÓN DEL MOTOR DE FÍSICA (GraphSimulationV2) - PROTOCOLO TITANIUM
+
+Este documento describe la lógica actual de física implementada con D3.js en el componente `GraphSimulationV2.tsx`, explicando el CÓMO (parámetros técnicos) y el POR QUÉ (intención de diseño).
+
+---
+
+1. INTENCIÓN DE DISEÑO (LA FILOSOFÍA)
+   El sistema visual del "Perforador de Mundos" (World Engine) no busca ser una simple tabla de datos, sino una representación "Orgánica y Viva" de la narrativa.
+
+   - Estilo: "Cyberpunk / Neural Network". Se prioriza que parezca un cerebro o un mapa estelar antes que un diagrama de flujo rígido (Visio/UML).
+   - Enfoque: "Character-Centric". La narrativa gira en torno a los personajes, por lo que el diseño intenta empujarlos al centro (protagonistas) y alejar el contexto (lugares, conceptos) hacia la periferia.
+   - Problema Actual: Esta libertad orgánica ("Caos Controlado") genera el "ruido" visual que reportas. Al no imponer una rejilla (Grid), los nodos pueden agruparse demasiado (clumping) o dispersarse si no tienen conexiones fuertes, creando inconsistencia en la densidad visual.
+
+---
+
+2. FUERZAS ACTIVAS (EL MOTOR)
+
+   A. FORCE CHARGE (Repulsión Electrostática)
+      - Tipo: `d3Force.forceManyBody()`
+      - Valor Actual: -300
+      - Propósito: Es el "Espacio Personal" de cada nodo.
+      - Por qué: Evita que todos los nodos colapsen en un punto negro.
+      - Diagnóstico: -300 puede ser bajo para grafos densos, causando que se vean amontonados. Aumentarlo a -600 o -800 daría más aire, pero haría el grafo más grande.
+
+   B. FORCE COLLIDE (Cuerpos Sólidos)
+      - Tipo: `d3Force.forceCollide()`
+      - Radio: 100px
+      - Rigidez: 0.7 (70%)
+      - Propósito: Evita que las tarjetas se superpongan visualmente.
+      - Por qué: Necesitamos leer el texto.
+      - Diagnóstico: Funciona bien localmente, pero no evita que un grupo de 10 nodos formen una "bola" apretada.
+
+   C. FORCE RADIAL (Jerarquía Concéntrica)
+      - Tipo: `d3Force.forceRadial(radius, cx, cy)`
+      - Fuerza: 0.6
+      - Lógica de Anillos:
+        - Anillo 1 (100px): PERSONAJES (El corazón de la historia).
+        - Anillo 2 (300px): FACCIONES (El conflicto político).
+        - Anillo 3 (500px): LUGARES (El escenario).
+        - Anillo 4 (800px): CONCEPTOS/OBJETOS (Lore).
+        - Anillo 5 (900px): BORRADORES (Ghost Nodes).
+      - Por qué: Para dar orden semántico sin usar listas. Los VIPs van al centro.
+      - Diagnóstico (La causa del conflicto): Esta fuerza pelea constantemente con los Enlaces (Links). Si un Personaje (Centro) ama a alguien en un Lugar (Periferia), el enlace los quiere juntos pero el Radial los quiere separados. Esta "tensión" estira el grafo y a veces deja huecos grandes.
+
+   D. FORCE LINK (Conexiones / Resortes)
+      - Tipo: `d3Force.forceLink(links)`
+      - Distancia Objetivo: 200px
+      - Propósito: Mantener unidas las cosas relacionadas.
+      - Por qué: Para ver clústeres naturales (ej. Familias).
+      - Diagnóstico: La distancia es fija (200px). Esto es problemático.
+        - Solución Potencial: Hacer la distancia dinámica.
+          - Familia/Amor = 50px (Muy cerca).
+          - Enemigos/Guerra = 400px (Lejos, frentes opuestos).
+
+   E. FORCE CENTER (Gravedad Universal)
+      - Tipo: `d3Force.forceCenter()`
+      - Fuerza: 0.05
+      - Propósito: Mantener todo en pantalla.
+
+---
+
+3. RESUMEN DE PROBLEMAS VISUALES DETECTADOS
+
+   1. "Ruido / Suciedad": Causado por la superposición de líneas y la falta de alineación. Como es orgánico, nada está alineado a ejes X/Y.
+   2. "Nodos muy cerca vs muy lejos":
+      - Muy cerca: La "Charge" (-300) es vencida por muchos "Links" jalando hacia adentro.
+      - Muy lejos: Nodos aislados o cadenas largas de nodos (A->B->C->D) que se estiran hacia la nada.
+
+4. ESTRATEGIA DE MEJORA (PARA PROMPTING CON GEMINI)
+   Si buscas una solución "más profesional" o limpia, podrías pedirle a Gemini:
+
+   "Necesito refactorizar la configuración de D3 Force para lograr un diseño 'Force-Directed' que priorice la legibilidad sobre la simulación orgánica pura.
+   Objetivos:
+   1. Aumentar el espaciado negativo (Charge) para evitar conglomeraciones.
+   2. Implementar 'Link Distance' dinámica basada en el tipo de relación (Familia cerca, Enemigos lejos).
+   3. (Opcional) Evaluar 'Force Y' o 'Force X' para crear jerarquías visuales (ej. Árbol Genealógico implícito) en lugar de Radial puro."
