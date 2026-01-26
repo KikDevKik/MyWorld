@@ -1,0 +1,45 @@
+REPORTE DE EJECUCIÓN: PROTOCOLO CONSTELACIÓN
+=============================================
+AGENTE: Jules
+FECHA: 24/05/2024
+ESTADO: COMPLETADO
+
+1. QUÉ SE HIZO (EJECUCIÓN TÁCTICA)
+----------------------------------
+Se modificaron los componentes centrales del motor de simulación gráfica (`WorldEngineV2`) para implementar el "Protocolo Constelación".
+
+A. FÍSICA DEL GRAFO (GraphSimulationV2.tsx):
+   - "Big Bang" (Expansión): Se aumentó la fuerza de repulsión (`forceManyBody`) de -300 a -2000. Esto fuerza a los nodos a separarse agresivamente, eliminando el efecto de "bola de pelo".
+   - "Ancla Suave" (Radial): Se redujo la fuerza radial (`forceRadial`) de 0.6 a 0.1. Esto mantiene el grafo centrado muy sutilmente sin obligar a los nodos a formar anillos artificiales que rompan los clústeres naturales.
+   - "Enlaces Semánticos" (Dynamic Links): Se eliminó la distancia fija de 200px y se implementó una lógica dinámica basada en el tipo de relación:
+     * ÍNTIMA (Familia, Amante): 50px. (Cohesión máxima, casi pegados).
+     * ESTÁNDAR (Amigos, Facciones): 300px. (Órbita legible).
+     * CONFLICTO (Enemigos, Rivales): 800px. (Separación visual extrema para denotar antagonismo).
+
+B. CÁMARA (WorldEnginePageV2.tsx):
+   - Zoom Inicial: Se ajustó `initialScale` de 0.8 a 0.4. Dado que el grafo ahora es gigante por la repulsión de -2000, un zoom alejado es necesario para ver la estructura completa al inicio.
+
+2. POR QUÉ SE HIZO (OBJETIVO ESTRATÉGICO)
+-----------------------------------------
+El objetivo era transformar la visualización de un "plato de espagueti" (denso, ilegible, ruidoso) a una "Constelación" (espaciosa, elegante, semántica).
+
+- El aumento de espacio vital (-2000) permite que las etiquetas de texto respiren.
+- La distinción de distancias cuenta una historia visual inmediata: los grupos de aliados se ven como archipiélagos sólidos, mientras que sus enemigos flotan lejos, conectados por hilos largos y tensos.
+- Se priorizó la formación orgánica de clústeres sobre la jerarquía geométrica estricta (anillos).
+
+3. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+-------------------------------------
+A. ENTORNO DE DESARROLLO:
+   - Problema: Al intentar verificar los cambios, faltaban dependencias básicas (`vite`, `tsc`) en el entorno de ejecución inmediato.
+   - Solución: Se ejecutó una instalación completa de dependencias (`pnpm install`) para restaurar la capacidad de compilación y prueba.
+
+B. CALIBRACIÓN VISUAL:
+   - Desafío: Con `forceManyBody` a -2000, el grafo explotaba fuera de la pantalla inmediatamente con el zoom original.
+   - Solución: Ajuste preventivo del zoom a 0.4. Es posible que usuarios con pantallas pequeñas necesiten hacer aún más zoom out, pero 0.4 es un punto de partida seguro.
+
+4. NOTAS ADICIONALES PARA EL COMANDANTE
+---------------------------------------
+- RENDIMIENTO: Al aumentar la repulsión y el área de dibujo, el navegador tiene que calcular posiciones en un lienzo virtual mucho más grande (4000x4000px). En grafos extremadamente masivos (+500 nodos), esto podría impactar los FPS durante la fase inicial de "explosión". La simulación se congela (`alphaDecay`) rápido para mitigar esto.
+- FACCIONES: No se implementó la separación forzada en ejes X/Y (Facciones a izquierda/derecha) siguiendo su orden explícita ("ORDEN: NEGATIVO"). El sistema actual confía puramente en que los enlaces `PART_OF` (300px) y la repulsión natural organicen las facciones. Si en el futuro se ven muy mezcladas, podemos reactivar la separación por coordenadas.
+
+Jules fuera. 🚀
