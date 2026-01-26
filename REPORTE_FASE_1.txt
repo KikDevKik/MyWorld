@@ -1,0 +1,51 @@
+REPORTE DE MISIÓN: FASE 1 - PULIDO DE UX Y LIMPIEZA DE ARTEFACTOS
+AUTOR: Jules (Agente de Ingeniería)
+FECHA: 2024-05-23
+ESTADO: COMPLETADO
+
+--------------------------------------------------------------------------------
+1. RESUMEN DE EJECUCIÓN
+Se ha completado la refactorización de la interfaz "The Builder" y su integración con el "World Engine" para cumplir con la directiva de "Transición Imperceptible". El objetivo principal fue eliminar la fricción visual y lógica al pasar del modo exploración al modo construcción.
+
+--------------------------------------------------------------------------------
+2. CAMBIOS REALIZADOS Y JUSTIFICACIÓN
+
+A. EL "LIENZO VACÍO" (Ghost Purge)
+   - Acción: Se eliminaron los nodos hardcoded (falsos) en `GhostGraph.tsx`.
+   - Implementación: Ahora el componente acepta una lista vacía de nodos y renderiza un estado "Zero State" específico: una grilla táctica sutil (5% opacidad) y el texto pulsante "AWAITING NEURAL INPUT...".
+   - Por qué: Para cumplir con la visión de que el sistema está "vivo" y esperando órdenes, en lugar de mostrar datos falsos que rompen la inmersión.
+
+B. SINCRONIZACIÓN DE REALIDAD (State Handover)
+   - Acción: Se elevó el estado `mode` (Rigor/Fusión/Entropía) desde `CommandBar` hacia `WorldEnginePageV2`.
+   - Implementación: Ahora `CommandBar` es un componente controlado. Cuando el usuario cambia el modo en la barra inferior, el estado se preserva y se pasa a `TheBuilder` como `initialMode`.
+   - Visual: `TheBuilder` ahora abre con el borde del color correspondiente al modo activo (Cian para Rigor, Violeta para Entropía), manteniendo la coherencia psicológica.
+
+C. TELEPATÍA DE DATOS (Input Passthrough)
+   - Acción: El texto escrito en la barra de comandos se transfiere inmediatamente al chat del Builder.
+   - Implementación: Se añadió la prop `initialPrompt`. Al montarse `TheBuilder`, este prompt se convierte instantáneamente en un mensaje de usuario y dispara una simulación de "AI Typing..." (sin llamar a la API real todavía).
+   - Por qué: Elimina la redundancia de tener que volver a escribir la orden y refuerza la sensación de que el sistema "escuchó" antes de abrir la interfaz completa.
+
+D. LA PROPORCIÓN ÁUREA (Splitter Fix)
+   - Acción: Ajuste del layout con `react-resizable-panels`.
+   - Implementación: Se configuró un split inicial de 40% (Chat) / 60% (Canvas) con un tamaño mínimo de 30% para el chat.
+   - Por qué: Prioriza el espacio visual para el grafo mientras asegura que el historial de conversación sea legible.
+
+--------------------------------------------------------------------------------
+3. DESAFÍOS TÉCNICOS Y RESOLUCIÓN
+
+- Problema: Inconsistencia en la API de `react-resizable-panels`.
+  - Detalle: La documentación o versiones anteriores sugerían propiedades diferentes (`orientation` vs `direction`).
+  - Solución: Se verificó la implementación correcta (`direction="horizontal"`) mediante pruebas visuales automatizadas.
+
+- Problema: Ruido en el compilador TypeScript (`tsc`).
+  - Detalle: El proyecto contiene numerosos errores de tipado preexistentes en archivos no relacionados.
+  - Solución: Se aislaron los cambios y se verificaron funcionalmente, asegurando que las nuevas modificaciones fueran estrictamente tipadas y seguras, ignorando el ruido heredado.
+
+--------------------------------------------------------------------------------
+4. OBSERVACIONES Y SIGUIENTES PASOS
+
+- El sistema está ahora preparado para la FASE 2 (Integración de IA Real). La interfaz de chat ya tiene los "hooks" visuales (`isTyping`, estructura de mensajes) listos para ser conectados a la API de Gemini.
+- El indicador "0 Nodes" en la esquina superior derecha es estático por ahora, pero está posicionado para mostrar estadísticas reales en cuanto el motor de generación de grafos esté activo.
+- La simulación de "Typing" se dejó intencionalmente sin respuesta de texto para respetar el estado de "espera" hasta que la lógica real sea implementada.
+
+FIN DEL REPORTE.
