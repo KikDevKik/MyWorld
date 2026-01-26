@@ -62,3 +62,10 @@
 1. Do not rely on client inputs for security or critical business logic rules.
 2. Implemented a server-side fetch of the blacklist (`settings/general`) directly within the Cloud Function.
 3. Merged the server-side authoritative list with the client's list (defense in depth), ensuring that even if the client input is manipulated, the persistent blacklist is enforced.
+
+## 2025-05-25 - [DoS Prevention: Unbounded Batch Analysis]
+**Vulnerability:** Resource Exhaustion via Unbounded Batch Input
+**Learning:** The `analyzeNexusBatch` function allowed an unlimited number of file IDs in the `fileIds` array. A malicious actor could provide thousands of files, triggering massive parallel API calls to Google Drive (DoS) and potentially crashing the instance by accumulating unlimited text content in memory before AI processing.
+**Prevention:**
+1. Implemented `MAX_BATCH_SIZE = 50` to limit the number of files processed per request.
+2. Implemented `MAX_TOTAL_CONTENT_CHARS = 500000` to cap the total memory usage of the accumulated text content, ensuring the function fails safely (truncates) rather than crashing.

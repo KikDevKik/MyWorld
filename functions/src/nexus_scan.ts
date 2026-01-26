@@ -9,6 +9,10 @@ import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION } from "./ai_confi
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 
+// 🛡️ SENTINEL CONSTANTS
+const MAX_BATCH_SIZE = 50;
+const MAX_TOTAL_CONTENT_CHARS = 500000; // 500k chars limit
+
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
 interface NexusScanRequest {
@@ -104,6 +108,11 @@ export const analyzeNexusBatch = onCall(
         if (targetIds.length === 0) {
              throw new HttpsError("invalid-argument", "Faltan archivos para analizar (fileIds).");
         }
+        // 🛡️ SECURITY: RESOURCE LIMIT
+        if (targetIds.length > MAX_BATCH_SIZE) {
+            throw new HttpsError("resource-exhausted", `Batch limit exceeded. Max ${MAX_BATCH_SIZE} files allowed per scan.`);
+        }
+
         if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
         if (!projectId) throw new HttpsError("invalid-argument", "Falta projectId.");
 
@@ -134,8 +143,20 @@ export const analyzeNexusBatch = onCall(
             const results = await Promise.all(fetchPromises);
 
             results.forEach(res => {
+                // 🛡️ SECURITY: Prevent Memory Explosion
+                if (combinedContent.length >= MAX_TOTAL_CONTENT_CHARS) {
+                    return;
+                }
+
                 if (res && res.content && res.content.length > 50) {
-                    combinedContent += `\n\n--- FILE START: ${res.name} ---\n${res.content}\n--- FILE END ---\n`;
+                    const nextChunk = `\n\n--- FILE START: ${res.name} ---\n${res.content}\n--- FILE END ---\n`;
+
+                    if (combinedContent.length + nextChunk.length > MAX_TOTAL_CONTENT_CHARS) {
+                        logger.warn(`⚠️ [NEXUS SECURITY] Content Limit Hit (${MAX_TOTAL_CONTENT_CHARS}). Truncating batch.`);
+                        return;
+                    }
+
+                    combinedContent += nextChunk;
                     fileMap[res.name] = "Included";
                 }
             });
