@@ -2,10 +2,11 @@ import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -16,7 +17,7 @@ const tools: any = [
     functionDeclarations: [
       {
         name: "get_entity_context",
-        description: "Retrieves metadata for an existing entity (character, location, faction, etc.) from the database. Use this to verify if a node exists before creating a new one, or to link to it as an Anchor.",
+        description: "Retrieves deep context for an entity (character, location, etc.) using Hybrid Search (Database Metadata + Narrative Memory Vectors). Use this to 'remember' what happened to someone.",
         parameters: {
           type: SchemaType.OBJECT,
           properties: {
@@ -95,7 +96,9 @@ export const builderStream = onRequest(
 
                     PROTOCOL:
                     1. REASONING FIRST: Explain your thought process to the user in plain text.
-                    2. CHECK CONTEXT: If the user mentions an entity that might exist, call 'get_entity_context(name)' to fetch it.
+                    2. DEEP CONTEXT CHECK: If the user mentions an entity, call 'get_entity_context(name)'.
+                       - This tool performs a HYBRID SEARCH (Metadata + Vector Memory).
+                       - Trust the "narrative_memory" returned by the tool. It contains a synthesized summary of past events.
                     3. ANCHOR STRATEGY:
                        - If an entity exists, do NOT create a new full node.
                        - Instead, verify its existence via the tool, then include it in the final JSON as an Anchor.
@@ -151,27 +154,89 @@ export const builderStream = onRequest(
                          const db = getFirestore();
                          const entitiesRef = db.collection("users").doc(uid).collection("projects").doc(projectId).collection("entities");
 
+                         // 1. METADATA FETCH (Firestore)
                          // Try Exact Match first
-                         // Issue: deterministic ID is unknown here (we don't have the hashing logic in this scope easily without importing).
-                         // We query by 'name'.
                          const q = entitiesRef.where("name", "==", nameQuery).limit(1);
                          const snap = await q.get();
 
+                         let entityData: any = null;
                          if (!snap.empty) {
-                             const data = snap.docs[0].data();
-                             result = {
+                             const d = snap.docs[0].data();
+                             entityData = {
                                  found: true,
                                  id: snap.docs[0].id,
-                                 name: data.name,
-                                 type: data.type,
-                                 description: data.description,
+                                 name: d.name,
+                                 type: d.type,
+                                 description: d.description,
                                  isAnchor: true
-                             } as any;
+                             };
+                         }
+
+                         // 2. VECTOR SEARCH (Narrative Memory)
+                         let narrativeSummary = "No narrative memory found.";
+                         try {
+                             // Initialize Embeddings
+                             const embeddings = new GoogleGenerativeAIEmbeddings({
+                                apiKey: googleApiKey.value(),
+                                model: "embedding-001",
+                                taskType: TaskType.RETRIEVAL_QUERY,
+                             });
+
+                             const queryVector = await embeddings.embedQuery(`Contexto narrativo sobre ${nameQuery}`);
+
+                             const coll = db.collectionGroup("chunks");
+                             const vectorQuery = coll.where("userId", "==", uid)
+                                .where("projectId", "==", projectId) // Ensure project scope
+                                .findNearest({
+                                    queryVector: queryVector,
+                                    limit: 8, // Fetch top 8 chunks
+                                    distanceMeasure: 'COSINE',
+                                    vectorField: 'embedding'
+                                });
+
+                             const vectorSnap = await vectorQuery.get();
+
+                             if (!vectorSnap.empty) {
+                                 const rawChunks = vectorSnap.docs.map(doc => doc.data().text).join("\n---\n");
+
+                                 // 3. FLASH SYNTHESIS (The Filter)
+                                 const flashModel = genAI.getGenerativeModel({
+                                     model: MODEL_LOW_COST,
+                                     generationConfig: { temperature: 0.3 }
+                                 });
+
+                                 const synthesisPrompt = `
+                                    TASK: Synthesize a dense "Memory Record" for '${nameQuery}' based on these text fragments.
+                                    FOCUS: Key events, conflicts, relationships, and current status.
+                                    STYLE: Factual, concise, dense. Ignore irrelevant fluff.
+
+                                    FRAGMENTS:
+                                    ${rawChunks.substring(0, 30000)}
+                                 `;
+
+                                 const synthesisRes = await flashModel.generateContent(synthesisPrompt);
+                                 narrativeSummary = synthesisRes.response.text();
+                             }
+
+                         } catch (vecError) {
+                             logger.warn("Vector Search failed:", vecError);
+                             narrativeSummary = "Memory Access Error (Vectors unavailable).";
+                         }
+
+                         // COMBINE RESULT
+                         if (entityData) {
+                             result = {
+                                 ...entityData,
+                                 narrative_memory: narrativeSummary
+                             };
                          } else {
-                             // Fallback: Check Aliases?
-                             // Limited query support in Firestore for array-contains.
-                             // Simple fallback for now.
-                             result = { found: false, message: "Entity not found in DB." };
+                             // If not in DB but found in vectors (Ghost?), return memory only?
+                             // Or just not found.
+                             result = {
+                                 found: false,
+                                 message: "Entity metadata not found in DB.",
+                                 narrative_traces: narrativeSummary
+                             };
                          }
                      }
                  }
