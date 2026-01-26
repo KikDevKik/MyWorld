@@ -1,0 +1,43 @@
+REPORTE DE EJECUCIÓN TÉCNICA - FASE 2 (THE BRAIN)
+FECHA: 2024-05-22
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+
+ASUNTO: REPORTE DE IMPLEMENTACIÓN Y JUSTIFICACIÓN DE CAMBIOS
+
+Este documento detalla las acciones realizadas, los motivos de las modificaciones de código y los desafíos técnicos encontrados durante la implementación de la Fase 2.
+
+1. JUSTIFICACIÓN DE MODIFICACIÓN DE CÓDIGO
+Se detectó una discrepancia en las órdenes recibidas.
+- Orden Inicial (Alto el Fuego): El mensaje inicial contenía la instrucción "Jules NO tocará el código del proyecto con este mensaje".
+- Orden Subsecuente (Autorización): Tras mi solicitud de confirmación ("CONFIRMACIÓN DE ARQUITECTURA"), recibí una nueva directiva bajo el asunto "AUTORIZACIÓN DE ARQUITECTURA Y REFERENCIAS CRUZADAS" que concluía explícitamente con el comando: "**EXECUTE PLAN**" (Ejecutar Plan).
+
+Basado en esta última orden ejecutiva, procedí con la implementación del código para cumplir con los objetivos de la Fase 2 (Streaming, Anchor Nodes, Deterministic IDs).
+
+2. RESUMEN DE CAMBIOS REALIZADOS
+A. Backend (Cloud Functions)
+   - Creación de `functions/src/builder.ts`: Implementación de la función `builderStream` (HTTP onRequest) para permitir el streaming de texto en tiempo real desde Gemini 3.0 Pro.
+   - Configuración de Herramientas (Tools): Se definió la herramienta `get_entity_context` para permitir que la IA consulte la base de datos de Firestore antes de crear nodos, evitando duplicados.
+   - Lógica de Respuesta: Se implementó un bucle de ejecución que permite a la IA "pensar" (emitir texto) y "actuar" (ejecutar herramientas) antes de enviar el payload JSON final.
+
+B. Frontend (WorldEngineV2)
+   - Actualización de `TheBuilder.tsx`: Se reescribió la lógica de chat para consumir el stream NDJSON del backend, permitiendo mostrar el "Proceso de Razonamiento" en tiempo real.
+   - Implementación de IDs Deterministas: Se replicó la lógica de generación de IDs (`sha256(projectId + name + type)`) en el frontend para asegurar consistencia con el backend.
+   - Visualización de "Anchor Nodes":
+     - Se modificó `types.ts` para incluir la propiedad `isAnchor`.
+     - Se actualizó `EntityCard.tsx` con una nueva variante visual (`variant="anchor"`) que renderiza los nodos existentes como referencias holográficas (escala de grises, opacidad reducida, borde discontinuo).
+     - Se ajustó `GhostGraph.tsx` para soportar estos nodos estáticos.
+
+3. DESAFÍOS TÉCNICOS Y SOLUCIONES
+A. Conflicto de Tipos TypeScript (Gemini SDK)
+   - Problema: La definición estricta de tipos del SDK `@google/generative-ai` para la propiedad `tools` generaba conflictos con la estructura JSON Schema requerida para las Cloud Functions.
+   - Solución: Se aplicó un ajuste de tipado (`any`) en la definición de `tools` dentro de `builder.ts` para permitir la compilación sin perder la funcionalidad de la definición de la herramienta.
+
+B. Streaming en Cloud Functions
+   - Problema: Las funciones `onCall` estándar de Firebase no soportan streaming real de chunks de texto.
+   - Solución: Se implementó `builderStream` como una función HTTP estándar (`onRequest`) y se manejó manualmente la verificación del token de autenticación (`admin.auth().verifyIdToken`) y las cabeceras CORS.
+
+4. CONCLUSIÓN
+La arquitectura "Brain" está desplegada. El sistema ahora soporta razonamiento en vivo (Streaming), verificación de contexto (Tools) y visualización diferenciada de entidades existentes (Anchors), cumpliendo con los requisitos de Alta Fidelidad y "Nexus Compliance".
+
+Jules.
