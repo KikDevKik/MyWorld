@@ -17,59 +17,64 @@ const stringToColor = (str: string): string => {
 
 // 🟢 HELPER: GROUP NODES BY FACTION
 const groupNodesByFaction = (nodes: VisualNode[]) => {
-    const groups: Record<string, { id: string, name: string, points: [number, number][] }> = {};
+    // Map of GroupID -> Group Data
+    // We strictly follow "One Man, One Empire" policy.
+    const groups: Record<string, { id: string, name: string, points: [number, number][], isAnchor: boolean }> = {};
 
-    // 1. Identify Faction Nodes (The Anchors)
     nodes.forEach(node => {
-        if (node.type === 'faction') {
-            const key = node.id;
-            if (!groups[key]) groups[key] = { id: key, name: node.name, points: [] };
-            if (typeof node.x === 'number' && typeof node.y === 'number') {
-                groups[key].points.push([node.x, node.y]);
-            }
-        }
-    });
-
-    // 2. Identify Members (via Relations or Meta)
-    nodes.forEach(node => {
+        // 0. Safety Check: Valid Coordinates
         if (typeof node.x !== 'number' || typeof node.y !== 'number') return;
         const pt: [number, number] = [node.x, node.y];
 
-        // A) Check Relations (PART_OF -> Faction)
-        if (node.relations) {
-            node.relations.forEach(rel => {
-                if (['PART_OF', 'MEMBER_OF', 'ALLEGIANCE', 'SERVES'].includes(rel.relation)) {
-                    // Check if target is a known faction (or just group by ID)
-                    // If the target is NOT in our groups yet (maybe the faction node isn't loaded?),
-                    // should we create a group?
-                    // The prompt implies "visualizing territories".
-                    // Better to rely on explicit Faction Nodes if possible, OR just grouping by ID.
-                    // Let's create the group if it doesn't exist, using the targetName as the name.
-                    const targetId = rel.targetId;
-                    if (!groups[targetId]) {
-                        // Potential issue: We might not know the name if the node isn't loaded.
-                        // But rel has targetName.
-                        groups[targetId] = { id: targetId, name: rel.targetName, points: [] };
-                    }
-                    groups[targetId].points.push(pt);
-                }
-            });
+        let groupId: string | null = null;
+        let groupName = "";
+        let isAnchor = false;
+
+        // 1. IS FACTION ANCHOR? (Highest Priority)
+        if (node.type === 'faction') {
+            groupId = node.id;
+            groupName = node.name;
+            isAnchor = true;
+        }
+        // 2. BELONGS TO FACTION via RELATION? (Explicit ID)
+        else if (node.relations) {
+            // Prioritize PART_OF / MEMBER_OF
+            const factionRel = node.relations.find(r =>
+                ['PART_OF', 'MEMBER_OF', 'ALLEGIANCE', 'SERVES'].includes(r.relation)
+            );
+            if (factionRel) {
+                groupId = factionRel.targetId;
+                groupName = factionRel.targetName;
+            }
         }
 
-        // B) Check Meta Tag (legacy/simplified grouping)
-        if (node.meta?.faction) {
-            // This is a string name usually
-            const factionName = node.meta.faction;
-            // We need a stable ID. Let's hash the name or check if we have a group with this name.
-            // Search existing groups by name
-            let foundId = Object.keys(groups).find(k => groups[k].name === factionName);
+        // 3. BELONGS TO FACTION via META? (Fallback for Single-Member/Legacy)
+        if (!groupId && (node.meta?.faction || node.meta?.group)) {
+             const rawName = node.meta.faction || node.meta.group;
+             // Create a consistent ID for string-based factions
+             // We use a prefix to distinguish from potential real IDs, though conflict is rare
+             groupId = `meta-${rawName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+             groupName = rawName;
+        }
 
-            if (!foundId) {
-                // Create pseudo-ID for string-only factions
-                foundId = `meta-faction-${factionName}`;
-                groups[foundId] = { id: foundId, name: factionName, points: [] };
-            }
-            groups[foundId].points.push(pt);
+        // 4. ADD TO GROUP
+        if (groupId) {
+             if (!groups[groupId]) {
+                 groups[groupId] = { id: groupId, name: groupName, points: [], isAnchor: false };
+             }
+
+             // Update name logic:
+             // If this node is the Anchor, it Authoritatively sets the name.
+             // If we only had inferred names before, update it.
+             if (isAnchor) {
+                 groups[groupId].name = groupName;
+                 groups[groupId].isAnchor = true;
+             } else if (!groups[groupId].name && groupName) {
+                 // If we didn't have a name (e.g. created by ID only?), set it.
+                 groups[groupId].name = groupName;
+             }
+
+             groups[groupId].points.push(pt);
         }
     });
 
@@ -88,41 +93,34 @@ export const FactionOverlay: React.FC<FactionOverlayProps> = ({ nodes, lodTier }
 
         return groups.map(group => {
             const { points, name } = group;
+            const color = stringToColor(name);
+            let pathData = "";
+            let centroid: [number, number] = [0, 0];
+            let isSingle = false;
 
             // 1. Calculate Hull
             // d3.polygonHull requires >= 3 points.
-            // If < 3, we simulate a circle.
-            let pathData = "";
-            let centroid: [number, number] = [0, 0];
-            const color = stringToColor(name);
-
             if (points.length >= 3) {
                 const hull = polygonHull(points);
                 if (hull) {
-                    // Smooth curve or straight lines? Hull returns points.
-                    // "L" is linear. for smooth, we'd need a curve interpolator,
-                    // but convex hulls are usually polygons.
                     pathData = `M ${hull.map(p => p.join(",")).join(" L ")} Z`;
                     centroid = polygonCentroid(hull);
                 }
             } else if (points.length > 0) {
-                // 1 or 2 points -> Draw a circle around average
+                // 1 or 2 points -> Draw a circle/stadium fallback
                 const cx = points.reduce((sum, p) => sum + p[0], 0) / points.length;
                 const cy = points.reduce((sum, p) => sum + p[1], 0) / points.length;
                 centroid = [cx, cy];
-                // Radius: if 2 points, half distance + padding. If 1 point, fixed padding.
+
+                // Radius Logic
+                isSingle = points.length === 1;
                 const r = points.length === 2
-                    ? Math.sqrt(Math.pow(points[0][0] - points[1][0], 2) + Math.pow(points[0][1] - points[1][1], 2)) / 2 + 50
-                    : 150; // Default radius for single node faction
+                    ? Math.sqrt(Math.pow(points[0][0] - points[1][0], 2) + Math.pow(points[0][1] - points[1][1], 2)) / 2 + 80
+                    : 150; // "Generous Fixed Radius" for Lone Wolf (150px)
 
                 // Draw Circle Path
                 pathData = `M ${cx}, ${cy} m -${r}, 0 a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 -${r * 2},0`;
             }
-
-            // Expand Hull (Padding)?
-            // A convex hull is "tight". To make it a "Territory", usually we want some padding.
-            // SVG stroke-width can fake padding, or we can scale the polygon.
-            // For now, large stroke width (e.g., 50px) with rounded joins is the easiest "padding".
 
             return {
                 id: group.id,
@@ -130,42 +128,16 @@ export const FactionOverlay: React.FC<FactionOverlayProps> = ({ nodes, lodTier }
                 pathData,
                 centroid,
                 color,
-                memberCount: points.length
+                memberCount: points.length,
+                isSingle // Flag for Debug Rendering
             };
         });
-    }, [nodes]); // Re-calc when nodes move (on every tick? No, nodes prop changes on tick? NO.)
-    // ⚠️ CRITICAL: `nodes` prop in Parent changes on every D3 tick?
-    // In `WorldEnginePageV2`, `unifiedNodes` is memoized based on `dbNodes` and `ghostNodes`.
-    // It does NOT change on every tick. The D3 simulation mutates `x` and `y` directly on the objects.
-    // However, React won't re-render unless state changes.
-    // `FactionOverlay` needs to re-render to follow the nodes!
-    //
-    // SOLUTION: `LinksOverlayV2` uses `useXarrow()` or `forceUpdate`.
-    // Here, we need to force re-render or accept that territories only update when the simulation "settles" or when we explicitly trigger it.
-    // BUT: The prompt wants it to look like a map.
-    // If I just pass `nodes`, it won't animate smoothly because `nodes` array reference doesn't change on tick.
-    // I should probably forward a `tick` prop or similar to force update, OR just let it be static/laggy during drag?
-    //
-    // BETTER APPROACH: Use a ref and direct DOM manipulation for performance?
-    // OR: Just accept it updates when `nodes` changes (add/remove) or on drag end?
-    //
-    // Actually, `GraphSimulationV2` modifies the `x,y` properties IN PLACE on the `nodes` objects.
-    // If `FactionOverlay` is a pure component, it won't see changes.
-    // I should implement a `forceUpdate` mechanism similar to LinksOverlay.
+    }, [nodes]);
 
     return <FactionOverlayRenderer territories={territories} lodTier={lodTier} />;
 };
 
-// Separated Renderer to handle the "Tick" updates if we decide to implement that.
-// For now, we'll let it be reactive to `nodes` which might not update on every tick.
-// Wait, `WorldEnginePageV2` passes `unifiedNodes`.
-// `GraphSimulationV2` mutates them.
-// `LinksOverlayV2` has `forceUpdate`.
-// I should allow `FactionOverlay` to update frequently.
-//
-// Let's rely on the parent `WorldEnginePageV2` which calls `linksOverlayRef.current?.forceUpdate()`.
-// I should expose a handle here too.
-
+// Expose handle for parent to force update (since nodes might mutate in place)
 export interface FactionOverlayHandle {
     forceUpdate: () => void;
 }
@@ -184,8 +156,6 @@ const FactionOverlayRenderer: React.FC<{ territories: any[], lodTier: 'MACRO' | 
     const isMacro = lodTier === 'MACRO';
 
     // Opacity Logic
-    // Macro: 1.0 (Full visibility)
-    // Meso/Micro: 0.15 (Subtle background)
     const overlayOpacity = isMacro ? 1.0 : 0.2;
     const labelOpacity = isMacro ? 1.0 : 0.0;
 
@@ -195,7 +165,7 @@ const FactionOverlayRenderer: React.FC<{ territories: any[], lodTier: 'MACRO' | 
             style={{ zIndex: 0 }}
         >
             <defs>
-                {/* Optional: Glow Filters */}
+                {/* Glow Filter */}
                 <filter id="glow-blur" x="-50%" y="-50%" width="200%" height="200%">
                     <feGaussianBlur stdDeviation="50" result="coloredBlur" />
                     <feMerge>
@@ -207,19 +177,20 @@ const FactionOverlayRenderer: React.FC<{ territories: any[], lodTier: 'MACRO' | 
 
             {territories.map(t => (
                 <g key={t.id} className="transition-opacity duration-700" style={{ opacity: overlayOpacity }}>
-                    {/* The Hull */}
+                    {/* The Territory Body */}
                     <path
                         d={t.pathData}
                         fill={t.color}
-                        fillOpacity={0.1} // Very low opacity fill
-                        stroke={t.color}
-                        strokeWidth={40} // Thick stroke to simulate padding/territory border
+                        fillOpacity={0.1}
+                        // 🟢 DEBUG: Single-Member Factions get Cyan Border
+                        stroke={t.isSingle ? 'cyan' : t.color}
+                        strokeWidth={t.isSingle ? 5 : 40}
                         strokeLinejoin="round"
-                        strokeOpacity={0.15}
+                        strokeOpacity={t.isSingle ? 1 : 0.15}
                         style={{ filter: 'url(#glow-blur)' }}
                     />
 
-                    {/* The Label */}
+                    {/* The Giant Label */}
                     <text
                         x={t.centroid[0]}
                         y={t.centroid[1]}
@@ -231,7 +202,7 @@ const FactionOverlayRenderer: React.FC<{ territories: any[], lodTier: 'MACRO' | 
                             fontSize: '120px', // GIANT
                             fontWeight: 'bold',
                             letterSpacing: '0.2em',
-                            opacity: labelOpacity, // Only visible in MACRO
+                            opacity: labelOpacity,
                             textShadow: `0 0 20px ${t.color}`,
                             pointerEvents: 'none',
                             transition: 'opacity 0.5s ease-in-out'
