@@ -1,0 +1,51 @@
+REPORTE DE CAMBIOS - ACTUALIZACIÓN NEXUS V2.5
+===============================================
+
+FECHA: 27 de Enero, 2026
+AUTOR: Jules (AI Engineer)
+OBJETIVO: Mejorar contextualización, arreglar duplicados y corregir errores de Fusión (Merge).
+
+1. RESUMEN DE CAMBIOS ("QUÉ HICE")
+----------------------------------
+
+A. Backend (Cerebro - `nexus_scan.ts`):
+   - Inyección de Contexto Real: Ahora, antes de analizar el texto, Nexus consulta tu base de datos existente ("Roster").
+   - Identificadores Únicos: Se modificó el prompt para que Nexus vea no solo el nombre "Elsa", sino también su ID real `[ID: pro-elsa-xyz]`. Esto permite que la IA sugiera fusiones precisas.
+   - Deduplicación Post-Procesamiento: Se añadió una capa de lógica que limpia los resultados de la IA. Si la IA encuentra "Flor" 10 veces, el código ahora las combina en una sola tarjeta antes de enviártela, sumando sus contextos.
+
+B. Frontend (Lógica - `WorldEnginePageV2.tsx`):
+   - Protocolo de Fusión Robusto: Se solucionó el error "No encontré el ID de Anna". Antes, el sistema fallaba si recibía un nombre en lugar de un código raro. Ahora, si recibe un nombre, busca automáticamente el ID correcto en tu base de datos antes de intentar fusionar.
+   - Gestión de Estado: Se mejoró la comunicación entre el Tribunal y el Motor para que las actualizaciones manuales (cuando eliges "Select Target") se reflejen instantáneamente.
+
+C. Interfaz (UI - `NexusTribunalModal.tsx`):
+   - Corrección de Crash: Se arregló el error técnico `ReferenceError` que ocurría al intentar aprobar/fusionar. Era un problema de "alcance" de variables en Javascript.
+   - Selector Manual: Se habilitó la búsqueda manual dentro del Tribunal para que puedas forzar una fusión si Nexus no la detectó automáticamente.
+
+2. EL PORQUÉ ("WHY")
+--------------------
+El problema raíz era la "ceguera" de Nexus. Leíamos archivos pero Nexus no sabía qué ya existía en tu mundo. Al inyectar el Roster (tu lista actual de personajes), le dimos memoria.
+Los errores de fusión ocurrían porque la IA a veces piensa en lenguaje natural ("Fusionar con Anna") mientras que la base de datos necesita lenguaje máquina ("Fusionar con id-anna-123"). Creamos un traductor intermedio para esto.
+
+3. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+-------------------------------------
+
+* Problema 1: "Explosión de Duplicados"
+  - Síntoma: Al darle más contexto, la IA se emocionó y empezó a reportar cada mención como una entidad nueva.
+  - Solución: Implementamos la "Ley del Enjambre" (código de deduplicación) en el backend que colapsa entidades con el mismo nombre en una sola super-tarjeta.
+
+* Problema 2: "ReferenceError: setIsMergeSelectOpen is not defined"
+  - Síntoma: La pantalla se ponía en blanco o lanzaba error al dar click en Merge.
+  - Causa: Una función estaba definida dentro de un bloque lógico condicional (IIFE) complejo.
+  - Solución: Simplificamos el botón para que use una función limpia y directa.
+
+* Problema 3: "Document not found" en Merge
+  - Síntoma: Error rojo al intentar fusionar Ana con Anna.
+  - Causa: El sistema buscaba el documento llamado "Anna" en lugar del ID "char-anna-99x".
+  - Solución: Añadimos un "Buscador de Respaldo". Si no encuentra el ID, busca por nombre y recupera el ID correcto.
+
+4. RECOMENDACIONES ADICIONALES
+------------------------------
+- Monitoreo de Costos: Al inyectar el Roster, el prompt es más grande. Es marginal, pero mantén un ojo si tienes 5000+ entidades.
+- Alias Explicitos: Para que Nexus funcione mejor, asegúrate de añadir "Alias" a tus personajes clave (ej. Elsa -> Alias: "Madre", "Matriarca"). Nexus ahora lee estos alias y mejora su precisión drásticamente.
+
+Jules.
