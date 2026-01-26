@@ -1,0 +1,26 @@
+# Reporte de Solución Técnica: Visualización Macro World Engine V2
+
+## 1. Resumen de Cambios (¿Qué se hizo?)
+Se realizó una refactorización estructural en el componente de simulación gráfica. Específicamente:
+- Se trasladó el componente `FactionOverlay` (responsable de dibujar los territorios de facciones) desde la página principal (`WorldEnginePageV2`) hacia el interior del componente de simulación (`GraphSimulationV2`).
+- Se implementó un mecanismo de sincronización para que el Overlay reciba la señal de actualización (`tick`) directamente del motor de físicas D3.
+- Se eliminó la instancia antigua y desconectada del Overlay en la página principal.
+
+## 2. Causa Raíz y Justificación (¿Por qué se hizo?)
+El problema de la "pantalla negra" en la vista Macro se debía a una desconexión de datos:
+- El `FactionOverlay` requiere coordenadas espaciales (`x`, `y`) precisas para calcular y dibujar los polígonos (Convex Hulls) que representan los territorios.
+- Estas coordenadas son generadas dinámicamente por el motor de físicas en el navegador del cliente; no existen en la base de datos estática.
+- Al estar el Overlay fuera de la simulación, recibía los nodos "crudos" (sin posición), lo que resultaba en formas imposibles de dibujar (invisibles).
+- **Solución:** Al mover el componente dentro de la simulación, garantizamos que tenga acceso a los datos de posición en tiempo real ("Live Nodes").
+
+## 3. Problemas Encontrados y Obstáculos
+- **Renderizado Vacío:** Inicialmente, aunque los datos cargaban, no se veía nada porque las coordenadas eran `undefined`.
+- **Sincronización React vs D3:** React no es lo suficientemente rápido para actualizar el DOM 60 veces por segundo vía props normales sin causar lentitud. Se tuvo que usar un patrón de `useRef` y actualización imperativa (force update) ligado al `tick` de D3 para mantener la fluidez sin congelar la interfaz.
+
+## 4. Observaciones Adicionales
+Durante las pruebas de validación visual, se detectaron oportunidades de mejora en la Experiencia de Usuario (UX) para la vista Macro, tales como:
+- La sensación de desorientación al mover la cámara a zonas vacías (Efecto "Vacío").
+- La falta de indicadores hacia los clústeres de información cuando quedan fuera de pantalla.
+- Posible superposición de etiquetas en facciones densas.
+
+Estas observaciones detalladas se han guardado en un archivo separado llamado `UX_OBSERVATIONS.txt` incluido en este envío para su consideración futura por el equipo de producto.
