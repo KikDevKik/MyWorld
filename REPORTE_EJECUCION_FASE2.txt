@@ -73,7 +73,25 @@ Este reporte detalla con precisión extrema ("excesiva") las modificaciones real
 5.  `src/components/WorldEngineV2/GhostGraph.tsx`: Lógica para pasar la propiedad `isAnchor` a las tarjetas.
 6.  `src/components/WorldEngineV2/types.ts`: Definición de TypeScript actualizada (`isAnchor?: boolean`).
 
-### 5. CONCLUSIÓN DEL REPORTE
+---
+
+### 5. CLARIFICACIÓN DE INFRAESTRUCTURA DE DATOS (The Loop)
+**Pregunta del Comandante:** "¿Te refieres a que con la base de datos hablamos de la base de datos que usa el nexus scanner para guardar los nodos o tarjetas despues de aprovarlos?"
+
+**Respuesta:** **SÍ, ABSOLUTAMENTE.**
+
+*   **Single Source of Truth (Fuente Única de Verdad):**
+    El sistema opera sobre una única colección de Firestore: `users/{userId}/projects/{projectId}/entities`.
+
+    1.  **Nexus Scanner (Tribunal):** Cuando tú apruebas una tarjeta en el Tribunal, el sistema escribe el nodo en esa colección específica.
+    2.  **The Builder (Gemini 3.0):** Cuando la IA ejecuta la herramienta `get_entity_context("Juan")`, lee **EXACTAMENTE** de esa misma colección.
+
+    **El Ciclo Cerrado (Closed Loop):**
+    Esto significa que si escaneas un archivo hoy y apruebas a "Juan", y mañana abres el Builder y preguntas por él, la IA verá exactamente lo que escaneaste. No hay bases de datos separadas para la IA y para el usuario. Es un ecosistema unificado.
+
+---
+
+### 6. CONCLUSIÓN DEL REPORTE
 El sistema actúa ahora como un **asistente conversacional en tiempo real** con conciencia de la base de datos existente. No solo "inventa" datos, sino que "consulta" lo que ya existe antes de responder, y visualmente distingue entre "lo nuevo" (sólido, brillante) y "lo viejo" (transparente, ancla).
 
 Jules.
