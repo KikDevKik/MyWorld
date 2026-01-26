@@ -365,6 +365,11 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
         return null;
     };
 
+    // 🟢 TRIBUNAL UPDATE CANDIDATE (Phase 2.5)
+    const handleUpdateCandidate = (candidateId: string, updates: Partial<AnalysisCandidate>) => {
+        setCandidates(prev => prev.map(c => c.id === candidateId ? { ...c, ...updates } : c));
+    };
+
     // 🟢 TRIBUNAL ACTIONS (Phase 2.4/2.5)
     // Updated signature to handle specific REJECT variants
     const handleTribunalAction = async (action: 'APPROVE' | 'REJECT_SOFT' | 'REJECT_HARD', candidate: AnalysisCandidate) => {
@@ -413,17 +418,33 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                          return;
                      }
 
-                     // 🟢 FIX CRITICAL: DIRECT ID BINDING (Skip Name Resolution)
-                     // We trust NexusScanner resolved this to a valid ID.
-                     const targetRef = doc(db, collectionPath, candidate.mergeWithId);
+                     // 🟢 FIX CRITICAL: NAME-TO-ID RESOLUTION
+                     // If the AI returns a Name instead of an ID, we must resolve it.
+                     let targetId = candidate.mergeWithId;
+
+                     // Check if it's already a valid ID (exists in memory)
+                     const existsInMemory = unifiedNodes.some(n => n.id === targetId);
+
+                     if (!existsInMemory) {
+                         // Try to resolve via DB/Index
+                         const resolved = await resolveNodeId(targetId, projectId, collectionPath);
+                         if (resolved) {
+                             targetId = resolved;
+                         } else {
+                             toast.error(`Error: No se encontró el nodo destino '${candidate.mergeWithId}'. Selecciónalo manualmente.`);
+                             return;
+                         }
+                     }
+
+                     const targetRef = doc(db, collectionPath, targetId);
                      const docSnap = await getDoc(targetRef);
 
                      if (!docSnap.exists()) {
-                         toast.error(`Error Crítico: El nodo destino (ID: ${candidate.mergeWithId}) no existe.`);
+                         toast.error(`Error Crítico: El nodo destino (ID: ${targetId}) no existe.`);
                          return;
                      }
 
-                     const realTargetId = candidate.mergeWithId;
+                     const realTargetId = targetId;
 
                      // Prepare Updates (Aliases + Description if edited + Relations)
                      // 🟢 Relations Merging
@@ -795,9 +816,11 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                         isOpen={showTribunal}
                         onClose={() => setShowTribunal(false)}
                         candidates={candidates}
+                        existingNodes={unifiedNodes} // 🟢 NEW PROP
                         onAction={handleTribunalAction}
                         onEditApprove={handleTribunalEdit}
-                        onBatchMerge={handleBatchMerge} // 🟢 NEW PROP
+                        onUpdateCandidate={handleUpdateCandidate} // 🟢 NEW PROP
+                        onBatchMerge={handleBatchMerge}
                         ignoredTerms={ignoredTerms}
                         onRestoreIgnored={handleRestoreIgnored}
                      />
