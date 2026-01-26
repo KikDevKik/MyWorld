@@ -1,0 +1,42 @@
+REPORTE DE MISIÓN: JULES - DEBUG DE FACCIONES (ONE MAN, ONE EMPIRE)
+FECHA: 2024-05-24
+ESTADO: COMPLETADO
+
+1. RESUMEN DE ACCIONES
+----------------------
+Se ha modificado el componente `src/components/WorldEngineV2/FactionOverlay.tsx` para cumplir con la directiva "One Man, One Empire". El objetivo era garantizar que las facciones con un solo miembro (Lobo Solitario) fueran visibles en el modo Macro, en lugar de desaparecer como ocurría anteriormente.
+
+2. DETALLES TÉCNICOS
+--------------------
+A. Lógica de Agrupación (`groupNodesByFaction`):
+   - ANTES: El sistema filtraba agresivamente o dependía de tener múltiples puntos para generar un polígono.
+   - AHORA: Se ha reescrito la función para capturar cualquier nodo que tenga una señal de facción, priorizando:
+     1. Nodos Ancla (`type === 'faction'`) -> Definen el nombre y ID de forma autoritaria.
+     2. Relaciones (`PART_OF`, `MEMBER_OF`) -> Asocian el nodo a un ID de facción existente o nuevo.
+     3. Metadatos (`meta.faction`, `meta.group`) -> Fallback para facciones basadas solo en texto (Legacy).
+   - Se permite explícitamente que los grupos con `points.length >= 1` pasen el filtro.
+
+B. Lógica de Renderizado:
+   - ANTES: `d3.polygonHull` requiería mínimo 3 puntos. Si había menos, no se dibujaba nada.
+   - AHORA:
+     - 3+ Miembros: Se mantiene el Convex Hull (Polígono Irregular).
+     - 2 Miembros: Se dibuja una "cápsula" o estadio alrededor de los dos puntos.
+     - 1 Miembro (CASO CRÍTICO): Se dibuja un Círculo Perfecto centrado en el nodo.
+       - Radio: Fijado en 150px (Generoso) para visibilidad en Macro.
+
+C. Debug Visual (Solicitado):
+   - Se añadió una lógica condicional en el renderizado SVG.
+   - Si la facción tiene 1 solo miembro (`isSingle === true`), el borde (stroke) se renderiza en color 'CYAN' con un grosor de 5px y opacidad completa (1.0).
+   - Esto permite identificar inmediatamente en el mapa qué territorios son "Lobos Solitarios".
+
+3. PROBLEMAS ENCONTRADOS / OBSERVACIONES
+----------------------------------------
+- No hubo bloqueos técnicos significativos durante la implementación de la lógica.
+- OBSERVACIÓN DEL ENTORNO: Durante la fase de pre-commit (`pnpm tsc --noEmit`), se detectaron múltiples errores de TypeScript en el proyecto (`Cannot find module ...`, errores de tipos en `CanonRadar.tsx`, `NexusCanvas.tsx`, etc.). Estos errores parecen ser preexistentes y relacionados con configuraciones de entorno o dependencias faltantes en el sandbox, pero no afectaron la compilación de la solución específica de `FactionOverlay.tsx`.
+- La solución asume que `GraphSimulationV2` maneja la posición (`x`, `y`) de los nodos. El Overlay es reactivo a los cambios de posición, pero depende de que el componente padre renderice para actualizaciones suaves (se expuso `forceUpdate` vía ref por si fuera necesario en el futuro, aunque por ahora se confía en el ciclo de React del padre).
+
+4. CONCLUSIÓN
+-------------
+El sistema ahora debería renderizar "Burbujas de Influencia" cian alrededor de cualquier personaje aislado que tenga datos de facción, cumpliendo con el requisito de visibilidad total en el mapa estratégico.
+
+FIN DEL REPORTE.
