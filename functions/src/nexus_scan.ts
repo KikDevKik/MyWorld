@@ -311,8 +311,63 @@ export const analyzeNexusBatch = onCall(
                 return { candidates: [] };
             }
 
-            // 🟢 POST-PROCESS: Sanitize
-            let validCandidates = candidates.map((c: any) => ({
+            // 🟢 POST-PROCESS: AUTO-DEDUPLICATION (Programmatic)
+            // Fixes "10 duplicates" issue where AI returns multiple identical entities.
+            const candidateMap = new Map<string, any>();
+
+            candidates.forEach((c: any) => {
+                const normName = c.name.trim().toLowerCase();
+
+                if (candidateMap.has(normName)) {
+                    // MERGE WITH EXISTING CANDIDATE
+                    const existing = candidateMap.get(normName);
+
+                    // 1. Combine Files
+                    if (c.foundInFiles && Array.isArray(c.foundInFiles)) {
+                        existing.foundInFiles = [...(existing.foundInFiles || []), ...c.foundInFiles];
+                    }
+
+                    // 2. Combine Relations (Unique by target+type)
+                    if (c.relations && Array.isArray(c.relations)) {
+                        const existingRels = existing.relations || [];
+                        const newRels = c.relations;
+                        const mergedRels = [...existingRels];
+
+                        newRels.forEach((nr: any) => {
+                            const exists = existingRels.some((er: any) => er.target === nr.target && er.type === nr.type);
+                            if (!exists) mergedRels.push(nr);
+                        });
+                        existing.relations = mergedRels;
+                    }
+
+                    // 3. Keep highest confidence BUT aggregate descriptions
+                    if (c.confidence > existing.confidence) {
+                        // Old reasoning becomes alternative
+                        if (existing.reasoning && existing.reasoning !== c.reasoning) {
+                            if (!c.reasoning.includes(existing.reasoning)) { // Avoid dupes
+                                c.reasoning += `\n\n[Alternative View]: ${existing.reasoning}`;
+                            }
+                        }
+
+                        existing.confidence = c.confidence;
+                        existing.reasoning = c.reasoning;
+                        existing.suggestedAction = c.suggestedAction;
+                        if (c.mergeWithId) existing.mergeWithId = c.mergeWithId;
+                    } else {
+                        // Append current lower-confidence reasoning to existing if unique
+                        if (c.reasoning && existing.reasoning && !existing.reasoning.includes(c.reasoning)) {
+                             existing.reasoning += `\n\n[Alternative View]: ${c.reasoning}`;
+                        }
+                    }
+
+                } else {
+                    // NEW ENTRY
+                    candidateMap.set(normName, c);
+                }
+            });
+
+            // Convert back to array
+            let validCandidates = Array.from(candidateMap.values()).map((c: any) => ({
                 ...c,
                 // Ensure foundInFiles is structured
                 foundInFiles: c.foundInFiles || [{ fileName: "Batch", contextSnippet: "Snippet missing." }]
