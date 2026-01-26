@@ -91,7 +91,22 @@ Este reporte detalla con precisión extrema ("excesiva") las modificaciones real
 
 ---
 
-### 6. CONCLUSIÓN DEL REPORTE
-El sistema actúa ahora como un **asistente conversacional en tiempo real** con conciencia de la base de datos existente. No solo "inventa" datos, sino que "consulta" lo que ya existe antes de responder, y visualmente distingue entre "lo nuevo" (sólido, brillante) y "lo viejo" (transparente, ancla).
+### 6. ACTUALIZACIÓN ESTRATÉGICA: INTELIGENCIA HÍBRIDA (THE DEEP DIVE)
+**Estado:** IMPLEMENTADO (Última iteración).
+
+Para superar la limitación de que "Entities" solo contiene metadatos técnicos, hemos desplegado una arquitectura **High/Low Synergy**:
+
+1.  **THE ARCHITECT (High Reasoning - Gemini 3.0 Pro):**
+    *   Es el cerebro que conversa con el usuario.
+    *   Cuando pide contexto sobre "Juan", no recibe solo la ficha técnica.
+
+2.  **THE FILTER (Low Reasoning - Gemini Flash):**
+    *   Dentro de la herramienta `get_entity_context`, el sistema ahora ejecuta una **Búsqueda Vectorial (RAG)** en la colección `chunks` (donde vive la narrativa cruda).
+    *   Recupera los 8 fragmentos de texto más relevantes de toda la obra.
+    *   Instancia un modelo **Gemini Flash** (rápido y barato) para leer esos 8 fragmentos y sintetizarlos en un "Registro de Memoria" denso y factual.
+
+3.  **Resultado Híbrido:**
+    *   El Arquitecto recibe: `{ found: true, metadata: {...}, narrative_memory: "Juan luchó en la guerra X, odia a Y..." }`.
+    *   **Impacto:** The Builder ahora tiene **Omnisciencia Narrativa**. Recuerda eventos pasados, tonos y detalles sutiles que no están en la ficha del personaje, logrando una precisión similar al "Director de Escena" pero enfocada en la construcción estructural.
 
 Jules.
