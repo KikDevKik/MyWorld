@@ -62,7 +62,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     onEdit?: (nodeId: string, updates: { name: string, description: string }) => void;
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
-    variant?: 'standard' | 'hologram';
+    variant?: 'standard' | 'hologram' | 'anchor';
 }>(({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId, variant = 'standard' }, ref) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(node.name);
@@ -131,7 +131,9 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                     rounded-lg border
                     ${variant === 'hologram'
                         ? 'bg-black/20 backdrop-blur-[2px] border-dashed opacity-80 hover:opacity-100 animate-pulse'
-                        : 'bg-black/90 backdrop-blur-[4px] hover:scale-110 hover:shadow-xl hover:bg-black/95'}
+                        : variant === 'anchor'
+                            ? 'bg-black/10 backdrop-blur-[1px] border-dashed opacity-50 saturate-0 hover:saturate-100 hover:opacity-80 transition-all'
+                            : 'bg-black/90 backdrop-blur-[4px] hover:scale-110 hover:shadow-xl hover:bg-black/95'}
                     ${style.border}
                     ${isMicro ? 'p-3' : 'p-2 overflow-hidden'}
                     cursor-grab active:cursor-grabbing group transition-all duration-200

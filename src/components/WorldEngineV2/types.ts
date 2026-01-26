@@ -9,6 +9,7 @@ export interface VisualNode extends GraphNode {
     // UI Flags
     isGhost?: boolean; // True = Local Draft (Idea)
     isRescue?: boolean; // True = Failed Save (Lifeboat)
+    isAnchor?: boolean; // 🟢 NEW: True = Existing Context (Holographic Reference)
 }
 
 // 🟢 ANALYSIS TYPES (Phase 2.1 - The Tribunal)

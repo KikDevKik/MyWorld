@@ -4811,3 +4811,9 @@ export const restoreTimelineFromMaster = onCall(
     }
   }
 );
+
+/**
+ * 30. BUILDER STREAM (The Architect)
+ * Streaming endpoint for The Builder using Gemini 3.0 Pro.
+ */
+export { builderStream } from "./builder";
