@@ -50,6 +50,9 @@ importers:
       '@types/d3-force':
         specifier: ^3.0.10
         version: 3.0.10
+      '@types/d3-polygon':
+        specifier: ^3.0.2
+        version: 3.0.2
       '@types/d3-selection':
         specifier: ^3.0.11
         version: 3.0.11
@@ -68,6 +71,9 @@ importers:
       d3-force:
         specifier: ^3.0.0
         version: 3.0.0
+      d3-polygon:
+        specifier: ^3.0.1
+        version: 3.0.1
       d3-selection:
         specifier: ^3.0.0
         version: 3.0.0
@@ -942,6 +948,9 @@ packages:
   '@types/d3-force@3.0.10':
     resolution: {integrity: sha512-ZYeSaCF3p73RdOKcjj+swRlZfnYpK1EbaDiYICEEp5Q6sUiqFaFQ9qgoshp5CzIyyb/yD09kD9o2zEltCexlgw==}
 
+  '@types/d3-polygon@3.0.2':
+    resolution: {integrity: sha512-ZuWOtMaHCkN9xoeEMr1ubW2nGWsp4nIql+OPQRstu4ypeZ+zk3YKqQT0CXVe/PYqrKpZAi+J9mTs05TKwjXSRA==}
+
   '@types/d3-selection@3.0.11':
     resolution: {integrity: sha512-bhAXu23DJWsrI45xafYpkQ4NtcKMwWnAC/vKrd2l+nxMFuvOT3XMYTIj2opv8vq8AO5Yh7Qac/nSeP/3zjTK0w==}
 
@@ -1114,6 +1123,10 @@ packages:
 
   d3-octree@1.1.0:
     resolution: {integrity: sha512-F8gPlqpP+HwRPMO/8uOu5wjH110+6q4cgJvgJT6vlpy3BEaDIKlTZrgHKZSp/i1InRpVfh4puY/kvL6MxK930A==}
+
+  d3-polygon@3.0.1:
+    resolution: {integrity: sha512-3vbA7vXYwfe1SYhED++fPUQlWSYTTGmFmQiany/gdbiWgU/iEyQzyymwL9SkJjFFuCS4902BSzewVGsHHmHtXg==}
+    engines: {node: '>=12'}
 
   d3-quadtree@3.0.1:
     resolution: {integrity: sha512-04xDrxQTDTCFwP5H6hRhsRcb9xxv2RzkcsygFzmkSIOJy3PeRJP7sNk3VRIbKXcog561P9oU0/rVH6vDROAgUw==}
@@ -2801,6 +2814,8 @@ snapshots:
 
   '@types/d3-force@3.0.10': {}
 
+  '@types/d3-polygon@3.0.2': {}
+
   '@types/d3-selection@3.0.11': {}
 
   '@types/debug@4.1.12':
@@ -2963,6 +2978,8 @@ snapshots:
       d3-color: 3.1.0
 
   d3-octree@1.1.0: {}
+
+  d3-polygon@3.0.1: {}
 
   d3-quadtree@3.0.1: {}
 
