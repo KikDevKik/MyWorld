@@ -253,7 +253,7 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
         // Simulation Setup (ZERO KELVIN PROTOCOL)
         const simulation = d3Force.forceSimulation(simNodes as any)
             .alphaDecay(0.05) // ❄️ Faster freeze (default ~0.0228)
-            .force("charge", d3Force.forceManyBody().strength(-300))
+            .force("charge", d3Force.forceManyBody().strength(-2000))
             .force("center", d3Force.forceCenter(cx, cy).strength(0.05))
             .force("collide", d3Force.forceCollide().radius(100).strength(0.7))
             .force("radial", d3Force.forceRadial(
@@ -264,8 +264,16 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                     if (type === 'location') return 500;
                     if (type === 'faction') return 300;
                     return 800;
-                }, cx, cy).strength(0.6))
-            .force("link", d3Force.forceLink(links).id((d: any) => d.id).distance(200));
+                }, cx, cy).strength(0.1))
+            .force("link", d3Force.forceLink(links).id((d: any) => d.id).distance((d: any) => {
+                const rel = (d.relation || '').toUpperCase();
+                // 1. Intima (Gravedad del Hogar) - 50px
+                if (['FAMILY', 'LOVER', 'MARRIED', 'SPOUSE'].some(k => rel.includes(k))) return 50;
+                // 2. Conflicto (El Abismo) - 800px
+                if (['ENEMY', 'HATES', 'RIVAL', 'WAR', 'KILL'].some(k => rel.includes(k))) return 800;
+                // 3. Estándar (Orbitas) - 300px
+                return 300;
+            }));
 
         // 🔄 TICK: DIRECT DOM MANIPULATION
         simulation.on("tick", () => {
