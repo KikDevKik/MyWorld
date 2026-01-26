@@ -1,0 +1,51 @@
+REPORTE DE MISIÓN: IMPLEMENTACIÓN DE FACTION OVERLAY (CAPA DE TERRITORIOS)
+AGENTE: Jules
+FECHA: 2024-05-24
+
+1. OBJETIVO (EL PORQUÉ)
+   El usuario reportó que el grafo se sentía "desestructurado" (efecto confeti) al alejarse. La física de expansión funcionaba, pero faltaba contexto visual macroscópico.
+   La misión fue implementar una "Capa de Facciones" que visualice territorios políticos dinámicos, transformando la vista satelital en un mapa estratégico.
+
+2. EJECUCIÓN (QUÉ HICE)
+
+   A. Componente `FactionOverlay.tsx`:
+      - Implementé una nueva capa visual utilizando SVG.
+      - Utilicé la librería `d3-polygon` para calcular "Convex Hulls" (la envolvente convexa) alrededor de los grupos de nodos.
+      - Lógica de Agrupamiento Híbrida:
+         1. Nodos Ancla: Nodos con `type === 'faction'`.
+         2. Relaciones: Nodos conectados via `PART_OF`, `MEMBER_OF`, etc.
+         3. Metaetiquetas: Nodos con `meta.faction` (soporte legacy).
+      - Generador de Color Neon: Implementé un hash determinista (`stringToColor`) que genera colores HSL de alta saturación basados en el nombre de la facción, asegurando consistencia sin guardar colores en BD.
+
+   B. Integración en `WorldEnginePageV2.tsx`:
+      - Inserté el `FactionOverlay` dentro del `TransformComponent` pero con `z-index` inferior, para que se dibuje "en el suelo".
+      - Sincronización Física: Conecté el ciclo `onTick` de la simulación D3 al método `forceUpdate` del Overlay. Esto permite que los territorios se muevan fluidamente con los nodos sin re-renderizar todo el árbol de React (rendimiento crítico).
+
+   C. Sistema LOD (Level of Detail):
+      - Vista Táctica (> 0.25 Zoom):
+         - Overlay: Opacidad baja (20%).
+         - Etiquetas: Ocultas.
+         - Foco: Los nodos individuales.
+      - Vista Macro (< 0.25 Zoom):
+         - Overlay: Opacidad completa (100%).
+         - Etiquetas Gigantes: Visibles, centradas en el territorio (coordenadas de mundo).
+         - Nodos: Se ocultan (manejado por lógica existente).
+
+3. RETOS TÉCNICOS Y SOLUCIONES
+
+   - Problema: Rendimiento del Renderizado.
+     - Contexto: React no es lo suficientemente rápido para actualizar el DOM 60 veces por segundo si usamos `useState` para cada tick de la física.
+     - Solución: Repliqué el patrón usado en `LinksOverlay`. Usé referencias (`useRef`) y un método imperativo `forceUpdate` expuesto via `useImperativeHandle`. Esto permite al motor de física D3 forzar el redibujado de los polígonos directamente, saltándose el ciclo de reconciliación pesado de React.
+
+   - Problema: "Flicker" o Desaparición de Grupos.
+     - Contexto: Al inicio, los nodos no tienen coordenadas (x, y). `d3-polygon` falla si no hay puntos.
+     - Solución: Agregué guardas para filtrar nodos sin coordenadas y una lógica de fallback:
+       - Si hay >= 3 nodos: Dibuja Convex Hull (Polígono).
+       - Si hay 1-2 nodos: Dibuja un Círculo aproximado.
+
+4. OBSERVACIONES Y FUTURO
+   - Visualmente, el cambio cumple con la fantasía de "Mapa de Estrategia". Al hacer Zoom Out, el caos se convierte en orden político.
+   - La dependencia `d3-polygon` es muy ligera y no debería impactar el bundle size significativamente.
+   - Sugerencia: En el futuro, si las facciones crecen mucho y se solapan feo, podríamos explorar "Diagramas de Voronoi" restringidos para crear fronteras estrictas (tiling) en lugar de áreas superpuestas. Pero por ahora, el efecto de "manchas de influencia" funciona bien para la narrativa orgánica.
+
+Misión Cumplida. Cerrando reporte.
