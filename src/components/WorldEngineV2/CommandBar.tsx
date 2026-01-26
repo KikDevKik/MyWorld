@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
+import { RealityMode } from './types';
 
 // Types
-type RealityMode = 'RIGOR' | 'FUSION' | 'ENTROPIA';
-
 const MODES: { id: RealityMode; label: string }[] = [
     { id: 'RIGOR', label: 'RIGOR' },
     { id: 'FUSION', label: 'FUSIÓN' },
@@ -14,10 +13,11 @@ const MODES: { id: RealityMode; label: string }[] = [
 interface CommandBarProps {
     onClearAll?: () => void;
     onCommit?: (text: string) => void;
+    mode: RealityMode;
+    onModeChange: (mode: RealityMode) => void;
 }
 
-export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit }) => {
-    const [mode, setMode] = useState<RealityMode>('FUSION');
+export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mode, onModeChange }) => {
     const [focused, setFocused] = useState(false);
     const [input, setInput] = useState("");
 
@@ -91,11 +91,11 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit }) 
                                 aria-checked={mode === m.id}
                                 aria-label={`Modo ${m.label}`}
                                 tabIndex={0}
-                                onClick={() => setMode(m.id)}
+                                onClick={() => onModeChange(m.id)}
                                 onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                         e.preventDefault();
-                                        setMode(m.id);
+                                        onModeChange(m.id);
                                     }
                                 }}
                                 className="flex items-center justify-center cursor-pointer group outline-none focus-visible:bg-white/5 rounded"

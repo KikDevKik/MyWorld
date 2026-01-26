@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as d3Force from 'd3-force';
 import { VisualNode } from './types';
 import EntityCard from './EntityCard';
@@ -67,16 +67,28 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes }) => {
     return (
         <div
             ref={containerRef}
-            className="relative w-full h-full overflow-hidden bg-black/20 rounded-xl"
+            className="relative w-full h-full overflow-hidden bg-black/20 rounded-xl flex items-center justify-center"
         >
             {/* Grid Background */}
             <div
-                className="absolute inset-0 opacity-10 pointer-events-none"
+                className="absolute inset-0 pointer-events-none transition-opacity duration-1000"
                 style={{
+                    opacity: nodes.length === 0 ? 0.05 : 0.1,
                     backgroundImage: 'radial-gradient(#38bdf8 1px, transparent 1px)',
                     backgroundSize: '30px 30px'
                 }}
             />
+
+            {/* Zero State UI */}
+            {nodes.length === 0 && (
+                <div className="z-10 flex flex-col items-center justify-center pointer-events-none select-none">
+                    <div className="font-mono text-cyan-500/50 text-xs tracking-[0.3em] animate-pulse">
+                        AWAITING NEURAL INPUT...
+                    </div>
+                    {/* Optional Scanline or decorative element */}
+                    <div className="mt-2 w-16 h-[1px] bg-cyan-500/20" />
+                </div>
+            )}
 
             {/* Nodes */}
             {simNodes.map(node => (

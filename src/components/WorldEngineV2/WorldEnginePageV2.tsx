@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { GraphNode, EntityType } from '../../types/graph';
 import CrystallizeModal from '../ui/CrystallizeModal';
-import { VisualNode, AnalysisCandidate } from './types';
+import { VisualNode, AnalysisCandidate, RealityMode } from './types';
 import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
 import NexusTribunalModal from './NexusTribunalModal';
@@ -69,6 +69,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
     const [pendingNodes, setPendingNodes] = useState<PendingCrystallization[]>([]);
     const [candidates, setCandidates] = useState<AnalysisCandidate[]>([]);
     const [ignoredTerms, setIgnoredTerms] = useState<string[]>([]); // 🟢 BLACKLIST STATE
+    const [realityMode, setRealityMode] = useState<RealityMode>('FUSION');
 
     // STATE: UI
     const [loading, setLoading] = useState(true);
@@ -757,6 +758,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 <CommandBar
                     onClearAll={() => setIsClearAllOpen(true)}
                     onCommit={handleBuilderTrigger}
+                    mode={realityMode}
+                    onModeChange={setRealityMode}
                 />
              </div>
 
@@ -765,6 +768,7 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 isOpen={isBuilderOpen}
                 onClose={() => setIsBuilderOpen(false)}
                 initialPrompt={builderInitialPrompt}
+                initialMode={realityMode}
              />
 
              {/* MODAL */}

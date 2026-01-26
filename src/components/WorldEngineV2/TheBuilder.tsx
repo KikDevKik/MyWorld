@@ -2,23 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { X, Send } from 'lucide-react';
 import GhostGraph from './GhostGraph';
-import { VisualNode } from './types';
-
-// DUMMY DATA FOR PREVIEW
-const DUMMY_NODES: VisualNode[] = [
-    { id: '1', name: 'Neo-Tokyo', type: 'location', x: 0, y: 0, description: 'A cyberpunk metropolis.', projectId: 'dummy', meta: {} },
-    { id: '2', name: 'Akira', type: 'character', x: 100, y: 100, description: 'The awakening.', projectId: 'dummy', meta: {} },
-    { id: '3', name: 'Kaneda', type: 'character', x: -100, y: 50, description: 'Bike gang leader.', projectId: 'dummy', meta: {} },
-    { id: '4', name: 'Psychic Blast', type: 'event', x: 0, y: -100, description: 'Explosion.', projectId: 'dummy', meta: {} },
-];
+import { VisualNode, RealityMode } from './types';
 
 interface TheBuilderProps {
     isOpen: boolean;
     onClose: () => void;
     initialPrompt: string;
+    initialMode: RealityMode;
 }
-
-type RealityMode = 'RIGOR' | 'FUSION' | 'ENTROPIA';
 
 const MODES: { id: RealityMode; label: string }[] = [
     { id: 'RIGOR', label: 'RIGOR' },
@@ -26,40 +17,53 @@ const MODES: { id: RealityMode; label: string }[] = [
     { id: 'ENTROPIA', label: 'ENTROPÍA' },
 ];
 
-const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt }) => {
-    const [mode, setMode] = useState<RealityMode>('FUSION');
+const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode }) => {
+    const [mode, setMode] = useState<RealityMode>(initialMode);
     const [messages, setMessages] = useState<{role: 'user' | 'system', content: string}[]>([]);
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
 
+    // Sync mode when reopened or changed externally (optional, but good for consistency)
     useEffect(() => {
-        if (isOpen && initialPrompt) {
-            setMessages([{ role: 'user', content: initialPrompt }]);
-            setIsTyping(true);
-            // Simulate typing delay
-            setTimeout(() => {
-                setMessages(prev => [...prev, { role: 'system', content: `Analizando solicitud: "${initialPrompt}"...\nGenerando esquema preliminar.` }]);
+        if (isOpen) {
+            setMode(initialMode);
+        }
+    }, [isOpen, initialMode]);
+
+    useEffect(() => {
+        if (isOpen) {
+            if (initialPrompt) {
+                setMessages([{ role: 'user', content: initialPrompt }]);
+                setIsTyping(true);
+            } else {
+                setMessages([]);
                 setIsTyping(false);
-            }, 1500);
-        } else {
-            // Reset when closed
-            setMessages([]);
+            }
             setInput("");
         }
     }, [isOpen, initialPrompt]);
 
     if (!isOpen) return null;
 
+    // Border Color Logic
+    const getBorderColor = () => {
+        switch (mode) {
+            case 'RIGOR': return 'border-cyan-500/50 shadow-[0_0_50px_rgba(6,182,212,0.1)]';
+            case 'ENTROPIA': return 'border-violet-500/50 shadow-[0_0_50px_rgba(139,92,246,0.1)]';
+            default: return 'border-white/10 shadow-2xl';
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
              {/* THE BOX */}
-            <div className="w-[95vw] h-[90vh] bg-[#0a0a0a] border border-white/10 rounded-2xl flex flex-col shadow-2xl overflow-hidden relative animate-in zoom-in-95 duration-300">
+            <div className={`w-[95vw] h-[90vh] bg-[#0a0a0a] border rounded-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300 transition-colors duration-500 ${getBorderColor()}`}>
 
                 {/* HEADER (The Blue Line context) */}
                 <div className="h-14 border-b border-white/10 flex items-center justify-between px-6 bg-black/50 select-none">
                      <div className="flex items-center gap-4">
-                        <div className="w-3 h-3 rounded-full bg-cyan-500 animate-pulse shadow-[0_0_10px_rgba(6,182,212,0.8)]" />
-                        <span className="font-mono text-sm font-bold text-cyan-500 tracking-widest">THE BUILDER</span>
+                        <div className={`w-3 h-3 rounded-full animate-pulse shadow-[0_0_10px_rgba(255,255,255,0.5)] ${mode === 'RIGOR' ? 'bg-cyan-500 shadow-cyan-500/50' : mode === 'ENTROPIA' ? 'bg-violet-500 shadow-violet-500/50' : 'bg-slate-400'}`} />
+                        <span className={`font-mono text-sm font-bold tracking-widest ${mode === 'RIGOR' ? 'text-cyan-500' : mode === 'ENTROPIA' ? 'text-violet-500' : 'text-slate-400'}`}>THE BUILDER</span>
                      </div>
 
                      {/* REALITY TUNER */}
@@ -91,9 +95,9 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt 
 
                 {/* SPLIT CONTENT */}
                 <div className="flex-1 flex overflow-hidden">
-                    <PanelGroup orientation="horizontal">
+                    <PanelGroup direction="horizontal">
                         {/* LEFT: CHAT */}
-                        <Panel defaultSize={40} minSize={20} className="flex flex-col bg-black/20">
+                        <Panel defaultSize={40} minSize={30} className="flex flex-col bg-black/20">
                              <div className="flex-1 p-6 overflow-y-auto space-y-4 font-mono text-sm custom-scrollbar">
                                 {messages.map((msg, i) => (
                                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -132,6 +136,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt 
                                                 if(input.trim()) {
                                                     setMessages(prev => [...prev, {role: 'user', content: input}]);
                                                     setInput("");
+                                                    setIsTyping(true); // Simulate response
                                                 }
                                             }
                                         }}
@@ -141,6 +146,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt 
                                             if(input.trim()) {
                                                 setMessages(prev => [...prev, {role: 'user', content: input}]);
                                                 setInput("");
+                                                setIsTyping(true);
                                             }
                                         }}
                                         className="w-20 bg-cyan-900/20 border border-cyan-500/30 rounded-lg flex items-center justify-center hover:bg-cyan-900/40 text-cyan-400 transition-colors"
@@ -159,16 +165,16 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt 
                         </PanelResizeHandle>
 
                         {/* RIGHT: GHOST GRAPH */}
-                        <Panel className="bg-gradient-to-br from-slate-900 to-black relative">
+                        <Panel defaultSize={60} className="bg-gradient-to-br from-slate-900 to-black relative">
                             <div className="absolute inset-0 p-4">
-                                <GhostGraph nodes={DUMMY_NODES} />
+                                <GhostGraph nodes={[]} />
 
                                 {/* Overlay Stats or Controls */}
                                 <div className="absolute top-4 right-4 flex flex-col items-end pointer-events-none">
                                     <div className="text-[10px] font-mono text-cyan-500/50 uppercase tracking-widest mb-1">Preview Mode</div>
                                     <div className="flex gap-2">
                                         <div className="px-2 py-1 bg-black/60 backdrop-blur rounded border border-white/10 text-xs text-slate-400 font-mono">
-                                            {DUMMY_NODES.length} Nodes
+                                            0 Nodes
                                         </div>
                                     </div>
                                 </div>
