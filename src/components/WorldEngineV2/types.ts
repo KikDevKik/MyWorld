@@ -52,3 +52,6 @@ export interface AnalysisCandidate {
 
     // Explicitly NO coordinates (fx, fy) - Simulation handles that later
 }
+
+// 🟢 REALITY MODES (Phase 3 - The Builder)
+export type RealityMode = 'RIGOR' | 'FUSION' | 'ENTROPIA';
