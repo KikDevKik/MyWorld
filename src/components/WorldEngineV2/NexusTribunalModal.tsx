@@ -94,8 +94,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     }, [candidates]);
 
     const highConfidenceMerges = React.useMemo(() => {
-        // 🟢 FIX: Ensure mergeWithId exists for auto-merge
-        return candidates.filter(c => c.confidence >= 85 && c.suggestedAction === 'MERGE' && c.mergeWithId);
+        return candidates.filter(c => c.confidence >= 85 && c.suggestedAction === 'MERGE');
     }, [candidates]);
 
     const handleMassApprove = async () => {
@@ -642,15 +641,6 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                             </div>
                                                         )}
 
-                                                        {selectedCandidate.suggestedAction === 'CONVERT_TYPE' && (
-                                                            <div className="flex items-center gap-3 p-3 bg-slate-900 rounded border border-slate-800">
-                                                                 <div className="text-xs text-slate-500">Change Type:</div>
-                                                                 <div className="text-sm font-bold text-purple-400">
-                                                                     ENTITY → {selectedCandidate.category}
-                                                                 </div>
-                                                            </div>
-                                                        )}
-
                                                         {/* 🟢 MANUAL MERGE SELECTOR */}
                                                         <div className="mt-4 pt-4 border-t border-slate-800">
                                                             <label className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-2 block">
@@ -702,6 +692,15 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                                 )}
                                                             </div>
                                                         </div>
+
+                                                        {selectedCandidate.suggestedAction === 'CONVERT_TYPE' && (
+                                                            <div className="flex items-center gap-3 p-3 bg-slate-900 rounded border border-slate-800">
+                                                                 <div className="text-xs text-slate-500">Change Type:</div>
+                                                                 <div className="text-sm font-bold text-purple-400">
+                                                                     ENTITY → {selectedCandidate.category}
+                                                                 </div>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>

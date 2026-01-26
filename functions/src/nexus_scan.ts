@@ -347,23 +347,40 @@ export const analyzeNexusBatch = onCall(
                         existing.relations = mergedRels;
                     }
 
-                    // 3. Keep highest confidence BUT aggregate descriptions
+                    // 3. Keep highest confidence BUT aggregate descriptions & Preserve ID
+                    // 🟢 LOGIC UPGRADE: Preserve ID from ANY match in the group
+                    if (!existing.mergeWithId && c.mergeWithId) {
+                        existing.mergeWithId = c.mergeWithId;
+                    }
+
                     if (c.confidence > existing.confidence) {
-                        // Old reasoning becomes alternative
-                        if (existing.reasoning && existing.reasoning !== c.reasoning) {
-                            if (!c.reasoning.includes(existing.reasoning)) { // Avoid dupes
-                                c.reasoning += `\n\n[Alternative View]: ${existing.reasoning}`;
-                            }
+                        // Old reasoning/description becomes alternative context
+                        const oldDesc = existing.description || existing.reasoning;
+                        const newDesc = c.description || c.reasoning;
+
+                        if (oldDesc && newDesc && !newDesc.includes(oldDesc)) {
+                             c.description = `${newDesc}\n\n[Additional Context]: ${oldDesc}`;
                         }
 
+                        // Overwrite with better candidate properties
+                        existing.name = c.name; // Use the capitalization of the best match
+                        existing.type = c.type;
+                        existing.subtype = c.subtype;
+                        existing.category = c.category;
                         existing.confidence = c.confidence;
                         existing.reasoning = c.reasoning;
+                        existing.description = c.description;
                         existing.suggestedAction = c.suggestedAction;
+                        existing.ambiguityType = c.ambiguityType;
+
+                        // If the new winner has an ID, it overwrites (already handled above if existing was empty)
                         if (c.mergeWithId) existing.mergeWithId = c.mergeWithId;
+
                     } else {
-                        // Append current lower-confidence reasoning to existing if unique
-                        if (c.reasoning && existing.reasoning && !existing.reasoning.includes(c.reasoning)) {
-                             existing.reasoning += `\n\n[Alternative View]: ${c.reasoning}`;
+                        // Append current lower-confidence reasoning/description to existing
+                        const currentDesc = c.description || c.reasoning;
+                        if (currentDesc && existing.description && !existing.description.includes(currentDesc)) {
+                             existing.description += `\n\n[Alternative View]: ${currentDesc}`;
                         }
                     }
 

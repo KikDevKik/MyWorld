@@ -812,10 +812,10 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                         isOpen={showTribunal}
                         onClose={() => setShowTribunal(false)}
                         candidates={candidates}
-                        existingNodes={unifiedNodes} // 🟢 NEW PROP
+                        existingNodes={unifiedNodes} // 🟢 INJECTED
                         onAction={handleTribunalAction}
                         onEditApprove={handleTribunalEdit}
-                        onUpdateCandidate={handleUpdateCandidate} // 🟢 NEW PROP
+                        onUpdateCandidate={handleUpdateCandidate} // 🟢 INJECTED
                         onBatchMerge={handleBatchMerge}
                         ignoredTerms={ignoredTerms}
                         onRestoreIgnored={handleRestoreIgnored}
