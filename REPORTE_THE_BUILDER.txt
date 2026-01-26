@@ -1,0 +1,56 @@
+REPORTE DE IMPLEMENTACIÓN: "THE BUILDER" (SCAFFOLD)
+FECHA: 2025-05-22
+PARA: El Comandante & JUL-0B
+DE: Jules (Agente de Ingeniería)
+
+ASUNTO: Despliegue de la Estructura Base de "The Builder"
+
+1. RESUMEN DE EJECUCIÓN
+Se ha implementado con éxito el esqueleto (Scaffold) de la interfaz "The Builder", cumpliendo con los parámetros de la misión "Hot Trigger". El sistema ahora intercepta comandos desde la barra inferior y despliega un entorno modal de pantalla dividida para la creación asistida.
+
+2. DETALLES TÉCNICOS & ARQUITECTURA
+
+A. Intercepción de Comandos (The Wormhole)
+- Se modificó `CommandBar.tsx` para detectar la tecla ENTER.
+- Se implementó un "bypass" que previene el comportamiento por defecto y emite el texto ingresado hacia el componente padre `WorldEnginePageV2`.
+- Estado: `isBuilderOpen` controla la visibilidad del modal, pasando el `initialPrompt` capturado.
+
+B. La Caja (The Builder Modal)
+- Implementado en `TheBuilder.tsx`.
+- Estilo: Full-screen overlay con `backdrop-blur-xl` y fondo oscuro (`bg-black/80`).
+- Librería: Se instaló `react-resizable-panels` para manejar la división flexible entre el Chat y el Grafo.
+    - Decisión: Se priorizó esta librería sobre soluciones custom (flexbox puros) para garantizar robustez en el redimensionamiento, como se ordenó.
+    - Configuración: Orientación horizontal por defecto, con un "handle" de arrastre estilizado (Línea Amarilla).
+
+C. El Sintonizador de Realidad (Header)
+- Se integró el selector de modos: RIGOR | FUSIÓN | ENTROPÍA.
+- Visual: Indicadores de color dinámicos (Cyan, Gris, Violeta) que reaccionan al estado seleccionado.
+
+D. Visualización Holográfica (Ghost Graph)
+- Se creó `GhostGraph.tsx` clonando la lógica de renderizado D3 de `GraphSimulationV2`, pero eliminando toda la lógica de interacción compleja (drag, click handlers pesados).
+- Se modificó `EntityCard.tsx` añadiendo la prop `variant="hologram"`.
+    - Estilo Holograma: Bordes discontinuos (`border-dashed`), opacidad reducida (80%), animación de pulso sutil y fondo transparente para dar efecto de "proyección no materializada".
+
+3. PROBLEMAS ENCONTRADOS Y SOLUCIONES
+
+A. Tipado TypeScript en Librerías Externas
+- Problema: La librería `react-resizable-panels` cambió su API recientemente. `PanelGroup` utiliza la prop `orientation` en lugar de `direction` (que sugerían algunos ejemplos antiguos).
+- Solución: Se detectó el error mediante `tsc --noEmit` y se corrigió a `orientation="horizontal"`. También se ajustaron las importaciones de `PanelResizeHandle` que en versiones recientes se maneja distinto (se usó `Separator` o componentes nativos según la versión instalada, finalmente ajustando a la API correcta).
+
+B. Conflictos de Tipos en D3
+- Problema: TypeScript reportó incompatibilidad en el retorno del `useEffect` para la limpieza de la simulación D3.
+- Solución: Se envolvió la llamada `simulation.stop()` en una función anónima explícita `() => { simulation.stop(); }` para satisfacer la firma `Destructor` de React.
+
+C. Reutilización de EntityCard
+- Problema: `EntityCard` dependía de tipos estrictos que no siempre coincidían con los datos "dummy" del prototipo.
+- Solución: Se extendieron los datos dummy para incluir propiedades requeridas mínimas (`projectId`, `meta`) y se relajaron ciertas comparaciones de tipos en `EntityCard` para aceptar el modo visual sin datos completos de backend.
+
+4. NOTAS ADICIONALES Y SIGUIENTES PASOS
+
+- Rendimiento: La separación de `GhostGraph` garantiza que la pre-visualización no afecte el rendimiento del grafo principal (`GraphSimulationV2`).
+- Datos Dummy: Actualmente el grafo muestra nodos estáticos ("Neo-Tokyo", "Akira"). El siguiente paso lógico es conectar esto con la respuesta de la IA (Gemini) para poblar estos nodos dinámicamente.
+- Chat: El chat es funcional a nivel de UI (hace eco del input), pero falta la conexión real con el backend de LLM.
+
+ESTADO FINAL: Misión Cumplida. La interfaz está lista para recibir la lógica de negocio (Fase 2).
+
+Jules.
