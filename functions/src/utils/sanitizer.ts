@@ -13,7 +13,8 @@ export function sanitizeHtml(html: string): string {
   const doc = dom.window.document;
 
   // 1. Remove dangerous tags
-  const prohibitedTags = ['script', 'iframe', 'object', 'embed', 'link', 'style', 'meta', 'base', 'form', 'input', 'button', 'svg', 'canvas'];
+  // 🛡️ SENTINEL SECURITY UPDATE: Added 'img', 'video', 'audio', 'picture', 'source' to prevent LFI/SSRF via pdfmake
+  const prohibitedTags = ['script', 'iframe', 'object', 'embed', 'link', 'style', 'meta', 'base', 'form', 'input', 'button', 'svg', 'canvas', 'img', 'video', 'audio', 'picture', 'source'];
   prohibitedTags.forEach(tag => {
     const elements = doc.querySelectorAll(tag);
     elements.forEach(el => el.remove());
@@ -40,8 +41,7 @@ export function sanitizeHtml(html: string): string {
         }
     }
 
-    // Note: We leave IMG tags, but html-to-pdfmake requires explicit handling to fetch them.
-    // By default, pdfmake in Node won't fetch http images unless configured.
+    // Note: We used to leave IMG tags, but strictly removed them now to prevent LFI/SSRF risks.
   });
 
   return doc.body.innerHTML;

@@ -69,3 +69,8 @@
 **Prevention:**
 1. Implemented `MAX_BATCH_SIZE = 50` to limit the number of files processed per request.
 2. Implemented `MAX_TOTAL_CONTENT_CHARS = 500000` to cap the total memory usage of the accumulated text content, ensuring the function fails safely (truncates) rather than crashing.
+
+## 2025-05-26 - [SSRF/LFI Prevention in PDF Compilation]
+**Vulnerability:** Server-Side Request Forgery / Local File Inclusion via `img` tags
+**Learning:** `pdfmake` (via `pdfkit`) in a Node.js environment treats image paths as local file paths by default. The `sanitizeHtml` function was using a blacklist that allowed `img` tags, assuming they were safe or inert. However, `html-to-pdfmake` converts them into a format that `pdfmake` attempts to resolve, leading to potential LFI if a user provides `<img src="file:///etc/passwd">`.
+**Prevention:** Added `img` (and `video`, `audio`, `source`, `picture`) to the `prohibitedTags` list in `sanitizeHtml`. Security sanitizers should default to "deny all" (allowlist) rather than "allow all except X" (blocklist) whenever possible, or strictly validate attributes like `src` to allow only specific protocols (`http/https`) if the tag is required.
