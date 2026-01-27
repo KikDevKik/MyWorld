@@ -446,6 +446,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     isOpen={true}
                     onClose={() => setActiveView('editor')}
                     activeGemId={'perforador'}
+                    accessToken={oauthToken}
+                    onRefreshTokens={handleTokenRefresh}
                 />
             );
         }
