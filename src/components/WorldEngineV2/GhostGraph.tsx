@@ -14,6 +14,10 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
     const [simEdges, setSimEdges] = useState<VisualEdge[]>([]);
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
+    // Cache Refs for Performance (Avoid O(N) DOM lookups in tick)
+    const nodeEls = useRef<Map<string, HTMLElement | null>>(new Map());
+    const edgeEls = useRef<Map<string, SVGLineElement | null>>(new Map());
+
     // 1. Sync Nodes & Edges & Initialize Positions
     useEffect(() => {
         // Simple merge strategy: If node exists in current simNodes, keep its x/y
@@ -52,6 +56,27 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
     useEffect(() => {
         if (simNodes.length === 0 || dimensions.width === 0) return;
 
+        // Populate Cache
+        simNodes.forEach(n => {
+             // We can check if it's already there? No, always refresh ref in case of remount
+             // Actually, useEffect runs after commit, so elements exist.
+             const el = document.getElementById(`ghost-${n.id}`);
+             if (el) nodeEls.current.set(n.id, el);
+        });
+
+        simEdges.forEach((e: any) => {
+             // For edges, D3 might not have processed source/target into objects yet if we just created simEdges
+             // But here we are passing simEdges to forceLink.
+             // Wait, forceLink MODIFIES the edge objects in place (replacing string IDs with objects).
+             // We need to be careful about the key generation.
+             // Before simulation starts, source/target are strings (from our copy).
+             const sId = typeof e.source === 'object' ? e.source.id : e.source;
+             const tId = typeof e.target === 'object' ? e.target.id : e.target;
+             const key = `link-${sId}-${tId}`;
+             const el = document.getElementById(key);
+             if (el) edgeEls.current.set(key, el as SVGLineElement);
+        });
+
         const simulation = d3Force.forceSimulation(simNodes as any)
             .alphaDecay(0.05)
             .force("charge", d3Force.forceManyBody().strength(-300))
@@ -66,7 +91,7 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
         simulation.on("tick", () => {
              // Node Updates
              simNodes.forEach((node: any) => {
-                 const el = document.getElementById(`ghost-${node.id}`);
+                 const el = nodeEls.current.get(node.id);
                  if (el) {
                      el.style.transform = `translate(${node.x - 60}px, ${node.y - 30}px)`;
                  }
@@ -78,7 +103,10 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
                 const source = edge.source as any;
                 const target = edge.target as any;
 
-                const el = document.getElementById(`link-${source.id}-${target.id}`);
+                // We construct key based on IDs
+                const key = `link-${source.id}-${target.id}`;
+                const el = edgeEls.current.get(key);
+
                 if (el) {
                     el.setAttribute("x1", source.x);
                     el.setAttribute("y1", source.y);

@@ -4817,3 +4817,9 @@ export const restoreTimelineFromMaster = onCall(
  * Streaming endpoint for The Builder using Gemini 3.0 Pro.
  */
 export { builderStream } from "./builder";
+
+/**
+ * 31. CRYSTALLIZE GRAPH (The Builder Phase 2)
+ * Creates real markdown files from ghost nodes.
+ */
+export { crystallizeGraph } from "./crystallization";

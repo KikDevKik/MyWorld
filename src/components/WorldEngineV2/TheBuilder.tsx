@@ -1,12 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
-import { X, Send } from 'lucide-react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { X, Send, Hammer, Loader2 } from 'lucide-react';
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
+import { getFunctions, httpsCallable } from 'firebase/functions';
+import { toast } from 'sonner';
 import GhostGraph from './GhostGraph';
 import { VisualNode, VisualEdge, RealityMode } from './types';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { generateId } from "../../utils/sha256";
+import InternalFolderSelector from '../InternalFolderSelector';
 
 interface TheBuilderProps {
     isOpen: boolean;
@@ -31,6 +34,11 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
     const [isTyping, setIsTyping] = useState(false);
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
     const [ghostEdges, setGhostEdges] = useState<VisualEdge[]>([]);
+
+    // Materialization State
+    const [showFolderSelector, setShowFolderSelector] = useState(false);
+    const [isMaterializing, setIsMaterializing] = useState(false);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Sync mode when reopened or changed externally
@@ -182,6 +190,64 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
         }
     };
 
+    const handleMaterializeClick = () => {
+        if (ghostNodes.length === 0) {
+            toast.error("No ghosts to materialize.");
+            return;
+        }
+        setShowFolderSelector(true);
+    };
+
+    const handleFolderSelected = async (folder: { id: string; name: string }) => {
+        setShowFolderSelector(false);
+        setIsMaterializing(true);
+
+        try {
+            const functions = getFunctions();
+            const crystallizeGraphFn = httpsCallable(functions, 'crystallizeGraph');
+            const token = localStorage.getItem('google_drive_token');
+
+            if (!token) throw new Error("Google Drive Access Token missing. Please refresh session.");
+
+            // Collect Chat Context for AI Synthesis
+            const chatContext = messages.map(m => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+
+            let targetFolderId = folder.id;
+            let subfolderName = undefined;
+
+            if (folder.id === 'DEFAULT_INBOX') {
+                targetFolderId = config?.folderId || ""; // Root Project Folder
+                subfolderName = "Inbox";
+            }
+
+            if (!targetFolderId) throw new Error("Target folder not determined.");
+
+            const result: any = await crystallizeGraphFn({
+                nodes: ghostNodes,
+                folderId: targetFolderId,
+                subfolderName,
+                accessToken: token,
+                chatContext,
+                projectId
+            });
+
+            if (result.data.success) {
+                toast.success(`✨ Reality Forged: ${result.data.created} Entities Created.`);
+                setGhostNodes([]);
+                setGhostEdges([]);
+                setMessages(prev => [...prev, { role: 'system', content: `✅ SYSTEM: Materialization Complete. ${result.data.created} files created in ${subfolderName || folder.name}.` }]);
+            } else {
+                throw new Error("Partial failure reported by Forge.");
+            }
+
+        } catch (e: any) {
+            console.error("Materialization Error:", e);
+            toast.error(`Materialization Failed: ${e.message}`);
+        } finally {
+            setIsMaterializing(false);
+        }
+    };
+
     // Border Color Logic
     const getBorderColor = () => {
         switch (mode) {
@@ -205,22 +271,43 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                         <span className={`font-mono text-sm font-bold tracking-widest ${mode === 'RIGOR' ? 'text-cyan-500' : mode === 'ENTROPIA' ? 'text-violet-500' : 'text-slate-400'}`}>THE BUILDER</span>
                      </div>
 
-                     {/* REALITY TUNER */}
-                     <div className="flex bg-white/5 rounded-lg p-1 gap-1">
-                        {MODES.map(m => (
-                            <button
-                                key={m.id}
-                                onClick={() => setMode(m.id)}
-                                className={`
-                                    px-3 py-1 rounded text-[10px] font-bold tracking-wider transition-all
-                                    ${mode === m.id
-                                        ? (mode === 'RIGOR' ? 'bg-sky-500/20 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]' : mode === 'ENTROPIA' ? 'bg-violet-500/20 text-violet-300 shadow-[0_0_10px_rgba(139,92,246,0.2)]' : 'bg-slate-500/20 text-slate-300 shadow-[0_0_10px_rgba(255,255,255,0.1)]')
-                                        : 'text-slate-600 hover:text-slate-400'}
-                                `}
-                            >
-                                {m.label}
-                            </button>
-                        ))}
+                     {/* CENTER ACTIONS */}
+                     <div className="flex items-center gap-4">
+                         {/* MATERIALIZE BUTTON */}
+                         <button
+                            onClick={handleMaterializeClick}
+                            disabled={isMaterializing || ghostNodes.length === 0}
+                            className={`
+                                flex items-center gap-2 px-4 py-1.5 rounded-lg border transition-all font-bold text-xs tracking-wider
+                                ${isMaterializing
+                                    ? 'bg-amber-900/20 border-amber-500/50 text-amber-500 cursor-wait'
+                                    : ghostNodes.length > 0
+                                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20 hover:border-amber-500 shadow-[0_0_15px_rgba(245,158,11,0.1)]'
+                                        : 'bg-white/5 border-white/10 text-slate-500 cursor-not-allowed opacity-50'
+                                }
+                            `}
+                         >
+                             {isMaterializing ? <Loader2 size={14} className="animate-spin" /> : <Hammer size={14} />}
+                             {isMaterializing ? "FORGING..." : "MATERIALIZE"}
+                         </button>
+
+                         {/* REALITY TUNER */}
+                         <div className="flex bg-white/5 rounded-lg p-1 gap-1">
+                            {MODES.map(m => (
+                                <button
+                                    key={m.id}
+                                    onClick={() => setMode(m.id)}
+                                    className={`
+                                        px-3 py-1 rounded text-[10px] font-bold tracking-wider transition-all
+                                        ${mode === m.id
+                                            ? (mode === 'RIGOR' ? 'bg-sky-500/20 text-sky-300 shadow-[0_0_10px_rgba(56,189,248,0.2)]' : mode === 'ENTROPIA' ? 'bg-violet-500/20 text-violet-300 shadow-[0_0_10px_rgba(139,92,246,0.2)]' : 'bg-slate-500/20 text-slate-300 shadow-[0_0_10px_rgba(255,255,255,0.1)]')
+                                            : 'text-slate-600 hover:text-slate-400'}
+                                    `}
+                                >
+                                    {m.label}
+                                </button>
+                            ))}
+                         </div>
                      </div>
 
                      <button
@@ -233,8 +320,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 </div>
 
                 {/* SPLIT CONTENT */}
-                <div className="flex-1 flex overflow-hidden">
-                    {/* @ts-ignore */}
+                <div className="flex-1 flex overflow-hidden relative">
                     <PanelGroup direction="horizontal">
                         {/* LEFT: CHAT */}
                         <Panel defaultSize={40} minSize={30} className="flex flex-col bg-black/20">
@@ -315,6 +401,15 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                             </div>
                         </Panel>
                     </PanelGroup>
+
+                    {/* FOLDER SELECTOR MODAL */}
+                    {showFolderSelector && (
+                        <InternalFolderSelector
+                            onFolderSelected={handleFolderSelected}
+                            onCancel={() => setShowFolderSelector(false)}
+                            currentFolderId={null}
+                        />
+                    )}
                 </div>
             </div>
         </div>
