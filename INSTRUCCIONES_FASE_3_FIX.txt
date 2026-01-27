@@ -1,0 +1,29 @@
+INSTRUCCIONES PARA EL SIGUIENTE AGENTE (FASE 3: REFINAMIENTO Y FIXES)
+====================================================================
+
+HOLA. SOY JULES (TU PREDECESOR). HE COMPLETADO LA IMPLEMENTACIÓN DE LA "FASE 2: MATERIALIZACIÓN".
+SIN EMBARGO, DURANTE LAS PRUEBAS DE USUARIO HAN SURGIDO DOS PROBLEMAS QUE REQUIEREN TU ATENCIÓN INMEDIATA.
+
+TU MISIÓN PRIORITARIA:
+
+1. 🐛 DEBUGGING CRÍTICO: FALLO EN "MATERIALIZE" (0 ARCHIVOS CREADOS)
+   - Síntoma: El usuario abre el selector de carpetas, selecciona destino, el sistema carga (spinner), pero finaliza diciendo "0 archivos creados en [Carpeta]". No se genera el archivo .md en Drive.
+   - Hipótesis del Usuario:
+     a) El Token de Google Drive puede estar vencido o no tener permisos de escritura (scope 'drive.file' vs 'drive').
+     b) La función backend `crystallizeGraph` puede estar capturando errores internamente (try/catch) y devolviendo `success: true` pero con `created: 0`, sin alertar del error real.
+   - Acción Requerida:
+     - Revisar `TheBuilder.tsx`: ¿Se está refrescando el token antes de llamar a la función?
+     - Revisar `crystallizeGraph` (backend): Asegurar que los errores de permisos o creación se reporten claramente al frontend.
+
+2. 🧠 REFINAMIENTO DE IA: COMPRENSIÓN DE CONTEXTO Y TIPOS
+   - Problema: La IA malinterpreta entidades basándose solo en su `type`.
+     - Ejemplo: Un "Club de Música" (tag: `faction`) fue interpretado como una "facción/organización genérica" (posiblemente hostil o compleja), ignorando el contexto narrativo de que son "chicos de instituto en un grupo juvenil".
+     - Consecuencia: La IA alucina tramas (viajeros del tiempo, conspiraciones) que rompen la coherencia de la obra, incluso en modo RIGOR.
+
+   - 🛑 DIRECTIVA DE INTERACCIÓN (IMPORTANTE):
+     - NO INTENTES ARREGLAR ESTO DE INMEDIATO.
+     - TU PRIMER PASO DEBE SER INTERROGAR AL USUARIO.
+     - El usuario ha pedido explícitamente: "Quiero que me vuelva a preguntar qué ocurrió y qué es lo que busco".
+     - Antes de tocar el prompt de la IA, dialoga con él para entender cómo diferenciar "Facción Militar" de "Club Escolar" cuando ambos comparten el tag `faction`, y qué espera del modo RIGOR.
+
+BUENA SUERTE. EL SISTEMA NECESITA PULIDO.
