@@ -70,7 +70,9 @@ async function getVipContext(userId: string, projectId: string): Promise<string>
             snap.forEach(doc => {
                 const data = doc.data();
                 if (!seen.has(data.name)) {
-                    context += `- ${data.name} (${data.type}): ${data.description?.substring(0, 50)}...\n`;
+                    // 🟢 FIX: Inject ID and Aliases for better merging
+                    const aliases = data.aliases ? ` [Aliases: ${data.aliases.join(', ')}]` : '';
+                    context += `- ${data.name} (${data.type})${aliases} [ID: ${doc.id}]\n`;
                     seen.add(data.name);
                 }
             });
@@ -284,7 +286,7 @@ export const analyzeNexusBatch = onCall(
                 "suggestedAction": "CREATE", // CREATE, MERGE, CONVERT_TYPE, IGNORE
                 "confidence": 95,
                 "reasoning": "Brief explanation.",
-                "mergeWithId": "TargetNameIfMerge", // IMPORTANT: Return the NAME of the target if merging.
+                "mergeWithId": "TargetID", // CRITICAL: 'mergeWithId' MUST BE THE ID IN BRACKETS (e.g., '12345'). DO NOT RETURN THE NAME.
                 "foundInFiles": [
                    {
                      "fileName": "Source",
@@ -340,23 +342,42 @@ export const analyzeNexusBatch = onCall(
                         existing.relations = mergedRels;
                     }
 
-                    // 3. Keep highest confidence BUT aggregate descriptions
-                    if (c.confidence > existing.confidence) {
-                        // Old reasoning becomes alternative
-                        if (existing.reasoning && existing.reasoning !== c.reasoning) {
-                            if (!c.reasoning.includes(existing.reasoning)) { // Avoid dupes
-                                c.reasoning += `\n\n[Alternative View]: ${existing.reasoning}`;
-                            }
-                        }
+                    // 3. Keep highest confidence BUT aggregate descriptions (Golden Rules)
+                    // Rule 2 Check (ID Preservation) - Do this regardless of who wins
+                    if (c.mergeWithId && !existing.mergeWithId) {
+                        existing.mergeWithId = c.mergeWithId;
+                    }
 
+                    if (c.confidence > existing.confidence) {
+                        // NEW WINNER
+                        const oldDesc = existing.description || existing.reasoning || "";
+                        const newDesc = c.description || c.reasoning || "";
+
+                        // Overwrite Metadata (Rule 3)
+                        existing.name = c.name;
+                        existing.type = c.type;
+                        existing.subtype = c.subtype;
                         existing.confidence = c.confidence;
-                        existing.reasoning = c.reasoning;
                         existing.suggestedAction = c.suggestedAction;
                         if (c.mergeWithId) existing.mergeWithId = c.mergeWithId;
+
+                        // Rule 1: Aggregate
+                        if (oldDesc && newDesc !== oldDesc && !newDesc.includes(oldDesc)) {
+                             existing.reasoning = `${newDesc}\n\n[Alternative View]: ${oldDesc}`;
+                             existing.description = existing.reasoning; // Sync both
+                        } else {
+                             existing.reasoning = newDesc;
+                             existing.description = newDesc;
+                        }
                     } else {
-                        // Append current lower-confidence reasoning to existing if unique
-                        if (c.reasoning && existing.reasoning && !existing.reasoning.includes(c.reasoning)) {
-                             existing.reasoning += `\n\n[Alternative View]: ${c.reasoning}`;
+                        // EXISTING WINNER
+                        const baseDesc = existing.description || existing.reasoning || "";
+                        const extraDesc = c.description || c.reasoning || "";
+
+                        // Rule 1: Aggregate
+                        if (extraDesc && baseDesc !== extraDesc && !baseDesc.includes(extraDesc)) {
+                             existing.reasoning = `${baseDesc}\n\n[Alternative View]: ${extraDesc}`;
+                             existing.description = existing.reasoning;
                         }
                     }
 
