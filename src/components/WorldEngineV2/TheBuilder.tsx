@@ -16,6 +16,8 @@ interface TheBuilderProps {
     onClose: () => void;
     initialPrompt: string;
     initialMode: RealityMode;
+    accessToken?: string | null;
+    onRefreshTokens?: () => Promise<string | null>;
 }
 
 const MODES: { id: RealityMode; label: string }[] = [
@@ -24,7 +26,7 @@ const MODES: { id: RealityMode; label: string }[] = [
     { id: 'ENTROPIA', label: 'ENTROPÍA' },
 ];
 
-const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode }) => {
+const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode, accessToken, onRefreshTokens }) => {
     const { config } = useProjectConfig();
     const projectId = config?.folderId || "unknown_project";
 
@@ -190,11 +192,26 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
         }
     };
 
-    const handleMaterializeClick = () => {
+    const handleMaterializeClick = async () => {
         if (ghostNodes.length === 0) {
             toast.error("No ghosts to materialize.");
             return;
         }
+
+        // 🟢 AUTH CHECK BEFORE OPENING MODAL
+        if (!accessToken && onRefreshTokens) {
+            const toastId = toast.loading("Refrescando credenciales de seguridad...");
+            const newToken = await onRefreshTokens();
+            toast.dismiss(toastId);
+            if (!newToken) {
+                toast.error("No se pudo autenticar con Google Drive. Por favor recarga.");
+                return;
+            }
+        } else if (!accessToken) {
+             toast.error("Sesión de Drive caducada. Por favor recarga la página.");
+             return;
+        }
+
         setShowFolderSelector(true);
     };
 
@@ -205,8 +222,12 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
         try {
             const functions = getFunctions();
             const crystallizeGraphFn = httpsCallable(functions, 'crystallizeGraph');
-            const token = localStorage.getItem('google_drive_token');
 
+            // 🟢 USE PASSED TOKEN
+            let token = accessToken;
+            if (!token && onRefreshTokens) {
+                 token = await onRefreshTokens();
+            }
             if (!token) throw new Error("Google Drive Access Token missing. Please refresh session.");
 
             // Collect Chat Context for AI Synthesis
@@ -228,16 +249,42 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 subfolderName,
                 accessToken: token,
                 chatContext,
-                projectId
+                projectId,
+                mode // 🟢 PASS MODE
             });
 
-            if (result.data.success) {
-                toast.success(`✨ Reality Forged: ${result.data.created} Entities Created.`);
-                setGhostNodes([]);
-                setGhostEdges([]);
-                setMessages(prev => [...prev, { role: 'system', content: `✅ SYSTEM: Materialization Complete. ${result.data.created} files created in ${subfolderName || folder.name}.` }]);
+            // 🟢 HANDLE RESULTS & ERRORS
+            const data = result.data;
+            if (data.success) {
+                // PARTIAL SUCCESS IS STILL SUCCESS
+                const createdCount = data.created;
+                const failedCount = data.failed;
+
+                if (createdCount > 0) {
+                    toast.success(`✨ Reality Forged: ${createdCount} Entities Created.`);
+                    setGhostNodes([]);
+                    setGhostEdges([]);
+
+                    let msg = `✅ SYSTEM: Materialization Complete. ${createdCount} files created in ${subfolderName || folder.name}.`;
+                    if (failedCount > 0) msg += `\n⚠️ ${failedCount} files failed to forge.`;
+
+                    setMessages(prev => [...prev, { role: 'system', content: msg }]);
+                }
+
+                // SHOW FAILURES
+                if (data.errors && data.errors.length > 0) {
+                    data.errors.forEach((err: any) => {
+                         toast.error(`Error en '${err.name}': ${err.error}`, { duration: 5000 });
+                    });
+                }
+
+                if (createdCount === 0 && failedCount > 0) {
+                     // Total failure despite success: true (batch processed but all items failed logic)
+                     throw new Error("All entities failed to materialize. Check error messages.");
+                }
+
             } else {
-                throw new Error("Partial failure reported by Forge.");
+                throw new Error("Forge reported critical failure.");
             }
 
         } catch (e: any) {

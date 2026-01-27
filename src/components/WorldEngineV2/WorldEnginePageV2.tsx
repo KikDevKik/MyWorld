@@ -55,7 +55,13 @@ interface PendingCrystallization {
     timestamp: number;
 }
 
-const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, activeGemId?: string }> = ({ isOpen = true }) => {
+const WorldEnginePageV2: React.FC<{
+    isOpen?: boolean,
+    onClose?: () => void,
+    activeGemId?: string,
+    accessToken?: string | null,
+    onRefreshTokens?: () => Promise<string | null>
+}> = ({ isOpen = true, accessToken, onRefreshTokens }) => {
     // REFS
     const graphRef = useRef<GraphSimulationHandle>(null);
     const linksOverlayRef = useRef<LinksOverlayHandle>(null);
@@ -783,6 +789,8 @@ const WorldEnginePageV2: React.FC<{ isOpen?: boolean, onClose?: () => void, acti
                 onClose={() => setIsBuilderOpen(false)}
                 initialPrompt={builderInitialPrompt}
                 initialMode={realityMode}
+                accessToken={accessToken}
+                onRefreshTokens={onRefreshTokens}
              />
 
              {/* MODAL */}

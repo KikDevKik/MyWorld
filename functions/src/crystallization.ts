@@ -24,6 +24,7 @@ interface CrystallizeGraphRequest {
     accessToken: string;
     chatContext?: string; // The conversation history
     projectId: string;
+    mode?: 'RIGOR' | 'ENTROPIA' | 'FUSION'; // 🟢 NEW
 }
 
 export const crystallizeGraph = onCall(
@@ -39,7 +40,7 @@ export const crystallizeGraph = onCall(
         const db = getFirestore();
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
 
-        const { nodes, folderId, subfolderName, accessToken, chatContext, projectId } = request.data as CrystallizeGraphRequest;
+        const { nodes, folderId, subfolderName, accessToken, chatContext, projectId, mode = 'FUSION' } = request.data as CrystallizeGraphRequest;
 
         if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
             throw new HttpsError("invalid-argument", "No nodes provided to crystallize.");
@@ -52,7 +53,7 @@ export const crystallizeGraph = onCall(
         const model = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
             generationConfig: {
-                temperature: TEMP_PRECISION,
+                temperature: mode === 'RIGOR' ? 0.3 : mode === 'ENTROPIA' ? 0.9 : 0.6,
             } as any
         });
 
@@ -90,6 +91,7 @@ export const crystallizeGraph = onCall(
         let successCount = 0;
         let failCount = 0;
         const createdFiles: Array<{ id: string; name: string }> = [];
+        const failedFiles: Array<{ name: string; error: string }> = []; // 🟢 NEW
 
         // BATCH PROCESSING (3 at a time)
         const BATCH_SIZE = 3;
@@ -98,7 +100,7 @@ export const crystallizeGraph = onCall(
 
             await Promise.all(batch.map(async (node) => {
                 try {
-                    // 1. GENERATE CONTENT (AI)
+                    // 1. GENERATE CONTENT (AI) WITH MODE LOGIC
                     const prompt = `
                         ACT AS: Expert Lore Writer & Archivist.
                         TASK: Create a comprehensive Markdown file for the entity "${node.name}" (${node.type}).
@@ -110,6 +112,21 @@ export const crystallizeGraph = onCall(
                         Name: ${node.name}
                         Type: ${node.type}
                         Description: ${node.description}
+
+                        === ANALYSIS PROTOCOL (CRITICAL) ===
+                        1. **FACTION AMBIGUITY CHECK:**
+                           - If type is 'faction' or 'group', ANALYZE the description/context.
+                           - Is this a MILITARY/POLITICAL faction (e.g., Army, Rebels, Cult)? -> Tone: Serious, Tactical, Political.
+                           - Is this a SOCIAL GROUP/CLUB (e.g., Music Club, Study Group, Band)? -> Tone: Slice of Life, Informal, Personal.
+                           - **Correction:** If the type 'faction' feels wrong for a small group, you may suggest a subtype in your analysis, but write the content matching the TRUE nature of the group.
+
+                        === MODE: ${mode} ===
+                        ${mode === 'RIGOR'
+                            ? "- STRICT ADHERENCE to facts. DO NOT invent plots not present in context.\n- Logical consistency is paramount.\n- If details are missing, state them as 'Unknown' rather than fabricating."
+                            : mode === 'ENTROPIA'
+                                ? "- HIGH CREATIVITY allowed. Extrapolate bold theories.\n- Push the boundaries of the genre.\n- Focus on dramatic potential and secrets."
+                                : "- BALANCE (FUSION): Combine logical grounding with creative expansion.\n- Fill gaps with plausible lore that fits the tone.\n- Maintain narrative cohesion."
+                        }
 
                         INSTRUCTIONS:
                         1. Synthesize the session context and entity data into a rich, structured document.
@@ -123,6 +140,8 @@ export const crystallizeGraph = onCall(
                     const bodyContent = aiRes.response.text();
 
                     // 2. CONSTRUCT FRONTMATTER
+                    // Note: Ideally we parse the AI response to see if it suggested a better type,
+                    // but for now we stick to the requested node.type to ensure Graph consistency.
                     const frontmatter = [
                         "---",
                         `uuid: "${node.id}"`,
@@ -174,15 +193,22 @@ export const crystallizeGraph = onCall(
                 } catch (err: any) {
                     logger.error(`❌ Failed to crystallize node ${node.name}:`, err);
                     failCount++;
+                    // 🟢 CAPTURE SPECIFIC ERROR
+                    let errMsg = err.message || "Unknown Error";
+                    if (err.code === 403 || (err.errors && err.errors[0]?.reason === 'insufficientPermissions')) {
+                        errMsg = "Permiso Denegado (Google Drive). Revisa tus credenciales.";
+                    }
+                    failedFiles.push({ name: node.name, error: errMsg });
                 }
             }));
         }
 
         return {
-            success: true,
+            success: successCount > 0,
             created: successCount,
             failed: failCount,
-            files: createdFiles
+            files: createdFiles,
+            errors: failedFiles // 🟢 RETURN ERRORS
         };
     }
 );
