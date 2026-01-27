@@ -1,31 +1,25 @@
 import React, { useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Hammer, FolderInput, RefreshCw, Book, FolderPlus } from 'lucide-react';
+import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import useDrivePicker from 'react-google-drive-picker';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import ForgeDashboard from './ForgeDashboard';
-import { ProjectConfig } from '../../types';
-import ScopeTreeSelector from '../ScopeTreeSelector';
+import ForgeHub from './ForgeHub';
+import { ProjectConfig, DriveFile } from '../../types';
 
 interface ForgePanelProps {
     onClose: () => void;
-    folderId: string;
+    folderId: string; // Project Root ID (Context)
     accessToken: string | null;
 }
 
 const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken }) => {
     const { config, updateConfig } = useProjectConfig();
     const [openPicker] = useDrivePicker();
-    const [isSyncing, setIsSyncing] = useState(false);
 
-    // 🟢 SCOPE STATE (REPLACED BREADCRUMB)
-    const [selectedScope, setSelectedScope] = useState<{ id: string | null; name: string; recursiveIds: string[]; path?: string }>({
-        id: null,
-        name: "Global (Todo el Proyecto)",
-        recursiveIds: []
-    });
+    // 🟢 SAGA STATE (The Hub Selection)
+    const [activeSaga, setActiveSaga] = useState<DriveFile | null>(null);
 
     // --- VAULT SELECTION (SETUP) ---
     const handleConnectVault = () => {
@@ -68,7 +62,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
 
     const handleSelectExisting = async (selectedFolderId: string) => {
         if (!config) return;
-
         const newConfig: ProjectConfig = {
             ...config,
             characterVaultId: selectedFolderId
@@ -77,47 +70,12 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         toast.success("Character Vault selected successfully.");
     };
 
-    // --- SYNC SOULS ---
-    const handleSyncSouls = async () => {
-        if (!config?.characterVaultId) return;
-
-        setIsSyncing(true);
-        const functions = getFunctions();
-        const syncCharacterManifest = httpsCallable(functions, 'syncCharacterManifest');
-
-        // Logic remains: Sync Master Vault mostly.
-        // If we want to sync the Local Scope, we could pass it.
-        // For now, let's keep it syncing the Master Vault to ensure characters are up to date.
-        // If the user wants to sync the "Current Scope", we might need to change this logic,
-        // but traditionally Sync is for Characters (Master Vault).
-
-        try {
-            const result = await syncCharacterManifest({
-                masterVaultId: config.characterVaultId,
-                accessToken
-            });
-            const count = (result.data as any).count || 0;
-            toast.success(`Sincronizados ${count} personajes en la Bóveda`);
-        } catch (error) {
-            console.error("Error syncing souls:", error);
-            toast.error("Failed to sync character manifest.");
-        } finally {
-            setIsSyncing(false);
-        }
-    };
-
-    // --- EMPTY STATE (NO VAULT) ---
+    // --- 1. CONNECT VIEW (NO VAULT) ---
     if (config && !config.characterVaultId) {
-        // Source Selector Logic
         const canonPaths = config.canonPaths || [];
         const resourcePaths = config.resourcePaths || [];
-
-        // Deduplicate: Create Set of Canon IDs
         const canonIds = new Set(canonPaths.map(p => p.id));
-
-        // Filter Resource paths (exclude if in Canon)
         const uniqueResourcePaths = resourcePaths.filter(p => !canonIds.has(p.id));
-
         const hasExistingPaths = canonPaths.length > 0 || uniqueResourcePaths.length > 0;
 
         return (
@@ -137,23 +95,21 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                     </div>
 
                     <h3 className="text-2xl font-bold text-titanium-100 mb-2">
-                        {hasExistingPaths ? "Select Character Source" : "Vault Connection Required"}
+                        {hasExistingPaths ? "Seleccionar Bóveda Maestra" : "Conexión Requerida"}
                     </h3>
                     <p className="text-titanium-400 max-w-md mb-8">
                         {hasExistingPaths
-                            ? "Choose an existing project folder to serve as your Character Vault, or connect a new one."
-                            : "To activate the Forge, you must link a dedicated Character Vault folder from your Google Drive (Tier 1 Storage)."
+                            ? "Elige la carpeta raíz donde viven tus personajes o conecta una nueva."
+                            : "Para activar la Forja, vincula una carpeta de Google Drive como tu 'Character Vault'."
                         }
                     </p>
 
                     <div className="w-full max-w-md space-y-4">
-                        {/* EXISTING FOLDERS OPTION */}
                         {hasExistingPaths && (
                             <div className="space-y-4 mb-8">
-                                {/* CANON GROUP */}
                                 {canonPaths.length > 0 && (
                                     <div className="space-y-2">
-                                        <h4 className="text-xs font-bold text-titanium-500 uppercase tracking-wider text-left pl-1">Canon Folders</h4>
+                                        <h4 className="text-xs font-bold text-titanium-500 uppercase tracking-wider text-left pl-1">Carpetas Canon</h4>
                                         {canonPaths.map(path => (
                                             <button
                                                 key={path.id}
@@ -171,32 +127,9 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                         ))}
                                     </div>
                                 )}
-
-                                {/* RESOURCE GROUP */}
-                                {uniqueResourcePaths.length > 0 && (
-                                    <div className="space-y-2">
-                                        <h4 className="text-xs font-bold text-titanium-500 uppercase tracking-wider text-left pl-1">Resource Folders</h4>
-                                        {uniqueResourcePaths.map(path => (
-                                            <button
-                                                key={path.id}
-                                                onClick={() => handleSelectExisting(path.id)}
-                                                className="w-full p-4 bg-titanium-900 hover:bg-titanium-800 border border-titanium-800 hover:border-purple-500/50 rounded-xl flex items-center justify-between group transition-all text-left"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-titanium-950 rounded-lg text-purple-400 group-hover:text-white transition-colors">
-                                                        <FolderInput size={20} />
-                                                    </div>
-                                                    <span className="font-semibold text-titanium-200 group-hover:text-white transition-colors">{path.name}</span>
-                                                </div>
-                                                <span className="text-[10px] font-bold bg-titanium-950 text-titanium-500 px-2 py-1 rounded border border-titanium-800">REF</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
                         )}
 
-                        {/* CONNECT NEW FOLDER (Fallback) */}
                         <button
                             onClick={handleConnectVault}
                             className={`w-full px-8 py-4 font-bold rounded-xl flex items-center justify-center gap-3 transition-all
@@ -206,7 +139,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                 }`}
                         >
                             <FolderPlus size={20} />
-                            <span>{hasExistingPaths ? "Connect External Folder from Drive" : "Connect Character Vault"}</span>
+                            <span>{hasExistingPaths ? "Conectar Nueva Carpeta" : "Conectar Character Vault"}</span>
                         </button>
                     </div>
                 </div>
@@ -214,50 +147,71 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         );
     }
 
-    // --- DASHBOARD STATE (CONNECTED) ---
+    // --- 2. HUB VIEW (VAULT LINKED, NO SAGA SELECTED) ---
+    if (!activeSaga) {
+        return (
+            <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
+                {/* HEADER */}
+                <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
+                    <div className="flex items-center gap-3 text-titanium-100">
+                        <Hammer size={24} className="text-accent-DEFAULT" />
+                        <h2 className="font-bold text-xl">Forja de Almas</h2>
+                        <span className="px-2 py-0.5 rounded bg-titanium-800 text-[10px] font-mono text-titanium-400">HUB</span>
+                    </div>
+                    {/* OPTIONAL: Sync Button could go here if we wanted a manual master sync, but we are removing it per instructions */}
+                </div>
+
+                <div className="flex-1 overflow-hidden relative">
+                    <ForgeHub
+                        vaultId={config?.characterVaultId || ""}
+                        accessToken={accessToken}
+                        onSelectSaga={setActiveSaga}
+                    />
+                </div>
+            </div>
+        );
+    }
+
+    // --- 3. DASHBOARD VIEW (SAGA SELECTED) ---
     return (
         <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
             {/* HEADER */}
             <div className="relative z-20 h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
                 <div className="flex items-center gap-2 text-titanium-100">
+                    <button
+                        onClick={() => setActiveSaga(null)}
+                        className="p-1 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors mr-2"
+                        title="Volver al Hub"
+                    >
+                        <ArrowLeft size={20} />
+                    </button>
+
                     <span className="flex items-center gap-2 text-titanium-400 shrink-0">
                         <Hammer size={20} />
                         <span className="font-bold hidden md:inline">Forja de Almas</span>
                     </span>
 
-                    {/* 🟢 NEW SCOPE SELECTOR */}
-                    <div className="ml-4">
-                        <ScopeTreeSelector
-                            onScopeSelected={setSelectedScope}
-                            activeScopeId={selectedScope.id}
-                        />
+                    <span className="text-titanium-600">/</span>
+
+                    <div className="flex items-center gap-2 px-3 py-1 rounded bg-titanium-800/50 border border-titanium-700/50">
+                        <Book size={14} className="text-accent-DEFAULT" />
+                        <span className="font-bold text-sm text-titanium-200">{activeSaga.name}</span>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                    {/* SYNC BUTTON */}
-                    <button
-                        onClick={() => handleSyncSouls()}
-                        disabled={isSyncing}
-                        className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 rounded-lg text-xs font-bold flex items-center gap-2 transition-all border border-titanium-700"
-                        title="Sync with Drive"
-                    >
-                        <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
-                        <span>{isSyncing ? "SYNCING..." : "SYNC"}</span>
-                    </button>
+                    {/* Auto-Sync indicator or actions for Dashboard could go here */}
                 </div>
             </div>
 
             {/* DASHBOARD */}
             <div className="flex-1 overflow-hidden relative">
                 <ForgeDashboard
-                    folderId={folderId}
+                    folderId={folderId} // Project Root
                     accessToken={accessToken}
-                    characterVaultId={config?.characterVaultId || ""}
-                    selectedScope={selectedScope} // 🟢 Pass Scope Down
+                    saga={activeSaga} // 🟢 Pass Active Saga
                 />
             </div>
-
         </div>
     );
 };

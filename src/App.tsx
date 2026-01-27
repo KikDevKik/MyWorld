@@ -625,7 +625,7 @@ function App() {
                 toJSON: () => ({})
             } as unknown as User);
             setAuthLoading(false);
-            setDriveStatus('disconnected');
+        setDriveStatus('disconnected');
             return;
         }
 

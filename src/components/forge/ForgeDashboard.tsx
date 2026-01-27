@@ -1,263 +1,222 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getFirestore, collection, onSnapshot, query } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Loader2, Users } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-import ForgeSourceSelector from './ForgeSourceSelector';
 import ForgeContextDock from './ForgeContextDock';
 import CharacterInspector from './CharacterInspector';
 import ForgeChat from './ForgeChat';
-import { Character } from '../../types';
+import { Character, DriveFile } from '../../types';
 
 interface ForgeDashboardProps {
-    folderId: string;
+    folderId: string; // Project Root ID (for global context)
     accessToken: string | null;
-    characterVaultId: string;
-    // 🟢 NEW SCOPE PROP
-    selectedScope: { id: string | null; name: string; recursiveIds: string[]; path?: string };
+    saga: DriveFile; // 🟢 Active Saga (The Hub Selection)
 }
 
-type DashboardState = 'SELECT_SOURCE' | 'ANALYZING' | 'IDE';
+type DashboardState = 'SCANNING' | 'IDE';
 
-const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, characterVaultId, selectedScope }) => {
-    // STATE MACHINE
-    const [state, setState] = useState<DashboardState>('SELECT_SOURCE');
+const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, saga }) => {
+    const [state, setState] = useState<DashboardState>('SCANNING');
     const [isLoading, setIsLoading] = useState(true);
-
-    // SESSION VERSIONING (Forcing Refresh)
-    // 🟢 UPDATED: Force Unique Session ID on Mount (Break the Loop)
     const [sessionVersion, setSessionVersion] = useState(() => Date.now());
 
     // DATA
-    const [characters, setCharacters] = useState<Character[]>([]);
-    const [detectedEntities, setDetectedEntities] = useState<any[]>([]); // Results from Analyzer
+    const [characters, setCharacters] = useState<Character[]>([]); // Global Roster
+    const [detectedEntities, setDetectedEntities] = useState<any[]>([]); // Ghosts from Saga
     const [initialReport, setInitialReport] = useState<string>("");
 
     // UI
-    const [activeSourceFile, setActiveSourceFile] = useState<{ id: string, name: string } | null>(null);
-    const [activeFocusChar, setActiveFocusChar] = useState<any | null>(null); // Character or Ghost
-    const [inspectorData, setInspectorData] = useState<any | null>(null); // Open Inspector
-
-    // RESIZE LOGIC
+    const [inspectorData, setInspectorData] = useState<any | null>(null);
     const [leftPanelWidth, setLeftPanelWidth] = useState(60);
     const [isDragging, setIsDragging] = useState(false);
-    const containerRef = React.useRef<HTMLDivElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
 
-    const handleMouseDown = (e: React.MouseEvent) => {
-        setIsDragging(true);
-        e.preventDefault();
-    };
-
+    // --- 1. FETCH GLOBAL ROSTER (BACKGROUND) ---
     useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isDragging || !containerRef.current) return;
+        const auth = getAuth();
+        if (!auth.currentUser) return;
+        const db = getFirestore();
+        const q = query(collection(db, "users", auth.currentUser.uid, "characters"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const chars: Character[] = [];
+            snapshot.forEach(doc => {
+                chars.push({ id: doc.id, ...doc.data(), status: 'EXISTING' } as Character);
+            });
+            setCharacters(chars);
+        });
+        return () => unsubscribe();
+    }, []);
 
-            const containerRect = containerRef.current.getBoundingClientRect();
-            // Calculate percentage relative to container
-            const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+    // --- 2. SAGA SCAN (AUTO-MOUNT) ---
+    useEffect(() => {
+        const scanSaga = async () => {
+            if (!saga || !accessToken) return;
 
-            // Snap logic
-            if (newWidth > 95) {
-                setLeftPanelWidth(100); // Snap to hide right panel
-            } else if (newWidth < 20) {
-                setLeftPanelWidth(20); // Minimum width for left panel
-            } else {
-                setLeftPanelWidth(newWidth);
+            setState('SCANNING');
+            setIsLoading(true);
+
+            try {
+                const functions = getFunctions();
+
+                // A. LIST FILES
+                const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
+                const listResult: any = await getDriveFiles({
+                    folderIds: [saga.id], // Scan inside the Saga folder
+                    accessToken,
+                    recursive: false // Just the immediate files (fichas/docs)
+                });
+
+                const root = (listResult.data as DriveFile[])[0];
+                const files = root?.children?.filter(f => f.type === 'file' && (f.name.endsWith('.md') || f.name.endsWith('.txt') || f.mimeType.includes('document'))) || [];
+
+                if (files.length === 0) {
+                    toast.info("Saga vacía (sin archivos de texto). Iniciando modo creativo.");
+                    setState('IDE');
+                    setIsLoading(false);
+                    return;
+                }
+
+                // B. ANALYZE BATCH (GHOST DETECTION)
+                // Use a subset to avoid timeouts if too many files
+                const targetFiles = files.slice(0, 10); // Limit to 10 for speed
+                const fileIds = targetFiles.map(f => f.id);
+
+                const analyzeNexusFile = httpsCallable(functions, 'analyzeNexusFile');
+                const result: any = await analyzeNexusFile({
+                    fileIds,
+                    projectId: folderId, // Context
+                    accessToken,
+                    contextType: 'NARRATIVE'
+                });
+
+                let candidates = result.data.candidates || [];
+
+                // C. RECONCILIATION (GHOSTS VS ROSTER)
+                // If a candidate matches an existing character, link ID
+                candidates = candidates.map((c: any) => {
+                    const match = characters.find(char => char.name.toLowerCase() === c.name.toLowerCase());
+                    return {
+                        ...c,
+                        id: match ? match.id : undefined,
+                        status: match ? 'EXISTING' : 'DETECTED',
+                        // UI Mapping
+                        role: c.role || c.description || c.subtype || c.type,
+                        relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5
+                    };
+                });
+
+                setDetectedEntities(candidates);
+                setInitialReport(`Saga "${saga.name}" escaneada. ${candidates.length} entidades detectadas.`);
+                setState('IDE');
+
+            } catch (error) {
+                console.error("Saga Scan Failed:", error);
+                toast.error("Error escaneando la Saga. Entrando en modo manual.");
+                setState('IDE');
+            } finally {
+                setIsLoading(false);
             }
         };
 
-        const handleMouseUp = () => {
-            setIsDragging(false);
-        };
+        scanSaga();
+    }, [saga.id, accessToken]); // Depend on Saga ID change
 
+    const handleRefresh = () => {
+        // Re-trigger effect by forcing a re-mount or logic?
+        // Actually, cleaner to extract the async function, but for now user can just re-select saga.
+        toast.info("Para refrescar, vuelve al Hub y selecciona la saga de nuevo.");
+    };
+
+    const handleResetSession = () => setSessionVersion(prev => prev + 1);
+
+    // RESIZE LOGIC
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging || !containerRef.current) return;
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
+            if (newWidth > 95) setLeftPanelWidth(100);
+            else if (newWidth < 20) setLeftPanelWidth(20);
+            else setLeftPanelWidth(newWidth);
+        };
+        const handleMouseUp = () => setIsDragging(false);
         if (isDragging) {
             window.addEventListener('mousemove', handleMouseMove);
             window.addEventListener('mouseup', handleMouseUp);
         }
-
         return () => {
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
         };
     }, [isDragging]);
 
-    // --- 1. FETCH CHARACTERS (BACKGROUND SYNC) ---
-    useEffect(() => {
-        const auth = getAuth();
-        if (!auth.currentUser) return;
-
-        const db = getFirestore();
-        const q = query(collection(db, "users", auth.currentUser.uid, "characters"));
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const chars: Character[] = [];
-            snapshot.forEach(doc => {
-                // 🟢 INJECT STATUS: EXISTING
-                chars.push({
-                    id: doc.id,
-                    ...doc.data(),
-                    status: 'EXISTING'
-                } as Character);
-            });
-            // Filter logic if needed, or just store all
-            setCharacters(chars);
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    // --- 2. HANDLE SOURCE SELECTION & ANALYSIS ---
-    const handleSourceSelected = async (fileId: string, fileName: string) => {
-        setActiveSourceFile({ id: fileId, name: fileName });
-        setState('ANALYZING');
-
-        try {
-            const functions = getFunctions();
-            const forgeAnalyzer = httpsCallable(functions, 'forgeAnalyzer');
-
-            const existingNames = characters.map(c => c.name);
-
-            const result: any = await forgeAnalyzer({
-                fileId,
-                accessToken,
-                existingCharacterNames: existingNames,
-                characterSourceId: characterVaultId // 🟢 WIDE NET: Pass master vault ID
-            });
-
-            // Process Result
-            let entities = result.data.entities || [];
-            const report = result.data.report_summary || "Analysis complete.";
-
-            // 🔍 INTELLIGENT MATCHING (GAMMA FIX)
-            // Attach Real IDs to detected entities if they are 'EXISTING'
-            entities = entities.map((e: any) => {
-                if (e.status === 'EXISTING') {
-                    // Try to find in characters list
-                    const match = characters.find(c => c.name.toLowerCase() === e.name.toLowerCase());
-                    if (match) {
-                        return { ...e, id: match.id };
-                    }
-                }
-                return e;
-            });
-
-            setDetectedEntities(entities);
-            setInitialReport(report);
-
-            setState('IDE');
-
-        } catch (error) {
-            console.error("Analysis failed:", error);
-            toast.error("Deep Scan failed. Proceeding without analysis.");
-            setState('IDE'); // Fallback
-        }
-    };
-
-    // 🟢 ALPHA FIX: REFRESH HANDLER
-    const handleRefresh = () => {
-        if (activeSourceFile) {
-            toast.info("Forzando re-análisis...");
-            handleSourceSelected(activeSourceFile.id, activeSourceFile.name);
-        }
-    };
-
-    // 🟢 NEW SESSION HANDLER
-    const handleResetSession = () => {
-        setSessionVersion(prev => prev + 1);
-        toast.info("Nueva sesión iniciada.");
-    };
-
-    // --- 3. HANDLE FOCUS ---
-    const handleCharacterSelect = (char: any) => {
-        // If double click or specific action, open Inspector?
-        // For now, let's say Single Click = Focus Chat, Double Click = Inspector
-        // But to keep it simple: Click = Open Inspector?
-        // The plan said: "Inspector... allows editing... click on name in right panel"
-        setInspectorData(char);
-    };
-
-    // --- RENDER ---
-
-    if (state === 'SELECT_SOURCE') {
-        return <ForgeSourceSelector onSourceSelected={handleSourceSelected} accessToken={accessToken} />;
-    }
-
-    if (state === 'ANALYZING') {
+    // RENDER
+    if (state === 'SCANNING') {
         return (
             <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-100 space-y-4 animate-fade-in">
                 <Loader2 size={48} className="animate-spin text-accent-DEFAULT" />
-                <h2 className="text-2xl font-bold">Deep Thinking Scan...</h2>
-                <p className="text-titanium-400">Leyendo {activeSourceFile?.name || "archivo"}...</p>
-                <p className="text-xs text-titanium-600">Analizando relaciones, detectando entidades y calculando consistencia.</p>
+                <h2 className="text-2xl font-bold">Invocando Saga...</h2>
+                <p className="text-titanium-400">Escaneando archivos en {saga.name}</p>
+                <p className="text-xs text-titanium-600">Detectando fantasmas y sincronizando el Canon.</p>
             </div>
         );
     }
 
-    // IDE MODE (SPLIT VIEW)
+    // SCOPE OBJECT FOR CHAT
+    // We construct the scope based on the active Saga
+    const sagaScope = {
+        id: saga.id,
+        name: saga.name,
+        path: (saga as any).path || saga.name, // Use path if available for RAG
+        recursiveIds: [saga.id] // Base ID
+    };
+
     return (
         <div ref={containerRef} className="w-full h-full flex bg-titanium-950 overflow-hidden relative">
-
             {/* LEFT PANEL: CHAT / EDITOR */}
-            <div
-                style={{ width: `${leftPanelWidth}%` }}
-                className="h-full flex flex-col relative transition-all duration-75 ease-out"
-            >
+            <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col relative transition-all duration-75 ease-out">
                 <ForgeChat
-                    sessionId={`session_${activeSourceFile?.id || 'general'}_v${sessionVersion}`}
-                    sessionName={`Editor: ${activeSourceFile?.name || 'General'}`}
-                    onBack={() => {}}
+                    sessionId={`saga_${saga.id}_v${sessionVersion}`}
+                    sessionName={`Saga: ${saga.name}`}
+                    onBack={() => {}} // No back button inside chat anymore
                     folderId={folderId}
                     accessToken={accessToken}
-                    characterContext={""} // Global context handling
-                    activeContextFile={activeSourceFile ? {
-                        id: activeSourceFile.id,
-                        name: activeSourceFile.name,
-                        content: "" // Analyzer read it, Chat RAG will read it if needed
-                    } : undefined}
+                    selectedScope={sagaScope} // 🟢 Pass Saga Scope
+                    activeContextFile={undefined} // No specific file open initially
                     initialReport={initialReport}
                     onReset={handleResetSession}
-                    selectedScope={selectedScope} // 🟢 Pass Scope to Chat
                 />
             </div>
 
-            {/* RESIZER HANDLE */}
+            {/* RESIZER */}
             <div
-                className={`w-1 h-full cursor-col-resize hover:bg-accent-DEFAULT transition-colors z-50 flex-shrink-0
-                    ${isDragging ? 'bg-accent-DEFAULT' : 'bg-titanium-800'}
-                    ${leftPanelWidth === 100 ? 'absolute right-0 top-0 bottom-0 opacity-0 hover:opacity-100 w-4 bg-transparent hover:bg-accent-DEFAULT/20' : ''}
-                `}
-                onMouseDown={handleMouseDown}
-                title={leftPanelWidth === 100 ? "Drag left to show Context Dock" : "Drag to resize"}
+                className={`w-1 h-full cursor-col-resize hover:bg-accent-DEFAULT transition-colors z-50 flex-shrink-0 ${isDragging ? 'bg-accent-DEFAULT' : 'bg-titanium-800'}`}
+                onMouseDown={(e) => { setIsDragging(true); e.preventDefault(); }}
             />
 
             {/* RIGHT PANEL: CONTEXT DOCK */}
-            <div
-                style={{ width: `${100 - leftPanelWidth}%` }}
-                className={`h-full flex flex-col ${leftPanelWidth === 100 ? 'hidden' : ''}`}
-            >
+            <div style={{ width: `${100 - leftPanelWidth}%` }} className={`h-full flex flex-col ${leftPanelWidth === 100 ? 'hidden' : ''}`}>
                 <ForgeContextDock
                     characters={characters}
                     detectedEntities={detectedEntities}
-                    onCharacterSelect={handleCharacterSelect}
+                    onCharacterSelect={setInspectorData}
                     isLoading={false}
                     onRefresh={handleRefresh}
                 />
             </div>
 
-            {/* INSPECTOR OVERLAY */}
+            {/* INSPECTOR */}
             {inspectorData && (
                 <CharacterInspector
                     data={inspectorData}
                     onClose={() => setInspectorData(null)}
                     onMaterialize={(char) => {
-                        // Optimistically update list or wait for sync
-                        // The sync is automatic via Firestore listener for created chars.
-                        // Detected entities list might need cleanup if we want to remove the ghost immediately
                         setDetectedEntities(prev => prev.map(e => e.name === char.name ? { ...e, status: 'EXISTING' } : e));
                     }}
-                    folderId={selectedScope.id || characterVaultId || folderId}
+                    folderId={saga.id} // Create files in the Saga folder by default
                     accessToken={accessToken}
                 />
             )}
