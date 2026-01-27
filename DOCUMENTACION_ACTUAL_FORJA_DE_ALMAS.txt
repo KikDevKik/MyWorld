@@ -1,0 +1,100 @@
+# DOCUMENTACIÓN ACTUAL: FORJA DE ALMAS (THE FORGE)
+
+## Introducción
+La **Forja de Almas (Soul Forge)** es el módulo dedicado a la gestión, creación y edición de entidades narrativas (Personajes). Su arquitectura permite conectar directamente con el almacenamiento en la nube (Google Drive) para analizar manuscritos, detectar entidades no registradas ("Ghosts") y mantener la coherencia del Canon.
+
+---
+
+## 1. El Vínculo (Vault Connection)
+**Componente:** `ForgePanel.tsx`
+
+Al acceder al módulo, el sistema verifica si existe una "Bóveda de Personajes" (`characterVaultId`) vinculada en la configuración del proyecto.
+
+*   **Estado Inicial (Sin Vínculo):**
+    Si no hay una carpeta asignada, se presenta una interfaz de bloqueo que solicita conectar una carpeta de Google Drive. Esta carpeta actuará como el repositorio central de las fichas de personaje.
+    *   *Acción:* El usuario selecciona "Connect Character Vault" y elige una carpeta en Drive.
+
+*   **Estado Vinculado (Con Vínculo):**
+    Una vez establecida la conexión, se habilita el acceso al Dashboard principal.
+    *   **Botón de Sincronización (Sync):** Permite re-escanear la Bóveda para actualizar la lista local de personajes (`characters`).
+    *   **Selector de Alcance (ScopeTreeSelector):** Permite definir si la Forja debe operar con el contexto global ("Todo el Proyecto") o limitarse a una sub-carpeta específica.
+
+---
+
+## 2. Selección de Fuente (The Origin)
+**Componente:** `ForgeSourceSelector.tsx` (Estado: `SELECT_SOURCE`)
+
+Antes de entrar al entorno de trabajo, la Forja solicita un punto de entrada. El usuario debe indicar qué archivo o carpeta servirá como contexto inmediato para la sesión de trabajo.
+
+*   **Propósito:** Le dice a la Forja "mira estos personajes son los del libro" o "este es el capítulo que estamos editando".
+*   **Interacción:** Se despliega un árbol de archivos de Drive. El usuario selecciona un documento (ej: "Capítulo 1.docx") y confirma la selección.
+
+---
+
+## 3. Análisis Profundo (Deep Thinking)
+**Componente:** `ForgeDashboard.tsx` (Estado: `ANALYZING`)
+**Backend:** `forgeAnalyzer` Cloud Function
+
+Tras la selección, el sistema entra en un estado de "Deep Thinking" (Pensamiento Profundo).
+
+*   **Proceso:**
+    1.  El sistema lee el contenido del archivo seleccionado.
+    2.  Ejecuta un análisis semántico para extraer nombres propios, roles y relaciones.
+    3.  Cruza los datos encontrados con la lista de personajes existentes (`existingCharacterNames`).
+    4.  Genera un reporte preliminar y clasifica las entidades en "Existentes" o "Detectadas" (Ghosts).
+
+*   **Visual:** Pantalla de carga con indicador de estado ("Analizando relaciones...").
+
+---
+
+## 4. El Entorno de Forja (The Workspace / IDE)
+**Componente:** `ForgeDashboard.tsx` (Estado: `IDE`)
+
+Una vez completado el análisis, la interfaz se divide en dos paneles principales (Split View), creando un entorno de escritura asistida.
+
+### A. El Oráculo (Editor / Chat)
+**Ubicación:** Panel Izquierdo
+**Componente:** `ForgeChat.tsx`
+
+Es la interfaz conversacional donde el usuario interactúa con la IA.
+
+*   **Funcionalidad:**
+    *   **Contexto Activo:** La IA tiene en memoria el contenido del archivo seleccionado y el conocimiento de los personajes.
+    *   **Herramientas (Tools):** La IA puede invocar `create_lore_file` para generar nuevas fichas de personaje directamente en Drive.
+    *   **Historial:** Se mantiene un registro de la conversación (`sessionId`).
+    *   **Control de Alcance:** Muestra visualmente el Scope activo (ej: "Scope: Global").
+
+### B. Dramatis Personae (Context Dock)
+**Ubicación:** Panel Derecho
+**Componente:** `ForgeContextDock.tsx`
+
+Es el panel de referencia viva que muestra las entidades relevantes para la sesión. Se divide en categorías jerárquicas:
+
+1.  **PROTAGONISTAS (Protagonists):**
+    *   Personajes con `tier: 'MAIN'`.
+    *   Son fichas ya existentes en la Bóveda.
+    *   *Visual:* Resaltados con nombre y rol principal.
+
+2.  **SECUNDARIOS (Supporting):**
+    *   Personajes con `tier: 'SUPPORTING'`.
+    *   Fichas existentes de menor relevancia.
+
+3.  **DETECTADOS (GHOSTS) (Ecos):**
+    *   **Definición:** Entidades que el análisis detectó en el texto ("mencionados en la historia") pero que **no tienen ficha de personaje** en la Bóveda.
+    *   **Relevancia:** Pueden ser personajes de relleno, secundarios importantes sin ficha, o incluso menciones erróneas.
+    *   **Estado:** Aparecen con un indicador de "Relevancia" (Score) y un estilo visual distintivo (borde discontinuo, efecto "fantasma").
+    *   **Acción:** Al hacer clic en un Ghost, se abre el `CharacterInspector` para permitir su "Materialización" (crear su ficha oficial).
+
+---
+
+## Flujo de Trabajo Típico
+
+1.  El usuario entra a la Forja.
+2.  Selecciona el "Capítulo 3" como fuente.
+3.  La Forja analiza el capítulo.
+4.  En el **Context Dock**, aparecen:
+    *   "El Santo" (Protagonista, ya tiene ficha).
+    *   "Sombra" (Ghost, detectado en el texto, no tiene ficha).
+5.  El usuario ve que "Sombra" es importante. Hace clic en él.
+6.  Se abre el Inspector, el usuario rellena los detalles faltantes y pulsa "Materializar".
+7.  "Sombra" deja de ser un Ghost y se convierte en un Personaje Existente (Secundario o Principal), guardándose en Drive.
