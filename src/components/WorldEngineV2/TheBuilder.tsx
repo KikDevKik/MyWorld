@@ -4,7 +4,7 @@ import { X, Send } from 'lucide-react';
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import GhostGraph from './GhostGraph';
-import { VisualNode, RealityMode } from './types';
+import { VisualNode, VisualEdge, RealityMode } from './types';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { generateId } from "../../utils/sha256";
 
@@ -30,6 +30,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
     const [input, setInput] = useState("");
     const [isTyping, setIsTyping] = useState(false);
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
+    const [ghostEdges, setGhostEdges] = useState<VisualEdge[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
     // Sync mode when reopened or changed externally
@@ -48,6 +49,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 setMessages([]);
                 setIsTyping(false);
                 setGhostNodes([]);
+                setGhostEdges([]);
             }
             setInput("");
         }
@@ -75,17 +77,6 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
 
             const app = getApp();
             const gProjectId = app.options.projectId;
-            // Handle Emulator vs Production URL
-            // In dev (vite), we might need to proxy or use full URL.
-            // Assumption: Standard Cloud Functions URL structure.
-            // Or use localhost if in dev mode via some env var, but usually explicit URL is safer.
-            // For now, let's try strict relative path assuming proxy, or full URL.
-            // Given the environment, let's construct the production-like URL or Emulator URL.
-            // But we don't have easy access to emulator config here.
-            // Fallback: Use relative path '/builderStream' and hope vite.config.ts proxies it?
-            // User didn't specify proxy.
-            // Let's use the standard "https://<region>-<project>.cloudfunctions.net/builderStream"
-            // Region is typically us-central1.
             const region = 'us-central1';
             const baseUrl = import.meta.env.DEV
                 ? `http://127.0.0.1:5001/${gProjectId}/${region}/builderStream`
@@ -139,7 +130,8 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                         }
                         else if (data.type === 'data') {
                             // 4. Final Payload (Graph Updates)
-                            const payload = data.payload; // NexusNode[] or similar
+                            const payload = data.payload; // { nodes: [], edges: [] }
+
                             if (Array.isArray(payload.nodes)) {
                                 const processedNodes = payload.nodes.map((n: any) => {
                                     // Deterministic ID Calculation
@@ -148,9 +140,6 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                         ...n,
                                         id: id,
                                         isGhost: true,
-                                        // If it is an anchor, backend should flag it, or we infer?
-                                        // Backend "Anchor" tool returns data.
-                                        // If backend says isAnchor: true, we use it.
                                         isAnchor: !!n.isAnchor,
                                         x: n.fx, // Use fixed pos if provided (Anchor)
                                         y: n.fy
@@ -163,6 +152,19 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                     // Deduplicate by ID
                                     const unique = new Map();
                                     combined.forEach(node => unique.set(node.id, node));
+                                    return Array.from(unique.values());
+                                });
+                            }
+
+                            if (Array.isArray(payload.edges)) {
+                                setGhostEdges(prev => {
+                                    const combined = [...prev, ...payload.edges];
+                                    // Deduplicate by source-target key
+                                    const unique = new Map();
+                                    combined.forEach(edge => {
+                                        const key = `${edge.source}-${edge.target}`;
+                                        unique.set(key, edge);
+                                    });
                                     return Array.from(unique.values());
                                 });
                             }
@@ -232,6 +234,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
 
                 {/* SPLIT CONTENT */}
                 <div className="flex-1 flex overflow-hidden">
+                    {/* @ts-ignore */}
                     <PanelGroup direction="horizontal">
                         {/* LEFT: CHAT */}
                         <Panel defaultSize={40} minSize={30} className="flex flex-col bg-black/20">
@@ -295,7 +298,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                         {/* RIGHT: GHOST GRAPH */}
                         <Panel defaultSize={60} className="bg-gradient-to-br from-slate-900 to-black relative">
                             <div className="absolute inset-0 p-4">
-                                <GhostGraph nodes={ghostNodes} />
+                                <GhostGraph nodes={ghostNodes} edges={ghostEdges} />
 
                                 {/* Overlay Stats */}
                                 <div className="absolute top-4 right-4 flex flex-col items-end pointer-events-none">
@@ -303,6 +306,9 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                     <div className="flex gap-2">
                                         <div className="px-2 py-1 bg-black/60 backdrop-blur rounded border border-white/10 text-xs text-slate-400 font-mono">
                                             {ghostNodes.length} Nodes
+                                        </div>
+                                        <div className="px-2 py-1 bg-black/60 backdrop-blur rounded border border-white/10 text-xs text-slate-400 font-mono">
+                                            {ghostEdges.length} Edges
                                         </div>
                                     </div>
                                 </div>

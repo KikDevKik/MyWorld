@@ -42,7 +42,7 @@ export const builderStream = onRequest(
     cors: ALLOWED_ORIGINS, // Cloud Functions v2 handles CORS via config
   },
   async (req, res) => {
-    // 1. CORS Pre-flight (Manual handling just in case, though 'cors' option above usually handles it)
+    // 1. CORS Pre-flight
     if (req.method === 'OPTIONS') {
       res.set('Access-Control-Allow-Methods', 'POST');
       res.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
@@ -76,6 +76,34 @@ export const builderStream = onRequest(
     res.setHeader('Transfer-Encoding', 'chunked');
 
     try {
+      const db = getFirestore();
+
+      // 🟢 PRE-FETCH CONTEXT (Entities + Canon)
+      // A. Entities Roster (Lightweight)
+      const entitiesSnapshot = await db.collection("users").doc(uid).collection("projects").doc(projectId).collection("entities")
+          .select("name", "type", "description")
+          .limit(300) // Reasonable limit for context window
+          .get();
+
+      const entitiesList = entitiesSnapshot.docs.map(doc => {
+          const d = doc.data();
+          return `- ${d.name} (${d.type})`;
+      }).join("\n");
+
+      // B. Canon Narrative Context (Top Priority Chunks)
+      // User requested "chunks from files with category='canon'"
+      const chunksSnapshot = await db.collectionGroup("chunks")
+          .where("userId", "==", uid)
+          .where("projectId", "==", projectId) // Strict scope
+          .where("category", "==", "canon")
+          .limit(20) // Fetch top 20 chunks (approx 10-15k chars)
+          .get();
+
+      const canonContext = chunksSnapshot.docs.map(doc => {
+          const d = doc.data();
+          return `[FILE: ${d.fileName}]: ${d.text.substring(0, 500)}...`; // Truncate per chunk to save space
+      }).join("\n\n");
+
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
@@ -94,21 +122,24 @@ export const builderStream = onRequest(
                     SYSTEM: You are THE BUILDER, an advanced Architect AI for a narrative graph.
                     OBJECTIVE: Analyze the user's request and generate a JSON payload representing new nodes and connections.
 
+                    === WORLD MAP (EXISTING ENTITIES) ===
+                    (You can connect to these by name)
+                    ${entitiesList || "No existing entities found."}
+
+                    === NARRATIVE TRUTH (CANON CONTEXT) ===
+                    (Use this to inform your suggestions and relationships)
+                    ${canonContext || "No canon context found."}
+
                     PROTOCOL:
-                    1. REASONING FIRST: Explain your thought process to the user in plain text.
-                    2. DEEP CONTEXT CHECK: If the user mentions an entity, call 'get_entity_context(name)'.
-                       - This tool performs a HYBRID SEARCH (Metadata + Vector Memory).
-                       - Trust the "narrative_memory" returned by the tool. It contains a synthesized summary of past events.
-                    3. ANCHOR STRATEGY:
-                       - If an entity exists, do NOT create a new full node.
-                       - Instead, verify its existence via the tool, then include it in the final JSON as an Anchor.
-                       - Anchor Format: { "id": "real_id", "name": "Real Name", "type": "real_type", "isAnchor": true, "fx": 0, "fy": 0 } (Use fx/fy if available, or just omit).
-                    4. NEW NODES:
-                       - Create new nodes for new concepts.
-                       - Schema: { "name": "Name", "type": "character|location|event|faction|idea", "description": "...", "subtype": "..." }
-                    5. FINAL OUTPUT:
+                    1. **THOUGHT PROCESS (HIDDEN):** First, analyze the request inside <thought> tags. Plan your graph updates here.
+                    2. **RESPONSE (VISIBLE):** Write a concise, helpful response to the user. Do NOT show the JSON here. Do NOT show the thought tags.
+                    3. **DEEP CONTEXT CHECK:** If the user mentions an entity, call 'get_entity_context(name)'.
+                    4. **ANCHOR STRATEGY:**
+                       - If an entity exists (check WORLD MAP), do NOT create a new full node.
+                       - Use an Anchor Node: { "id": "existing_id", "name": "Name", "isAnchor": true, ... }
+                    5. **FINAL OUTPUT (HIDDEN):**
                        - At the very end, output a JSON block wrapped in \`\`\`json\`\`\`.
-                       - Structure: { "nodes": [...], "edges": [...] }
+                       - Structure: { "nodes": [...], "edges": [{ "source": "id", "target": "id", "label": "RELATION" }] }
 
                     USER REQUEST: ${req.body.prompt}
                 ` }]
@@ -116,8 +147,11 @@ export const builderStream = onRequest(
         ]
       });
 
-      // 5. Execution Loop (Handling Tool Calls)
+      // 5. Execution Loop (Handling Tool Calls & Streaming)
       let currentResult = await chat.sendMessageStream("Start analysis.");
+      let buffer = "";
+      let isInThought = false;
+      let isInJson = false;
 
       while (true) {
         let functionCalls: any[] = [];
@@ -127,18 +161,91 @@ export const builderStream = onRequest(
             const calls = chunk.functionCalls();
             if (calls && calls.length > 0) {
                 functionCalls = calls;
-                // Note: The loop might continue yielding text before the function call is fully formed or if parallel?
-                // Actually, standard behavior: text chunks -> function call chunk -> stream ends.
             }
 
-            // B. Check for Text (Reasoning)
-            const text = chunk.text();
-            if (text) {
-                // Sanitize: Don't stream the final JSON block as text if possible, or let frontend parse it?
-                // We stream everything. Frontend distinguishes logic.
-                // But better to stream text.
-                res.write(JSON.stringify({ type: 'text', content: text }) + '\n');
+            // B. Text Filtering (Stream Processing)
+            let text = "";
+            try {
+                text = chunk.text();
+            } catch (e) {
+                // Ignore function call chunks
             }
+
+            if (text) {
+                buffer += text;
+
+                // Process Buffer
+                let processBuffer = true;
+                while (processBuffer) {
+                    processBuffer = false;
+
+                    if (isInThought) {
+                        const closeIdx = buffer.indexOf('</thought>');
+                        if (closeIdx !== -1) {
+                            buffer = buffer.substring(closeIdx + 10);
+                            isInThought = false;
+                            processBuffer = true; // Re-scan remaining buffer
+                        } else {
+                            // Clear buffer (it's all thought) but keep last few chars in case of partial tag
+                            if (buffer.length > 20) buffer = buffer.slice(-20); // Keep tail for safety
+                            else buffer = ""; // Or just clear if confirmed inside? Safe to clear if we are deep inside.
+                            // Actually, safer to keep tail.
+                        }
+                    }
+                    else if (isInJson) {
+                         const closeIdx = buffer.indexOf('```');
+                         if (closeIdx !== -1) {
+                             buffer = buffer.substring(closeIdx + 3);
+                             isInJson = false;
+                             processBuffer = true;
+                         } else {
+                             if (buffer.length > 20) buffer = buffer.slice(-20);
+                         }
+                    }
+                    else {
+                        // NORMAL MODE
+                        // Check for start tags
+                        const thoughtStart = buffer.indexOf('<thought>');
+                        const jsonStart = buffer.indexOf('```json');
+
+                        let splitIdx = -1;
+                        let nextState = 'NORMAL';
+
+                        if (thoughtStart !== -1 && (jsonStart === -1 || thoughtStart < jsonStart)) {
+                            splitIdx = thoughtStart;
+                            nextState = 'THOUGHT';
+                        } else if (jsonStart !== -1) {
+                            splitIdx = jsonStart;
+                            nextState = 'JSON';
+                        }
+
+                        if (splitIdx !== -1) {
+                            // Emit content before tag
+                            const content = buffer.substring(0, splitIdx);
+                            if (content) res.write(JSON.stringify({ type: 'text', content: content }) + '\n');
+
+                            buffer = buffer.substring(splitIdx + (nextState === 'THOUGHT' ? 9 : 7)); // Skip tag length approx
+                            if (nextState === 'THOUGHT') isInThought = true;
+                            if (nextState === 'JSON') isInJson = true;
+                            processBuffer = true;
+                        } else {
+                            // No tags found yet. Emit safe part of buffer?
+                            // We need to keep enough buffer to avoid splitting a tag (e.g. "<tho")
+                            const SAFE_THRESHOLD = 20;
+                            if (buffer.length > SAFE_THRESHOLD) {
+                                const emit = buffer.substring(0, buffer.length - SAFE_THRESHOLD);
+                                res.write(JSON.stringify({ type: 'text', content: emit }) + '\n');
+                                buffer = buffer.substring(buffer.length - SAFE_THRESHOLD);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Flush remaining buffer if it's not a tag
+        if (buffer && !isInThought && !isInJson) {
+             res.write(JSON.stringify({ type: 'text', content: buffer }) + '\n');
         }
 
         // C. Execute Tools if any
@@ -151,11 +258,9 @@ export const builderStream = onRequest(
                  if (call.name === 'get_entity_context') {
                      const nameQuery = (call.args as any).name;
                      if (nameQuery) {
-                         const db = getFirestore();
                          const entitiesRef = db.collection("users").doc(uid).collection("projects").doc(projectId).collection("entities");
 
                          // 1. METADATA FETCH (Firestore)
-                         // Try Exact Match first
                          const q = entitiesRef.where("name", "==", nameQuery).limit(1);
                          const snap = await q.get();
 
@@ -175,7 +280,6 @@ export const builderStream = onRequest(
                          // 2. VECTOR SEARCH (Narrative Memory)
                          let narrativeSummary = "No narrative memory found.";
                          try {
-                             // Initialize Embeddings
                              const embeddings = new GoogleGenerativeAIEmbeddings({
                                 apiKey: googleApiKey.value(),
                                 model: "embedding-001",
@@ -186,10 +290,10 @@ export const builderStream = onRequest(
 
                              const coll = db.collectionGroup("chunks");
                              const vectorQuery = coll.where("userId", "==", uid)
-                                .where("projectId", "==", projectId) // Ensure project scope
+                                .where("projectId", "==", projectId)
                                 .findNearest({
                                     queryVector: queryVector,
-                                    limit: 8, // Fetch top 8 chunks
+                                    limit: 8,
                                     distanceMeasure: 'COSINE',
                                     vectorField: 'embedding'
                                 });
@@ -198,45 +302,27 @@ export const builderStream = onRequest(
 
                              if (!vectorSnap.empty) {
                                  const rawChunks = vectorSnap.docs.map(doc => doc.data().text).join("\n---\n");
-
-                                 // 3. FLASH SYNTHESIS (The Filter)
                                  const flashModel = genAI.getGenerativeModel({
                                      model: MODEL_LOW_COST,
                                      generationConfig: { temperature: 0.3 }
                                  });
-
                                  const synthesisPrompt = `
-                                    TASK: Synthesize a dense "Memory Record" for '${nameQuery}' based on these text fragments.
-                                    FOCUS: Key events, conflicts, relationships, and current status.
-                                    STYLE: Factual, concise, dense. Ignore irrelevant fluff.
-
-                                    FRAGMENTS:
-                                    ${rawChunks.substring(0, 30000)}
+                                    TASK: Synthesize a dense "Memory Record" for '${nameQuery}'.
+                                    FRAGMENTS: ${rawChunks.substring(0, 30000)}
                                  `;
-
                                  const synthesisRes = await flashModel.generateContent(synthesisPrompt);
                                  narrativeSummary = synthesisRes.response.text();
                              }
 
                          } catch (vecError) {
                              logger.warn("Vector Search failed:", vecError);
-                             narrativeSummary = "Memory Access Error (Vectors unavailable).";
+                             narrativeSummary = "Vectors unavailable.";
                          }
 
-                         // COMBINE RESULT
                          if (entityData) {
-                             result = {
-                                 ...entityData,
-                                 narrative_memory: narrativeSummary
-                             };
+                             result = { ...entityData, narrative_memory: narrativeSummary };
                          } else {
-                             // If not in DB but found in vectors (Ghost?), return memory only?
-                             // Or just not found.
-                             result = {
-                                 found: false,
-                                 message: "Entity metadata not found in DB.",
-                                 narrative_traces: narrativeSummary
-                             };
+                             result = { found: false, narrative_traces: narrativeSummary };
                          }
                      }
                  }
@@ -249,21 +335,9 @@ export const builderStream = onRequest(
                  };
              }));
 
-             // D. Send Results back to Model
              currentResult = await chat.sendMessageStream(functionResponses);
-             // Loop continues to process the Next Response (Reasoning + JSON)
         } else {
-            // No function calls? Then we are done.
-            // But wait, did we get the JSON?
-            // The model might output JSON in the LAST text chunks.
-            // We need to parse that JSON from the accumulated text?
-            // Or better: We rely on the frontend to parse the JSON from the text stream?
-            // The directive says: "buffering the JSON payload silently until it is complete".
-            // Since we are streaming "text" directly to frontend, the frontend sees the JSON string being typed.
-            // We want to extract it and send a clean `data` event.
-
-            // Let's do a post-processing extraction if we can access the full response?
-            // `currentResult.response` promise resolves to the aggregated response.
+            // Process Final JSON Payload
             const response = await currentResult.response;
             const fullText = response.text();
 
@@ -274,8 +348,7 @@ export const builderStream = onRequest(
                     res.write(JSON.stringify({ type: 'data', payload: jsonPayload }) + '\n');
                 }
             }
-
-            break; // Exit loop
+            break;
         }
       }
 

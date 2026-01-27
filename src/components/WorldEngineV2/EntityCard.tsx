@@ -62,7 +62,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     onEdit?: (nodeId: string, updates: { name: string, description: string }) => void;
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
-    variant?: 'standard' | 'hologram' | 'anchor';
+    variant?: 'standard' | 'hologram' | 'anchor' | 'performance';
 }>(({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId, variant = 'standard' }, ref) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(node.name);
@@ -98,6 +98,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
 
     const isMacro = lodTier === 'MACRO';
     const isMicro = lodTier === 'MICRO';
+    const isPerformance = variant === 'performance';
 
     const handleSaveEdit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -133,10 +134,12 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                         ? 'bg-black/20 backdrop-blur-[2px] border-dashed opacity-80 hover:opacity-100 animate-pulse'
                         : variant === 'anchor'
                             ? 'bg-black/10 backdrop-blur-[1px] border-dashed opacity-50 saturate-0 hover:saturate-100 hover:opacity-80 transition-all'
-                            : 'bg-black/90 backdrop-blur-[4px] hover:scale-110 hover:shadow-xl hover:bg-black/95'}
+                            : isPerformance
+                                ? 'bg-black/90' // 🟢 Performance: No blur, no shadow, simple bg
+                                : 'bg-black/90 backdrop-blur-[4px] hover:scale-110 hover:shadow-xl hover:bg-black/95'}
                     ${style.border}
                     ${isMicro ? 'p-3' : 'p-2 overflow-hidden'}
-                    cursor-grab active:cursor-grabbing group transition-all duration-200
+                    ${!isPerformance && 'cursor-grab active:cursor-grabbing group transition-all duration-200'}
                     ${variant === 'standard' ? style.shadow : ''}
                     select-none
                 `}
@@ -173,7 +176,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                                 {getIcon()}
                                 <span className="truncate max-w-[80px]">{node.type}</span>
                             </div>
-                            {isMicro && node.isGhost && variant !== 'hologram' && (
+                            {isMicro && node.isGhost && variant !== 'hologram' && !isPerformance && (
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     {onEdit && (
                                         <button
