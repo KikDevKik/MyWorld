@@ -19,7 +19,7 @@ import {
     GitMerge,
     Search
 } from 'lucide-react';
-import { AnalysisCandidate, AnalysisAmbiguityType } from './types';
+import { AnalysisCandidate, AnalysisAmbiguityType, VisualNode } from './types';
 
 interface NexusTribunalModalProps {
     isOpen: boolean;
@@ -30,6 +30,8 @@ interface NexusTribunalModalProps {
     onBatchMerge: (winner: AnalysisCandidate, losers: AnalysisCandidate[]) => Promise<void>;
     ignoredTerms?: string[];
     onRestoreIgnored?: (term: string) => void;
+    existingNodes?: VisualNode[]; // 🟢 NEW: Context for Manual Merge
+    onUpdateCandidate?: (id: string, updates: Partial<AnalysisCandidate>) => void; // 🟢 NEW: Manual Merge Fix
 }
 
 // 🟢 UTILS: COLOR MAPPING
@@ -59,7 +61,7 @@ const cleanName = (name: string) => {
     return name.replace(/\(id:.*\)/, "").trim();
 };
 
-const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored }) => {
+const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored, existingNodes = [], onUpdateCandidate }) => {
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
@@ -78,6 +80,10 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     // STATE: BATCH MERGE MODAL
     const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
     const [batchMasterId, setBatchMasterId] = useState<string | null>(null);
+
+    // STATE: MANUAL MERGE MODAL
+    const [isMergeSelectOpen, setIsMergeSelectOpen] = useState(false);
+    const [mergeSearchTerm, setMergeSearchTerm] = useState('');
 
     // STATE: PROCESSING
     const [isProcessing, setIsProcessing] = useState(false);
@@ -818,6 +824,81 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}
                                         CONFIRMAR FUSIÓN
                                     </button>
+                                </div>
+                            </motion.div>
+                        </div>
+                    )}
+                </AnimatePresence>
+
+                {/* 🟢 MANUAL MERGE SELECTOR */}
+                <AnimatePresence>
+                    {isMergeSelectOpen && (
+                        <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                            <motion.div
+                                initial={{ scale: 0.9, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.9, opacity: 0 }}
+                                className="w-[500px] h-[600px] bg-[#0f0f10] border border-cyan-700/50 rounded-xl flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.1)]"
+                            >
+                                {/* Header */}
+                                <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <Search className="text-cyan-500" size={20} />
+                                        <h2 className="text-lg font-bold text-white tracking-wide">SELECT MERGE TARGET</h2>
+                                    </div>
+                                    <button onClick={() => setIsMergeSelectOpen(false)} className="text-slate-500 hover:text-white">
+                                        <X size={20} />
+                                    </button>
+                                </div>
+
+                                {/* Search */}
+                                <div className="p-4 border-b border-slate-800 bg-slate-900/30">
+                                    <input
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Type to search existing nodes..."
+                                        className="w-full bg-slate-950 border border-slate-700 rounded-lg p-3 text-white outline-none focus:border-cyan-500 transition-colors font-mono"
+                                        value={mergeSearchTerm}
+                                        onChange={e => setMergeSearchTerm(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* List */}
+                                <div className="flex-1 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                                    {existingNodes
+                                        .filter(node => !mergeSearchTerm || node.name.toLowerCase().includes(mergeSearchTerm.toLowerCase()))
+                                        .slice(0, 50) // Limit results
+                                        .map(node => (
+                                            <button
+                                                key={node.id}
+                                                onClick={() => {
+                                                    if (selectedCandidate && onUpdateCandidate) {
+                                                        onUpdateCandidate(selectedCandidate.id, {
+                                                            suggestedAction: 'MERGE',
+                                                            mergeWithId: node.id,
+                                                            mergeTargetName: node.name
+                                                        });
+                                                        setIsMergeSelectOpen(false);
+                                                        setMergeSearchTerm('');
+                                                    }
+                                                }}
+                                                className="w-full text-left p-3 rounded hover:bg-cyan-950/30 hover:border-cyan-500/30 border border-transparent flex items-center justify-between group transition-all"
+                                            >
+                                                <div>
+                                                    <div className="font-bold text-slate-200 group-hover:text-cyan-300">{node.name}</div>
+                                                    <div className="text-[10px] text-slate-500 font-mono flex gap-2">
+                                                        <span className="text-cyan-700">{node.type}</span>
+                                                        <span>•</span>
+                                                        <span>ID: {node.id.substring(0, 8)}...</span>
+                                                    </div>
+                                                </div>
+                                                <ArrowRight className="text-slate-700 group-hover:text-cyan-500 opacity-0 group-hover:opacity-100 transition-all" size={16} />
+                                            </button>
+                                        ))
+                                    }
+                                    {existingNodes.length === 0 && (
+                                        <div className="p-8 text-center text-slate-600 font-mono text-xs">NO EXISTING NODES FOUND</div>
+                                    )}
                                 </div>
                             </motion.div>
                         </div>
