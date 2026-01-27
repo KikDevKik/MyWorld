@@ -1,0 +1,105 @@
+================================================================================
+REPORTE DE ESTADO: SISTEMA NEXUS & PERFORADOR V2
+================================================================================
+FECHA: Actualidad (v3.6 - Integración "The Builder")
+ESTADO: OPERATIVO / DESPLIEGUE ACTIVO
+--------------------------------------------------------------------------------
+1. CAMBIOS RECIENTES EN EL NÚCLEO (ÚLTIMA ITERACIÓN)
+--------------------------------------------------------------------------------
+Los esfuerzos recientes se han concentrado en la "estabilización del caos" y la
+implementación de capacidades de generación activa.
+A. PROTOCOLO DE IDENTIDAD DETERMINISTA
+- Se eliminó la generación de IDs aleatorios.
+- Ahora los IDs se generan mediante un hash determinista basado en el nombre del
+proyecto y el nombre de la entidad (Slug + Hash).
+- BENEFICIO: Permite predecir enlaces. Si Nexus escanea "Gondor" en dos archivos
+diferentes, generará el mismo ID, permitiendo una fusión implícita inmediata.
+B. PROTOCOLO DE FUSIÓN (THE UNIFIER)
+- Implementación del "Tribunal Nexus".
+- Capacidad de "Staging": Fusión temporal de candidatos antes de la escritura.
+- Lógica de "Merge with ID": Prioridad a IDs reales de Firestore para evitar duplicados.
+C. PROTOCOLO DE LISTA NEGRA (EL RENCOR)
+- Implementación de "Hard Reject" y baneos persistentes (`ignoredTerms`).
+--------------------------------------------------------------------------------
+2. EXPERIENCIA VISUAL: EL PERFORADOR DE MUNDOS V2
+--------------------------------------------------------------------------------
+[EL LIENZO]
+* Fondo: Negro profundo (`#141413`).
+* Grafo: Constelación viva con física de repulsión variable.
+* Territorios: Cáscaras Convexas de luz neón para facciones.
+[HUD - HEADS UP DISPLAY]
+A. EL OJO (TOP CENTER) - NEXUS
+* Escaneo y análisis de documentos existentes.
+B. LA BOCA (BOTTOM CENTER) - COMANDOS
+* Barra de entrada para búsquedas y control de realidad.
+C. EL ARSENAL (DERECHA)
+* Controles de navegación y paneles de detalle.
+--------------------------------------------------------------------------------
+3. LA CORTE DE LOS DATOS (NEXUS TRIBUNAL UI)
+--------------------------------------------------------------------------------
+Interfaz de juicio forense para la gestión de candidatos detectados en documentos.
+* Columna Izquierda: Lista de candidatos con badges de confianza.
+* Columna Derecha: Estrado de análisis, contexto de fuente y acciones de fusión.
+--------------------------------------------------------------------------------
+4. LA FRAGUA DE REALIDADES (THE BUILDER UI)
+--------------------------------------------------------------------------------
+Nueva interfaz de creación generativa. El sistema deja de ser solo un observador
+para convertirse en un arquitecto activo.
+
+[EL TALLER - SPLIT VIEW]
+Al invocar al Constructor, la realidad se divide en dos planos:
+* Izquierda (El Dialogo): Un canal de comunicación directo con la IA Arquitecto.
+  Aquí se definen intenciones, tramas y estructuras narrativas.
+* Derecha (El Holograma): Un "Grafo Fantasma" (Ghost Graph). A diferencia del
+  grafo principal, este es etéreo. Las entidades aparecen aquí como proyecciones
+  de lo que "podría ser".
+
+[SINTONIZADOR DE REALIDAD (REALITY TUNER)]
+El Constructor opera bajo tres frecuencias que alteran la temperatura de la IA:
+* RIGOR (Cian): Adherencia estricta a los hechos y lógica. Sin alucinaciones.
+* FUSIÓN (Plata): El equilibrio estándar. Cohesión narrativa con flexibilidad.
+* ENTROPÍA (Violeta): Caos creativo. Alto riesgo, alta recompensa. Ideal para brainstorming.
+
+[PROTOCOLO DE CRISTALIZACIÓN]
+Las entidades en el Holograma son efímeras.
+1. PREVISUALIZACIÓN: El usuario ve los nodos y conexiones propuestas en tiempo real.
+2. MATERIALIZACIÓN (The Hammer): Al pulsar "MATERIALIZE", el sistema invoca el
+   proceso de `crystallizeGraph`.
+3. FORJADO: Se generan archivos Markdown físicos en Google Drive, con contenido
+   redactado por la IA según el modo activo.
+4. ANCLAJE: Los fantasmas se convierten en "Anclas" (Nodos Reales) en Firestore,
+   pasando a formar parte permanente del universo.
+
+--------------------------------------------------------------------------------
+5. OBSERVACIONES TÉCNICAS Y SUGERENCIAS (DETECTADAS)
+--------------------------------------------------------------------------------
+A. INYECCIÓN DE CONTEXTO CANON (LIMITACIÓN ACTUAL)
+   - PROBLEMA: En `builder.ts`, el sistema inyecta contexto del Canon buscando
+     fragmentos con `category: 'canon'`. Sin embargo, actualmente hace un `limit(20)`
+     genérico.
+   - RIESGO: Si el proyecto crece, los 20 fragmentos recuperados podrían no ser
+     relevantes para la consulta actual del usuario (ej: preguntar por "La Espada"
+     y recibir contexto sobre "El Castillo").
+   - SUGERENCIA: Implementar una búsqueda vectorial (Embeddings) en esta etapa.
+     Usar el prompt del usuario para buscar los 10-20 fragmentos de canon *semánticamente*
+     más cercanos antes de enviarlos al modelo generativo.
+
+B. STREAMING Y PARSEO FRONTEND
+   - OBSERVACIÓN: El manejo del stream en `TheBuilder.tsx` es robusto pero complejo.
+     Mezcla texto plano y bloques JSON.
+   - SUGERENCIA: Considerar estandarizar el protocolo de respuesta a Server-Sent Events (SSE)
+     estructurados para evitar problemas de parseo si la IA "alucina" formatos extraños
+     fuera de los bloques esperados.
+
+C. SELECTOR DE CARPETAS (SUBFOLDERS)
+   - OBSERVACIÓN: `crystallization.ts` intenta buscar subcarpetas por nombre o crearlas.
+   - SUGERENCIA: Si hay carpetas duplicadas con el mismo nombre en Drive, podría
+     haber ambigüedad. Asegurar que la búsqueda se limite estrictamente al `parentFolderId`
+     proporcionado.
+--------------------------------------------------------------------------------
+CONCLUSIÓN
+--------------------------------------------------------------------------------
+La integración de "The Builder" cierra el ciclo creativo. Ahora el sistema no solo
+lee (Nexus) y visualiza (Perforador), sino que escribe (Builder). La distinción
+entre "Ghost Nodes" y "Real Nodes" es fundamental para permitir la experimentación
+sin ensuciar la base de datos permanente hasta la confirmación explícita.
