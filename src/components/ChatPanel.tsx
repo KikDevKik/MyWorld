@@ -173,7 +173,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-titanium-900 rounded-2xl rounded-bl-none px-4 py-3 border border-titanium-800">
+            <div
+              className="bg-titanium-900 rounded-2xl rounded-bl-none px-4 py-3 border border-titanium-800"
+              role="status"
+              aria-label="Generando respuesta..."
+            >
               <div className="flex gap-1">
                 <div className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
                 <div className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
@@ -199,6 +203,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             }}
             placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
             disabled={!activeGem || isLoading}
+            aria-label="Mensaje"
             className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
           />
           <button
