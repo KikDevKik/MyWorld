@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Hammer, X, FolderInput, RefreshCw, Book, FolderPlus } from 'lucide-react';
+import { Hammer, FolderInput, RefreshCw, Book, FolderPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import useDrivePicker from 'react-google-drive-picker';
 
@@ -128,9 +128,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         <Hammer size={24} />
                         <h2 className="font-bold text-xl text-titanium-100">Forja de Almas</h2>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors">
-                        <X size={24} />
-                    </button>
                 </div>
 
                 {/* CONNECT CONTENT */}
@@ -247,13 +244,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                     >
                         <RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />
                         <span>{isSyncing ? "SYNCING..." : "SYNC"}</span>
-                    </button>
-
-                    <button
-                        onClick={onClose}
-                        className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
-                    >
-                        <X size={24} />
                     </button>
                 </div>
             </div>
