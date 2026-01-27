@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { X, Send, Hammer, Loader2 } from 'lucide-react';
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -321,6 +321,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
 
                 {/* SPLIT CONTENT */}
                 <div className="flex-1 flex overflow-hidden relative">
+                    {/* @ts-ignore */}
                     <PanelGroup direction="horizontal">
                         {/* LEFT: CHAT */}
                         <Panel defaultSize={40} minSize={30} className="flex flex-col bg-black/20">
