@@ -12,6 +12,12 @@ export interface VisualNode extends GraphNode {
     isAnchor?: boolean; // 🟢 NEW: True = Existing Context (Holographic Reference)
 }
 
+export interface VisualEdge {
+    source: string | VisualNode; // D3 replaces string with Node object
+    target: string | VisualNode;
+    label?: string;
+}
+
 // 🟢 ANALYSIS TYPES (Phase 2.1 - The Tribunal)
 export type AnalysisAmbiguityType = 'CONFLICT' | 'NEW' | 'ITEM_LORE' | 'DUPLICATE';
 
