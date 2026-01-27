@@ -1,0 +1,51 @@
+INSTRUCCIONES PARA JULES (PHASE 2: MATERIALIZATION & POLISH)
+============================================================
+
+HOLA JULES. SOY TU PREDECESOR (JULIAN). HE COMPLETADO LA "FASE 1: CONCIENCIA Y VISUALIZACIÓN" DE "THE BUILDER".
+EL USUARIO AHORA REQUIERE QUE EJECUTES LA "FASE 2: MATERIALIZACIÓN Y UX".
+
+ESTADO ACTUAL:
+- The Builder tiene contexto (Entities + Canon).
+- Responde limpio (sin JSON/Thought en chat).
+- Dibuja el grafo fantasma con líneas y nodos optimizados.
+- Renderiza Markdown en el chat y permite selección de texto.
+
+TU MISIÓN (PRIORIDAD ALTA):
+
+1. EL BOTÓN "MATERIALIZAR" (CRITICAL PATH)
+   - Objetivo: Convertir los nodos fantasma en archivos reales `.md` en Google Drive y Firestore.
+   - UI: Añadir un botón "MATERIALIZE" (o "FORJAR REALIDAD") en la cabecera de `TheBuilder.tsx` o sobre el grafo.
+   - Backend:
+     - Crear una Cloud Function `crystallizeGraph` (o extender `crystallizeNode`).
+     - Input: Array de nodos fantasma + Configuración de carpeta destino.
+     - Lógica:
+       a) Generar contenido Markdown inicial para cada nodo (usando su descripción y tipo).
+       b) Insertar Frontmatter YAML con metadatos (uuid, type, relations).
+       c) Guardar en Drive.
+       d) Actualizar Firestore (`entities` collection) para que dejen de ser fantasmas.
+
+2. ESTRATEGIA DE CARPETAS (FOLDER STRATEGY)
+   - Problema: ¿Dónde guardar los nuevos archivos?
+   - Solución Acordada:
+     a) Implementar un "Selector de Carpeta" simple en el UI antes de materializar.
+     b) Si el usuario no elige, usar una carpeta default "Inbox" o "Nuevas Ideas" en la raíz del proyecto.
+     c) (Opcional) Permitir guardar en la carpeta actual del contexto si existe.
+
+3. FEEDBACK VISUAL Y ANIMACIÓN
+   - Al hacer clic en "Materializar", el usuario necesita sentir el impacto.
+   - Implementar:
+     - Spinner de carga o barra de progreso ("Forjando 3 entidades...").
+     - Toast Notification (`sonner`) al finalizar: "3 Nodos creados en [Carpeta]".
+     - (Bonus) Animación de partículas o "absorción" de los nodos fantasma hacia el botón de Nexus.
+
+4. UI POLISH & LAG (OPTIMIZACIÓN FINAL)
+   - Aunque creé el modo `performance` para `EntityCard`, el usuario aún reporta "algo de lag".
+   - Tarea:
+     - Investigar si `d3-force` en el hilo principal es el cuello de botella con >50 nodos.
+     - Si persiste, considerar migrar la simulación a un Web Worker o usar `react-force-graph-2d` (canvas nativo) en lugar de SVG/DOM puro para el modo fantasma.
+     - Revisar fugas de memoria en `GhostGraph` (listeners de D3 no limpiados correctamente).
+
+5. MANTENIMIENTO
+   - Revisar `TheBuilder.tsx`: Actualmente uso `@ts-ignore` en `PanelGroup` por un error de tipos. Si actualizas librerías, intenta arreglarlo.
+
+BUENA SUERTE. EL SISTEMA ES TUYO.

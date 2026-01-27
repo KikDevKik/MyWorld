@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { X, Send } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import GhostGraph from './GhostGraph';
@@ -237,17 +238,19 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                     {/* @ts-ignore */}
                     <PanelGroup direction="horizontal">
                         {/* LEFT: CHAT */}
-                        <Panel defaultSize={40} minSize={30} className="flex flex-col bg-black/20">
+                        <Panel defaultSize={40} minSize={30} className="flex flex-col bg-black/20 select-text">
                              <div className="flex-1 p-6 overflow-y-auto space-y-4 font-mono text-sm custom-scrollbar">
                                 {messages.map((msg, i) => (
                                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                                         <div className={`
-                                            max-w-[80%] p-3 rounded-lg border whitespace-pre-wrap
+                                            max-w-[80%] p-3 rounded-lg border
                                             ${msg.role === 'user'
                                                 ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-100 rounded-br-none'
                                                 : 'bg-zinc-900/50 border-white/10 text-slate-300 rounded-bl-none'}
                                         `}>
-                                            {msg.content}
+                                            <div className="prose prose-invert prose-sm max-w-none">
+                                                <ReactMarkdown>{msg.content}</ReactMarkdown>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
