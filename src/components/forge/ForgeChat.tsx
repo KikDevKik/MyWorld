@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { ArrowLeft, Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield } from 'lucide-react';
+import { getApp } from 'firebase/app'; // 🟢 For Project ID
+import { ArrowLeft, Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ReactMarkdown from 'react-markdown'; // Use proper Markdown renderer
@@ -31,6 +32,8 @@ interface ForgeChatProps {
     selectedScope: { id: string | null; name: string; recursiveIds: string[]; path?: string };
 }
 
+type ThinkingState = 'IDLE' | 'THINKING' | 'CONSULTING_ARCHIVES' | 'ERROR';
+
 const ForgeChat: React.FC<ForgeChatProps> = ({
     sessionId,
     sessionName,
@@ -48,7 +51,12 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isSending, setIsSending] = useState(false);
-    // Removed old binary toggle state
+
+    // 🟢 STREAMING STATE
+    const [thinkingState, setThinkingState] = useState<ThinkingState>('IDLE');
+    const [streamStatus, setStreamStatus] = useState<string>('');
+    const currentStreamResponseRef = useRef<string>("");
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const initializedRef = useRef(false);
 
@@ -59,7 +67,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
     useEffect(() => {
         scrollToBottom();
-    }, [messages]);
+    }, [messages, thinkingState]);
 
     // LOAD HISTORY & INJECT INITIAL REPORT
     useEffect(() => {
@@ -129,143 +137,154 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
             toast.success("Memoria purgada. Tabula Rasa.", { id: toastId });
 
-            // Optional: If we wanted to also generate a new ID, we could call onReset(),
-            // but keeping the same (now empty) session is cleaner for the "Purge" concept.
-
         } catch (error) {
             console.error("Error purging session:", error);
             toast.error("Fallo en el protocolo de purga.", { id: toastId });
         }
     };
 
-    // SEND MESSAGE
-    const handleSend = async () => {
+    // 🟢 STREAMING SEND
+    const handleStreamSend = async () => {
         if (!input.trim() || isSending) return;
 
         const userText = input.trim();
         setInput('');
         setIsSending(true);
+        setThinkingState('THINKING');
+        setStreamStatus('Pensando...');
+        currentStreamResponseRef.current = "";
 
         // 1. Optimistic Update (User)
         const tempUserMsg: Message = { role: 'user', text: userText };
         setMessages(prev => [...prev, tempUserMsg]);
 
+        // 2. Persist User Message
         const functions = getFunctions();
         const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
-        const chatWithGem = httpsCallable(functions, 'chatWithGem');
-
         try {
-            // 2. Save User Message
             await addForgeMessage({ sessionId, role: 'user', text: userText });
+        } catch (e) {
+            console.error("Failed to save user message", e);
+        }
 
-            // 3. Call AI (with history context)
-            const historyContext = messages.map(m => ({ role: m.role, message: m.text }));
-            historyContext.push({ role: 'user', message: userText });
+        // 3. Prepare History
+        const historyContext = messages.map(m => ({ role: m.role, message: m.text }));
+        // Note: We don't push the new userText to historyContext here because
+        // the backend usually expects the new query separately, or we append it.
+        // The backend logic I wrote expects `history` AND `query`.
 
-            const TOOL_INSTRUCTION = `
-[TOOL ACCESS GRANTED]: 'create_lore_file'
-If the user asks to create a file, character, or document, you can invoke this tool.
-TO USE IT, RETURN ONLY A JSON OBJECT:
-{ "tool": "create_lore_file", "args": { "title": "...", "content": "..." } }
+        // 4. Construct URL
+        const app = getApp();
+        const projectId = app.options.projectId;
+        const region = 'us-central1'; // Hardcoded or config
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
-Rules:
-- Title should be short (e.g., "Saya_Profile").
-- Content must be the full text body of the file (Markdown allowed).
-- DO NOT hallucinate a 'folderId'. The system will handle it.
-`;
+        let functionUrl = `https://${region}-${projectId}.cloudfunctions.net/forgeChatStream`;
+        if (isLocal) {
+            functionUrl = `http://127.0.0.1:5001/${projectId}/${region}/forgeChatStream`;
+        }
 
-            let systemPrompt = `You are a creative writing assistant (Senior Editor).
-${characterContext ? `[ACTIVE CHARACTER CONTEXT]\n${characterContext}` : ''}
-${activeContextFile ? `[ACTIVE FILE CONTEXT: ${activeContextFile.name}]` : ''}
-Remember previous context.
-${TOOL_INSTRUCTION}`;
-
-            const aiResponse: any = await chatWithGem({
-                query: userText,
-                history: historyContext,
-                systemInstruction: systemPrompt,
-                projectId: folderId || undefined, // 👈 STRICT ISOLATION
-                activeFileName: activeContextFile?.name,
-                // 🟢 PASS NEW SCOPE PARAMS
-                filterScopeIds: selectedScope.id ? selectedScope.recursiveIds : undefined,
-                filterScopePath: selectedScope.path, // Optimization Hint
-                // Pass activeFileContent if it were available as a prop, currently empty or RAG handles it
+        // 🟢 STREAM READER LOGIC
+        try {
+            const response = await fetch(functionUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`
+                },
+                body: JSON.stringify({
+                    query: userText,
+                    history: historyContext,
+                    folderId: folderId, // Project Scope
+                    filterScopePath: selectedScope.path,
+                    activeFileName: activeContextFile?.name
+                })
             });
 
-            // 🟢 SENTINEL SIGNAL EMISSION
-            if (aiResponse.data.technicalError?.isTechnicalError) {
-                console.warn("🚨 [SENTINEL SIGNAL] Technical Error Received from Backend.");
-                setTechnicalError(aiResponse.data.technicalError);
-                // We do NOT stop here. We proceed to display the "La Forja está calibrando..." message
-                // which is contained in aiResponse.data.response
-            }
+            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
+            if (!response.body) throw new Error("No response body");
 
-            const aiText = aiResponse.data.response;
-            const sources = aiResponse.data.sources?.map((s: any) => s.fileName) || [];
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-            // --- TOOL DETECTION LOGIC ---
-            let finalText = aiText;
-            try {
-                // Check if response looks like JSON
-                if (aiText && aiText.trim().startsWith('{') && aiText.includes('create_lore_file')) {
-                     const toolCall = JSON.parse(aiText);
-                     if (toolCall.tool === 'create_lore_file' && toolCall.args) {
-                         const toastId = toast.loading("🔨 Forjando documento...");
+            // Add placeholder for AI response
+            const aiMsgId = `temp-ai-${Date.now()}`;
+            setMessages(prev => [...prev, { role: 'model', text: '', id: aiMsgId, sources: [] }]);
 
-                         const forgeToolExecution = httpsCallable(functions, 'forgeToolExecution');
-                         const result: any = await forgeToolExecution({
-                             title: toolCall.args.title,
-                             content: toolCall.args.content,
-                             folderId: folderId, // Injected from prop (Tactical Assistance)
-                             accessToken: accessToken
-                         });
+            let accumulatedText = "";
+            let accumulatedSources: string[] = [];
 
-                         toast.success("Documento creado con éxito", { id: toastId });
-                         finalText = `✅ **SYSTEM:** Archivo creado: [${toolCall.args.title}](${result.data.webViewLink})`;
-                     }
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+
+                // Process all complete lines
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const data = JSON.parse(line);
+
+                        if (data.type === 'text') {
+                            accumulatedText += data.content;
+                            // Update UI
+                            setMessages(prev => prev.map(m =>
+                                m.id === aiMsgId ? { ...m, text: accumulatedText } : m
+                            ));
+                            setThinkingState('IDLE'); // If streaming text, we are "talking"
+                        } else if (data.type === 'tool_start') {
+                            setThinkingState('CONSULTING_ARCHIVES');
+                            if (data.tool === 'consult_archives') {
+                                setStreamStatus(`Consultando Archivos: "${data.query}"...`);
+                            }
+                        } else if (data.type === 'tool_end') {
+                            setThinkingState('IDLE'); // Back to generating
+                            if (data.sources) {
+                                accumulatedSources = [...accumulatedSources, ...data.sources];
+                                // De-duplicate
+                                accumulatedSources = Array.from(new Set(accumulatedSources));
+                                setMessages(prev => prev.map(m =>
+                                    m.id === aiMsgId ? { ...m, sources: accumulatedSources } : m
+                                ));
+                            }
+                        } else if (data.type === 'error') {
+                            console.error("Stream Error:", data.message);
+                            toast.error(data.message);
+                        }
+                    } catch (err) {
+                        console.warn("Error parsing stream chunk", err);
+                    }
                 }
-            } catch (err) {
-                console.warn("Not a tool call or parse error:", err);
             }
 
-            // 4. Update UI (AI)
-            // 🛡️ NULL-OBJECT HANDLING: Prevent "Bucle de Información"
-            if (finalText) {
-                const aiMsg: Message = { role: 'model', text: finalText, sources };
-                setMessages(prev => [...prev, aiMsg]);
-
-                // 5. Save AI Message
-                await addForgeMessage({ sessionId, role: 'model', text: finalText, sources });
-            } else {
-                console.warn("⚠️ AI returned empty response. Skipping save to prevent loop.");
-                toast.error("La IA no devolvió contenido.");
+            // 5. Final Save (Persist AI Response)
+            if (accumulatedText) {
+                await addForgeMessage({
+                    sessionId,
+                    role: 'model',
+                    text: accumulatedText,
+                    sources: accumulatedSources
+                });
             }
 
         } catch (error: any) {
-            console.error("Error in chat flow:", error);
+            console.error("Stream failed:", error);
+            setThinkingState('ERROR');
+            toast.error("Error en la conexión con el Oráculo.");
 
-            // 🟢 UI RECOVERY (MANUAL SAVE)
-            // If the backend failed entirely (e.g. timeout, network error) and didn't return the controlled error string,
-            // we must manually insert the error message into the chat so the loop is closed.
+            // Add error message
+            const errorText = "⚠️ Error de Conexión: La Forja de Almas no pudo procesar este fragmento.";
+            setMessages(prev => [...prev, { role: 'model', text: errorText }]);
+            await addForgeMessage({ sessionId, role: 'model', text: errorText });
 
-            const errorText = "⚠️ Error de Conexión: La Forja de Almas no pudo procesar este fragmento de lore. Reintente en unos momentos.";
-
-            // Update UI immediately
-            const errorMsg: Message = { role: 'model', text: errorText };
-            setMessages(prev => [...prev, errorMsg]);
-
-            // Try to persist the error to DB so history is consistent
-            try {
-                const functions = getFunctions();
-                const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
-                await addForgeMessage({ sessionId, role: 'model', text: errorText });
-            } catch (persistErr) {
-                console.error("Failed to persist error message:", persistErr);
-            }
-
-            toast.error("Error de conexión con la Forja.");
         } finally {
             setIsSending(false);
+            setThinkingState('IDLE');
         }
     };
 
@@ -384,18 +403,29 @@ ${TOOL_INSTRUCTION}`;
                         </div>
                     ))
                 )}
-                {
-                    isSending && (
-                        <div className="flex gap-4 justify-start max-w-3xl">
-                            <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
-                                <Bot size={16} className="text-accent-DEFAULT" />
-                            </div>
-                            <div className="p-4 text-titanium-500 text-xs font-mono animate-pulse">
-                                THINKING...
-                            </div>
+
+                {/* 🟢 THINKING STATE INDICATOR */}
+                {(isSending || thinkingState !== 'IDLE') && (
+                    <div className="flex gap-4 justify-start max-w-3xl">
+                        <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
+                            <Bot size={16} className="text-accent-DEFAULT" />
                         </div>
-                    )
-                }
+                        <div className="p-4 rounded-xl bg-titanium-900/50 border border-cyan-500/20 text-cyan-300 text-xs font-mono flex items-center gap-3 animate-pulse">
+                            {thinkingState === 'CONSULTING_ARCHIVES' ? (
+                                <>
+                                    <Sparkles size={14} className="animate-spin-slow" />
+                                    <span>{streamStatus}</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Loader2 size={14} className="animate-spin" />
+                                    <span>THINKING...</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 <div ref={messagesEndRef} />
             </div >
 
@@ -430,14 +460,14 @@ ${TOOL_INSTRUCTION}`;
                                 ? 'border-cyan-900/50 focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500'
                                 : 'border-titanium-700 focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT'
                             }`}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                            onKeyDown={(e) => e.key === 'Enter' && handleStreamSend()}
                             disabled={isSending}
                             autoFocus
                             spellCheck={false}
                             autoComplete="off"
                         />
                         <button
-                            onClick={handleSend}
+                            onClick={handleStreamSend}
                             disabled={!input.trim() || isSending}
                             aria-label="Enviar mensaje"
                             className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-lg disabled:opacity-0 disabled:pointer-events-none transition-all shadow-lg ${
