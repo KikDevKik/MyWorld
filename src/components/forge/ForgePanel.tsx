@@ -245,6 +245,46 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         saga={activeSaga} // 🟢 Pass Vault as Saga
                     />
                 </div>
+
+                {/* MODAL: UNLINK CONFIRMATION (Inside Active View) */}
+                {showUnlinkConfirmation && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="w-full max-w-md bg-titanium-900 border border-red-900/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
+
+                            <div className="flex flex-col gap-4 relative z-10">
+                                <div className="w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center text-red-500 mb-2">
+                                    <Unlink size={24} />
+                                </div>
+
+                                <h3 className="text-xl font-bold text-white">¿Desvincular Bóveda?</h3>
+
+                                <div className="text-titanium-300 text-sm leading-relaxed space-y-3">
+                                    <p>
+                                        Estás a punto de desconectar la carpeta <span className="font-bold text-white">{activeSaga.name}</span> de la Forja.
+                                    </p>
+                                    <div className="p-3 bg-red-900/10 border border-red-900/20 rounded-lg text-red-200/80 text-xs">
+                                        <strong>Tranquilo:</strong> Esto NO borrará tus archivos en Drive. Solo reiniciará la vista de la Forja para que puedas elegir otra carpeta.
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-3 mt-4">
+                                    <button
+                                        onClick={() => setShowUnlinkConfirmation(false)}
+                                        className="flex-1 py-3 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 font-bold rounded-lg transition-colors"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={handleUnlinkVault}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-red-900/20"
+                                    >
+                                        Desconectar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -367,46 +407,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                     className="flex-1 py-3 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-lg transition-colors shadow-lg shadow-yellow-900/20"
                                 >
                                     Confirmar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* MODAL: UNLINK CONFIRMATION */}
-            {showUnlinkConfirmation && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-                    <div className="w-full max-w-md bg-titanium-900 border border-red-900/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
-
-                        <div className="flex flex-col gap-4 relative z-10">
-                            <div className="w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center text-red-500 mb-2">
-                                <Unlink size={24} />
-                            </div>
-
-                            <h3 className="text-xl font-bold text-white">¿Desvincular Bóveda?</h3>
-
-                            <div className="text-titanium-300 text-sm leading-relaxed space-y-3">
-                                <p>
-                                    Estás a punto de desconectar la carpeta <span className="font-bold text-white">{activeSaga.name}</span> de la Forja.
-                                </p>
-                                <div className="p-3 bg-red-900/10 border border-red-900/20 rounded-lg text-red-200/80 text-xs">
-                                    <strong>Tranquilo:</strong> Esto NO borrará tus archivos en Drive. Solo reiniciará la vista de la Forja para que puedas elegir otra carpeta.
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    onClick={() => setShowUnlinkConfirmation(false)}
-                                    className="flex-1 py-3 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 font-bold rounded-lg transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={handleUnlinkVault}
-                                    className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-red-900/20"
-                                >
-                                    Desconectar
                                 </button>
                             </div>
                         </div>
