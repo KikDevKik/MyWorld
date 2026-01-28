@@ -4823,3 +4823,9 @@ export { builderStream } from "./builder";
  * Creates real markdown files from ghost nodes.
  */
 export { crystallizeGraph } from "./crystallization";
+
+/**
+ * 32. FORGE CHAT STREAM (The Oracle)
+ * Streaming conversational agent with RAG tools.
+ */
+export { forgeChatStream } from "./forge_chat";

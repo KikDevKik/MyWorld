@@ -61,6 +61,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         const scanSaga = async () => {
             if (!saga || !accessToken) return;
 
+            // 🟢 GHOST MODE BYPASS
+            if (import.meta.env.VITE_JULES_MODE === 'true') {
+                console.log("👻 GHOST MODE: Bypassing Saga Scan");
+                setInitialReport("Modo Fantasma Activado. Escaneo simulado.");
+                setState('IDE');
+                return;
+            }
+
             setState('SCANNING');
             setIsLoading(true);
 
