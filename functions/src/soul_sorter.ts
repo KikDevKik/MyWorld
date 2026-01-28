@@ -1,12 +1,13 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
-import { getFirestore } from "firebase-admin/firestore";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
+import { EntityTier, ForgePayload, SoulEntity } from "./types/forge";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_BATCH_CHARS = 100000; // 100k chars per AI call
@@ -18,13 +19,16 @@ interface SorterRequest {
 
 interface DetectedEntity {
     name: string;
-    tier: 'ANCHOR' | 'LIMBO' | 'GHOST';
+    tier: EntityTier;
     confidence: number;
     reasoning?: string;
     sourceFileId?: string;
     sourceFileName?: string;
     saga?: string;
     foundIn?: string[]; // Snippets or File Names
+    rawContent?: string; // For Limbos: First few lines or raw content for AI
+    role?: string;
+    avatar?: string;
 }
 
 /**
@@ -62,7 +66,10 @@ export const classifyEntities = onCall(
 
             const filesSnap = await q.get();
             if (filesSnap.empty) {
-                return { success: true, count: 0, message: "No canon files found." };
+                return {
+                    entities: [],
+                    stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
+                } as ForgePayload;
             }
 
             // Fetch Chunk 0s
@@ -115,7 +122,9 @@ export const classifyEntities = onCall(
                                 sourceFileId: file.id,
                                 sourceFileName: file.name,
                                 saga: file.saga,
-                                foundIn: [file.name]
+                                foundIn: [file.name],
+                                role: parsed.data.role || parsed.data.Role || parsed.data.cargo,
+                                avatar: parsed.data.avatar || parsed.data.Avatar
                             });
                             classified = true;
                         }
@@ -175,6 +184,8 @@ export const classifyEntities = onCall(
                          // HEURISTIC: Try to find "Name:" pattern in this Limbo file
                          // Only check start of lines to avoid false positives in prose
                          const lines = file.content.split('\n').slice(0, 30);
+                         let matchedName = null;
+
                          for (const line of lines) {
                              // Match "Name:" or "- Name:"
                              const match = line.match(/^[\-\s]*([A-ZÁÉÍÓÚÑ][a-zA-Z0-9\s]+):/);
@@ -183,18 +194,26 @@ export const classifyEntities = onCall(
                                  // Filter out common false positives like "Nota:", "Idea:", "Fecha:"
                                  const forbidden = ['nota', 'idea', 'fecha', 'todo', 'importante', 'ojo'];
                                  if (name.length > 2 && name.length < 30 && !forbidden.includes(name.toLowerCase())) {
-                                     entitiesMap.set(name.toLowerCase(), {
-                                        name: name,
-                                        tier: 'LIMBO',
-                                        confidence: 80,
-                                        reasoning: "Definición en Notas (Limbo)",
-                                        sourceFileId: file.id,
-                                        sourceFileName: file.name,
-                                        saga: file.saga,
-                                        foundIn: [file.name]
-                                     });
+                                     matchedName = name;
+                                     break; // Take the first strong match
                                  }
                              }
+                         }
+
+                         // If no inner name found, use filename stem if it looks like a person name
+                         // (This is weak, but better than missing it. Let's stick to inner name for high precision)
+                         if (matchedName) {
+                            entitiesMap.set(matchedName.toLowerCase(), {
+                                name: matchedName,
+                                tier: 'LIMBO',
+                                confidence: 80,
+                                reasoning: "Definición en Notas (Limbo)",
+                                sourceFileId: file.id,
+                                sourceFileName: file.name,
+                                saga: file.saga,
+                                foundIn: [file.name],
+                                rawContent: file.content.substring(0, 500) // Keep snippet for AI enrichment
+                            });
                          }
                     }
                 }
@@ -279,68 +298,145 @@ export const classifyEntities = onCall(
                 }
             }
 
-            // --- 4. PERSISTENCE (WRITE TO FIRESTORE) ---
+            // --- 4. ENRICHMENT PHASE (The Transformer) ---
+            // Prepare the Embeddings Model (Native SDK)
+            const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+
+            // Iterate and Enrich
+            // We convert Map to Array for processing
+            const entityList = Array.from(entitiesMap.values());
+            const enrichedEntities: SoulEntity[] = [];
+
+            for (const entity of entityList) {
+                const entityHash = entity.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+
+                let sourceSnippet = (entity.foundIn && entity.foundIn.length > 0) ? entity.foundIn[0] : "Entidad detectada.";
+                let role = entity.role;
+                let avatar = entity.avatar;
+
+                // A. ENRICH GHOSTS (Vector Search)
+                if (entity.tier === 'GHOST') {
+                    try {
+                        const embeddingResult = await embeddingModel.embedContent({
+                            content: { role: 'user', parts: [{ text: `Contexto y rol de ${entity.name}` }] },
+                            taskType: TaskType.RETRIEVAL_QUERY
+                        });
+                        const queryVector = embeddingResult.embedding.values;
+
+                        const chunksColl = db.collectionGroup("chunks");
+
+                        // Vector Search
+                        const vectorQuery = chunksColl.where("userId", "==", uid).findNearest({
+                            queryVector: queryVector,
+                            limit: 1,
+                            distanceMeasure: 'COSINE',
+                            vectorField: 'embedding'
+                        });
+
+                        const vectorSnap = await vectorQuery.get();
+                        if (!vectorSnap.empty) {
+                            const chunkData = vectorSnap.docs[0].data();
+                            // Use snippet from chunk
+                            const text = chunkData.text || "";
+                            // Find name in text to crop around it
+                            const idx = text.toLowerCase().indexOf(entity.name.toLowerCase());
+                            if (idx !== -1) {
+                                const start = Math.max(0, idx - 50);
+                                const end = Math.min(text.length, idx + 150);
+                                sourceSnippet = "..." + text.substring(start, end).replace(/\n/g, ' ') + "...";
+                            } else {
+                                sourceSnippet = text.substring(0, 150) + "...";
+                            }
+                        }
+                    } catch (e) {
+                        logger.warn(`Failed to enrich Ghost ${entity.name}:`, e);
+                        // Keep default foundIn snippet
+                    }
+                }
+
+                // B. ENRICH LIMBOS (Light AI)
+                if (entity.tier === 'LIMBO' && entity.rawContent) {
+                    try {
+                        const limboModel = genAI.getGenerativeModel({ model: MODEL_LOW_COST });
+                        const limboPrompt = `
+                            Analyze this character note.
+                            Extract:
+                            1. A brief preview (max 100 chars).
+                            2. Detected Traits (max 3 adjectives).
+
+                            Content: "${entity.rawContent.substring(0, 500)}"
+
+                            JSON Output: { "preview": "...", "traits": ["A", "B"] }
+                        `;
+
+                        const res = await limboModel.generateContent(limboPrompt);
+                        const data = parseSecureJSON(res.response.text(), "LimboEnrichment");
+
+                        if (data.preview) sourceSnippet = data.preview;
+                        if (data.traits && Array.isArray(data.traits)) {
+                             role = `Rasgos: ${data.traits.join(', ')}`;
+                        }
+                    } catch (e) {
+                        logger.warn(`Failed to enrich Limbo ${entity.name}:`, e);
+                    }
+                }
+
+                enrichedEntities.push({
+                    id: entityHash,
+                    name: entity.name,
+                    tier: entity.tier,
+                    sourceSnippet: sourceSnippet,
+                    occurrences: (entity.foundIn?.length || 1) * (entity.tier === 'ANCHOR' ? 10 : 1), // Anchors weigh more
+                    driveId: entity.sourceFileId,
+                    role: role,
+                    avatar: avatar
+                });
+            }
+
+            // --- 5. PERSISTENCE (WRITE TO FIRESTORE CACHE) ---
             const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
 
-            // Step A: Delete Old
+            // Delete Old (Scoped)
             let deleteQ = detectionRef as FirebaseFirestore.Query;
             if (sagaId) deleteQ = deleteQ.where("saga", "==", sagaId);
-
             const oldDocs = await deleteQ.get();
 
-            // 🟢 ROBUST BATCH LOGIC
-             const chunks = Array.from(entitiesMap.values());
-             const BATCH_SIZE = 400;
-             // First, execute the deletes we queued?
-             // Actually, mixing deletes and sets in chunks is tricky if we reuse the batch variable name.
-             // Let's do Deletes First, then Sets.
+            const batch = db.batch();
+            oldDocs.forEach(d => batch.delete(d.ref));
 
-             // 1. DELETE
-             if (!oldDocs.empty) {
-                 const deleteBatches = [];
-                 let currentDelBatch = db.batch();
-                 let delCount = 0;
-
-                 oldDocs.forEach(d => {
-                     currentDelBatch.delete(d.ref);
-                     delCount++;
-                     if (delCount >= 400) {
-                         deleteBatches.push(currentDelBatch.commit());
-                         currentDelBatch = db.batch();
-                         delCount = 0;
-                     }
-                 });
-                 if (delCount > 0) deleteBatches.push(currentDelBatch.commit());
-                 await Promise.all(deleteBatches);
-             }
-
-             // 2. SET
-             const setBatches = [];
-             let currentSetBatch = db.batch();
-             let setCount = 0;
-
-             chunks.forEach(entity => {
-                const docId = entity.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                const docRef = detectionRef.doc(docId);
-                currentSetBatch.set(docRef, {
-                    ...entity,
+            enrichedEntities.forEach(e => {
+                const ref = detectionRef.doc(e.id);
+                batch.set(ref, {
+                    ...e,
+                    saga: sagaId || 'Global',
                     lastDetected: new Date().toISOString()
                 });
-                setCount++;
-                if (setCount >= 400) {
-                    setBatches.push(currentSetBatch.commit());
-                    currentSetBatch = db.batch();
-                    setCount = 0;
-                }
-             });
-             if (setCount > 0) setBatches.push(currentSetBatch.commit());
-             await Promise.all(setBatches);
+            });
 
-            return { success: true, count: entitiesMap.size };
+            await batch.commit();
+
+            // --- 6. RETURN PAYLOAD ---
+            // Sort by occurrences desc
+            enrichedEntities.sort((a, b) => b.occurrences - a.occurrences);
+
+            const payload: ForgePayload = {
+                entities: enrichedEntities,
+                stats: {
+                    totalGhosts: enrichedEntities.filter(e => e.tier === 'GHOST').length,
+                    totalLimbos: enrichedEntities.filter(e => e.tier === 'LIMBO').length,
+                    totalAnchors: enrichedEntities.filter(e => e.tier === 'ANCHOR').length,
+                }
+            };
+
+            return payload;
 
         } catch (error: any) {
             logger.error("Soul Sorter Failed:", error);
-            throw new HttpsError("internal", error.message);
+            // Robust Error Handling: Return Empty instead of 500
+            return {
+                entities: [],
+                stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
+            } as ForgePayload;
         }
     }
 );
