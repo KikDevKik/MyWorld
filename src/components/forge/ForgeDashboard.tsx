@@ -40,6 +40,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const charactersRef = useRef<Character[]>([]); // Ref for async access
     const [detectedEntities, setDetectedEntities] = useState<any[]>([]); // Ghosts from Saga
     const [initialReport, setInitialReport] = useState<string>("");
+    const [isSorting, setIsSorting] = useState(false);
 
     // UI
     const [inspectorData, setInspectorData] = useState<any | null>(null);
@@ -68,220 +69,90 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         return () => unsubscribe();
     }, [saga.id]); // Re-subscribe if Saga changes
 
-    // --- 2. SAGA SCAN (AUTO-MOUNT) ---
+    // --- 2. SOUL SORTER LISTENER (INSTANT LOAD) ---
     useEffect(() => {
-        const scanSaga = async () => {
-            if (!saga || !accessToken) return;
+        const auth = getAuth();
+        if (!auth.currentUser || !saga) return;
+        const db = getFirestore();
 
-            // 🟢 GHOST MODE BYPASS
-            if (import.meta.env.VITE_JULES_MODE === 'true') {
-                console.log("👻 GHOST MODE: Bypassing Saga Scan");
-                setInitialReport("Modo Fantasma Activado. Escaneo simulado.");
-                setState('IDE');
-                return;
-            }
+        // 🟢 GHOST MODE BYPASS
+        if (import.meta.env.VITE_JULES_MODE === 'true') {
+            setInitialReport("Modo Fantasma Activado. Escaneo simulado.");
+            setState('IDE');
+            setIsLoading(false);
+            return;
+        }
 
-            setState('SCANNING');
-            setIsLoading(true);
+        // Subscribe to Detected Entities (Soul Sorter Results)
+        const q = query(
+            collection(db, "users", auth.currentUser.uid, "forge_detected_entities"),
+            where("saga", "==", saga.id) // Filter by scope
+        );
 
-            try {
-                const functions = getFunctions();
-
-                // A. LIST FILES (RECURSIVE)
-                const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
-                const listResult: any = await getDriveFiles({
-                    folderIds: [saga.id], // Scan inside the Saga folder
-                    accessToken,
-                    recursive: true // 🟢 ENABLE RECURSIVE SCAN
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const entities: any[] = [];
+            snapshot.forEach(doc => {
+                const d = doc.data();
+                entities.push({
+                    ...d,
+                    id: doc.id,
+                    // Map Backend Tiers to UI Status
+                    status: d.tier === 'ANCHOR' ? 'EXISTING' : 'DETECTED', // ANCHORs behave like existing
+                    role: d.reasoning || "Detectado por Soul Sorter",
+                    description: (d.foundIn || []).join('\n'),
+                    relevance_score: d.confidence ? Math.round(d.confidence / 10) : 5
                 });
+            });
 
-                const roots = listResult.data as DriveFile[];
-                const allFiles = flattenTree(roots); // 🟢 FLATTEN TREE
+            // 🟢 RECONCILIATION (Client-Side Shield)
+            // Filter out entities that are ALREADY in the Roster to avoid duplicates
+            // But we can only do this reliably if `characters` is loaded.
+            // For now, let's just set them. The ContextDock can handle duplicates or we filter there?
+            // Better to filter here if possible, but charactersRef might be empty on first render.
+            // We'll trust the Soul Sorter Tiers:
+            // ANCHOR = Likely a Sheet. LIMBO/GHOST = Likely Candidate.
 
-                const files = allFiles.filter(f =>
-                    f.type === 'file' &&
-                    (f.name.endsWith('.md') || f.name.endsWith('.txt') || f.mimeType.includes('document')) &&
-                    !f.name.toLowerCase().includes('personajes') // 🟢 Exclude "Personajes Saga X" lists
-                );
+            setDetectedEntities(entities);
 
-                if (files.length === 0) {
-                    toast.info("Saga vacía (sin archivos de texto). Iniciando modo creativo.");
-                    setState('IDE');
-                    setIsLoading(false);
-                    return;
-                }
-
-                // B. ANALYZE BATCH (GHOST DETECTION)
-                // 🟢 REMOVED SLICE LIMIT (Read All Files)
-                const targetFiles = files;
-                let candidates: any[] = [];
-                const BATCH_SIZE = 1; // Strict sequential to avoid global timeout
-
-                // 🟢 SWITCH TO DEDICATED FORGE ANALYZER
-                const analyzeForgeBatch = httpsCallable(functions, 'analyzeForgeBatch', { timeout: 540000 }); // 9 mins
-
-                for (let i = 0; i < targetFiles.length; i += BATCH_SIZE) {
-                    const batch = targetFiles.slice(i, i + BATCH_SIZE);
-                    const fileIds = batch.map(f => f.id);
-
-                    // Update UI Progress
-                    setInitialReport(`Analizando archivo ${i + 1} de ${targetFiles.length}: "${batch[0].name}"...`);
-
-                    try {
-                        const result: any = await analyzeForgeBatch({
-                            fileIds,
-                            projectId: folderId, // Context
-                            accessToken,
-                            contextType: 'NARRATIVE'
-                        });
-
-                        if (result.data.candidates) {
-                            // 🟢 CLIENT-SIDE DEDUPLICATION
-                            // Merge new candidates into the growing list
-                            const newCandidates = result.data.candidates;
-                            const mergedMap = new Map();
-
-                            // 1. Load existing into Map
-                            candidates.forEach(c => mergedMap.set(c.name.toLowerCase().trim(), c));
-
-                            // 2. Merge new ones
-                            newCandidates.forEach((nc: any) => {
-                                const key = nc.name.toLowerCase().trim();
-                                if (mergedMap.has(key)) {
-                                    // Merge Logic
-                                    const existing = mergedMap.get(key);
-
-                                    // Combine descriptions if different
-                                    if (nc.description && !existing.description.includes(nc.description)) {
-                                        existing.description = `${existing.description}\n\n[Alternative Source]: ${nc.description}`;
-                                    }
-
-                                    // Combine FoundInFiles
-                                    if (nc.foundInFiles) {
-                                        existing.foundInFiles = [...(existing.foundInFiles || []), ...nc.foundInFiles];
-                                    }
-
-                                    // Keep existing metadata usually, or update confidence if higher?
-                                    // Let's keep existing to avoid overwriting stable data, but append context.
-                                } else {
-                                    mergedMap.set(key, nc);
-                                }
-                            });
-
-                            candidates = Array.from(mergedMap.values());
-                        }
-                    } catch (err) {
-                        console.error(`Failed to analyze batch starting at ${i}:`, err);
-                        // Continue to next batch instead of crashing
-                    }
-                }
-
-                // C. RECONCILIATION (GHOSTS VS ROSTER)
-                const processedCandidates = [];
-                const db = getFirestore();
-                const auth = getAuth();
-
-                // Identify candidates NOT in local roster
-                const potentialExternal = [];
-
-                // 🟢 FILTER: STRICTLY CHARACTERS
-                // The Soul Forge is for Characters only. Ignore Locations, Objects, Concepts, etc.
-                const characterCandidates = candidates.filter(c => c.type === 'CHARACTER');
-
-                for (const c of characterCandidates) {
-                    // Use Ref to avoid stale closure if characters loaded while analyzing
-                    const localMatch = charactersRef.current.find(char => char.name.toLowerCase() === c.name.toLowerCase());
-
-                    if (localMatch) {
-                        processedCandidates.push({
-                            ...c,
-                            id: localMatch.id,
-                            status: 'EXISTING',
-                            role: c.role || c.description || c.subtype || c.type,
-                            relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5
-                        });
-                    } else {
-                        potentialExternal.push(c);
-                    }
-                }
-
-                // D. GLOBAL CHECK (EXTERNAL vs GHOST)
-                if (potentialExternal.length > 0 && auth.currentUser) {
-                    const namesToCheck = potentialExternal.map(c => c.name);
-                    // Firestore 'in' limit is 10 (or 30 depending on version), but usually safe for batch of 10 files
-                    // We split into chunks if needed, but for now assuming small batches
-                    try {
-                        // Chunking for Firestore 'in' query limit (30)
-                        const CHUNK_SIZE = 30;
-                        const globalMatches = new Map();
-
-                        for (let k = 0; k < namesToCheck.length; k += CHUNK_SIZE) {
-                            const chunk = namesToCheck.slice(k, k + CHUNK_SIZE);
-                             const globalQ = query(
-                                collection(db, "users", auth.currentUser.uid, "characters"),
-                                where("name", "in", chunk)
-                            );
-                            const globalSnapshot = await getDocs(globalQ);
-                            globalSnapshot.forEach(doc => {
-                                globalMatches.set(doc.data().name.toLowerCase(), doc.data());
-                            });
-                        }
-
-                        potentialExternal.forEach(c => {
-                            const externalMatch = globalMatches.get(c.name.toLowerCase());
-                            if (externalMatch) {
-                                processedCandidates.push({
-                                    ...c,
-                                    id: externalMatch.id, // Or undefined if we want to force re-linking? Better to link.
-                                    status: 'EXTERNAL', // 🟢 New Status
-                                    role: `Existente en otra Saga`, // UI hint
-                                    relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5,
-                                    originalContext: externalMatch.sourceContext // Save logic for UI
-                                });
-                            } else {
-                                processedCandidates.push({
-                                    ...c,
-                                    status: 'DETECTED',
-                                    role: c.role || c.description || c.subtype || c.type,
-                                    relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5
-                                });
-                            }
-                        });
-
-                    } catch (err) {
-                        console.warn("Global check failed, defaulting to DETECTED", err);
-                        // Fallback: mark all as DETECTED
-                        potentialExternal.forEach(c => processedCandidates.push({
-                            ...c, status: 'DETECTED', role: c.role, relevance_score: 5
-                        }));
-                    }
-                } else {
-                    // No potential external or no user?
-                    potentialExternal.forEach(c => processedCandidates.push({
-                        ...c, status: 'DETECTED', role: c.role, relevance_score: 5
-                    }));
-                }
-
-                setDetectedEntities(processedCandidates);
-                setInitialReport(`Saga "${saga.name}" escaneada. ${processedCandidates.length} entidades procesadas.`);
+            // If we have data, we are ready instantly
+            if (entities.length > 0) {
                 setState('IDE');
-
-            } catch (error) {
-                console.error("Saga Scan Failed:", error);
-                toast.error("Error escaneando la Saga. Entrando en modo manual.");
-                setState('IDE');
-            } finally {
                 setIsLoading(false);
+                setInitialReport(`Carga Instantánea: ${entities.length} entidades recuperadas.`);
+            } else {
+                // If empty, we wait a bit or just show IDE.
+                // We show IDE so user can click "Scan".
+                setState('IDE');
+                setIsLoading(false);
+                setInitialReport("No se detectaron entidades. Ejecuta el Escáner.");
             }
-        };
+        });
 
-        scanSaga();
-    }, [saga.id, accessToken]); // Depend on Saga ID change
+        return () => unsubscribe();
+    }, [saga.id]);
 
-    const handleRefresh = () => {
-        // Re-trigger effect by forcing a re-mount or logic?
-        // Actually, cleaner to extract the async function, but for now user can just re-select saga.
-        toast.info("Para refrescar, vuelve al Hub y selecciona la saga de nuevo.");
+    // --- 3. TRIGGER SOUL SORTER (MANUAL REFRESH) ---
+    const handleRefresh = async () => {
+        setIsSorting(true);
+        const toastId = toast.loading("Ejecutando Soul Sorter...");
+
+        try {
+            const functions = getFunctions();
+            const classifyEntities = httpsCallable(functions, 'classifyEntities');
+
+            await classifyEntities({
+                projectId: folderId,
+                sagaId: saga.id
+            });
+
+            toast.success("Análisis completado.", { id: toastId });
+            // Snapshot listener will update UI automatically
+        } catch (error) {
+            console.error("Soul Sorter Error:", error);
+            toast.error("Error al analizar la saga.", { id: toastId });
+        } finally {
+            setIsSorting(false);
+        }
     };
 
     const handleResetSession = () => setSessionVersion(prev => prev + 1);
@@ -359,7 +230,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     characters={characters}
                     detectedEntities={detectedEntities}
                     onCharacterSelect={setInspectorData}
-                    isLoading={false}
+                    isLoading={isSorting}
                     onRefresh={handleRefresh}
                 />
             </div>
