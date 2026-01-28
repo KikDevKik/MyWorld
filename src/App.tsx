@@ -624,8 +624,9 @@ function App() {
                 reload: async () => {},
                 toJSON: () => ({})
             } as unknown as User);
+            setOauthToken('mock-token');
             setAuthLoading(false);
-        setDriveStatus('disconnected');
+            setDriveStatus('connected');
             return;
         }
 

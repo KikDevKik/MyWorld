@@ -11,6 +11,7 @@ export interface SoulEntity {
   driveId?: string;       // Solo para ANCHOR
   role?: string;          // Added: Useful for UI
   avatar?: string;        // Added: Useful for UI (Anchors)
+  tags?: string[];        // Added: Limbo traits (e.g. [Tímido, Leal])
 }
 
 export interface ForgePayload {

@@ -73,9 +73,19 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                mimeType: 'application/vnd.google-apps.folder'
                            });
                        }
+                   } else {
+                        // If no token, fallback immediately
+                        throw new Error("No access token for vault resolution");
                    }
                 } catch (e) {
-                    console.error("Error resolving vault:", e);
+                    console.warn("Error resolving vault (using fallback):", e);
+                    // Fallback for offline/error/ghost mode
+                    setActiveSaga({
+                       id: config.characterVaultId!,
+                       name: "Bóveda de Personajes",
+                       type: 'folder',
+                       mimeType: 'application/vnd.google-apps.folder'
+                   });
                 } finally {
                     setIsResolvingVault(false);
                 }
