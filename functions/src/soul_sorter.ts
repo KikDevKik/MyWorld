@@ -396,24 +396,56 @@ export const classifyEntities = onCall(
             // --- 5. PERSISTENCE (WRITE TO FIRESTORE CACHE) ---
             const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
 
-            // Delete Old (Scoped)
+            // Step A: Delete Old (Scoped)
             let deleteQ = detectionRef as FirebaseFirestore.Query;
             if (sagaId) deleteQ = deleteQ.where("saga", "==", sagaId);
             const oldDocs = await deleteQ.get();
 
-            const batch = db.batch();
-            oldDocs.forEach(d => batch.delete(d.ref));
+            const BATCH_SIZE = 400;
+            const operations: Promise<any>[] = [];
+
+            // 1. BATCH DELETE
+            if (!oldDocs.empty) {
+                let currentDelBatch = db.batch();
+                let delCount = 0;
+
+                oldDocs.forEach(d => {
+                    currentDelBatch.delete(d.ref);
+                    delCount++;
+                    if (delCount >= BATCH_SIZE) {
+                        operations.push(currentDelBatch.commit());
+                        currentDelBatch = db.batch();
+                        delCount = 0;
+                    }
+                });
+                if (delCount > 0) operations.push(currentDelBatch.commit());
+            }
+
+            // Await deletes to clear space? Not strictly necessary in Firestore but safer.
+            await Promise.all(operations);
+            const setOperations: Promise<any>[] = [];
+
+            // 2. BATCH SET
+            let currentSetBatch = db.batch();
+            let setCount = 0;
 
             enrichedEntities.forEach(e => {
                 const ref = detectionRef.doc(e.id);
-                batch.set(ref, {
+                currentSetBatch.set(ref, {
                     ...e,
                     saga: sagaId || 'Global',
                     lastDetected: new Date().toISOString()
                 });
+                setCount++;
+                if (setCount >= BATCH_SIZE) {
+                    setOperations.push(currentSetBatch.commit());
+                    currentSetBatch = db.batch();
+                    setCount = 0;
+                }
             });
+            if (setCount > 0) setOperations.push(currentSetBatch.commit());
 
-            await batch.commit();
+            await Promise.all(setOperations);
 
             // --- 6. RETURN PAYLOAD ---
             // Sort by occurrences desc
