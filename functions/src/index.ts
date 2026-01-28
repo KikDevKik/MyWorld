@@ -130,6 +130,9 @@ const MAX_AI_INPUT_CHARS = 100000; // 100k chars (~25k tokens) limit for AI anal
 const MAX_FILE_SAVE_BYTES = 5 * 1024 * 1024; // 5MB limit for text file saves
 const MAX_PROFILE_FIELD_LIMIT = 5000; // 5k chars limit for profile fields (prevent DoS)
 const MAX_CHAT_MESSAGE_LIMIT = 30000; // 30k chars limit for chat messages/queries
+const MAX_ENTITY_NAME_CHARS = 100; // 100 chars limit for entity names
+const MAX_CONNECTION_CONTEXT_CHARS = 5000; // 5k chars limit for connection context
+const MAX_SESSION_NAME_CHARS = 200; // 200 chars limit for session names
 
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
@@ -552,6 +555,11 @@ export const analyzeConnection = onCall(
     if (!sourceName || !targetName) {
         return { reason: "Vínculo desconocido", type: "NEUTRAL" };
     }
+
+    // 🛡️ SECURITY: INPUT VALIDATION
+    if (sourceName.length > MAX_ENTITY_NAME_CHARS) throw new HttpsError("invalid-argument", "Source Name too long.");
+    if (targetName.length > MAX_ENTITY_NAME_CHARS) throw new HttpsError("invalid-argument", "Target Name too long.");
+    if (context && context.length > MAX_CONNECTION_CONTEXT_CHARS) throw new HttpsError("invalid-argument", "Context too long.");
 
     try {
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
@@ -1288,6 +1296,12 @@ export const crystallizeNode = onCall(
 
     if (!folderId || !fileName || !content || !accessToken) {
       throw new HttpsError("invalid-argument", "Faltan datos obligatorios.");
+    }
+
+    // 🛡️ SECURITY: INPUT VALIDATION
+    if (fileName.length > MAX_SESSION_NAME_CHARS) throw new HttpsError("invalid-argument", "File name too long.");
+    if (typeof content === 'string' && content.length > MAX_FILE_SAVE_BYTES) {
+        throw new HttpsError("resource-exhausted", `Content exceeds limit of ${MAX_FILE_SAVE_BYTES / 1024 / 1024}MB.`);
     }
 
     try {
@@ -2831,6 +2845,10 @@ export const createForgeSession = onCall(
     if (!name) {
       throw new HttpsError("invalid-argument", "Falta el nombre de la sesión.");
     }
+    // 🛡️ SECURITY: INPUT VALIDATION
+    if (name.length > MAX_SESSION_NAME_CHARS) {
+        throw new HttpsError("invalid-argument", "Session name too long.");
+    }
 
     const userId = request.auth.uid;
     const sessionId = db.collection("users").doc(userId).collection("forge_sessions").doc().id;
@@ -4279,6 +4297,13 @@ export const forgeToolExecution = onCall(
     if (!title || !content || !folderId) {
       throw new HttpsError("invalid-argument", "Faltan argumentos (title, content, folderId).");
     }
+
+    // 🛡️ SECURITY: INPUT VALIDATION
+    if (title.length > MAX_SESSION_NAME_CHARS) throw new HttpsError("invalid-argument", "Title too long.");
+    if (typeof content === 'string' && content.length > MAX_FILE_SAVE_BYTES) {
+        throw new HttpsError("resource-exhausted", `Content exceeds limit of ${MAX_FILE_SAVE_BYTES / 1024 / 1024}MB.`);
+    }
+
     if (!accessToken) {
       throw new HttpsError("unauthenticated", "Falta accessToken.");
     }
