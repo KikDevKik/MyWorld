@@ -74,3 +74,11 @@
 **Vulnerability:** Server-Side Request Forgery / Local File Inclusion via `img` tags
 **Learning:** `pdfmake` (via `pdfkit`) in a Node.js environment treats image paths as local file paths by default. The `sanitizeHtml` function was using a blacklist that allowed `img` tags, assuming they were safe or inert. However, `html-to-pdfmake` converts them into a format that `pdfmake` attempts to resolve, leading to potential LFI if a user provides `<img src="file:///etc/passwd">`.
 **Prevention:** Added `img` (and `video`, `audio`, `source`, `picture`) to the `prohibitedTags` list in `sanitizeHtml`. Security sanitizers should default to "deny all" (allowlist) rather than "allow all except X" (blocklist) whenever possible, or strictly validate attributes like `src` to allow only specific protocols (`http/https`) if the tag is required.
+
+## 2025-05-27 - [DoS Prevention: Input Length Limits]
+**Vulnerability:** Unbounded Input Size in Core Functions
+**Learning:** Functions like `analyzeConnection`, `createForgeSession`, `forgeToolExecution`, and `crystallizeNode` lacked explicit input length validation. A malicious user could send massive strings (e.g., 10MB names) to exhaust memory or Firestore quotas.
+**Prevention:**
+1. Defined strict constants: `MAX_ENTITY_NAME_CHARS` (100), `MAX_SESSION_NAME_CHARS` (200), `MAX_CONNECTION_CONTEXT_CHARS` (5000).
+2. Enforced these limits at the entry point of all public Callable Functions.
+3. Used `typeof` checks to prevent type confusion before length validation.
