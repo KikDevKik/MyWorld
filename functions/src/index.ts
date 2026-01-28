@@ -4860,3 +4860,9 @@ export { crystallizeGraph } from "./crystallization";
  * Streaming conversational agent with RAG tools.
  */
 export { forgeChatStream } from "./forge_chat";
+
+/**
+ * 33. SOUL SORTER (The Triage)
+ * Classifies entities into Ghosts, Limbos, and Anchors.
+ */
+export { classifyEntities } from "./soul_sorter";
