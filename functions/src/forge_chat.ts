@@ -163,12 +163,12 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
                      const searchQuery = (call.args as any).query;
 
                      // 1. EMBEDDING (LangChain Compatibility)
-                     // 🟢 FIX: Use 'embedding-001' via LangChain to match Ingestion Vectors.
+                     // 🟢 FIX: Use 'text-embedding-004' via LangChain to match Ingestion Vectors.
                      // The Native SDK might default to v1beta/models which lacks legacy models,
                      // but LangChain wrapper handles it correctly for RAG consistency.
                      const embeddings = new GoogleGenerativeAIEmbeddings({
                         apiKey: googleApiKey.value(),
-                        model: "embedding-001",
+                        model: "text-embedding-004",
                         taskType: TaskType.RETRIEVAL_QUERY,
                      });
                      const queryVector = await embeddings.embedQuery(searchQuery);

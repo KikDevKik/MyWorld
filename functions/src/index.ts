@@ -1106,7 +1106,7 @@ export const enrichCharacterContext = onCall(
       // 1. SETUP VECTORS
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: googleApiKey.value(),
-        model: "embedding-001",
+        model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_QUERY,
       });
 
@@ -1595,7 +1595,7 @@ export const indexTDB = onCall(
       // A. Configurar Embeddings
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: googleApiKey.value(),
-        model: "embedding-001",
+        model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
       });
 
@@ -2016,7 +2016,7 @@ ${analysis}
       // 2. Vectorizar Pregunta
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: googleApiKey.value(),
-        model: "embedding-001",
+        model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_QUERY,
       });
       const queryVector = await embeddings.embedQuery(searchQuery);
@@ -4029,7 +4029,7 @@ export const syncCharacterManifest = onCall(
     // Initialize Embeddings for Ingestion
     const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: googleApiKey.value(),
-        model: "embedding-001",
+        model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
     });
 
