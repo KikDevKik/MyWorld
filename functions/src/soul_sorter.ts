@@ -58,14 +58,33 @@ export const classifyEntities = onCall(
         try {
             // --- 1. FETCH CONTENT (SPECTRAL SWEEP) ---
             const filesRef = db.collection("TDB_Index").doc(uid).collection("files");
-            let q = filesRef.where("category", "==", "canon");
 
+            // STRATEGY: Prefer 'canon' files, but fallback to ALL files if canon is empty.
+            // Also, always include 'Global' context files for broader ghost detection.
+
+            let querySagas = ['Global'];
+            if (sagaId && sagaId !== 'Global') querySagas.push(sagaId);
+
+            // Attempt 1: Strict Canon Check
+            let q = filesRef.where("category", "==", "canon");
             if (sagaId) {
-                q = q.where("saga", "==", sagaId);
+                 q = q.where("saga", "in", querySagas);
             }
 
-            const filesSnap = await q.get();
+            let filesSnap = await q.get();
+            logger.info(`👻 SOUL SORTER: Canon Query found ${filesSnap.size} files. (Sagas: ${querySagas.join(', ')})`);
+
+            // Attempt 2: Relaxed Check (If Saga-specific Canon is empty, fallback to Project-wide Canon)
             if (filesSnap.empty) {
+                logger.info("👻 SOUL SORTER: No Saga-specific 'canon' files found. Attempting fallback to Project-wide Canon.");
+                // Fallback: Search all CANON files in the project (ignore Saga scope)
+                let qFallback = filesRef.where("category", "==", "canon");
+                filesSnap = await qFallback.get();
+                logger.info(`👻 SOUL SORTER: Fallback Query (Project Canon) found ${filesSnap.size} files.`);
+            }
+
+            if (filesSnap.empty) {
+                logger.warn("👻 SOUL SORTER: No files found in Index. Aborting.");
                 return {
                     entities: [],
                     stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
