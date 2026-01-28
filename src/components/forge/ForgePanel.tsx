@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
-import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw, AlertTriangle, CheckCircle, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import useDrivePicker from 'react-google-drive-picker';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import ForgeDashboard from './ForgeDashboard';
-import ForgeHub from './ForgeHub';
+import InternalFolderSelector from '../InternalFolderSelector';
 import { ProjectConfig, DriveFile } from '../../types';
 
 interface ForgePanelProps {
@@ -16,196 +15,337 @@ interface ForgePanelProps {
 
 const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken }) => {
     const { config, updateConfig, loading } = useProjectConfig();
-    const [openPicker] = useDrivePicker();
 
-    // 🟢 SAGA STATE (The Hub Selection)
+    // 🟢 SAGA STATE (The Vault)
     const [activeSaga, setActiveSaga] = useState<DriveFile | null>(null);
+    const [isResolvingVault, setIsResolvingVault] = useState(false);
 
-    // --- VAULT SELECTION (SETUP) ---
-    const handleConnectVault = () => {
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
+    // 🟢 SELECTION STATE
+    const [showSelector, setShowSelector] = useState(false);
+    const [showConfirmation, setShowConfirmation] = useState(false);
+    const [pendingVault, setPendingVault] = useState<{ id: string, name: string } | null>(null);
+    const [isCreatingVault, setIsCreatingVault] = useState(false);
 
-        if (!clientId || !developerKey) {
-            toast.error("Missing Google API Configuration (Client ID / API Key)");
-            return;
-        }
+    // --- 1. AUTO-DETECT VAULT ---
+    useEffect(() => {
+        const resolveVault = async () => {
+            if (loading || !config) return;
 
-        openPicker({
-            clientId,
-            developerKey,
-            viewId: "FOLDERS",
-            viewMimeTypes: "application/vnd.google-apps.folder",
-            setSelectFolderEnabled: true,
-            setIncludeFolders: true,
-            setOrigin: window.location.protocol + '//' + window.location.host,
-            token: accessToken || "",
-            showUploadView: false,
-            showUploadFolders: false,
-            supportDrives: true,
-            multiselect: false,
-            callbackFunction: async (data) => {
-                if (data.action === 'picked' && data.docs && data.docs[0]) {
-                    const picked = data.docs[0];
-                    if (config) {
-                        const newConfig: ProjectConfig = {
-                            ...config,
-                            characterVaultId: picked.id
-                        };
-                        await updateConfig(newConfig);
-                        toast.success(`Character Vault linked: ${picked.name}`);
-                    }
+            // If we have a vault ID, try to set it as active saga
+            if (config.characterVaultId && !activeSaga && !isResolvingVault) {
+                console.log("Found Character Vault ID:", config.characterVaultId);
+                setIsResolvingVault(true);
+
+                // We need the name. If it's in canonPaths, we can grab it.
+                const existingPath = config.canonPaths.find(p => p.id === config.characterVaultId);
+                if (existingPath) {
+                    setActiveSaga({
+                        id: existingPath.id,
+                        name: existingPath.name,
+                        type: 'folder',
+                        mimeType: 'application/vnd.google-apps.folder'
+                    });
+                    setIsResolvingVault(false);
+                    return;
+                }
+
+                // If not, fetch from Drive
+                try {
+                   if (accessToken) {
+                       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${config.characterVaultId}?fields=id,name,mimeType`, {
+                           headers: { Authorization: `Bearer ${accessToken}` }
+                       });
+                       if (res.ok) {
+                           const file = await res.json();
+                           setActiveSaga({
+                               id: file.id,
+                               name: file.name,
+                               type: 'folder',
+                               mimeType: file.mimeType || 'application/vnd.google-apps.folder'
+                           });
+                       } else {
+                           console.warn("Failed to resolve vault name. Using fallback.");
+                           setActiveSaga({
+                               id: config.characterVaultId,
+                               name: "Bóveda de Personajes",
+                               type: 'folder',
+                               mimeType: 'application/vnd.google-apps.folder'
+                           });
+                       }
+                   }
+                } catch (e) {
+                    console.error("Error resolving vault:", e);
+                } finally {
+                    setIsResolvingVault(false);
                 }
             }
-        });
+        };
+
+        resolveVault();
+    }, [config, loading, accessToken]);
+
+    // --- 2. OPTION A: CREATE VAULT ---
+    const handleCreateVault = async () => {
+        if (!accessToken || !config) return;
+        setIsCreatingVault(true);
+
+        try {
+            // 1. Create Folder
+            const metadata = {
+                name: 'Personajes',
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [folderId] // Create in Project Root
+            };
+
+            const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(metadata)
+            });
+
+            if (!res.ok) throw new Error("Failed to create folder");
+
+            const file = await res.json();
+
+            // 2. Update Config
+            const newConfig: ProjectConfig = {
+                ...config,
+                characterVaultId: file.id
+            };
+            await updateConfig(newConfig);
+
+            toast.success("Bóveda creada exitosamente: /Personajes");
+
+            // 3. Set Active (State update will trigger, but we set manually for speed)
+            setActiveSaga({
+                id: file.id,
+                name: 'Personajes',
+                type: 'folder',
+                mimeType: 'application/vnd.google-apps.folder'
+            });
+
+        } catch (error) {
+            console.error("Error creating vault:", error);
+            toast.error("Error creando la carpeta. Intenta de nuevo.");
+        } finally {
+            setIsCreatingVault(false);
+        }
     };
 
-    const handleSelectExisting = async (selectedFolderId: string) => {
-        if (!config) return;
-        const newConfig: ProjectConfig = {
-            ...config,
-            characterVaultId: selectedFolderId
-        };
-        await updateConfig(newConfig);
-        toast.success("Character Vault selected successfully.");
+    // --- 3. OPTION B: SELECT EXISTING ---
+    const handleFolderSelected = (folder: { id: string; name: string }) => {
+        setPendingVault(folder);
+        setShowSelector(false);
+        setShowConfirmation(true);
+    };
+
+    const confirmSelection = async () => {
+        if (!pendingVault || !config) return;
+
+        try {
+             const newConfig: ProjectConfig = {
+                ...config,
+                characterVaultId: pendingVault.id
+            };
+            await updateConfig(newConfig);
+            toast.success("Bóveda vinculada exitosamente.");
+
+             setActiveSaga({
+                id: pendingVault.id,
+                name: pendingVault.name,
+                type: 'folder',
+                mimeType: 'application/vnd.google-apps.folder'
+            });
+        } catch (e) {
+            toast.error("Error al guardar la configuración.");
+        } finally {
+            setShowConfirmation(false);
+        }
     };
 
     // --- LOADING STATE ---
-    if (loading) {
+    if (loading || isResolvingVault) {
         return (
             <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-500 gap-4">
                 <RefreshCw size={40} className="animate-spin text-accent-DEFAULT" />
-                <p className="text-sm font-mono opacity-70">Cargando Configuración...</p>
+                <p className="text-sm font-mono opacity-70">
+                    {isResolvingVault ? "Localizando Bóveda..." : "Cargando Configuración..."}
+                </p>
             </div>
         );
     }
 
-    // --- 1. CONNECT VIEW (NO VAULT) ---
-    const canonPaths = config?.canonPaths || [];
-    const resourcePaths = config?.resourcePaths || [];
-    const canonIds = new Set(canonPaths.map(p => p.id));
-    const uniqueResourcePaths = resourcePaths.filter(p => !canonIds.has(p.id));
-    const hasExistingPaths = canonPaths.length > 0 || uniqueResourcePaths.length > 0;
-
-    // Logic: If no characterVaultId is set, we force selection.
-    // BUT user wants to see ALL canon folders in Hub.
-    // So maybe we don't strictly require characterVaultId if canonPaths exist?
-    // User said: "Scope see ALL canon folders".
-    // If we have canon paths, we can go to Hub directly and show them as roots.
-    // Let's assume if there are ANY canon paths, we allow Hub access.
-
-    const canEnterHub = hasExistingPaths || !!config?.characterVaultId;
-
-    if (!canEnterHub) {
+    // --- DASHBOARD VIEW (VAULT ACTIVE) ---
+    if (activeSaga) {
         return (
             <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
                 {/* HEADER */}
-                <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
-                    <div className="flex items-center gap-3 text-accent-DEFAULT">
-                        <Hammer size={24} />
-                        <h2 className="font-bold text-xl text-titanium-100">Forja de Almas</h2>
+                <div className="relative z-20 h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
+                    <div className="flex items-center gap-2 text-titanium-100">
+                        <button
+                            onClick={onClose}
+                            className="p-1 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors mr-2"
+                            title="Salir"
+                        >
+                             {/* Usually we don't go back to 'Selection' once selected, so this just closes or we can remove the back button */}
+                            <ArrowLeft size={20} />
+                        </button>
+
+                        <span className="flex items-center gap-2 text-titanium-400 shrink-0">
+                            <Hammer size={20} />
+                            <span className="font-bold hidden md:inline">Forja de Almas</span>
+                        </span>
+
+                        <span className="text-titanium-600">/</span>
+
+                        {/* 🟢 VAULT NAME IN HEADER */}
+                        <div className="flex items-center gap-2 px-3 py-1 rounded bg-titanium-800/50 border border-titanium-700/50">
+                            <Book size={14} className="text-accent-DEFAULT" />
+                            <span className="font-bold text-sm text-titanium-200">{activeSaga.name}</span>
+                        </div>
                     </div>
                 </div>
 
-                {/* CONNECT CONTENT */}
-                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center overflow-y-auto">
-                    <div className="w-24 h-24 bg-titanium-900 rounded-3xl flex items-center justify-center text-titanium-600 mb-6 border border-titanium-800 shrink-0">
-                        <FolderInput size={48} />
-                    </div>
-
-                    <h3 className="text-2xl font-bold text-titanium-100 mb-2">Conexión Requerida</h3>
-                    <p className="text-titanium-400 max-w-md mb-8">
-                        Para forjar almas, necesitas conectar al menos una carpeta Canon o una Bóveda de Personajes.
-                    </p>
-
-                    <button
-                        onClick={handleConnectVault}
-                        className="px-8 py-4 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 font-bold rounded-xl shadow-lg flex items-center gap-3 transition-all"
-                    >
-                        <FolderPlus size={20} />
-                        <span>Conectar Carpeta Maestra</span>
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
-    // --- 2. HUB VIEW (VAULT LINKED, NO SAGA SELECTED) ---
-    if (!activeSaga) {
-        // Collect all roots: Canon Paths + Character Vault (if distinct)
-        const roots = [...canonPaths];
-
-        console.log("ForgePanel Roots Calculation:", { canonPaths, vaultId: config?.characterVaultId });
-
-        // Add Character Vault if it exists and isn't already in Canon Paths
-        if (config?.characterVaultId) {
-            // Check if ID is already in canonPaths
-            if (!roots.some(p => p.id === config.characterVaultId)) {
-                // We need the name... assume "Character Vault" or try to fetch?
-                // Ideally backend config stores name. If not, user might see ID or generic name.
-                // For now, let's append it if unique.
-                roots.push({ id: config.characterVaultId, name: "Bóveda de Personajes (Legacy)" });
-            }
-        }
-
-        return (
-            <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
-                {/* HEADER */}
-                <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
-                    <div className="flex items-center gap-3 text-titanium-100">
-                        <Hammer size={24} className="text-accent-DEFAULT" />
-                        <h2 className="font-bold text-xl">Forja de Almas</h2>
-                        <span className="px-2 py-0.5 rounded bg-titanium-800 text-[10px] font-mono text-titanium-400">HUB</span>
-                    </div>
-                </div>
-
+                {/* DASHBOARD */}
                 <div className="flex-1 overflow-hidden relative">
-                    <ForgeHub
-                        roots={roots} // 🟢 PASS ALL ROOTS
+                    <ForgeDashboard
+                        folderId={folderId} // Project Root
                         accessToken={accessToken}
-                        onSelectSaga={setActiveSaga}
+                        saga={activeSaga} // 🟢 Pass Vault as Saga
                     />
                 </div>
             </div>
         );
     }
 
-    // --- 3. DASHBOARD VIEW (SAGA SELECTED) ---
+    // --- SELECTION VIEW (NO VAULT) ---
     return (
-        <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
+        <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in relative">
+
             {/* HEADER */}
-            <div className="relative z-20 h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
-                <div className="flex items-center gap-2 text-titanium-100">
-                    <button
-                        onClick={() => setActiveSaga(null)}
-                        className="p-1 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors mr-2"
-                        title="Volver al Hub"
-                    >
-                        <ArrowLeft size={20} />
-                    </button>
-
-                    <span className="flex items-center gap-2 text-titanium-400 shrink-0">
-                        <Hammer size={20} />
-                        <span className="font-bold hidden md:inline">Forja de Almas</span>
-                    </span>
-
-                    <span className="text-titanium-600">/</span>
-
-                    <div className="flex items-center gap-2 px-3 py-1 rounded bg-titanium-800/50 border border-titanium-700/50">
-                        <Book size={14} className="text-accent-DEFAULT" />
-                        <span className="font-bold text-sm text-titanium-200">{activeSaga.name}</span>
-                    </div>
+            <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
+                <div className="flex items-center gap-3 text-accent-DEFAULT">
+                    <Hammer size={24} />
+                    <h2 className="font-bold text-xl text-titanium-100">Forja de Almas</h2>
                 </div>
             </div>
 
-            {/* DASHBOARD */}
-            <div className="flex-1 overflow-hidden relative">
-                <ForgeDashboard
-                    folderId={folderId} // Project Root
-                    accessToken={accessToken}
-                    saga={activeSaga} // 🟢 Pass Active Saga
-                />
+            {/* CONTENT */}
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center overflow-y-auto z-10">
+
+                <div className="max-w-2xl w-full flex flex-col gap-8">
+
+                    <div className="text-center mb-4">
+                        <div className="w-20 h-20 bg-titanium-900 rounded-3xl flex items-center justify-center text-accent-DEFAULT mb-6 border border-titanium-800 mx-auto shadow-2xl shadow-accent-DEFAULT/10">
+                            <FolderInput size={40} />
+                        </div>
+                        <h3 className="text-3xl font-bold text-titanium-100 mb-3">Configuración Inicial</h3>
+                        <p className="text-titanium-400 text-lg">
+                            No detecto una carpeta de personajes predeterminada. <br/>
+                            ¿Cómo deseas organizar tus almas?
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {/* OPTION A: CREATE */}
+                        <button
+                            onClick={handleCreateVault}
+                            disabled={isCreatingVault}
+                            className="group relative flex flex-col items-center p-8 bg-titanium-900 border border-titanium-800 hover:border-accent-DEFAULT/50 rounded-2xl transition-all hover:bg-titanium-800/50 text-left"
+                        >
+                            <div className="mb-4 p-4 rounded-full bg-accent-DEFAULT/10 text-accent-DEFAULT group-hover:bg-accent-DEFAULT group-hover:text-titanium-950 transition-colors">
+                                {isCreatingVault ? <RefreshCw className="animate-spin" size={32} /> : <FolderPlus size={32} />}
+                            </div>
+                            <h4 className="text-xl font-bold text-titanium-100 mb-2">Crear Bóveda</h4>
+                            <p className="text-sm text-titanium-400 text-center">
+                                Crea una carpeta <span className="text-accent-DEFAULT font-mono">/Personajes</span> en la raíz de tu proyecto automáticamente.
+                            </p>
+                            <div className="mt-6 px-4 py-1 bg-titanium-950 rounded border border-titanium-800 text-xs text-titanium-500 font-mono">
+                                Recomendado para nuevos
+                            </div>
+                        </button>
+
+                        {/* OPTION B: SELECT */}
+                        <button
+                            onClick={() => setShowSelector(true)}
+                            className="group relative flex flex-col items-center p-8 bg-titanium-900 border border-titanium-800 hover:border-cyan-500/50 rounded-2xl transition-all hover:bg-titanium-800/50 text-left"
+                        >
+                            <div className="mb-4 p-4 rounded-full bg-cyan-900/20 text-cyan-400 group-hover:bg-cyan-500 group-hover:text-white transition-colors">
+                                <Search size={32} />
+                            </div>
+                            <h4 className="text-xl font-bold text-titanium-100 mb-2">Ya tengo una</h4>
+                            <p className="text-sm text-titanium-400 text-center">
+                                Selecciona una carpeta existente desde la estructura de MyWorld.
+                            </p>
+                            <div className="mt-6 px-4 py-1 bg-titanium-950 rounded border border-titanium-800 text-xs text-titanium-500 font-mono">
+                                Para usuarios avanzados
+                            </div>
+                        </button>
+                    </div>
+
+                </div>
             </div>
+
+            {/* MODAL: SELECTOR */}
+            {showSelector && (
+                <InternalFolderSelector
+                    onFolderSelected={handleFolderSelected}
+                    onCancel={() => setShowSelector(false)}
+                    currentFolderId={config?.characterVaultId}
+                />
+            )}
+
+            {/* MODAL: CONFIRMATION */}
+            {showConfirmation && pendingVault && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-md bg-titanium-900 border border-yellow-600/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
+
+                        {/* WARNING ICON */}
+                        <div className="absolute top-0 right-0 p-8 -mr-4 -mt-4 opacity-10">
+                            <AlertTriangle size={120} className="text-yellow-600" />
+                        </div>
+
+                        <div className="flex flex-col gap-4 relative z-10">
+                            <div className="w-12 h-12 rounded-full bg-yellow-900/30 flex items-center justify-center text-yellow-500 mb-2">
+                                <AlertTriangle size={24} />
+                            </div>
+
+                            <h3 className="text-xl font-bold text-white">Confirmar Ubicación</h3>
+
+                            <div className="text-titanium-300 text-sm leading-relaxed space-y-3">
+                                <p>
+                                    Has seleccionado: <span className="font-bold text-white">{pendingVault.name}</span>
+                                </p>
+                                <div className="p-3 bg-yellow-900/10 border border-yellow-600/20 rounded-lg text-yellow-200/80 text-xs">
+                                    <strong>Ojo:</strong> Si esta carpeta tiene subcarpetas, la Forja las leerá todas recursivamente, pero los nuevos personajes se crearán en la raíz de esta carpeta.
+                                </div>
+                                <p className="opacity-70">
+                                    No necesitas mover archivos manualmente, el sistema los detectará donde estén.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-3 mt-4">
+                                <button
+                                    onClick={() => setShowConfirmation(false)}
+                                    className="flex-1 py-3 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 font-bold rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={confirmSelection}
+                                    className="flex-1 py-3 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-lg transition-colors shadow-lg shadow-yellow-900/20"
+                                >
+                                    Confirmar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };
