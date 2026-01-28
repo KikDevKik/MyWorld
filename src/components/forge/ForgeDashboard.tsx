@@ -1,24 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getFirestore, collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Loader2 } from 'lucide-react';
+import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Info } from 'lucide-react';
 import { toast } from 'sonner';
 
-import ForgeContextDock from './ForgeContextDock';
-import CharacterInspector from './CharacterInspector';
 import ForgeChat from './ForgeChat';
+import ForgeCard from './ForgeCard'; // 🟢 New Component
 import { Character, DriveFile } from '../../types';
 import { ForgePayload, SoulEntity } from '../../types/forge';
-import { DetectedEntity } from './ForgeContextDock';
 
 interface ForgeDashboardProps {
     folderId: string; // Project Root ID (for global context)
     accessToken: string | null;
-    saga: DriveFile; // 🟢 Active Saga (The Hub Selection)
+    saga: DriveFile; // 🟢 Active Saga
 }
 
-type DashboardState = 'SCANNING' | 'IDE';
+type DashboardState = 'SCANNING' | 'KANBAN';
 
 const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, saga }) => {
     const [state, setState] = useState<DashboardState>('SCANNING');
@@ -26,24 +24,23 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const [sessionVersion, setSessionVersion] = useState(() => Date.now());
 
     // DATA
-    const [characters, setCharacters] = useState<Character[]>([]); // Global Roster
-    const charactersRef = useRef<Character[]>([]); // Ref for async access
-    const [detectedEntities, setDetectedEntities] = useState<DetectedEntity[]>([]); // Ghosts from Saga
+    const [characters, setCharacters] = useState<Character[]>([]);
+    const [detectedEntities, setDetectedEntities] = useState<SoulEntity[]>([]);
+
+    // UI STATE
+    const [selectedEntity, setSelectedEntity] = useState<SoulEntity | null>(null);
+    const [hiddenContext, setHiddenContext] = useState<string>("");
     const [initialReport, setInitialReport] = useState<string>("");
+
+    // OPERATIONS
     const [isSorting, setIsSorting] = useState(false);
 
-    // UI
-    const [inspectorData, setInspectorData] = useState<any | null>(null);
-    const [leftPanelWidth, setLeftPanelWidth] = useState(60);
-    const [isDragging, setIsDragging] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    // --- 1. FETCH SAGA ROSTER (SCOPED) ---
+    // --- 1. FETCH SAGA ROSTER (ANCHORS) ---
     useEffect(() => {
         const auth = getAuth();
         if (!auth.currentUser || !saga) return;
         const db = getFirestore();
-        // 🟢 SCOPED QUERY: Only characters belonging to this folder (Saga)
+        // SCOPED QUERY: Only characters belonging to this folder (Saga)
         const q = query(
             collection(db, "users", auth.currentUser.uid, "characters"),
             where("sourceContext", "==", saga.id)
@@ -54,236 +51,280 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 chars.push({ id: doc.id, ...doc.data(), status: 'EXISTING' } as Character);
             });
             setCharacters(chars);
-            charactersRef.current = chars; // Keep ref in sync immediately
+        }, (error) => {
+            console.error("Error fetching characters:", error);
         });
         return () => unsubscribe();
-    }, [saga.id]); // Re-subscribe if Saga changes
+    }, [saga.id]);
 
-    // --- 2. SOUL SORTER LISTENER (INSTANT LOAD) ---
+    // --- 2. SOUL SORTER LISTENER (GHOSTS & LIMBOS) ---
     useEffect(() => {
+        // 🟢 GHOST MODE BYPASS
+        if (import.meta.env.VITE_JULES_MODE === 'true') {
+            setState('KANBAN');
+            setIsLoading(false);
+            // Mock Data for Verification
+            setDetectedEntities([
+                { id: 'g1', name: 'Sombra del Pasillo', tier: 'GHOST', sourceSnippet: '...una figura alta se desvaneció...', occurrences: 3 },
+                { id: 'l1', name: 'Borrador Capitán', tier: 'LIMBO', sourceSnippet: 'Idea: Capitán retirado, cinico.', occurrences: 1, tags: ['Militar', 'Cínico'] }
+            ]);
+            return;
+        }
+
         const auth = getAuth();
         if (!auth.currentUser || !saga) return;
         const db = getFirestore();
 
-        // 🟢 GHOST MODE BYPASS
-        if (import.meta.env.VITE_JULES_MODE === 'true') {
-            setInitialReport("Modo Fantasma Activado. Escaneo simulado.");
-            setState('IDE');
-            setIsLoading(false);
-            return;
-        }
-
-        // Subscribe to Detected Entities (Soul Sorter Results)
         const q = query(
             collection(db, "users", auth.currentUser.uid, "forge_detected_entities"),
-            where("saga", "==", saga.id) // Filter by scope
+            where("saga", "==", saga.id)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const entities: any[] = [];
+            const entities: SoulEntity[] = [];
             snapshot.forEach(doc => {
                 const d = doc.data();
+                // Ensure we respect the tier from backend
                 entities.push({
-                    ...d,
                     id: doc.id,
-                    // Map Backend Tiers to UI Status
-                    status: d.tier === 'ANCHOR' ? 'EXISTING' : 'DETECTED', // ANCHORs behave like existing
-                    role: d.reasoning || "Detectado por Soul Sorter",
-                    description: (d.foundIn || []).join('\n'),
-                    relevance_score: d.confidence ? Math.round(d.confidence / 10) : 5
+                    name: d.name,
+                    tier: d.tier as 'GHOST' | 'LIMBO' | 'ANCHOR', // Trust backend
+                    sourceSnippet: d.sourceSnippet || (d.foundIn || []).join('\n'),
+                    occurrences: d.occurrences || d.confidence || 0,
+                    tags: d.tags,
+                    role: d.reasoning,
+                    mergeSuggestion: d.mergeSuggestion
                 });
             });
 
-            // 🟢 RECONCILIATION (Client-Side Shield)
-            // Filter out entities that are ALREADY in the Roster to avoid duplicates
-            // But we can only do this reliably if `characters` is loaded.
-            // For now, let's just set them. The ContextDock can handle duplicates or we filter there?
-            // Better to filter here if possible, but charactersRef might be empty on first render.
-            // We'll trust the Soul Sorter Tiers:
-            // ANCHOR = Likely a Sheet. LIMBO/GHOST = Likely Candidate.
-
             setDetectedEntities(entities);
-
-            // If we have data, we are ready instantly
-            if (entities.length > 0) {
-                setState('IDE');
-                setIsLoading(false);
-                setInitialReport(`Carga Instantánea: ${entities.length} entidades recuperadas.`);
-            } else {
-                // If empty, we wait a bit or just show IDE.
-                // We show IDE so user can click "Scan".
-                setState('IDE');
-                setIsLoading(false);
-                setInitialReport("No se detectaron entidades. Ejecuta el Escáner.");
-            }
+            setState('KANBAN');
+            setIsLoading(false);
         });
 
         return () => unsubscribe();
     }, [saga.id]);
 
-    // --- 3. TRIGGER SOUL SORTER (MANUAL REFRESH) ---
+    // --- ACTIONS ---
+
+    const handleEntityAction = (entity: SoulEntity) => {
+        // Reset state for new interaction
+        setHiddenContext("");
+        setInitialReport("");
+
+        // 1. GHOST (Materialize)
+        if (entity.tier === 'GHOST') {
+            setHiddenContext(`[SYSTEM]: El usuario quiere crear a ${entity.name} desde cero. Usa este snippet de contexto: '${entity.sourceSnippet}'. Pregúntale por su Rol y Motivación.`);
+            setInitialReport(`He detectado a **${entity.name}** en la historia. ¿Quién es realmente?`);
+        }
+        // 2. LIMBO (Refine)
+        else if (entity.tier === 'LIMBO') {
+            setHiddenContext(`[SYSTEM]: El usuario quiere pulir el borrador de ${entity.name}. Aquí está su nota original: '${entity.sourceSnippet}'. Ayúdale a convertir esto en una ficha estructurada.`);
+            setInitialReport(`Veo que tienes notas sobre **${entity.name}**. ¿Las expandimos a una ficha completa?`);
+        }
+        // 3. ANCHOR (Edit)
+        else {
+             // For anchors, we just open the context.
+             setInitialReport(`Abriendo expediente de **${entity.name}**...`);
+        }
+
+        setSelectedEntity(entity);
+    };
+
     const handleForceAnalysis = async () => {
         setIsSorting(true);
         const toastId = toast.loading("Ejecutando Soul Sorter...");
-
         try {
             const functions = getFunctions();
             const classifyEntities = httpsCallable<any, ForgePayload>(functions, 'classifyEntities');
-
-            const result = await classifyEntities({
-                projectId: folderId,
-                sagaId: saga.id
-            });
-
-            const payload = result.data;
-            console.log('Soul Sorter Raw Response:', payload);
-
-            if (!payload || !payload.entities || payload.entities.length === 0) {
-                 toast.info("Nexus no detectó entidades nuevas en el Canon.", { id: toastId });
-            } else {
-                 toast.success(`Análisis completado. Detectados: ${payload.stats.totalGhosts} Ghosts, ${payload.stats.totalLimbos} Limbos.`, { id: toastId });
-
-                 // 🟢 MAPEO TEMPORAL (Instant UI Feedback)
-                 const anchors = payload.entities.filter(e => e.tier === 'ANCHOR');
-                 const detected = payload.entities.filter(e => e.tier !== 'ANCHOR');
-
-                 // 1. ANCHORS -> CHARACTERS LIST
-                 if (anchors.length > 0) {
-                    setCharacters(prev => {
-                        const newChars = [...prev];
-                        anchors.forEach(a => {
-                            if (!newChars.find(c => c.name === a.name)) {
-                                newChars.push({
-                                    id: a.id, // Use Hash as ID
-                                    name: a.name,
-                                    role: a.role,
-                                    avatar: a.avatar,
-                                    tier: 'MAIN', // Default to MAIN for found anchors? Or SUPPORTING?
-                                    status: 'EXISTING',
-                                    sourceContext: saga.id,
-                                    masterFileId: a.driveId,
-                                    lastUpdated: new Date().toISOString()
-                                } as Character);
-                            }
-                        });
-                        return newChars;
-                    });
-                 }
-
-                 // 2. OTHERS -> DETECTED LIST
-                 // Map SoulEntity -> DetectedEntity
-                 const detectedMapped: DetectedEntity[] = detected.map(d => ({
-                     id: d.id,
-                     name: d.name,
-                     role: d.role || "Entidad Detectada",
-                     relevance_score: Math.min(10, Math.ceil(d.occurrences / 2)),
-                     status: 'DETECTED',
-                     suggested_action: d.mergeSuggestion ? 'Merge' : 'None',
-                     description: d.sourceSnippet
-                 }));
-                 setDetectedEntities(detectedMapped);
-            }
-
+            await classifyEntities({ projectId: folderId, sagaId: saga.id });
+            toast.success("Análisis completado.", { id: toastId });
         } catch (error) {
-            console.error("Soul Sorter Error:", error);
+            console.error(error);
             toast.error("Error al analizar la saga.", { id: toastId });
         } finally {
             setIsSorting(false);
         }
     };
 
-    const handleResetSession = () => setSessionVersion(prev => prev + 1);
+    // --- PREPARE COLUMNS ---
 
-    // RESIZE LOGIC
-    useEffect(() => {
-        const handleMouseMove = (e: MouseEvent) => {
-            if (!isDragging || !containerRef.current) return;
-            const containerRect = containerRef.current.getBoundingClientRect();
-            const newWidth = ((e.clientX - containerRect.left) / containerRect.width) * 100;
-            if (newWidth > 95) setLeftPanelWidth(100);
-            else if (newWidth < 20) setLeftPanelWidth(20);
-            else setLeftPanelWidth(newWidth);
-        };
-        const handleMouseUp = () => setIsDragging(false);
-        if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        }
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging]);
+    // Col 1: Ghosts
+    const ghosts = detectedEntities.filter(e => e.tier === 'GHOST');
 
-    // RENDER
+    // Col 2: Limbos
+    const limbos = detectedEntities.filter(e => e.tier === 'LIMBO');
+
+    // Col 3: Anchors (From Characters Collection + Anchors in Detected that matched)
+    // We prefer the 'characters' state as the source of truth for the Library.
+    const anchors: SoulEntity[] = characters.map(c => ({
+        id: c.id,
+        name: c.name,
+        tier: 'ANCHOR',
+        sourceSnippet: c.role || "Personaje Registrado",
+        occurrences: 0, // Not available in Character type usually
+        role: c.role,
+        avatar: c.avatar
+    }));
+
     if (state === 'SCANNING') {
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-100 space-y-4 animate-fade-in">
-                <Loader2 size={48} className="animate-spin text-accent-DEFAULT" />
-                <h2 className="text-2xl font-bold">Invocando Saga...</h2>
-                <p className="text-titanium-400">Escaneando archivos en {saga.name}</p>
-                <p className="text-xs text-titanium-600">Detectando fantasmas y sincronizando el Canon.</p>
-                {/* 🟢 PROGRESS BAR OR FILE INFO? */}
-                <p className="text-xs text-titanium-500 font-mono mt-2">{initialReport}</p>
+             <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-100 animate-fade-in">
+                <Loader2 size={48} className="animate-spin text-accent-DEFAULT mb-4" />
+                <h2 className="text-xl font-bold">Invocando Saga...</h2>
             </div>
         );
     }
 
-    // SCOPE OBJECT FOR CHAT
-    // We construct the scope based on the active Saga
-    const sagaScope = {
-        id: saga.id,
-        name: saga.name,
-        path: (saga as any).path || saga.name, // Use path if available for RAG
-        recursiveIds: [saga.id] // Base ID
-    };
+    // Dynamic Session ID for Chat
+    const chatSessionId = selectedEntity
+        ? `forge_${saga.id}_${selectedEntity.id}` // Entity Context
+        : `saga_${saga.id}_v${sessionVersion}`;   // General Context (Fallback)
 
     return (
-        <div ref={containerRef} className="w-full h-full flex bg-titanium-950 overflow-hidden relative">
-            {/* LEFT PANEL: CHAT / EDITOR */}
-            <div style={{ width: `${leftPanelWidth}%` }} className="h-full flex flex-col relative transition-all duration-75 ease-out">
-                <ForgeChat
-                    sessionId={`saga_${saga.id}_v${sessionVersion}`}
-                    sessionName={`Saga: ${saga.name}`}
-                    onBack={() => {}} // No back button inside chat anymore
-                    folderId={folderId}
-                    accessToken={accessToken}
-                    selectedScope={sagaScope} // 🟢 Pass Saga Scope
-                    activeContextFile={undefined} // No specific file open initially
-                    initialReport={initialReport}
-                    onReset={handleResetSession}
-                />
+        <div className="w-full h-full flex flex-col bg-titanium-950 overflow-hidden relative">
+
+            {/* HEADER */}
+            <header className="h-16 shrink-0 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900/50 backdrop-blur">
+                <div className="flex items-center gap-3">
+                    <h1 className="text-lg font-bold text-titanium-100 uppercase tracking-widest">
+                        Tríptico <span className="text-accent-DEFAULT">Titanium</span>
+                    </h1>
+                    <span className="px-2 py-0.5 rounded bg-titanium-800 text-[10px] text-titanium-400 font-mono">
+                        {saga.name}
+                    </span>
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handleForceAnalysis}
+                        disabled={isSorting}
+                        className="p-2 rounded-full hover:bg-titanium-800 text-titanium-400 hover:text-accent-DEFAULT transition-colors"
+                        title="Re-escanear Saga"
+                    >
+                        <RefreshCw size={18} className={isSorting ? "animate-spin" : ""} />
+                    </button>
+                    {/* Placeholder for Unlink/Settings */}
+                    <button className="p-2 rounded-full hover:bg-titanium-800 text-titanium-400 hover:text-white transition-colors">
+                        <Settings size={18} />
+                    </button>
+                </div>
+            </header>
+
+            {/* KANBAN GRID */}
+            <div className="flex-1 overflow-hidden p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                {/* COLUMN 1: ECOS (Radar) */}
+                <div className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
+                    <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
+                        <Ghost size={16} className="text-cyan-500" />
+                        <h2 className="text-sm font-bold text-cyan-500 uppercase tracking-wider">Ecos (Radar)</h2>
+                        <span className="ml-auto text-xs font-mono text-titanium-600">{ghosts.length}</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        {ghosts.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                                <Ghost size={32} className="mb-2" />
+                                <p className="text-sm">El radar está en silencio.<br/>Escribe más historia.</p>
+                            </div>
+                        ) : (
+                            ghosts.map(e => (
+                                <ForgeCard key={e.id} entity={e} onAction={handleEntityAction} />
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                {/* COLUMN 2: LIMBOS (Workshop) */}
+                <div className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
+                    <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
+                        <FileEdit size={16} className="text-amber-500" />
+                        <h2 className="text-sm font-bold text-amber-500 uppercase tracking-wider">Limbos (Taller)</h2>
+                        <span className="ml-auto text-xs font-mono text-titanium-600">{limbos.length}</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                         {limbos.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                                <FileEdit size={32} className="mb-2" />
+                                <p className="text-sm">La mesa de trabajo está limpia.</p>
+                            </div>
+                        ) : (
+                            limbos.map(e => (
+                                <ForgeCard key={e.id} entity={e} onAction={handleEntityAction} />
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                {/* COLUMN 3: ANCHORS (Library) */}
+                <div className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
+                    <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
+                        <Anchor size={16} className="text-emerald-500" />
+                        <h2 className="text-sm font-bold text-emerald-500 uppercase tracking-wider">Anclas (Bóveda)</h2>
+                        <span className="ml-auto text-xs font-mono text-titanium-600">{anchors.length}</span>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                         {anchors.length === 0 ? (
+                            <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                                <Anchor size={32} className="mb-2" />
+                                <p className="text-sm">La bóveda está vacía.<br/>Cristaliza alguna alma.</p>
+                            </div>
+                        ) : (
+                            anchors.map(e => (
+                                <ForgeCard key={e.id} entity={e} onAction={handleEntityAction} />
+                            ))
+                        )}
+                    </div>
+                </div>
+
             </div>
 
-            {/* RESIZER */}
+            {/* CHAT SLIDE-OVER */}
             <div
-                className={`w-1 h-full cursor-col-resize hover:bg-accent-DEFAULT transition-colors z-50 flex-shrink-0 ${isDragging ? 'bg-accent-DEFAULT' : 'bg-titanium-800'}`}
-                onMouseDown={(e) => { setIsDragging(true); e.preventDefault(); }}
-            />
+                className={`absolute inset-y-0 right-0 w-[500px] bg-titanium-950 shadow-2xl border-l border-titanium-800 transform transition-transform duration-300 z-50 ${
+                    selectedEntity ? 'translate-x-0' : 'translate-x-full'
+                }`}
+            >
+                {selectedEntity && (
+                    <div className="h-full flex flex-col">
+                        {/* Close Handler Overlay (Optional, for click outside? No, button needed) */}
+                        <div className="absolute top-4 left-4 z-50">
+                            <button
+                                onClick={() => setSelectedEntity(null)}
+                                className="p-2 rounded-full bg-titanium-900/80 hover:bg-titanium-800 text-titanium-400 hover:text-white transition-colors backdrop-blur"
+                            >
+                                <span className="sr-only">Cerrar Chat</span>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                        </div>
 
-            {/* RIGHT PANEL: CONTEXT DOCK */}
-            <div style={{ width: `${100 - leftPanelWidth}%` }} className={`h-full flex flex-col ${leftPanelWidth === 100 ? 'hidden' : ''}`}>
-                <ForgeContextDock
-                    characters={characters}
-                    detectedEntities={detectedEntities}
-                    onCharacterSelect={setInspectorData}
-                    isLoading={isSorting}
-                    onRefresh={handleForceAnalysis}
-                />
+                        <ForgeChat
+                            key={chatSessionId} // Force re-mount on entity switch
+                            sessionId={chatSessionId}
+                            sessionName={selectedEntity.name}
+                            onBack={() => setSelectedEntity(null)}
+                            folderId={folderId}
+                            accessToken={accessToken}
+                            selectedScope={{
+                                id: saga.id,
+                                name: saga.name,
+                                recursiveIds: [saga.id],
+                                path: (saga as any).path
+                            }}
+                            initialReport={initialReport}
+                            hiddenContext={hiddenContext}
+                        />
+                    </div>
+                )}
             </div>
 
-            {/* INSPECTOR */}
-            {inspectorData && (
-                <CharacterInspector
-                    data={inspectorData}
-                    onClose={() => setInspectorData(null)}
-                    onMaterialize={(char) => {
-                        setDetectedEntities(prev => prev.map(e => e.name === char.name ? { ...e, status: 'EXISTING' } : e));
-                    }}
-                    folderId={saga.id} // Create files in the Saga folder by default
-                    accessToken={accessToken}
+            {/* Backdrop for Chat (Optional) */}
+            {selectedEntity && (
+                <div
+                    className="absolute inset-0 bg-black/50 backdrop-blur-sm z-40"
+                    onClick={() => setSelectedEntity(null)}
                 />
             )}
+
         </div>
     );
 };

@@ -31,6 +31,7 @@ interface ForgeChatProps {
     onReset?: () => void;
     // 🟢 NEW SCOPE PROP
     selectedScope: { id: string | null; name: string; recursiveIds: string[]; path?: string };
+    hiddenContext?: string; // 🟢 Hidden Context for Model
 }
 
 type ThinkingState = 'IDLE' | 'THINKING' | 'CONSULTING_ARCHIVES' | 'ERROR';
@@ -45,7 +46,8 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     activeContextFile,
     initialReport,
     onReset,
-    selectedScope
+    selectedScope,
+    hiddenContext
 }) => {
     const { setTechnicalError } = useProjectConfig(); // 👈 CONSUME CONTEXT
     const [messages, setMessages] = useState<Message[]>([]);
@@ -59,7 +61,6 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     const currentStreamResponseRef = useRef<string>("");
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const initializedRef = useRef(false);
 
     // SCROLL TO BOTTOM
     const scrollToBottom = () => {
@@ -72,49 +73,53 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
     // LOAD HISTORY & INJECT INITIAL REPORT
     useEffect(() => {
+        let ignore = false;
+
         const loadHistory = async () => {
             setIsLoading(true);
             const functions = getFunctions();
             const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
 
+            let loadedMessages: Message[] = [];
             try {
                 const result: any = await getForgeHistory({ sessionId });
-                let loadedMessages = result.data as Message[];
-
-                // INJECTION LOGIC: If history is empty AND we have an initial report, inject it.
-                if (loadedMessages.length === 0 && initialReport && !initializedRef.current) {
-                    const reportMsg: Message = {
-                        role: 'model',
-                        text: initialReport,
-                        timestamp: new Date().toISOString()
-                    };
-
-                    // Optimistic add locally
-                    loadedMessages = [reportMsg];
-
-                    // Async save to backend
-                    const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
-                    addForgeMessage({
-                        sessionId,
-                        role: 'model',
-                        text: initialReport
-                    }).catch(console.error);
-
-                    initializedRef.current = true;
-                }
-
-                setMessages(loadedMessages);
+                loadedMessages = result.data as Message[];
             } catch (error) {
-                console.error("Error loading history:", error);
-                toast.error("Error al cargar el historial.");
-            } finally {
-                setIsLoading(false);
+                console.warn("History load failed (Offline/Ghost):", error);
             }
+
+            if (ignore) return;
+
+            // INJECTION LOGIC: If history is empty AND we have an initial report, inject it.
+            if (loadedMessages.length === 0 && initialReport) {
+                const reportMsg: Message = {
+                    role: 'model',
+                    text: initialReport,
+                    timestamp: new Date().toISOString()
+                };
+
+                // Optimistic add locally
+                loadedMessages = [reportMsg];
+
+                // Async save to backend (Fire & Forget)
+                // Only try to save if we think we are online/authenticated or just try and fail silently
+                const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
+                addForgeMessage({
+                    sessionId,
+                    role: 'model',
+                    text: initialReport
+                }).catch(e => console.warn("Failed to persist initial report:", e));
+            }
+
+            setMessages(loadedMessages);
+            setIsLoading(false);
         };
 
         if (sessionId) {
             loadHistory();
         }
+
+        return () => { ignore = true; };
     }, [sessionId]);
 
     // 🟢 HANDLE PURGE (DESTRUCTIVE RESET)
@@ -169,10 +174,12 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
         }
 
         // 3. Prepare History
-        const historyContext = messages.map(m => ({ role: m.role, message: m.text }));
-        // Note: We don't push the new userText to historyContext here because
-        // the backend usually expects the new query separately, or we append it.
-        // The backend logic I wrote expects `history` AND `query`.
+        let historyContext = messages.map(m => ({ role: m.role, message: m.text }));
+
+        // 🟢 INJECT HIDDEN CONTEXT (Always prepend to history if present)
+        if (hiddenContext) {
+            historyContext = [{ role: 'user', message: `[SYSTEM CONTEXT]: ${hiddenContext}` }, ...historyContext];
+        }
 
         // 4. Construct URL
         const app = getApp();
