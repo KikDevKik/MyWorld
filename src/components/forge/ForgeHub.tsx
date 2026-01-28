@@ -41,7 +41,9 @@ const ForgeHub: React.FC<ForgeHubProps> = ({ roots, accessToken, onSelectSaga })
                 }
 
                 // SCENARIO 2: DEEP DIVE
-                if (!accessToken) {
+                // 🟢 GHOST MODE BYPASS: Allow deep dive without token in dev mode
+                const isGhostMode = import.meta.env.VITE_JULES_MODE === 'true';
+                if (!accessToken && !isGhostMode) {
                     // Only enforce token for deep dive
                     setError("Conexión perdida. Por favor recarga.");
                     setLoading(false);
