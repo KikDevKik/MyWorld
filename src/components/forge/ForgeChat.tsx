@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getAuth } from 'firebase/auth'; // 🟢 For ID Token
 import { getApp } from 'firebase/app'; // 🟢 For Project ID
 import { ArrowLeft, Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
@@ -186,11 +187,15 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
         // 🟢 STREAM READER LOGIC
         try {
+            // 🟢 SECURITY FIX: Use Firebase ID Token, NOT Drive Access Token
+            const auth = getAuth();
+            const idToken = await auth.currentUser?.getIdToken();
+
             const response = await fetch(functionUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${idToken}`
                 },
                 body: JSON.stringify({
                     query: userText,

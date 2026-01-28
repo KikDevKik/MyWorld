@@ -137,7 +137,11 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 // Identify candidates NOT in local roster
                 const potentialExternal = [];
 
-                for (const c of candidates) {
+                // 🟢 FILTER: STRICTLY CHARACTERS
+                // The Soul Forge is for Characters only. Ignore Locations, Objects, Concepts, etc.
+                const characterCandidates = candidates.filter(c => c.type === 'CHARACTER');
+
+                for (const c of characterCandidates) {
                     // Use Ref to avoid stale closure if characters loaded while analyzing
                     const localMatch = charactersRef.current.find(char => char.name.toLowerCase() === c.name.toLowerCase());
 
