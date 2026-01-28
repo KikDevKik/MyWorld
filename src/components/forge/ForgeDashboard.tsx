@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getFirestore, collection, onSnapshot, query } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Loader2 } from 'lucide-react';
@@ -25,6 +25,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // DATA
     const [characters, setCharacters] = useState<Character[]>([]); // Global Roster
+    const charactersRef = useRef<Character[]>([]); // Ref for async access
     const [detectedEntities, setDetectedEntities] = useState<any[]>([]); // Ghosts from Saga
     const [initialReport, setInitialReport] = useState<string>("");
 
@@ -34,21 +35,26 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const [isDragging, setIsDragging] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // --- 1. FETCH GLOBAL ROSTER (BACKGROUND) ---
+    // --- 1. FETCH SAGA ROSTER (SCOPED) ---
     useEffect(() => {
         const auth = getAuth();
-        if (!auth.currentUser) return;
+        if (!auth.currentUser || !saga) return;
         const db = getFirestore();
-        const q = query(collection(db, "users", auth.currentUser.uid, "characters"));
+        // 🟢 SCOPED QUERY: Only characters belonging to this folder (Saga)
+        const q = query(
+            collection(db, "users", auth.currentUser.uid, "characters"),
+            where("sourceContext", "==", saga.id)
+        );
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const chars: Character[] = [];
             snapshot.forEach(doc => {
                 chars.push({ id: doc.id, ...doc.data(), status: 'EXISTING' } as Character);
             });
             setCharacters(chars);
+            charactersRef.current = chars; // Keep ref in sync immediately
         });
         return () => unsubscribe();
-    }, []);
+    }, [saga.id]); // Re-subscribe if Saga changes
 
     // --- 2. SAGA SCAN (AUTO-MOUNT) ---
     useEffect(() => {
@@ -70,7 +76,11 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 });
 
                 const root = (listResult.data as DriveFile[])[0];
-                const files = root?.children?.filter(f => f.type === 'file' && (f.name.endsWith('.md') || f.name.endsWith('.txt') || f.mimeType.includes('document'))) || [];
+                const files = root?.children?.filter(f =>
+                    f.type === 'file' &&
+                    (f.name.endsWith('.md') || f.name.endsWith('.txt') || f.mimeType.includes('document')) &&
+                    !f.name.toLowerCase().includes('personajes') // 🟢 Exclude "Personajes Saga X" lists
+                ) || [];
 
                 if (files.length === 0) {
                     toast.info("Saga vacía (sin archivos de texto). Iniciando modo creativo.");
@@ -95,21 +105,84 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 let candidates = result.data.candidates || [];
 
                 // C. RECONCILIATION (GHOSTS VS ROSTER)
-                // If a candidate matches an existing character, link ID
-                candidates = candidates.map((c: any) => {
-                    const match = characters.find(char => char.name.toLowerCase() === c.name.toLowerCase());
-                    return {
-                        ...c,
-                        id: match ? match.id : undefined,
-                        status: match ? 'EXISTING' : 'DETECTED',
-                        // UI Mapping
-                        role: c.role || c.description || c.subtype || c.type,
-                        relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5
-                    };
-                });
+                const processedCandidates = [];
+                const db = getFirestore();
+                const auth = getAuth();
 
-                setDetectedEntities(candidates);
-                setInitialReport(`Saga "${saga.name}" escaneada. ${candidates.length} entidades detectadas.`);
+                // Identify candidates NOT in local roster
+                const potentialExternal = [];
+
+                for (const c of candidates) {
+                    // Use Ref to avoid stale closure if characters loaded while analyzing
+                    const localMatch = charactersRef.current.find(char => char.name.toLowerCase() === c.name.toLowerCase());
+
+                    if (localMatch) {
+                        processedCandidates.push({
+                            ...c,
+                            id: localMatch.id,
+                            status: 'EXISTING',
+                            role: c.role || c.description || c.subtype || c.type,
+                            relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5
+                        });
+                    } else {
+                        potentialExternal.push(c);
+                    }
+                }
+
+                // D. GLOBAL CHECK (EXTERNAL vs GHOST)
+                if (potentialExternal.length > 0 && auth.currentUser) {
+                    const namesToCheck = potentialExternal.map(c => c.name);
+                    // Firestore 'in' limit is 10 (or 30 depending on version), but usually safe for batch of 10 files
+                    // We split into chunks if needed, but for now assuming small batches
+                    try {
+                        const globalQ = query(
+                            collection(db, "users", auth.currentUser.uid, "characters"),
+                            where("name", "in", namesToCheck.slice(0, 30))
+                        );
+                        const globalSnapshot = await getDocs(globalQ);
+
+                        const globalMatches = new Map();
+                        globalSnapshot.forEach(doc => {
+                            globalMatches.set(doc.data().name.toLowerCase(), doc.data());
+                        });
+
+                        potentialExternal.forEach(c => {
+                            const externalMatch = globalMatches.get(c.name.toLowerCase());
+                            if (externalMatch) {
+                                processedCandidates.push({
+                                    ...c,
+                                    id: externalMatch.id, // Or undefined if we want to force re-linking? Better to link.
+                                    status: 'EXTERNAL', // 🟢 New Status
+                                    role: `Existente en otra Saga`, // UI hint
+                                    relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5,
+                                    originalContext: externalMatch.sourceContext // Save logic for UI
+                                });
+                            } else {
+                                processedCandidates.push({
+                                    ...c,
+                                    status: 'DETECTED',
+                                    role: c.role || c.description || c.subtype || c.type,
+                                    relevance_score: c.confidence ? Math.round(c.confidence / 10) : 5
+                                });
+                            }
+                        });
+
+                    } catch (err) {
+                        console.warn("Global check failed, defaulting to DETECTED", err);
+                        // Fallback: mark all as DETECTED
+                        potentialExternal.forEach(c => processedCandidates.push({
+                            ...c, status: 'DETECTED', role: c.role, relevance_score: 5
+                        }));
+                    }
+                } else {
+                    // No potential external or no user?
+                    potentialExternal.forEach(c => processedCandidates.push({
+                        ...c, status: 'DETECTED', role: c.role, relevance_score: 5
+                    }));
+                }
+
+                setDetectedEntities(processedCandidates);
+                setInitialReport(`Saga "${saga.name}" escaneada. ${processedCandidates.length} entidades procesadas.`);
                 setState('IDE');
 
             } catch (error) {
