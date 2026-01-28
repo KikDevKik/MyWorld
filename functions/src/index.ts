@@ -526,6 +526,12 @@ export const checkSentinelIntegrity = onCall(
 export { analyzeNexusFile } from "./nexus_scan";
 
 /**
+ * 29.1. ANALYZE FORGE BATCH (Soul Forge)
+ * Escáner especializado para personajes (ignora objetos/conceptos).
+ */
+export { analyzeForgeBatch } from "./forge_scan";
+
+/**
  * 28. ANALYZE CONNECTION (El Abogado del Diablo)
  * Genera una razón narrativa para un vínculo entre dos entidades.
  */
