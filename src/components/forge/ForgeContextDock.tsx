@@ -1,13 +1,13 @@
 import React from 'react';
 import { Character } from '../../types';
-import { Users, Ghost, User, BookOpen, RefreshCw } from 'lucide-react';
+import { Users, Ghost, User, BookOpen, RefreshCw, Link2 } from 'lucide-react';
 
 export interface DetectedEntity {
     id?: string; // Optional ID if matched
     name: string;
     role: string;
     relevance_score: number;
-    status: 'EXISTING' | 'DETECTED';
+    status: 'EXISTING' | 'DETECTED' | 'EXTERNAL';
     suggested_action: string;
 }
 
@@ -25,9 +25,9 @@ const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detecte
     const protagonists = characters.filter(c => c.tier === 'MAIN');
     const secondary = characters.filter(c => c.tier === 'SUPPORTING');
 
-    // Filter ghosts (only show those that are NOT EXISTING in the detected list,
-    // although the analyzer should handle this, visual separation is good)
+    // Filter ghosts
     const ghosts = detectedEntities.filter(e => e.status === 'DETECTED');
+    const external = detectedEntities.filter(e => e.status === 'EXTERNAL');
 
     if (isLoading) {
         return (
@@ -46,7 +46,7 @@ const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detecte
             <div className="h-14 flex items-center justify-between px-6 border-b border-titanium-800 shrink-0 bg-titanium-900/50">
                 <h3 className="text-sm font-bold text-titanium-300 uppercase tracking-wider flex items-center gap-2">
                     <BookOpen size={16} />
-                    <span>Dramatis Personae</span>
+                    <span>PERSONAJES</span>
                 </h3>
                 {onRefresh && (
                     <button
@@ -98,6 +98,30 @@ const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detecte
                                 >
                                     <div className="font-medium text-titanium-300 group-hover:text-titanium-100 truncate">{char.name}</div>
                                     <div className="text-xs text-titanium-600 truncate">{char.role || "Sin rol definido"}</div>
+                                </button>
+                            ))}
+                        </div>
+                    </section>
+                )}
+
+                {/* EXTERNAL (CROSS-SAGA) */}
+                {external.length > 0 && (
+                    <section>
+                        <h4 className="text-xs font-bold text-amber-500/80 mb-3 px-2 flex items-center gap-2">
+                            <Link2 size={12} /> REFERENCIAS EXTERNAS
+                        </h4>
+                        <div className="space-y-1">
+                            {external.map((entity, idx) => (
+                                <button
+                                    key={`ext-${idx}`}
+                                    onClick={() => onCharacterSelect(entity)}
+                                    className="w-full text-left p-3 rounded-lg bg-titanium-900/20 border border-titanium-800 hover:border-amber-500/30 hover:bg-amber-900/10 transition-all group"
+                                >
+                                    <div className="font-medium text-titanium-300 group-hover:text-amber-200 truncate flex justify-between">
+                                        <span>{entity.name}</span>
+                                        {/* Optional Icon for External */}
+                                    </div>
+                                    <div className="text-xs text-titanium-600 truncate group-hover:text-amber-500/70">{entity.role}</div>
                                 </button>
                             ))}
                         </div>
