@@ -1,0 +1,36 @@
+🚀 INSTRUCCIONES PARA LA FASE 3: EL CEREBRO (ACTIVACIÓN DEL RAG)
+
+Hola Jules,
+
+La Fase 2 (Refactorización y Limpieza) ha sido completada con éxito. El tablero está limpio y aislado contextualmente. Ahora es momento de conectar la inteligencia real.
+
+🎯 OBJETIVO PRINCIPAL:
+Convertir el chat de la Forja (ForgeChat.tsx) de un simple asistente reactivo en un "Oráculo de la Historia". Debe ser capaz de responder preguntas sobre el lore profundo que no está visible en pantalla, utilizando la base de conocimientos vectorial.
+
+⚙️ TAREAS TÉCNICAS:
+
+1.  **Conexión Vectorial (TDB_Index):**
+    -   Habilitar la búsqueda en la colección/índice `TDB_Index` de Firestore/Vector Store.
+    -   Cuando el usuario haga una pregunta en `ForgeChat`, el sistema no solo debe mirar el historial del chat, sino realizar una búsqueda semántica (RAG) para recuperar fragmentos relevantes.
+
+2.  **Contexto Dinámico (Chunks):**
+    -   Implementar la inyección de "Chunks" (fragmentos de texto procesados) en el prompt del sistema.
+    -   Ejemplo de caso de uso: Si el usuario pregunta "¿Por qué Anna odia el puente?", el sistema debe recuperar los párrafos de capítulos anteriores donde se menciona el evento del puente y usarlos para generar la respuesta.
+
+3.  **Integración con 'The Builder' (Scopeado):**
+    -   Reutilizar o adaptar la lógica de `builder.ts` (Cloud Function) para gestionar estas consultas.
+    -   **CRÍTICO:** Asegurar que el contexto se restrinja a la SAGA ACTIVA (o carpetas designadas como Canon de esta saga). Evitar "contaminación cruzada" de otras historias a menos que se solicite explícitamente.
+    -   El `folderId` o `scope` actual de la Forja debe pasarse como filtro estricto a la función de búsqueda vectorial.
+
+4.  **UX del Pensamiento:**
+    -   Considerar mostrar visualmente que la IA está "Consultando los Archivos" o "Leyendo el Canon" antes de responder, para dar feedback de que está ocurriendo un proceso RAG.
+
+📂 ARCHIVOS IMPACTADOS (Estimados):
+-   `src/components/forge/ForgeChat.tsx` (Frontend)
+-   `functions/src/builder.ts` (Backend - o nueva función específica para Forge)
+-   `src/hooks/useForgeChat.ts` (si existe, o lógica de hook de chat)
+
+⚠️ NOTA:
+Esta fase es puramente lógica y de backend/integración. La UI no debería cambiar drásticamente, salvo por indicadores de estado ("Pensando...", "Consultando Canon...").
+
+¡Proceda con la activación sináptica, Comandante! 🧠
