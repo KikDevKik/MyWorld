@@ -282,7 +282,7 @@ export const builderStream = onRequest(
                          try {
                              const embeddings = new GoogleGenerativeAIEmbeddings({
                                 apiKey: googleApiKey.value(),
-                                model: "embedding-001",
+                                model: "text-embedding-004",
                                 taskType: TaskType.RETRIEVAL_QUERY,
                              });
 
