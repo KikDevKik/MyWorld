@@ -103,7 +103,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 let candidates: any[] = [];
                 const BATCH_SIZE = 1; // Strict sequential to avoid global timeout
 
-                const analyzeNexusFile = httpsCallable(functions, 'analyzeNexusFile', { timeout: 540000 }); // 9 mins
+                // 🟢 SWITCH TO DEDICATED FORGE ANALYZER
+                const analyzeForgeBatch = httpsCallable(functions, 'analyzeForgeBatch', { timeout: 540000 }); // 9 mins
 
                 for (let i = 0; i < targetFiles.length; i += BATCH_SIZE) {
                     const batch = targetFiles.slice(i, i + BATCH_SIZE);
@@ -113,7 +114,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     setInitialReport(`Analizando archivo ${i + 1} de ${targetFiles.length}: "${batch[0].name}"...`);
 
                     try {
-                        const result: any = await analyzeNexusFile({
+                        const result: any = await analyzeForgeBatch({
                             fileIds,
                             projectId: folderId, // Context
                             accessToken,
@@ -121,7 +122,39 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         });
 
                         if (result.data.candidates) {
-                            candidates = [...candidates, ...result.data.candidates];
+                            // 🟢 CLIENT-SIDE DEDUPLICATION
+                            // Merge new candidates into the growing list
+                            const newCandidates = result.data.candidates;
+                            const mergedMap = new Map();
+
+                            // 1. Load existing into Map
+                            candidates.forEach(c => mergedMap.set(c.name.toLowerCase().trim(), c));
+
+                            // 2. Merge new ones
+                            newCandidates.forEach((nc: any) => {
+                                const key = nc.name.toLowerCase().trim();
+                                if (mergedMap.has(key)) {
+                                    // Merge Logic
+                                    const existing = mergedMap.get(key);
+
+                                    // Combine descriptions if different
+                                    if (nc.description && !existing.description.includes(nc.description)) {
+                                        existing.description = `${existing.description}\n\n[Alternative Source]: ${nc.description}`;
+                                    }
+
+                                    // Combine FoundInFiles
+                                    if (nc.foundInFiles) {
+                                        existing.foundInFiles = [...(existing.foundInFiles || []), ...nc.foundInFiles];
+                                    }
+
+                                    // Keep existing metadata usually, or update confidence if higher?
+                                    // Let's keep existing to avoid overwriting stable data, but append context.
+                                } else {
+                                    mergedMap.set(key, nc);
+                                }
+                            });
+
+                            candidates = Array.from(mergedMap.values());
                         }
                     } catch (err) {
                         console.error(`Failed to analyze batch starting at ${i}:`, err);

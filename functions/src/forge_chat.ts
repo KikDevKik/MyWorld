@@ -161,7 +161,8 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
                      const searchQuery = (call.args as any).query;
 
                      // 1. EMBEDDING (Native SDK)
-                     const embeddingModel = genAI.getGenerativeModel({ model: "embedding-001" });
+                     // 🟢 FIX: Use 'text-embedding-004' (v1beta standard)
+                     const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
                      const embedResult = await embeddingModel.embedContent(searchQuery);
                      const queryVector = embedResult.embedding.values;
 
