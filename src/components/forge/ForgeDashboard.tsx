@@ -98,19 +98,36 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 }
 
                 // B. ANALYZE BATCH (GHOST DETECTION)
-                // Use a subset to avoid timeouts if too many files
+                // 🟢 REFACTOR: Sequential Processing to prevent 'deadline-exceeded'
                 const targetFiles = files.slice(0, 10); // Limit to 10 for speed
-                const fileIds = targetFiles.map(f => f.id);
+                let candidates: any[] = [];
+                const BATCH_SIZE = 1; // Strict sequential to avoid global timeout
 
-                const analyzeNexusFile = httpsCallable(functions, 'analyzeNexusFile');
-                const result: any = await analyzeNexusFile({
-                    fileIds,
-                    projectId: folderId, // Context
-                    accessToken,
-                    contextType: 'NARRATIVE'
-                });
+                const analyzeNexusFile = httpsCallable(functions, 'analyzeNexusFile', { timeout: 540000 }); // 9 mins
 
-                let candidates = result.data.candidates || [];
+                for (let i = 0; i < targetFiles.length; i += BATCH_SIZE) {
+                    const batch = targetFiles.slice(i, i + BATCH_SIZE);
+                    const fileIds = batch.map(f => f.id);
+
+                    // Update UI Progress
+                    setInitialReport(`Analizando archivo ${i + 1} de ${targetFiles.length}: "${batch[0].name}"...`);
+
+                    try {
+                        const result: any = await analyzeNexusFile({
+                            fileIds,
+                            projectId: folderId, // Context
+                            accessToken,
+                            contextType: 'NARRATIVE'
+                        });
+
+                        if (result.data.candidates) {
+                            candidates = [...candidates, ...result.data.candidates];
+                        }
+                    } catch (err) {
+                        console.error(`Failed to analyze batch starting at ${i}:`, err);
+                        // Continue to next batch instead of crashing
+                    }
+                }
 
                 // C. RECONCILIATION (GHOSTS VS ROSTER)
                 const processedCandidates = [];
