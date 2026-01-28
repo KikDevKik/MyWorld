@@ -18,6 +18,18 @@ interface ForgeDashboardProps {
 
 type DashboardState = 'SCANNING' | 'IDE';
 
+// 🟢 HELPER: Flatten Tree
+const flattenTree = (nodes: DriveFile[]): DriveFile[] => {
+    let result: DriveFile[] = [];
+    nodes.forEach(node => {
+        result.push(node);
+        if (node.children) {
+            result = [...result, ...flattenTree(node.children)];
+        }
+    });
+    return result;
+};
+
 const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, saga }) => {
     const [state, setState] = useState<DashboardState>('SCANNING');
     const [isLoading, setIsLoading] = useState(true);
@@ -75,20 +87,22 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             try {
                 const functions = getFunctions();
 
-                // A. LIST FILES
+                // A. LIST FILES (RECURSIVE)
                 const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
                 const listResult: any = await getDriveFiles({
                     folderIds: [saga.id], // Scan inside the Saga folder
                     accessToken,
-                    recursive: false // Just the immediate files (fichas/docs)
+                    recursive: true // 🟢 ENABLE RECURSIVE SCAN
                 });
 
-                const root = (listResult.data as DriveFile[])[0];
-                const files = root?.children?.filter(f =>
+                const roots = listResult.data as DriveFile[];
+                const allFiles = flattenTree(roots); // 🟢 FLATTEN TREE
+
+                const files = allFiles.filter(f =>
                     f.type === 'file' &&
                     (f.name.endsWith('.md') || f.name.endsWith('.txt') || f.mimeType.includes('document')) &&
                     !f.name.toLowerCase().includes('personajes') // 🟢 Exclude "Personajes Saga X" lists
-                ) || [];
+                );
 
                 if (files.length === 0) {
                     toast.info("Saga vacía (sin archivos de texto). Iniciando modo creativo.");
@@ -98,8 +112,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 }
 
                 // B. ANALYZE BATCH (GHOST DETECTION)
-                // 🟢 REFACTOR: Sequential Processing to prevent 'deadline-exceeded'
-                const targetFiles = files.slice(0, 10); // Limit to 10 for speed
+                // 🟢 REMOVED SLICE LIMIT (Read All Files)
+                const targetFiles = files;
                 let candidates: any[] = [];
                 const BATCH_SIZE = 1; // Strict sequential to avoid global timeout
 
@@ -197,16 +211,21 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     // Firestore 'in' limit is 10 (or 30 depending on version), but usually safe for batch of 10 files
                     // We split into chunks if needed, but for now assuming small batches
                     try {
-                        const globalQ = query(
-                            collection(db, "users", auth.currentUser.uid, "characters"),
-                            where("name", "in", namesToCheck.slice(0, 30))
-                        );
-                        const globalSnapshot = await getDocs(globalQ);
-
+                        // Chunking for Firestore 'in' query limit (30)
+                        const CHUNK_SIZE = 30;
                         const globalMatches = new Map();
-                        globalSnapshot.forEach(doc => {
-                            globalMatches.set(doc.data().name.toLowerCase(), doc.data());
-                        });
+
+                        for (let k = 0; k < namesToCheck.length; k += CHUNK_SIZE) {
+                            const chunk = namesToCheck.slice(k, k + CHUNK_SIZE);
+                             const globalQ = query(
+                                collection(db, "users", auth.currentUser.uid, "characters"),
+                                where("name", "in", chunk)
+                            );
+                            const globalSnapshot = await getDocs(globalQ);
+                            globalSnapshot.forEach(doc => {
+                                globalMatches.set(doc.data().name.toLowerCase(), doc.data());
+                            });
+                        }
 
                         potentialExternal.forEach(c => {
                             const externalMatch = globalMatches.get(c.name.toLowerCase());
@@ -296,6 +315,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 <h2 className="text-2xl font-bold">Invocando Saga...</h2>
                 <p className="text-titanium-400">Escaneando archivos en {saga.name}</p>
                 <p className="text-xs text-titanium-600">Detectando fantasmas y sincronizando el Canon.</p>
+                {/* 🟢 PROGRESS BAR OR FILE INFO? */}
+                <p className="text-xs text-titanium-500 font-mono mt-2">{initialReport}</p>
             </div>
         );
     }
