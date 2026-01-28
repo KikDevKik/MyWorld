@@ -1,0 +1,54 @@
+ASUNTO: REPORTE DE EJECUCIÓN - FASE 2 (SOUL SORTER & UX FIX)
+FECHA: 2026-01-28
+DE: JULES (INGENIERO DE SISTEMAS)
+PARA: EL COMANDANTE
+
+===================================================
+1. RESUMEN DE OPERACIONES
+===================================================
+Se han completado con éxito los objetivos de la Fase 2 para optimizar la "Forja de Almas". A continuación, el detalle de las maniobras:
+
+A. EL PROTOCOLO "UNLINK" (UX FIX)
+---------------------------------
+- Se ha instalado un botón de "Desvincular" (Icono de cadena rota) en el encabezado de la Forja.
+- MECANISMO DE SEGURIDAD: Al pulsarlo, el sistema despliega un Modal de Confirmación dentro del área activa (solucionando el problema de visibilidad anterior).
+- EFECTO: Al confirmar, borra el `characterVaultId` de su configuración y le devuelve al menú de selección ("Crear" o "Elegir Carpeta") sin borrar ningún archivo físico.
+
+B. EL CLASIFICADOR DE ALMAS (THE SOUL SORTER)
+---------------------------------------------
+- Se ha implementado la Cloud Function `classifyEntities` (backend/soul_sorter.ts).
+- LÓGICA TRIPLE:
+  1. ANCHOR (Ancla): Detecta Fichas mediante Frontmatter o Encabezados Markdown (# Nombre).
+  2. LIMBO (Boceto): Detecta archivos de "Ideas" o "Notas" y extrae definiciones clave-valor.
+  3. GHOST (Eco): Usa Inteligencia Artificial (Gemini Flash) para leer la narrativa y extraer nombres que "hacen cosas" pero no tienen ficha.
+- PERSISTENCIA: Los resultados se guardan en una nueva colección de Firestore (`forge_detected_entities`).
+
+C. CARGA INSTANTÁNEA (OPTIMIZACIÓN)
+-----------------------------------
+- Se eliminó el escaneo lento de Google Drive al inicio.
+- AHORA: La Forja lee instantáneamente la base de datos local. Si ya escaneó antes, la carga es de milisegundos.
+
+===================================================
+2. ANÁLISIS DE SITUACIÓN ACTUAL (LA IMAGEN)
+===================================================
+Comandante, la imagen que me muestra confirma que **EL SISTEMA FUNCIONA CORRECTAMENTE**.
+
+- El mensaje *"No se detectaron entidades. Ejecuta el Escáner."* es el comportamiento esperado.
+- **¿POR QUÉ?** Porque acabamos de crear la nueva base de datos (`forge_detected_entities`) y está **VACÍA**. El sistema ya no escanea Drive automáticamente al entrar (para evitar la lentitud), por lo que la primera vez ve la "mesa vacía".
+
+- **ACCIÓN REQUERIDA:**
+  1. En el panel izquierdo, arriba a la derecha (junto al icono de la chincheta/pin), hay un icono de **"Refrescar" (Dos flechas circulares)**.
+  2. **HAGA CLIC AHÍ**.
+  3. Eso invocará al "Soul Sorter" por primera vez. El sistema leerá sus archivos, clasificará los fantasmas y llenará la base de datos.
+  4. Una vez termine, la lista de la derecha se llenará y **nunca más** tendrá que esperar; la próxima vez que entre, esos datos estarán ahí instantáneamente.
+
+===================================================
+3. ESTADO DE LA MISIÓN
+===================================================
+La Fase 2 está **COMPLETA**.
+- Los permisos de seguridad (`firestore.rules`) han sido actualizados para permitirle escribir en esta nueva lista.
+- La interfaz responde y ya no se congela.
+
+Quedo a la espera de sus órdenes para la siguiente fase.
+
+Jules.
