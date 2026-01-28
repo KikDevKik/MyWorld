@@ -3,6 +3,8 @@ import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai"; // 🟢 Import LangChain
+import { TaskType } from "@google/generative-ai"; // Import TaskType enum
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, TEMP_CREATIVE } from "./ai_config";
@@ -160,11 +162,16 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
 
                      const searchQuery = (call.args as any).query;
 
-                     // 1. EMBEDDING (Native SDK)
-                     // 🟢 FIX: Use 'text-embedding-004' (v1beta standard)
-                     const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
-                     const embedResult = await embeddingModel.embedContent(searchQuery);
-                     const queryVector = embedResult.embedding.values;
+                     // 1. EMBEDDING (LangChain Compatibility)
+                     // 🟢 FIX: Use 'embedding-001' via LangChain to match Ingestion Vectors.
+                     // The Native SDK might default to v1beta/models which lacks legacy models,
+                     // but LangChain wrapper handles it correctly for RAG consistency.
+                     const embeddings = new GoogleGenerativeAIEmbeddings({
+                        apiKey: googleApiKey.value(),
+                        model: "embedding-001",
+                        taskType: TaskType.RETRIEVAL_QUERY,
+                     });
+                     const queryVector = await embeddings.embedQuery(searchQuery);
 
                      // 2. FIRESTORE SEARCH
                      const coll = db.collectionGroup("chunks");
