@@ -15,7 +15,7 @@ interface ForgePanelProps {
 }
 
 const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken }) => {
-    const { config, updateConfig } = useProjectConfig();
+    const { config, updateConfig, loading } = useProjectConfig();
     const [openPicker] = useDrivePicker();
 
     // 🟢 SAGA STATE (The Hub Selection)
@@ -70,14 +70,33 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         toast.success("Character Vault selected successfully.");
     };
 
-    // --- 1. CONNECT VIEW (NO VAULT) ---
-    if (config && !config.characterVaultId) {
-        const canonPaths = config.canonPaths || [];
-        const resourcePaths = config.resourcePaths || [];
-        const canonIds = new Set(canonPaths.map(p => p.id));
-        const uniqueResourcePaths = resourcePaths.filter(p => !canonIds.has(p.id));
-        const hasExistingPaths = canonPaths.length > 0 || uniqueResourcePaths.length > 0;
+    // --- LOADING STATE ---
+    if (loading) {
+        return (
+            <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-500 gap-4">
+                <RefreshCw size={40} className="animate-spin text-accent-DEFAULT" />
+                <p className="text-sm font-mono opacity-70">Cargando Configuración...</p>
+            </div>
+        );
+    }
 
+    // --- 1. CONNECT VIEW (NO VAULT) ---
+    const canonPaths = config?.canonPaths || [];
+    const resourcePaths = config?.resourcePaths || [];
+    const canonIds = new Set(canonPaths.map(p => p.id));
+    const uniqueResourcePaths = resourcePaths.filter(p => !canonIds.has(p.id));
+    const hasExistingPaths = canonPaths.length > 0 || uniqueResourcePaths.length > 0;
+
+    // Logic: If no characterVaultId is set, we force selection.
+    // BUT user wants to see ALL canon folders in Hub.
+    // So maybe we don't strictly require characterVaultId if canonPaths exist?
+    // User said: "Scope see ALL canon folders".
+    // If we have canon paths, we can go to Hub directly and show them as roots.
+    // Let's assume if there are ANY canon paths, we allow Hub access.
+
+    const canEnterHub = hasExistingPaths || !!config?.characterVaultId;
+
+    if (!canEnterHub) {
         return (
             <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
                 {/* HEADER */}
@@ -94,54 +113,18 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         <FolderInput size={48} />
                     </div>
 
-                    <h3 className="text-2xl font-bold text-titanium-100 mb-2">
-                        {hasExistingPaths ? "Seleccionar Bóveda Maestra" : "Conexión Requerida"}
-                    </h3>
+                    <h3 className="text-2xl font-bold text-titanium-100 mb-2">Conexión Requerida</h3>
                     <p className="text-titanium-400 max-w-md mb-8">
-                        {hasExistingPaths
-                            ? "Elige la carpeta raíz donde viven tus personajes o conecta una nueva."
-                            : "Para activar la Forja, vincula una carpeta de Google Drive como tu 'Character Vault'."
-                        }
+                        Para forjar almas, necesitas conectar al menos una carpeta Canon o una Bóveda de Personajes.
                     </p>
 
-                    <div className="w-full max-w-md space-y-4">
-                        {hasExistingPaths && (
-                            <div className="space-y-4 mb-8">
-                                {canonPaths.length > 0 && (
-                                    <div className="space-y-2">
-                                        <h4 className="text-xs font-bold text-titanium-500 uppercase tracking-wider text-left pl-1">Carpetas Canon</h4>
-                                        {canonPaths.map(path => (
-                                            <button
-                                                key={path.id}
-                                                onClick={() => handleSelectExisting(path.id)}
-                                                className="w-full p-4 bg-titanium-900 hover:bg-titanium-800 border border-titanium-800 hover:border-accent-DEFAULT/50 rounded-xl flex items-center justify-between group transition-all text-left"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="p-2 bg-titanium-950 rounded-lg text-accent-DEFAULT group-hover:text-white transition-colors">
-                                                        <Book size={20} />
-                                                    </div>
-                                                    <span className="font-semibold text-titanium-200 group-hover:text-white transition-colors">{path.name}</span>
-                                                </div>
-                                                <span className="text-[10px] font-bold bg-titanium-950 text-titanium-500 px-2 py-1 rounded border border-titanium-800">CORE</span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <button
-                            onClick={handleConnectVault}
-                            className={`w-full px-8 py-4 font-bold rounded-xl flex items-center justify-center gap-3 transition-all
-                                ${hasExistingPaths
-                                    ? "bg-transparent border-2 border-dashed border-titanium-700 text-titanium-400 hover:border-accent-DEFAULT hover:text-accent-DEFAULT"
-                                    : "bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 shadow-lg hover:shadow-accent-DEFAULT/20"
-                                }`}
-                        >
-                            <FolderPlus size={20} />
-                            <span>{hasExistingPaths ? "Conectar Nueva Carpeta" : "Conectar Character Vault"}</span>
-                        </button>
-                    </div>
+                    <button
+                        onClick={handleConnectVault}
+                        className="px-8 py-4 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 font-bold rounded-xl shadow-lg flex items-center gap-3 transition-all"
+                    >
+                        <FolderPlus size={20} />
+                        <span>Conectar Carpeta Maestra</span>
+                    </button>
                 </div>
             </div>
         );
@@ -149,6 +132,22 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
 
     // --- 2. HUB VIEW (VAULT LINKED, NO SAGA SELECTED) ---
     if (!activeSaga) {
+        // Collect all roots: Canon Paths + Character Vault (if distinct)
+        const roots = [...canonPaths];
+
+        console.log("ForgePanel Roots Calculation:", { canonPaths, vaultId: config?.characterVaultId });
+
+        // Add Character Vault if it exists and isn't already in Canon Paths
+        if (config?.characterVaultId) {
+            // Check if ID is already in canonPaths
+            if (!roots.some(p => p.id === config.characterVaultId)) {
+                // We need the name... assume "Character Vault" or try to fetch?
+                // Ideally backend config stores name. If not, user might see ID or generic name.
+                // For now, let's append it if unique.
+                roots.push({ id: config.characterVaultId, name: "Bóveda de Personajes (Legacy)" });
+            }
+        }
+
         return (
             <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
                 {/* HEADER */}
@@ -158,12 +157,11 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         <h2 className="font-bold text-xl">Forja de Almas</h2>
                         <span className="px-2 py-0.5 rounded bg-titanium-800 text-[10px] font-mono text-titanium-400">HUB</span>
                     </div>
-                    {/* OPTIONAL: Sync Button could go here if we wanted a manual master sync, but we are removing it per instructions */}
                 </div>
 
                 <div className="flex-1 overflow-hidden relative">
                     <ForgeHub
-                        vaultId={config?.characterVaultId || ""}
+                        roots={roots} // 🟢 PASS ALL ROOTS
                         accessToken={accessToken}
                         onSelectSaga={setActiveSaga}
                     />
@@ -197,10 +195,6 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         <Book size={14} className="text-accent-DEFAULT" />
                         <span className="font-bold text-sm text-titanium-200">{activeSaga.name}</span>
                     </div>
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                    {/* Auto-Sync indicator or actions for Dashboard could go here */}
                 </div>
             </div>
 
