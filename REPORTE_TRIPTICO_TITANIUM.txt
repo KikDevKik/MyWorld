@@ -1,0 +1,68 @@
+REPORTE DE OPERACIÓN: TRÍPTICO DE TITANIUM (DÍA 4)
+==================================================
+
+Saludos. Jules al habla.
+
+Aquí tienes el informe de situación tras la implementación del nuevo diseño y la calibración de los sensores del backend.
+
+1. EL NUEVO CAMPO DE BATALLA (FRONTEND)
+---------------------------------------
+La vieja interfaz dividida ha sido desmantelada. La Forja ahora opera bajo el protocolo "Kanban Tríptico", optimizado para flujo de datos y claridad visual.
+
+[COLUMNA 1: ECOS / RADAR] (Color: Cian / Transparente)
+- Objetivo: Detección temprana.
+- Fuente: Inteligencia Artificial (Gemini) leyendo la narrativa.
+- Contenido: "Ghosts" (Fantasmas). Nombres que aparecen en el texto pero no tienen ficha.
+- Diseño: Minimalista, borde discontinuo. Sin avatares. Solo el nombre y el fragmento de texto donde fueron vistos.
+
+[COLUMNA 2: LIMBOS / TALLER] (Color: Ámbar / Sólido Fino)
+- Objetivo: Refinamiento de ideas.
+- Fuente: Archivos de texto sueltos, notas rápidas, borradores ('idea', 'nota').
+- Contenido: "Limbos". Conceptos a medio formar.
+- Diseño: Tarjetas funcionales con etiquetas de rasgos detectados. Botón "Refinar" para convertirlos en fichas.
+
+[COLUMNA 3: ANCLAS / BÓVEDA] (Color: Verde / Metálico)
+- Objetivo: Gestión de activos oficiales.
+- Fuente: Tu base de datos de personajes (Frontmatter/Headers).
+- Contenido: "Anclas". Personajes confirmados y fichados.
+- Diseño: Robusto, tipografía Serif. Botón "Editar Ficha".
+
+*Cambio Táctico:* El Chat ya no ocupa el 50% de la pantalla. Ahora es un agente encubierto (Panel Deslizante) que solo se despliega cuando interactúas con una tarjeta, cargando automáticamente el contexto de esa alma específica.
+
+2. INFORME DE INTELIGENCIA (BACKEND - SOUL SORTER)
+--------------------------------------------------
+He reescrito la lógica de `soul_sorter.ts` para responder a tu inquietud sobre el escaneo.
+
+SITUACIÓN ACTUAL (LO QUE HACE AHORA):
+Cuando pulsas "Refrescar", el sistema ejecuta un barrido en dos fases:
+
+A. FASE PRIMARIA (Enfoque Táctico):
+   Busca archivos dentro de la carpeta de la Saga actual Y archivos marcados como 'Global'.
+   - Razón: Mantener la relevancia. Si estás en la "Saga del Norte", no queremos llenarte el radar con fantasmas de la "Saga del Sur".
+
+B. FASE DE RESPALDO (El arreglo de hoy):
+   Si el sistema detecta que tu carpeta actual no tiene archivos "canon" (quizás por un error de organización), AUTOMÁTICAMENTE expande la búsqueda a TODO EL PROYECTO.
+   - Resultado: Nunca verás el radar vacío si tienes archivos canon en alguna parte.
+
+RESPUESTA A TU DUDA:
+"¿Está revisando si hay más personajes en los otros libros catalogados como canon fuera de esta carpeta?"
+
+> RESPUESTA CORTA: Por defecto, NO, para evitar ruido. Se centra en la Saga + Global.
+>
+> RESPUESTA LARGA: El sistema está diseñado para ser "Contextual". Asume que los Ecos relevantes están en los textos de la saga que trabajas. Sin embargo, con el parche de hoy, si no encuentra nada local, SÍ mirará afuera.
+
+MIS SUGERENCIAS:
+
+OPCIÓN 1: MANTENER ASÍ (Recomendada)
+Es más rápido y limpio. Te obliga a organizar tus sagas, pero te protege de mezclar personajes de historias incompatibles.
+
+OPCIÓN 2: MODO "OJO QUE TODO LO VE" (Omnisciente)
+Si tu estilo de escritura es muy interconectado (un Universo donde todos salen en todos lados), puedo modificar el código para que SIEMPRE lea TODOS los archivos canon del proyecto para buscar Ecos, sin importar en qué carpeta estés.
+- Coste: Mayor tiempo de carga (más texto que leer para la IA).
+- Riesgo: La columna "Ecos" podría volverse caótica con nombres de otros libros.
+
+Por ahora, he implementado la Lógica de Respaldo para asegurar que funcione incluso si tus carpetas están desordenadas.
+
+A la espera de nuevas órdenes.
+
+Jules.
