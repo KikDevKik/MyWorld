@@ -119,11 +119,12 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
         console.warn("👻 GHOST MODE: Bypassing Config Fetch (User: jules-dev)");
         setConfig({
-            canonPaths: [],
+            canonPaths: [{ id: "mock-canon-id", name: "Mock Canon Root" }], // 🟢 MOCK CANON PATH
             resourcePaths: [],
             // chronologyPath: null, // REMOVED
             activeBookContext: "Prototipo Titanium",
-            folderId: "" // Empty to trigger "Connect Drive" button for testing
+            folderId: "", // Empty to trigger "Connect Drive" button for testing
+            characterVaultId: "mock-vault-id", // 🟢 MOCK VAULT ID (REQUIRED FOR CONNECT LOGIC)
         });
         setLoading(false);
         setIsFileTreeLoading(false); // Also stop tree loading
