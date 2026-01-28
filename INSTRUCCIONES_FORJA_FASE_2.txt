@@ -1,0 +1,36 @@
+🚀 INSTRUCCIONES PARA LA FASE 2: REFACTORIZACIÓN DE LA FORJA (DRAMATIS PERSONAE)
+
+Hola Jules (del futuro),
+
+El usuario ha aprobado la Fase 1 (Implementación del Hub). Ahora debemos refactorizar el Dashboard, específicamente el panel derecho "Dramatis Personae".
+
+🔴 SITUACIÓN ACTUAL:
+1.  **Scope Global Incorrecto:** Actualmente, `ForgeDashboard.tsx` carga *todos* los personajes del usuario (`users/{uid}/characters`) en una lista global. Esto provoca que aparezcan personajes de otras historias/sagas en la saga actual.
+2.  **Typo/Nombre Incorrecto:** El usuario indicó que el título "DRAMATIS PERSONAE" está "mal escrito" o no es el deseado. (Revisar si prefiere "PERSONAJES" o corregir la ligadura latina).
+
+🎯 OBJETIVOS DE LA FASE 2:
+
+1.  **Scoping Estricto (Saga Context):**
+    -   Modificar la lógica en `ForgeDashboard.tsx`.
+    -   **ELIMINAR:** La suscripción global a `collection(db, "users", auth.currentUser.uid, "characters")`.
+    -   **IMPLEMENTAR:** Una lógica basada en el contenido de la carpeta (Saga) seleccionada.
+        -   Opción A: Filtrar la query de Firestore por `folderId` == `saga.id` (si el campo existe).
+        -   Opción B (Preferida): Usar el resultado del escaneo de archivos (`scanSaga`). Si la carpeta contiene archivos `.md` o `.json` que representan fichas, cargar SOLO esos.
+    -   El objetivo es: "Si el archivo de Anna no está en la carpeta 'Saga TDB', Anna no debe aparecer como 'Existente' aquí".
+
+2.  **Corrección UI (Panel Derecho):**
+    -   Renombrar el encabezado del componente `ForgeContextDock.tsx`.
+    -   Cambiar "DRAMATIS PERSONAE" por "PERSONAJES DE LA SAGA" (o confirmar preferencia).
+    -   Asegurar que la lista se refresque correctamente al cambiar de Saga en el Hub.
+
+3.  **Lógica de Ghosts (Entidades Detectadas):**
+    -   Confirmar que la detección de entidades (`analyzeNexusFile`) solo se ejecute sobre los archivos *dentro* de la carpeta de la Saga seleccionada. (Esto parece ya estar medio implementado en `ForgeDashboard`, verificar y reforzar).
+
+⚙️ ARCHIVOS CLAVE:
+-   `src/components/forge/ForgeDashboard.tsx` (Lógica de carga de datos).
+-   `src/components/forge/ForgeContextDock.tsx` (UI del panel derecho).
+
+⚠️ NOTA IMPORTANTE:
+El usuario busca "eficacia sobre velocidad". Asegúrate de que al entrar a una Saga, la sensación sea de "aislamiento contextual": solo veo lo que existe en esta historia.
+
+¡Buena suerte, Comandante! 🫡
