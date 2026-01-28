@@ -9,6 +9,8 @@ import ForgeContextDock from './ForgeContextDock';
 import CharacterInspector from './CharacterInspector';
 import ForgeChat from './ForgeChat';
 import { Character, DriveFile } from '../../types';
+import { ForgePayload, SoulEntity } from '../../types/forge';
+import { DetectedEntity } from './ForgeContextDock';
 
 interface ForgeDashboardProps {
     folderId: string; // Project Root ID (for global context)
@@ -18,18 +20,6 @@ interface ForgeDashboardProps {
 
 type DashboardState = 'SCANNING' | 'IDE';
 
-// 🟢 HELPER: Flatten Tree
-const flattenTree = (nodes: DriveFile[]): DriveFile[] => {
-    let result: DriveFile[] = [];
-    nodes.forEach(node => {
-        result.push(node);
-        if (node.children) {
-            result = [...result, ...flattenTree(node.children)];
-        }
-    });
-    return result;
-};
-
 const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, saga }) => {
     const [state, setState] = useState<DashboardState>('SCANNING');
     const [isLoading, setIsLoading] = useState(true);
@@ -38,7 +28,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     // DATA
     const [characters, setCharacters] = useState<Character[]>([]); // Global Roster
     const charactersRef = useRef<Character[]>([]); // Ref for async access
-    const [detectedEntities, setDetectedEntities] = useState<any[]>([]); // Ghosts from Saga
+    const [detectedEntities, setDetectedEntities] = useState<DetectedEntity[]>([]); // Ghosts from Saga
     const [initialReport, setInitialReport] = useState<string>("");
     const [isSorting, setIsSorting] = useState(false);
 
@@ -132,21 +122,68 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     }, [saga.id]);
 
     // --- 3. TRIGGER SOUL SORTER (MANUAL REFRESH) ---
-    const handleRefresh = async () => {
+    const handleForceAnalysis = async () => {
         setIsSorting(true);
         const toastId = toast.loading("Ejecutando Soul Sorter...");
 
         try {
             const functions = getFunctions();
-            const classifyEntities = httpsCallable(functions, 'classifyEntities');
+            const classifyEntities = httpsCallable<any, ForgePayload>(functions, 'classifyEntities');
 
-            await classifyEntities({
+            const result = await classifyEntities({
                 projectId: folderId,
                 sagaId: saga.id
             });
 
-            toast.success("Análisis completado.", { id: toastId });
-            // Snapshot listener will update UI automatically
+            const payload = result.data;
+            console.log('Soul Sorter Raw Response:', payload);
+
+            if (!payload || !payload.entities || payload.entities.length === 0) {
+                 toast.info("Nexus no detectó entidades nuevas en el Canon.", { id: toastId });
+            } else {
+                 toast.success(`Análisis completado. Detectados: ${payload.stats.totalGhosts} Ghosts, ${payload.stats.totalLimbos} Limbos.`, { id: toastId });
+
+                 // 🟢 MAPEO TEMPORAL (Instant UI Feedback)
+                 const anchors = payload.entities.filter(e => e.tier === 'ANCHOR');
+                 const detected = payload.entities.filter(e => e.tier !== 'ANCHOR');
+
+                 // 1. ANCHORS -> CHARACTERS LIST
+                 if (anchors.length > 0) {
+                    setCharacters(prev => {
+                        const newChars = [...prev];
+                        anchors.forEach(a => {
+                            if (!newChars.find(c => c.name === a.name)) {
+                                newChars.push({
+                                    id: a.id, // Use Hash as ID
+                                    name: a.name,
+                                    role: a.role,
+                                    avatar: a.avatar,
+                                    tier: 'MAIN', // Default to MAIN for found anchors? Or SUPPORTING?
+                                    status: 'EXISTING',
+                                    sourceContext: saga.id,
+                                    masterFileId: a.driveId,
+                                    lastUpdated: new Date().toISOString()
+                                } as Character);
+                            }
+                        });
+                        return newChars;
+                    });
+                 }
+
+                 // 2. OTHERS -> DETECTED LIST
+                 // Map SoulEntity -> DetectedEntity
+                 const detectedMapped: DetectedEntity[] = detected.map(d => ({
+                     id: d.id,
+                     name: d.name,
+                     role: d.role || "Entidad Detectada",
+                     relevance_score: Math.min(10, Math.ceil(d.occurrences / 2)),
+                     status: 'DETECTED',
+                     suggested_action: d.mergeSuggestion ? 'Merge' : 'None',
+                     description: d.sourceSnippet
+                 }));
+                 setDetectedEntities(detectedMapped);
+            }
+
         } catch (error) {
             console.error("Soul Sorter Error:", error);
             toast.error("Error al analizar la saga.", { id: toastId });
@@ -231,7 +268,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     detectedEntities={detectedEntities}
                     onCharacterSelect={setInspectorData}
                     isLoading={isSorting}
-                    onRefresh={handleRefresh}
+                    onRefresh={handleForceAnalysis}
                 />
             </div>
 
