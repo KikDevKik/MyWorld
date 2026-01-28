@@ -52,7 +52,12 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
     return (
         <AnimatePresence>
             {isOpen && node && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="node-edit-title"
+                >
                      <motion.div
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
@@ -61,11 +66,15 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                      >
                          {/* HEADER */}
                          <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
-                             <h2 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                             <h2 id="node-edit-title" className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                                  <Edit2Icon className="text-cyan-400" size={20} />
                                  Editar Nodo
                              </h2>
-                             <button onClick={onClose} className="text-slate-500 hover:text-white transition-colors">
+                             <button
+                                 onClick={onClose}
+                                 className="text-slate-500 hover:text-white transition-colors"
+                                 aria-label="Cerrar editor"
+                             >
                                  <X size={20} />
                              </button>
                          </div>
@@ -75,8 +84,9 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
 
                              {/* NAME */}
                              <div className="space-y-1.5">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre</label>
+                                 <label htmlFor="node-name" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre</label>
                                  <input
+                                     id="node-name"
                                      value={name}
                                      onChange={(e) => setName(e.target.value)}
                                      className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-white focus:border-cyan-500 outline-none transition-colors font-bold"
@@ -88,8 +98,9 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                              <div className="grid grid-cols-2 gap-4">
                                  {/* TYPE */}
                                  <div className="space-y-1.5">
-                                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</label>
+                                     <label htmlFor="node-type" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</label>
                                      <select
+                                         id="node-type"
                                          value={type}
                                          onChange={(e) => setType(e.target.value as EntityType)}
                                          className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-300 focus:border-cyan-500 outline-none transition-colors appearance-none uppercase font-mono"
@@ -102,8 +113,9 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
 
                                  {/* SUBTYPE */}
                                  <div className="space-y-1.5">
-                                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subtipo</label>
+                                     <label htmlFor="node-subtype" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subtipo</label>
                                      <input
+                                         id="node-subtype"
                                          value={subtype}
                                          onChange={(e) => setSubtype(e.target.value)}
                                          className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-2 text-xs text-cyan-300 focus:border-cyan-500 outline-none transition-colors uppercase font-mono tracking-wide"
@@ -114,8 +126,9 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
 
                              {/* DESCRIPTION */}
                              <div className="space-y-1.5">
-                                 <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción</label>
+                                 <label htmlFor="node-description" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción</label>
                                  <textarea
+                                     id="node-description"
                                      value={description}
                                      onChange={(e) => setDescription(e.target.value)}
                                      className="w-full h-32 bg-slate-950 border border-slate-800 rounded px-3 py-2 text-sm text-slate-300 focus:border-cyan-500 outline-none transition-colors resize-none font-mono leading-relaxed custom-scrollbar"
