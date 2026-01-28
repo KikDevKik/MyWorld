@@ -1,0 +1,153 @@
+REPORTE DE TRANSICIÓN: INSTRUCCIONES PARA EL SIGUIENTE OPERADOR (JULES v.NEXT)
+FECHA: 486 Era del Nuevo Horizonte
+DE: Jules (Sesión Actual)
+PARA: Jules (Próxima Instancia)
+ASUNTO: IMPLEMENTACIÓN DEL PROTOCOLO "SOUL SORTER" Y CORRECCIONES DE UX
+
+Saludos, colega.
+
+El usuario (El Comandante) ha validado los cambios recientes, pero ha detectado fricciones críticas en la experiencia de usuario y cuellos de botella en el rendimiento de la Forja de Almas. Tu misión es ejecutar la siguiente fase de evolución.
+
+Aquí tienes tus órdenes de batalla:
+
+===================================================
+1. LA PARADOJA DEL MENÚ INVISIBLE (UX FIX)
+===================================================
+El Comandante reporta que el "Menú de Configuración de la Bóveda" no aparece. Esto es comportamiento esperado pero no deseado: el sistema detecta un `characterVaultId` existente y monta el Dashboard automáticamente.
+
+EL PROBLEMA:
+Una vez vinculada una carpeta, no hay forma fácil de "soltarla" para seleccionar otra o reiniciar la configuración.
+
+TU TAREA:
+Modificar `ForgePanel.tsx` para incluir un botón de **"Desvincular Bóveda"** (Unlink Vault).
+
+Especificaciones:
+- **Ubicación:** En el header del Dashboard, junto al nombre de la Bóveda actual.
+- **Icono:** `Unlink` o `Settings` (algo discreto).
+- **Seguridad:** DEBE tener una **Doble Confirmación**.
+  - Clic 1: "¿Estás seguro?"
+  - Clic 2: "Esto desconectará la carpeta visualmente, no borrará tus archivos. Confirmar."
+- **Acción:** Al confirmar, debe borrar `characterVaultId` de la configuración del usuario (`updateConfig`) y devolver el estado visual al menú de selección inicial ("Configuración Inicial").
+
+===================================================
+2. LA DILATACIÓN TEMPORAL (OPTIMIZACIÓN DE CARGA)
+===================================================
+El Comandante nota que entrar y salir de la Forja toma el mismo tiempo de carga, incluso si no ha habido cambios.
+- **Causa Actual:** `ForgeDashboard` escanea los archivos crudos de Drive (`analyzeForgeBatch`) en cada montaje.
+- **Solución:** Abandonar el escaneo de archivos crudos. Implementar el **"Soul Sorter"**.
+
+NUEVO PARADIGMA:
+Ya no dependemos de carpetas físicas para definir personajes. Ahora dependemos de la **Densidad de Información** encontrada en el índice vectorial (`TDB_index`). Si el índice ya existe (hashes coinciden), la carga debería ser instantánea.
+
+===================================================
+3. EL CLASIFICADOR DE ALMAS (THE SOUL SORTER)
+===================================================
+Debes crear la Cloud Function `classifyEntities` que actúe como un triaje inteligente.
+
+OBJETIVO:
+Separar menciones fugaces (Ghosts), bocetos informales (Limbos) y fichas canónicas (Anchors) leyendo los **Chunks** ya indexados en Firestore, no los archivos completos.
+
+ARQUITECTURA DE LA FUNCIÓN:
+
+A. FASE 1: EL BARRIDO ESPECTRAL (Model: FLASH - Low Reasoning)
+------------------------------------------------------------
+- **Acción:** Consultar `TDB_index` filtrando por `category: 'canon'` (Libros/Textos).
+- **Tarea:** Pasar lotes de texto a Gemini Flash.
+- **Instrucción:** "Extrae todos los nombres propios de personajes que interactúen o tengan diálogos. Ignora lugares."
+- **Resultado Esperado:** Una lista masiva de candidatos (e.g., "Thomas", "Megu", "Sombra").
+
+B. FASE 2: ANÁLISIS DE DENSIDAD (HEURÍSTICA + IA)
+------------------------------------------------------------
+Para cada nombre detectado, verifica si existe un "Bloque Denso" de información.
+
+**OPTIMIZACIÓN CRÍTICA (Ahorro de Tokens):**
+Antes de llamar a la IA para clasificar, usa lógica de código (Heurística) en el `chunk_0` (el primer fragmento del archivo, donde suelen estar los headers):
+
+1. **Detector de ANCHOR (Ancla):**
+   - Si el chunk contiene Frontmatter YAML (`---`) O
+   - Si contiene Headers Markdown claros asociados al nombre (`# Nombre`, `## Perfil`, `## Stats`).
+   - **ACCIÓN:** Clasificar AUTOMÁTICAMENTE como **ANCHOR**. No gastes tokens preguntándole a la IA.
+
+   *Ejemplo de Texto que es DEFINITIVAMENTE un ANCHOR (Referencia de Megu):*
+   ```text
+   Nombre Completo: Megu
+   Alias: "Chica Fantasma"
+   Rol: Protagonista
+   Perfil Psicológico: Megu es, en su núcleo...
+   Perfil de Poder: Afinidad Natural...
+   ```
+
+2. **Detector de LIMBO (Boceto):**
+   - Si tiene pares Clave-Valor (`Personalidad: Tímido`) pero no estructura Markdown formal.
+   - Si el archivo se llama `ideas.txt` o `apuntes.txt`.
+
+3. **Detector de GHOST (Eco):**
+   - Si el nombre solo aparece en flujo narrativo (diálogos, acciones) sin bloque descriptivo.
+
+C. FASE 3: EL JUEZ (Prompt de Clasificación)
+------------------------------------------------------------
+Solo si la heurística falla o es ambigua, invoca a Gemini Flash con este System Prompt para decidir:
+
+```typescript
+const CLASSIFICATION_PROMPT = \`
+ROLE
+You are the SOUL SORTER, the triage engine for a creative writing suite.
+
+INPUT
+You will receive a list of text fragments related to a specific entity name (e.g., "Thomas").
+
+TASK
+Analyze the structural density of the information to classify the entity into one of three tiers.
+
+CLASSIFICATION TIERS
+1. GHOST (Eco)
+   Condition: The name appears ONLY in narrative flow (dialogue, action).
+   Logic: The author mentions them, but has never sat down to define them.
+   Example: "The baker gave bread to Anna." (If no other text describes the baker).
+
+2. LIMBO (Boceto)
+   Condition: The entity has a dedicated descriptive block, but it lacks formal schema.
+   Logic: Looks like a "note to self", a brainstorming list, or a raw text description.
+   Key Indicators:
+   - Key-value pairs in plain text (e.g., "Personalidad: Tímido").
+   - Found in files named like "ideas.txt".
+   - Lacks H1/H2 markdown hierarchy.
+
+3. ANCHOR (Ancla)
+   Condition: The entity has a fully realized Character Sheet.
+   Logic: This is Canon.
+   Key Indicators:
+   - Deep Markdown structure (# Name, ## Psychology, ## Powers).
+   - Specific sections like "Profile", "Backstory", "Statistics".
+   - Presence of Frontmatter metadata.
+
+OUTPUT FORMAT (JSON)
+{
+  "entityName": "String",
+  "tier": "GHOST" | "LIMBO" | "ANCHOR",
+  "confidence": Number,
+  "reasoning": "String (Why did you choose this tier?)",
+  "mergeSuggestion": "String (Optional: If 'Elsa' and 'Liselotte' seem to be the same, suggest it)"
+}
+\`;
+```
+
+D. INTEGRACIÓN CON TDB_index
+------------------------------------------------------------
+```typescript
+async function classifyEntities(projectId: string) {
+  // 1. OBTENER CANDIDATOS (BARRIDO FLASH desde Firestore Chunks)
+  // ... query a TDB_index ...
+
+  // 2. BUSCAR DEFINICIONES (ANÁLISIS DE DENSIDAD)
+  // ... vector search o hash lookup ...
+
+  // 3. CLASIFICACIÓN FINAL
+  // ... Heurística -> si falla -> callGeminiSorter ...
+}
+```
+
+NOTA FINAL:
+Asegúrate de que las respuestas generadas por IA (reasoning, sugerencias) respeten el **IDIOMA DEL LIBRO** detectado en los chunks. Si el libro está en Español, el reporte debe ser en Español.
+
+Buena suerte, Jules. Haz que el Comandante se sienta orgulloso.
