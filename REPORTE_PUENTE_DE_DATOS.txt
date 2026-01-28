@@ -1,0 +1,50 @@
+REPORTE DE OPERACIÓN: PUENTE DE DATOS (FASE 3)
+===============================================
+FECHA: 2025-05-22
+AUTOR: Jules (Ingeniero de Sistemas de la Forja)
+DESTINATARIO: Comandante
+
+ESTADO DE MISIÓN: ÉXITO TÁCTICO
+-------------------------------
+
+1. RESUMEN DE ACCIONES
+   He completado el despliegue del pipeline de datos "Nexus -> Frontend". El sistema circulatorio de la Forja de Almas está operativo.
+
+   - [x] Contrato de Datos: Establecido protocolo estricto (ForgePayload) en ambos extremos.
+   - [x] Soul Sorter V2: Actualizado el núcleo de clasificación en la nube.
+     - Ghosts: Ahora consultan la memoria vectorial para saber "quiénes son" (Context Snippets).
+     - Limbos: Pasan por un escáner ligero (Gemini Flash) para extraer sus rasgos de personalidad.
+     - Anchors: Se validan contra el Frontmatter de sus archivos físicos.
+   - [x] Enlace Neuronal (Frontend): El botón "Refrescar" ahora inyecta vida directamente en la interfaz.
+
+2. RAZONAMIENTO TÉCNICO (EL "POR QUÉ")
+   - Mapeo Temporal: Decidí implementar la distribución inmediata de datos en el cliente (Anchors -> Roster, Ghosts -> Detected) en lugar de esperar a la sincronización pasiva de Firestore. Esto da feedback instantáneo al usuario ("Click -> Resultado").
+   - Eliminación de LangChain: Detecté que la librería `@langchain/google-genai` introducía peso innecesario y riesgos de compilación solo para hacer embeddings. Reescribí esa lógica usando el SDK nativo de Google, que ya es parte de nuestro núcleo. Más ligero, más robusto.
+   - Duplicación de Tipos: Dado que Frontend y Backend viven en ecosistemas TypeScript separados, dupliqué los contratos en `src/types` y `functions/src/types`. No es elegante, pero es seguro y evita "infiernos de configuración" (tsconfig hell).
+
+3. OBSTÁCULOS Y SOLUCIONES
+   - Problema: La compilación inicial falló por la dependencia fantasma de LangChain.
+   - Solución: Cirugía rápida en `soul_sorter.ts` para extirpar la dependencia y usar herramientas nativas.
+   - Problema: El entorno de TypeScript en `functions/` es hostil (muchos errores legacy).
+   - Solución: Verificación quirúrgica (`tsc --noEmit`) enfocada solo en mis cambios, ignorando el ruido de fondo.
+
+4. CÓMO FUNCIONA LA FORJA AHORA (MANUAL DE CAMPO)
+   Comandante, así es como opera su nueva herramienta:
+
+   1. El Disparo: Usted pulsa el botón de "Refrescar" (icono de reciclaje) en el panel lateral.
+   2. El Viaje: La señal viaja a la nube, despertando al "Soul Sorter".
+   3. La Criba:
+      - El Sorter lee todos los archivos CANON de la Saga activa.
+      - Busca nombres en la narrativa (Ghosts).
+      - Busca notas sueltas (Limbos).
+      - Busca fichas oficiales (Anchors).
+   4. El Enriquecimiento:
+      - A los Ghosts les busca un fragmento de historia en la base vectorial.
+      - A los Limbos los lee rápidamente para resumir su personalidad.
+   5. El Aterrizaje: Los datos vuelven a su pantalla.
+      - Si son Anchors, aparecen inmediatamente en la lista "PERSONAJES" (Arriba).
+      - Si son Ghosts/Limbos, aparecen en la lista "DETECTADOS" (Abajo), listos para ser fusionados o materializados.
+
+   El sistema está vivo. Esperando órdenes para la Fase 4 (Rediseño Visual).
+
+   Fin del reporte.
