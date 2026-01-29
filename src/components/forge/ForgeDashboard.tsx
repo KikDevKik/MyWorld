@@ -189,17 +189,24 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     // Col 2: Limbos
     const limbos = detectedEntities.filter(e => e.tier === 'LIMBO');
 
-    // Col 3: Anchors (From Characters Collection + Anchors in Detected that matched)
-    // We prefer the 'characters' state as the source of truth for the Library.
-    const anchors: SoulEntity[] = characters.map(c => ({
+    // Col 3: Anchors (FUSION: Registered + Detected)
+    const registeredAnchors: SoulEntity[] = characters.map(c => ({
         id: c.id,
         name: c.name,
         tier: 'ANCHOR',
         sourceSnippet: c.role || "Personaje Registrado",
-        occurrences: 0, // Not available in Character type usually
+        occurrences: 0,
         role: c.role,
         avatar: c.avatar
     }));
+
+    // Filter detected anchors that are NOT already in registered list (Fusion)
+    const registeredNames = new Set(registeredAnchors.map(a => a.name.toLowerCase().trim()));
+    const additionalAnchors = detectedEntities.filter(e =>
+        e.tier === 'ANCHOR' && !registeredNames.has(e.name.toLowerCase().trim())
+    );
+
+    const anchors = [...registeredAnchors, ...additionalAnchors];
 
     if (state === 'SCANNING') {
         return (
