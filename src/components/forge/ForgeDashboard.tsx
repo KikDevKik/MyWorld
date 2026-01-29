@@ -191,7 +191,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         Tríptico <span className="text-accent-DEFAULT">Titanium</span>
                     </h1>
                     <span className="px-2 py-0.5 rounded bg-titanium-800 text-[10px] text-titanium-400 font-mono">
-                        {saga.name}
+                        Bóveda: {saga.name}
                     </span>
                 </div>
                 <div className="flex items-center gap-2">

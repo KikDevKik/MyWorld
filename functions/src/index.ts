@@ -107,6 +107,7 @@ interface ProjectConfig {
   activeBookContext: string;
   folderId?: string;
   lastIndexed?: string;
+  lastForgeScan?: string; // 👈 Incremental Scan Timestamp
   characterVaultId?: string | null;
 }
 
