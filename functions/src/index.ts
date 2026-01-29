@@ -4867,3 +4867,9 @@ export { forgeChatStream } from "./forge_chat";
  * Classifies entities into Ghosts, Limbos, and Anchors.
  */
 export { classifyEntities } from "./soul_sorter";
+
+/**
+ * 34. JANITOR - FORGE PURGE
+ * Cleans up the Detected Entities collection.
+ */
+export { purgeForgeEntities } from "./janitor";
