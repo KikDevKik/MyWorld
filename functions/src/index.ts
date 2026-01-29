@@ -1901,7 +1901,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId } = request.data;
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId, attachedFiles } = request.data;
 
     if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
 
@@ -2187,6 +2187,20 @@ Nombre: ${activeFileName}
 `;
       }
 
+      // 🟢 PHASE 3: CONTEXT PORTAL INJECTION (Attached Chips)
+      let attachedContextSection = "";
+      if (attachedFiles && Array.isArray(attachedFiles) && attachedFiles.length > 0) {
+          const filesContent = attachedFiles.map((f: any) =>
+              `--- ARCHIVO ADJUNTO: ${f.name} ---\n${f.content}\n--- FIN ADJUNTO ---`
+          ).join("\n\n");
+
+          attachedContextSection = `
+[PORTAL DE CONTEXTO - ARCHIVOS SELECCIONADOS MANUALMENTE]:
+(El usuario ha adjuntado explícitamente estos archivos para que los analices. Son la prioridad MÁXIMA para tu respuesta).
+${filesContent}
+`;
+      }
+
       // 🟢 REVISION 00131.2: SYSTEM IDENTITY OVERWRITE (CLOAKING MODE)
       const CONTINUITY_PROTOCOL = `
 === PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00131.2 - CHAMELEON UPDATE) ===
@@ -2288,6 +2302,8 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         ${coAuthorInstruction}
 
         ${activeContextSection}
+
+        ${attachedContextSection}
 
         ${longTermMemorySection}
 
@@ -4875,3 +4891,9 @@ export { classifyEntities } from "./soul_sorter";
 export { purgeForgeEntities } from "./janitor";
 export { crystallizeForgeEntity } from "./crystallization";
 export { scribeCreateFile } from "./scribe";
+
+/**
+ * 35. LABORATORY - RESOURCE CLASSIFIER
+ * Auto-tags resources for the Smart Shelf.
+ */
+export { classifyResource } from "./laboratory";
