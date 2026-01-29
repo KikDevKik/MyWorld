@@ -13,6 +13,14 @@ interface LayoutState {
   directorWidth: number;
   setDirectorWidth: (width: number) => void;
 
+  // 🟢 TRIBUNAL RESIZABLE
+  tribunalWidth: number;
+  setTribunalWidth: (width: number) => void;
+
+  // 🟢 GUARDIAN RESIZABLE
+  guardianWidth: number;
+  setGuardianWidth: (width: number) => void;
+
   // 🟢 LEGACY / STRATEGIST MODE (Zone C Width)
   isArsenalWide: boolean;
   toggleArsenalWidth: () => void;
@@ -38,6 +46,14 @@ export const useLayoutStore = create<LayoutState>((set) => ({
         isArsenalWide: width > 600
     };
   }),
+
+  // Tribunal Layout
+  tribunalWidth: 500,
+  setTribunalWidth: (width) => set({ tribunalWidth: width }),
+
+  // Guardian Layout
+  guardianWidth: 600, // Approx 45% of standard laptop
+  setGuardianWidth: (width) => set({ guardianWidth: width }),
 
   // Arsenal Width
   isArsenalWide: false,

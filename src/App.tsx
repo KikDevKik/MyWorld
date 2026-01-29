@@ -396,6 +396,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     accessToken={oauthToken}
                 />
             );
+        } else if (activeView === 'guardian') {
+            expandedContent = (
+                <CanonRadar
+                    status={guardianStatus}
+                    facts={guardianFacts}
+                    conflicts={guardianConflicts}
+                    onClose={() => setActiveView('editor')}
+                    onForceAudit={forceAudit}
+                    accessToken={oauthToken}
+                />
+            );
         } else if (activeView === 'chat') {
             expandedContent = (
                 <ChatPanel
@@ -429,18 +440,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 <ForgePanel
                     onClose={() => setActiveView('editor')}
                     folderId={folderId}
-                    accessToken={oauthToken}
-                />
-            );
-        }
-        if (activeView === 'guardian') {
-            return (
-                <CanonRadar
-                    status={guardianStatus}
-                    facts={guardianFacts}
-                    conflicts={guardianConflicts}
-                    onClose={() => setActiveView('editor')}
-                    onForceAudit={forceAudit}
                     accessToken={oauthToken}
                 />
             );
