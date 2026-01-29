@@ -101,10 +101,11 @@ export const classifyEntities = onCall(
                 const fileTimeStr = fData.lastIndexed || fData.updatedAt;
                 const fileTime = fileTimeStr ? new Date(fileTimeStr).getTime() : 0;
 
-                if (lastScanTime > 0 && fileTime <= lastScanTime) {
-                    skippedCount++;
-                    return null; // Skip this file
-                }
+                // 🕵️ DEBUG: BYPASS INCREMENTAL SCAN (FORCE ALL)
+                // if (lastScanTime > 0 && fileTime <= lastScanTime) {
+                //    skippedCount++;
+                //    return null; // Skip this file
+                // }
 
                 const chunkRef = doc.ref.collection("chunks").doc("chunk_0");
                 const chunkSnap = await chunkRef.get();
@@ -146,10 +147,14 @@ export const classifyEntities = onCall(
             for (const file of fileContents) {
                 let classified = false;
 
+                // 🕵️ DEBUG ANCHOR
+                console.log(`[DEBUG_ANCHOR_CHECK] Checking file: ${file.name} (Len: ${file.content.length})`);
+
                 // A. FRONTMATTER CHECK (Strong Anchor)
                 try {
                     // Simple check for "---" at start
                     if (file.content.trim().startsWith('---')) {
+                        console.log(`[DEBUG_ANCHOR_CHECK] Frontmatter detected in ${file.name}`);
                         const parsed = matter(file.content);
                         if (parsed.data.name || parsed.data.Nombre) {
                             const name = (parsed.data.name || parsed.data.Nombre).trim();
@@ -166,6 +171,7 @@ export const classifyEntities = onCall(
                                 avatar: parsed.data.avatar || parsed.data.Avatar
                             });
                             classified = true;
+                            console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via Frontmatter: ${file.name}`);
                         }
                     }
                 } catch (e) { /* Ignore matter errors */ }
@@ -179,6 +185,7 @@ export const classifyEntities = onCall(
                         // H1 Header that looks like a name (not "Intro", "Chapter 1")
                         if (clean.startsWith('# ') && !clean.includes('Capítulo') && !clean.includes('Chapter')) {
                             const name = clean.replace('#', '').trim();
+                            console.log(`[DEBUG_ANCHOR_CHECK] H1 Candidate: ${name} in ${file.name}`);
                             if (name.length > 2 && name.length < 50) {
                                 entitiesMap.set(name.toLowerCase(), {
                                     name: name,
@@ -191,6 +198,7 @@ export const classifyEntities = onCall(
                                     foundIn: [file.name]
                                 });
                                 classified = true;
+                                console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via H1: ${file.name}`);
                                 break;
                             }
                         }
@@ -199,6 +207,7 @@ export const classifyEntities = onCall(
                             const match = clean.match(/^(Nombre|Name|Personaje|Character):\s*(.+)/i);
                             if (match && match[2]) {
                                 const name = match[2].trim();
+                                console.log(`[DEBUG_ANCHOR_CHECK] Key-Value Candidate: ${name} in ${file.name}`);
                                 entitiesMap.set(name.toLowerCase(), {
                                     name: name,
                                     tier: 'ANCHOR',
@@ -210,6 +219,7 @@ export const classifyEntities = onCall(
                                     foundIn: [file.name]
                                 });
                                 classified = true;
+                                console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via Key-Value: ${file.name}`);
                                 break;
                             }
                         }
