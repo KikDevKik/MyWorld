@@ -40,7 +40,7 @@ export const classifyEntities = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
-        timeoutSeconds: 540, // 9 minutes
+        timeoutSeconds: 3600, // 60 minutes
         memory: "2GiB",
         secrets: [googleApiKey],
     },
@@ -83,6 +83,13 @@ export const classifyEntities = onCall(
             // Optimization: Parallel Fetch
             const fetchPromises = filesSnap.docs.map(async (doc) => {
                 const fData = doc.data();
+
+                // 🟢 RESOURCE EXCLUSION (Safety Net)
+                // If saga/path indicates Resources, skip it even if flagged as canon
+                const sagaName = (fData.saga || "").toUpperCase();
+                if (sagaName.includes("RECURSOS") || sagaName.includes("RESOURCES") || sagaName.includes("REFERENCE")) {
+                    return null;
+                }
 
                 // 🟢 INCREMENTAL FILTER: Skip if file hasn't changed since last scan
                 // Use 'lastIndexed' or 'updatedAt' from TDB_Index
@@ -434,12 +441,17 @@ export const classifyEntities = onCall(
 
             enrichedEntities.forEach(e => {
                 const ref = detectionRef.doc(e.id);
-                currentSetBatch.set(ref, {
+                // 🟢 SANITIZE PAYLOAD (Fix for 'undefined' error)
+                const safePayload: any = {
                     ...e,
-                    saga: sagaId || 'Global', // We output to the requested Vault Scope
+                    role: e.role || null, // No undefined
+                    avatar: e.avatar || null, // No undefined
+                    saga: sagaId || 'Global',
                     lastDetected: new Date().toISOString(),
-                    occurrences: FieldValue.increment(e.occurrences) // 🟢 ADDITIVE
-                }, { merge: true });
+                    occurrences: FieldValue.increment(e.occurrences)
+                };
+
+                currentSetBatch.set(ref, safePayload, { merge: true });
 
                 setCount++;
                 if (setCount >= BATCH_SIZE) {
