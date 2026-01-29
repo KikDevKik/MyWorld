@@ -6,7 +6,7 @@ import { GoogleGenerativeAI, SchemaType, TaskType } from "@google/generative-ai"
 import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING, MODEL_LOW_COST } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -108,6 +108,7 @@ export const builderStream = onRequest(
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         tools: tools,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
             temperature: 0.7,
         }
@@ -304,6 +305,7 @@ export const builderStream = onRequest(
                                  const rawChunks = vectorSnap.docs.map(doc => doc.data().text).join("\n---\n");
                                  const flashModel = genAI.getGenerativeModel({
                                      model: MODEL_LOW_COST,
+                                     safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                                      generationConfig: { temperature: 0.3 }
                                  });
                                  const synthesisPrompt = `

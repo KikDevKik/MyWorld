@@ -6,7 +6,7 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as crypto from 'crypto';
 import { cosineSimilarity } from "./similarity";
-import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
@@ -115,6 +115,7 @@ export const auditContent = onCall(
         // 3. EXTRACTION STEP (Low Cost Model)
         const extractorModel = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
+            safetySettings: SAFETY_SETTINGS_PERMISSIVE,
             generationConfig: {
               responseMimeType: "application/json",
               temperature: TEMP_PRECISION
@@ -203,6 +204,7 @@ export const auditContent = onCall(
         const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
         const verifierModel = genAI.getGenerativeModel({
              model: MODEL_HIGH_REASONING,
+             safetySettings: SAFETY_SETTINGS_PERMISSIVE,
              generationConfig: {
                responseMimeType: "application/json",
                temperature: TEMP_CREATIVE

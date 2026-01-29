@@ -7,7 +7,7 @@ import * as crypto from 'crypto';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
+import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
@@ -55,6 +55,7 @@ export const crystallizeGraph = onCall(
         const genAI = new GoogleGenerativeAI(googleApiKey.value());
         const model = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
+            safetySettings: SAFETY_SETTINGS_PERMISSIVE,
             generationConfig: {
                 temperature: mode === 'RIGOR' ? 0.3 : mode === 'ENTROPIA' ? 0.9 : 0.6,
             } as any

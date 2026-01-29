@@ -6,7 +6,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { FolderRole, ProjectConfig } from "./types/project";
-import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
+import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -78,6 +78,7 @@ export const discoverFolderRoles = onCall(
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_PRECISION,
           responseMimeType: "application/json"

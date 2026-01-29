@@ -7,7 +7,7 @@ import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai"; // 🟢 
 import { TaskType } from "@google/generative-ai"; // Import TaskType enum
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING, TEMP_CREATIVE } from "./ai_config";
+import { MODEL_HIGH_REASONING, TEMP_CREATIVE, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -108,6 +108,7 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         tools: tools,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
             temperature: TEMP_CREATIVE,
         } as any

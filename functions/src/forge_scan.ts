@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING } from "./ai_config";
+import { MODEL_HIGH_REASONING, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 
@@ -82,6 +82,7 @@ export const analyzeForgeBatch = onCall(
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
             const model = genAI.getGenerativeModel({
                 model: MODEL_HIGH_REASONING, // Use Pro for quality
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: {
                     temperature: 0.2, // Low temp for precision
                     responseMimeType: "application/json"
