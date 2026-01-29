@@ -4,6 +4,7 @@ import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
+import { handleSecureError } from "./utils/security";
 
 // --- JANITOR PROTOCOL (Phase 5) ---
 
@@ -107,14 +108,12 @@ export const scanVaultHealth = onCall(
         };
 
     } catch (error: any) {
-        logger.error("Error en scanVaultHealth:", error);
-
         // 🟢 MANEJO DE ERROR 403/401 (ROBOT ACCESS DENIED)
         if (error.code === 403 || error.code === 401 || (error.message && error.message.includes('insufficient authentication'))) {
              throw new HttpsError('permission-denied', "El Robot de Limpieza no tiene acceso. Comparte la carpeta con la Service Account del proyecto.");
         }
 
-        throw new HttpsError("internal", "Error en scanVaultHealth: " + error.message);
+        throw handleSecureError(error, "scanVaultHealth");
     }
   }
 );
@@ -187,8 +186,7 @@ export const purgeArtifacts = onCall(
         return { success: true, results };
 
     } catch (error: any) {
-        logger.error("Error en purgeArtifacts:", error);
-        throw new HttpsError("internal", error.message);
+        throw handleSecureError(error, "purgeArtifacts");
     }
   }
 );
@@ -244,8 +242,7 @@ export const purgeEmptySessions = onCall(
         return { success: true, deletedCount, message: `Se eliminaron ${deletedCount} sesiones vacías.` };
 
     } catch (error: any) {
-        logger.error("Error en purgeEmptySessions:", error);
-        throw new HttpsError("internal", error.message);
+        throw handleSecureError(error, "purgeEmptySessions");
     }
   }
 );
@@ -310,8 +307,7 @@ export const purgeForgeEntities = onCall(
             return { success: true, count: totalDeleted };
 
         } catch (error: any) {
-            logger.error("Purge Failed:", error);
-            throw new HttpsError("internal", "Error al purgar la base de datos.");
+        throw handleSecureError(error, "purgeForgeEntities");
         }
     }
 );
