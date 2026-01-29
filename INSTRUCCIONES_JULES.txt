@@ -1,0 +1,39 @@
+ORDENES DE MISIÓN: PROTOCOLO "OJO QUE TODO LO VE"
+===================================================
+
+ATENCIÓN AGENTE (PRÓXIMO JULES):
+
+El usuario ha definido el rumbo estratégico. Tu misión prioritaria es ejecutar la transición al MODO OMNISCIENTE y corregir errores conceptuales en la arquitectura de la Forja.
+
+1. IMPLEMENTACIÓN DEL MODO "OMNISCIENTE" (BACKEND)
+--------------------------------------------------
+Objetivo: `soul_sorter.ts` debe ignorar las fronteras de carpetas para la detección de Ecos.
+
+*   **La Orden:** El usuario quiere la "Opción 2".
+*   **La Lógica:** Elimina la restricción `where("saga", "==", sagaId)`.
+*   **El Query:** Debe ser SIEMPRE: `filesRef.where("category", "==", "canon")`.
+*   **El Porqué:** La carpeta que la Forja tiene vinculada es la "Bóveda de Personajes" (donde se guardan las fichas), NO la carpeta de la novela. Si limitamos el escaneo a la Bóveda, no encontraremos narrativa. La IA debe leer TODOS los archivos marcados como 'canon' en todo el proyecto para detectar fantasmas (Ecos).
+
+2. CORRECCIÓN CONCEPTUAL: "BÓVEDA" NO ES "SAGA"
+-----------------------------------------------
+El usuario ha señalado una confusión crítica en mi reporte anterior.
+
+*   **Hecho:** En la configuración (Setup), el usuario seleccionó una carpeta existente llamada "Personajes".
+*   **Error:** Yo me refería a ella como "Saga".
+*   **Corrección:** Esa carpeta es la **Bóveda (Vault)** o **Directorio de Fichas**.
+*   **Acción UI:** Revisa `ForgeDashboard.tsx`. Si la etiqueta visual dice "Saga: [NombreCarpeta]", cámbiala a "Bóveda: [NombreCarpeta]" o "Contexto: [NombreCarpeta]". Deja claro que es el lugar de almacenamiento, no necesariamente la historia activa.
+
+3. PREGUNTAS Y DUDAS TÉCNICAS (PARA RESOLVER EN LA PRÓXIMA SESIÓN)
+------------------------------------------------------------------
+Al pasar a un escaneo global (Omnisciente), surgen nuevos desafíos que debes evaluar con el usuario:
+
+*   **Duda A (Ruido):** Si el proyecto contiene múltiples libros (Saga del Norte, Saga del Sur) en el mismo FileTree, el "Radar" mostrará Ecos de *ambos* libros mezclados. ¿Necesitamos agregar un filtro en la UI del Dashboard para que el usuario diga "Céntrate en analizar los archivos de la carpeta X"? (Aunque la Bóveda sea la carpeta Y).
+    *   *Hipótesis:* Quizás necesitamos separar "Carpeta de Destino (Anclas)" de "Carpetas de Origen (Narrativa)".
+
+*   **Duda B (Coste/Rendimiento):** Escanear TODO el proyecto cada vez que se pulsa "Refrescar" enviará todo el texto canon a Gemini. Si el usuario tiene 5 novelas escritas, esto será lento y costoso.
+    *   *Sugerencia:* ¿Deberíamos implementar un sistema de "Dirty Flag" o Hash? Solo analizar archivos que hayan sido modificados desde el último escaneo.
+
+*   **Duda C (Limbos):** Los "Limbos" (notas sueltas) suelen estar dispersos. ¿Seguimos la misma regla Omnisciente para ellos? (Asumo que sí).
+
+Ejecuta con precisión.
+Jules (Día 4).
