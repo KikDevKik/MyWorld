@@ -48,11 +48,12 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     selectedScope,
     activeContextFile
 }) => {
-    const { setTechnicalError } = useProjectConfig();
+    const { config } = useProjectConfig();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false); // Initial load
     const [isSending, setIsSending] = useState(false);
+    const [isCrystallizing, setIsCrystallizing] = useState(false);
 
     // 🟢 STREAMING STATE
     const [thinkingState, setThinkingState] = useState<ThinkingState>('IDLE');
@@ -133,11 +134,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
             );
         }
 
-        // 3. Prepare History (Filter out purely local/failed messages if needed, but here we just map)
-        // Note: The `messages` state used here is the PREVIOUS state + the new temp msg.
-        // But `messages` in closure is stale? No, we use Functional Update for setMessages,
-        // but for `historyContext` we need the latest.
-        // Actually, we can just use `messages` (current render) + `tempUserMsg`.
+        // 3. Prepare History
         let historyContext = [...messages, tempUserMsg].map(m => ({
             role: m.role,
             message: m.text
@@ -247,10 +244,6 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
     // --- 3. HOT-SWAPPING LOGIC (The "Vitamin") ---
     useEffect(() => {
-        // If no entity or if it's the same entity ID we already processed (to avoid double-firing on rerenders), skip.
-        // BUT: sessionId usually changes when entity changes (controlled by Parent).
-        // Let's rely on activeEntityRef to track "Did I already initialize this entity?"
-
         if (!activeEntity) return;
         if (activeEntity.id === activeEntityRef.current) return;
 
@@ -337,19 +330,58 @@ Hazme una pregunta provocadora sobre su motivación oculta.
         await clearSessionMessages({ sessionId });
     };
 
-    const handleForgeToDrive = async () => {
-        if (!folderId || !accessToken) {
-            toast.error("Sin conexión a Drive.");
+    const handleCrystallize = async () => {
+        if (!activeEntity) return;
+
+        // 1. Vault Validation
+        // If config is loading, we might block? For now assuming loaded.
+        // We use config.characterVaultId OR folderId if config missing (fallback)
+        const vaultId = config?.characterVaultId || folderId;
+
+        if (!vaultId) {
+            toast.error("No se encontró la Bóveda de Personajes.");
             return;
         }
-        const toastId = toast.loading("Forjando archivo...");
-        const functions = getFunctions();
-        const forgeToDrive = httpsCallable(functions, 'forgeToDrive');
+
+        if (!accessToken) {
+            toast.error("Sesión de Drive expirada.");
+            return;
+        }
+
+        setIsCrystallizing(true);
+        const toastId = toast.loading("Forjando Archivo de Alma...");
+
         try {
-            const result: any = await forgeToDrive({ sessionId, folderId, accessToken });
-            toast.success(`Archivo creado: ${result.data.fileName}`, { id: toastId });
+            const functions = getFunctions();
+            const crystallizeForgeEntity = httpsCallable(functions, 'crystallizeForgeEntity');
+
+            // Gather Intelligence
+            const lastAiMsg = messages.filter(m => m.role === 'model' && !m.hidden).pop();
+            const chatNotes = lastAiMsg ? lastAiMsg.text : "Sin notas de sesión.";
+
+            await crystallizeForgeEntity({
+                entityId: activeEntity.id,
+                name: activeEntity.name,
+                role: activeEntity.role,
+                summary: activeEntity.sourceSnippet,
+                chatNotes: chatNotes,
+                folderId: vaultId,
+                accessToken: accessToken,
+                attributes: {
+                    tags: activeEntity.tags,
+                    avatar: activeEntity.avatar
+                },
+                sagaId: selectedScope.id
+            });
+
+            toast.success(`¡${activeEntity.name} ha sido Materializado!`, { id: toastId });
+            onBack(); // Close chat on success
+
         } catch (error) {
-            toast.error("Error al forjar.", { id: toastId });
+            console.error(error);
+            toast.error("Error en la materialización.", { id: toastId });
+        } finally {
+            setIsCrystallizing(false);
         }
     };
 
@@ -365,11 +397,25 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                     </p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">
-                    <button onClick={handlePurgeSession} className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-red-400">
+                    <button onClick={handlePurgeSession} className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-red-400" title="Limpiar Chat">
                         <RefreshCcw size={20} />
                     </button>
-                    <button onClick={handleForgeToDrive} className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-accent-DEFAULT">
-                        <Hammer size={20} />
+
+                    {/* CRYSTALLIZE BUTTON */}
+                    <button
+                        onClick={handleCrystallize}
+                        disabled={isCrystallizing || !activeEntity}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 ${
+                            isCrystallizing || !activeEntity
+                            ? "bg-titanium-800 text-titanium-500 cursor-not-allowed border border-titanium-700"
+                            : "border border-accent-DEFAULT text-accent-DEFAULT bg-accent-900/10 hover:bg-accent-DEFAULT hover:text-black shadow-[0_0_10px_rgba(255,215,0,0.1)] hover:shadow-[0_0_20px_rgba(255,215,0,0.4)]"
+                        }`}
+                    >
+                        {isCrystallizing ? (
+                            <><Loader2 size={12} className="animate-spin" /> Forjando...</>
+                        ) : (
+                            <><Hammer size={12} /> Cristalizar</>
+                        )}
                     </button>
                 </div>
             </div>

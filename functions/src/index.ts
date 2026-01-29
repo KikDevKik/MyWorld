@@ -4873,3 +4873,4 @@ export { classifyEntities } from "./soul_sorter";
  * Cleans up the Detected Entities collection.
  */
 export { purgeForgeEntities } from "./janitor";
+export { crystallizeForgeEntity } from "./crystallization";
