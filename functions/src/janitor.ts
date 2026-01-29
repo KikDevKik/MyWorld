@@ -249,3 +249,69 @@ export const purgeEmptySessions = onCall(
     }
   }
 );
+
+/**
+ * PURGE FORGE ENTITIES
+ * Deletes all documents in the 'forge_detected_entities' collection for the authenticated user.
+ * Used to reset the Soul Forge state and remove duplicates/outdated scans.
+ */
+export const purgeForgeEntities = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        timeoutSeconds: 540,
+        memory: "512MiB",
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const uid = request.auth.uid;
+        const db = getFirestore();
+        const collectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
+
+        logger.info(`🔥 PURGE: Starting full cleanup for User ${uid}`);
+
+        try {
+            // Recursive delete is supported by firebase-tools cli, but in Admin SDK
+            // we usually batch delete. Since this is a subcollection, we can list and delete.
+            // Note: For massive collections, this should be chunked. Assuming < 5000 entities for now.
+
+            const snapshot = await collectionRef.get();
+            if (snapshot.empty) {
+                logger.info("   -> Collection already empty.");
+                return { success: true, count: 0 };
+            }
+
+            const batchSize = 400;
+            let batch = db.batch();
+            let count = 0;
+            let totalDeleted = 0;
+
+            for (const doc of snapshot.docs) {
+                batch.delete(doc.ref);
+                count++;
+
+                if (count >= batchSize) {
+                    await batch.commit();
+                    batch = db.batch();
+                    totalDeleted += count;
+                    count = 0;
+                }
+            }
+
+            if (count > 0) {
+                await batch.commit();
+                totalDeleted += count;
+            }
+
+            logger.info(`   -> Successfully deleted ${totalDeleted} entities.`);
+
+            return { success: true, count: totalDeleted };
+
+        } catch (error: any) {
+            logger.error("Purge Failed:", error);
+            throw new HttpsError("internal", "Error al purgar la base de datos.");
+        }
+    }
+);

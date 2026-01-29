@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Info } from 'lucide-react';
+import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Info, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ForgeChat from './ForgeChat';
@@ -34,21 +34,35 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // OPERATIONS
     const [isSorting, setIsSorting] = useState(false);
+    const [showPurgeModal, setShowPurgeModal] = useState(false);
 
     // --- 1. FETCH SAGA ROSTER (ANCHORS) ---
     useEffect(() => {
         const auth = getAuth();
         if (!auth.currentUser || !saga) return;
         const db = getFirestore();
+
+        // 🟢 DEBUG: Log Saga ID for context matching
+        console.log(`[ANCHOR_DEBUG] Fetching anchors for context: ${saga.id} (${saga.name})`);
+
         // SCOPED QUERY: Only characters belonging to this folder (Saga)
+        // ⚠️ Potential Issue: If 'sourceContext' was saved as 'GLOBAL' or mixed, this might fail.
+        // For now, we trust strict scoping.
         const q = query(
             collection(db, "users", auth.currentUser.uid, "characters"),
-            where("sourceContext", "==", saga.id)
+            where("sourceContext", "==", saga.id) // STRICT MATCH
         );
+
+        // Fallback Query (Optional): Fetch GLOBAL context too?
+        // No, user requested strict vault separation.
+
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const chars: Character[] = [];
             snapshot.forEach(doc => {
-                chars.push({ id: doc.id, ...doc.data(), status: 'EXISTING' } as Character);
+                const d = doc.data();
+                // 🟢 DEBUG: Log found anchors
+                // console.log(`[ANCHOR_FOUND] ${d.name} (Context: ${d.sourceContext})`);
+                chars.push({ id: doc.id, ...d, status: 'EXISTING' } as Character);
             });
             setCharacters(chars);
         }, (error) => {
@@ -147,6 +161,26 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         }
     };
 
+    const handlePurgeDatabase = async () => {
+        setIsSorting(true);
+        setShowPurgeModal(false);
+        const toastId = toast.loading("Purgando base de datos...");
+        try {
+            const functions = getFunctions();
+            const purgeForgeEntities = httpsCallable(functions, 'purgeForgeEntities');
+            const res = await purgeForgeEntities();
+            const data = res.data as any;
+            toast.success(`Base de datos purgada. (${data.count || 0} entidades eliminadas)`, { id: toastId });
+            // Optionally auto-trigger refresh
+            // handleForceAnalysis();
+        } catch (error) {
+            console.error(error);
+            toast.error("Error al purgar la base de datos.", { id: toastId });
+        } finally {
+            setIsSorting(false);
+        }
+    };
+
     // --- PREPARE COLUMNS ---
 
     // Col 1: Ghosts
@@ -203,8 +237,13 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     >
                         <RefreshCw size={18} className={isSorting ? "animate-spin" : ""} />
                     </button>
-                    {/* Placeholder for Unlink/Settings */}
-                    <button className="p-2 rounded-full hover:bg-titanium-800 text-titanium-400 hover:text-white transition-colors">
+
+                    <button
+                        onClick={() => setShowPurgeModal(true)}
+                        disabled={isSorting}
+                        className="p-2 rounded-full hover:bg-titanium-800 text-titanium-400 hover:text-red-400 transition-colors"
+                        title="Purgar Base de Datos (Limpieza Total)"
+                    >
                         <Settings size={18} />
                     </button>
                 </div>
@@ -323,6 +362,53 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     className="absolute inset-0 bg-black/50 backdrop-blur-sm z-40"
                     onClick={() => setSelectedEntity(null)}
                 />
+            )}
+
+            {/* PURGE CONFIRMATION MODAL */}
+            {showPurgeModal && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="w-full max-w-md bg-titanium-900 border border-red-900/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
+
+                        <div className="absolute top-0 right-0 p-8 -mr-4 -mt-4 opacity-5">
+                            <Trash2 size={120} className="text-red-600" />
+                        </div>
+
+                        <div className="flex flex-col gap-4 relative z-10">
+                            <div className="w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center text-red-500 mb-2">
+                                <AlertTriangle size={24} />
+                            </div>
+
+                            <h3 className="text-xl font-bold text-white">¿Purgar Base de Datos?</h3>
+
+                            <div className="text-titanium-300 text-sm leading-relaxed space-y-3">
+                                <p>
+                                    Estás a punto de eliminar <strong>TODAS las entidades detectadas (Fantasmas y Limbos)</strong> de la Forja.
+                                </p>
+                                <div className="p-3 bg-red-900/10 border border-red-900/20 rounded-lg text-red-200/80 text-xs">
+                                    <strong>Nota:</strong> Los Personajes (Anclas) guardados en Drive NO se borrarán. Esta acción solo limpia el "Radar" de la IA.
+                                </div>
+                                <p className="opacity-70">
+                                    Úsalo si ves duplicados o datos antiguos que ya no son relevantes.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-3 mt-4">
+                                <button
+                                    onClick={() => setShowPurgeModal(false)}
+                                    className="flex-1 py-3 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 font-bold rounded-lg transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handlePurgeDatabase}
+                                    className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-red-900/20"
+                                >
+                                    PURGAR TODO
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
         </div>
