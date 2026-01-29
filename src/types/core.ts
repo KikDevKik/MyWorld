@@ -27,6 +27,7 @@ export interface DriveFile {
   children?: DriveFile[];
   category?: 'canon' | 'reference';
   parentId?: string; // 👈 Added for tree building
+  smartTags?: string[]; // 🟢 Laboratory V2
 }
 
 export interface IndexedFile {

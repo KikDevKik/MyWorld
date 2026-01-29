@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { getFunctions, httpsCallable } from "firebase/functions";
-import type { ChatMessage, GemId, Gem } from '../types';
+import type { ChatMessage, GemId, Gem, DriveFile } from '../types';
 import { GEMS } from '../constants';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { X } from 'lucide-react';
+import { X, FileText, Paperclip, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ChatPanelProps {
@@ -15,12 +15,13 @@ interface ChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
   isFullWidth?: boolean;
-  categoryFilter?: 'canon' | 'reference'; // 👈 New prop
-  customGem?: Gem; // 👈 New prop for virtual gems
-  folderId?: string; // 👈 Project ID for Isolation
-  activeFileContent?: string; // 👈 Context Fallback
-  activeFileName?: string;    // 👈 Context Fallback
-  isFallbackContext?: boolean; // 👈 Context Fallback
+  categoryFilter?: 'canon' | 'reference';
+  customGem?: Gem;
+  folderId?: string;
+  accessToken?: string | null; // 🟢 Needed for content fetching
+  activeFileContent?: string;
+  activeFileName?: string;
+  isFallbackContext?: boolean;
 }
 
 interface Source {
@@ -42,6 +43,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   categoryFilter,
   customGem,
   folderId,
+  accessToken,
   activeFileContent,
   activeFileName,
   isFallbackContext
@@ -49,9 +51,11 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [attachedFiles, setAttachedFiles] = useState<DriveFile[]>([]); // 🟢 Context Chips
+  const [isDragging, setIsDragging] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // 🟢 DETERMINE ACTIVE GEM (Custom > Predefined)
   const activeGem = customGem || (activeGemId ? GEMS[activeGemId] : null);
 
   useEffect(() => {
@@ -68,6 +72,39 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  // 🟢 DRAG & DROP HANDLERS
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+
+    try {
+        const data = e.dataTransfer.getData("application/json");
+        if (data) {
+            const file = JSON.parse(data) as DriveFile;
+            // Avoid duplicates
+            if (!attachedFiles.some(f => f.id === file.id)) {
+                setAttachedFiles(prev => [...prev, file]);
+            }
+        }
+    } catch (err) {
+        console.error("Drop failed:", err);
+    }
+  };
+
+  const removeAttachedFile = (id: string) => {
+      setAttachedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || !activeGem) return;
 
@@ -78,18 +115,45 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
     try {
       const functions = getFunctions();
-      // 🟢 CORRECT FUNCTION CALL
-      const chatWithGem = httpsCallable(functions, 'chatWithGem', { timeout: 540000 }); // 👈 9 minute timeout
+
+      // 🟢 1. FETCH CONTENT FOR ATTACHED FILES
+      let enrichedFiles: any[] = [];
+      if (attachedFiles.length > 0 && accessToken) {
+          const getContent = httpsCallable(functions, 'getDriveFileContent');
+
+          const promises = attachedFiles.map(async (file) => {
+              try {
+                  // Only fetch text-readable files
+                  if (file.mimeType.includes('pdf') || file.mimeType.includes('image')) {
+                      // Skip content fetching for now, or handle differently
+                      return { name: file.name, content: "[Binary File - Skipped]" };
+                  }
+
+                  const res = await getContent({ fileId: file.id, accessToken });
+                  const data = res.data as any;
+                  return { name: file.name, content: data.content };
+              } catch (e) {
+                  console.error(`Failed to read ${file.name}`, e);
+                  return { name: file.name, content: "Error reading file." };
+              }
+          });
+
+          enrichedFiles = await Promise.all(promises);
+      }
+
+      // 🟢 2. SEND TO CHAT
+      const chatWithGem = httpsCallable(functions, 'chatWithGem', { timeout: 540000 });
 
       const result = await chatWithGem({
-        query: text, // 👈 Renamed to query to match backend
-        systemInstruction: activeGem.systemInstruction, // 👈 Send instruction
-        history: messages.map(m => ({ role: m.role, message: m.text })), // 👈 Map to expected format
-        categoryFilter: categoryFilter, // 👈 Send filter
-        projectId: folderId || undefined, // 👈 STRICT ISOLATION
-        activeFileContent: activeFileContent || "", // 👈 Pass Context
-        activeFileName: activeFileName || "", // 👈 Pass Name
-        isFallbackContext: isFallbackContext // 👈 Pass Flag
+        query: text,
+        systemInstruction: activeGem.systemInstruction,
+        history: messages.map(m => ({ role: m.role, message: m.text })),
+        categoryFilter: categoryFilter,
+        projectId: folderId || undefined,
+        activeFileContent: activeFileContent || "",
+        activeFileName: activeFileName || "",
+        isFallbackContext: isFallbackContext,
+        attachedFiles: enrichedFiles // 👈 Pass Enriched Context
       });
 
       const data = result.data as any;
@@ -100,6 +164,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       };
 
       setMessages(prev => [...prev, aiMessage]);
+      setAttachedFiles([]); // Clear after send
       onMessageSent?.();
 
     } catch (error) {
@@ -112,14 +177,26 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     }
   };
 
-  // 🟢 LOGIC FOR STYLING
-  // Simplified for SentinelShell: Just fill container.
   const baseClasses = "flex flex-col h-full w-full bg-titanium-950 border-l border-titanium-800 transition-all duration-300";
 
-  if (!isOpen && !isFullWidth) return null; // Don't render if closed and not full width (redundant check but safe)
+  if (!isOpen && !isFullWidth) return null;
 
   return (
-    <div className={baseClasses}>
+    <div
+        className={baseClasses}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+    >
+      {/* DRAG OVERLAY */}
+      {isDragging && (
+          <div className="absolute inset-0 bg-emerald-500/20 z-50 flex items-center justify-center border-2 border-emerald-500 border-dashed backdrop-blur-sm">
+              <div className="text-emerald-400 font-bold text-xl flex items-center gap-3">
+                  <Paperclip size={32} />
+                  Soltar para adjuntar contexto
+              </div>
+          </div>
+      )}
 
       {/* HEADER */}
       <div className="p-4 border-b border-titanium-800 flex items-center justify-between bg-titanium-900/50 backdrop-blur-sm">
@@ -134,8 +211,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
         <button
           onClick={onClose}
-          className="text-titanium-500 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none rounded"
-          aria-label="Close Chat"
+          className="text-titanium-500 hover:text-white transition-colors"
         >
           <X size={20} />
         </button>
@@ -158,7 +234,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
               </div>
             </div>
 
-            {/* SOURCES (RAG) */}
             {msg.sources && msg.sources.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2 max-w-[85%]">
                 {msg.sources.map((source, i) => (
@@ -173,16 +248,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div
-              className="bg-titanium-900 rounded-2xl rounded-bl-none px-4 py-3 border border-titanium-800"
-              role="status"
-              aria-label="Generando respuesta..."
-            >
-              <div className="flex gap-1">
-                <div className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-titanium-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
-              </div>
+            <div className="bg-titanium-900 rounded-2xl px-4 py-3 border border-titanium-800">
+                <Loader2 size={16} className="animate-spin text-titanium-500" />
             </div>
           </div>
         )}
@@ -191,6 +258,20 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* INPUT AREA */}
       <div className="p-4 border-t border-titanium-800 bg-titanium-900/30">
+
+        {/* 🟢 CONTEXT CHIPS */}
+        {attachedFiles.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+                {attachedFiles.map(file => (
+                    <div key={file.id} className="flex items-center gap-2 bg-titanium-800 border border-titanium-700 text-titanium-200 px-2 py-1 rounded text-xs animate-in fade-in zoom-in duration-200">
+                        <FileText size={12} className="text-emerald-400" />
+                        <span className="max-w-[100px] truncate">{file.name}</span>
+                        <button onClick={() => removeAttachedFile(file.id)} className="hover:text-red-400"><X size={12}/></button>
+                    </div>
+                ))}
+            </div>
+        )}
+
         <div className="relative">
           <textarea
             value={input}
@@ -203,14 +284,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             }}
             placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
             disabled={!activeGem || isLoading}
-            aria-label="Mensaje"
-            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-accent-DEFAULT focus:ring-2 focus:ring-accent-DEFAULT transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
+            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-emerald-500 transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
           />
           <button
             onClick={() => handleSendMessage(input)}
             disabled={!input.trim() || !activeGem || isLoading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-titanium-700 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-all focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
-            aria-label="Send message"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-titanium-700 hover:text-white disabled:opacity-50 transition-all"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -218,8 +297,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </svg>
           </button>
         </div>
-        <div className="text-[10px] text-center mt-2 text-titanium-600">
-          Presiona Enter para enviar • Shift + Enter para nueva línea
+        <div className="text-[10px] text-center mt-2 text-titanium-600 flex justify-between px-2">
+            <span>Arrastra archivos aquí para analizarlos</span>
+            <span>Enter para enviar</span>
         </div>
       </div>
     </div>
