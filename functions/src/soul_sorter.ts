@@ -184,8 +184,8 @@ export const classifyEntities = onCall(
                         const clean = line.trim();
                         // H1 Header that looks like a name (not "Intro", "Chapter 1")
                         if (clean.startsWith('# ') && !clean.includes('Capítulo') && !clean.includes('Chapter')) {
-                            const name = clean.replace('#', '').trim();
-                            console.log(`[DEBUG_ANCHOR_CHECK] H1 Candidate: ${name} in ${file.name}`);
+                            const name = clean.replace(/^#+\s*/, '').trim(); // Remove one or more #
+                            console.log(`[DEBUG_ANCHOR_CHECK] Header Candidate: ${name} in ${file.name}`);
                             if (name.length > 2 && name.length < 50) {
                                 entitiesMap.set(name.toLowerCase(), {
                                     name: name,
@@ -202,12 +202,16 @@ export const classifyEntities = onCall(
                                 break;
                             }
                         }
-                        // Key-Value "Name: X"
-                        if (clean.match(/^(Nombre|Name|Personaje|Character):\s*(.+)/i)) {
-                            const match = clean.match(/^(Nombre|Name|Personaje|Character):\s*(.+)/i);
-                            if (match && match[2]) {
-                                const name = match[2].trim();
-                                console.log(`[DEBUG_ANCHOR_CHECK] Key-Value Candidate: ${name} in ${file.name}`);
+                        // Key-Value "Name: X" (Enhanced Regex for **Bold**, Lists -, and "Nombre Completo")
+                        // Matches: "Nombre:", "**Nombre**:", "- Nombre:", "- **Nombre Completo**:"
+                        const kvMatch = clean.match(/^[\-\*\s]*(Nombre|Name|Personaje|Character|Nombre Completo|Full Name)[\*\s]*:\s*(.+)/i);
+                        if (kvMatch && kvMatch[2]) {
+                            let name = kvMatch[2].trim();
+                            // Sanitize: Remove trailing punctuation or markdown artifacts
+                            name = name.replace(/[:\*\-\_]+$/, '').trim();
+
+                            console.log(`[DEBUG_ANCHOR_CHECK] Key-Value Candidate: ${name} in ${file.name}`);
+                            if (name.length > 2 && name.length < 50) {
                                 entitiesMap.set(name.toLowerCase(), {
                                     name: name,
                                     tier: 'ANCHOR',
