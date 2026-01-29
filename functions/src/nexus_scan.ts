@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 
@@ -169,14 +169,6 @@ export const analyzeNexusBatch = onCall(
 
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
 
-            // 🟢 SAFETY OVERRIDE (Sin Censura)
-            const safetySettings = [
-                { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-                { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-                { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-            ];
-
             // 🟢 STAGE 1: THE HARVESTER (MODEL LOW COST)
             logger.info("🤖 STAGE 1: HARVESTER (Flash) Initiated...");
 
@@ -186,7 +178,7 @@ export const analyzeNexusBatch = onCall(
                     temperature: 0.2, // Low temp for extraction
                     responseMimeType: "application/json"
                 } as any,
-                safetySettings
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE
             });
 
             const harvesterPrompt = `
@@ -234,7 +226,7 @@ export const analyzeNexusBatch = onCall(
                     temperature: TEMP_PRECISION,
                     responseMimeType: "application/json"
                 } as any,
-                safetySettings
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE
             });
 
             const judgePrompt = `

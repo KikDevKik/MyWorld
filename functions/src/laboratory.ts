@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
+import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -40,6 +40,7 @@ export const classifyResource = onCall(
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
             const model = genAI.getGenerativeModel({
                 model: MODEL_LOW_COST,
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: {
                     responseMimeType: "application/json",
                     temperature: TEMP_PRECISION // We want consistent classification

@@ -6,7 +6,7 @@ import { google } from "googleapis";
 import * as logger from "firebase-functions/logger";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
+import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
@@ -74,6 +74,7 @@ export const scribeCreateFile = onCall(
                     const genAI = new GoogleGenerativeAI(googleApiKey.value());
                     const model = genAI.getGenerativeModel({
                         model: MODEL_LOW_COST,
+                        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                         generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
                     });
 
@@ -262,6 +263,7 @@ export const scribePatchFile = onCall(
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
             const model = genAI.getGenerativeModel({
                 model: MODEL_LOW_COST, // Flash is fine for merging
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: { temperature: TEMP_PRECISION }
             });
 

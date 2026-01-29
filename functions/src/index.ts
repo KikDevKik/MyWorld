@@ -21,7 +21,7 @@ import { Chunk, addVectors, divideVector } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile } from "./ingestion";
-import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { marked } from 'marked';
 import JSON5 from 'json5';
 import { generateDeterministicId } from "./utils/idGenerator";
@@ -559,6 +559,7 @@ export const analyzeConnection = onCall(
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST, // Gemini 3 Flash for speed
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_CREATIVE,
           responseMimeType: "application/json"
@@ -716,6 +717,7 @@ export const syncWorldManifest = onCall(
         const genAI = new GoogleGenerativeAI(googleApiKey.value());
         const model = genAI.getGenerativeModel({
              model: MODEL_LOW_COST,
+             safetySettings: SAFETY_SETTINGS_PERMISSIVE,
              generationConfig: {
                  responseMimeType: "application/json",
                  temperature: TEMP_PRECISION,
@@ -1164,6 +1166,7 @@ export const enrichCharacterContext = onCall(
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
             temperature: TEMP_CREATIVE,
         } as any
@@ -2337,19 +2340,11 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
              maxOutputTokens: 8192,
         };
 
-        // 🟢 REVISION 00130: HARDCODED ENTERPRISE SAFETY SETTINGS
-        const standardSafetySettings = [
-          { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_NONE },
-          { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_NONE },
-        ];
-
         // --- 2. ATTEMPT 1: STANDARD CALL ---
         let model = genAI.getGenerativeModel({
             model: MODEL_HIGH_REASONING,
             generationConfig,
-            safetySettings: standardSafetySettings
+            safetySettings: SAFETY_SETTINGS_PERMISSIVE
         });
 
         logger.info("🚀 [BYPASS] Attempt 1: Calling Gemini Native SDK...");
@@ -2549,6 +2544,7 @@ export const worldEngine = onCall(
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: dynamicTemp,
         } as any
@@ -3230,6 +3226,7 @@ export const forgeToDrive = onCall(
         apiKey: googleApiKey.value(),
         model: MODEL_LOW_COST,
         temperature: TEMP_PRECISION,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
       });
 
       const synthesisPrompt = `
@@ -3261,6 +3258,7 @@ export const forgeToDrive = onCall(
           apiKey: googleApiKey.value(),
           model: MODEL_LOW_COST,
           temperature: TEMP_PRECISION,
+          safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         });
 
         const titlePrompt = `
@@ -3395,6 +3393,7 @@ export const summonTheTribunal = onCall(
         apiKey: googleApiKey.value(),
         model: MODEL_HIGH_REASONING,
         temperature: TEMP_CREATIVE,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           responseMimeType: "application/json",
         }
@@ -3499,6 +3498,7 @@ export const extractTimelineEvents = onCall(
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_PRECISION,
           responseMimeType: "application/json"
@@ -4465,6 +4465,7 @@ export const forgeAnalyzer = onCall(
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST,
+        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_PRECISION, // Analítico
         } as any
@@ -4709,6 +4710,7 @@ export const updateForgeCharacter = onCall(
                 const genAI = new GoogleGenerativeAI(googleApiKey.value());
                 const model = genAI.getGenerativeModel({
                   model: MODEL_HIGH_REASONING,
+                  safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                   generationConfig: {
                     temperature: TEMP_CREATIVE,
                   }

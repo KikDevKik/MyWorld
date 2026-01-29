@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
+import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
 import { EntityTier, ForgePayload, SoulEntity } from "./types/forge";
@@ -407,6 +407,7 @@ export const classifyEntities = onCall(
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
             const model = genAI.getGenerativeModel({
                 model: MODEL_LOW_COST,
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: {
                     responseMimeType: "application/json",
                     temperature: TEMP_PRECISION
@@ -525,7 +526,10 @@ export const classifyEntities = onCall(
                 // B. ENRICH LIMBOS (Light AI)
                 if (entity.tier === 'LIMBO' && entity.rawContent) {
                     try {
-                        const limboModel = genAI.getGenerativeModel({ model: MODEL_LOW_COST });
+                        const limboModel = genAI.getGenerativeModel({
+                            model: MODEL_LOW_COST,
+                            safetySettings: SAFETY_SETTINGS_PERMISSIVE
+                        });
                         const limboPrompt = `
                             Analyze this character note.
                             1. DETECT LANGUAGE of the content (e.g. Spanish, English).

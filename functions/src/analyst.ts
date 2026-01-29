@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Readable } from 'stream';
-import { MODEL_HIGH_REASONING } from "./ai_config";
+import { MODEL_HIGH_REASONING, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 
 // --- CONFIG ---
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -132,6 +132,7 @@ export const analyzeStyleDNA = onCall(
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
             const model = genAI.getGenerativeModel({
                 model: MODEL_HIGH_REASONING,
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: {
                     temperature: 0.7, // Creative but grounded
                 }
