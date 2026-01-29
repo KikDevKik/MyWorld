@@ -1,6 +1,6 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
-import { getFirestore } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -210,5 +210,149 @@ export const crystallizeGraph = onCall(
             files: createdFiles,
             errors: failedFiles // 🟢 RETURN ERRORS
         };
+    }
+);
+
+interface ForgeCrystallizeRequest {
+    entityId: string;
+    name: string;
+    role?: string;
+    summary?: string;
+    chatNotes?: string; // Optional raw notes
+    folderId: string; // Vault Root
+    accessToken: string;
+    attributes?: Record<string, any>;
+    sagaId?: string;
+}
+
+/**
+ * THE FORGE CRYSTALLIZER (La Materialización)
+ * Promotes a Soul Forge entity (Ghost/Limbo) to a full Anchor in Drive + DB.
+ */
+export const crystallizeForgeEntity = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        secrets: [googleApiKey],
+        memory: "1GiB",
+    },
+    async (request) => {
+        const db = getFirestore();
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+
+        const { entityId, name, role, summary, chatNotes, folderId, accessToken, attributes, sagaId } = request.data as ForgeCrystallizeRequest;
+
+        if (!entityId || !name || !folderId || !accessToken) {
+            throw new HttpsError("invalid-argument", "Missing required fields.");
+        }
+
+        const userId = request.auth.uid;
+        logger.info(`💎 CRYSTALLIZING FORGE ENTITY: ${name} (${entityId})`);
+
+        // 1. PREPARE CONTENT
+        // If we have specific fields (summary, role), use them.
+        // If not, we might generate content? The prompt implies we have it.
+        // We will construct a clean Markdown.
+
+        const safeName = name.replace(/[^a-zA-Z0-9À-ÿ\s\-_]/g, '').trim();
+        const fileName = `${safeName}.md`;
+        const now = new Date().toISOString();
+
+        // Frontmatter
+        const frontmatterLines = [
+            "---",
+            `name: "${safeName}"`,
+            `role: "${role || 'Unknown'}"`,
+            `tier: "ANCHOR"`,
+            `type: "character"`,
+            `status: "active"`,
+            `created_at: "${now}"`,
+            `tags: [${attributes?.tags?.join(', ') || 'character'}]`,
+            "---"
+        ];
+
+        const bodyLines = [];
+        if (summary) {
+            bodyLines.push(`## 📝 Resumen\n${summary}\n`);
+        } else {
+            bodyLines.push(`## 📝 Resumen\n> Entidad cristalizada desde la Forja de Almas.\n`);
+        }
+
+        if (attributes && Object.keys(attributes).length > 0) {
+            // Add other traits if passed
+            // (e.g. from chat enrichment)
+        }
+
+        if (chatNotes) {
+            bodyLines.push(`## 🧠 Notas de la Sesión\n${chatNotes}\n`);
+        }
+
+        const fileContent = [...frontmatterLines, "", ...bodyLines].join("\n");
+
+        // 2. SAVE TO DRIVE
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            const file = await drive.files.create({
+                requestBody: {
+                    name: fileName,
+                    parents: [folderId], // Root of Vault
+                    mimeType: 'text/markdown'
+                },
+                media: {
+                    mimeType: 'text/markdown',
+                    body: fileContent
+                },
+                fields: 'id, name, webViewLink'
+            });
+
+            const newFileId = file.data.id;
+            if (!newFileId) throw new Error("Failed to get Drive File ID");
+
+            logger.info(`   ✅ File Forged: ${newFileId}`);
+
+            // 3. CREATE ROSTER ENTRY (The Promotion)
+            // Slugify ID for Roster consistency
+            const rosterId = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
+            const charRef = db.collection("users").doc(userId).collection("characters").doc(rosterId);
+
+            await charRef.set({
+                id: rosterId,
+                name: name,
+                role: role || "Nuevo Personaje",
+                tier: 'MAIN', // Promoted!
+                status: 'EXISTING',
+                sourceType: 'MASTER',
+                sourceContext: sagaId || 'GLOBAL',
+                masterFileId: newFileId,
+                lastUpdated: now,
+                isAIEnriched: true,
+                avatar: attributes?.avatar || null
+            }, { merge: true });
+
+            // 4. UPDATE FORGE RADAR (The Cleanup)
+            // We update the original entity doc so the UI sees the change immediately.
+            const radarRef = db.collection("users").doc(userId).collection("forge_detected_entities").doc(entityId);
+
+            await radarRef.set({
+                tier: 'ANCHOR', // 🟢 VISUAL SHIFT
+                driveId: newFileId,
+                status: 'ANCHOR', // Consistency
+                lastUpdated: now
+            }, { merge: true });
+
+            return {
+                success: true,
+                fileId: newFileId,
+                rosterId: rosterId
+            };
+
+        } catch (error: any) {
+            logger.error(`💥 Crystallization Failed:`, error);
+            throw new HttpsError('internal', error.message);
+        }
     }
 );
