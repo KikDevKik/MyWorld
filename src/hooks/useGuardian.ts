@@ -177,6 +177,12 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
     // 🟢 FORCE AUDIT TRIGGER
     const forceAudit = () => {
         if (timerRef.current) clearTimeout(timerRef.current);
+
+        if (!content || content.length < 50) {
+            toast.info("El Guardián necesita más contexto (mínimo 50 caracteres).");
+            return;
+        }
+
         executeAudit(content);
     };
 

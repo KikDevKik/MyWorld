@@ -91,7 +91,7 @@ export const auditContent = onCall(
 
         const genAI = new GoogleGenerativeAI(googleApiKey.value());
 
-        // 3. EXTRACTION STEP (Gemini 2.0 Flash)
+        // 3. EXTRACTION STEP (Low Cost Model)
         const extractorModel = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
             generationConfig: {
