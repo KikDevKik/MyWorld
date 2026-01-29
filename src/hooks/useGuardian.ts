@@ -83,7 +83,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
     };
 
     // 🟢 AUDIT FUNCTION
-    const executeAudit = useCallback(async (textToAudit: string) => {
+    const executeAudit = useCallback(async (textToAudit: string, isManual: boolean = false) => {
         if (!textToAudit || textToAudit.length < 50) return;
 
         if (textToAudit.length > MAX_AI_INPUT_CHARS) {
@@ -92,6 +92,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         }
 
         setStatus('scanning');
+        if (isManual) toast.loading("Iniciando escaneo de seguridad...", { id: 'guardian-audit' });
 
         try {
             const functions = getFunctions();
@@ -106,6 +107,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             const data = result.data as {
                 success: boolean,
                 status?: string,
+                message?: string,
                 facts: GuardianFact[],
                 conflicts: GuardianConflict[],
                 world_law_violations?: GuardianLawConflict[],
@@ -120,6 +122,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
                     // Just return, assuming state hasn't changed.
                     const hasExistingIssues = conflicts.length > 0 || lawConflicts.length > 0 || personalityDrifts.length > 0;
                     setStatus(hasExistingIssues ? 'conflict' : 'clean');
+                    if (isManual) toast.success("Canon verificado (Sin cambios)", { id: 'guardian-audit' });
                     return;
                 }
 
@@ -136,14 +139,27 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
                 setStatus(hasConflict ? 'conflict' : 'clean');
 
                 if (hasConflict) {
-                    toast.error(`⚠️ ${data.conflicts.length + laws.length + drifts.length} anomalías detectadas por el Guardián.`);
+                    const msg = `⚠️ ${data.conflicts.length + laws.length + drifts.length} anomalías detectadas por el Guardián.`;
+                    if (isManual) toast.error(msg, { id: 'guardian-audit' });
+                    else toast.error(msg);
+                } else {
+                    if (isManual) toast.success("Canon verificado: Todo en orden.", { id: 'guardian-audit' });
                 }
             } else {
                 setStatus('error');
+                // Handle Safety Blocks
+                if (data.status === 'content_blocked') {
+                    const msg = "Contenido bloqueado por filtros de seguridad de IA.";
+                    if (isManual) toast.error(msg, { id: 'guardian-audit', description: "Revisa el texto por contenido sensible." });
+                    else toast.error(msg);
+                } else if (isManual) {
+                     toast.error(data.message || "Error en la auditoría.", { id: 'guardian-audit' });
+                }
             }
         } catch (error) {
             console.error("Guardian Audit Failed:", error);
             setStatus('error');
+            if (isManual) toast.error("Error de conexión con el Guardián.", { id: 'guardian-audit' });
         }
     }, [projectId, fileId, conflicts.length, lawConflicts.length, personalityDrifts.length]);
 
@@ -183,7 +199,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             return;
         }
 
-        executeAudit(content);
+        executeAudit(content, true);
     };
 
     return {

@@ -12,6 +12,27 @@ const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
 const MAX_SCAN_LIMIT = 10000; // 🛡️ SENTINEL: Optimized for Multigenerational Sagas (Node.js Gen2)
 
+// Helper: Safe AI Generation Wrapper
+async function safeGenerateContent(model: any, prompt: string, contextLabel: string): Promise<{ text?: string, error?: string, reason?: string, details?: string }> {
+    try {
+        const result = await model.generateContent(prompt);
+        // Check for safety blocks explicitly
+        if (result.response.promptFeedback?.blockReason) {
+             logger.warn(`🛡️ [GUARDIAN] AI Content Blocked in ${contextLabel}:`, result.response.promptFeedback);
+             return { error: 'CONTENT_BLOCKED', reason: result.response.promptFeedback.blockReason };
+        }
+        return { text: result.response.text() };
+    } catch (e: any) {
+        // Handle the specific error thrown when accessing text() on blocked response
+        if (e.message?.includes('PROHIBITED_CONTENT') || e.message?.includes('Text not available')) {
+             logger.warn(`🛡️ [GUARDIAN] AI Content Blocked (Exception) in ${contextLabel}:`, e.message);
+             return { error: 'CONTENT_BLOCKED', reason: 'PROHIBITED_CONTENT' };
+        }
+        logger.error(`💥 [GUARDIAN] AI Generation Failed in ${contextLabel}:`, e);
+        return { error: 'GENERATION_FAILED', details: e.message };
+    }
+}
+
 // Helper: JSON Sanitizer (Simplified for Guardian)
 function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
   try {
@@ -146,8 +167,15 @@ export const auditContent = onCall(
             "${content.substring(0, 30000)}"
         `;
 
-        const extractionResult = await extractorModel.generateContent(extractionPrompt);
-        const rawModelOutput = extractionResult.response.text();
+        const safeExtraction = await safeGenerateContent(extractorModel, extractionPrompt, "FactExtractor");
+
+        if (safeExtraction.error === 'CONTENT_BLOCKED') {
+             return { success: false, status: 'content_blocked', message: 'Contenido bloqueado por filtros de seguridad de IA.' };
+        } else if (safeExtraction.error || !safeExtraction.text) {
+             return { success: false, status: 'ai_error', message: safeExtraction.details || 'Error generando análisis.' };
+        }
+
+        const rawModelOutput = safeExtraction.text;
         const extractedData = parseSecureJSON(rawModelOutput, "FactExtractor");
 
         if (extractedData.error) {
@@ -268,9 +296,11 @@ export const auditContent = onCall(
                         ]
                     }
                  `;
-                 const resResult = await verifierModel.generateContent(resonancePrompt);
-                 const resAnalysis = parseSecureJSON(resResult.response.text(), "ResonanceCheck");
-                 resonanceMatches = resAnalysis.matches || [];
+                 const safeRes = await safeGenerateContent(verifierModel, resonancePrompt, "ResonanceCheck");
+                 if (safeRes.text) {
+                     const resAnalysis = parseSecureJSON(safeRes.text, "ResonanceCheck");
+                     resonanceMatches = resAnalysis.matches || [];
+                 }
             }
 
         } catch (resError: any) {
@@ -318,8 +348,10 @@ export const auditContent = onCall(
                 OUTPUT JSON: { "has_conflict": boolean, "reason": "string", "conflicting_evidence_source": "string" }
             `;
 
-            const frictionResult = await verifierModel.generateContent(frictionPrompt);
-            const frictionAnalysis = parseSecureJSON(frictionResult.response.text(), "FrictionCheck");
+            const safeFriction = await safeGenerateContent(verifierModel, frictionPrompt, "FrictionCheck");
+            if (safeFriction.error) continue; // Skip if blocked or failed
+
+            const frictionAnalysis = parseSecureJSON(safeFriction.text || "{}", "FrictionCheck");
 
             if (frictionAnalysis.has_conflict) {
                 conflicts.push({
@@ -368,8 +400,10 @@ export const auditContent = onCall(
                 OUTPUT JSON: { "trigger": "WORLD_LAW_VIOLATION", "severity": "CRITICAL" | "WARNING" | "NONE", "conflict": { "explanation": "string", "canonical_rule": "string", "source_node": "string" } }
             `;
 
-            const realityResult = await verifierModel.generateContent(realityPrompt);
-            const realityAnalysis = parseSecureJSON(realityResult.response.text(), "RealityFilter");
+            const safeReality = await safeGenerateContent(verifierModel, realityPrompt, "RealityFilter");
+            if (safeReality.error) continue;
+
+            const realityAnalysis = parseSecureJSON(safeReality.text || "{}", "RealityFilter");
 
             if (realityAnalysis.severity === "CRITICAL" || realityAnalysis.severity === "WARNING") {
                 lawViolations.push(realityAnalysis);
@@ -409,14 +443,16 @@ export const auditContent = onCall(
                         "${data.bio || data.description}"
                         OUTPUT FORMAT: "Personality: ... Evolution: ..."
                      `;
-                     const profileRes = await verifierModel.generateContent(profilePrompt);
-                     const derived = profileRes.response.text();
-                     forgeProfile = derived;
+                     const safeProfile = await safeGenerateContent(verifierModel, profilePrompt, "ProfileExtract");
+                     if (safeProfile.text) {
+                         const derived = safeProfile.text;
+                         forgeProfile = derived;
 
-                     charDocRef.set({
-                         personality: derived,
-                         lastAnalyzed: new Date().toISOString()
-                     }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
+                         charDocRef.set({
+                             personality: derived,
+                             lastAnalyzed: new Date().toISOString()
+                         }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
+                     }
                 }
             } else {
                 continue;
@@ -474,8 +510,10 @@ export const auditContent = onCall(
                 }
             `;
 
-            const haterResult = await verifierModel.generateContent(haterPrompt);
-            const haterAnalysis = parseSecureJSON(haterResult.response.text(), "HaterAudit");
+            const safeHater = await safeGenerateContent(verifierModel, haterPrompt, "HaterAudit");
+            if (safeHater.error) continue;
+
+            const haterAnalysis = parseSecureJSON(safeHater.text || "{}", "HaterAudit");
 
             if (haterAnalysis.status === 'TRAITOR' || haterAnalysis.status === 'EVOLVED') {
                 personalityDrifts.push({
