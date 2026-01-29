@@ -30,6 +30,7 @@ import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
 import { useLayoutStore } from './stores/useLayoutStore'; // 🟢 IMPORT STORE
+import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
@@ -117,6 +118,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isZenMode, setIsZenMode] = useState(false);
     const [isAppLoading, setIsAppLoading] = useState(true);
     const [indexStatus, setIndexStatus] = useState<{ isIndexed: boolean; lastIndexedAt: string | null }>({ isIndexed: false, lastIndexedAt: null });
+
+    // 🟢 FILE LOCKING
+    const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);
+    const isReadOnly = isLocked && !isSelfLocked;
 
     // 🟢 INITIALIZATION & HYDRATION
     useEffect(() => {
@@ -490,6 +495,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onContentChange={handleContentChange}
                     driftMarkers={driftMarkers}
                     className="h-full"
+                    readOnly={isReadOnly}
                 />
             </>
         );

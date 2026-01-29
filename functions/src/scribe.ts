@@ -9,6 +9,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
+import { parseSecureJSON } from "./utils/json";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -66,6 +67,55 @@ export const scribeCreateFile = onCall(
         logger.info(`✍️ SCRIBE: Forging file for ${safeName} (${entityId})`);
 
         try {
+            // 🟢 INTELLIGENT INFERENCE (If type is generic/missing)
+            if ((!entityData.type || entityData.type === 'concept') && chatContent) {
+                try {
+                    logger.info(`🧠 SCRIBE INFERENCE: Detecting type for ${entityData.name}`);
+                    const genAI = new GoogleGenerativeAI(googleApiKey.value());
+                    const model = genAI.getGenerativeModel({
+                        model: MODEL_LOW_COST,
+                        generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
+                    });
+
+                    const inferencePrompt = `
+                    TASK: Classify the Entity described in the text.
+                    ENTITY NAME: "${entityData.name}"
+                    CONTEXT: "${chatContent.substring(0, 5000)}"
+
+                    VALID TYPES:
+                    - 'character': Person, AI, sentient being.
+                    - 'location': Place, city, planet, building.
+                    - 'faction': Group, organization, guild.
+                    - 'object': Item, weapon, artifact.
+                    - 'event': Historical event, scene.
+                    - 'lore': History, myth, legend.
+                    - 'concept': Magic system, law, philosophy.
+
+                    OUTPUT JSON:
+                    {
+                      "type": "character" | "location" | "faction" | "object" | "event" | "lore" | "concept",
+                      "role": "Short 3-5 word role description (e.g. 'Main Protagonist', 'Ancient Sword')"
+                    }
+                    `;
+
+                    const result = await model.generateContent(inferencePrompt);
+                    const inference = parseSecureJSON(result.response.text(), "ScribeInference");
+
+                    if (inference.type) {
+                        entityData.type = inference.type;
+                        logger.info(`   -> Inferred Type: ${inference.type}`);
+                    }
+                    if (inference.role && (!entityData.role || entityData.role === 'Unknown')) {
+                        entityData.role = inference.role;
+                        logger.info(`   -> Inferred Role: ${inference.role}`);
+                    }
+
+                } catch (e) {
+                    logger.warn("⚠️ Scribe Inference Failed:", e);
+                    // Fallback to defaults
+                }
+            }
+
             const auth = new google.auth.OAuth2();
             auth.setCredentials({ access_token: accessToken });
             const drive = google.drive({ version: "v3", auth });

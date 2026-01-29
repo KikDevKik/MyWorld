@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { EditorState } from '@codemirror/state';
+import React, { useRef, useEffect, useMemo } from 'react';
+import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
@@ -12,12 +12,14 @@ import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { lintKeymap } from '@codemirror/lint';
 
 import { driftExtension, setDriftMarkers, DriftMarker } from './extensions/driftPlugin';
+import { Lock } from 'lucide-react';
 
 interface HybridEditorProps {
     content: string;
     onContentChange?: (content: string) => void;
     driftMarkers?: DriftMarker[];
     className?: string;
+    readOnly?: boolean;
 }
 
 // 🟢 TITANIUM THEME OVERRIDES
@@ -62,10 +64,12 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
     content,
     onContentChange,
     driftMarkers = [],
-    className = ""
+    className = "",
+    readOnly = false
 }) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
+    const editableCompartment = useMemo(() => new Compartment(), []);
 
     // 1. INITIALIZE EDITOR
     useEffect(() => {
@@ -74,8 +78,11 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
         const startState = EditorState.create({
             doc: content,
             extensions: [
+                // 🟢 READ ONLY STATE (Compartment)
+                editableCompartment.of(EditorView.editable.of(!readOnly)),
+
                 // Base
-                lineNumbers(), // Keep for now as per "optional" but user said "desactiva o hazlos opcionales". Let's disable them for Zen feel.
+                lineNumbers(),
                 highlightActiveLineGutter(),
                 highlightSpecialChars(),
                 history(),
@@ -102,7 +109,7 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
                 markdown(),
 
                 // Theme & Appearance
-                oneDark, // Base theme (modified by titaniumTheme)
+                oneDark,
                 titaniumTheme,
                 EditorView.lineWrapping,
 
@@ -130,7 +137,16 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
         };
     }, []); // Run once on mount
 
-    // 2. HANDLE CONTENT UPDATES (External -> Internal)
+    // 2. HANDLE READ ONLY UPDATE
+    useEffect(() => {
+        if (viewRef.current) {
+            viewRef.current.dispatch({
+                effects: editableCompartment.reconfigure(EditorView.editable.of(!readOnly))
+            });
+        }
+    }, [readOnly, editableCompartment]);
+
+    // 3. HANDLE CONTENT UPDATES (External -> Internal)
     useEffect(() => {
         if (viewRef.current) {
             const currentDoc = viewRef.current.state.doc.toString();
@@ -161,11 +177,19 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
     }, [driftMarkers]);
 
     return (
-        <div
-            ref={editorRef}
-            className={`h-full w-full overflow-hidden ${className}`}
-            style={{ fontSize: '16px' }}
-        />
+        <div className="relative h-full w-full">
+            <div
+                ref={editorRef}
+                className={`h-full w-full overflow-hidden ${className} ${readOnly ? 'opacity-80' : ''}`}
+                style={{ fontSize: '16px' }}
+            />
+            {readOnly && (
+                <div className="absolute top-4 right-8 bg-red-950/90 border border-red-500/50 text-red-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl z-50 pointer-events-none animate-in fade-in slide-in-from-top-2 duration-300">
+                    <Lock size={14} />
+                    <span className="text-xs font-bold tracking-wider">SOLO LECTURA (BLOQUEADO)</span>
+                </div>
+            )}
+        </div>
     );
 };
 
