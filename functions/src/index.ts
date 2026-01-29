@@ -1584,7 +1584,7 @@ export const indexTDB = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
-    timeoutSeconds: 3600,
+    timeoutSeconds: 3600, // 60 Minutes (Confirmed)
     memory: "1GiB",
     secrets: [googleApiKey],
   },
