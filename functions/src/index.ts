@@ -99,17 +99,10 @@ interface ProjectPath {
   name: string;
 }
 
-interface ProjectConfig {
-  canonPaths: ProjectPath[];
-  primaryCanonPathId?: string | null;
-  resourcePaths: ProjectPath[];
-  chronologyPath?: ProjectPath | null; // ⚠️ DEPRECATED/REMOVED in UI
-  activeBookContext: string;
-  folderId?: string;
-  lastIndexed?: string;
-  lastForgeScan?: string; // 👈 Incremental Scan Timestamp
-  characterVaultId?: string | null;
-}
+import { FolderRole, ProjectConfig } from "./types/project"; // 👈 Import from new shared file
+import { getFolderIdForRole } from "./folder_manager"; // 👈 Import helper
+
+// Removed local interface definition to avoid duplication
 
 interface SessionInteraction {
   prompt: string;
@@ -1292,11 +1285,24 @@ export const crystallizeNode = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { accessToken, folderId, fileName, content, frontmatter } = request.data;
+    const { accessToken, folderId, targetRole, fileName, content, frontmatter } = request.data;
     const userId = request.auth.uid;
 
-    if (!folderId || !fileName || !content || !accessToken) {
-      throw new HttpsError("invalid-argument", "Faltan datos obligatorios.");
+    // 🟢 RESOLVE DESTINATION (Smart Save)
+    let finalFolderId = folderId;
+
+    if (!finalFolderId && targetRole) {
+        const config = await _getProjectConfigInternal(userId);
+        // Cast string to enum if needed, or helper handles it
+        finalFolderId = getFolderIdForRole(config, targetRole as FolderRole);
+
+        if (!finalFolderId) {
+             throw new HttpsError("failed-precondition", `No folder mapped for role: ${targetRole}. Please configure it in Project Settings.`);
+        }
+    }
+
+    if (!finalFolderId || !fileName || !content || !accessToken) {
+      throw new HttpsError("invalid-argument", "Faltan datos obligatorios (Folder ID or Role).");
     }
 
     // 🛡️ SECURITY: INPUT VALIDATION
@@ -1324,7 +1330,7 @@ export const crystallizeNode = onCall(
 
       const fileMetadata = {
         name: fileName,
-        parents: [folderId],
+        parents: [finalFolderId],
         mimeType: 'text/markdown'
       };
 
@@ -1483,6 +1489,13 @@ export const saveProjectConfig = onCall(
     const userId = request.auth.uid;
 
     logger.info(`💾 Guardando configuración del proyecto para usuario: ${userId}`);
+
+    // 🟢 SYNC LEGACY FIELDS
+    // If folderMapping.ENTITY_PEOPLE is set, update characterVaultId
+    if (config.folderMapping && config.folderMapping[FolderRole.ENTITY_PEOPLE]) {
+        config.characterVaultId = config.folderMapping[FolderRole.ENTITY_PEOPLE];
+        logger.info(`   🔄 Synced characterVaultId from ROLE_ENTITY_PEOPLE`);
+    }
 
     try {
       await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
@@ -4897,3 +4910,9 @@ export { scribeCreateFile } from "./scribe";
  * Auto-tags resources for the Smart Shelf.
  */
 export { classifyResource } from "./laboratory";
+
+/**
+ * 36. FOLDER MANAGER (The Brain)
+ * Semantic folder discovery and creation.
+ */
+export { discoverFolderRoles, createTitaniumStructure } from "./folder_manager";

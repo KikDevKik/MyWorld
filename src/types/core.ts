@@ -56,6 +56,18 @@ export interface ProjectPath {
     name: string;
 }
 
+export enum FolderRole {
+    WORLD_CORE = "ROLE_WORLD_CORE",
+    LORE_HISTORY = "ROLE_LORE_HISTORY",
+    ENTITY_PEOPLE = "ROLE_ENTITY_PEOPLE",
+    ENTITY_BESTIARY = "ROLE_ENTITY_BESTIARY",
+    ENTITY_FACTIONS = "ROLE_ENTITY_FACTIONS",
+    SAGA_MAIN = "ROLE_SAGA_MAIN",
+    SAGA_EXTRAS = "ROLE_SAGA_EXTRAS",
+    DRAFTS = "ROLE_DRAFTS",
+    RESOURCES = "ROLE_RESOURCES"
+}
+
 export interface ProjectConfig {
   projectName?: string; // 👈 Identity
   canonPaths: ProjectPath[];
@@ -65,6 +77,7 @@ export interface ProjectConfig {
   activeBookContext: string;
   folderId?: string;
   characterVaultId?: string | null;
+    folderMapping?: Partial<Record<FolderRole, string>>; // 👈 Phase 2: Semantic Mapping (Role -> FolderID)
   lastIndexed?: string;
   lastForgeScan?: string; // 👈 Timestamp for Incremental Forge Scan
   styleIdentity?: string; // 👈 Auto-detected Style DNA
