@@ -129,3 +129,30 @@ export async function _getDriveFileContentInternal(drive: any, fileId: string): 
     return `[ERROR: No se pudo cargar el archivo. Verifica permisos o existencia. Detalle: ${error.message}]`;
   }
 }
+
+/**
+ * 🟢 HELPER: Trace Lineage for Deterministic ID (Nexus Protocol)
+ */
+export async function resolveVirtualPath(drive: any, folderId: string): Promise<string> {
+    const pathSegments: string[] = [];
+    let currentId = folderId;
+
+    // Safety depth limit to prevent infinite loops
+    for (let i = 0; i < 15; i++) {
+        try {
+            const res = await drive.files.get({
+                fileId: currentId,
+                fields: 'id, name, parents'
+            });
+            const { name, parents } = res.data;
+            pathSegments.unshift(name);
+
+            if (!parents || parents.length === 0) break; // Reached root or shared drive root
+            currentId = parents[0];
+        } catch (e) {
+            logger.warn(`Failed to trace parent for ${currentId}`, e);
+            break;
+        }
+    }
+    return pathSegments.join('/');
+}
