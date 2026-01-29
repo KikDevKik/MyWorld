@@ -4874,3 +4874,4 @@ export { classifyEntities } from "./soul_sorter";
  */
 export { purgeForgeEntities } from "./janitor";
 export { crystallizeForgeEntity } from "./crystallization";
+export { scribeCreateFile } from "./scribe";

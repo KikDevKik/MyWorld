@@ -353,28 +353,29 @@ Hazme una pregunta provocadora sobre su motivación oculta.
 
         try {
             const functions = getFunctions();
-            const crystallizeForgeEntity = httpsCallable(functions, 'crystallizeForgeEntity');
+            const scribeCreateFile = httpsCallable(functions, 'scribeCreateFile');
 
             // Gather Intelligence
             const lastAiMsg = messages.filter(m => m.role === 'model' && !m.hidden).pop();
             const chatNotes = lastAiMsg ? lastAiMsg.text : "Sin notas de sesión.";
 
-            await crystallizeForgeEntity({
+            await scribeCreateFile({
                 entityId: activeEntity.id,
-                name: activeEntity.name,
-                role: activeEntity.role,
-                summary: activeEntity.sourceSnippet,
-                chatNotes: chatNotes,
+                entityData: {
+                    name: activeEntity.name,
+                    role: activeEntity.role,
+                    type: 'character',
+                    aliases: activeEntity.aliases || [],
+                    tags: activeEntity.tags,
+                    summary: activeEntity.sourceSnippet
+                },
+                chatContent: chatNotes,
                 folderId: vaultId,
                 accessToken: accessToken,
-                attributes: {
-                    tags: activeEntity.tags,
-                    avatar: activeEntity.avatar
-                },
                 sagaId: selectedScope.id
             });
 
-            toast.success(`¡${activeEntity.name} ha sido Materializado!`, { id: toastId });
+            toast.success(`¡${activeEntity.name} ha sido Documentado por El Escriba!`, { id: toastId });
             onBack(); // Close chat on success
 
         } catch (error) {
