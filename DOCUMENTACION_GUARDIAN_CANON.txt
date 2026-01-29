@@ -8,7 +8,7 @@ COMPONENTES DEL SISTEMA
 
 1. EL RESONADOR (The Resonator)
    Escucha los ecos de tu historia. Detecta si lo que escribes conecta con "semillas" narrativas plantadas anteriormente (Tramas, Vibras o Lore). Si siente una conexión, te la mostrará.
-   (Técnico: Análisis de Similitud Vectorial + Clasificación Gemini 2.0 Flash)
+   (Técnico: Análisis de Similitud Vectorial + Clasificación Gemini 3 Flash [Low Cost Model])
 
 2. EL AUDITOR LÓGICO (The Logic Auditor)
    El verificador de hechos. Si escribes "El Rey ha muerto", el Auditor revisa instantáneamente todos tus archivos canónicos. Si encuentra un documento que dice "El Rey es inmortal", levantará una bandera de conflicto.

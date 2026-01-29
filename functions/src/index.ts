@@ -722,7 +722,7 @@ export const syncWorldManifest = onCall(
         // Model setup (Flash for high throughput)
         const genAI = new GoogleGenerativeAI(googleApiKey.value());
         const model = genAI.getGenerativeModel({
-             model: MODEL_LOW_COST, // gemini-2.0-flash
+             model: MODEL_LOW_COST,
              generationConfig: {
                  responseMimeType: "application/json",
                  temperature: TEMP_PRECISION,
@@ -1170,7 +1170,7 @@ export const enrichCharacterContext = onCall(
       // 4. AI ANALYSIS (Gemini 3 Pro)
       const genAI = new GoogleGenerativeAI(googleApiKey.value());
       const model = genAI.getGenerativeModel({
-        model: MODEL_HIGH_REASONING, // ⚡ Reverted to Stable Model (Gemini 3 not public yet)
+        model: MODEL_HIGH_REASONING,
         generationConfig: {
             temperature: TEMP_CREATIVE,
         } as any
