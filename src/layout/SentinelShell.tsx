@@ -11,10 +11,10 @@ interface SentinelShellProps {
 }
 
 // 🟢 HEAVY TOOLS: Hide Sidebar to Maximize Space
-const HEAVY_TOOLS: string[] = ['forja', 'perforador', 'laboratorio', 'cronograma', 'guardian', 'imprenta'];
+const HEAVY_TOOLS: string[] = ['forja', 'perforador', 'laboratorio', 'cronograma', 'imprenta'];
 
 // 🟢 SIDE TOOLS: Render in Zone C (Overlay or Split)
-const SIDE_TOOLS: string[] = ['director', 'tribunal', 'chat', 'sentinel'];
+const SIDE_TOOLS: string[] = ['director', 'tribunal', 'guardian', 'chat', 'sentinel'];
 
 const SentinelShell: React.FC<SentinelShellProps> = ({
     sidebar,
@@ -23,7 +23,14 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     isZenMode,
 }) => {
     // 🟢 GLOBAL STATE
-    const { activeView, isDirectorMaximized, isArsenalWide, directorWidth, setDirectorWidth } = useLayoutStore();
+    const {
+        activeView,
+        isDirectorMaximized,
+        isArsenalWide,
+        directorWidth, setDirectorWidth,
+        tribunalWidth, setTribunalWidth,
+        guardianWidth, setGuardianWidth
+    } = useLayoutStore();
 
     // 🟢 DRAG STATE TO DISABLE TRANSITIONS
     const [isDragging, setIsDragging] = React.useState(false);
@@ -34,7 +41,11 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
         setIsDragging(true);
 
         const startX = e.clientX;
-        const startWidth = directorWidth;
+        // Determine start width based on active view
+        let startWidth = 400;
+        if (activeView === 'director') startWidth = directorWidth;
+        else if (activeView === 'tribunal') startWidth = tribunalWidth;
+        else if (activeView === 'guardian') startWidth = guardianWidth;
 
         const onMouseMove = (moveEvent: MouseEvent) => {
              // Calculate delta from Right Edge?
@@ -44,7 +55,9 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
              const delta = startX - moveEvent.clientX;
              const newWidth = Math.max(350, Math.min(window.innerWidth, startWidth + delta));
 
-             setDirectorWidth(newWidth);
+             if (activeView === 'director') setDirectorWidth(newWidth);
+             else if (activeView === 'tribunal') setTribunalWidth(newWidth);
+             else if (activeView === 'guardian') setGuardianWidth(newWidth);
         };
 
         const onMouseUp = () => {
@@ -106,10 +119,15 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             // Active View is a Side Tool -> Expanded
             if (activeView === 'director') {
                  // 🟢 DIRECTOR ELASTIC MODE
-                 // We use inline style for granular width
                  zoneCStyle = { width: `${directorWidth}px` };
+            } else if (activeView === 'tribunal') {
+                 // 🟢 TRIBUNAL ELASTIC MODE
+                 zoneCStyle = { width: `${tribunalWidth}px` };
+            } else if (activeView === 'guardian') {
+                 // 🟢 GUARDIAN ELASTIC MODE
+                 zoneCStyle = { width: `${guardianWidth}px` };
             } else {
-                 // Legacy Modes for other tools (Tribunal, Chat history?)
+                 // Legacy Modes for other tools (Chat history?)
                  // Or maybe all side tools should share the width?
                  // User instruction: "Scope limitado al Director... por ahora".
                  const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
@@ -122,6 +140,9 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     if (isZenMode) {
          zoneCClasses = "hidden"; // Or w-0
     }
+
+    // 🟢 SHOW DRAG HANDLE FOR RESIZABLE TOOLS
+    const isResizable = ['director', 'tribunal', 'guardian'].includes(activeView);
 
     return (
         <div
@@ -145,7 +166,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             </main>
 
             {/* 🟢 DRAG HANDLE (Only for Director, inserted between Zones) */}
-            {activeView === 'director' && (
+            {isResizable && (
                 <div
                     onMouseDown={handleMouseDown}
                     className="w-1 hover:w-2 bg-titanium-900 hover:bg-cyan-500 cursor-col-resize z-50 flex-shrink-0 transition-colors delay-150"
