@@ -1,0 +1,90 @@
+# CRÓNICAS DE LA FORJA: MANUAL DEL ARTÍFICE
+
+Saludos, Creador. Has despertado a la Forja de Almas.
+
+Este documento no es un simple manual técnico; es el grimorio que explica cómo insuflar vida a tus personajes, desde su concepción como meros ecos hasta su cristalización como entidades eternas en tu Bóveda.
+
+---
+
+## I. LA ARQUITECTURA SAGRADA (Organización)
+
+Para que la Forja opere con precisión, requiere un santuario dedicado.
+
+### Para el Iniciado (Usuario Nuevo)
+Si apenas comienzas, la Forja te ofrecerá la opción **"Crear Bóveda"**. Acepta esta ofrenda.
+El sistema generará automáticamente una carpeta `/Personajes` en la raíz de tu proyecto. Esta será la cuna de tus creaciones. No necesitas hacer nada más.
+
+### Para el Veterano (Usuario con Archivos)
+Si ya posees una legión de fichas dispersas, la Forja te permite **"Vincular Bóveda Existente"**.
+Al seleccionar tu carpeta de personajes, el sistema escaneará no solo la superficie, sino cada rincón recursivo.
+*Consejo:* No importa si organizas tus archivos en subcarpetas como `/Personajes/Protagonistas` o `/Personajes/Villanos`; la Forja ve a través de las paredes de las carpetas y unificará todo en el tablero.
+
+---
+
+## II. EL TRÍPTICO DE TITANIUM (Workflow)
+
+Tu tablero de control se divide en tres estados de existencia. El viaje de un alma fluye de izquierda a derecha, ganando realidad en cada paso.
+
+### 1. ECOS (El Radar) - "Lo que se escucha en las sombras"
+Aquí habita **"El Ojo"**. Un escáner espectral que lee tu narrativa (capítulos, borradores, escenas) buscando nombres propios que aún no tienen cuerpo.
+*   **Fantasmas:** Si escribes en un capítulo: "El Capitán reía...", y no existe una ficha oficial para "Capitán", aparecerá aquí como un Fantasma.
+*   **La Regla del Silencio:** El Radar es estricto. Solo mira tu canon (la historia). Ignora deliberadamente tu carpeta de `Recursos` o `Referencias` para no confundir notas de investigación con personajes reales.
+
+### 2. LIMBOS (El Taller) - "La Sala de Interrogatorios"
+Cuando arrastras un **Fantasma** a esta columna, o cuando la IA detecta apuntes sueltos, llegan aquí. Es el purgatorio creativo.
+*   **La Invocación:** Al interactuar con una entidad aquí, despiertas al **Oráculo (Chat)**.
+*   **El Oráculo Omnisciente:** A diferencia del Radar, el Oráculo (el chat con el que hablas) posee **La Visión Total**.
+    *   *El Fenómeno de los Recursos:* Has notado que el chat sabe cosas de tu carpeta de `Recursos` (lore, inspiraciones, imágenes mentales) que no son parte de la historia oficial. Esto es intencional y poderoso.
+    *   *Cómo funciona:* El Oráculo consulta la **Memoria Vectorial Completa**. Puede leer tus notas de worldbuilding no canónicas para sugerirte rasgos o conexiones ("¿No se basa este personaje en la leyenda que guardaste en Recursos?").
+    *   *El Director de Escena:* Esta omnisciencia también reside en el **Director** (el panel lateral derecho). Ambos comparten los mismos "ojos" y pueden ver más allá del canon para asistirte creativamente.
+
+### 3. ANCLAS (La Bóveda) - "La Existencia Cristalizada"
+El destino final. Aquí residen los personajes "Reales", guardados como archivos Markdown físicos en tu Drive.
+*   **Cristalización:** Cuando estés satisfecho con el interrogatorio en el chat, presiona el botón **"CRISTALIZAR"**. **El Escriba** redactará la ficha técnica completa, vinculará la información y guardará el archivo en tu Bóveda.
+
+---
+
+## III. LOS SELLOS DE PODER (Detección de Anclas)
+
+Para que la Forja reconozca un archivo existente en tu Drive como un **ANCLA** (Personaje Oficial) y no como un simple apunte o nota (Limbo), el archivo debe contener ciertos "Sellos" (Metadatos) detectables en sus primeras 20 líneas.
+
+El sistema busca cualquiera de estas claves (en Español o Inglés):
+
+*   **Role / Rol / Cargo / Ocupación**
+*   **Age / Edad**
+*   **Class / Clase**
+*   **Race / Raza / Especie**
+*   **Alias / Apodo**
+*   **Faction / Facción / Grupo**
+
+### Formatos Aceptados
+
+**Opción A: El Encabezado Sagrado (YAML Frontmatter)**
+Al inicio del archivo, entre tres guiones:
+```yaml
+---
+Nombre: Megu
+Rol: Protagonista
+Edad: 19
+---
+```
+
+**Opción B: La Escritura Markdown (Texto Natural)**
+Simplemente en el cuerpo del texto, usando negritas para la clave:
+```markdown
+# Megu
+**Rol:** Protagonista
+**Edad:** 19 años
+**Facción:** Los Olvidados
+```
+
+Si un archivo tiene nombre de persona pero carece de estos sellos, el sistema lo tratará con cautela, clasificándolo probablemente como un **Limbo** (Borrador) hasta que tú confirmes su estatus agregando estos datos y guardando.
+
+---
+
+## IV. HERRAMIENTAS DEL ARTÍFICE
+
+*   **El Botón de Purgar (Settings):** Si el Radar ve demasiados "fantasmas falsos" (nombres mal detectados), usa esto para limpiar la base de datos de detección. No borra tus archivos de Drive, solo limpia la visión temporal de la IA.
+*   **El Botón de Re-Escanear (Refresh):** Fuerza al Ojo a leer de nuevo todos tus capítulos en busca de cambios recientes.
+
+Que la Forja sirva bien a tu pluma, Creador.
