@@ -106,7 +106,7 @@ export const auditContent = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
-    timeoutSeconds: 60, // Fast execution
+    timeoutSeconds: 540, // 🛡️ SENTINEL: Extended for Deep Analysis (God Mode)
     memory: "1GiB",
     secrets: [googleApiKey],
   },
