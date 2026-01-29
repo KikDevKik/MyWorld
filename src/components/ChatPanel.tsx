@@ -5,8 +5,9 @@ import { GEMS } from '../constants';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
-import { X, FileText, Paperclip, Loader2 } from 'lucide-react';
+import { X, FileText, Paperclip, Loader2, Folder, Gem as GemIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import ContextSelectorModal from './ContextSelectorModal';
 
 interface ChatPanelProps {
   activeGemId: GemId | null;
@@ -31,6 +32,7 @@ interface Source {
 
 interface ExtendedChatMessage extends ChatMessage {
   sources?: Source[];
+  contextFiles?: DriveFile[]; // 🟢 Context Snapshot for Smart Patch
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -53,6 +55,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<DriveFile[]>([]); // 🟢 Context Chips
   const [isDragging, setIsDragging] = useState(false);
+  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -105,10 +108,73 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       setAttachedFiles(prev => prev.filter(f => f.id !== id));
   };
 
+  const handleCrystallize = async (msg: ExtendedChatMessage) => {
+      if (!accessToken || !folderId) {
+          toast.error("No hay acceso a Drive configurado.");
+          return;
+      }
+
+      const context = msg.contextFiles || [];
+      const functions = getFunctions();
+
+      if (context.length === 1) {
+          // Scenario A: Smart Patch
+          const targetFile = context[0];
+          const confirm = window.confirm(`¿Deseas actualizar "${targetFile.name}" con esta información?`);
+          if (!confirm) return;
+
+          const toastId = toast.loading("Cristalizando...");
+          try {
+              const patchFn = httpsCallable(functions, 'scribePatchFile');
+              await patchFn({
+                  fileId: targetFile.id,
+                  patchContent: msg.text,
+                  accessToken: accessToken,
+                  instructions: "Integra esta información en la sección más relevante o crea una nueva."
+              });
+              toast.success("Archivo actualizado correctamente.", { id: toastId });
+          } catch (e: any) {
+              console.error(e);
+              toast.error("Error al actualizar archivo: " + (e.message || "Desconocido"), { id: toastId });
+          }
+      } else {
+          // Scenario B: Create New
+          const confirm = window.confirm("¿Crear un nuevo archivo con esta información?");
+          if (confirm) {
+               const name = window.prompt("Nombre del nuevo archivo:");
+               if (!name) return;
+
+               const toastId = toast.loading("Forjando nuevo archivo...");
+               try {
+                   const createFn = httpsCallable(functions, 'scribeCreateFile');
+                   await createFn({
+                       entityId: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                       entityData: { name: name, type: 'concept', tags: ['crystallized'] },
+                       chatContent: msg.text,
+                       folderId: folderId,
+                       accessToken: accessToken
+                   });
+                   toast.success("Archivo creado.", { id: toastId });
+               } catch (e: any) {
+                   console.error(e);
+                   toast.error("Error al crear archivo: " + (e.message || "Desconocido"), { id: toastId });
+               }
+          }
+      }
+  };
+
   const handleSendMessage = async (text: string) => {
     if (!text.trim() || !activeGem) return;
 
-    const userMessage: ExtendedChatMessage = { role: 'user', text };
+    // 🟢 Capture context at the moment of sending
+    const currentContext = [...attachedFiles];
+
+    const userMessage: ExtendedChatMessage = {
+        role: 'user',
+        text,
+        contextFiles: currentContext
+    };
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
@@ -160,7 +226,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       const aiMessage: ExtendedChatMessage = {
         role: 'model',
         text: data.response,
-        sources: data.sources
+        sources: data.sources,
+        contextFiles: currentContext // 🟢 Persist context in AI response too (for logic linkage)
       };
 
       setMessages(prev => [...prev, aiMessage]);
@@ -222,7 +289,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${msg.role === 'user'
+              className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${msg.role === 'user'
                 ? 'bg-titanium-800 text-titanium-100 rounded-br-none border border-titanium-700'
                 : 'bg-titanium-900 text-titanium-200 rounded-bl-none border border-titanium-800'
                 }`}
@@ -232,6 +299,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                   {msg.text}
                 </ReactMarkdown>
               </div>
+
+              {/* 🟢 CRYSTAL BUTTON */}
+              {msg.role === 'model' && (
+                  <button
+                      onClick={() => handleCrystallize(msg)}
+                      className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10"
+                      title="Cristalizar esta idea"
+                  >
+                      <GemIcon size={14} />
+                  </button>
+              )}
             </div>
 
             {msg.sources && msg.sources.length > 0 && (
@@ -272,36 +350,63 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             </div>
         )}
 
-        <div className="relative">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSendMessage(input);
-              }
-            }}
-            placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
-            disabled={!activeGem || isLoading}
-            className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-emerald-500 transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
-          />
-          <button
-            onClick={() => handleSendMessage(input)}
-            disabled={!input.trim() || !activeGem || isLoading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-titanium-700 hover:text-white disabled:opacity-50 transition-all"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-          </button>
+        <div className="flex items-end gap-2">
+            {/* 🟢 PORTAL BUTTON */}
+            <button
+                onClick={() => setIsContextModalOpen(true)}
+                className="p-3 bg-titanium-900 border border-titanium-800 rounded-xl text-titanium-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all mb-[1px]"
+                title="Abrir Portal de Contexto"
+            >
+                <Folder size={20} />
+            </button>
+
+            <div className="relative flex-1">
+                <textarea
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage(input);
+                    }
+                    }}
+                    placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
+                    disabled={!activeGem || isLoading}
+                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-emerald-500 transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
+                />
+                <button
+                    onClick={() => handleSendMessage(input)}
+                    disabled={!input.trim() || !activeGem || isLoading}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-titanium-700 hover:text-white disabled:opacity-50 transition-all"
+                >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
         </div>
         <div className="text-[10px] text-center mt-2 text-titanium-600 flex justify-between px-2">
-            <span>Arrastra archivos aquí para analizarlos</span>
+            <span>Arrastra archivos o usa el Portal (📁)</span>
             <span>Enter para enviar</span>
         </div>
       </div>
+
+      {/* 🟢 CONTEXT MODAL */}
+      <ContextSelectorModal
+          isOpen={isContextModalOpen}
+          onClose={() => setIsContextModalOpen(false)}
+          onConfirm={(files) => {
+              // Merge with existing avoiding duplicates
+              setAttachedFiles(prev => {
+                  const existingIds = new Set(prev.map(f => f.id));
+                  const newFiles = files.filter(f => !existingIds.has(f.id));
+                  return [...prev, ...newFiles];
+              });
+              setIsContextModalOpen(false);
+          }}
+          initialSelection={attachedFiles.map(f => f.id)}
+      />
     </div>
   );
 };

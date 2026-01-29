@@ -1,9 +1,14 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { defineSecret } from "firebase-functions/params";
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import * as logger from "firebase-functions/logger";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
+import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
+
+const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
 interface ScribeRequest {
     entityId: string;
@@ -19,6 +24,13 @@ interface ScribeRequest {
     folderId: string;
     accessToken: string;
     sagaId?: string;
+}
+
+interface ScribePatchRequest {
+    fileId: string;
+    patchContent: string;
+    accessToken: string;
+    instructions?: string; // e.g. "Add to Skills"
 }
 
 /**
@@ -188,6 +200,92 @@ export const scribeCreateFile = onCall(
         } catch (error: any) {
             logger.error("🔥 Error del Escriba:", error);
             throw new HttpsError("internal", error.message || "El Escriba falló al tallar la piedra.");
+        }
+    }
+);
+
+/**
+ * THE SMART PATCH (El Restaurador)
+ * Intelligent merging of new insights into existing records.
+ */
+export const scribePatchFile = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        memory: "1GiB",
+        timeoutSeconds: 60, // Drive IO + AI + Drive IO
+        secrets: [googleApiKey],
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+
+        const { fileId, patchContent, accessToken, instructions } = request.data as ScribePatchRequest;
+
+        if (!fileId || !patchContent || !accessToken) {
+            throw new HttpsError("invalid-argument", "Missing required fields.");
+        }
+
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            // 1. FETCH ORIGINAL CONTENT
+            const getRes = await drive.files.get({
+                fileId: fileId,
+                alt: 'media'
+            });
+            const originalContent = typeof getRes.data === 'string' ? getRes.data : JSON.stringify(getRes.data);
+
+            // 2. AI MERGE
+            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const model = genAI.getGenerativeModel({
+                model: MODEL_LOW_COST, // Flash is fine for merging
+                generationConfig: { temperature: TEMP_PRECISION }
+            });
+
+            const prompt = `
+            ACT AS: Expert Markdown Editor & Archivist.
+            TASK: Integrate the "New Patch" into the "Existing File" intelligently.
+
+            INSTRUCTIONS:
+            ${instructions || "Find the most relevant section for this new information and append it. If no relevant section exists, create a new H2 header."}
+
+            RULES:
+            1. PRESERVE Frontmatter (--- ... ---) exactly as is.
+            2. PRESERVE existing content. Only append or insert. Do not delete.
+            3. OUTPUT the FULL, VALID Markdown file content.
+            4. Do NOT wrap output in \`\`\`markdown code blocks. Return RAW text.
+
+            EXISTING FILE:
+            ${originalContent}
+
+            NEW PATCH:
+            ${patchContent}
+            `;
+
+            const result = await model.generateContent(prompt);
+            let newContent = result.response.text();
+
+            // Cleanup potential markdown fences if model ignores rule 4
+            if (newContent.startsWith('```markdown')) newContent = newContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+            if (newContent.startsWith('```')) newContent = newContent.replace(/^```\n/, '').replace(/\n```$/, '');
+
+            // 3. UPDATE FILE
+            await drive.files.update({
+                fileId: fileId,
+                media: {
+                    mimeType: 'text/markdown',
+                    body: newContent
+                }
+            });
+
+            return { success: true, message: "Archivo actualizado (Cristalizado)." };
+
+        } catch (error: any) {
+            logger.error("🔥 Error del Restaurador (Patch):", error);
+            throw new HttpsError("internal", error.message || "Fallo al actualizar el archivo.");
         }
     }
 );
