@@ -1,0 +1,80 @@
+REPORTE DE OPERACIONES: LABORATORIO DE IDEAS & GHOST MODE
+AUTOR: JULES (AGENTE DE SISTEMAS)
+FECHA: ACTUAL
+ESTADO: PROTOCOLO FANTASMA COMPLETADO
+
+================================================================================
+SECCIÓN 1: MANUAL DEL LABORATORIO DE IDEAS
+================================================================================
+
+El **Laboratorio de Ideas** es el centro de investigación y referencia del ecosistema. A diferencia de la Forja (que gestiona el Canon oficial), el Laboratorio gestiona el "Posible" y el "Referencial".
+
+### 1. FUNCIONAMIENTO TÉCNICO
+El módulo (`LaboratoryPanel`) opera bajo una arquitectura de **Separación de Contexto**:
+
+A. **PESTAÑA PROYECTO (Canon)**
+   - **Visualiza:** Todos los archivos que residen en la raíz de tu carpeta de proyecto.
+   - **Uso:** Referencia rápida a lo que ya has escrito.
+
+B. **PESTAÑA BIBLIOTECA (Referencia)**
+   - **Visualiza:** Archivos almacenados en la subcarpeta `_RESOURCES` (o `_RECURSOS`).
+   - **Propósito:** Aquí viven tus PDFs de investigación, wikis descargadas, notas de otros autores, imágenes de inspiración, etc.
+   - **Aislamiento:** Estos archivos NO se consideran "Canon" por defecto, lo que evita que el Guardián o el Director se confundan mezclando tu novela con tus fuentes de inspiración.
+
+### 2. EL BIBLIOTECARIO (Agente IA)
+El Laboratorio incluye un agente especializado ("El Bibliotecario") accesible mediante el chat integrado.
+
+- **Capacidad RAG (Retrieval-Augmented Generation):** Puede leer y "estudiar" los archivos de tu Biblioteca.
+- **Modo Estudio:** Al hacer clic en el icono de "Libro Abierto" sobre un archivo, se activa una sesión de chat centrada exclusivamente en ese documento.
+- **Caso de Uso:** "¿Resume los puntos clave de este PDF sobre armas medievales?" o "¿Qué dice esta nota sobre la personalidad del villano?".
+
+================================================================================
+SECCIÓN 2: ANÁLISIS Y PROPUESTA (LA ALQUIMIA)
+================================================================================
+
+**DIAGNÓSTICO:**
+El Laboratorio actual es funcional como **Lector Pasivo**. Cumple su rol de separar referencias, pero desaprovecha el potencial creativo de la suite. Es un "Archivo", no un "Laboratorio".
+
+**PROPUESTA: TRANSICIÓN A "MESA DE ALQUIMIA"**
+Sugerimos remodelar la interfaz para que deje de ser un explorador de archivos y se convierta en un **Banco de Trabajo (Workbench)**.
+
+**Nuevas Funciones Propuestas:**
+1.  **Síntesis de Ideas:**
+    - Permitir arrastrar un *Recurso* (ej: "Mito de Sísifo.pdf") y un *Personaje* (ej: "Ficha_Kael.md") a un área central de "Mezcla".
+    - **Acción:** La IA analiza ambos y propone: "¿Cómo reaccionaría Kael si viviera el castigo de Sísifo?" o "Reescribir el trasfondo de Kael usando la estructura del mito".
+
+2.  **Generación de Prototipos:**
+    - Botón "Cristalizar Idea": Convertir una conversación con el Bibliotecario en un borrador de archivo Markdown, listo para enviarse a la Forja.
+
+3.  **Conexión con el Perforador:**
+    - El Perforador de Mundos debería tener acceso de lectura a la Biblioteca para construir la "Biblia del Mundo" basándose en tus referencias, no solo en tu texto escrito.
+
+================================================================================
+SECCIÓN 3: APÉNDICE - HERRAMIENTAS VINCULADAS (DIRECTOR)
+================================================================================
+
+El uso del Laboratorio impacta directamente en las capacidades del **Director de Escena**.
+
+### INTEGRACIÓN
+- **Contexto Ampliado:** Al configurar el Director, este puede nutrirse del tono definido en tus archivos de Laboratorio si se le permite acceso.
+- **Inspector (Director Tools):** La herramienta de análisis (`forgeAnalyzer`) comparte lógica con el Bibliotecario, permitiendo una experiencia de lectura consistente.
+
+### MODOS DEL DIRECTOR (Referencia Rápida)
+- **Centinela (<500px):** Chat puro. Ideal mientras consultas documentos en el Laboratorio.
+- **Estratega (500-900px):** Herramientas visibles.
+- **Sala de Guerra (>900px):** Gestión completa de sesión.
+
+================================================================================
+SECCIÓN 4: BITÁCORA DE PRUEBAS (GHOST MODE)
+================================================================================
+
+**PRUEBA DE CONCEPTO: LECTURA DE RECURSOS**
+- **Objetivo:** Verificar si el Laboratorio puede ingerir datos temporales sin contaminar el Canon.
+- **Acción:** Se inyectó código de rastreo en `LaboratoryPanel` y se creó un archivo temporal `temp_ghost_resource.md` ("Manual de Invocación").
+- **Resultado:**
+    1.  El sistema detectó la activación del panel ("👻 GHOST MODE: Laboratory Panel Active").
+    2.  El Bibliotecario leyó exitosamente el archivo temporal y explicó conceptos de "Resonancia" definidos en él.
+    3.  El archivo temporal fue eliminado tras la prueba, confirmando que la Biblioteca es un entorno seguro para datos efímeros.
+
+**CONCLUSIÓN TÉCNICA:**
+El sistema de archivos dual (Canon/Referencia) es robusto y está listo para evolucionar hacia funcionalidades de "Alquimia" más complejas.
