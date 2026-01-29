@@ -210,6 +210,16 @@ export const classifyEntities = onCall(
                              const name = rawName.replace(/[:\*\-\_]+$/, '').trim();
 
                              if (!isGenericName(name)) {
+                                 // 🟢 CLEANUP: Cut content before "Le gusta:", "Odia:", or next big section
+                                 // to avoid bleeding into other descriptions if splitting was imperfect
+                                 let cleanContent = block;
+                                 const cutOffs = ['Le gusta:', 'Odia:', 'Gustos:', 'Disgustos:', '\n\n\n'];
+                                 for (const cut of cutOffs) {
+                                     if (cleanContent.includes(cut)) {
+                                         cleanContent = cleanContent.split(cut)[0];
+                                     }
+                                 }
+
                                  // Add as LIMBO (Lists are Limbos, not full Anchors)
                                  entitiesMap.set(name.toLowerCase(), {
                                     name: name,
@@ -220,7 +230,7 @@ export const classifyEntities = onCall(
                                     sourceFileName: file.name,
                                     saga: file.saga,
                                     foundIn: [file.name],
-                                    rawContent: block.substring(0, 500) // Context for enrichment
+                                    rawContent: cleanContent.substring(0, 500) // Context for enrichment
                                 });
                                 // We don't mark 'classified = true' because we still want to scan
                                 // the rest of the file for Ghosts or check if the file ITSELF is an Anchor (unlikely but possible)
@@ -283,11 +293,20 @@ export const classifyEntities = onCall(
                         }
                         // Key-Value "Name: X" (Enhanced Regex for **Bold**, Lists -, and "Nombre Completo")
                         // Matches: "Nombre:", "**Nombre**:", "- Nombre:", "- **Nombre Completo**:"
-                        const kvMatch = clean.match(/^[\-\*\s]*(Nombre|Name|Personaje|Character|Nombre Completo|Full Name)[\*\s]*:\s*(.+)/i);
-                        if (kvMatch && kvMatch[2]) {
-                            let name = kvMatch[2].trim();
-                            // Sanitize: Remove trailing punctuation or markdown artifacts
-                            name = name.replace(/[:\*\-\_]+$/, '').trim();
+                        // 🟢 FIX: Explicitly allow bullet + bold pattern "- **Nombre...**:"
+
+                        // Group 5 usually holds the value (Name) if it exists, BUT for "Nombre Completo: Megu",
+                        // sometimes we want the key detection itself to trigger.
+                        // Actually, the original logic extracted the VALUE (Megu) from the regex.
+                        // Let's stick to the pattern: Key -> Value.
+
+                        // If the line is "- **Nombre Completo:** Megu", we want to extract "Megu".
+                        const keyMatch = clean.match(/^[\-\*\s]*(\*\*|)(Nombre|Name|Personaje|Character|Nombre Completo|Full Name)(\*\*|)[\*\s]*:\s*(.+)/i);
+
+                        if (keyMatch && keyMatch[4]) {
+                            let name = keyMatch[4].trim();
+                            // Sanitize: Remove trailing and LEADING punctuation or markdown artifacts (like leftover **)
+                            name = name.replace(/^[:\*\-\_]+/, '').replace(/[:\*\-\_]+$/, '').trim();
 
                             console.log(`[DEBUG_ANCHOR_CHECK] Key-Value Candidate: ${name} in ${file.name}`);
                             if (name.length > 2 && name.length < 50) {
