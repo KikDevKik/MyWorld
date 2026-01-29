@@ -12,6 +12,7 @@ export interface SoulEntity {
   role?: string;          // Added: Useful for UI
   avatar?: string;        // Added: Useful for UI (Anchors)
   tags?: string[];        // Added: Limbo traits (e.g. [Tímido, Leal])
+  aliases?: string[];     // Added: Known aliases for search/linking
 }
 
 export interface ForgePayload {
