@@ -233,7 +233,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         {/* 🟢 VAULT NAME IN HEADER */}
                         <div className="flex items-center gap-2 px-3 py-1 rounded bg-titanium-800/50 border border-titanium-700/50">
                             <Book size={14} className="text-accent-DEFAULT" />
-                            <span className="font-bold text-sm text-titanium-200">{activeSaga.name}</span>
+                            <span className="font-bold text-sm text-titanium-200">Bóveda: {activeSaga.name}</span>
                         </div>
 
                         {/* UNLINK BUTTON */}

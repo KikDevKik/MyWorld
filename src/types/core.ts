@@ -65,6 +65,7 @@ export interface ProjectConfig {
   folderId?: string;
   characterVaultId?: string | null;
   lastIndexed?: string;
+  lastForgeScan?: string; // 👈 Timestamp for Incremental Forge Scan
   styleIdentity?: string; // 👈 Auto-detected Style DNA
 }
 

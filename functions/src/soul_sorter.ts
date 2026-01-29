@@ -14,7 +14,7 @@ const MAX_BATCH_CHARS = 100000; // 100k chars per AI call
 
 interface SorterRequest {
     projectId: string;
-    sagaId?: string; // Optional Scope
+    sagaId?: string; // Optional Scope (Used for Output Tagging)
 }
 
 interface DetectedEntity {
@@ -53,16 +53,20 @@ export const classifyEntities = onCall(
         const uid = request.auth.uid;
         const db = getFirestore();
 
-        logger.info(`👻 SOUL SORTER: Starting triage for User ${uid} (Project: ${projectId}, Saga: ${sagaId || 'All'})`);
+        logger.info(`👻 SOUL SORTER: Starting OMNISCIENT triage for User ${uid} (Target Vault: ${sagaId || 'Global'})`);
 
         try {
+            // --- 0. INCREMENTAL SCAN CHECK ---
+            // Fetch Project Config to get 'lastForgeScan'
+            const configRef = db.collection("users").doc(uid).collection("profile").doc("project_config");
+            const configSnap = await configRef.get();
+            const configData = configSnap.exists ? configSnap.data() : {};
+            const lastScanTime = configData?.lastForgeScan ? new Date(configData.lastForgeScan).getTime() : 0;
+
             // --- 1. FETCH CONTENT (SPECTRAL SWEEP) ---
             const filesRef = db.collection("TDB_Index").doc(uid).collection("files");
-            let q = filesRef.where("category", "==", "canon");
-
-            if (sagaId) {
-                q = q.where("saga", "==", sagaId);
-            }
+            // 🟢 OMNISCIENT INPUT: Scan ALL canon files, ignore folder boundaries.
+            const q = filesRef.where("category", "==", "canon");
 
             const filesSnap = await q.get();
             if (filesSnap.empty) {
@@ -74,10 +78,22 @@ export const classifyEntities = onCall(
 
             // Fetch Chunk 0s
             const fileContents: { id: string, name: string, content: string, saga: string }[] = [];
+            let skippedCount = 0;
 
             // Optimization: Parallel Fetch
             const fetchPromises = filesSnap.docs.map(async (doc) => {
                 const fData = doc.data();
+
+                // 🟢 INCREMENTAL FILTER: Skip if file hasn't changed since last scan
+                // Use 'lastIndexed' or 'updatedAt' from TDB_Index
+                const fileTimeStr = fData.lastIndexed || fData.updatedAt;
+                const fileTime = fileTimeStr ? new Date(fileTimeStr).getTime() : 0;
+
+                if (lastScanTime > 0 && fileTime <= lastScanTime) {
+                    skippedCount++;
+                    return null; // Skip this file
+                }
+
                 const chunkRef = doc.ref.collection("chunks").doc("chunk_0");
                 const chunkSnap = await chunkRef.get();
 
@@ -98,7 +114,18 @@ export const classifyEntities = onCall(
             const results = await Promise.all(fetchPromises);
             results.forEach(r => { if (r) fileContents.push(r); });
 
-            logger.info(`   -> Scanned ${fileContents.length} files.`);
+            logger.info(`   -> Scanned ${fileContents.length} new/modified files. (Skipped ${skippedCount} unchanged).`);
+
+            if (fileContents.length === 0) {
+                 logger.info("   -> No new content to analyze. Updating timestamp and exiting.");
+                 // Update timestamp anyway to show we checked
+                 await configRef.set({ lastForgeScan: new Date().toISOString() }, { merge: true });
+
+                 return {
+                    entities: [], // Frontend will keep showing existing snapshot
+                    stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
+                 } as ForgePayload;
+            }
 
             // --- 2. DENSITY ANALYSIS (HEURISTIC) ---
             const entitiesMap = new Map<string, DetectedEntity>();
@@ -396,36 +423,12 @@ export const classifyEntities = onCall(
             // --- 5. PERSISTENCE (WRITE TO FIRESTORE CACHE) ---
             const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
 
-            // Step A: Delete Old (Scoped)
-            let deleteQ = detectionRef as FirebaseFirestore.Query;
-            if (sagaId) deleteQ = deleteQ.where("saga", "==", sagaId);
-            const oldDocs = await deleteQ.get();
+            // 🟢 INCREMENTAL UPDATE STRATEGY: NO DELETES
+            // We blindly upsert/merge found entities. Old entities remain (as requested).
 
             const BATCH_SIZE = 400;
-            const operations: Promise<any>[] = [];
-
-            // 1. BATCH DELETE
-            if (!oldDocs.empty) {
-                let currentDelBatch = db.batch();
-                let delCount = 0;
-
-                oldDocs.forEach(d => {
-                    currentDelBatch.delete(d.ref);
-                    delCount++;
-                    if (delCount >= BATCH_SIZE) {
-                        operations.push(currentDelBatch.commit());
-                        currentDelBatch = db.batch();
-                        delCount = 0;
-                    }
-                });
-                if (delCount > 0) operations.push(currentDelBatch.commit());
-            }
-
-            // Await deletes to clear space? Not strictly necessary in Firestore but safer.
-            await Promise.all(operations);
             const setOperations: Promise<any>[] = [];
 
-            // 2. BATCH SET
             let currentSetBatch = db.batch();
             let setCount = 0;
 
@@ -433,9 +436,11 @@ export const classifyEntities = onCall(
                 const ref = detectionRef.doc(e.id);
                 currentSetBatch.set(ref, {
                     ...e,
-                    saga: sagaId || 'Global',
-                    lastDetected: new Date().toISOString()
-                });
+                    saga: sagaId || 'Global', // We output to the requested Vault Scope
+                    lastDetected: new Date().toISOString(),
+                    occurrences: FieldValue.increment(e.occurrences) // 🟢 ADDITIVE
+                }, { merge: true });
+
                 setCount++;
                 if (setCount >= BATCH_SIZE) {
                     setOperations.push(currentSetBatch.commit());
@@ -447,7 +452,10 @@ export const classifyEntities = onCall(
 
             await Promise.all(setOperations);
 
-            // --- 6. RETURN PAYLOAD ---
+            // --- 6. UPDATE CONFIG TIMESTAMP ---
+            await configRef.set({ lastForgeScan: new Date().toISOString() }, { merge: true });
+
+            // --- 7. RETURN PAYLOAD ---
             // Sort by occurrences desc
             enrichedEntities.sort((a, b) => b.occurrences - a.occurrences);
 
