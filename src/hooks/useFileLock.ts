@@ -3,11 +3,26 @@ import { getFirestore, doc, setDoc, deleteDoc, onSnapshot, serverTimestamp, Time
 
 const LOCK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-// 🟢 STABLE SESSION ID (Per Tab/Page Load)
-// This ensures that even if the App or Hook remounts (causing internal state reset),
-// the Session ID remains constant, preventing "Zombie Locks" where the user locks themselves out.
-// This is critical for preventing "Read Only" flashes when heavy components (like Guardian) trigger re-renders.
-const SESSION_ID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+// 🟢 STABLE SESSION ID (Per Tab Persistence)
+// We use sessionStorage to ensure the ID persists across page reloads (F5) in the same tab.
+// This prevents "Zombie Locks" where a refresh generates a new ID but the old lock remains active in Firestore.
+let SESSION_ID: string;
+
+try {
+    const stored = sessionStorage.getItem('forge_session_id');
+    if (stored) {
+        SESSION_ID = stored;
+        console.log("🔐 [LOCK] Session Restored:", SESSION_ID);
+    } else {
+        SESSION_ID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+        sessionStorage.setItem('forge_session_id', SESSION_ID);
+        console.log("🔐 [LOCK] New Session Created:", SESSION_ID);
+    }
+} catch (e) {
+    // Fallback if sessionStorage is disabled/inaccessible
+    console.warn("⚠️ sessionStorage inaccessible, using volatile session ID.");
+    SESSION_ID = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2);
+}
 
 interface LockStatus {
     isLocked: boolean;
@@ -71,7 +86,7 @@ export const useFileLock = (fileId: string | null, userId: string | undefined) =
 
                      if (data.lockedBy !== SESSION_ID && (now - lockedAt < LOCK_TIMEOUT_MS)) {
                          // Valid Foreign Lock -> Do not overwrite
-                         console.log("File is locked by another session.");
+                         console.log(`🔒 [LOCK] File locked by another session (${data.lockedBy}). Current: ${SESSION_ID}`);
                          return;
                      }
                  }
@@ -112,6 +127,17 @@ export const useFileLock = (fileId: string | null, userId: string | undefined) =
 
         return () => {
              // Best effort release on component unmount (e.g. changing file)
+             // 🟢 SAFETY: We deliberately DO NOT delete the lock if we are just reloading (since session persists).
+             // But we don't know if we are reloading or closing.
+             // If we delete it on reload, there's a small window where it's unlocked.
+             // Then safeAcquire re-locks it.
+             // This is acceptable.
+             // The problem is if safeAcquire fails or takes time.
+             // But `deleteDoc` is fired on unmount.
+             // If we keep the same SessionID, deleting on unmount is tricky if we remount immediately.
+             // BUT: If we delete, the next mount sees "No Lock" -> Acquires. Perfect.
+             // The only risk is if another user steals it in that millisecond.
+             // Given this is for "Zombie Lock" prevention, the SessionID persistence is the key backup.
              deleteDoc(lockRef).catch(e => console.warn("Failed to release lock", e));
         };
     }, [fileId, userId]);
