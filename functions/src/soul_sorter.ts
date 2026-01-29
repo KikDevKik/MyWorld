@@ -12,6 +12,7 @@ import { EntityTier, ForgePayload, SoulEntity } from "./types/forge";
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
 const GENERIC_NAMES = ['nota', 'idea', 'fecha', 'todo', 'importante', 'ojo', 'personajes', 'saga', 'lista', 'introducción', 'capítulo', 'resumen', 'nombre', 'name', 'character', 'rol', 'role', 'descripción', 'description', 'titulo', 'title', 'anotaciones'];
+const CHARACTER_KEYS = ['rol', 'role', 'edad', 'age', 'raza', 'race', 'clase', 'class', 'genero', 'gender', 'alias', 'apodo', 'level', 'nivel', 'species', 'especie', 'ocupación', 'occupation', 'faction', 'facción', 'group', 'grupo', 'appears in', 'aparece en', 'birthday', 'cumpleaños'];
 
 function isContainerFile(filename: string): boolean {
     const lower = filename.toLowerCase();
@@ -22,6 +23,15 @@ function isGenericName(name: string): boolean {
     const lower = name.toLowerCase();
     // Exact match or very generic phrase
     return GENERIC_NAMES.some(g => lower === g) || name.length < 3 || name.length > 50;
+}
+
+function hasCharacterMetadata(content: string): boolean {
+    const lines = content.split('\n').slice(0, 30);
+    return CHARACTER_KEYS.some(key => {
+        // Match "Key:" or "**Key**:" pattern at start of line (ignoring bullets)
+        const regex = new RegExp(`^[\\s\\-\\*]*(\\*\\*)?${key}(\\*\\*)?:`, 'i');
+        return lines.some(line => regex.test(line));
+    });
 }
 
 function splitContentIntoBlocks(content: string): string[] {
@@ -191,6 +201,7 @@ export const classifyEntities = onCall(
             // --- 2. DENSITY ANALYSIS (HEURISTIC) ---
             const entitiesMap = new Map<string, DetectedEntity>();
             const narrativeBuffer: string[] = [];
+            const knownNames = new Set<string>(); // 🟢 TRACK KNOWN ENTITIES FOR AI
 
             for (const file of fileContents) {
                 let classified = false;
@@ -232,6 +243,7 @@ export const classifyEntities = onCall(
                                     foundIn: [file.name],
                                     rawContent: cleanContent.substring(0, 500) // Context for enrichment
                                 });
+                                knownNames.add(name); // Track for AI
                                 // We don't mark 'classified = true' because we still want to scan
                                 // the rest of the file for Ghosts or check if the file ITSELF is an Anchor (unlikely but possible)
                              }
@@ -259,6 +271,7 @@ export const classifyEntities = onCall(
                                 role: parsed.data.role || parsed.data.Role || parsed.data.cargo,
                                 avatar: parsed.data.avatar || parsed.data.Avatar
                             });
+                            knownNames.add(name); // Track for AI
                             classified = true;
                             console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via Frontmatter: ${file.name}`);
                         }
@@ -275,32 +288,30 @@ export const classifyEntities = onCall(
                         if (clean.startsWith('# ') && !clean.includes('Capítulo') && !clean.includes('Chapter')) {
                             const name = clean.replace(/^#+\s*/, '').trim(); // Remove one or more #
                             console.log(`[DEBUG_ANCHOR_CHECK] Header Candidate: ${name} in ${file.name}`);
-                            if (name.length > 2 && name.length < 50) {
+
+                            // 🟢 STRICT VALIDATION: A simple header is NOT enough. "The Capital" has a header.
+                            // We require at least ONE character trait (Role, Age, etc.) to upgrade to ANCHOR.
+                            if (name.length > 2 && name.length < 50 && hasCharacterMetadata(file.content)) {
                                 entitiesMap.set(name.toLowerCase(), {
                                     name: name,
                                     tier: 'ANCHOR',
                                     confidence: 90,
-                                    reasoning: "Encabezado Detectado",
+                                    reasoning: "Encabezado + Metadatos",
                                     sourceFileId: file.id,
                                     sourceFileName: file.name,
                                     saga: file.saga,
                                     foundIn: [file.name]
                                 });
+                                knownNames.add(name); // Track for AI
                                 classified = true;
-                                console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via H1: ${file.name}`);
+                                console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via H1+Metadata: ${file.name}`);
                                 break;
+                            } else {
+                                console.log(`[DEBUG_ANCHOR_CHECK] REJECTED Candidate ${name} - No character metadata found.`);
                             }
                         }
+
                         // Key-Value "Name: X" (Enhanced Regex for **Bold**, Lists -, and "Nombre Completo")
-                        // Matches: "Nombre:", "**Nombre**:", "- Nombre:", "- **Nombre Completo**:"
-                        // 🟢 FIX: Explicitly allow bullet + bold pattern "- **Nombre...**:"
-
-                        // Group 5 usually holds the value (Name) if it exists, BUT for "Nombre Completo: Megu",
-                        // sometimes we want the key detection itself to trigger.
-                        // Actually, the original logic extracted the VALUE (Megu) from the regex.
-                        // Let's stick to the pattern: Key -> Value.
-
-                        // If the line is "- **Nombre Completo:** Megu", we want to extract "Megu".
                         const keyMatch = clean.match(/^[\-\*\s]*(\*\*|)(Nombre|Name|Personaje|Character|Nombre Completo|Full Name)(\*\*|)[\*\s]*:\s*(.+)/i);
 
                         if (keyMatch && keyMatch[4]) {
@@ -320,6 +331,7 @@ export const classifyEntities = onCall(
                                     saga: file.saga,
                                     foundIn: [file.name]
                                 });
+                                knownNames.add(name); // Track for AI
                                 classified = true;
                                 console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via Key-Value: ${file.name}`);
                                 break;
@@ -365,6 +377,7 @@ export const classifyEntities = onCall(
                                 foundIn: [file.name],
                                 rawContent: file.content.substring(0, 500) // Keep snippet for AI enrichment
                             });
+                            knownNames.add(matchedName); // Track for AI
                          }
                     }
                 }
@@ -378,6 +391,7 @@ export const classifyEntities = onCall(
             // --- 3. AI EXTRACTION (GHOST SWEEP) ---
             const fullText = narrativeBuffer.join('\n');
             const batches: string[] = [];
+            const knownEntitiesList = Array.from(knownNames).join(", "); // Prepare list for AI
 
             // Chunking for AI Limit
             let currentBatch = "";
@@ -403,11 +417,14 @@ export const classifyEntities = onCall(
             ACT AS: The Soul Sorter.
             TASK: Extract all CHARACTER NAMES from the narrative text.
 
+            KNOWN CHARACTERS: [${knownEntitiesList}]
+
             RULES:
             1. Extract Proper Names of People/Beings (e.g. "Thomas", "Megu").
             2. IGNORE Locations (Cities, Planets).
             3. IGNORE Objects (Swords, Ships).
             4. IGNORE Generic titles ("The King", "The Soldier") unless capitalized as a proper alias.
+            5. DEDUPLICATION: If a detected name is a variation or alias of a KNOWN CHARACTER (e.g. "Megu" -> "Megu (Apellido Desconocido)"), use the KNOWN CHARACTER'S full name in the output.
 
             OUTPUT JSON (Array):
             [
@@ -511,9 +528,10 @@ export const classifyEntities = onCall(
                         const limboModel = genAI.getGenerativeModel({ model: MODEL_LOW_COST });
                         const limboPrompt = `
                             Analyze this character note.
-                            Extract:
-                            1. A brief preview (max 100 chars).
-                            2. Detected Traits (max 3 adjectives).
+                            1. DETECT LANGUAGE of the content (e.g. Spanish, English).
+                            2. Extract:
+                               - A brief preview (max 100 chars) in the SAME LANGUAGE.
+                               - Detected Traits (max 3 adjectives) in the SAME LANGUAGE.
 
                             Content: "${entity.rawContent.substring(0, 500)}"
 
