@@ -3,11 +3,14 @@ import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { google } from "googleapis";
+import * as crypto from 'crypto';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
+import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
+import { resolveVirtualPath } from "./utils/drive";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -88,6 +91,15 @@ export const crystallizeGraph = onCall(
             }
         }
 
+        // 🟢 1. TRACE PATH ONCE (For Nexus Protocol)
+        let virtualPathRoot = "";
+        try {
+            virtualPathRoot = await resolveVirtualPath(drive, targetFolderId);
+        } catch (e) {
+            logger.warn("Failed to resolve virtual path for graph crystallization.", e);
+            virtualPathRoot = "Unknown_Graph_Path";
+        }
+
         let successCount = 0;
         let failCount = 0;
         const createdFiles: Array<{ id: string; name: string }> = [];
@@ -139,23 +151,24 @@ export const crystallizeGraph = onCall(
                     const aiRes = await model.generateContent(prompt);
                     const bodyContent = aiRes.response.text();
 
-                    // 2. CONSTRUCT FRONTMATTER
-                    // Note: Ideally we parse the AI response to see if it suggested a better type,
-                    // but for now we stick to the requested node.type to ensure Graph consistency.
-                    const frontmatter = [
-                        "---",
-                        `uuid: "${node.id}"`,
-                        `type: "${node.type}"`,
-                        `project_id: "${projectId}"`,
-                        `created_at: "${new Date().toISOString()}"`,
-                        `tags: [${node.type}]`,
-                        "---"
-                    ].join("\n");
+                    // 2. NEXUS IDENTITY
+                    const cleanName = node.name.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim();
+                    const fileName = `${cleanName}.md`;
+                    const fullVirtualPath = `${virtualPathRoot}/${fileName}`;
+                    const nexusId = crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
 
-                    const finalContent = `${frontmatter}\n\n${bodyContent}`;
+                    // 3. CONSTRUCT CONTENT (Unified Template)
+                    const finalContent = generateAnchorContent({
+                        id: nexusId, // Deterministic ID
+                        name: node.name,
+                        type: (node.type as any) || 'concept',
+                        role: node.type === 'character' ? (node.description || 'Character') : node.type,
+                        project_id: projectId,
+                        tags: [node.type],
+                        rawBodyContent: bodyContent // 🟢 Injected Body
+                    });
 
-                    // 3. SAVE TO DRIVE
-                    const fileName = `${node.name.replace(/[^a-zA-Z0-9_\-\s]/g, '')}.md`;
+                    // 4. SAVE TO DRIVE
                     const file = await drive.files.create({
                         requestBody: {
                             name: fileName,
@@ -170,7 +183,21 @@ export const crystallizeGraph = onCall(
                     });
 
                     if (file.data.id) {
-                        // 4. UPDATE FIRESTORE (Promote from Ghost)
+                        const fileId = file.data.id;
+
+                        // 5. PRE-INJECT TDB_INDEX (Prevent Phantom Nodes)
+                        await db.collection("TDB_Index").doc(userId).collection("files").doc(nexusId).set({
+                            name: fileName,
+                            path: fullVirtualPath,
+                            driveId: fileId,
+                            lastIndexed: new Date().toISOString(),
+                            contentHash: crypto.createHash('sha256').update(finalContent).digest('hex'),
+                            category: 'canon',
+                            isGhost: false,
+                            smartTags: ['CREATED_BY_BUILDER']
+                        });
+
+                        // 6. UPDATE ENTITIES GRAPH (Promote from Ghost)
                         const entityRef = db.collection("users").doc(userId)
                             .collection("projects").doc(projectId)
                             .collection("entities").doc(node.id);
@@ -182,11 +209,12 @@ export const crystallizeGraph = onCall(
                             description: node.description,
                             isGhost: false,
                             isAnchor: true,
-                            masterFileId: file.data.id,
+                            masterFileId: fileId,
+                            nexusId: nexusId, // Link to Deterministic ID
                             lastUpdated: new Date().toISOString()
                         }, { merge: true });
 
-                        createdFiles.push({ id: file.data.id, name: fileName });
+                        createdFiles.push({ id: fileId, name: fileName });
                         successCount++;
                     }
 
@@ -251,27 +279,10 @@ export const crystallizeForgeEntity = onCall(
         logger.info(`💎 CRYSTALLIZING FORGE ENTITY: ${name} (${entityId})`);
 
         // 1. PREPARE CONTENT
-        // If we have specific fields (summary, role), use them.
-        // If not, we might generate content? The prompt implies we have it.
-        // We will construct a clean Markdown.
-
         const safeName = name.replace(/[^a-zA-Z0-9À-ÿ\s\-_]/g, '').trim();
         const fileName = `${safeName}.md`;
-        const now = new Date().toISOString();
 
-        // Frontmatter
-        const frontmatterLines = [
-            "---",
-            `name: "${safeName}"`,
-            `role: "${role || 'Unknown'}"`,
-            `tier: "ANCHOR"`,
-            `type: "character"`,
-            `status: "active"`,
-            `created_at: "${now}"`,
-            `tags: [${attributes?.tags?.join(', ') || 'character'}]`,
-            "---"
-        ];
-
+        // Construct raw body for Template
         const bodyLines = [];
         if (summary) {
             bodyLines.push(`## 📝 Resumen\n${summary}\n`);
@@ -281,21 +292,38 @@ export const crystallizeForgeEntity = onCall(
 
         if (attributes && Object.keys(attributes).length > 0) {
             // Add other traits if passed
-            // (e.g. from chat enrichment)
         }
 
         if (chatNotes) {
             bodyLines.push(`## 🧠 Notas de la Sesión\n${chatNotes}\n`);
         }
 
-        const fileContent = [...frontmatterLines, "", ...bodyLines].join("\n");
+        const rawBody = bodyLines.join("\n");
 
-        // 2. SAVE TO DRIVE
         try {
             const auth = new google.auth.OAuth2();
             auth.setCredentials({ access_token: accessToken });
             const drive = google.drive({ version: "v3", auth });
 
+            // 2. NEXUS IDENTITY
+            logger.info("   -> Tracing lineage...");
+            const folderPath = await resolveVirtualPath(drive, folderId);
+            const fullVirtualPath = `${folderPath}/${fileName}`;
+            const nexusId = crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
+
+            // 3. GENERATE CONTENT (Unified Template)
+            const finalContent = generateAnchorContent({
+                id: nexusId,
+                name: safeName,
+                type: 'character', // Default for Forge
+                role: role || 'Unknown',
+                tags: attributes?.tags,
+                avatar: attributes?.avatar,
+                rawBodyContent: rawBody,
+                project_id: sagaId
+            });
+
+            // 4. SAVE TO DRIVE
             const file = await drive.files.create({
                 requestBody: {
                     name: fileName,
@@ -304,7 +332,7 @@ export const crystallizeForgeEntity = onCall(
                 },
                 media: {
                     mimeType: 'text/markdown',
-                    body: fileContent
+                    body: finalContent
                 },
                 fields: 'id, name, webViewLink'
             });
@@ -314,8 +342,19 @@ export const crystallizeForgeEntity = onCall(
 
             logger.info(`   ✅ File Forged: ${newFileId}`);
 
-            // 3. CREATE ROSTER ENTRY (The Promotion)
-            // Slugify ID for Roster consistency
+            // 5. PRE-INJECT TDB_INDEX
+            await db.collection("TDB_Index").doc(userId).collection("files").doc(nexusId).set({
+                name: fileName,
+                path: fullVirtualPath,
+                driveId: newFileId,
+                lastIndexed: new Date().toISOString(),
+                contentHash: crypto.createHash('sha256').update(finalContent).digest('hex'),
+                category: 'canon',
+                isGhost: false,
+                smartTags: ['CREATED_BY_FORGE']
+            });
+
+            // 6. CREATE ROSTER ENTRY (The Promotion)
             const rosterId = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
             const charRef = db.collection("users").doc(userId).collection("characters").doc(rosterId);
 
@@ -328,20 +367,20 @@ export const crystallizeForgeEntity = onCall(
                 sourceType: 'MASTER',
                 sourceContext: sagaId || 'GLOBAL',
                 masterFileId: newFileId,
-                lastUpdated: now,
+                lastUpdated: new Date().toISOString(),
                 isAIEnriched: true,
-                avatar: attributes?.avatar || null
+                avatar: attributes?.avatar || null,
+                nexusId: nexusId
             }, { merge: true });
 
-            // 4. UPDATE FORGE RADAR (The Cleanup)
-            // We update the original entity doc so the UI sees the change immediately.
+            // 7. UPDATE FORGE RADAR (The Cleanup)
             const radarRef = db.collection("users").doc(userId).collection("forge_detected_entities").doc(entityId);
 
             await radarRef.set({
                 tier: 'ANCHOR', // 🟢 VISUAL SHIFT
                 driveId: newFileId,
                 status: 'ANCHOR', // Consistency
-                lastUpdated: now
+                lastUpdated: new Date().toISOString()
             }, { merge: true });
 
             return {
