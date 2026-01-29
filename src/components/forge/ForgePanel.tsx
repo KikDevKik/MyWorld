@@ -218,6 +218,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                             onClick={onClose}
                             className="p-1 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors mr-2"
                             title="Salir"
+                            aria-label="Cerrar panel"
                         >
                              {/* Usually we don't go back to 'Selection' once selected, so this just closes or we can remove the back button */}
                             <ArrowLeft size={20} />
@@ -241,6 +242,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                             onClick={() => setShowUnlinkConfirmation(true)}
                             className="p-1.5 ml-2 hover:bg-red-900/20 rounded text-titanium-500 hover:text-red-400 transition-colors"
                             title="Desvincular Bóveda"
+                            aria-label="Desvincular Bóveda"
                         >
                             <Unlink size={16} />
                         </button>
@@ -258,7 +260,13 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
 
                 {/* MODAL: UNLINK CONFIRMATION (Inside Active View) */}
                 {showUnlinkConfirmation && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div
+                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="unlink-title"
+                        aria-describedby="unlink-desc"
+                    >
                         <div className="w-full max-w-md bg-titanium-900 border border-red-900/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
 
                             <div className="flex flex-col gap-4 relative z-10">
@@ -266,9 +274,9 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                     <Unlink size={24} />
                                 </div>
 
-                                <h3 className="text-xl font-bold text-white">¿Desvincular Bóveda?</h3>
+                                <h3 id="unlink-title" className="text-xl font-bold text-white">¿Desvincular Bóveda?</h3>
 
-                                <div className="text-titanium-300 text-sm leading-relaxed space-y-3">
+                                <div id="unlink-desc" className="text-titanium-300 text-sm leading-relaxed space-y-3">
                                     <p>
                                         Estás a punto de desconectar la carpeta <span className="font-bold text-white">{activeSaga.name}</span> de la Forja.
                                     </p>
@@ -378,7 +386,13 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
 
             {/* MODAL: CONFIRMATION */}
             {showConfirmation && pendingVault && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+                <div
+                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="confirm-title"
+                    aria-describedby="confirm-desc"
+                >
                     <div className="w-full max-w-md bg-titanium-900 border border-yellow-600/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
 
                         {/* WARNING ICON */}
@@ -391,9 +405,9 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                 <AlertTriangle size={24} />
                             </div>
 
-                            <h3 className="text-xl font-bold text-white">Confirmar Ubicación</h3>
+                            <h3 id="confirm-title" className="text-xl font-bold text-white">Confirmar Ubicación</h3>
 
-                            <div className="text-titanium-300 text-sm leading-relaxed space-y-3">
+                            <div id="confirm-desc" className="text-titanium-300 text-sm leading-relaxed space-y-3">
                                 <p>
                                     Has seleccionado: <span className="font-bold text-white">{pendingVault.name}</span>
                                 </p>
