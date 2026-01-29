@@ -60,6 +60,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     const [streamStatus, setStreamStatus] = useState<string>('');
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const activeEntityRef = useRef<string | null>(null); // To track changes
 
     // SCROLL TO BOTTOM
@@ -319,6 +320,12 @@ Hazme una pregunta provocadora sobre su motivación oculta.
         if (!input.trim()) return;
         const text = input.trim();
         setInput('');
+
+        // Reset height
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+        }
+
         executeStreamConnection(text, { hidden: false });
     };
 
@@ -498,9 +505,11 @@ Hazme una pregunta provocadora sobre su motivación oculta.
             </div>
 
             {/* INPUT AREA */}
-            <div className="p-4 border-t border-titanium-800 bg-titanium-900 shrink-0 z-50">
+            <div className="p-4 md:p-6 border-t border-titanium-800 bg-titanium-900/90 backdrop-blur shrink-0 z-50">
                 <div className="max-w-4xl mx-auto flex flex-col gap-3">
-                    <div className="flex items-center gap-2 px-1">
+
+                    {/* META CONTROLS */}
+                    <div className="flex items-center justify-between px-1">
                          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
                                 selectedScope.id
                                 ? 'bg-cyan-900/30 border-cyan-500/50 text-cyan-300'
@@ -511,29 +520,45 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                          </div>
                     </div>
 
-                    <div className="flex gap-2 relative">
-                        <input
-                            type="text"
+                    {/* TEXTAREA WRAPPER */}
+                    <div className={`relative flex items-end gap-2 bg-zinc-900 border rounded-2xl p-2 transition-all shadow-lg ${
+                         selectedScope.id
+                                ? 'border-cyan-900/50 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/50'
+                                : 'border-titanium-700 focus-within:border-accent-DEFAULT focus-within:ring-1 focus-within:ring-accent-DEFAULT/50'
+                    }`}>
+                        <textarea
+                            ref={textareaRef}
                             value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            placeholder={activeEntity ? `Hablar con ${activeEntity.name}...` : "Escribe a la Forja..."}
-                            className={`flex-1 placeholder-titanium-400 border rounded-xl px-4 py-4 text-sm focus:outline-none transition-all shadow-inner bg-zinc-900 text-zinc-200 ${
-                                selectedScope.id
-                                ? 'border-cyan-900/50 focus:border-cyan-500'
-                                : 'border-titanium-700 focus:border-accent-DEFAULT'
-                            }`}
-                            onKeyDown={(e) => e.key === 'Enter' && handleUserSend()}
+                            onChange={(e) => {
+                                setInput(e.target.value);
+                                e.target.style.height = 'auto';
+                                e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
+                            }}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleUserSend();
+                                }
+                            }}
+                            placeholder={activeEntity ? `Interrogar a ${activeEntity.name}... (Shift+Enter para saltar línea)` : "Escribe a la Forja..."}
+                            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-titanium-500 focus:outline-none px-3 py-3 max-h-[200px] resize-none overflow-y-auto"
+                            rows={1}
                             disabled={isSending || thinkingState === 'ANALYZING'}
                             autoFocus
                         />
+
                         <button
                             onClick={handleUserSend}
                             disabled={!input.trim() || isSending}
-                            className={`absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-lg transition-all ${
-                                selectedScope.id ? 'bg-cyan-600 hover:bg-cyan-500 text-white' : 'bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950'
+                            className={`p-3 rounded-xl transition-all mb-[1px] ${
+                                !input.trim()
+                                    ? 'bg-titanium-800 text-titanium-600 cursor-not-allowed'
+                                    : selectedScope.id
+                                        ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/20'
+                                        : 'bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 shadow-lg shadow-accent-DEFAULT/20'
                             }`}
                         >
-                            <Send size={18} />
+                            {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
                         </button>
                     </div>
                 </div>

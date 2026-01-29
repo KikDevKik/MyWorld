@@ -292,41 +292,49 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
         >
-            <div className="w-full h-full flex flex-col bg-titanium-950 overflow-hidden relative">
+            <div className="w-full h-full flex flex-col bg-titanium-950 overflow-hidden relative selection:bg-accent-900/30 selection:text-accent-200">
+
+                {/* CYBER BACKGROUND PATTERN */}
+                <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
+                     style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}
+                />
 
                 {/* HEADER */}
-                <header className="h-16 shrink-0 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900/50 backdrop-blur">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-lg font-bold text-titanium-100 uppercase tracking-widest">
+                <header className="h-18 shrink-0 flex items-center justify-between px-8 border-b border-titanium-800 bg-titanium-900/80 backdrop-blur z-20">
+                    <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-4">
+                        <h1 className="text-xl font-bold text-titanium-100 uppercase tracking-widest flex items-center gap-2">
                             Tríptico <span className="text-accent-DEFAULT">Titanium</span>
                         </h1>
-                        <span className="px-2 py-0.5 rounded bg-titanium-800 text-[10px] text-titanium-400 font-mono">
-                            Bóveda: {saga.name}
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="hidden md:inline text-titanium-700">/</span>
+                            <span className="px-2 py-0.5 rounded bg-titanium-800/50 border border-titanium-700 text-[10px] text-titanium-400 font-mono tracking-wide">
+                                BÓVEDA: {saga.name.toUpperCase()}
+                            </span>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                         <button
                             onClick={handleForceAnalysis}
                             disabled={isSorting}
-                            className="p-2 rounded-full hover:bg-titanium-800 text-titanium-400 hover:text-accent-DEFAULT transition-colors"
+                            className="group p-2.5 rounded-xl bg-titanium-800/50 border border-titanium-700 hover:border-accent-DEFAULT/50 hover:bg-titanium-800 text-titanium-400 hover:text-accent-DEFAULT transition-all shadow-sm"
                             title="Re-escanear Saga"
                         >
-                            <RefreshCw size={18} className={isSorting ? "animate-spin" : ""} />
+                            <RefreshCw size={18} className={`transition-transform duration-700 ${isSorting ? "animate-spin" : "group-hover:rotate-180"}`} />
                         </button>
 
                         <button
                             onClick={() => setShowPurgeModal(true)}
                             disabled={isSorting}
-                            className="p-2 rounded-full hover:bg-titanium-800 text-titanium-400 hover:text-red-400 transition-colors"
-                            title="Purgar Base de Datos (Limpieza Total)"
+                            className="group p-2.5 rounded-xl bg-titanium-800/50 border border-titanium-700 hover:border-red-500/50 hover:bg-titanium-800 text-titanium-400 hover:text-red-400 transition-all shadow-sm"
+                            title="Purgar Base de Datos"
                         >
-                            <Settings size={18} />
+                            <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" />
                         </button>
                     </div>
                 </header>
 
                 {/* KANBAN GRID */}
-                <div className="flex-1 overflow-hidden p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="flex-1 overflow-hidden p-4 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 z-10">
 
                     {/* COLUMN 1: ECOS (Radar) */}
                     <DroppableColumn id="ECO" className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
@@ -402,19 +410,24 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     ) : null}
                 </DragOverlay>
 
-                {/* CHAT SLIDE-OVER */}
-                <div
-                    className={`absolute inset-y-0 right-0 w-[500px] bg-titanium-950 shadow-2xl border-l border-titanium-800 transform transition-transform duration-300 z-50 ${
-                        selectedEntity ? 'translate-x-0' : 'translate-x-full'
-                    }`}
-                >
-                    {selectedEntity && (
-                        <div className="h-full flex flex-col">
-                            {/* Close Handler Overlay */}
-                            <div className="absolute top-4 left-4 z-50">
+                {/* CHAT MODAL (INTERROGATION ROOM) */}
+                {selectedEntity && (
+                    <div className="absolute inset-0 z-50 flex items-center justify-center p-4 md:p-8 animate-in fade-in duration-200">
+                        {/* Backdrop */}
+                        <div
+                            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                            onClick={() => setSelectedEntity(null)}
+                        />
+
+                        {/* Modal Window */}
+                        <div className="relative w-full max-w-5xl h-[90vh] bg-titanium-950 rounded-2xl shadow-2xl border border-titanium-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+
+                            {/* Close Button (Floating Outside or Corner) */}
+                            <div className="absolute top-4 right-4 z-[60]">
                                 <button
                                     onClick={() => setSelectedEntity(null)}
-                                    className="p-2 rounded-full bg-titanium-900/80 hover:bg-titanium-800 text-titanium-400 hover:text-white transition-colors backdrop-blur"
+                                    className="p-2 rounded-full bg-titanium-900/80 hover:bg-red-900/50 text-titanium-400 hover:text-white transition-colors backdrop-blur border border-titanium-700/50 hover:border-red-500/50"
+                                    title="Cerrar Sala"
                                 >
                                     <span className="sr-only">Cerrar Chat</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -437,15 +450,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                 }}
                             />
                         </div>
-                    )}
-                </div>
-
-                {/* Backdrop for Chat */}
-                {selectedEntity && (
-                    <div
-                        className="absolute inset-0 bg-black/50 backdrop-blur-sm z-40"
-                        onClick={() => setSelectedEntity(null)}
-                    />
+                    </div>
                 )}
 
                 {/* PURGE CONFIRMATION MODAL */}
