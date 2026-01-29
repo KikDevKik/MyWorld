@@ -9,6 +9,54 @@ import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
 import { EntityTier, ForgePayload, SoulEntity } from "./types/forge";
 
+// --- MULTI-ANCHOR HELPERS ---
+const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
+const GENERIC_NAMES = ['nota', 'idea', 'fecha', 'todo', 'importante', 'ojo', 'personajes', 'saga', 'lista', 'introducción', 'capítulo', 'resumen', 'nombre', 'name', 'character', 'rol', 'role', 'descripción', 'description', 'titulo', 'title', 'anotaciones'];
+
+function isContainerFile(filename: string): boolean {
+    const lower = filename.toLowerCase();
+    return CONTAINER_KEYWORDS.some(k => lower.includes(k));
+}
+
+function isGenericName(name: string): boolean {
+    const lower = name.toLowerCase();
+    // Exact match or very generic phrase
+    return GENERIC_NAMES.some(g => lower === g) || name.length < 3 || name.length > 50;
+}
+
+function splitContentIntoBlocks(content: string): string[] {
+    // Split by newline followed by bullet (- or *), or header (##)
+    // Using Lookahead to keep the delimiter at the start of the next block
+    return content.split(/\n(?=[\-\*]\s|##\s)/);
+}
+
+function extractNameFromBlock(text: string): string | null {
+    const lines = text.split('\n').slice(0, 5);
+    for (const line of lines) {
+        const clean = line.trim();
+        // H2 Header: "## Name"
+        if (clean.startsWith('## ') && !clean.startsWith('###')) {
+            return clean.replace(/^##\s*/, '').trim();
+        }
+        // Bullet with Bold: "- **Name**:" or "- **Name**"
+        // Match "- **Name**" or "* **Name**"
+        const boldMatch = clean.match(/^[\-\*]\s*\*\*(.+?)\*\*/);
+        if (boldMatch && boldMatch[1]) {
+             // Check if it ends with colon inside or outside
+             let name = boldMatch[1].replace(/:$/, '').trim();
+             return name;
+        }
+
+        // Simple Key-Value: "- Name: Desc"
+        // Must start with Capital Letter
+        const kvMatch = clean.match(/^[\-\*]\s*([A-ZÁÉÍÓÚÑ][a-zA-Z0-9\s\.]+?):/);
+        if (kvMatch && kvMatch[1]) {
+            return kvMatch[1].trim();
+        }
+    }
+    return null;
+}
+
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_BATCH_CHARS = 100000; // 100k chars per AI call
 
@@ -149,6 +197,37 @@ export const classifyEntities = onCall(
 
                 // 🕵️ DEBUG ANCHOR
                 console.log(`[DEBUG_ANCHOR_CHECK] Checking file: ${file.name} (Len: ${file.content.length})`);
+
+                // --- 0. MULTI-SCAN CHECK (CONTAINER FILES) ---
+                if (isContainerFile(file.name)) {
+                     console.log(`[SOUL_SORTER] Multi-Scan triggered for: ${file.name}`);
+                     const blocks = splitContentIntoBlocks(file.content);
+
+                     for (const block of blocks) {
+                         const rawName = extractNameFromBlock(block);
+                         if (rawName) {
+                             // Sanitize
+                             const name = rawName.replace(/[:\*\-\_]+$/, '').trim();
+
+                             if (!isGenericName(name)) {
+                                 // Add as LIMBO (Lists are Limbos, not full Anchors)
+                                 entitiesMap.set(name.toLowerCase(), {
+                                    name: name,
+                                    tier: 'LIMBO',
+                                    confidence: 85,
+                                    reasoning: "Detección Multi-Scan (Lista)",
+                                    sourceFileId: file.id,
+                                    sourceFileName: file.name,
+                                    saga: file.saga,
+                                    foundIn: [file.name],
+                                    rawContent: block.substring(0, 500) // Context for enrichment
+                                });
+                                // We don't mark 'classified = true' because we still want to scan
+                                // the rest of the file for Ghosts or check if the file ITSELF is an Anchor (unlikely but possible)
+                             }
+                         }
+                     }
+                }
 
                 // A. FRONTMATTER CHECK (Strong Anchor)
                 try {
