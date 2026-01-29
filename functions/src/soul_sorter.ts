@@ -84,6 +84,11 @@ export const classifyEntities = onCall(
             const fetchPromises = filesSnap.docs.map(async (doc) => {
                 const fData = doc.data();
 
+                // 🕵️ DEBUG: Trace Source Data
+                if (fData.name) {
+                     console.log(`[DEBUG_SCAN] File Found: ${fData.name} | DriveID: ${fData.driveId} | DocID: ${doc.id}`);
+                }
+
                 // 🟢 RESOURCE EXCLUSION (Safety Net)
                 // If saga/path indicates Resources, skip it even if flagged as canon
                 const sagaName = (fData.saga || "").toUpperCase();
@@ -441,6 +446,12 @@ export const classifyEntities = onCall(
 
             enrichedEntities.forEach(e => {
                 const ref = detectionRef.doc(e.id);
+
+                // 🕵️ RASTREADOR KIKIMIGI
+                console.log(`[DEBUG] Procesando: ${e.name}`);
+                console.log(`[DEBUG] Raw driveId: ${e.driveId}`); // ¿Aquí dice undefined?
+                console.log(`[DEBUG] Entity Dump:`, JSON.stringify(e));
+
                 // 🟢 SANITIZE PAYLOAD (Fix for 'undefined' error)
                 const safePayload: any = {
                     ...e,
