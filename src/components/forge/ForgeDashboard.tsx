@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Info, Trash2, AlertTriangle } from 'lucide-react';
+import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import ForgeChat from './ForgeChat';
-import ForgeCard from './ForgeCard'; // 🟢 New Component
+import ForgeCard from './ForgeCard';
 import { Character, DriveFile } from '../../types';
 import { ForgePayload, SoulEntity } from '../../types/forge';
 
@@ -29,8 +29,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // UI STATE
     const [selectedEntity, setSelectedEntity] = useState<SoulEntity | null>(null);
-    const [hiddenContext, setHiddenContext] = useState<string>("");
-    const [initialReport, setInitialReport] = useState<string>("");
+
+    // Removed old legacy state (hiddenContext, initialReport) as ForgeChat now handles "The Brain"
 
     // OPERATIONS
     const [isSorting, setIsSorting] = useState(false);
@@ -46,22 +46,15 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         console.log(`[ANCHOR_DEBUG] Fetching anchors for context: ${saga.id} (${saga.name})`);
 
         // SCOPED QUERY: Only characters belonging to this folder (Saga)
-        // ⚠️ Potential Issue: If 'sourceContext' was saved as 'GLOBAL' or mixed, this might fail.
-        // For now, we trust strict scoping.
         const q = query(
             collection(db, "users", auth.currentUser.uid, "characters"),
-            where("sourceContext", "==", saga.id) // STRICT MATCH
+            where("sourceContext", "==", saga.id)
         );
-
-        // Fallback Query (Optional): Fetch GLOBAL context too?
-        // No, user requested strict vault separation.
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const chars: Character[] = [];
             snapshot.forEach(doc => {
                 const d = doc.data();
-                // 🟢 DEBUG: Log found anchors
-                // console.log(`[ANCHOR_FOUND] ${d.name} (Context: ${d.sourceContext})`);
                 chars.push({ id: doc.id, ...d, status: 'EXISTING' } as Character);
             });
             setCharacters(chars);
@@ -122,26 +115,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     // --- ACTIONS ---
 
     const handleEntityAction = (entity: SoulEntity) => {
-        // Reset state for new interaction
-        setHiddenContext("");
-        setInitialReport("");
-
-        // 1. GHOST (Materialize)
-        if (entity.tier === 'GHOST') {
-            setHiddenContext(`[SYSTEM]: El usuario quiere crear a ${entity.name} desde cero. Usa este snippet de contexto: '${entity.sourceSnippet}'. Pregúntale por su Rol y Motivación.`);
-            setInitialReport(`He detectado a **${entity.name}** en la historia. ¿Quién es realmente?`);
-        }
-        // 2. LIMBO (Refine)
-        else if (entity.tier === 'LIMBO') {
-            setHiddenContext(`[SYSTEM]: El usuario quiere pulir el borrador de ${entity.name}. Aquí está su nota original: '${entity.sourceSnippet}'. Ayúdale a convertir esto en una ficha estructurada.`);
-            setInitialReport(`Veo que tienes notas sobre **${entity.name}**. ¿Las expandimos a una ficha completa?`);
-        }
-        // 3. ANCHOR (Edit)
-        else {
-             // For anchors, we just open the context.
-             setInitialReport(`Abriendo expediente de **${entity.name}**...`);
-        }
-
+        // Simple Set - ForgeChat handles the "Hot-Swap" logic internally via useEffect([activeEntity])
         setSelectedEntity(entity);
     };
 
@@ -171,8 +145,6 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             const res = await purgeForgeEntities();
             const data = res.data as any;
             toast.success(`Base de datos purgada. (${data.count || 0} entidades eliminadas)`, { id: toastId });
-            // Optionally auto-trigger refresh
-            // handleForceAnalysis();
         } catch (error) {
             console.error(error);
             toast.error("Error al purgar la base de datos.", { id: toastId });
@@ -332,7 +304,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             >
                 {selectedEntity && (
                     <div className="h-full flex flex-col">
-                        {/* Close Handler Overlay (Optional, for click outside? No, button needed) */}
+                        {/* Close Handler Overlay */}
                         <div className="absolute top-4 left-4 z-50">
                             <button
                                 onClick={() => setSelectedEntity(null)}
@@ -344,26 +316,25 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         </div>
 
                         <ForgeChat
-                            key={chatSessionId} // Force re-mount on entity switch
+                            key={chatSessionId} // Force re-mount on entity switch for guaranteed reset
                             sessionId={chatSessionId}
                             sessionName={selectedEntity.name}
                             onBack={() => setSelectedEntity(null)}
                             folderId={folderId}
                             accessToken={accessToken}
+                            activeEntity={selectedEntity} // 🟢 Pass the entity for Hot-Swapping
                             selectedScope={{
                                 id: saga.id,
                                 name: saga.name,
                                 recursiveIds: [saga.id],
                                 path: (saga as any).path
                             }}
-                            initialReport={initialReport}
-                            hiddenContext={hiddenContext}
                         />
                     </div>
                 )}
             </div>
 
-            {/* Backdrop for Chat (Optional) */}
+            {/* Backdrop for Chat */}
             {selectedEntity && (
                 <div
                     className="absolute inset-0 bg-black/50 backdrop-blur-sm z-40"
