@@ -444,8 +444,12 @@ export const classifyEntities = onCall(
                 // 🟢 SANITIZE PAYLOAD (Fix for 'undefined' error)
                 const safePayload: any = {
                     ...e,
-                    role: e.role || null, // No undefined
-                    avatar: e.avatar || null, // No undefined
+                    role: e.role || null,
+                    avatar: e.avatar || null,
+                    driveId: e.driveId || null, // 🟢 Fix: Ensure driveId is never undefined
+                    sourceSnippet: e.sourceSnippet || "No preview available",
+                    mergeSuggestion: e.mergeSuggestion || null,
+                    tags: e.tags || [],
                     saga: sagaId || 'Global',
                     lastDetected: new Date().toISOString(),
                     occurrences: FieldValue.increment(e.occurrences)
