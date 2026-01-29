@@ -157,6 +157,38 @@ export const useDirectorChat = ({
     const handleSendMessage = async (text: string) => {
         if (!text.trim()) return;
 
+        // 👻 GHOST MODE: SIMULATION
+        if (import.meta.env.VITE_JULES_MODE === 'true') {
+            const tempId = Date.now().toString();
+            setMessages(prev => [...prev, {
+                id: tempId,
+                role: 'user',
+                text: text,
+                timestamp: Date.now(),
+                type: 'text'
+            }]);
+
+            setIsThinking(true);
+            setTimeout(() => {
+                const mockResponses = [
+                    "El ritmo de la escena decae en el segundo párrafo. Sugiero cortar el diálogo interno.",
+                    "La tensión visual es buena, pero el conflicto subyacente necesita más claridad.",
+                    "Interesante uso de la iluminación. ¿Has considerado enfocar la cámara en sus manos?"
+                ];
+                const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    text: response,
+                    timestamp: Date.now(),
+                    type: 'text'
+                }]);
+                setIsThinking(false);
+            }, 1500);
+            return;
+        }
+
         const currentSessionId = await ensureSession();
         if (!currentSessionId) return;
 
@@ -213,13 +245,46 @@ export const useDirectorChat = ({
     };
 
     // 🟢 INSPECTOR (READ ONLY)
-    // Now accepts optional fileId, but if missing, tries to rely on what logic?
-    // The previous component relied on activeFileContent to simulate inspector via chatWithGem.
-    // The requirement says: "Backend: Asegúrate de que forgeAnalyzer es accesible... Invoca la función."
-    // forgeAnalyzer NEEDS a fileId to read from Drive.
-    // If we don't have a fileId (unsaved file), we can't use it.
-    // BUT we can throw an error asking user to save.
     const handleInspector = async (fileId?: string) => {
+        // 👻 GHOST MODE: SIMULATION
+        if (import.meta.env.VITE_JULES_MODE === 'true') {
+            setIsThinking(true);
+            const tempId = Date.now().toString();
+            setMessages(prev => [...prev, {
+                id: tempId,
+                role: 'system',
+                text: "Analizando Elenco (Modo Fantasma)...",
+                timestamp: Date.now(),
+                type: 'system_alert'
+            }]);
+
+            setTimeout(() => {
+                const mockReport = {
+                    characters: [
+                        { name: "Capitán Vega", role: "Protagonista", archetype: "Líder Cansado" },
+                        { name: "IA Madre", role: "Soporte", archetype: "Observador Pasivo" },
+                        { name: "Teniente Ruiz", role: "Secundario", archetype: "Heraldo de Malas Noticias" }
+                    ],
+                    pacing: "Rápido",
+                    tone: "Tenso/Misterioso"
+                };
+
+                setMessages(prev => prev.map(m => {
+                    if (m.id === tempId) {
+                        return {
+                            ...m,
+                            text: "Reporte de Inspector Generado",
+                            type: 'analysis_card',
+                            inspectorData: mockReport
+                        };
+                    }
+                    return m;
+                }));
+                setIsThinking(false);
+            }, 2000);
+            return;
+        }
+
         if (!fileId) {
              toast.error("Guarda el archivo en Drive para usar el Inspector.");
              return;
@@ -284,6 +349,42 @@ export const useDirectorChat = ({
 
         if (!textToAnalyze) {
             toast.warning("No hay texto para juzgar.");
+            return;
+        }
+
+        // 👻 GHOST MODE: SIMULATION
+        if (import.meta.env.VITE_JULES_MODE === 'true') {
+            setIsThinking(true);
+            const tempId = Date.now().toString();
+            setMessages(prev => [...prev, {
+                id: tempId,
+                role: 'system',
+                text: "Convocando al Tribunal (Modo Fantasma)...",
+                timestamp: Date.now(),
+                type: 'system_alert'
+            }]);
+
+            setTimeout(() => {
+                const mockVerdict = {
+                    verdict: "Aprobado con Reservas",
+                    score: 85,
+                    critique: "El diálogo es funcional pero carece de subtexto. La acción es clara.",
+                    suggestions: ["Añadir pausas", "Romper el ritmo"]
+                };
+
+                setMessages(prev => prev.map(m => {
+                    if (m.id === tempId) {
+                        return {
+                            ...m,
+                            text: "Veredicto del Tribunal",
+                            type: 'verdict_card',
+                            verdictData: mockVerdict
+                        };
+                    }
+                    return m;
+                }));
+                setIsThinking(false);
+            }, 2000);
             return;
         }
 
