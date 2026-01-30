@@ -337,3 +337,47 @@ export const createTitaniumStructure = onCall(
     }
   }
 );
+
+/**
+ * 2.3. RENOMBRAR CARPETA/ARCHIVO (The Label Maker)
+ */
+export const renameDriveFolder = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { accessToken, fileId, newName } = request.data;
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+        if (!fileId) throw new HttpsError("invalid-argument", "Falta fileId.");
+        if (!newName) throw new HttpsError("invalid-argument", "Falta newName.");
+
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            // Ensure name is valid (minimal sanitization)
+            const safeName = newName.trim();
+            if (safeName.length === 0) throw new HttpsError("invalid-argument", "Nombre vacío.");
+
+            logger.info(`🏷️ Renaming file/folder ${fileId} to "${safeName}"`);
+
+            await drive.files.update({
+                fileId: fileId,
+                requestBody: {
+                    name: safeName
+                }
+            });
+
+            return { success: true, message: "Nombre actualizado." };
+
+        } catch (error: any) {
+            logger.error("Error renaming file/folder:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);
