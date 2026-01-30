@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Zap } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
@@ -9,6 +9,7 @@ import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from "firebase/auth";
 import { toast } from 'sonner';
 import CreateProjectModal from './ui/CreateProjectModal';
+import GenesisWizardModal from './ui/GenesisWizardModal';
 
 interface VaultSidebarProps {
     folderId: string;
@@ -74,6 +75,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
     // const [showOnlyHealthy, setShowOnlyHealthy] = useState(false); // REMOVED LOCAL STATE
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [isGenesisOpen, setIsGenesisOpen] = useState(false);
 
     // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
     useEffect(() => {
@@ -210,6 +212,16 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
                     {/* ACTION BUTTONS (DISTRIBUTED) */}
                     <div className="ml-auto flex items-center gap-3">
+                        {/* ⚡ GENESIS SPARK */}
+                        <button
+                            onClick={() => setIsGenesisOpen(true)}
+                            className="p-1.5 rounded-md hover:bg-titanium-700 transition-colors text-titanium-400 hover:text-amber-400"
+                            title="¿Tienes una chispa? (Iniciar Génesis)"
+                            aria-label="Protocolo Génesis"
+                        >
+                            <Zap size={16} />
+                        </button>
+
                         {onCreateFile && (
                             <button
                                 onClick={onCreateFile}
@@ -394,6 +406,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
                 onSubmit={handleCreateProject}
+            />
+
+            <GenesisWizardModal
+                isOpen={isGenesisOpen}
+                onClose={() => setIsGenesisOpen(false)}
+                folderId={folderId}
+                accessToken={accessToken}
             />
 
             {/* FOOTER */}

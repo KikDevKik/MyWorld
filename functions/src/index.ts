@@ -4967,3 +4967,4 @@ export { classifyResource } from "./laboratory";
  */
 export { discoverFolderRoles, createTitaniumStructure, renameDriveFolder } from "./folder_manager";
 export { generateAuditPDF } from "./audit";
+export { genesisManifest } from "./genesis";
