@@ -207,13 +207,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 <div className="mb-4">
                     <button
                         onClick={onGenesis}
-                        className="w-full relative flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden"
+                        className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden"
                     >
                         {/* Glow Effect */}
                         <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                        <Sparkles size={16} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
-                        <span className="text-sm font-medium tracking-wide">¿Tienes una Chispa?</span>
+                        <Sparkles size={14} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
+                        <span className="text-xs font-medium tracking-wide">¿Tienes una Chispa?</span>
                     </button>
                 </div>
 
@@ -317,7 +317,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     {/* Secondary Action */}
                                     <button
                                         onClick={onOpenProjectSettings}
-                                        className="w-full py-2 text-[10px] font-medium text-titanium-500 hover:text-titanium-300 hover:bg-titanium-800/30 rounded-lg transition-all border border-transparent hover:border-titanium-800"
+                                        className="w-full py-2 text-xs font-medium text-titanium-300 hover:text-white hover:bg-titanium-800/50 rounded-lg transition-all border border-titanium-700 hover:border-titanium-500"
                                     >
                                         Ya tengo carpeta en Drive
                                     </button>
