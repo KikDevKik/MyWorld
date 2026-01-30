@@ -96,7 +96,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
 
         try {
             const functions = getFunctions();
-            const auditContent = httpsCallable(functions, 'auditContent');
+            const auditContent = httpsCallable(functions, 'auditContent', { timeout: 600000 }); // 10 Minutes
 
             const result = await auditContent({
                 content: textToAudit,
