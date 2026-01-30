@@ -3,6 +3,7 @@ import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
+import { useLayoutStore } from "../stores/useLayoutStore"; // 🟢 IMPORT STORE
 import { getFirestore, onSnapshot, collection, query, where } from "firebase/firestore";
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from "firebase/auth";
@@ -67,10 +68,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
     // 🟢 CONSUME GLOBAL CONTEXT
     const { fileTree, isFileTreeLoading, config } = useProjectConfig();
+    const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
 
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
-    const [showOnlyHealthy, setShowOnlyHealthy] = useState(false);
+    // const [showOnlyHealthy, setShowOnlyHealthy] = useState(false); // REMOVED LOCAL STATE
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
@@ -201,8 +203,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </div>
                     <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Manual de Campo</h2>
 
-                    {/* TOGGLE FILTER */}
-                    <div className="ml-auto flex items-center gap-1">
+                    {/* ACTION BUTTONS (DISTRIBUTED) */}
+                    <div className="ml-auto flex items-center gap-3">
                         {onCreateFile && (
                             <button
                                 onClick={onCreateFile}
@@ -213,15 +215,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 <FilePlus size={16} />
                             </button>
                         )}
-
-                        <button
-                            onClick={() => setShowOnlyHealthy(!showOnlyHealthy)}
-                            className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${showOnlyHealthy ? 'text-emerald-400' : 'text-titanium-500'}`}
-                            title={showOnlyHealthy ? "Mostrando solo archivos sanos" : "Mostrando todo (incluyendo conflictos)"}
-                            aria-label={showOnlyHealthy ? "Mostrar todos los archivos" : "Mostrar solo archivos sanos"}
-                        >
-                            {showOnlyHealthy ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
 
                         {/* BOTÓN DE INDEXAR */}
                         <button

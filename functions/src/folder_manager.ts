@@ -8,6 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { FolderRole, ProjectConfig } from "./types/project";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
+import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -372,6 +373,9 @@ export const renameDriveFolder = onCall(
                     name: safeName
                 }
             });
+
+            // 🟢 PERSISTENCE: Update Firestore Tree (Sync Memory)
+            await updateFirestoreTree(request.auth.uid, 'rename', fileId, { name: safeName });
 
             return { success: true, message: "Nombre actualizado." };
 

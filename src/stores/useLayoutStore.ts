@@ -24,6 +24,10 @@ interface LayoutState {
   // 🟢 LEGACY / STRATEGIST MODE (Zone C Width)
   isArsenalWide: boolean;
   toggleArsenalWidth: () => void;
+
+  // 🟢 SENTINEL FILTER (GLOBAL)
+  showOnlyHealthy: boolean;
+  toggleShowOnlyHealthy: () => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
@@ -65,4 +69,8 @@ export const useLayoutStore = create<LayoutState>((set) => ({
         directorWidth: targetWidth
      };
   }),
+
+  // Sentinel Filter
+  showOnlyHealthy: false,
+  toggleShowOnlyHealthy: () => set((state) => ({ showOnlyHealthy: !state.showOnlyHealthy })),
 }));
