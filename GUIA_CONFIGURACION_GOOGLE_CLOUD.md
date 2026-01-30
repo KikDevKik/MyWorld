@@ -8,23 +8,21 @@ Esto permitirá que la aplicación renueve el token automáticamente en segundo 
 
 ## PASO 1: Obtener Credenciales de Google Cloud
 
-1. Ve a la [Consola de Google Cloud](https://console.cloud.google.com/).
-2. Asegúrate de estar en el proyecto correcto: **`myword-67b03`**.
-3. Ve a **APIs y servicios** > **Credenciales**.
-4. Haz clic en **+ CREAR CREDENCIALES** > **ID de cliente de OAuth**.
-5. **Configuración de la Credencial:**
-   - **Tipo de aplicación:** Aplicación web.
-   - **Nombre:** `MyWorld App` (o lo que prefieras).
-   - **Orígenes autorizados de JavaScript:**
-     - `http://localhost:5173` (Para desarrollo local)
-     - `https://myword-67b03.web.app` (Para producción)
+**¡BUENAS NOTICIAS!** Ya tienes una credencial creada que podemos usar. Según tu imagen, es la llamada **"Web client (auto created by Google Service)"**.
+
+1. Ve a la [Consola de Google Cloud](https://console.cloud.google.com/apis/credentials).
+2. En la sección **"IDs de clientes de OAuth 2.0"**, busca la línea que dice **"Web client (auto created by Google Service)"**.
+3. Haz clic en el icono del **Lápiz ✏️** a la derecha de esa línea para editarla.
+4. **Verifica los "Orígenes autorizados de JavaScript":**
+   Asegúrate de que estas URL estén en la lista. Si falta alguna, agrégala con el botón "AGREGAR URI":
+     - `http://localhost:5173` (Vital para que te funcione en tu PC mientras programas)
+     - `https://myword-67b03.web.app`
      - `https://myword-67b03.firebaseapp.com`
-   - **URI de redireccionamiento autorizados:**
-     - (No es estrictamente necesario para el flujo de "popup" que usamos, pero puedes añadir los mismos dominios por si acaso).
-6. Haz clic en **CREAR**.
-7. **¡IMPORTANTE!** Se te mostrará una ventana con dos claves. **CÓPIALAS y guárdalas**:
-   - **ID de cliente (Client ID):** Algo como `123456-abcde.apps.googleusercontent.com`.
-   - **Secreto de cliente (Client Secret):** Una cadena larga alfanumérica (NUNCA COMPARTAS ESTO PÚBLICAMENTE).
+5. Haz clic en **GUARDAR**.
+6. **COPIAR LAS CLAVES:**
+   En esa misma pantalla (o al volver a la lista), verás dos valores que necesitamos. Cópedalos:
+   - **ID de cliente (Client ID):** Termina en `...apps.googleusercontent.com`.
+   - **Secreto de cliente (Client Secret):** Está en la parte derecha (a veces hay que hacer clic para verlo o descargarlo). Es una cadena alfanumérica larga.
 
 ---
 
@@ -58,7 +56,7 @@ El frontend necesita saber el `Client ID` para iniciar el proceso de login.
 ```env
 VITE_GOOGLE_CLIENT_ID=TU_CLIENT_ID_DEL_PASO_1
 ```
-*(Reemplaza `TU_CLIENT_ID_DEL_PASO_1` con el valor real, ej: `123456-abcde...`).*
+*(Reemplaza `TU_CLIENT_ID_DEL_PASO_1` con el valor real que copiaste, ej: `479346922706-nucm...`).*
 
 ---
 
@@ -74,7 +72,7 @@ firebase deploy --only functions
 
 ## ¿Cómo verificar que funciona?
 
-1. Recarga la página web.
+1. Recarga la página web (localhost o producción).
 2. Si ves el botón "Conectar Drive" o un error de conexión en la barra lateral, haz clic en el botón de estado (el icono de llave/interrogación).
 3. Se abrirá una ventana emergente de Google pidiendo permisos. **Esta vez es especial:** pedirá acceso para "ver y descargar todos tus archivos de Google Drive" y acceso "sin conexión".
 4. Acepta.
