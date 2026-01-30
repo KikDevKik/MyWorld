@@ -187,9 +187,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             case 'refreshing':
                 return { color: 'text-yellow-500 animate-pulse', text: 'Refrescando...', icon: Key };
             case 'error':
-                return { color: 'text-red-500', text: 'Error de Conexión', icon: HelpCircle };
+                return { color: 'text-red-500', text: 'Reconectar', icon: HelpCircle };
             default:
-                return { color: 'text-titanium-600', text: 'Desconectado', icon: Key };
+                return { color: 'text-titanium-600', text: 'Conectar Drive', icon: Key };
         }
     };
 

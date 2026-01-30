@@ -36,7 +36,7 @@ import EmptyEditorState from './components/editor/EmptyEditorState';
 import CreateFileModal from './components/ui/CreateFileModal';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
-function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
+function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: any) {
     const { config, updateConfig, refreshConfig, loading: configLoading, technicalError } = useProjectConfig();
 
     // 🟢 GLOBAL STORE CONSUMPTION
@@ -279,7 +279,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // HANDLERS
     const handleLogout = async () => {
         const auth = getAuth();
+        const functions = getFunctions();
         try {
+            // 🟢 REVOKE DRIVE ACCESS ON LOGOUT (Security)
+            const revokeDriveAccess = httpsCallable(functions, 'revokeDriveAccess');
+            await revokeDriveAccess().catch(e => console.warn("Revoke failed (maybe already cleared):", e));
+
             await signOut(auth);
             setFolderId("");
             setSelectedFileContent("");
@@ -287,6 +292,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setCurrentFileId(null);
             setOauthToken(null);
             setDriveStatus('disconnected');
+            localStorage.removeItem('google_drive_token');
         } catch (error) {
             console.error("Logout error", error);
         }
@@ -681,7 +687,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onOpenSettings={() => setIsSettingsModalOpen(true)}
                         onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
                         accessToken={oauthToken}
-                        onRefreshTokens={handleTokenRefresh}
+                        onRefreshTokens={driveStatus === 'disconnected' || driveStatus === 'error' ? handleDriveLink : handleTokenRefresh}
                         driveStatus={driveStatus}
                         onOpenManual={() => setIsFieldManualOpen(true)}
                         isIndexed={indexStatus.isIndexed}
@@ -771,30 +777,78 @@ function App() {
         return () => unsubscribe();
     }, []);
 
+    const handleDriveLink = () => {
+        // 🟢 GOOGLE IDENTITY SERVICES (GIS) CODE FLOW
+        // Requires VITE_GOOGLE_CLIENT_ID to be set in .env
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+        if (!clientId) {
+            toast.error("Falta VITE_GOOGLE_CLIENT_ID en configuración");
+            console.error("Missing VITE_GOOGLE_CLIENT_ID");
+            return;
+        }
+
+        if (!window.google) {
+            toast.error("Google Identity Services no cargado.");
+            return;
+        }
+
+        const client = window.google.accounts.oauth2.initCodeClient({
+            client_id: clientId,
+            scope: 'https://www.googleapis.com/auth/drive',
+            ux_mode: 'popup',
+            callback: async (response: any) => {
+                if (response.code) {
+                    const toastId = toast.loading("Vinculando Drive permanentemente...");
+                    try {
+                        const functions = getFunctions();
+                        const exchangeAuthCode = httpsCallable(functions, 'exchangeAuthCode');
+                        const res = await exchangeAuthCode({ code: response.code });
+                        const data = res.data as any;
+
+                        if (data.success && data.accessToken) {
+                            setOauthToken(data.accessToken);
+                            localStorage.setItem('google_drive_token', data.accessToken);
+                            setDriveStatus('connected');
+                            toast.dismiss(toastId);
+                            toast.success("¡Drive Vinculado Permanentemente!");
+                        } else {
+                            throw new Error("Respuesta inválida del servidor");
+                        }
+                    } catch (e: any) {
+                        toast.dismiss(toastId);
+                        toast.error("Error vinculando Drive: " + e.message);
+                        setDriveStatus('error');
+                    }
+                }
+            },
+        });
+        client.requestCode();
+    };
+
     const handleTokenRefresh = async (): Promise<string | null> => {
         setDriveStatus('refreshing');
-        const auth = getAuth();
-        const provider = new GoogleAuthProvider();
-        // 🟢 UPGRADED SCOPE: Full Drive Access to prevent 'Permission Denied' on existing files
-        // provider.addScope('https://www.googleapis.com/auth/drive.file');
-        provider.addScope('https://www.googleapis.com/auth/drive');
-        provider.addScope('https://www.googleapis.com/auth/drive.readonly');
-
         try {
-            const result = await signInWithPopup(auth, provider);
-            const credential = GoogleAuthProvider.credentialFromResult(result);
-            const token = credential?.accessToken || null;
+            const functions = getFunctions();
+            // 🟢 BACKEND REFRESH (SILENT)
+            const refreshDriveToken = httpsCallable(functions, 'refreshDriveToken');
+            const result = await refreshDriveToken();
+            const data = result.data as any;
 
-            if (token) {
-                setOauthToken(token);
-                localStorage.setItem('google_drive_token', token);
+            if (data.success && data.accessToken) {
+                console.log("✅ Token refrescado silenciosamente (Backend).");
+                setOauthToken(data.accessToken);
+                localStorage.setItem('google_drive_token', data.accessToken);
                 setDriveStatus('connected');
+                return data.accessToken;
+            } else {
+                console.warn("⚠️ Fallo refresh silencioso:", data.reason);
+                setDriveStatus('disconnected');
+                return null;
             }
-            return token;
         } catch (error) {
             console.error("Error refreshing token:", error);
-            setDriveStatus('error');
-            toast.error("Error al renovar credenciales");
+            setDriveStatus('disconnected');
             return null;
         }
     };
@@ -812,6 +866,14 @@ function App() {
 
         return () => clearInterval(intervalId);
     }, [oauthToken]);
+
+    // 🟢 INITIAL CHECK (ON LOAD)
+    useEffect(() => {
+        if (user && !oauthToken) {
+            // Try silent refresh on load if no token
+            handleTokenRefresh();
+        }
+    }, [user]);
 
     // 2. CONDITIONAL RETURNS (Guard Clauses)
 
@@ -857,6 +919,7 @@ function App() {
                 driveStatus={driveStatus}
                 setDriveStatus={setDriveStatus}
                 handleTokenRefresh={handleTokenRefresh}
+                handleDriveLink={handleDriveLink}
                 isSecurityReady={isSecurityReady} // 👈 PASS SECURITY STATE
             />
         </ProjectConfigProvider>
