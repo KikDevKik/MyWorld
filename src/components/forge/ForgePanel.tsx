@@ -340,6 +340,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         <button
                             onClick={handleCreateVault}
                             disabled={isCreatingVault}
+                            aria-label="Crear nueva bóveda de personajes"
                             className="group relative flex flex-col items-center p-8 bg-titanium-900 border border-titanium-800 hover:border-accent-DEFAULT/50 rounded-2xl transition-all hover:bg-titanium-800/50 text-left"
                         >
                             <div className="mb-4 p-4 rounded-full bg-accent-DEFAULT/10 text-accent-DEFAULT group-hover:bg-accent-DEFAULT group-hover:text-titanium-950 transition-colors">
@@ -357,6 +358,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         {/* OPTION B: SELECT */}
                         <button
                             onClick={() => setShowSelector(true)}
+                            aria-label="Seleccionar bóveda existente"
                             className="group relative flex flex-col items-center p-8 bg-titanium-900 border border-titanium-800 hover:border-cyan-500/50 rounded-2xl transition-all hover:bg-titanium-800/50 text-left"
                         >
                             <div className="mb-4 p-4 rounded-full bg-cyan-900/20 text-cyan-400 group-hover:bg-cyan-500 group-hover:text-white transition-colors">

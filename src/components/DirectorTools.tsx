@@ -23,6 +23,7 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
             <button
                 onClick={onInspector}
                 disabled={isThinking}
+                aria-label="Abrir Inspector de Personajes"
                 className={`
                     group flex items-center justify-center rounded transition-all
                     ${mode === 'war-room'
@@ -44,6 +45,7 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
             <button
                 onClick={onTribunal}
                 disabled={isThinking}
+                aria-label="Abrir Tribunal Literario"
                 className={`
                     group flex items-center justify-center rounded transition-all
                     ${mode === 'war-room'
@@ -65,6 +67,7 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
             <button
                 onClick={onContext}
                 disabled={isThinking}
+                aria-label="Sincronizar Contexto y Memoria"
                 className={`
                     group flex items-center justify-center rounded transition-all
                     ${mode === 'war-room'

@@ -95,12 +95,13 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                     {/* 🟢 MODE TOGGLE */}
                     <div
                         className="flex bg-titanium-900 p-1 rounded-lg border border-titanium-800"
-                        role="group"
+                        role="radiogroup"
                         aria-label="Selector de modo de entrada"
                     >
                         <button
                             onClick={() => setMode('manual')}
-                            aria-pressed={mode === 'manual'}
+                            role="radio"
+                            aria-checked={mode === 'manual'}
                             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'manual'
                                     ? 'bg-titanium-800 text-white shadow-sm'
                                     : 'text-titanium-400 hover:text-titanium-200'
@@ -111,7 +112,8 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                         </button>
                         <button
                             onClick={() => setMode('file')}
-                            aria-pressed={mode === 'file'}
+                            role="radio"
+                            aria-checked={mode === 'file'}
                             className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-md text-sm font-medium transition-all ${mode === 'file'
                                     ? 'bg-titanium-800 text-white shadow-sm'
                                     : 'text-titanium-400 hover:text-titanium-200'
@@ -171,6 +173,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                             value={context}
                             onChange={(e) => setContext(e.target.value)}
                             placeholder="¿Qué está pasando? ¿Quiénes son los personajes? (Ayuda a los jueces a entender)"
+                            aria-label="Contexto adicional para el tribunal"
                             className="flex-1 bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl p-3 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all resize-none text-sm"
                         />
                     </div>

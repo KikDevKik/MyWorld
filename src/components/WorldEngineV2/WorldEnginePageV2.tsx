@@ -773,8 +773,8 @@ const WorldEnginePageV2: React.FC<{
 
                         {/* 🟢 ZOOM CONTROLS */}
                         <div className="absolute bottom-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
-                             <button onClick={() => zoomIn()} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
-                             <button onClick={() => zoomOut()} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
+                             <button onClick={() => zoomIn()} aria-label="Acercar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
+                             <button onClick={() => zoomOut()} aria-label="Alejar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
                         </div>
                     </>
                 )}
@@ -785,6 +785,7 @@ const WorldEnginePageV2: React.FC<{
                  <button
                     onClick={handleNexusClick}
                     disabled={isScanning}
+                    aria-label={isScanning ? "Escaneando Nexus..." : "Iniciar Escaneo Nexus"}
                     className={`
                         group relative flex items-center justify-center px-8 py-4
                         bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full
