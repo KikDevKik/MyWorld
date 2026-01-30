@@ -31,6 +31,7 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
 import { useLayoutStore } from './stores/useLayoutStore'; // 🟢 IMPORT STORE
 import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
+import { CreativeAuditService } from './services/CreativeAuditService';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
@@ -71,6 +72,31 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const handleContentChange = (newContent: string) => {
         setSelectedFileContent(newContent);
     };
+
+    // ⚖️ AUDIT: THE LABOR (Debounced Auto-Save Log)
+    useEffect(() => {
+        if (!currentFileId || !folderId || !user) return;
+
+        const timer = setTimeout(() => {
+            // Only log if content exists
+            if (selectedFileContent && selectedFileContent.length > 0) {
+                CreativeAuditService.logCreativeEvent({
+                    projectId: folderId,
+                    userId: user.uid,
+                    component: 'HybridEditor',
+                    actionType: 'INJECTION',
+                    description: 'User manually edited content (Auto-Save)',
+                    payload: {
+                        fileId: currentFileId,
+                        fileName: currentFileName,
+                        timestamp: Date.now()
+                    }
+                });
+            }
+        }, 5000); // 5 seconds debounce
+
+        return () => clearTimeout(timer);
+    }, [selectedFileContent, currentFileId, folderId, user]);
 
     // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
     const effectiveFileContent = selectedFileContent;
