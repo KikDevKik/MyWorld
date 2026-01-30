@@ -93,6 +93,10 @@ export const genesisManifest = onCall(
             2. LOCATIONS: Key settings mentioned. (Max 2)
             3. CHAPTERS: The inciting incident or first chapter idea. (Max 1)
 
+            LANGUAGE INSTRUCTION:
+            Detect the language of the CHAT HISTORY.
+            All output values (traits, summaries, content) MUST BE in the SAME LANGUAGE as the CHAT HISTORY.
+
             OUTPUT SCHEMA (JSON):
             [
               {
