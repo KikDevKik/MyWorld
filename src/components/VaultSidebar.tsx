@@ -167,6 +167,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
             toast.success("¡Proyecto creado exitosamente!");
             // Config context should auto-update via Firestore listener
+            // 🟢 FORCE RELOAD (Requested by Commander)
+            // Ensures total cleanup of stale state from previous (deleted) projects.
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
         } catch (error: any) {
             console.error("Error creating project:", error);
             toast.error("Error al crear el proyecto: " + error.message);

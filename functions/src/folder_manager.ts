@@ -186,25 +186,48 @@ export const createTitaniumStructure = onCall(
         auth.setCredentials({ access_token: accessToken });
         const drive = google.drive({ version: "v3", auth });
 
-        // 0. Resolve Root Folder
+        // 0. Resolve Root Folder (Validation & Creation)
         let targetRootId = rootFolderId;
         const configUpdates: any = {};
+        let rootFolderName = newProjectName || "Unknown Project";
 
-        if (!targetRootId && newProjectName) {
-            // Create New Root Folder
-            logger.info(`Creating new root project folder: ${newProjectName}`);
-            const rootRes = await drive.files.create({
-                requestBody: {
-                    name: newProjectName,
-                    mimeType: "application/vnd.google-apps.folder",
-                    // No parent = Root
-                },
-                fields: "id"
-            });
-            targetRootId = rootRes.data.id;
-            configUpdates.folderId = targetRootId;
-            configUpdates.projectName = newProjectName;
-            configUpdates.activeBookContext = newProjectName; // Set context name too
+        // 🟢 VALIDATION: Check if provided ID actually exists (was not deleted outside)
+        if (targetRootId) {
+            try {
+                const meta = await drive.files.get({ fileId: targetRootId, fields: "id, name, trashed" });
+                if (meta.data.trashed) {
+                    logger.warn(`⚠️ Target Root ${targetRootId} is in TRASH. Treating as missing.`);
+                    targetRootId = null; // Force recreation
+                } else {
+                    rootFolderName = meta.data.name || rootFolderName;
+                }
+            } catch (e: any) {
+                logger.warn(`⚠️ Target Root ${targetRootId} not found (404). Treating as missing.`);
+                targetRootId = null; // Force recreation
+            }
+        }
+
+        if (!targetRootId) {
+            if (newProjectName) {
+                // Create New Root Folder
+                logger.info(`Creating new root project folder: ${newProjectName}`);
+                const rootRes = await drive.files.create({
+                    requestBody: {
+                        name: newProjectName,
+                        mimeType: "application/vnd.google-apps.folder",
+                        // No parent = Root
+                    },
+                    fields: "id"
+                });
+                targetRootId = rootRes.data.id;
+                configUpdates.folderId = targetRootId;
+                configUpdates.projectName = newProjectName;
+                configUpdates.activeBookContext = newProjectName; // Set context name too
+                rootFolderName = newProjectName;
+            } else {
+                // We needed a root but found none and have no name to create one
+                throw new HttpsError("failed-precondition", "La carpeta del proyecto no existe y no se proporcionó un nombre para crear una nueva.");
+            }
         }
 
         if (!targetRootId) throw new Error("Failed to resolve Root Folder ID");
@@ -272,16 +295,54 @@ export const createTitaniumStructure = onCall(
              const sagaId = newMapping[FolderRole.SAGA_MAIN];
              // Optional: Create Libro 1
              const q = `'${sagaId}' in parents and name = 'Libro_01' and trashed = false`;
-             const check = await drive.files.list({ q });
+             const check = await drive.files.list({ q, fields: "files(id, name)" });
              if (!check.data.files?.length) {
-                 await drive.files.create({
+                 const subRes = await drive.files.create({
                      requestBody: {
                          name: "Libro_01",
                          mimeType: "application/vnd.google-apps.folder",
                          parents: [sagaId]
-                     }
+                     },
+                     fields: "id"
                  });
+                 // Track for Index
+                 const match = createdFolders.find(f => f.id === sagaId);
+                 if (match) {
+                     if (!match.children) match.children = [];
+                     match.children.push({
+                         id: subRes.data.id,
+                         name: "Libro_01",
+                         type: "folder",
+                         mimeType: "application/vnd.google-apps.folder"
+                     });
+                 }
              }
+        }
+
+        // 🟢 2.5. AUTO-INDEX (HYPER-SPEED REFRESH)
+        // Instead of calling heavy scan, we construct the tree from what we just built.
+        try {
+            const treePayload = [{
+                id: targetRootId,
+                name: rootFolderName,
+                type: 'folder',
+                mimeType: 'application/vnd.google-apps.folder',
+                children: createdFolders.map(f => ({
+                    id: f.id,
+                    name: f.name,
+                    type: 'folder',
+                    mimeType: 'application/vnd.google-apps.folder',
+                    children: f.children || []
+                }))
+            }];
+
+            await db.collection("TDB_Index").doc(userId).collection("structure").doc("tree").set({
+                tree: treePayload,
+                updatedAt: new Date().toISOString()
+            });
+            logger.info("🌳 Auto-indexed fresh Titanium structure.");
+        } catch (idxErr) {
+            logger.warn("⚠️ Failed to auto-index structure:", idxErr);
         }
 
         // 3. Save to Config
