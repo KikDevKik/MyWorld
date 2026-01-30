@@ -42,6 +42,11 @@ service cloud.firestore {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
+      // 🟢 PERFIL (Config & Settings)
+      match /profile/{document=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
       // 🟢 PROYECTOS
       match /projects/{projectId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
