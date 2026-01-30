@@ -193,13 +193,15 @@ export const purgeArtifacts = onCall(
 
 /**
  * PURGE EMPTY SESSIONS (The Ghostbuster Protocol)
- * Hard deletes empty sessions from Firestore.
+ * Hard deletes empty or STUB (<=2 messages) sessions from Firestore.
  */
 export const purgeEmptySessions = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    timeoutSeconds: 300,
+    memory: "512MiB",
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
@@ -207,39 +209,64 @@ export const purgeEmptySessions = onCall(
     const userId = request.auth.uid;
     const db = getFirestore();
 
-    logger.info(`👻 [GHOSTBUSTER] Iniciando purga de sesiones vacías para: ${userId}`);
+    logger.info(`👻 [GHOSTBUSTER] Iniciando purga de sesiones cortas/vacías para: ${userId}`);
 
     try {
         const sessionsRef = db.collection("users").doc(userId).collection("forge_sessions");
-        const snapshot = await sessionsRef.get();
+        const snapshot = await sessionsRef.limit(500).get();
         let deletedCount = 0;
+
+        const now = new Date();
+        const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000); // 24 Hours ago
 
         for (const doc of snapshot.docs) {
             const data = doc.data();
-            let isEmpty = false;
+            let shouldPurge = false;
 
-            // 1. CHECK METADATA (Optimized Path)
-            if (data.messageCount === 0) {
-                isEmpty = true;
-            } else if (data.messageCount === undefined) {
-                // 2. CHECK SUBCOLLECTION (Legacy Path - Expensive)
-                // If no metadata, check if 'messages' subcollection has any docs
-                const messagesSnap = await sessionsRef.doc(doc.id).collection("messages").limit(1).get();
-                if (messagesSnap.empty) {
-                    isEmpty = true;
+            // 0. SAFETY CHECK: TIME BUFFER (Protect Active Sessions)
+            // If session was updated recently (last 24h), DO NOT TOUCH IT.
+            const lastActiveStr = data.updatedAt || data.createdAt;
+            let lastActiveDate = new Date(0); // Epoch default
+
+            if (lastActiveStr) {
+                if (typeof lastActiveStr === 'string') {
+                    lastActiveDate = new Date(lastActiveStr);
+                } else if (lastActiveStr.toDate) {
+                    // Firestore Timestamp
+                    lastActiveDate = lastActiveStr.toDate();
                 }
             }
 
-            if (isEmpty) {
+            if (lastActiveDate > cutoff) {
+                // Too new, skip safe
+                continue;
+            }
+
+            // 1. CHECK METADATA (Optimized Path)
+            // Rule: Delete if 0 messages OR <= 2 messages (Stub: Prompt + Response)
+            if (typeof data.messageCount === 'number') {
+                if (data.messageCount <= 2) {
+                    shouldPurge = true;
+                }
+            } else {
+                // 2. CHECK SUBCOLLECTION (Legacy Path - Expensive)
+                // If no metadata, fallback to checking if it's TRULY empty (0 messages)
+                const messagesSnap = await sessionsRef.doc(doc.id).collection("messages").limit(1).get();
+                if (messagesSnap.empty) {
+                    shouldPurge = true;
+                }
+            }
+
+            if (shouldPurge) {
                 // HARD DELETE (Recursive to ensure subcollections die if any exist - e.g. orphaned stats)
                 await db.recursiveDelete(sessionsRef.doc(doc.id));
                 deletedCount++;
-                logger.info(`   🗑️ Purged Empty Session: ${doc.id}`);
+                logger.info(`   🗑️ Purged Stub Session: ${doc.id} (MsgCount: ${data.messageCount ?? 'Unknown'})`);
             }
         }
 
         logger.info(`👻 [GHOSTBUSTER] Purga completada. ${deletedCount} sesiones eliminadas.`);
-        return { success: true, deletedCount, message: `Se eliminaron ${deletedCount} sesiones vacías.` };
+        return { success: true, deletedCount, message: `Se eliminaron ${deletedCount} sesiones cortas o vacías.` };
 
     } catch (error: any) {
         throw handleSecureError(error, "purgeEmptySessions");
