@@ -94,10 +94,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         try {
             const functions = getFunctions();
             const saveDriveFile = httpsCallable(functions, 'saveDriveFile');
+
+            // 🟢 SIGNIFICANT EDIT DETECTION
+            // If the user writes a paragraph (>50 chars) in one go (2s debounce), we flag it.
+            const diff = Math.abs(contentToSave.length - lastSavedContent.length);
+            const isSignificant = diff > 50;
+
             await saveDriveFile({
                 fileId: fileIdToSave,
                 content: contentToSave,
-                accessToken: oauthToken
+                accessToken: oauthToken,
+                isSignificant: isSignificant
             });
 
             // Update lastSavedContent to what we just saved

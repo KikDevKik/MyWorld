@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, Loader2, Archive, LayoutTemplate } from 'lucide-react';
+import { X, Send, Loader2, Archive, LayoutTemplate, RefreshCcw, AlertCircle } from 'lucide-react';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { SessionManagerModal } from './SessionManagerModal';
 import { DirectorTools } from './DirectorTools';
@@ -9,6 +9,8 @@ import { ChatMessage } from './director/chat/ChatMessage';
 import { httpsCallable, getFunctions } from 'firebase/functions';
 import { CreativeAuditService } from '../services/CreativeAuditService';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
+import { useContextStatus } from '../hooks/useContextStatus';
+import { toast } from 'sonner';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -114,7 +116,41 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const [embeddedSessions, setEmbeddedSessions] = useState<any[]>([]);
     const [isSessionsLoading, setIsSessionsLoading] = useState(false);
     const functions = getFunctions();
-    const { user } = useProjectConfig();
+    const { user, config } = useProjectConfig();
+
+    // 🟢 CONTEXT STATUS CHECK
+    const { needsReindex } = useContextStatus();
+    const [isIndexing, setIsIndexing] = useState(false);
+
+    const handleQuickIndex = async () => {
+        if (!config) return;
+        setIsIndexing(true);
+        const indexTDB = httpsCallable(functions, 'indexTDB');
+
+        const allPaths = [...(config.canonPaths || []), ...(config.resourcePaths || [])];
+        const folderIds = allPaths.map(p => p.id);
+
+        try {
+            toast.promise(
+                indexTDB({
+                    folderIds: folderIds,
+                    projectId: config.folderId || folderId,
+                    accessToken: accessToken, // Passed from prop
+                    forceFullReindex: false
+                }),
+                {
+                    loading: 'Actualizando memoria...',
+                    success: '¡Memoria sincronizada!',
+                    error: 'Error al indexar.'
+                }
+            );
+            // State update will happen via Firestore listener automatically
+        } catch (error) {
+            console.error("Index Error:", error);
+        } finally {
+            setIsIndexing(false);
+        }
+    };
 
     useEffect(() => {
         if (isWarRoomMode && isOpen) {
@@ -175,6 +211,24 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 activeSessionId={activeSessionId}
                 onSessionSelect={onSessionSelect}
             />
+
+            {/* 🟢 RE-INDEX ALERT BANNER */}
+            {needsReindex && (
+                <div className="bg-amber-900/20 border-b border-amber-500/30 p-2 px-4 flex items-center justify-between animate-in slide-in-from-top duration-300">
+                    <div className="flex items-center gap-2 text-amber-200/80 text-xs">
+                        <AlertCircle size={14} className="text-amber-500" />
+                        <span>Cambios detectados. La memoria de la IA puede estar desactualizada.</span>
+                    </div>
+                    <button
+                        onClick={handleQuickIndex}
+                        disabled={isIndexing}
+                        className="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-300 transition-colors uppercase tracking-wider font-bold"
+                    >
+                        {isIndexing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCcw size={10} />}
+                        {isIndexing ? 'Indexando...' : 'Sincronizar'}
+                    </button>
+                </div>
+            )}
 
             {/* HEADER */}
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
