@@ -7,6 +7,8 @@ import { SessionList } from './ui/SessionList';
 import { useDirectorChat } from '../hooks/useDirectorChat';
 import { ChatMessage } from './director/chat/ChatMessage';
 import { httpsCallable, getFunctions } from 'firebase/functions';
+import { CreativeAuditService } from '../services/CreativeAuditService';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -112,6 +114,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const [embeddedSessions, setEmbeddedSessions] = useState<any[]>([]);
     const [isSessionsLoading, setIsSessionsLoading] = useState(false);
     const functions = getFunctions();
+    const { user } = useProjectConfig();
 
     useEffect(() => {
         if (isWarRoomMode && isOpen) {
@@ -135,6 +138,23 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     useEffect(() => {
         if (pendingMessage && isOpen) {
             handleSendMessage(pendingMessage);
+
+            // ⚖️ AUDIT: THE SEED (Director Prompt - Handoff)
+            if (user && folderId) {
+                CreativeAuditService.logCreativeEvent({
+                    projectId: folderId,
+                    userId: user.uid,
+                    component: 'DirectorPanel',
+                    actionType: 'INJECTION',
+                    description: 'User sent directive (handoff)',
+                    payload: {
+                        promptContent: pendingMessage,
+                        promptLength: pendingMessage.length,
+                        sessionId: activeSessionId
+                    }
+                });
+            }
+
             onClearPendingMessage();
         }
     }, [pendingMessage, isOpen]);
@@ -263,6 +283,23 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                 e.preventDefault();
                                 if (!e.shiftKey) {
                                     handleSendMessage(inputValue);
+
+                                    // ⚖️ AUDIT: THE SEED (Director Prompt)
+                                    if (user && folderId) {
+                                        CreativeAuditService.logCreativeEvent({
+                                            projectId: folderId,
+                                            userId: user.uid,
+                                            component: 'DirectorPanel',
+                                            actionType: 'INJECTION',
+                                            description: 'User sent directive',
+                                            payload: {
+                                                promptContent: inputValue,
+                                                promptLength: inputValue.length,
+                                                sessionId: activeSessionId
+                                            }
+                                        });
+                                    }
+
                                     setInputValue('');
                                     if (textareaRef.current) textareaRef.current.style.height = 'auto';
                                 }
@@ -277,6 +314,23 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                     if (e.key === 'Enter' && !e.shiftKey) {
                                         e.preventDefault();
                                         handleSendMessage(inputValue);
+
+                                        // ⚖️ AUDIT: THE SEED (Director Prompt)
+                                        if (user && folderId) {
+                                            CreativeAuditService.logCreativeEvent({
+                                                projectId: folderId,
+                                                userId: user.uid,
+                                                component: 'DirectorPanel',
+                                                actionType: 'INJECTION',
+                                                description: 'User sent directive',
+                                                payload: {
+                                                    promptContent: inputValue,
+                                                    promptLength: inputValue.length,
+                                                    sessionId: activeSessionId
+                                                }
+                                            });
+                                        }
+
                                         setInputValue('');
                                         if (textareaRef.current) textareaRef.current.style.height = 'auto';
                                     }

@@ -20,6 +20,8 @@ import {
     Search
 } from 'lucide-react';
 import { AnalysisCandidate, AnalysisAmbiguityType, VisualNode } from './types';
+import { CreativeAuditService } from '../../services/CreativeAuditService';
+import { useProjectConfig } from '../../contexts/ProjectConfigContext';
 
 interface NexusTribunalModalProps {
     isOpen: boolean;
@@ -62,6 +64,8 @@ const cleanName = (name: string) => {
 };
 
 const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored, existingNodes = [], onUpdateCandidate }) => {
+    const { user, config } = useProjectConfig();
+
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
     const [searchTerm, setSearchTerm] = useState('');
@@ -219,6 +223,23 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
 
         try {
             await onAction(action, cleanCandidate);
+
+            // ⚖️ AUDIT: THE TRIBUNAL (Approve/Reject)
+            if (user && config?.folderId) {
+                CreativeAuditService.logCreativeEvent({
+                    projectId: config.folderId,
+                    userId: user.uid,
+                    component: 'NexusTribunalModal',
+                    actionType: 'CURATION',
+                    description: action === 'APPROVE' ? 'User validated Nexus candidate' : 'User rejected Nexus candidate',
+                    payload: {
+                        candidateId: cleanCandidate.id,
+                        action: action,
+                        candidateName: cleanCandidate.name
+                    }
+                });
+            }
+
         } finally {
             setIsProcessing(false);
         }
@@ -253,6 +274,23 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
         setIsProcessing(true);
         try {
             await onBatchMerge(winner, losers);
+
+            // ⚖️ AUDIT: THE TRIBUNAL (Merge)
+            if (user && config?.folderId) {
+                CreativeAuditService.logCreativeEvent({
+                    projectId: config.folderId,
+                    userId: user.uid,
+                    component: 'NexusTribunalModal',
+                    actionType: 'STRUCTURE',
+                    description: 'User merged concepts',
+                    payload: {
+                        winnerId: winner.id,
+                        loserIds: losers.map(l => l.id),
+                        mergedName: winner.name
+                    }
+                });
+            }
+
             setIsBatchModalOpen(false);
             setCheckedIds(new Set());
         } finally {
