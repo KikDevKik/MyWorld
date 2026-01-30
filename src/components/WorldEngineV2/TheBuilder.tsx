@@ -414,6 +414,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                      />
                                      <button
                                         onClick={() => handleSend(input)}
+                                        aria-label="Enviar Mensaje"
                                         className="w-20 bg-cyan-900/20 border border-cyan-500/30 rounded-lg flex items-center justify-center hover:bg-cyan-900/40 text-cyan-400 transition-colors"
                                      >
                                         <Send size={20} />
@@ -423,7 +424,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                         </Panel>
 
                         {/* RESIZER */}
-                        <PanelResizeHandle className="w-1 bg-yellow-500/50 hover:bg-yellow-400 transition-colors cursor-col-resize z-50 flex items-center justify-center group">
+                        <PanelResizeHandle aria-label="Redimensionar paneles" className="w-1 bg-yellow-500/50 hover:bg-yellow-400 transition-colors cursor-col-resize z-50 flex items-center justify-center group">
                             <div className="w-4 h-8 bg-yellow-500 rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(234,179,8,0.5)] group-hover:scale-110 transition-transform">
                                 <div className="w-0.5 h-4 bg-black/50" />
                             </div>
