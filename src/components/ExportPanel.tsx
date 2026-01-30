@@ -512,6 +512,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                     <button
                                         key={fmt}
                                         onClick={() => setAuditFormat(fmt as any)}
+                                        aria-pressed={auditFormat === fmt}
                                         className={`
                                             px-3 py-1 rounded text-xs font-bold uppercase transition-all
                                             ${auditFormat === fmt

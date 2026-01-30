@@ -336,9 +336,12 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                     </div>
 
                     {/* Tabs */}
-                    <div className="flex gap-1 bg-titanium-950/50 p-1 rounded-lg w-fit">
+                    <div className="flex gap-1 bg-titanium-950/50 p-1 rounded-lg w-fit" role="tablist" aria-label="Configuración de proyecto">
                         <button
                             onClick={() => setActiveTab('paths')}
+                            role="tab"
+                            aria-selected={activeTab === 'paths'}
+                            aria-controls="panel-paths"
                             className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${
                                 activeTab === 'paths'
                                 ? 'bg-titanium-700 text-white shadow-sm'
@@ -349,6 +352,9 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                         </button>
                         <button
                             onClick={() => setActiveTab('taxonomy')}
+                            role="tab"
+                            aria-selected={activeTab === 'taxonomy'}
+                            aria-controls="panel-taxonomy"
                             className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${
                                 activeTab === 'taxonomy'
                                 ? 'bg-cyan-900/50 text-cyan-200 shadow-sm border border-cyan-800/50'

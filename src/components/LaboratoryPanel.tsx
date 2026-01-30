@@ -161,7 +161,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                             <h2 className="font-bold tracking-wider text-sm">RECURSOS</h2>
                         </div>
                         <div className="flex gap-1">
-                             <button onClick={onClose} className="p-1 hover:bg-titanium-800 rounded text-titanium-400 hover:text-white">
+                             <button onClick={onClose} aria-label="Cerrar Laboratorio" className="p-1 hover:bg-titanium-800 rounded text-titanium-400 hover:text-white">
                                 <X size={16} />
                             </button>
                         </div>
@@ -173,6 +173,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                         <input
                             type="text"
                             placeholder="Filtrar..."
+                            aria-label="Filtrar recursos"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full bg-titanium-900 border border-titanium-800 rounded-lg py-2 pl-9 pr-3 text-xs text-titanium-200 focus:outline-none focus:border-emerald-500 transition-colors"
@@ -183,6 +184,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                     <div className="flex flex-wrap gap-1.5">
                         <button
                             onClick={() => setActiveTag(null)}
+                            aria-pressed={!activeTag}
                             className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${!activeTag ? 'bg-emerald-900/50 border-emerald-500/50 text-emerald-400' : 'bg-titanium-900 border-titanium-800 text-titanium-500 hover:text-titanium-300'}`}
                         >
                             TODO
@@ -191,6 +193,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                             <button
                                 key={tag}
                                 onClick={() => setActiveTag(tag === activeTag ? null : tag)}
+                                aria-pressed={activeTag === tag}
                                 className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${activeTag === tag ? 'bg-emerald-900/50 border-emerald-500/50 text-emerald-400' : 'bg-titanium-900 border-titanium-800 text-titanium-500 hover:text-titanium-300'}`}
                             >
                                 {tag}
