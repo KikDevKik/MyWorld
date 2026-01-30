@@ -34,6 +34,7 @@ import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 import { CreativeAuditService } from './services/CreativeAuditService';
 import EmptyEditorState from './components/editor/EmptyEditorState';
 import CreateFileModal from './components/ui/CreateFileModal';
+import StatusBar from './components/ui/StatusBar';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: any) {
@@ -604,15 +605,23 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
 
         return (
-            <>
-                <HybridEditor
+            <div className="flex flex-col h-full overflow-hidden">
+                <div className="flex-1 overflow-hidden relative">
+                    <HybridEditor
+                        content={selectedFileContent}
+                        onContentChange={handleContentChange}
+                        driftMarkers={driftMarkers}
+                        className="h-full"
+                        readOnly={isReadOnly}
+                    />
+                </div>
+                <StatusBar
                     content={selectedFileContent}
-                    onContentChange={handleContentChange}
-                    driftMarkers={driftMarkers}
-                    className="h-full"
-                    readOnly={isReadOnly}
+                    guardianStatus={guardianStatus}
+                    onGuardianClick={() => setActiveView('guardian')}
+                    className="z-50 shrink-0"
                 />
-            </>
+            </div>
         );
     };
 
