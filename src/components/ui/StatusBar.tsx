@@ -113,6 +113,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                               'text-zinc-600 hover:text-zinc-400'}
                         `}
                         title="Estado del Canon (Clic para forzar auditoría)"
+                        aria-label={guardianStatus === 'scanning' ? 'Escaneando canon' : guardianStatus === 'conflict' ? 'Conflicto detectado' : 'Estado del Guardián: Limpio'}
                     >
                         <ScanEye size={12} />
                         <span className="font-bold tracking-wider">
@@ -141,8 +142,9 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 {isSettingsOpen && (
                     <div className="absolute bottom-10 right-0 bg-titanium-950 border border-titanium-700 p-3 rounded-lg shadow-2xl w-48 z-50 animate-in fade-in slide-in-from-bottom-2">
                         <div className="mb-3">
-                            <label className="block text-xs font-bold text-titanium-100 mb-2">Meta Diaria</label>
+                            <label htmlFor="daily-goal-input" className="block text-xs font-bold text-titanium-100 mb-2">Meta Diaria</label>
                             <input
+                                id="daily-goal-input"
                                 type="number"
                                 value={dailyGoal}
                                 onChange={handleGoalChange}
@@ -153,6 +155,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         <button
                             onClick={handleResetProgress}
                             className="w-full flex items-center justify-center gap-2 px-2 py-1.5 bg-titanium-800 hover:bg-red-900/30 text-titanium-300 hover:text-red-400 rounded transition-colors text-xs"
+                            aria-label="Reiniciar progreso diario"
+                            title="Reiniciar contador de palabras hoy"
                         >
                             <RefreshCw size={12} />
                             Reiniciar Progreso
@@ -178,6 +182,10 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 <button
                     onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                     className="p-1 hover:bg-titanium-800 rounded text-titanium-500 hover:text-white transition-colors"
+                    title="Configuración de lectura"
+                    aria-label="Configuración de lectura"
+                    aria-expanded={isSettingsOpen}
+                    aria-haspopup="true"
                 >
                     <Settings size={12} />
                 </button>
