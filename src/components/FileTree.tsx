@@ -270,9 +270,8 @@ const FileTreeNode: React.FC<{
                         }}
                         onDoubleClick={(e) => {
                             e.stopPropagation();
-                            if (isFolder) { // Only allow renaming folders for now as per "cambiar nombre de su carpeta"
-                                setIsEditing(true);
-                            }
+                            // Enable renaming for both files and folders
+                            setIsEditing(true);
                         }}
                     >
                         {node.name}

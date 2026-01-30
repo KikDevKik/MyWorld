@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldCheck, ShieldAlert, Cloud, CloudOff, RefreshCw, X, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Cloud, CloudOff, RefreshCw, X, Trash2, AlertTriangle, Loader2, Eye } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { useLayoutStore } from "../../stores/useLayoutStore";
 
 interface SentinelStatusProps {
     onClose: () => void;
@@ -18,6 +19,7 @@ interface ScanResult {
 
 const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityReady, isOffline }) => {
     const { config, fileTree, isFileTreeLoading } = useProjectConfig();
+    const { showOnlyHealthy, toggleShowOnlyHealthy } = useLayoutStore();
 
     // UI State
     const [isScanning, setIsScanning] = useState(false);
@@ -162,7 +164,31 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
                     </div>
                 </div>
 
-                {/* 2. JANITOR / MAINTENANCE */}
+                {/* 2. VISUAL FILTERS */}
+                <div className="pt-4 border-t border-titanium-800">
+                     <div className="flex items-center justify-between pb-4">
+                         <span className="text-xs font-bold text-titanium-400 uppercase tracking-wider flex items-center gap-2">
+                             <Eye size={14} /> Solo Sanos
+                         </span>
+                         <button
+                            onClick={toggleShowOnlyHealthy}
+                            className={`
+                                relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2 focus:ring-offset-titanium-900
+                                ${showOnlyHealthy ? 'bg-cyan-600' : 'bg-titanium-700'}
+                            `}
+                            title="Ocultar archivos corruptos o en conflicto"
+                         >
+                            <span
+                                className={`
+                                    inline-block h-3 w-3 transform rounded-full bg-white transition-transform
+                                    ${showOnlyHealthy ? 'translate-x-5' : 'translate-x-1'}
+                                `}
+                            />
+                         </button>
+                    </div>
+                </div>
+
+                {/* 3. JANITOR / MAINTENANCE */}
                 <div className="space-y-4 pt-4 border-t border-titanium-800">
                     <div className="flex items-center justify-between text-titanium-400">
                         <div className="flex items-center gap-2">
@@ -251,7 +277,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
                     )}
                 </div>
 
-                {/* 3. FILE SYSTEM STATS (Context Aware) */}
+                {/* 4. FILE SYSTEM STATS (Context Aware) */}
                 <div className="pt-4 border-t border-titanium-800">
                     <span className="text-[10px] font-bold text-titanium-500 uppercase tracking-widest mb-2 block">Estadísticas del Baúl</span>
                     <div className="grid grid-cols-2 gap-2 text-xs text-titanium-300">

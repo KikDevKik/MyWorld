@@ -30,6 +30,7 @@ import { GraphNode, EntityType } from "./types/graph";
 import { _getDriveFileContentInternal, streamToString } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { maskLog } from "./utils/logger";
+import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
 
 const htmlToPdfmake = require('html-to-pdfmake');
 const { JSDOM } = require('jsdom');
@@ -4366,6 +4367,20 @@ export const forgeToolExecution = onCall(
       });
 
       logger.info(`   ✅ Materialización exitosa: ${file.data.id}`);
+
+      // 🟢 PERSISTENCE: Update Firestore Tree (Sync Memory)
+      if (file.data.id) {
+          await updateFirestoreTree(request.auth.uid, 'add', file.data.id, {
+              parentId: folderId,
+              newNode: {
+                  id: file.data.id,
+                  name: fileName,
+                  mimeType: 'text/markdown',
+                  type: 'file', // logic
+                  children: []
+              }
+          });
+      }
 
       return {
         success: true,
