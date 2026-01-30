@@ -340,6 +340,11 @@ async function fetchFolderContents(
         return true;
       }
 
+      // 🟢 ALLOW TEXT FILES (Even without extension)
+      if (file.mimeType.startsWith('text/')) {
+        return true;
+      }
+
       const hasAllowedExtension = ALLOWED_EXTENSIONS.some(ext =>
         file.name.toLowerCase().endsWith(ext)
       );
@@ -702,6 +707,7 @@ export const syncWorldManifest = onCall(
              // Filter by extension
              candidates = candidates.filter(f =>
                 f.mimeType === 'application/vnd.google-apps.document' ||
+                f.mimeType.startsWith('text/') ||
                 f.name.endsWith('.md') ||
                 f.name.endsWith('.txt')
             );
@@ -4158,6 +4164,7 @@ export const syncCharacterManifest = onCall(
 
              candidates = flatFiles.filter(f =>
                 f.mimeType === 'application/vnd.google-apps.document' ||
+                f.mimeType.startsWith('text/') ||
                 f.name.endsWith('.md') ||
                 f.name.endsWith('.txt')
             );
