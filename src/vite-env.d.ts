@@ -11,6 +11,8 @@ interface Window {
           redirect_uri?: string;
           callback: (response: any) => void;
           error_callback?: (error: any) => void;
+          prompt?: string; // 👈 Added for consent forcing
+          select_account?: boolean;
         }) => {
           requestCode: () => void;
         };
