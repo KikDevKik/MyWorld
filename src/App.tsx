@@ -46,6 +46,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [currentFileId, setCurrentFileId] = useState<string | null>(null);
     const [currentFileName, setCurrentFileName] = useState<string>('');
 
+    // 🟢 AUTO-SAVE STATE
+    const [lastSavedContent, setLastSavedContent] = useState<string>("");
+    const [isSaving, setIsSaving] = useState(false);
+    const isDirty = selectedFileContent !== lastSavedContent;
+
     // 🟢 MIGRATION NOTE: Old state 'activeGemId', 'isChatOpen', etc. removed.
 
     const [activeDirectorSessionId, setActiveDirectorSessionId] = useState<string | null>(null); // Kept local for session tracking
@@ -72,6 +77,60 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const handleContentChange = (newContent: string) => {
         setSelectedFileContent(newContent);
     };
+
+    // 🟢 AUTO-SAVE LOGIC
+    const saveToDrive = async () => {
+        // Capture current state values
+        const contentToSave = selectedFileContent;
+        const fileIdToSave = currentFileId;
+
+        if (!fileIdToSave || !oauthToken || !contentToSave) return;
+        // Don't save if content hasn't changed from last save (redundant check but safe)
+        if (contentToSave === lastSavedContent) return;
+
+        setIsSaving(true);
+        try {
+            const functions = getFunctions();
+            const saveDriveFile = httpsCallable(functions, 'saveDriveFile');
+            await saveDriveFile({
+                fileId: fileIdToSave,
+                content: contentToSave,
+                accessToken: oauthToken
+            });
+
+            // Update lastSavedContent to what we just saved
+            setLastSavedContent(contentToSave);
+        } catch (error) {
+            console.error("❌ Auto-save failed:", error);
+            toast.error("Error al guardar cambios automáticos.");
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    // 🟢 DEBOUNCE AUTO-SAVE EFFECT
+    useEffect(() => {
+        if (!isDirty || !currentFileId) return;
+
+        const timer = setTimeout(() => {
+            saveToDrive();
+        }, 2000); // 2 seconds delay
+
+        return () => clearTimeout(timer);
+    }, [selectedFileContent, isDirty, currentFileId, lastSavedContent]);
+
+    // 🟢 BEFORE UNLOAD PROTECTION
+    useEffect(() => {
+        const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+            if (isDirty || isSaving) {
+                e.preventDefault();
+                e.returnValue = ''; // Required for Chrome
+            }
+        };
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [isDirty, isSaving]);
 
     // ⚖️ AUDIT: THE LABOR (Debounced Auto-Save Log)
     useEffect(() => {
@@ -214,6 +273,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             await signOut(auth);
             setFolderId("");
             setSelectedFileContent("");
+            setLastSavedContent(""); // 🟢 RESET BASELINE
             setCurrentFileId(null);
             setOauthToken(null);
             setDriveStatus('disconnected');
@@ -348,11 +408,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             const result = await getDriveFileContent({ fileId, accessToken: oauthToken });
             const data = result.data as { content: string; name: string };
             setSelectedFileContent(data.content);
+            setLastSavedContent(data.content); // 🟢 SYNC BASELINE
             setCurrentFileName(data.name);
         } catch (error) {
             console.error("Error loading file from timeline:", error);
             toast.error("Error al abrir el archivo.");
             setSelectedFileContent("");
+            setLastSavedContent("");
         }
     };
 
@@ -581,6 +643,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onFileSelect={(id, content, name) => {
                             setCurrentFileId(id);
                             setSelectedFileContent(content);
+                            setLastSavedContent(content); // 🟢 SYNC BASELINE
                             setCurrentFileName(name || 'Documento');
                         }}
                         onOpenConnectModal={() => setIsConnectModalOpen(true)}
@@ -682,7 +745,9 @@ function App() {
         setDriveStatus('refreshing');
         const auth = getAuth();
         const provider = new GoogleAuthProvider();
-        provider.addScope('https://www.googleapis.com/auth/drive.file');
+        // 🟢 UPGRADED SCOPE: Full Drive Access to prevent 'Permission Denied' on existing files
+        // provider.addScope('https://www.googleapis.com/auth/drive.file');
+        provider.addScope('https://www.googleapis.com/auth/drive');
         provider.addScope('https://www.googleapis.com/auth/drive.readonly');
 
         try {
