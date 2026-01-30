@@ -22,6 +22,7 @@ import { NodeEditModal } from './NodeEditModal';
 import { CommandBar } from './CommandBar';
 import { scanProjectFiles } from './utils/NexusScanner';
 import TheBuilder from './TheBuilder';
+import { CreativeAuditService } from '../../services/CreativeAuditService';
 
 // 🟢 CONFIGURATION
 const PENDING_KEY = 'nexus_pending_crystallization';
@@ -93,6 +94,21 @@ const WorldEnginePageV2: React.FC<{
     // STATE: THE BUILDER
     const [isBuilderOpen, setIsBuilderOpen] = useState(false);
     const [builderInitialPrompt, setBuilderInitialPrompt] = useState("");
+
+    // ⚖️ AUDIT: THE DIRECTION (Reality Mode)
+    const handleModeChange = (newMode: RealityMode) => {
+        setRealityMode(newMode);
+        if (user && config?.folderId) {
+            CreativeAuditService.logCreativeEvent({
+                projectId: config.folderId,
+                userId: user.uid,
+                component: 'CommandBar',
+                actionType: 'CURATION',
+                description: 'Director changed Reality Mode',
+                payload: { newMode }
+            });
+        }
+    };
 
     // STATE: NEXUS TRIBUNAL (Scanning)
     const [isScanning, setIsScanning] = useState(false);
@@ -288,6 +304,23 @@ const WorldEnginePageV2: React.FC<{
             setGhostNodes(prev => prev.filter(g => g.id !== targetNode.id));
             removeFromLifeboat(targetNode.id);
             toast.success(`💎 ${data.fileName} cristalizado.`);
+
+            // ⚖️ AUDIT: THE BIRTH
+            if (user && config?.folderId) {
+                CreativeAuditService.logCreativeEvent({
+                    projectId: config.folderId,
+                    userId: user.uid,
+                    component: 'WorldEnginePageV2',
+                    actionType: 'STRUCTURE',
+                    description: `User materialized entity: ${data.fileName}`,
+                    payload: {
+                        entityId: targetNode.id,
+                        nodeType: targetNode.type,
+                        fileName: data.fileName
+                    }
+                });
+            }
+
             if (!overrideNode) setCrystallizeModal({ isOpen: false, node: null });
         } catch (error: any) {
             console.error(`[Crystallize] Failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -779,7 +812,7 @@ const WorldEnginePageV2: React.FC<{
                     onClearAll={() => setIsClearAllOpen(true)}
                     onCommit={handleBuilderTrigger}
                     mode={realityMode}
-                    onModeChange={setRealityMode}
+                    onModeChange={handleModeChange}
                 />
              </div>
 

@@ -30,7 +30,7 @@ export const CreativeAuditService = {
 
         // 🟢 DEBUG: Legal Evidence Real-Time View
         if (import.meta.env.DEV) {
-            console.debug(`[⚖️ Creative Audit] ${entry.actionType} in ${entry.component}:`, entry.description, entry.payload);
+            console.log(`⚖️ [AUDIT SIGNED] ${entry.actionType} in ${entry.component}:`, entry.description, entry.payload);
         }
 
         try {
