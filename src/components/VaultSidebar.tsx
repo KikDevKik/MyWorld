@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2 } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
@@ -25,6 +25,7 @@ interface VaultSidebarProps {
     isIndexed?: boolean; // 👈 New prop for Index State
     isSecurityReady?: boolean; // 👈 New prop for Circuit Breaker
     activeFileId?: string | null; // 👈 New prop
+    onCreateFile?: () => void; // 👈 New prop for File Creation
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -51,6 +52,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     isIndexed = false, // 👈 Default to false
     isSecurityReady = false, // 👈 Default false for safety
     activeFileId, // 👈 Destructure
+    onCreateFile, // 👈 Destructure
 }) => {
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
@@ -200,24 +202,37 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Manual de Campo</h2>
 
                     {/* TOGGLE FILTER */}
-                    <button
-                        onClick={() => setShowOnlyHealthy(!showOnlyHealthy)}
-                        className={`ml-auto p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${showOnlyHealthy ? 'text-emerald-400' : 'text-titanium-500'}`}
-                        title={showOnlyHealthy ? "Mostrando solo archivos sanos" : "Mostrando todo (incluyendo conflictos)"}
-                        aria-label={showOnlyHealthy ? "Mostrar todos los archivos" : "Mostrar solo archivos sanos"}
-                    >
-                        {showOnlyHealthy ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
+                    <div className="ml-auto flex items-center gap-1">
+                        {onCreateFile && (
+                            <button
+                                onClick={onCreateFile}
+                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-colors text-titanium-400 hover:text-cyan-400"
+                                title="Crear Nuevo Archivo"
+                                aria-label="Crear Nuevo Archivo"
+                            >
+                                <FilePlus size={16} />
+                            </button>
+                        )}
 
-                    {/* BOTÓN DE INDEXAR */}
-                    <button
-                        onClick={onIndexRequest}
-                        className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
-                        title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
-                        aria-label="Indexar base de conocimiento"
-                    >
-                        <BrainCircuit size={16} />
-                    </button>
+                        <button
+                            onClick={() => setShowOnlyHealthy(!showOnlyHealthy)}
+                            className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${showOnlyHealthy ? 'text-emerald-400' : 'text-titanium-500'}`}
+                            title={showOnlyHealthy ? "Mostrando solo archivos sanos" : "Mostrando todo (incluyendo conflictos)"}
+                            aria-label={showOnlyHealthy ? "Mostrar todos los archivos" : "Mostrar solo archivos sanos"}
+                        >
+                            {showOnlyHealthy ? <EyeOff size={14} /> : <Eye size={14} />}
+                        </button>
+
+                        {/* BOTÓN DE INDEXAR */}
+                        <button
+                            onClick={onIndexRequest}
+                            className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
+                            title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
+                            aria-label="Indexar base de conocimiento"
+                        >
+                            <BrainCircuit size={16} />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="relative">

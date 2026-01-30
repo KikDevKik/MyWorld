@@ -680,6 +680,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         isIndexed={indexStatus.isIndexed}
                         isSecurityReady={isSecurityReady}
                         activeFileId={currentFileId}
+                        onCreateFile={() => setIsCreateFileModalOpen(true)}
                     />
                 }
                 editor={renderZoneBContent()}
