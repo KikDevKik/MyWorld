@@ -4918,3 +4918,4 @@ export { classifyResource } from "./laboratory";
  * Semantic folder discovery and creation.
  */
 export { discoverFolderRoles, createTitaniumStructure } from "./folder_manager";
+export { generateAuditPDF } from "./audit";

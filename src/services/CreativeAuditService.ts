@@ -1,4 +1,5 @@
 import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 
 export type CreativeActionType = 'INJECTION' | 'CURATION' | 'STRUCTURE' | 'RESEARCH';
 
@@ -56,7 +57,7 @@ export const CreativeAuditService = {
      * Generates a legal audit report in plain text/markdown format.
      * Queries all logs for the project, sorts them, and creates a formatted string.
      */
-    async generateAuditReport(projectId: string, userId: string): Promise<string> {
+    async generateAuditReport(projectId: string, userId: string, format: 'txt' | 'md' = 'txt'): Promise<string> {
         const db = getFirestore();
         try {
             const logRef = collection(db, 'users', userId, 'projects', projectId, 'audit_log');
@@ -73,39 +74,101 @@ export const CreativeAuditService = {
             const curations = logs.filter(l => l.actionType === 'CURATION').length;
             const structures = logs.filter(l => l.actionType === 'STRUCTURE').length;
 
-            let report = `CERTIFICATE OF AUTHORSHIP (TITANIUM PROTOCOL)\n`;
-            report += `=================================================\n`;
-            report += `Project ID: ${projectId}\n`;
-            report += `Generated: ${new Date().toISOString()}\n\n`;
+            const isMd = format === 'md';
+            let report = "";
 
-            report += `METRICS:\n`;
-            report += `- Total Creative Acts: ${totalEvents}\n`;
-            report += `- Human Injections (Writing): ${injections}\n`;
-            report += `- Curation Decisions (Selection): ${curations}\n`;
-            report += `- Structural Changes (Arrangement): ${structures}\n\n`;
+            // HEADER
+            if (isMd) {
+                report += `# CERTIFICATE OF AUTHORSHIP\n`;
+                report += `**Project ID:** ${projectId}\n`;
+                report += `**Generated:** ${new Date().toISOString()}\n\n`;
+            } else {
+                report += `CERTIFICATE OF AUTHORSHIP\n`;
+                report += `=========================\n`;
+                report += `Project ID: ${projectId}\n`;
+                report += `Generated: ${new Date().toISOString()}\n\n`;
+            }
 
-            report += `AUDIT TRAIL (IMMUTABLE LOG):\n`;
-            report += `-----------------------------\n`;
+            // METRICS
+            if (isMd) {
+                report += `## METRICS\n`;
+                report += `- **Total Creative Acts:** ${totalEvents}\n`;
+                report += `- **Human Injections (Writing):** ${injections}\n`;
+                report += `- **Curation Decisions (Selection):** ${curations}\n`;
+                report += `- **Structural Changes (Arrangement):** ${structures}\n\n`;
+            } else {
+                report += `METRICS:\n`;
+                report += `- Total Creative Acts: ${totalEvents}\n`;
+                report += `- Human Injections (Writing): ${injections}\n`;
+                report += `- Curation Decisions (Selection): ${curations}\n`;
+                report += `- Structural Changes (Arrangement): ${structures}\n\n`;
+            }
+
+            // LOGS
+            if (isMd) {
+                report += `## AUDIT TRAIL (IMMUTABLE LOG)\n\n`;
+            } else {
+                report += `AUDIT TRAIL (IMMUTABLE LOG):\n`;
+                report += `-----------------------------\n`;
+            }
 
             logs.forEach(log => {
                 const date = log.timestamp?.toDate ? log.timestamp.toDate().toISOString() : 'PENDING';
-                report += `[${date}] [${log.actionType}] ${log.description}\n`;
-                report += `   > Component: ${log.component}\n`;
-                report += `   > ID: ${log.id}\n`;
-                if (log.payload && Object.keys(log.payload).length > 0) {
-                    report += `   > Payload: ${JSON.stringify(log.payload)}\n`;
+
+                if (isMd) {
+                    report += `### [${date}] ${log.actionType}\n`;
+                    report += `**${log.description}**\n`;
+                    report += `- **Component:** ${log.component}\n`;
+                    report += `- **ID:** \`${log.id}\`\n`;
+                    if (log.payload && Object.keys(log.payload).length > 0) {
+                        report += `- **Payload:** \`${JSON.stringify(log.payload)}\`\n`;
+                    }
+                    report += `\n`;
+                } else {
+                    report += `[${date}] [${log.actionType}] ${log.description}\n`;
+                    report += `   > Component: ${log.component}\n`;
+                    report += `   > ID: ${log.id}\n`;
+                    if (log.payload && Object.keys(log.payload).length > 0) {
+                        report += `   > Payload: ${JSON.stringify(log.payload)}\n`;
+                    }
+                    report += `\n`;
                 }
-                report += `\n`;
             });
 
-            report += `\n[END OF RECORD]\n`;
-            report += `Verified by Titanium Creative Audit Service.`;
+            if (isMd) {
+                report += `\n---\n**[END OF RECORD]**\n`;
+                report += `*Verified by Titanium Creative Audit Service.*`;
+            } else {
+                report += `\n[END OF RECORD]\n`;
+                report += `Verified by Titanium Creative Audit Service.`;
+            }
 
             return report;
 
         } catch (error) {
             console.error("Failed to generate report:", error);
             throw new Error("Failed to generate audit report.");
+        }
+    },
+
+    /**
+     * Calls the Cloud Function to generate a formal PDF Audit Certificate.
+     */
+    async fetchAuditPDF(projectId: string): Promise<string | null> {
+        try {
+            const functions = getFunctions();
+            const generateFn = httpsCallable(functions, 'generateAuditPDF');
+
+            const result = await generateFn({ projectId });
+            const data = result.data as any;
+
+            if (data.success && data.pdf) {
+                return data.pdf; // Base64 string
+            }
+            return null;
+        } catch (error) {
+            console.error("Failed to fetch PDF:", error);
+            return null; // Return null to handle UI error
         }
     }
 };
