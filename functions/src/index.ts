@@ -2722,7 +2722,7 @@ export const saveDriveFile = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión para guardar.");
     }
 
-    const { fileId, content, accessToken } = request.data;
+    const { fileId, content, accessToken, isSignificant } = request.data;
 
     if (!fileId) throw new HttpsError("invalid-argument", "Falta el ID del archivo.");
     if (content === undefined || content === null) throw new HttpsError("invalid-argument", "Falta el contenido.");
@@ -2736,7 +2736,7 @@ export const saveDriveFile = onCall(
        throw new HttpsError("resource-exhausted", `El archivo excede el límite de ${MAX_FILE_SAVE_BYTES / 1024 / 1024}MB.`);
     }
 
-    logger.info(`💾 Guardando archivo: ${fileId}`);
+    logger.info(`💾 Guardando archivo: ${fileId} (Significant: ${!!isSignificant})`);
 
     try {
       const auth = new google.auth.OAuth2();
@@ -2751,6 +2751,30 @@ export const saveDriveFile = onCall(
           body: content,
         },
       });
+
+      // 🟢 HYBRID INDEXING: Update Metadata if Significant
+      if (isSignificant) {
+          const db = getFirestore();
+          const userId = request.auth.uid;
+          const now = new Date().toISOString();
+
+          // 1. Update Global Config (Triggers Alert)
+          await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+              lastSignificantUpdate: now,
+              updatedAt: now
+          }, { merge: true });
+
+          // 2. Update File Metadata (Optional granular tracking)
+          // We try to update TDB_Index entry if it exists
+          try {
+              await db.collection("TDB_Index").doc(userId).collection("files").doc(fileId).set({
+                  updatedAt: now,
+                  isDirty: true
+              }, { merge: true });
+          } catch (e) {
+              // Ignore if file not indexed yet
+          }
+      }
 
       logger.info(`   ✅ Archivo guardado correctamente: ${fileId}`);
 

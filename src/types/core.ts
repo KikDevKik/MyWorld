@@ -81,6 +81,7 @@ export interface ProjectConfig {
   lastIndexed?: string;
   lastForgeScan?: string; // 👈 Timestamp for Incremental Forge Scan
   styleIdentity?: string; // 👈 Auto-detected Style DNA
+  lastSignificantUpdate?: string; // 👈 Timestamp for Significant Edit
 }
 
 export interface ForgeSession {

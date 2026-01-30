@@ -28,4 +28,5 @@ export interface ProjectConfig {
   lastIndexed?: string;
   lastForgeScan?: string;
   styleIdentity?: string;
+  lastSignificantUpdate?: string;
 }

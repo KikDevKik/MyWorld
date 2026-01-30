@@ -86,42 +86,14 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => unsubscribe();
   }, []);
 
-  const fetchConfig = async () => {
-    // GHOST MODE BYPASS
-    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
-         // Logic is handled in useEffect below, but let's ensure we don't try to fetch real config if ghost
-         // 🟢 FIX: Ensure loading is set to false here too if called manually
-         setLoading(false);
-         return;
-    }
-
-    const auth = getAuth();
-    if (!auth.currentUser) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const functions = getFunctions();
-      const getProjectConfig = httpsCallable(functions, 'getProjectConfig');
-      const result = await getProjectConfig();
-      setConfig(result.data as ProjectConfig);
-    } catch (error) {
-      console.error('Error fetching project config:', error);
-      toast.error('Error al cargar la configuración del proyecto.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // 🟢 REAL-TIME CONFIG SYNC
   useEffect(() => {
-    // 🟢 GHOST MODE BYPASS FOR DEV
+    // GHOST MODE BYPASS
     if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
         console.warn("👻 GHOST MODE: Bypassing Config Fetch (User: jules-dev)");
         setConfig({
             canonPaths: [{ id: "mock-canon-id", name: "Mock Canon Root" }], // 🟢 MOCK CANON PATH
             resourcePaths: [],
-            // chronologyPath: null, // REMOVED
             activeBookContext: "",
             folderId: "", // Empty to trigger "Connect Drive" button for testing
             characterVaultId: "mock-vault-id", // 🟢 MOCK VAULT ID (REQUIRED FOR CONNECT LOGIC)
@@ -131,8 +103,42 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
         return;
     }
 
-    fetchConfig();
-  }, []);
+    const auth = getAuth();
+    const currentUser = auth.currentUser;
+
+    if (!currentUser) {
+        setLoading(false);
+        return;
+    }
+
+    const db = getFirestore();
+    const docRef = doc(db, "users", currentUser.uid, "profile", "project_config");
+
+    console.log("📡 [ProjectConfig] Suscribiéndose a profile/project_config...");
+    setLoading(true);
+
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data() as ProjectConfig;
+            setConfig(data);
+        } else {
+            console.log("⚠️ No se encontró configuración del proyecto.");
+            setConfig(null); // Or default empty config?
+        }
+        setLoading(false);
+    }, (error) => {
+        console.error("Error escuchando configuración:", error);
+        toast.error('Error de sincronización (Config).');
+        setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user]); // Re-run when user changes
+
+  const refreshConfig = async () => {
+      // No-op for snapshot, but kept for compatibility
+      console.log("🔄 Config refresh triggered (handled via Snapshot)");
+  };
 
   const updateConfig = async (newConfig: ProjectConfig) => {
     // 🟢 GHOST MODE BYPASS
@@ -215,7 +221,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
         config,
         loading,
         updateConfig,
-        refreshConfig: fetchConfig,
+        refreshConfig: refreshConfig,
         technicalError,
         setTechnicalError,
         fileTree,
