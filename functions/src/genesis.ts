@@ -43,6 +43,7 @@ export const genesisManifest = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     timeoutSeconds: 540, // 9 minutes for batch operations
+    memory: "1GiB",
     secrets: [googleApiKey],
   },
   async (request) => {
