@@ -688,6 +688,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 isOpen={isGenesisOpen}
                 onClose={() => setIsGenesisOpen(false)}
                 accessToken={oauthToken}
+                onRefreshTokens={handleTokenRefresh}
             />
 
             <SentinelShell
@@ -716,6 +717,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         isSecurityReady={isSecurityReady}
                         activeFileId={currentFileId}
                         onCreateFile={() => setIsCreateFileModalOpen(true)}
+                        onGenesis={() => setIsGenesisOpen(true)}
                     />
                 }
                 editor={renderZoneBContent()}
