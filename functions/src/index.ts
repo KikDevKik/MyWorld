@@ -4919,5 +4919,5 @@ export { classifyResource } from "./laboratory";
  * 36. FOLDER MANAGER (The Brain)
  * Semantic folder discovery and creation.
  */
-export { discoverFolderRoles, createTitaniumStructure } from "./folder_manager";
+export { discoverFolderRoles, createTitaniumStructure, renameDriveFolder } from "./folder_manager";
 export { generateAuditPDF } from "./audit";

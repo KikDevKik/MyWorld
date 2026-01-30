@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { getFunctions, httpsCallable } from "firebase/functions";
-import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FileNode {
@@ -48,6 +48,12 @@ const FileTreeNode: React.FC<{
     const [isLoading, setIsLoading] = useState(false);
     const [isLoaded, setIsLoaded] = useState(!!node.children);
 
+    // 🟢 RENAME STATE
+    const [isEditing, setIsEditing] = useState(false);
+    const [editName, setEditName] = useState(node.name);
+    const [isSaving, setIsSaving] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+
     // Update children if node prop changes (essential for preloaded updates)
     useEffect(() => {
         if (node.children) {
@@ -56,13 +62,19 @@ const FileTreeNode: React.FC<{
         }
     }, [node.children]);
 
+    // Focus input on edit
+    useEffect(() => {
+        if (isEditing && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [isEditing]);
+
     // Detectar carpetas de forma segura
     const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
     const isActive = node.id === activeFileId;
 
     // 🟢 CONFLICT LOGIC
-    // We assume node.id is the Drive ID (legacy) or we check node.driveId if available.
-    // In preloadedTree (ingestFile), `id` is usually the Drive ID.
     const isConflicting = conflictingFileIds?.has(node.id) || (node.driveId && conflictingFileIds?.has(node.driveId));
 
     // 🟢 FILTER LOGIC
@@ -70,9 +82,14 @@ const FileTreeNode: React.FC<{
         return null; // Hide this node
     }
 
-    const handleToggle = async () => {
+    const handleToggle = async (e?: React.MouseEvent) => {
+        if (e) e.stopPropagation(); // Stop propagation
+
         if (!isFolder) {
             // ES UN ARCHIVO: CARGAR CONTENIDO
+            // Note: Click on file text selects it. Click on icon also selects it.
+            // This function handles "toggle" logic, usually called by icon click.
+            // For files, toggle logic implies selection.
             loadContent();
             return;
         }
@@ -122,7 +139,53 @@ const FileTreeNode: React.FC<{
         }
     };
 
+    // 🟢 RENAME LOGIC
+    const handleRename = async () => {
+        if (!editName.trim() || editName === node.name) {
+            setIsEditing(false);
+            setEditName(node.name);
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            const functions = getFunctions();
+            const renameDriveFolder = httpsCallable(functions, 'renameDriveFolder');
+
+            // Use driveId if available (for Shortcuts/Preloaded), else id
+            const targetId = node.driveId || node.id;
+
+            await renameDriveFolder({
+                accessToken,
+                fileId: targetId,
+                newName: editName
+            });
+
+            node.name = editName; // Optimistic update local node ref
+            toast.success("Nombre actualizado");
+            setIsEditing(false);
+        } catch (error: any) {
+            console.error("Error renaming:", error);
+            toast.error("Error al renombrar: " + error.message);
+            setEditName(node.name); // Revert
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (isEditing) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleRename();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setIsEditing(false);
+                setEditName(node.name);
+            }
+            return; // Don't trigger navigation
+        }
+
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             handleToggle();
@@ -141,8 +204,8 @@ const FileTreeNode: React.FC<{
         <div className="select-none" role="treeitem" aria-selected={isActive} aria-expanded={isFolder ? isOpen : undefined}>
             <div
                 className={`
-                    flex items-center gap-2 py-1.5 px-2 rounded-lg cursor-pointer transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
-                    ${isActive
+                    flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
+                    ${isActive && !isEditing
                         ? 'bg-cyan-900/20 text-cyan-400 font-medium'
                         : isConflicting
                             ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-900/20'
@@ -151,13 +214,16 @@ const FileTreeNode: React.FC<{
                     ${!isFolder && isLoading ? 'animate-pulse' : ''}
                 `}
                 style={{ paddingLeft: `${depth * 12 + 8}px` }}
-                onClick={handleToggle}
                 onKeyDown={handleKeyDown}
                 tabIndex={0}
                 title={isConflicting ? "Divergencia Narrativa detectada por el Guardián. Revisión pendiente." : undefined}
             >
-                <div className="shrink-0 flex items-center justify-center w-4 h-4">
-                    {isLoading ? (
+                {/* 🟢 CLICK AREA 1: ICON (TOGGLE) */}
+                <div
+                    className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer hover:text-cyan-400 transition-colors"
+                    onClick={(e) => handleToggle(e)}
+                >
+                    {isLoading || isSaving ? (
                         <Loader2 size={14} className="animate-spin text-cyan-500" />
                     ) : isConflicting ? (
                         <AlertTriangle size={14} className="animate-pulse" />
@@ -170,7 +236,48 @@ const FileTreeNode: React.FC<{
                     )}
                 </div>
 
-                <span className={`text-xs truncate ${isConflicting ? 'font-bold' : ''}`}>{node.name}</span>
+                {/* 🟢 CLICK AREA 2: NAME (EDIT / SELECT) */}
+                {isEditing ? (
+                    <div className="flex-1 flex items-center gap-1">
+                        <input
+                            ref={inputRef}
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                            onBlur={handleRename} // Auto-save on blur
+                            className="w-full bg-titanium-950 text-titanium-100 text-xs px-1 py-0.5 rounded border border-cyan-500/50 focus:outline-none focus:border-cyan-500"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                    </div>
+                ) : (
+                    <span
+                        className={`text-xs truncate cursor-pointer flex-1 ${isConflicting ? 'font-bold' : ''}`}
+                        onClick={(e) => {
+                            if (!isFolder) {
+                                // Files select on click
+                                loadContent();
+                            } else {
+                                // Folders toggle on single click too?
+                                // User said: "click de abrir la carpeta solo sea donde este la flechita... click para cambiar nombres solo sea donde esten las letras"
+                                // Implying letters click does NOT toggle? Or letters click triggers rename?
+                                // User said: "doble click podra editar... click para cambiar nombres solo sea donde esten las letras"
+                                // This implies single click on text MIGHT do nothing for folders, or select?
+                                // Standard UI: Single click selects/focuses, Double click renames (or opens).
+                                // User requirement: "doble click en esta ... podra editar".
+                                // User requirement: "click de abrir ... solo sea flechita".
+                                // So single click on text does NOT open folder.
+                                e.stopPropagation();
+                            }
+                        }}
+                        onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            if (isFolder) { // Only allow renaming folders for now as per "cambiar nombre de su carpeta"
+                                setIsEditing(true);
+                            }
+                        }}
+                    >
+                        {node.name}
+                    </span>
+                )}
             </div>
 
             {/* 🛡️ BLINDAJE: (children || []).map */}
