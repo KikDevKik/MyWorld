@@ -11,10 +11,12 @@ import {
     Square,
     Loader2,
     AlertTriangle,
-    BookOpen
+    BookOpen,
+    Shield
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
+import { CreativeAuditService } from '../services/CreativeAuditService';
 
 interface ExportPanelProps {
     onClose: () => void;
@@ -154,6 +156,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
     const [isCompiling, setIsCompiling] = useState(false);
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+    const [isExportingAudit, setIsExportingAudit] = useState(false);
 
     // OPTIONS STATE
     const [options, setOptions] = useState<ExportOptions>({
@@ -246,6 +249,35 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
             toast.error(`Error en la imprenta: ${error.message}`);
         } finally {
             setIsCompiling(false);
+        }
+    };
+
+    // HANDLER: EXPORT AUDIT LOG
+    const handleExportAudit = async () => {
+        if (!folderId) return;
+        setIsExportingAudit(true);
+        const toastId = toast.loading("Generando Certificado Legal...");
+
+        try {
+            const reportText = await CreativeAuditService.generateAuditReport(folderId);
+
+            // Create Blob and Download
+            const blob = new Blob([reportText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            toast.success("Certificado de Autoría descargado.", { id: toastId });
+        } catch (error) {
+            console.error("Audit Export Error:", error);
+            toast.error("Error al generar certificado.", { id: toastId });
+        } finally {
+            setIsExportingAudit(false);
         }
     };
 
@@ -437,6 +469,16 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                 <span>Descargar PDF</span>
                             </a>
                         )}
+
+                        {/* LEGAL AUDIT BUTTON */}
+                        <button
+                            onClick={handleExportAudit}
+                            disabled={isExportingAudit}
+                            className="w-full mt-3 py-3 rounded-lg border border-titanium-700 hover:border-titanium-500 text-titanium-400 hover:text-white transition-all flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider group"
+                        >
+                            {isExportingAudit ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} className="group-hover:text-emerald-400 transition-colors" />}
+                            <span>Descargar Certificado de Autoría</span>
+                        </button>
 
                         <div className="mt-3 text-center">
                             <span className="text-[10px] text-titanium-600">

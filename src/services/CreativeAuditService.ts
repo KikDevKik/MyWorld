@@ -1,4 +1,4 @@
-import { getFirestore, collection, addDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 
 export type CreativeActionType = 'INJECTION' | 'CURATION' | 'STRUCTURE' | 'RESEARCH';
 
@@ -54,14 +54,59 @@ export const CreativeAuditService = {
     },
 
     /**
-     * Stub for future "Printing Press" integration.
-     * Will fetch logs and format them for legal PDF generation.
+     * Generates a legal audit report in plain text/markdown format.
+     * Queries all logs for the project, sorts them, and creates a formatted string.
      */
-    async generateAuditReport(projectId: string, timeframe?: { start: Date, end: Date }): Promise<any> {
-        console.log(`[Stub] Generating Audit Report for ${projectId}...`);
-        return {
-            status: "not_implemented",
-            message: "The Printing Press is not yet online."
-        };
+    async generateAuditReport(projectId: string): Promise<string> {
+        const db = getFirestore();
+        try {
+            const logRef = collection(db, 'projects', projectId, 'audit_log');
+            const q = query(logRef, orderBy('timestamp', 'asc'));
+
+            const snapshot = await getDocs(q);
+            const logs: CreativeLogEntry[] = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as CreativeLogEntry));
+
+            if (logs.length === 0) return "NO AUDIT RECORDS FOUND.";
+
+            // METRICS
+            const totalEvents = logs.length;
+            const injections = logs.filter(l => l.actionType === 'INJECTION').length;
+            const curations = logs.filter(l => l.actionType === 'CURATION').length;
+            const structures = logs.filter(l => l.actionType === 'STRUCTURE').length;
+
+            let report = `CERTIFICATE OF AUTHORSHIP (TITANIUM PROTOCOL)\n`;
+            report += `=================================================\n`;
+            report += `Project ID: ${projectId}\n`;
+            report += `Generated: ${new Date().toISOString()}\n\n`;
+
+            report += `METRICS:\n`;
+            report += `- Total Creative Acts: ${totalEvents}\n`;
+            report += `- Human Injections (Writing): ${injections}\n`;
+            report += `- Curation Decisions (Selection): ${curations}\n`;
+            report += `- Structural Changes (Arrangement): ${structures}\n\n`;
+
+            report += `AUDIT TRAIL (IMMUTABLE LOG):\n`;
+            report += `-----------------------------\n`;
+
+            logs.forEach(log => {
+                const date = log.timestamp?.toDate ? log.timestamp.toDate().toISOString() : 'PENDING';
+                report += `[${date}] [${log.actionType}] ${log.description}\n`;
+                report += `   > Component: ${log.component}\n`;
+                report += `   > ID: ${log.id}\n`;
+                if (log.payload && Object.keys(log.payload).length > 0) {
+                    report += `   > Payload: ${JSON.stringify(log.payload)}\n`;
+                }
+                report += `\n`;
+            });
+
+            report += `\n[END OF RECORD]\n`;
+            report += `Verified by Titanium Creative Audit Service.`;
+
+            return report;
+
+        } catch (error) {
+            console.error("Failed to generate report:", error);
+            throw new Error("Failed to generate audit report.");
+        }
     }
 };
