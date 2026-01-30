@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
@@ -27,6 +27,7 @@ interface VaultSidebarProps {
     isSecurityReady?: boolean; // 👈 New prop for Circuit Breaker
     activeFileId?: string | null; // 👈 New prop
     onCreateFile?: () => void; // 👈 New prop for File Creation
+    onGenesis?: () => void; // 👈 New prop for Genesis
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -54,6 +55,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     isSecurityReady = false, // 👈 Default false for safety
     activeFileId, // 👈 Destructure
     onCreateFile, // 👈 Destructure
+    onGenesis, // 👈 Destructure
 }) => {
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
@@ -200,13 +202,29 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
             {/* HEADER / SAGA SELECTOR */}
             <div className="px-4 py-4 border-b border-titanium-800 bg-titanium-900/50">
+
+                {/* 🟢 GENESIS BUTTON (REPLACES 'MANUAL DE CAMPO' SECTION) */}
+                <div className="mb-4">
+                    <button
+                        onClick={onGenesis}
+                        className="w-full relative flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden"
+                    >
+                        {/* Glow Effect */}
+                        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                        <Sparkles size={16} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
+                        <span className="text-sm font-medium tracking-wide">¿Tienes una Chispa?</span>
+                    </button>
+                </div>
+
                 <div className="flex items-center gap-2 mb-3">
                     <div className="text-titanium-500">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
                             <path d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
                         </svg>
                     </div>
-                    <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Manual de Campo</h2>
+                    {/* Replaced 'Manual de Campo' text with generic 'Explorador' or similar if needed, or kept structural header */}
+                    <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Explorador</h2>
 
                     {/* ACTION BUTTONS (DISTRIBUTED) */}
                     <div className="ml-auto flex items-center gap-3">

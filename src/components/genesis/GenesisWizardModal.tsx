@@ -9,6 +9,7 @@ interface GenesisWizardModalProps {
     isOpen: boolean;
     onClose: () => void;
     accessToken: string | null;
+    onRefreshTokens: () => Promise<string | null>;
 }
 
 interface Message {
@@ -16,7 +17,7 @@ interface Message {
     message: string;
 }
 
-const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose, accessToken }) => {
+const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose, accessToken, onRefreshTokens }) => {
     const { user, config } = useProjectConfig();
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
@@ -147,6 +148,17 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         setIsMaterializing(true);
         toast.info("Iniciando el Big Bang...");
 
+        // 🟢 1. REFRESH TOKEN (CRITICAL)
+        // Ensure we have a fresh token for Drive operations
+        const freshToken = await onRefreshTokens();
+        const tokenToUse = freshToken || accessToken;
+
+        if (!tokenToUse) {
+            toast.error("Error de sesión: No se pudo refrescar el token.");
+            setIsMaterializing(false);
+            return;
+        }
+
         // 🟢 AUDIT: Log Final Materialization
         const projectId = config?.folderId || "genesis_session";
         if (user && projectId) {
@@ -169,7 +181,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
 
             const result = await genesisManifest({
                 chatHistory: messages,
-                accessToken: accessToken
+                accessToken: tokenToUse // Use Fresh Token
             });
 
             const data = result.data as any;
