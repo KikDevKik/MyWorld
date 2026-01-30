@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Loader2, Send, Wand2, MessageSquare } from 'lucide-react';
+import { X, Sparkles, Loader2, Send, Wand2 } from 'lucide-react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { CreativeAuditService } from '../../services/CreativeAuditService';
 
 interface GenesisWizardModalProps {
     isOpen: boolean;
@@ -15,11 +17,14 @@ interface Message {
 }
 
 const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose, accessToken }) => {
+    const { user, config } = useProjectConfig();
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isMaterializing, setIsMaterializing] = useState(false);
+    const [isReadyToMaterialize, setIsReadyToMaterialize] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Initial Greeting
     useEffect(() => {
@@ -35,17 +40,52 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages]);
 
+    // Auto-resize textarea
+    useEffect(() => {
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
+        }
+    }, [inputValue]);
+
     if (!isOpen) return null;
+
+    const formatMessage = (text: string) => {
+        const parts = text.split(/(\*\*[^*]+\*\*)/g);
+        return parts.map((part, index) => {
+            if (part.startsWith('**') && part.endsWith('**')) {
+                return <strong key={index} className="font-bold text-cyan-200">{part.slice(2, -2)}</strong>;
+            }
+            return part;
+        });
+    };
 
     const handleSendMessage = async (e?: React.FormEvent) => {
         e?.preventDefault();
         if (!inputValue.trim() || isLoading) return;
 
-        const userMsg: Message = { role: 'user', message: inputValue };
+        const currentInput = inputValue;
+        const userMsg: Message = { role: 'user', message: currentInput };
         const newHistory = [...messages, userMsg];
         setMessages(newHistory);
         setInputValue('');
         setIsLoading(true);
+
+        // 🟢 AUDIT: Log User Injection
+        const projectId = config?.folderId || "genesis_session";
+        if (user && projectId) {
+            CreativeAuditService.logCreativeEvent({
+                projectId,
+                userId: user.uid,
+                component: 'GenesisWizard',
+                actionType: 'INJECTION',
+                description: 'User Socratic Input',
+                payload: {
+                    content: currentInput,
+                    step: newHistory.length
+                }
+            });
+        }
 
         try {
             const functions = getFunctions();
@@ -60,6 +100,10 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                 - Do not write the story.
                 - Be concise, mysterious, and encouraging.
                 - Language: Detect user's language (Spanish/English) and reply in the same.
+
+                PROTOCOL:
+                - If you have gathered enough information (Protagonist, Setting, Inciting Incident), append exactly "[GENESIS_READY]" at the very end of your response.
+                - Otherwise, just ask the next question.
             `;
 
             const result = await chatWithGem({
@@ -72,7 +116,15 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
 
             const data = result.data as any;
             if (data.response) {
-                setMessages(prev => [...prev, { role: 'model', message: data.response }]);
+                let responseText = data.response;
+
+                // Check for Readiness Signal
+                if (responseText.includes('[GENESIS_READY]')) {
+                    setIsReadyToMaterialize(true);
+                    responseText = responseText.replace('[GENESIS_READY]', '').trim();
+                }
+
+                setMessages(prev => [...prev, { role: 'model', message: responseText }]);
             }
 
         } catch (error) {
@@ -83,10 +135,33 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
     const handleMaterialize = async () => {
         if (isMaterializing) return;
         setIsMaterializing(true);
         toast.info("Iniciando el Big Bang...");
+
+        // 🟢 AUDIT: Log Final Materialization
+        const projectId = config?.folderId || "genesis_session";
+        if (user && projectId) {
+            CreativeAuditService.logCreativeEvent({
+                projectId,
+                userId: user.uid,
+                component: 'GenesisWizard',
+                actionType: 'STRUCTURE',
+                description: 'Genesis Materialization Triggered',
+                payload: {
+                    messageCount: messages.length,
+                    readySignal: isReadyToMaterialize
+                }
+            });
+        }
 
         try {
             const functions = getFunctions();
@@ -102,15 +177,6 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
             if (data.success) {
                 toast.success(data.message || "¡Mundo Materializado!");
                 onClose();
-                // Optionally trigger a file tree refresh?
-                // The backend updates TDB_Index, and VaultSidebar listens to it if configured,
-                // but a page reload or explicit refresh might be needed to see files in FileTree immediately if it's not real-time.
-                // VaultSidebar uses onSnapshot for TDB_Index/files, so it should handle it?
-                // Actually VaultSidebar listens to "files" collection if "isSecurityReady".
-                // Wait, VaultSidebar logic for fileTree is complex.
-                // Let's assume the user will see them or refresh.
-
-                // Force reload to be safe/simple as per user preference for "Create Project"
                 setTimeout(() => window.location.reload(), 1500);
             }
 
@@ -124,7 +190,8 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
 
     // Show Materialize button if we have at least 3 turns (User + Model pairs)
     // 3 user messages means we likely have Protagonist, Setting, Incident info.
-    const showMaterialize = messages.filter(m => m.role === 'user').length >= 2;
+    const hasMinInteractions = messages.filter(m => m.role === 'user').length >= 3;
+    const showMaterialize = hasMinInteractions;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
@@ -154,7 +221,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                                     : 'bg-gradient-to-br from-cyan-950/30 to-purple-950/20 text-cyan-100 border border-cyan-900/30'
                             }`}>
                                 {msg.role === 'model' && <Wand2 size={14} className="mb-2 text-cyan-500 opacity-70" />}
-                                {msg.message}
+                                {formatMessage(msg.message)}
                             </div>
                         </div>
                     ))}
@@ -178,7 +245,15 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                             <button
                                 onClick={handleMaterialize}
                                 disabled={isMaterializing || isLoading}
-                                className="group relative flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-500 hover:to-cyan-500 text-white font-bold rounded-full shadow-lg shadow-purple-900/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className={`
+                                    group relative flex items-center gap-3 px-8 py-3
+                                    text-white font-bold rounded-full shadow-lg transition-all
+                                    active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
+                                    ${isReadyToMaterialize
+                                        ? 'bg-gradient-to-r from-purple-500 to-cyan-400 hover:from-purple-400 hover:to-cyan-300 shadow-cyan-500/50 animate-pulse'
+                                        : 'bg-gradient-to-r from-titanium-700 to-titanium-600 hover:from-purple-600 hover:to-cyan-600'
+                                    }
+                                `}
                             >
                                 {isMaterializing ? (
                                     <>
@@ -187,32 +262,37 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                                     </>
                                 ) : (
                                     <>
-                                        <Wand2 size={18} className="group-hover:rotate-12 transition-transform" />
+                                        <Wand2 size={18} className={`transition-transform ${isReadyToMaterialize ? 'group-hover:rotate-12' : ''}`} />
                                         <span>Materializar Mundo</span>
                                     </>
+                                )}
+                                {isReadyToMaterialize && (
+                                    <span className="absolute -top-1 -right-1 w-3 h-3 bg-cyan-400 rounded-full animate-ping" />
                                 )}
                             </button>
                         </div>
                     )}
 
-                    <form onSubmit={handleSendMessage} className="relative">
-                        <input
-                            type="text"
+                    <div className="relative">
+                        <textarea
+                            ref={textareaRef}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
+                            onKeyDown={handleKeyDown}
                             placeholder="Responde al Arquitecto..."
-                            className="w-full pl-5 pr-12 py-4 bg-titanium-950 border border-titanium-700 rounded-xl text-titanium-200 placeholder-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all shadow-inner"
+                            className="w-full pl-5 pr-12 py-4 bg-titanium-950 border border-titanium-700 rounded-xl text-titanium-200 placeholder-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all shadow-inner resize-none min-h-[56px] max-h-[200px]"
                             autoFocus
                             disabled={isMaterializing || isLoading}
+                            rows={1}
                         />
                         <button
-                            type="submit"
+                            onClick={() => handleSendMessage()}
                             disabled={!inputValue.trim() || isMaterializing || isLoading}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-titanium-800 hover:bg-cyan-600 text-titanium-400 hover:text-white rounded-lg transition-all disabled:opacity-0"
+                            className="absolute right-3 bottom-3 p-2 bg-titanium-800 hover:bg-cyan-600 text-titanium-400 hover:text-white rounded-lg transition-all disabled:opacity-0"
                         >
                             <Send size={18} />
                         </button>
-                    </form>
+                    </div>
                 </div>
 
             </div>
