@@ -264,7 +264,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     <>
                         {/* EMPTY STATE */}
                         {(!fileTree || fileTree.length === 0) && (
-                            <div className="flex flex-col items-center justify-center p-6 text-center gap-4 mt-8 animate-in fade-in zoom-in duration-300">
+                            <div className="flex flex-col items-center p-6 text-center gap-4 mt-4 mb-auto animate-in fade-in zoom-in duration-300">
                                 <div className="p-4 bg-titanium-800/50 rounded-full border border-titanium-700/50 shadow-lg shadow-black/20">
                                     <FolderCog className="text-titanium-400" size={24} />
                                 </div>
@@ -394,7 +394,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <HelpCircle size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
-                        <span>Manual de Campo</span>
+                        <span>Guía</span>
                     </button>
 
                     <button
