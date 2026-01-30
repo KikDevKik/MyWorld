@@ -32,6 +32,8 @@ import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
 import { useLayoutStore } from './stores/useLayoutStore'; // 🟢 IMPORT STORE
 import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 import { CreativeAuditService } from './services/CreativeAuditService';
+import EmptyEditorState from './components/editor/EmptyEditorState';
+import CreateFileModal from './components/ui/CreateFileModal';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, isSecurityReady }: any) {
@@ -197,6 +199,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
+    const [isCreateFileModalOpen, setIsCreateFileModalOpen] = useState(false);
 
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -418,6 +421,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
     };
 
+    // 🟢 HANDLE NEW FILE CREATED
+    const handleFileCreated = (id: string, content: string, name: string) => {
+        setCurrentFileId(id);
+        setSelectedFileContent(content);
+        setLastSavedContent(content);
+        setCurrentFileName(name);
+    };
+
     // 🟢 LOADING GATE
     if (isAppLoading) {
         return (
@@ -575,6 +586,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
 
         // Default: Editor
+        if (!currentFileId) {
+            return <EmptyEditorState onCreate={() => setIsCreateFileModalOpen(true)} />;
+        }
+
         return (
             <>
                 <HybridEditor
@@ -632,6 +647,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             {isFieldManualOpen && (
                 <FieldManualModal onClose={() => setIsFieldManualOpen(false)} />
             )}
+
+            <CreateFileModal
+                isOpen={isCreateFileModalOpen}
+                onClose={() => setIsCreateFileModalOpen(false)}
+                onFileCreated={handleFileCreated}
+                accessToken={oauthToken}
+            />
 
             <SentinelShell
                 isZenMode={isZenMode}
