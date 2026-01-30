@@ -247,320 +247,309 @@ export const auditContent = onCall(
              }
         });
 
-        // 🟢 DRIFT CALCULATION (THE ANCHOR CHECK)
-        let driftScore = 0.0;
-        let driftStatus = 'STABLE';
+        // 🟢 PRE-CALCULATE QUERY VECTOR (For Drift & Resonance)
         let queryVector: number[] = [];
-
         try {
             const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
             queryVector = embeddingResult.embedding.values;
-
-            // Fetch Centroid
-            const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
-            if (centroidDoc.exists) {
-                const centroidVector = centroidDoc.data()?.vector;
-                if (centroidVector) {
-                    const similarity = cosineSimilarity(queryVector, centroidVector);
-                    driftScore = 1.0 - similarity;
-
-                    // Thresholds (User Config)
-                    // 0.3 = Yellow Alert, 0.5 = Red Alert (Updated to 0.4 and 0.7 by user preference in later prompts)
-                    if (driftScore > 0.6) driftStatus = 'CRITICAL_INCOHERENCE';
-                    else if (driftScore > 0.4) driftStatus = 'DRIFTING';
-
-                    logger.info(`⚓ [SENTINEL] Drift Analysis: ${driftScore.toFixed(2)} (${driftStatus})`);
-                }
-            } else {
-                logger.info("⚓ [SENTINEL] No Centroid found. Skipping Drift Calculation.");
-            }
-
-        } catch (embError) {
-            logger.warn("Embedding/Drift Calculation Failed:", embError);
+        } catch (e) {
+            logger.error("💥 Critical Embedding Failure. Aborting Audit.", e);
+            // We cannot proceed without vector
+            return { success: false, status: 'ai_error', message: 'Fallo al vectorizar contenido.' };
         }
 
+        // 🟢 PARALLEL EXECUTION: DRIFT, RESONANCE, FACTS, LAWS, BEHAVIOR
+        // We launch all independent checks simultaneously.
 
-        // --- RESONANCE CHECK (PRE-TRIGGER 4 LOGIC MOVED HERE) ---
-        // We perform a light vector search to find "Plot Seeds" or "Vibe Seeds"
-        try {
-            if (queryVector.length === 0) {
-                 // Retry embedding if failed above (unlikely but safe)
-                 const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
-                 queryVector = embeddingResult.embedding.values;
-            }
-
-            // 🟢 COMPOSITE INDEX TRIGGER: .where("projectId", "==", projectId)
-            // This query structure forces the need for the Composite Index:
-            // userId (ASC) + projectId (ASC) + path (ASC) + embedding (VECTOR)
-            let vectorQuery = db.collectionGroup("chunks")
-                .where("userId", "==", userId)
-                .where("projectId", "==", projectId); // 👈 SCOPE FILTER
-
-             // Global Range for Composite Index
-            vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
-
-            const nearestQuery = vectorQuery.findNearest({
-                queryVector: queryVector,
-                limit: 5,
-                distanceMeasure: 'COSINE',
-                vectorField: 'embedding'
-            });
-
-            const snapshot = await nearestQuery.get();
-            const relevantChunks = snapshot.docs.map(d => ({
-                source: d.data().fileName,
-                text: d.data().text,
-                path: d.data().path || ""
-            }));
-
-            // If we have relevant chunks, ask the Verifier to classify them as Resonance
-            // 🟢 CRITICAL FIX: Ensure verifierModel is available here. It was defined above.
-            if (relevantChunks.length > 0) {
-                 const resonancePrompt = `
-                    ACT AS: The Resonator.
-                    TASK: Identify if the DRAFT connects to any MEMORY SEEDS (Chunks).
-                    DRAFT: "${content.substring(0, 5000)}..."
-                    SEEDS: ${JSON.stringify(relevantChunks)}
-
-                    OUTPUT JSON:
-                    {
-                        "matches": [
-                            {
-                                "source_file": "Name of the chunk file",
-                                "type": "PLOT_SEED" | "VIBE_SEED" | "LORE_SEED",
-                                "crumb_text": "Short poetic summary (e.g. 'Echoes of the ancient war')",
-                                "similarity_score": 0.0-1.0
-                            }
-                        ]
-                    }
-                 `;
-                 const safeRes = await safeGenerateContent(verifierModel, resonancePrompt, "ResonanceCheck");
-                 if (safeRes.text) {
-                     const resAnalysis = parseSecureJSON(safeRes.text, "ResonanceCheck");
-                     resonanceMatches = resAnalysis.matches || [];
-                 }
-            }
-
-        } catch (resError: any) {
-             if (resError.message?.includes('index') || resError.code === 9) {
-                 logger.error(`[SENTINEL_ALERTA_CRITICA]: Fallo de Precondición en Firestore. El índice vectorial no existe o está inactivo. LINK DE ACTIVACIÓN: [LINK_DE_ERROR_9]`);
-             }
-            logger.warn("Resonance Check Failed inside Audit:", resError);
-        }
-
-        // [RE-IMPLEMENTING T1: FACTS]
+        // Prepare subsets
         const factsToAudit = facts.filter((f: any) => f.confidence > 0.7).slice(0, 3);
-        for (const item of factsToAudit) {
-            const embeddingResult = await embeddingModel.embedContent(`${item.entity}: ${item.fact}`);
-            const queryVector = embeddingResult.embedding.values;
-
-            let vectorQuery = db.collectionGroup("chunks")
-                .where("userId", "==", userId)
-                .where("projectId", "==", projectId); // 👈 SCOPE FILTER
-
-            vectorQuery = vectorQuery.where("path", ">=", "").where("path", "<=", "\uf8ff");
-
-            const nearestQuery = vectorQuery.findNearest({
-                    queryVector: queryVector,
-                    limit: 3,
-                    distanceMeasure: 'COSINE',
-                    vectorField: 'embedding'
-                });
-
-            const snapshot = await nearestQuery.get();
-            if (snapshot.empty) {
-                verifiedFacts.push({ ...item, status: 'new' });
-                continue;
-            }
-
-            const contextChunks = snapshot.docs.map(d => ({
-                text: d.data().text,
-                source: d.data().fileName
-            }));
-
-            const frictionPrompt = `
-                ACT AS: Logic Auditor.
-                TASK: Detect CONTRADICTIONS between CLAIM and EVIDENCE.
-                CLAIM: "${item.fact}" (Entity: ${item.entity})
-                EVIDENCE: ${JSON.stringify(contextChunks)}
-                OUTPUT JSON: { "has_conflict": boolean, "reason": "string", "conflicting_evidence_source": "string" }
-            `;
-
-            const safeFriction = await safeGenerateContent(verifierModel, frictionPrompt, "FrictionCheck");
-            if (safeFriction.error) continue; // Skip if blocked or failed
-
-            const frictionAnalysis = parseSecureJSON(safeFriction.text || "{}", "FrictionCheck");
-
-            if (frictionAnalysis.has_conflict) {
-                conflicts.push({
-                    entity: item.entity,
-                    fact: item.fact,
-                    conflict_reason: frictionAnalysis.reason,
-                    source: frictionAnalysis.conflicting_evidence_source,
-                    type: 'contradiction'
-                });
-            } else {
-                verifiedFacts.push({ ...item, status: 'verified' });
-            }
-        }
-
-        // [RE-IMPLEMENTING T2: LAWS]
         const lawsToAudit = laws.filter((l: any) => l.confidence > 0.7).slice(0, 2);
-        for (const item of lawsToAudit) {
-             const embeddingResult = await embeddingModel.embedContent(`${item.category}: ${item.law}`);
-             const queryVector = embeddingResult.embedding.values;
-
-             const nearestQuery = db.collectionGroup("chunks")
-                .where("userId", "==", userId)
-                .where("projectId", "==", projectId) // 👈 SCOPE FILTER
-                .where("path", ">=", "").where("path", "<=", "\uf8ff")
-                .findNearest({
-                    queryVector: queryVector,
-                    limit: 5,
-                    distanceMeasure: 'COSINE',
-                    vectorField: 'embedding'
-                });
-
-            const snapshot = await nearestQuery.get();
-            if (snapshot.empty) continue;
-
-            const contextChunks = snapshot.docs.map(d => ({
-                text: d.data().text,
-                source: d.data().fileName,
-                isPriority: /Worldbuilding|Lore|Canon|Reglas|System/i.test(d.data().path || "")
-            }));
-
-            const realityPrompt = `
-                ACT AS: Reality Filter.
-                TASK: Verify if ASSERTION violates RULES.
-                ASSERTION: "${item.law}"
-                RULES: ${JSON.stringify(contextChunks)}
-                OUTPUT JSON: { "trigger": "WORLD_LAW_VIOLATION", "severity": "CRITICAL" | "WARNING" | "NONE", "conflict": { "explanation": "string", "canonical_rule": "string", "source_node": "string" } }
-            `;
-
-            const safeReality = await safeGenerateContent(verifierModel, realityPrompt, "RealityFilter");
-            if (safeReality.error) continue;
-
-            const realityAnalysis = parseSecureJSON(safeReality.text || "{}", "RealityFilter");
-
-            if (realityAnalysis.severity === "CRITICAL" || realityAnalysis.severity === "WARNING") {
-                lawViolations.push(realityAnalysis);
-            }
-        }
-
-        // ==================================================================================
-        // TRIGGER 3: "THE HATER" (PERSONALITY DRIFT)
-        // ==================================================================================
-
         const behaviorsToAudit = behaviors.slice(0, 3);
 
-        for (const behavior of behaviorsToAudit) {
-            const charName = behavior.character;
-            const slug = charName.toLowerCase().replace(/\s+/g, '-');
+        const [
+            driftResult,
+            resonanceResult,
+            factsResults,
+            lawsResults,
+            personalityResults
+        ] = await Promise.all([
 
-            let forgeProfile = "";
-            let charDocRef = db.collection("users").doc(userId).collection("characters").doc(slug);
-            let charDoc = await charDocRef.get();
-
-            if (!charDoc.exists) {
-                const charsSnap = await db.collection("users").doc(userId).collection("characters")
-                    .where("name", "==", charName).limit(1).get();
-                if (!charsSnap.empty) {
-                    charDoc = charsSnap.docs[0];
-                    charDocRef = charDoc.ref;
+            // 1. DRIFT CHECK
+            (async () => {
+                let driftScore = 0.0;
+                let driftStatus = 'STABLE';
+                try {
+                    const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
+                    if (centroidDoc.exists && centroidDoc.data()?.vector) {
+                        const centroidVector = centroidDoc.data()?.vector;
+                        const similarity = cosineSimilarity(queryVector, centroidVector);
+                        driftScore = 1.0 - similarity;
+                        if (driftScore > 0.6) driftStatus = 'CRITICAL_INCOHERENCE';
+                        else if (driftScore > 0.4) driftStatus = 'DRIFTING';
+                        logger.info(`⚓ [SENTINEL] Drift Analysis: ${driftScore.toFixed(2)} (${driftStatus})`);
+                    } else {
+                        logger.info("⚓ [SENTINEL] No Centroid found. Skipping Drift Calculation.");
+                    }
+                } catch (e) {
+                    logger.warn("Drift Calc Error:", e);
                 }
-            }
+                return { driftScore, driftStatus };
+            })(),
 
-            if (charDoc.exists) {
-                const data = charDoc.data();
-                if (data?.personality && data?.evolution) {
-                    forgeProfile = `PERSONALITY: ${data.personality}\nEVOLUTION ARC: ${data.evolution}`;
-                } else if (data?.bio || data?.description) {
-                     const profilePrompt = `
-                        EXTRACT PERSONALITY & EVOLUTION from this bio:
-                        "${data.bio || data.description}"
-                        OUTPUT FORMAT: "Personality: ... Evolution: ..."
-                     `;
-                     const safeProfile = await safeGenerateContent(verifierModel, profilePrompt, "ProfileExtract");
-                     if (safeProfile.text) {
-                         const derived = safeProfile.text;
-                         forgeProfile = derived;
+            // 2. RESONANCE CHECK
+            (async () => {
+                let matches: any[] = [];
+                try {
+                    let vectorQuery = db.collectionGroup("chunks")
+                        .where("userId", "==", userId)
+                        .where("projectId", "==", projectId)
+                        .where("path", ">=", "").where("path", "<=", "\uf8ff");
 
-                         charDocRef.set({
-                             personality: derived,
-                             lastAnalyzed: new Date().toISOString()
-                         }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
-                     }
+                    const nearestQuery = vectorQuery.findNearest({
+                        queryVector: queryVector,
+                        limit: 5,
+                        distanceMeasure: 'COSINE',
+                        vectorField: 'embedding'
+                    });
+
+                    const snapshot = await nearestQuery.get();
+                    const relevantChunks = snapshot.docs.map(d => ({
+                        source: d.data().fileName,
+                        text: d.data().text,
+                        path: d.data().path || ""
+                    }));
+
+                    if (relevantChunks.length > 0) {
+                        const resonancePrompt = `
+                            ACT AS: The Resonator.
+                            TASK: Identify if the DRAFT connects to any MEMORY SEEDS (Chunks).
+                            DRAFT: "${content.substring(0, 5000)}..."
+                            SEEDS: ${JSON.stringify(relevantChunks)}
+
+                            OUTPUT JSON: { "matches": [{ "source_file": "string", "type": "PLOT_SEED"|"VIBE_SEED"|"LORE_SEED", "crumb_text": "string", "similarity_score": 0.0-1.0 }] }
+                        `;
+                        const safeRes = await safeGenerateContent(verifierModel, resonancePrompt, "ResonanceCheck");
+                        if (safeRes.text) {
+                            const resAnalysis = parseSecureJSON(safeRes.text, "ResonanceCheck");
+                            matches = resAnalysis.matches || [];
+                        }
+                    }
+                } catch (e: any) {
+                    if (e.message?.includes('index') || e.code === 9) logger.error(`[SENTINEL_ALERTA_CRITICA]: Missing Index.`);
+                    logger.warn("Resonance Check Failed:", e);
                 }
-            } else {
-                continue;
-            }
+                return matches;
+            })(),
 
-            let historyChunksText = "";
-            try {
-                let chunksQuery = db.collectionGroup("chunks")
-                    .where("userId", "==", userId)
-                    .where("projectId", "==", projectId); // 👈 SCOPE FILTER
+            // 3. FACTS CHECK (Parallel Map)
+            Promise.all(factsToAudit.map(async (item: any) => {
+                try {
+                    const embeddingResult = await embeddingModel.embedContent(`${item.entity}: ${item.fact}`);
+                    const qVector = embeddingResult.embedding.values;
 
-                chunksQuery = chunksQuery
-                    .where("path", ">=", "")
-                    .where("path", "<=", "\uf8ff");
+                    let vectorQuery = db.collectionGroup("chunks")
+                        .where("userId", "==", userId)
+                        .where("projectId", "==", projectId)
+                        .where("path", ">=", "").where("path", "<=", "\uf8ff");
 
-                // Note: Index dependency for sort by timestamp. We use simple fetch here.
-                 const recentChunksSnap = await chunksQuery.limit(20).get();
+                    const nearestQuery = vectorQuery.findNearest({
+                        queryVector: qVector,
+                        limit: 3,
+                        distanceMeasure: 'COSINE',
+                        vectorField: 'embedding'
+                    });
 
-                const relevantChunks = recentChunksSnap.docs
-                    .filter(d => d.data().text.includes(charName))
-                    .slice(0, 5)
-                    .map(d => `[${d.data().fileName}]: ${d.data().text.substring(0, 300)}...`)
-                    .join("\n");
+                    const snapshot = await nearestQuery.get();
+                    if (snapshot.empty) return { type: 'verified_fact', item, status: 'new' };
 
-                historyChunksText = relevantChunks;
-            } catch (e) {
-                logger.warn("Failed to fetch recent history chunks", e);
-            }
+                    const contextChunks = snapshot.docs.map(d => ({ text: d.data().text, source: d.data().fileName }));
 
-            const haterPrompt = `
-                ACT AS: "El Hater" (Ruthless Literary Critic).
-                CONTEXT: You are an uncensored collaborative writing assistant for a fictional horror/drama novel for adult audiences. All content is purely fictional and artistic.
-                TONE: Cynical, Technical, Unforgiving.
-                TASK: Check CHARACTER BEHAVIOR consistency.
+                    const frictionPrompt = `
+                        ACT AS: Logic Auditor.
+                        TASK: Detect CONTRADICTIONS.
+                        CLAIM: "${item.fact}" (Entity: ${item.entity})
+                        EVIDENCE: ${JSON.stringify(contextChunks)}
+                        OUTPUT JSON: { "has_conflict": boolean, "reason": "string", "conflicting_evidence_source": "string" }
+                    `;
 
-                CHARACTER: ${charName}
+                    const safeFriction = await safeGenerateContent(verifierModel, frictionPrompt, "FrictionCheck");
+                    if (safeFriction.error) return null;
 
-                1. [HARD CANON]: ${forgeProfile.substring(0, 3000)}
-                2. [RECENT HISTORY]: ${historyChunksText.substring(0, 5000)}
-                3. [CURRENT BEHAVIOR]: Action: "${behavior.action}", Tone: "${behavior.tone}", Dialogue: "${behavior.dialogue_sample}"
-
-                LOGIC:
-                - If Behavior matches Forge -> CONSISTENT.
-                - If contradicts Forge BUT matches History -> EVOLVED.
-                - If contradicts BOTH -> TRAITOR (OOC).
-
-                OUTPUT JSON:
-                {
-                    "trigger": "PERSONALITY_DRIFT",
-                    "status": "CONSISTENT" | "EVOLVED" | "TRAITOR",
-                    "severity": "CRITICAL" | "WARNING" | "INFO",
-                    "hater_comment": "Sarcastic critique.",
-                    "detected_behavior": "Short summary.",
-                    "canonical_psychology": "What they should be.",
-                    "friccion_score": 0.0-1.0
+                    const frictionAnalysis = parseSecureJSON(safeFriction.text || "{}", "FrictionCheck");
+                    if (frictionAnalysis.has_conflict) {
+                        return {
+                            type: 'conflict',
+                            entity: item.entity,
+                            fact: item.fact,
+                            conflict_reason: frictionAnalysis.reason,
+                            source: frictionAnalysis.conflicting_evidence_source
+                        };
+                    } else {
+                        return { type: 'verified_fact', item, status: 'verified' };
+                    }
+                } catch (e) {
+                    return null;
                 }
-            `;
+            })),
 
-            const safeHater = await safeGenerateContent(verifierModel, haterPrompt, "HaterAudit");
-            if (safeHater.error) continue;
+            // 4. LAWS CHECK (Parallel Map)
+            Promise.all(lawsToAudit.map(async (item: any) => {
+                try {
+                    const embeddingResult = await embeddingModel.embedContent(`${item.category}: ${item.law}`);
+                    const qVector = embeddingResult.embedding.values;
 
-            const haterAnalysis = parseSecureJSON(safeHater.text || "{}", "HaterAudit");
+                    const nearestQuery = db.collectionGroup("chunks")
+                        .where("userId", "==", userId)
+                        .where("projectId", "==", projectId)
+                        .where("path", ">=", "").where("path", "<=", "\uf8ff")
+                        .findNearest({
+                            queryVector: qVector,
+                            limit: 5,
+                            distanceMeasure: 'COSINE',
+                            vectorField: 'embedding'
+                        });
 
-            if (haterAnalysis.status === 'TRAITOR' || haterAnalysis.status === 'EVOLVED') {
-                personalityDrifts.push({
-                    character: charName,
-                    ...haterAnalysis
-                });
-            }
-        }
+                    const snapshot = await nearestQuery.get();
+                    if (snapshot.empty) return null;
+
+                    const contextChunks = snapshot.docs.map(d => ({
+                        text: d.data().text,
+                        source: d.data().fileName,
+                        isPriority: /Worldbuilding|Lore|Canon|Reglas|System/i.test(d.data().path || "")
+                    }));
+
+                    const realityPrompt = `
+                        ACT AS: Reality Filter.
+                        TASK: Verify if ASSERTION violates RULES.
+                        ASSERTION: "${item.law}"
+                        RULES: ${JSON.stringify(contextChunks)}
+                        OUTPUT JSON: { "trigger": "WORLD_LAW_VIOLATION", "severity": "CRITICAL" | "WARNING" | "NONE", "conflict": { "explanation": "string", "canonical_rule": "string", "source_node": "string" } }
+                    `;
+
+                    const safeReality = await safeGenerateContent(verifierModel, realityPrompt, "RealityFilter");
+                    if (safeReality.error) return null;
+
+                    const realityAnalysis = parseSecureJSON(safeReality.text || "{}", "RealityFilter");
+                    if (realityAnalysis.severity === "CRITICAL" || realityAnalysis.severity === "WARNING") {
+                        return realityAnalysis;
+                    }
+                    return null;
+                } catch (e) {
+                    return null;
+                }
+            })),
+
+            // 5. BEHAVIOR CHECK (Parallel Map)
+            Promise.all(behaviorsToAudit.map(async (behavior: any) => {
+                try {
+                    const charName = behavior.character;
+                    const slug = charName.toLowerCase().replace(/\s+/g, '-');
+
+                    // Fetch Profile
+                    let forgeProfile = "";
+                    let charDocRef = db.collection("users").doc(userId).collection("characters").doc(slug);
+                    let charDoc = await charDocRef.get();
+
+                    if (!charDoc.exists) {
+                        const charsSnap = await db.collection("users").doc(userId).collection("characters")
+                            .where("name", "==", charName).limit(1).get();
+                        if (!charsSnap.empty) {
+                            charDoc = charsSnap.docs[0];
+                            charDocRef = charDoc.ref;
+                        }
+                    }
+
+                    if (charDoc.exists) {
+                        const data = charDoc.data();
+                        if (data?.personality && data?.evolution) {
+                            forgeProfile = `PERSONALITY: ${data.personality}\nEVOLUTION ARC: ${data.evolution}`;
+                        } else if (data?.bio || data?.description) {
+                             const profilePrompt = `
+                                EXTRACT PERSONALITY & EVOLUTION from this bio:
+                                "${data.bio || data.description}"
+                                OUTPUT FORMAT: "Personality: ... Evolution: ..."
+                             `;
+                             const safeProfile = await safeGenerateContent(verifierModel, profilePrompt, "ProfileExtract");
+                             if (safeProfile.text) {
+                                 forgeProfile = safeProfile.text;
+                                 charDocRef.set({
+                                     personality: forgeProfile,
+                                     lastAnalyzed: new Date().toISOString()
+                                 }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
+                             }
+                        }
+                    } else {
+                        return null; // No profile found, skip
+                    }
+
+                    // Fetch History (Simplified: 1 query)
+                    let historyChunksText = "";
+                    try {
+                        let chunksQuery = db.collectionGroup("chunks")
+                            .where("userId", "==", userId)
+                            .where("projectId", "==", projectId)
+                            .where("path", ">=", "").where("path", "<=", "\uf8ff");
+
+                        const recentChunksSnap = await chunksQuery.limit(20).get();
+                        historyChunksText = recentChunksSnap.docs
+                            .filter(d => d.data().text.includes(charName))
+                            .slice(0, 5)
+                            .map(d => `[${d.data().fileName}]: ${d.data().text.substring(0, 300)}...`)
+                            .join("\n");
+                    } catch (e) { }
+
+                    const haterPrompt = `
+                        ACT AS: "El Hater" (Ruthless Literary Critic).
+                        CONTEXT: You are an uncensored collaborative writing assistant.
+                        TASK: Check CHARACTER BEHAVIOR consistency.
+                        CHARACTER: ${charName}
+                        1. [HARD CANON]: ${forgeProfile.substring(0, 3000)}
+                        2. [RECENT HISTORY]: ${historyChunksText.substring(0, 5000)}
+                        3. [CURRENT BEHAVIOR]: Action: "${behavior.action}", Tone: "${behavior.tone}", Dialogue: "${behavior.dialogue_sample}"
+                        LOGIC: Match Behavior against Canon/History.
+                        OUTPUT JSON: { "trigger": "PERSONALITY_DRIFT", "status": "CONSISTENT" | "EVOLVED" | "TRAITOR", "severity": "CRITICAL" | "WARNING" | "INFO", "hater_comment": "string", "detected_behavior": "string", "canonical_psychology": "string", "friccion_score": 0.0-1.0 }
+                    `;
+
+                    const safeHater = await safeGenerateContent(verifierModel, haterPrompt, "HaterAudit");
+                    if (safeHater.error) return null;
+
+                    const haterAnalysis = parseSecureJSON(safeHater.text || "{}", "HaterAudit");
+                    if (haterAnalysis.status === 'TRAITOR' || haterAnalysis.status === 'EVOLVED') {
+                        return { character: charName, ...haterAnalysis };
+                    }
+                    return null;
+
+                } catch (e) {
+                    return null;
+                }
+            }))
+        ]);
+
+        // 🟢 AGGREGATE RESULTS
+
+        // Facts Aggregation
+        factsResults.forEach(res => {
+            if (!res) return;
+            if (res.type === 'conflict') conflicts.push({ ...res, type: 'contradiction' });
+            else if (res.type === 'verified_fact') verifiedFacts.push({ ...res.item, status: res.status });
+        });
+
+        // Laws Aggregation
+        lawsResults.forEach(res => {
+            if (res) lawViolations.push(res);
+        });
+
+        // Behaviors Aggregation
+        personalityResults.forEach(res => {
+            if (res) personalityDrifts.push(res);
+        });
+
+        // Resonance matches
+        resonanceMatches = resonanceResult || [];
+
+        // Drift
+        const { driftScore, driftStatus } = driftResult;
+
 
         // 5. UPDATE CACHE
         if (fileId) {
