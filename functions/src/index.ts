@@ -2909,6 +2909,7 @@ export const getForgeSessions = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "512MiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -2922,7 +2923,8 @@ export const getForgeSessions = onCall(
 
     try {
       let query = db.collection("users").doc(userId).collection("forge_sessions")
-        .orderBy("updatedAt", "desc");
+        .orderBy("updatedAt", "desc")
+        .limit(50);
 
       if (type) {
         query = query.where("type", "==", type);
