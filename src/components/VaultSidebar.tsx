@@ -7,6 +7,7 @@ import { getFirestore, onSnapshot, collection, query, where } from "firebase/fir
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from "firebase/auth";
 import { toast } from 'sonner';
+import CreateProjectModal from './ui/CreateProjectModal';
 
 interface VaultSidebarProps {
     folderId: string;
@@ -68,7 +69,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
     const [showOnlyHealthy, setShowOnlyHealthy] = useState(false);
-    const [isCreatingProject, setIsCreatingProject] = useState(false);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
     // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
     useEffect(() => {
@@ -148,11 +149,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
 
     // 🟢 CREATE STANDARD PROJECT
-    const handleCreateProject = async () => {
-        const name = window.prompt("Ingresa el nombre de tu nuevo Universo:", "Mi Nueva Novela");
-        if (!name) return;
-
-        setIsCreatingProject(true);
+    const handleCreateProject = async (name: string) => {
         try {
             const functions = getFunctions();
             const createTitaniumStructure = httpsCallable(functions, 'createTitaniumStructure');
@@ -169,8 +166,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         } catch (error: any) {
             console.error("Error creating project:", error);
             toast.error("Error al crear el proyecto: " + error.message);
-        } finally {
-            setIsCreatingProject(false);
+            throw error; // Re-throw to let Modal know it failed
         }
     };
 
@@ -279,17 +275,12 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 <div className="flex flex-col gap-3 w-full px-4 mt-2">
                                     {/* Primary Action */}
                                     <button
-                                        onClick={handleCreateProject}
-                                        disabled={isCreatingProject}
+                                        onClick={() => setIsCreateModalOpen(true)}
                                         className="group w-full flex items-center justify-center gap-2.5 py-2.5 bg-gradient-to-b from-titanium-700 to-titanium-800 hover:from-titanium-600 hover:to-titanium-700 border border-titanium-600 hover:border-titanium-500 text-titanium-100 rounded-lg text-xs font-semibold transition-all shadow-md hover:shadow-lg hover:shadow-black/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                                         aria-label="Crear estructura estándar"
                                     >
-                                        {isCreatingProject ? (
-                                            <Loader2 size={14} className="animate-spin text-cyan-400" />
-                                        ) : (
-                                            <LayoutTemplate size={14} className="text-cyan-500 group-hover:text-cyan-400 transition-colors" />
-                                        )}
-                                        {isCreatingProject ? "Construyendo..." : "Crear Estándar"}
+                                        <LayoutTemplate size={14} className="text-cyan-500 group-hover:text-cyan-400 transition-colors" />
+                                        Crear Estándar
                                     </button>
 
                                     {/* Secondary Action */}
@@ -385,6 +376,12 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </>
                 )}
             </div>
+
+            <CreateProjectModal
+                isOpen={isCreateModalOpen}
+                onClose={() => setIsCreateModalOpen(false)}
+                onSubmit={handleCreateProject}
+            />
 
             {/* FOOTER */}
             <div className="p-3 border-t border-titanium-800 bg-titanium-900 mt-auto">
