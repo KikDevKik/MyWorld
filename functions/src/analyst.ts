@@ -146,7 +146,7 @@ export const analyzeStyleDNA = onCall(
                 Este párrafo estará diseñado para instruir a otra IA sobre cómo imitar a este autor exactamente.
 
                 No uses listas ni JSON. Solo un bloque de texto descriptivo y potente.
-                Si el texto está en Español, responde en Español.
+                DETECT LANGUAGE of the TEXTO A ANALIZAR. Write the response in that SAME LANGUAGE.
 
                 TEXTO A ANALIZAR:
                 ${aggregatedText.substring(0, 100000)}

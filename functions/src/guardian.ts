@@ -168,8 +168,14 @@ export const auditContent = onCall(
             3. "CHARACTER BEHAVIOR": For named characters, extract Tone, Emotional State, and Key Actions.
             4. "RESONANCE": Identify if the draft feels like a Setup, Midpoint, or Climax (Structure).
 
+            LANGUAGE INSTRUCTION:
+            Detect the language of the provided TEXT.
+            The output values (facts, laws, behaviors, advice) MUST BE in the SAME LANGUAGE as the TEXT.
+            The JSON keys must remain in English.
+
             OUTPUT SCHEMA (JSON):
             {
+              "detected_language": "Spanish" | "English" | "French" | "etc",
               "extracted_facts": [
                 {
                   "entity": "Name",
@@ -229,6 +235,7 @@ export const auditContent = onCall(
         const laws = extractedData.extracted_laws || [];
         const behaviors = extractedData.character_behaviors || [];
         const structure = extractedData.structure_analysis || {};
+        const detectedLanguage = extractedData.detected_language || "English";
 
         const conflicts: any[] = [];
         const verifiedFacts: any[] = [];
@@ -326,6 +333,7 @@ export const auditContent = onCall(
                             DRAFT: "${content.substring(0, 5000)}..."
                             SEEDS: ${JSON.stringify(relevantChunks)}
 
+                            INSTRUCTION: Output the analysis in ${detectedLanguage}.
                             OUTPUT JSON: { "matches": [{ "source_file": "string", "type": "PLOT_SEED"|"VIBE_SEED"|"LORE_SEED", "crumb_text": "string", "similarity_score": 0.0-1.0 }] }
                         `;
                         const safeRes = await safeGenerateContent(verifierModel, resonancePrompt, "ResonanceCheck");
@@ -369,6 +377,7 @@ export const auditContent = onCall(
                         TASK: Detect CONTRADICTIONS.
                         CLAIM: "${item.fact}" (Entity: ${item.entity})
                         EVIDENCE: ${JSON.stringify(contextChunks)}
+                        INSTRUCTION: Output the 'reason' in ${detectedLanguage}.
                         OUTPUT JSON: { "has_conflict": boolean, "reason": "string", "conflicting_evidence_source": "string" }
                     `;
 
@@ -423,6 +432,7 @@ export const auditContent = onCall(
                         TASK: Verify if ASSERTION violates RULES.
                         ASSERTION: "${item.law}"
                         RULES: ${JSON.stringify(contextChunks)}
+                        INSTRUCTION: Output the 'explanation' in ${detectedLanguage}.
                         OUTPUT JSON: { "trigger": "WORLD_LAW_VIOLATION", "severity": "CRITICAL" | "WARNING" | "NONE", "conflict": { "explanation": "string", "canonical_rule": "string", "source_node": "string" } }
                     `;
 
@@ -467,6 +477,7 @@ export const auditContent = onCall(
                              const profilePrompt = `
                                 EXTRACT PERSONALITY & EVOLUTION from this bio:
                                 "${data.bio || data.description}"
+                                INSTRUCTION: Output in ${detectedLanguage}.
                                 OUTPUT FORMAT: "Personality: ... Evolution: ..."
                              `;
                              const safeProfile = await safeGenerateContent(verifierModel, profilePrompt, "ProfileExtract");
@@ -507,6 +518,7 @@ export const auditContent = onCall(
                         2. [RECENT HISTORY]: ${historyChunksText.substring(0, 5000)}
                         3. [CURRENT BEHAVIOR]: Action: "${behavior.action}", Tone: "${behavior.tone}", Dialogue: "${behavior.dialogue_sample}"
                         LOGIC: Match Behavior against Canon/History.
+                        INSTRUCTION: Output 'hater_comment' and other text fields in ${detectedLanguage}.
                         OUTPUT JSON: { "trigger": "PERSONALITY_DRIFT", "status": "CONSISTENT" | "EVOLVED" | "TRAITOR", "severity": "CRITICAL" | "WARNING" | "INFO", "hater_comment": "string", "detected_behavior": "string", "canonical_psychology": "string", "friccion_score": 0.0-1.0 }
                     `;
 
