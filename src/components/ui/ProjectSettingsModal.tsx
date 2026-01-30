@@ -201,6 +201,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
             if (data.success) {
                 setFolderMapping(data.mapping);
+                if (data.canonPaths) setCanonPaths(data.canonPaths);
+                if (data.resourcePaths) setResourcePaths(data.resourcePaths);
                 toast.success("Estructura Titanium creada exitosamente.");
             }
         } catch (e) {
