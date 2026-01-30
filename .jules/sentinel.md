@@ -12,7 +12,7 @@
 
 ## 2025-02-18 - [Loop-Based Resource Exhaustion]
 **Vulnerability:** Resource Exhaustion via Unbounded Loop
-**Learning:** While individual file processing was protected (via `MAX_STREAM_SIZE_BYTES`), the `compileManuscript` function iterated through an unbounded user-provided array (`fileIds`). A user could request 1000 files, which, even if individually small, would accumulate in the `contents` array and exceed the function's memory limit (2GiB), causing an OOM crash.
+**Learning:** While individual file processing was protected (via `MAX_STREAM_SIZE_BYTES`), the `compileManuscript` function iterated through an unbounded user-provided array (`fileIds`). A user could request 1000 files, which, even if individually small, would accumulate in the `contents` array and exceed the function's memory limit (2GiB), causing OOM crash.
 **Prevention:** Added a strict limit (`MAX_FILES = 50`) on the input array length. Security limits must apply not just to atomic items but also to collections to prevent "death by a thousand cuts".
 ## 2025-02-18 - [DoS Prevention: Input Validation & Logging Hygiene]
 **Vulnerability:** Unbounded Input Size in User Profile & Chat
@@ -82,3 +82,8 @@
 1. Defined strict constants: `MAX_ENTITY_NAME_CHARS` (100), `MAX_SESSION_NAME_CHARS` (200), `MAX_CONNECTION_CONTEXT_CHARS` (5000).
 2. Enforced these limits at the entry point of all public Callable Functions.
 3. Used `typeof` checks to prevent type confusion before length validation.
+
+## 2025-05-28 - [CRITICAL] Error Message Leakage (Auth Module)
+**Vulnerability:** Authentication functions (`exchangeAuthCode`, `refreshDriveToken`) threw raw `HttpsError("internal", error.message)`, exposing Google API error details and potential token fragments to the client.
+**Learning:** Developers prioritized debugging speed over security, bypassing safe error wrapping. This pattern was widespread across `functions/src/index.ts` and `auth.ts`, risking leakage of sensitive internal state.
+**Prevention:** Enforced use of `handleSecureError` wrapper for the Auth module (`functions/src/auth.ts`) as a critical first step. This wrapper logs the full error server-side for debugging but returns a generic, sanitized message to the client. Future work should extend this to `index.ts`.

@@ -4,6 +4,7 @@ import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { google } from "googleapis";
 import { getFirestore } from "firebase-admin/firestore";
+import { handleSecureError } from "./utils/security";
 
 const googleClientId = defineSecret("GOOGLE_CLIENT_ID");
 const googleClientSecret = defineSecret("GOOGLE_CLIENT_SECRET");
@@ -67,8 +68,7 @@ export const exchangeAuthCode = onCall(
       };
 
     } catch (error: any) {
-      logger.error("💥 Error exchanging auth code:", error);
-      throw new HttpsError("internal", `Token Exchange Failed: ${error.message}`);
+      throw handleSecureError(error, "exchangeAuthCode");
     }
   }
 );
@@ -122,8 +122,6 @@ export const refreshDriveToken = onCall(
       };
 
     } catch (error: any) {
-      logger.error("💥 Error refreshing drive token:", error);
-
       // If refresh token is invalid (revoked), we should probably delete it?
       if (error.message && (error.message.includes('invalid_grant') || error.message.includes('unauthorized_client'))) {
           logger.warn(`🗑️ Refresh Token invalid (Revoked?). Deleting from Vault.`);
@@ -131,7 +129,7 @@ export const refreshDriveToken = onCall(
           return { success: false, reason: "TOKEN_REVOKED" };
       }
 
-      throw new HttpsError("internal", `Token Refresh Failed: ${error.message}`);
+      throw handleSecureError(error, "refreshDriveToken");
     }
   }
 );
@@ -157,8 +155,7 @@ export const revokeDriveAccess = onCall(
       logger.info(`🔌 Drive Access Revoked for ${userId}`);
       return { success: true };
     } catch (error: any) {
-      logger.error("Error revoking access:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "revokeDriveAccess");
     }
   }
 );
