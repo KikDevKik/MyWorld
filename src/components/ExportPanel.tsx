@@ -147,7 +147,7 @@ const CheckableTreeNode: React.FC<{
 
 // --- MAIN PANEL ---
 const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToken }) => {
-    const { config, fileTree, isFileTreeLoading } = useProjectConfig();
+    const { config, fileTree, isFileTreeLoading, user } = useProjectConfig();
 
     // UI STATE
     const [title, setTitle] = useState('');
@@ -255,11 +255,16 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     // HANDLER: EXPORT AUDIT LOG
     const handleExportAudit = async () => {
         if (!folderId) return;
+        if (!user || !user.uid) {
+            toast.error("Error de identidad: No se puede firmar el certificado.");
+            return;
+        }
+
         setIsExportingAudit(true);
         const toastId = toast.loading("Generando Certificado Legal...");
 
         try {
-            const reportText = await CreativeAuditService.generateAuditReport(folderId);
+            const reportText = await CreativeAuditService.generateAuditReport(folderId, user.uid);
 
             // Create Blob and Download
             const blob = new Blob([reportText], { type: 'text/plain' });
