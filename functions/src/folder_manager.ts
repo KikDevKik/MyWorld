@@ -172,12 +172,12 @@ export const createTitaniumStructure = onCall(
     const db = getFirestore();
 
     const STRUCTURE = [
-        { name: "00_UNIVERSO", role: FolderRole.WORLD_CORE },
-        { name: "01_PERSONAJES", role: FolderRole.ENTITY_PEOPLE },
-        { name: "02_BESTIARIO", role: FolderRole.ENTITY_BESTIARY },
-        { name: "03_MANUSCRITO", role: FolderRole.SAGA_MAIN },
-        { name: "04_EXTRAS", role: FolderRole.SAGA_EXTRAS },
-        { name: "99_RECURSOS", role: FolderRole.RESOURCES }
+        { name: "UNIVERSO", legacyName: "00_UNIVERSO", role: FolderRole.WORLD_CORE },
+        { name: "PERSONAJES", legacyName: "01_PERSONAJES", role: FolderRole.ENTITY_PEOPLE },
+        { name: "BESTIARIO", legacyName: "02_BESTIARIO", role: FolderRole.ENTITY_BESTIARY },
+        { name: "MANUSCRITO", legacyName: "03_MANUSCRITO", role: FolderRole.SAGA_MAIN },
+        { name: "EXTRAS", legacyName: "04_EXTRAS", role: FolderRole.SAGA_EXTRAS },
+        { name: "RECURSOS", legacyName: "99_RECURSOS", role: FolderRole.RESOURCES }
     ];
 
     try {
@@ -210,23 +210,41 @@ export const createTitaniumStructure = onCall(
 
         const newMapping: Partial<Record<FolderRole, string>> = {};
         const createdFolders: any[] = [];
+        const canonPaths: { id: string, name: string }[] = [];
+        const resourcePaths: { id: string, name: string }[] = [];
 
-        // 1. Create Folders Sequentially
+        // 1. Create Folders Sequentially (Legacy Aware)
         for (const item of STRUCTURE) {
-            // Check if exists first
-            const q = `'${targetRootId}' in parents and name = '${item.name}' and trashed = false`;
-            const check = await drive.files.list({ q, fields: "files(id)" });
+            let folderId = null;
+            let folderName = item.name;
 
-            let folderId;
-            if (check.data.files && check.data.files.length > 0) {
-                folderId = check.data.files[0].id;
-                logger.info(`   -> Folder exists: ${item.name}`);
-            } else {
+            // A. Check New Name First
+            const qNew = `'${targetRootId}' in parents and name = '${item.name}' and trashed = false`;
+            const checkNew = await drive.files.list({ q: qNew, fields: "files(id, name)" });
+
+            if (checkNew.data.files && checkNew.data.files.length > 0) {
+                folderId = checkNew.data.files[0].id;
+                folderName = checkNew.data.files[0].name!;
+                logger.info(`   -> Folder exists (New Standard): ${folderName}`);
+            } else if (item.legacyName) {
+                // B. Check Legacy Name
+                const qLegacy = `'${targetRootId}' in parents and name = '${item.legacyName}' and trashed = false`;
+                const checkLegacy = await drive.files.list({ q: qLegacy, fields: "files(id, name)" });
+
+                if (checkLegacy.data.files && checkLegacy.data.files.length > 0) {
+                    folderId = checkLegacy.data.files[0].id;
+                    folderName = checkLegacy.data.files[0].name!;
+                    logger.info(`   -> Folder exists (Legacy): ${folderName}`);
+                }
+            }
+
+            // C. Create if neither exists
+            if (!folderId) {
                 const res = await drive.files.create({
                     requestBody: {
                         name: item.name,
                         mimeType: "application/vnd.google-apps.folder",
-                    parents: [targetRootId]
+                        parents: [targetRootId]
                     },
                     fields: "id"
                 });
@@ -236,7 +254,15 @@ export const createTitaniumStructure = onCall(
 
             if (folderId && item.role) {
                 newMapping[item.role] = folderId;
-                createdFolders.push({ name: item.name, id: folderId, role: item.role });
+                createdFolders.push({ name: folderName, id: folderId, role: item.role });
+
+                // D. Sort into Canon/Resources
+                const pathObj = { id: folderId, name: folderName };
+                if (item.role === FolderRole.RESOURCES) {
+                    resourcePaths.push(pathObj);
+                } else {
+                    canonPaths.push(pathObj);
+                }
             }
         }
 
@@ -264,9 +290,29 @@ export const createTitaniumStructure = onCall(
         const currentConfig = await getProjectConfigLocal(userId);
         const mergedMapping = { ...(currentConfig.folderMapping || {}), ...newMapping };
 
+        // Merge Paths (Append if not present)
+        const currentCanon = currentConfig.canonPaths || [];
+        const currentResources = currentConfig.resourcePaths || [];
+
+        const mergedCanon = [...currentCanon];
+        for (const p of canonPaths) {
+            if (!mergedCanon.some(cp => cp.id === p.id)) {
+                mergedCanon.push(p);
+            }
+        }
+
+        const mergedResources = [...currentResources];
+        for (const p of resourcePaths) {
+            if (!mergedResources.some(rp => rp.id === p.id)) {
+                mergedResources.push(p);
+            }
+        }
+
         const updatePayload: any = {
             ...configUpdates, // Include folderId/projectName if new
             folderMapping: mergedMapping,
+            canonPaths: mergedCanon,
+            resourcePaths: mergedResources,
             updatedAt: new Date().toISOString()
         };
 
@@ -277,7 +323,13 @@ export const createTitaniumStructure = onCall(
 
         await configRef.set(updatePayload, { merge: true });
 
-        return { success: true, mapping: mergedMapping, created: createdFolders };
+        return {
+            success: true,
+            mapping: mergedMapping,
+            created: createdFolders,
+            canonPaths: mergedCanon,
+            resourcePaths: mergedResources
+        };
 
     } catch (error: any) {
         logger.error("Error creating Titanium structure:", error);
