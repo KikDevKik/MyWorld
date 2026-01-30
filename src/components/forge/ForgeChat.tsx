@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { SoulEntity } from '../../types/forge';
+import { CreativeAuditService } from '../../services/CreativeAuditService';
 
 interface Message {
     id?: string;
@@ -48,7 +49,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     selectedScope,
     activeContextFile
 }) => {
-    const { config } = useProjectConfig();
+    const { config, user } = useProjectConfig();
     const [messages, setMessages] = useState<Message[]>([]);
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false); // Initial load
@@ -133,6 +134,23 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
             addForgeMessage({ sessionId, role: 'user', text: text }).catch(e =>
                 console.error("Failed to save user message", e)
             );
+
+            // ⚖️ AUDIT: THE SEED (Prompt Injection)
+            if (user && folderId) {
+                CreativeAuditService.logCreativeEvent({
+                    projectId: folderId,
+                    userId: user.uid,
+                    component: 'ForgeChat',
+                    actionType: 'INJECTION',
+                    description: 'User sent narrative prompt',
+                    payload: {
+                        promptContent: text, // Capture "The Seed"
+                        promptLength: text.length,
+                        sessionId: sessionId,
+                        scope: selectedScope.name
+                    }
+                });
+            }
         }
 
         // 3. Prepare History
