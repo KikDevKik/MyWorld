@@ -264,31 +264,38 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     <>
                         {/* EMPTY STATE */}
                         {(!fileTree || fileTree.length === 0) && (
-                            <div className="flex flex-col items-center justify-center p-6 text-center gap-3 mt-10">
-                                <div className="p-3 bg-titanium-700/30 rounded-full">
+                            <div className="flex flex-col items-center p-6 text-center gap-4 mt-4 mb-auto animate-in fade-in zoom-in duration-300">
+                                <div className="p-4 bg-titanium-800/50 rounded-full border border-titanium-700/50 shadow-lg shadow-black/20">
                                     <FolderCog className="text-titanium-400" size={24} />
                                 </div>
-                                <h3 className="text-sm font-bold text-titanium-200">Proyecto Vacío</h3>
-                                <p className="text-xs text-titanium-400 leading-relaxed">
-                                    Tu bóveda está vacía. Crea un nuevo proyecto para comenzar o conecta uno existente.
-                                </p>
-                                <div className="flex flex-col gap-3 w-full px-2 mt-2">
+
+                                <div className="space-y-1">
+                                    <h3 className="text-sm font-bold text-titanium-200 tracking-wide">Proyecto Vacío</h3>
+                                    <p className="text-[11px] text-titanium-400 leading-relaxed max-w-[200px] mx-auto">
+                                        Tu bóveda está vacía. Crea un nuevo proyecto para comenzar.
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-col gap-3 w-full px-4 mt-2">
+                                    {/* Primary Action */}
                                     <button
                                         onClick={handleCreateProject}
                                         disabled={isCreatingProject}
-                                        className="w-full flex items-center justify-center gap-2 py-2 bg-titanium-800 hover:bg-titanium-700 border border-titanium-600 hover:border-titanium-500 text-titanium-200 rounded-lg text-xs font-bold transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="group w-full flex items-center justify-center gap-2.5 py-2.5 bg-gradient-to-b from-titanium-700 to-titanium-800 hover:from-titanium-600 hover:to-titanium-700 border border-titanium-600 hover:border-titanium-500 text-titanium-100 rounded-lg text-xs font-semibold transition-all shadow-md hover:shadow-lg hover:shadow-black/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                                         aria-label="Crear estructura estándar"
                                     >
                                         {isCreatingProject ? (
-                                            <Loader2 size={14} className="animate-spin" />
+                                            <Loader2 size={14} className="animate-spin text-cyan-400" />
                                         ) : (
-                                            <LayoutTemplate size={14} />
+                                            <LayoutTemplate size={14} className="text-cyan-500 group-hover:text-cyan-400 transition-colors" />
                                         )}
-                                        {isCreatingProject ? "Creando..." : "Crear Estándar"}
+                                        {isCreatingProject ? "Construyendo..." : "Crear Estándar"}
                                     </button>
+
+                                    {/* Secondary Action */}
                                     <button
                                         onClick={onOpenConnectModal}
-                                        className="w-full text-[10px] text-titanium-500 hover:text-titanium-300 transition-colors"
+                                        className="w-full py-2 text-[10px] font-medium text-titanium-500 hover:text-titanium-300 hover:bg-titanium-800/30 rounded-lg transition-all border border-transparent hover:border-titanium-800"
                                     >
                                         Ya tengo carpeta en Drive
                                     </button>
@@ -387,7 +394,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <HelpCircle size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
-                        <span>Manual de Campo</span>
+                        <span>Guía</span>
                     </button>
 
                     <button
