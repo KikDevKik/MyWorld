@@ -4967,3 +4967,9 @@ export { classifyResource } from "./laboratory";
  */
 export { discoverFolderRoles, createTitaniumStructure, renameDriveFolder } from "./folder_manager";
 export { generateAuditPDF } from "./audit";
+
+/**
+ * 37. AUTHENTICATION (The Keymaster)
+ * Handles OAuth2 Code Exchange and Token Refreshing for persistent Drive access.
+ */
+export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from "./auth";
