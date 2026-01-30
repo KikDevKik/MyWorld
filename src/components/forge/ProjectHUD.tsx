@@ -83,7 +83,7 @@ const ProjectHUD: React.FC = () => {
       {/* LEFT: Project Identity */}
       <div className="flex flex-col min-w-0">
         <span className={`text-[10px] font-mono tracking-widest uppercase mb-0.5 ${isCritical ? 'text-orange-400 font-bold' : 'text-titanium-500'}`}>
-          {isCritical ? "⚠️ FALLO CRÍTICO" : "Identidad Activa"}
+          {isCritical ? "⚠️ FALLO CRÍTICO" : "PROYECTO"}
         </span>
 
         {isCritical ? (

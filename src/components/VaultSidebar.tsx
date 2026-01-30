@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2 } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { getFirestore, onSnapshot, collection, query, where } from "firebase/firestore";
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from "firebase/auth";
+import { toast } from 'sonner';
 
 interface VaultSidebarProps {
     folderId: string;
@@ -66,6 +68,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
     const [showOnlyHealthy, setShowOnlyHealthy] = useState(false);
+    const [isCreatingProject, setIsCreatingProject] = useState(false);
 
     // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
     useEffect(() => {
@@ -143,6 +146,33 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     }, [fileTree, config]);
 
+
+    // 🟢 CREATE STANDARD PROJECT
+    const handleCreateProject = async () => {
+        const name = window.prompt("Ingresa el nombre de tu nuevo Universo:", "Mi Nueva Novela");
+        if (!name) return;
+
+        setIsCreatingProject(true);
+        try {
+            const functions = getFunctions();
+            const createTitaniumStructure = httpsCallable(functions, 'createTitaniumStructure');
+
+            toast.info("Creando estructura del proyecto...");
+
+            await createTitaniumStructure({
+                accessToken: accessToken,
+                newProjectName: name
+            });
+
+            toast.success("¡Proyecto creado exitosamente!");
+            // Config context should auto-update via Firestore listener
+        } catch (error: any) {
+            console.error("Error creating project:", error);
+            toast.error("Error al crear el proyecto: " + error.message);
+        } finally {
+            setIsCreatingProject(false);
+        }
+    };
 
     // 🟢 STATUS INDICATOR HELPER
     const getStatusConfig = () => {
@@ -240,22 +270,27 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 </div>
                                 <h3 className="text-sm font-bold text-titanium-200">Proyecto Vacío</h3>
                                 <p className="text-xs text-titanium-400 leading-relaxed">
-                                    Tu bóveda está vacía. Conecta Google Drive para sincronizar tu universo narrativo.
+                                    Tu bóveda está vacía. Crea un nuevo proyecto para comenzar o conecta uno existente.
                                 </p>
                                 <div className="flex flex-col gap-3 w-full px-2 mt-2">
                                     <button
-                                        onClick={onOpenConnectModal}
-                                        className="w-full flex items-center justify-center gap-2 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-xs font-bold transition-all shadow-lg shadow-cyan-900/20 hover:shadow-cyan-900/40"
-                                        aria-label="Conectar carpeta de Google Drive"
+                                        onClick={handleCreateProject}
+                                        disabled={isCreatingProject}
+                                        className="w-full flex items-center justify-center gap-2 py-2 bg-titanium-800 hover:bg-titanium-700 border border-titanium-600 hover:border-titanium-500 text-titanium-200 rounded-lg text-xs font-bold transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                        aria-label="Crear estructura estándar"
                                     >
-                                        <HardDrive size={14} />
-                                        Conectar Unidad
+                                        {isCreatingProject ? (
+                                            <Loader2 size={14} className="animate-spin" />
+                                        ) : (
+                                            <LayoutTemplate size={14} />
+                                        )}
+                                        {isCreatingProject ? "Creando..." : "Crear Estándar"}
                                     </button>
                                     <button
-                                        onClick={onOpenProjectSettings}
+                                        onClick={onOpenConnectModal}
                                         className="w-full text-[10px] text-titanium-500 hover:text-titanium-300 transition-colors"
                                     >
-                                        Configuración Avanzada
+                                        Ya tengo carpeta en Drive
                                     </button>
                                 </div>
                             </div>

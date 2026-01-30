@@ -20,7 +20,7 @@ async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
     canonPaths: [],
     primaryCanonPathId: null,
     resourcePaths: [],
-    activeBookContext: "Just Megu"
+    activeBookContext: "Nuevo Proyecto"
   };
 
   if (!doc.exists) {
@@ -160,9 +160,13 @@ export const createTitaniumStructure = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { accessToken, rootFolderId } = request.data;
+    const { accessToken, rootFolderId, newProjectName } = request.data;
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
-    if (!rootFolderId) throw new HttpsError("invalid-argument", "Falta rootFolderId.");
+
+    // We need either a rootFolderId OR a newProjectName to create one
+    if (!rootFolderId && !newProjectName) {
+        throw new HttpsError("invalid-argument", "Se requiere rootFolderId o newProjectName.");
+    }
 
     const userId = request.auth.uid;
     const db = getFirestore();
@@ -181,14 +185,36 @@ export const createTitaniumStructure = onCall(
         auth.setCredentials({ access_token: accessToken });
         const drive = google.drive({ version: "v3", auth });
 
+        // 0. Resolve Root Folder
+        let targetRootId = rootFolderId;
+        const configUpdates: any = {};
+
+        if (!targetRootId && newProjectName) {
+            // Create New Root Folder
+            logger.info(`Creating new root project folder: ${newProjectName}`);
+            const rootRes = await drive.files.create({
+                requestBody: {
+                    name: newProjectName,
+                    mimeType: "application/vnd.google-apps.folder",
+                    // No parent = Root
+                },
+                fields: "id"
+            });
+            targetRootId = rootRes.data.id;
+            configUpdates.folderId = targetRootId;
+            configUpdates.projectName = newProjectName;
+            configUpdates.activeBookContext = newProjectName; // Set context name too
+        }
+
+        if (!targetRootId) throw new Error("Failed to resolve Root Folder ID");
+
         const newMapping: Partial<Record<FolderRole, string>> = {};
         const createdFolders: any[] = [];
 
         // 1. Create Folders Sequentially
         for (const item of STRUCTURE) {
-            // Check if exists first? Na, user asked to create structure.
-            // But we should check to avoid duplicates if they run it twice.
-            const q = `'${rootFolderId}' in parents and name = '${item.name}' and trashed = false`;
+            // Check if exists first
+            const q = `'${targetRootId}' in parents and name = '${item.name}' and trashed = false`;
             const check = await drive.files.list({ q, fields: "files(id)" });
 
             let folderId;
@@ -200,7 +226,7 @@ export const createTitaniumStructure = onCall(
                     requestBody: {
                         name: item.name,
                         mimeType: "application/vnd.google-apps.folder",
-                        parents: [rootFolderId]
+                    parents: [targetRootId]
                     },
                     fields: "id"
                 });
@@ -239,6 +265,7 @@ export const createTitaniumStructure = onCall(
         const mergedMapping = { ...(currentConfig.folderMapping || {}), ...newMapping };
 
         const updatePayload: any = {
+            ...configUpdates, // Include folderId/projectName if new
             folderMapping: mergedMapping,
             updatedAt: new Date().toISOString()
         };
