@@ -22,11 +22,11 @@ export const CreativeAuditService = {
 
     /**
      * Logs a creative event to the immutable audit trail.
-     * Path: projects/{projectId}/audit_log/{logId}
+     * Path: users/{userId}/projects/{projectId}/audit_log/{logId}
      */
     async logCreativeEvent(entry: Omit<CreativeLogEntry, 'id' | 'timestamp'>): Promise<string> {
         const db = getFirestore();
-        const { projectId } = entry;
+        const { projectId, userId } = entry;
 
         // 🟢 DEBUG: Legal Evidence Real-Time View
         if (import.meta.env.DEV) {
@@ -34,9 +34,8 @@ export const CreativeAuditService = {
         }
 
         try {
-            // Note: We use the root 'projects' collection as requested.
-            // Ensure firestore.rules allows write access to this path for the authenticated user.
-            const logRef = collection(db, 'projects', projectId, 'audit_log');
+            // Note: We use the nested 'users' collection to match firestore.rules security model.
+            const logRef = collection(db, 'users', userId, 'projects', projectId, 'audit_log');
 
             const docRef = await addDoc(logRef, {
                 ...entry,
@@ -57,10 +56,10 @@ export const CreativeAuditService = {
      * Generates a legal audit report in plain text/markdown format.
      * Queries all logs for the project, sorts them, and creates a formatted string.
      */
-    async generateAuditReport(projectId: string): Promise<string> {
+    async generateAuditReport(projectId: string, userId: string): Promise<string> {
         const db = getFirestore();
         try {
-            const logRef = collection(db, 'projects', projectId, 'audit_log');
+            const logRef = collection(db, 'users', userId, 'projects', projectId, 'audit_log');
             const q = query(logRef, orderBy('timestamp', 'asc'));
 
             const snapshot = await getDocs(q);
