@@ -797,6 +797,7 @@ function App() {
             client_id: clientId,
             scope: 'https://www.googleapis.com/auth/drive',
             ux_mode: 'popup',
+            prompt: 'consent', // 👈 FORCE REFRESH TOKEN GENERATION
             callback: async (response: any) => {
                 if (response.code) {
                     const toastId = toast.loading("Vinculando Drive permanentemente...");
