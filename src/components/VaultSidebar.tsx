@@ -285,7 +285,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
                                     {/* Secondary Action */}
                                     <button
-                                        onClick={onOpenConnectModal}
+                                        onClick={onOpenProjectSettings}
                                         className="w-full py-2 text-[10px] font-medium text-titanium-500 hover:text-titanium-300 hover:bg-titanium-800/30 rounded-lg transition-all border border-transparent hover:border-titanium-800"
                                     >
                                         Ya tengo carpeta en Drive
