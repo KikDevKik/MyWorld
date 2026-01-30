@@ -27,7 +27,7 @@ async function setMockProjectConfig(userId: string) {
     },
     // Preserve existing fields if needed, or set defaults
     chronologyPath: "MI HISTORIA/Estructura Principal/Flujo de Tiempo",
-    activeBookContext: "Just Megu (Mock Mode)",
+    activeBookContext: "",
     updatedAt: new Date().toISOString()
   };
 

@@ -20,7 +20,7 @@ async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
     canonPaths: [],
     primaryCanonPathId: null,
     resourcePaths: [],
-    activeBookContext: "Nuevo Proyecto"
+    activeBookContext: ""
   };
 
   if (!doc.exists) {

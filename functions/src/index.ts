@@ -139,7 +139,7 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
     primaryCanonPathId: null,
     resourcePaths: [],
     // chronologyPath: null, // Removed
-    activeBookContext: "Just Megu",
+    activeBookContext: "",
     lastIndexed: undefined
   };
 
@@ -1405,7 +1405,7 @@ export const getProjectConfig = onCall(
         primaryCanonPathId: null,
         resourcePaths: [],
         // chronologyPath: null, // Removed
-        activeBookContext: "Just Megu"
+        activeBookContext: ""
       };
 
       if (!doc.exists) {
