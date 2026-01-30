@@ -60,7 +60,7 @@ const ProjectHUD: React.FC = () => {
   }, []);
 
   // Visual Logic
-  const projectName = config?.projectName || config?.activeBookContext || "Proyecto Desconocido";
+  const projectName = config?.projectName || config?.activeBookContext || "...";
 
   // 🟢 SENTINEL OVERRIDE LOGIC
   const isCritical = technicalError.isError;

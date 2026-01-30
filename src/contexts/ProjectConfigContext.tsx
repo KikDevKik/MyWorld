@@ -122,7 +122,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
             canonPaths: [{ id: "mock-canon-id", name: "Mock Canon Root" }], // 🟢 MOCK CANON PATH
             resourcePaths: [],
             // chronologyPath: null, // REMOVED
-            activeBookContext: "Prototipo Titanium",
+            activeBookContext: "",
             folderId: "", // Empty to trigger "Connect Drive" button for testing
             characterVaultId: "mock-vault-id", // 🟢 MOCK VAULT ID (REQUIRED FOR CONNECT LOGIC)
         });
