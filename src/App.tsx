@@ -35,6 +35,7 @@ import { CreativeAuditService } from './services/CreativeAuditService';
 import EmptyEditorState from './components/editor/EmptyEditorState';
 import CreateFileModal from './components/ui/CreateFileModal';
 import StatusBar from './components/ui/StatusBar';
+import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: any) {
@@ -208,6 +209,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
     const [isCreateFileModalOpen, setIsCreateFileModalOpen] = useState(false);
+    const [isGenesisOpen, setIsGenesisOpen] = useState(false);
 
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -601,7 +603,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         // Default: Editor
         if (!currentFileId) {
-            return <EmptyEditorState onCreate={() => setIsCreateFileModalOpen(true)} />;
+            return (
+                <EmptyEditorState
+                    onCreate={() => setIsCreateFileModalOpen(true)}
+                    onGenesis={() => setIsGenesisOpen(true)}
+                />
+            );
         }
 
         return (
@@ -674,6 +681,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 isOpen={isCreateFileModalOpen}
                 onClose={() => setIsCreateFileModalOpen(false)}
                 onFileCreated={handleFileCreated}
+                accessToken={oauthToken}
+            />
+
+            <GenesisWizardModal
+                isOpen={isGenesisOpen}
+                onClose={() => setIsGenesisOpen(false)}
                 accessToken={oauthToken}
             />
 

@@ -4973,3 +4973,4 @@ export { generateAuditPDF } from "./audit";
  * Handles OAuth2 Code Exchange and Token Refreshing for persistent Drive access.
  */
 export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from "./auth";
+export { genesisManifest } from "./genesis";
