@@ -157,6 +157,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     const [isCompiling, setIsCompiling] = useState(false);
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [isExportingAudit, setIsExportingAudit] = useState(false);
+    const [auditFormat, setAuditFormat] = useState<'txt' | 'md' | 'pdf'>('txt');
 
     // OPTIONS STATE
     const [options, setOptions] = useState<ExportOptions>({
@@ -264,20 +265,48 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
         const toastId = toast.loading("Generando Certificado Legal...");
 
         try {
-            const reportText = await CreativeAuditService.generateAuditReport(folderId, user.uid);
+            if (auditFormat === 'pdf') {
+                 toast.loading("Compilando PDF oficial...", { id: toastId });
+                 const pdfBase64 = await CreativeAuditService.fetchAuditPDF(folderId);
 
-            // Create Blob and Download
-            const blob = new Blob([reportText], { type: 'text/plain' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.txt`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+                 if (!pdfBase64) throw new Error("PDF generation failed.");
 
-            toast.success("Certificado de Autoría descargado.", { id: toastId });
+                 // Convert Base64 to Blob
+                 const byteCharacters = atob(pdfBase64);
+                 const byteNumbers = new Array(byteCharacters.length);
+                 for (let i = 0; i < byteCharacters.length; i++) {
+                     byteNumbers[i] = byteCharacters.charCodeAt(i);
+                 }
+                 const byteArray = new Uint8Array(byteNumbers);
+                 const blob = new Blob([byteArray], { type: "application/pdf" });
+
+                 // Download
+                 const url = URL.createObjectURL(blob);
+                 const a = document.createElement('a');
+                 a.href = url;
+                 a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.pdf`;
+                 document.body.appendChild(a);
+                 a.click();
+                 document.body.removeChild(a);
+                 URL.revokeObjectURL(url);
+            } else {
+                 const reportText = await CreativeAuditService.generateAuditReport(folderId, user.uid, auditFormat);
+
+                 const mime = auditFormat === 'md' ? 'text/markdown' : 'text/plain';
+                 const ext = auditFormat;
+
+                 const blob = new Blob([reportText], { type: mime });
+                 const url = URL.createObjectURL(blob);
+                 const a = document.createElement('a');
+                 a.href = url;
+                 a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.${ext}`;
+                 document.body.appendChild(a);
+                 a.click();
+                 document.body.removeChild(a);
+                 URL.revokeObjectURL(url);
+            }
+
+            toast.success(`Certificado de Autoría (${auditFormat.toUpperCase()}) descargado.`, { id: toastId });
         } catch (error) {
             console.error("Audit Export Error:", error);
             toast.error("Error al generar certificado.", { id: toastId });
@@ -475,11 +504,31 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                             </a>
                         )}
 
-                        {/* LEGAL AUDIT BUTTON */}
+                        {/* LEGAL AUDIT OPTIONS & BUTTON */}
+                        <div className="mt-4 p-3 bg-titanium-900/40 rounded-lg border border-titanium-800">
+                            <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block">Formato del Certificado</label>
+                            <div className="flex gap-2">
+                                {['txt', 'md', 'pdf'].map(fmt => (
+                                    <button
+                                        key={fmt}
+                                        onClick={() => setAuditFormat(fmt as any)}
+                                        className={`
+                                            px-3 py-1 rounded text-xs font-bold uppercase transition-all
+                                            ${auditFormat === fmt
+                                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
+                                                : 'bg-titanium-800 text-titanium-400 hover:text-white hover:bg-titanium-700'}
+                                        `}
+                                    >
+                                        {fmt.toUpperCase()}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <button
                             onClick={handleExportAudit}
                             disabled={isExportingAudit}
-                            className="w-full mt-3 py-3 rounded-lg border border-titanium-700 hover:border-titanium-500 text-titanium-400 hover:text-white transition-all flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider group"
+                            className="w-full mt-2 py-3 rounded-lg border border-titanium-700 hover:border-titanium-500 text-titanium-400 hover:text-white transition-all flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider group"
                         >
                             {isExportingAudit ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} className="group-hover:text-emerald-400 transition-colors" />}
                             <span>Descargar Certificado de Autoría</span>
