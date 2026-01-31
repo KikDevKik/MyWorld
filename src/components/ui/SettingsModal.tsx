@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
 
@@ -13,8 +13,8 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
-    const { config, updateConfig } = useProjectConfig(); // 🟢 Use Context
-    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
+    const { config, updateConfig, customGeminiKey, setCustomGeminiKey } = useProjectConfig(); // 🟢 Use Context
+    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config'>('general');
 
     // 🟢 STYLE IDENTITY STATE
     const [styleIdentity, setStyleIdentity] = useState('');
@@ -31,6 +31,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     // 🟢 NEW: Project Name Local State (for input binding)
     const [localProjectName, setLocalProjectName] = useState('');
 
+    // 🟢 BYOK: Local State
+    const [localGeminiKey, setLocalGeminiKey] = useState('');
+    const [showKey, setShowKey] = useState(false);
+
     useEffect(() => {
         if (config) {
             setLocalProjectName(config.projectName || config.activeBookContext || '');
@@ -39,7 +43,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 setStyleIdentity(config.styleIdentity);
             }
         }
-    }, [config]);
+        // Load Key from Context (LocalStorage)
+        if (customGeminiKey) {
+            setLocalGeminiKey(customGeminiKey);
+        }
+    }, [config, customGeminiKey]);
 
     const handleSave = async () => {
         setIsLoading(true);
@@ -55,6 +63,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                      styleIdentity: styleIdentity // 👈 Persist Style DNA
                  });
             }
+
+            // 🟢 BYOK: Save Custom Key to LocalStorage (via Context)
+            setCustomGeminiKey(localGeminiKey);
 
             toast.success('Configuración guardada correctamente');
             onClose();
@@ -358,6 +369,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         Perfil
                     </button>
                     <button
+                        onClick={() => setActiveTab('ai_config')}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                            activeTab === 'ai_config'
+                            ? 'border-purple-400 text-purple-400'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                        }`}
+                    >
+                        <Key size={16} />
+                        Configuración IA
+                    </button>
+                    <button
                         onClick={() => setActiveTab('memory')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
                             activeTab === 'memory'
@@ -448,6 +470,62 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 <p className="text-xs text-titanium-400">
                                     <strong className="text-titanium-200">Nota:</strong> Este perfil sobrescribe cualquier instrucción previa. Úsalo para definir la "Voz" del proyecto.
                                 </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB: AI CONFIG (BYOK) */}
+                    {activeTab === 'ai_config' && (
+                        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Key size={18} className="text-purple-400" />
+                                <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wider">Bring Your Own Key (BYOK)</h4>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <label className="text-sm font-medium text-titanium-100">Google Gemini API Key</label>
+                                <div className="relative">
+                                    <input
+                                        type={showKey ? "text" : "password"}
+                                        value={localGeminiKey}
+                                        onChange={(e) => setLocalGeminiKey(e.target.value)}
+                                        className="w-full bg-slate-800 text-white placeholder-gray-500 border border-slate-700 p-3 pr-10 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none font-mono text-sm"
+                                        placeholder="AIzaSy..."
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowKey(!showKey)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-titanium-400 hover:text-white transition-colors"
+                                    >
+                                        {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                                <div className="flex justify-between items-start mt-1 gap-4">
+                                    <p className="text-xs text-titanium-400">
+                                        Esta clave te permite usar modelos superiores y saltar los límites de la capa gratuita.
+                                    </p>
+                                    {localGeminiKey && (
+                                        <button
+                                            onClick={() => setLocalGeminiKey('')}
+                                            className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1 shrink-0"
+                                        >
+                                            <Trash2 size={12} /> Limpiar
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-4 bg-purple-900/10 border border-purple-900/30 rounded-xl flex items-start gap-3">
+                                <ShieldCheck size={18} className="text-purple-400 shrink-0 mt-0.5" />
+                                <div>
+                                    <h5 className="text-sm font-bold text-purple-300">Privacidad Garantizada</h5>
+                                    <p className="text-xs text-titanium-400 mt-1 leading-relaxed">
+                                        Tu clave se guarda <strong className="text-purple-200">exclusivamente en tu navegador (localStorage)</strong>.
+                                        Nunca se almacena en nuestros servidores ni base de datos.
+                                        Si borras la caché o cambias de dispositivo, tendrás que volver a introducirla.
+                                        Esta clave tiene prioridad sobre la del sistema.
+                                    </p>
+                                </div>
                             </div>
                         </div>
                     )}

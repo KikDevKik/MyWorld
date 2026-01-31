@@ -25,6 +25,9 @@ interface ProjectConfigContextType {
   isFileTreeLoading: boolean;
   // 🟢 GHOST MODE: Global User
   user: User | { uid: string; displayName: string; email: string } | null;
+  // 🟢 BYOK: Custom Gemini Key (Local Only)
+  customGeminiKey: string | null;
+  setCustomGeminiKey: (key: string | null) => void;
 }
 
 export const ProjectConfigContext = createContext<ProjectConfigContextType | undefined>(undefined);
@@ -69,6 +72,20 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // 🟢 GHOST MODE: User State
   const [user, setUser] = useState<User | typeof GHOST_USER | null>(null);
+
+  // 🟢 BYOK: Custom Gemini Key State
+  const [customGeminiKey, setCustomGeminiKeyState] = useState<string | null>(() => {
+    return localStorage.getItem('myworld_custom_gemini_key');
+  });
+
+  const setCustomGeminiKey = (key: string | null) => {
+      setCustomGeminiKeyState(key);
+      if (key) {
+          localStorage.setItem('myworld_custom_gemini_key', key);
+      } else {
+          localStorage.removeItem('myworld_custom_gemini_key');
+      }
+  };
 
   // 1. AUTH LISTENER
   useEffect(() => {
@@ -226,7 +243,9 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
         setTechnicalError,
         fileTree,
         isFileTreeLoading,
-        user
+        user,
+        customGeminiKey,
+        setCustomGeminiKey
     }}>
       {children}
     </ProjectConfigContext.Provider>
