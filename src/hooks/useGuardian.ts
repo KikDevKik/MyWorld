@@ -73,6 +73,22 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
     // Internal State
     const lastHashRef = useRef<string>("");
     const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const hasAutoAuditedRef = useRef<boolean>(false); // 🟢 ONCE PER SESSION FLAG
+
+    // 🟢 RESET STATE ON FILE CHANGE
+    useEffect(() => {
+        // Reset whenever fileId changes (Context Switch)
+        // This ensures that if we switch files and auto-audit is blocked,
+        // we don't show stale conflicts from the previous file.
+        setStatus('idle');
+        setFacts([]);
+        setConflicts([]);
+        setLawConflicts([]);
+        setPersonalityDrifts([]);
+        setResonanceMatches([]);
+        setStructureAnalysis(null);
+        lastHashRef.current = "";
+    }, [fileId]);
 
     // 🟢 SHA-256 HASHING
     const computeHash = async (text: string) => {
@@ -168,6 +184,11 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         }
 
         timerRef.current = setTimeout(async () => {
+            // 🟢 CHECK ONCE PER SESSION
+            if (hasAutoAuditedRef.current) {
+                return;
+            }
+
             const currentHash = await computeHash(content);
 
             if (currentHash === lastHashRef.current) {
@@ -176,7 +197,10 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             }
 
             lastHashRef.current = currentHash;
-            executeAudit(content);
+            await executeAudit(content);
+
+            // 🟢 MARK AS DONE AFTER SUCCESSFUL AUTO-AUDIT
+            hasAutoAuditedRef.current = true;
 
         }, 3000);
 

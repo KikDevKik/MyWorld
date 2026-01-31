@@ -176,7 +176,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const isFallbackContext = false; // Always live now.
 
     // 🛡️ GUARDIAN HOOK (ARGOS)
-    const { status: guardianStatus, conflicts: guardianConflicts, facts: guardianFacts, forceAudit } = useGuardian(effectiveFileContent, folderId);
+    const { status: guardianStatus, conflicts: guardianConflicts, facts: guardianFacts, forceAudit } = useGuardian(effectiveFileContent, folderId, currentFileId || undefined);
 
     // 🟢 TRIGGER DRIFT SCAN WHEN DIRECTOR OPENS (ONCE PER OPEN)
     // Updated dependency to activeView
