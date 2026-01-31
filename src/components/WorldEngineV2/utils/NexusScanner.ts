@@ -1,6 +1,6 @@
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { AnalysisCandidate } from '../types';
 import { GraphNode } from '../../../types/graph';
+import { callFunction } from '../../../services/api';
 
 // 🟢 HELPER: TOKEN VALIDATION (PING)
 const validateToken = async (token: string): Promise<boolean> => {
@@ -209,10 +209,6 @@ export const scanProjectFiles = async (
     onProgress("Batching...", 0, batchKeys.length);
 
     // 3. Process Batches
-    const functions = getFunctions();
-    // 🟢 UPDATE: INCREASED TIMEOUT (9 Minutes)
-    const analyzeFn = httpsCallable(functions, 'analyzeNexusFile', { timeout: 540000 });
-
     let allCandidates: AnalysisCandidate[] = [];
     let processedCount = 0;
 
@@ -229,16 +225,15 @@ export const scanProjectFiles = async (
             const token = localStorage.getItem('google_drive_token');
             if (!token) throw new Error("Missing Drive Token");
 
-            const result = await analyzeFn({
+            const data = await callFunction<{ candidates: AnalysisCandidate[] }>('analyzeNexusFile', {
                 fileIds: batchIds, // 🟢 SEND LIST
                 projectId: projectId, // 🟢 SEND PROJECT ID
                 accessToken: token,
                 contextType: contextType,
                 ignoredTerms: ignoredTerms,
                 folderId: pid
-            });
+            }, { timeout: 540000 }); // 9 Minutes
 
-            const data = result.data as { candidates: AnalysisCandidate[] };
             if (data.candidates && Array.isArray(data.candidates)) {
                 // 🟢 ID GENERATION & RELATION MAPPING
                 const candidatesWithIds = data.candidates.map(c => ({

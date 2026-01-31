@@ -3,13 +3,13 @@ import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'reac
 import { X, Send, Hammer, Loader2 } from 'lucide-react';
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import GhostGraph from './GhostGraph';
 import { VisualNode, VisualEdge, RealityMode } from './types';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { generateId } from "../../utils/sha256";
 import InternalFolderSelector from '../InternalFolderSelector';
+import { callFunction } from '../../services/api';
 
 interface TheBuilderProps {
     isOpen: boolean;
@@ -220,9 +220,6 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
         setIsMaterializing(true);
 
         try {
-            const functions = getFunctions();
-            const crystallizeGraphFn = httpsCallable(functions, 'crystallizeGraph');
-
             // 🟢 USE PASSED TOKEN
             let token = accessToken;
             if (!token && onRefreshTokens) {
@@ -243,7 +240,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
 
             if (!targetFolderId) throw new Error("Target folder not determined.");
 
-            const result: any = await crystallizeGraphFn({
+            const data = await callFunction<any>('crystallizeGraph', {
                 nodes: ghostNodes,
                 folderId: targetFolderId,
                 subfolderName,
@@ -254,7 +251,6 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
             });
 
             // 🟢 HANDLE RESULTS & ERRORS
-            const data = result.data;
             if (data.success) {
                 // PARTIAL SUCCESS IS STILL SUCCESS
                 const createdCount = data.created;
