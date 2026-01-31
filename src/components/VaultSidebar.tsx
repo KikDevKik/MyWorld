@@ -464,13 +464,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <LogOut size={16} />
                         <span>Cerrar Sesión</span>
                     </button>
-
-                    {/* COPYRIGHT FOOTER */}
-                    <div className="mt-4 pt-2 border-t border-titanium-800/50 text-center">
-                        <p className="text-[10px] text-titanium-500">
-                            © 2026 MyWorld. Todos los derechos reservados.
-                        </p>
-                    </div>
                 </div>
             </div>
         </div>
