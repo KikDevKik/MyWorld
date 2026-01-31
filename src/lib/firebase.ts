@@ -6,7 +6,7 @@ import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-
 // ¡¡¡TU "TESORO" VA AQUÍ!!!
 // (Ahora cargado desde variables de entorno para seguridad)
 export const fallbackConfig = {
-    apiKey: "AIzaSyChkUGxtxmczf_AxtB8scRu73Dwk3wh_rc",
+    // 🛡️ SENTINEL: API KEY REMOVED (See .env.example)
     authDomain: "myword-67b03.firebaseapp.com",
     projectId: "myword-67b03",
     storageBucket: "myword-67b03.firebasestorage.app",
@@ -17,7 +17,7 @@ export const fallbackConfig = {
 };
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_GOOGLE_API_KEY || fallbackConfig.apiKey,
+  apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || fallbackConfig.authDomain,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || fallbackConfig.projectId,
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || fallbackConfig.storageBucket,
@@ -25,6 +25,11 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || fallbackConfig.appId,
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || fallbackConfig.measurementId
 };
+
+// 🛡️ SENTINEL CHECK: Env Var Enforcement
+if (!firebaseConfig.apiKey) {
+    throw new Error("CRITICAL SECURITY: VITE_GOOGLE_API_KEY is missing in environment variables. See .env.example.");
+}
 
 // 🟢 TELEMETRÍA DE DIAGNÓSTICO (Protocolo Sutura V8.7)
 console.log("[DEBUG] App Check attempt with ID:", firebaseConfig.appId);
