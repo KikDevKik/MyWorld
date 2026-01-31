@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { FileText, ArrowUpCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import Editor from '../editor/Editor';
+import { callFunction } from '../../services/api';
 
 interface Character {
     id: string;
@@ -28,15 +28,13 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
         const fetchContent = async () => {
             if (activeChar.tier === 'MAIN' && activeChar.masterFileId) {
                 setIsLoading(true);
-                const functions = getFunctions();
-                const getDriveFileContent = httpsCallable(functions, 'getDriveFileContent');
 
                 try {
-                    const result: any = await getDriveFileContent({
+                    const result = await callFunction<{ content: string }>('getDriveFileContent', {
                         fileId: activeChar.masterFileId,
                         accessToken
                     });
-                    setContent(result.data.content || '');
+                    setContent(result.content || '');
                 } catch (error) {
                     console.error("Error fetching soul content:", error);
                     toast.error("Failed to load Master File.");

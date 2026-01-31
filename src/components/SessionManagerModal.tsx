@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { Modal } from './ui/Modal';
 import { Loader2, AlertTriangle, Zap } from 'lucide-react';
 import { SessionList } from './ui/SessionList';
+import { callFunction } from '../services/api';
 
 interface SessionManagerModalProps {
     isOpen: boolean;
@@ -34,11 +34,6 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [isPurging, setIsPurging] = useState(false);
 
-    const functions = getFunctions();
-    const getForgeSessions = httpsCallable(functions, 'getForgeSessions');
-    const deleteForgeSession = httpsCallable(functions, 'deleteForgeSession');
-    const purgeEmptySessions = httpsCallable(functions, 'purgeEmptySessions');
-
     useEffect(() => {
         if (isOpen) {
             loadSessions();
@@ -48,12 +43,12 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
     const loadSessions = async () => {
         setIsLoading(true);
         try {
-            const result = await getForgeSessions({ type: 'director' });
+            const fetched = await callFunction<ForgeSession[]>('getForgeSessions', { type: 'director' });
             // Sort by updatedAt desc to ensure correct order
-            const fetched = (result.data as ForgeSession[]).sort((a, b) =>
+            const sorted = fetched.sort((a, b) =>
                 new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
             );
-            setSessions(fetched);
+            setSessions(sorted);
         } catch (error) {
             console.error("Failed to load sessions:", error);
             toast.error("Error cargando historial de sesiones.");
@@ -68,7 +63,7 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
 
         setIsDeleting(sessionId);
         try {
-            await deleteForgeSession({ sessionId });
+            await callFunction('deleteForgeSession', { sessionId });
             setSessions(prev => prev.filter(s => s.id !== sessionId));
             toast.success("Sesión eliminada.");
             if (activeSessionId === sessionId) {
@@ -89,8 +84,7 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
         const toastId = toast.loading("Ejecutando protocolo de limpieza...");
 
         try {
-            const result = await purgeEmptySessions();
-            const data = result.data as { deletedCount: number, message: string };
+            const data = await callFunction<{ deletedCount: number, message: string }>('purgeEmptySessions');
 
             toast.success(`Limpieza completada: ${data.deletedCount} sesiones purgadas.`, { id: toastId });
             loadSessions(); // Reload list

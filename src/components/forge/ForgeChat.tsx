@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from 'firebase/auth';
 import { getApp } from 'firebase/app';
 import { Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield, Sparkles } from 'lucide-react';
@@ -9,6 +8,7 @@ import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { SoulEntity } from '../../types/forge';
 import { CreativeAuditService } from '../../services/CreativeAuditService';
+import { callFunction } from '../../services/api';
 
 interface Message {
     id?: string;
@@ -83,13 +83,10 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
             // If activeEntity just changed, the separate useEffect will handle the wipe.
 
             setIsLoading(true);
-            const functions = getFunctions();
-            const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
 
             try {
-                const result: any = await getForgeHistory({ sessionId });
+                const loaded = await callFunction<Message[]>('getForgeHistory', { sessionId });
                 if (!ignore) {
-                    const loaded = result.data as Message[];
                     setMessages(loaded);
                 }
             } catch (error) {
@@ -127,11 +124,9 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
         // 2. Persist User Message (ONLY IF NOT HIDDEN)
         // Hidden messages are ephemeral context for the AI, not chat log material.
-        const functions = getFunctions();
-        const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
 
         if (!options.hidden) {
-            addForgeMessage({ sessionId, role: 'user', text: text }).catch(e =>
+            callFunction('addForgeMessage', { sessionId, role: 'user', text: text }).catch(e =>
                 console.error("Failed to save user message", e)
             );
 
@@ -241,7 +236,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
             // 5. Persist AI Response (Always)
             if (accumulatedText) {
-                await addForgeMessage({
+                await callFunction('addForgeMessage', {
                     sessionId,
                     role: 'model',
                     text: accumulatedText,
@@ -350,9 +345,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
     const handlePurgeSession = async () => {
         if (!window.confirm("¿Borrar chat actual?")) return;
         setMessages([]);
-        const functions = getFunctions();
-        const clearSessionMessages = httpsCallable(functions, 'clearSessionMessages');
-        await clearSessionMessages({ sessionId });
+        await callFunction('clearSessionMessages', { sessionId });
     };
 
     const handleCrystallize = async () => {
@@ -377,14 +370,11 @@ Hazme una pregunta provocadora sobre su motivación oculta.
         const toastId = toast.loading("Forjando Archivo de Alma...");
 
         try {
-            const functions = getFunctions();
-            const scribeCreateFile = httpsCallable(functions, 'scribeCreateFile');
-
             // Gather Intelligence
             const lastAiMsg = messages.filter(m => m.role === 'model' && !m.hidden).pop();
             const chatNotes = lastAiMsg ? lastAiMsg.text : "Sin notas de sesión.";
 
-            await scribeCreateFile({
+            await callFunction('scribeCreateFile', {
                 entityId: activeEntity.id,
                 entityData: {
                     name: activeEntity.name,
