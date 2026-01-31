@@ -2,6 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
+import * as crypto from 'crypto';
 
 interface CreativeLogEntry {
     id?: string;
@@ -229,6 +230,78 @@ export const generateAuditPDF = onCall(
 
         } catch (error: any) {
             logger.error("Failed to generate Audit PDF:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);
+
+/**
+ * GENERATE CERTIFICATE (The Notary)
+ * Calculates the Human Score and creates a public, immutable record.
+ */
+export const generateCertificate = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+    },
+    async (request) => {
+        const db = getFirestore();
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required.");
+
+        const { projectId, projectTitle } = request.data;
+        const userId = request.auth.uid;
+
+        if (!projectId) throw new HttpsError("invalid-argument", "Missing Project ID.");
+
+        try {
+            // 1. FETCH STATS
+            const statsRef = db.collection('users').doc(userId).collection('projects').doc(projectId).collection('stats').doc('audit');
+            const statsDoc = await statsRef.get();
+
+            let humanChars = 0;
+            let aiChars = 0;
+
+            if (statsDoc.exists) {
+                const data = statsDoc.data();
+                humanChars = data?.humanChars || 0;
+                aiChars = data?.aiChars || 0;
+            }
+
+            const total = humanChars + aiChars;
+            let score = 0;
+            if (total > 0) {
+                score = (humanChars / total) * 100;
+            }
+
+            // 2. GENERATE INTEGRITY HASH
+            const timestamp = new Date().toISOString();
+            const rawString = `${projectId}:${userId}:${score.toFixed(2)}:${timestamp}`;
+            const hash = crypto.createHash('sha256').update(rawString).digest('hex');
+
+            // 3. CREATE PUBLIC CERTIFICATE
+            const certRef = db.collection('public_certificates').doc();
+            await certRef.set({
+                projectId,
+                userId,
+                timestamp,
+                humanScore: score,
+                totalChars: total,
+                hash,
+                authorName: request.auth.token.name || 'Anonymous Author',
+                projectTitle: projectTitle || 'Untitled Project'
+            });
+
+            logger.info(`📜 Certificate Generated: ${certRef.id} (Score: ${score.toFixed(1)}%)`);
+
+            return {
+                success: true,
+                certificateId: certRef.id,
+                score: score,
+                hash: hash
+            };
+        } catch (error: any) {
+            logger.error("Certificate Generation Failed:", error);
             throw new HttpsError("internal", error.message);
         }
     }

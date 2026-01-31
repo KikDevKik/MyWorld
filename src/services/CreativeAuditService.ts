@@ -1,4 +1,4 @@
-import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy, doc, setDoc, increment } from 'firebase/firestore';
 import { callFunction } from './api';
 
 export type CreativeActionType = 'INJECTION' | 'CURATION' | 'STRUCTURE' | 'RESEARCH';
@@ -165,6 +165,26 @@ export const CreativeAuditService = {
         } catch (error) {
             console.error("Failed to fetch PDF:", error);
             return null; // Return null to handle UI error
+        }
+    },
+
+    /**
+     * Updates the persistent Human vs AI score counters for the project.
+     * Path: users/{userId}/projects/{projectId}/stats/audit
+     */
+    async updateAuditStats(projectId: string, userId: string, humanChars: number, aiChars: number): Promise<void> {
+        const db = getFirestore();
+        try {
+            const statsRef = doc(db, 'users', userId, 'projects', projectId, 'stats', 'audit');
+
+            await setDoc(statsRef, {
+                humanChars: increment(humanChars),
+                aiChars: increment(aiChars),
+                lastUpdated: serverTimestamp()
+            }, { merge: true });
+
+        } catch (error) {
+            console.error("[CreativeAuditService] Failed to update stats:", error);
         }
     }
 };

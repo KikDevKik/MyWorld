@@ -158,6 +158,8 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
     const [isExportingAudit, setIsExportingAudit] = useState(false);
     const [auditFormat, setAuditFormat] = useState<'txt' | 'md' | 'pdf'>('txt');
+    const [certificateLink, setCertificateLink] = useState<string | null>(null);
+    const [isGeneratingCert, setIsGeneratingCert] = useState(false);
 
     // OPTIONS STATE
     const [options, setOptions] = useState<ExportOptions>({
@@ -308,6 +310,32 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
             toast.error("Error al generar certificado.", { id: toastId });
         } finally {
             setIsExportingAudit(false);
+        }
+    };
+
+    // HANDLER: GENERATE PUBLIC CERTIFICATE
+    const handleGenerateCertificate = async () => {
+        if (!folderId || !user) return;
+
+        setIsGeneratingCert(true);
+        const toastId = toast.loading("Notariando Certificado en la Blockchain (Simulada)...");
+
+        try {
+            const result = await callFunction<any>('generateCertificate', {
+                projectId: folderId,
+                projectTitle: title || 'Proyecto Sin Título'
+            });
+
+            if (result.success && result.certificateId) {
+                const link = `${window.location.origin}/verify/${result.certificateId}`;
+                setCertificateLink(link);
+                toast.success("¡Certificado Acuñado!", { id: toastId });
+            }
+        } catch (error) {
+            console.error("Certificate Error:", error);
+            toast.error("Error al generar certificado.", { id: toastId });
+        } finally {
+            setIsGeneratingCert(false);
         }
     };
 
@@ -500,36 +528,78 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                             </a>
                         )}
 
-                        {/* LEGAL AUDIT OPTIONS & BUTTON */}
-                        <div className="mt-4 p-3 bg-titanium-900/40 rounded-lg border border-titanium-800">
-                            <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block">Formato del Certificado</label>
-                            <div className="flex gap-2">
-                                {['txt', 'md', 'pdf'].map(fmt => (
+                        {/* LEGAL AUDIT & PUBLIC CERTIFICATE */}
+                        <div className="mt-4 p-3 bg-titanium-900/40 rounded-lg border border-titanium-800 space-y-3">
+                            <div>
+                                <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block">Formato del Reporte (Privado)</label>
+                                <div className="flex gap-2">
+                                    {['txt', 'md', 'pdf'].map(fmt => (
+                                        <button
+                                            key={fmt}
+                                            onClick={() => setAuditFormat(fmt as any)}
+                                            aria-pressed={auditFormat === fmt}
+                                            className={`
+                                                px-3 py-1 rounded text-xs font-bold uppercase transition-all
+                                                ${auditFormat === fmt
+                                                    ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
+                                                    : 'bg-titanium-800 text-titanium-400 hover:text-white hover:bg-titanium-700'}
+                                            `}
+                                        >
+                                            {fmt.toUpperCase()}
+                                        </button>
+                                    ))}
+                                </div>
+                                <button
+                                    onClick={handleExportAudit}
+                                    disabled={isExportingAudit}
+                                    className="w-full mt-2 py-2 rounded border border-titanium-700 hover:border-titanium-500 text-titanium-400 hover:text-white transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider group"
+                                >
+                                    {isExportingAudit ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} className="group-hover:text-emerald-400 transition-colors" />}
+                                    <span>Descargar Reporte</span>
+                                </button>
+                            </div>
+
+                            <div className="pt-3 border-t border-titanium-800">
+                                <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block flex items-center gap-2">
+                                    <Shield size={10} className="text-cyan-400" />
+                                    Certificado Público (Blockchain)
+                                </label>
+
+                                {certificateLink ? (
+                                    <div className="p-2 bg-emerald-900/20 border border-emerald-500/30 rounded flex flex-col gap-2">
+                                        <div className="text-[10px] text-emerald-300 font-mono break-all bg-black/20 p-1 rounded">
+                                            {certificateLink}
+                                        </div>
+                                        <a
+                                            href={certificateLink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-center py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase rounded transition-colors"
+                                        >
+                                            Ver Certificado
+                                        </a>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText(certificateLink);
+                                                toast.success("Enlace copiado");
+                                            }}
+                                            className="text-center py-1.5 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 text-[10px] font-bold uppercase rounded transition-colors"
+                                        >
+                                            Copiar Enlace
+                                        </button>
+                                    </div>
+                                ) : (
                                     <button
-                                        key={fmt}
-                                        onClick={() => setAuditFormat(fmt as any)}
-                                        aria-pressed={auditFormat === fmt}
-                                        className={`
-                                            px-3 py-1 rounded text-xs font-bold uppercase transition-all
-                                            ${auditFormat === fmt
-                                                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-900/20'
-                                                : 'bg-titanium-800 text-titanium-400 hover:text-white hover:bg-titanium-700'}
-                                        `}
+                                        onClick={handleGenerateCertificate}
+                                        disabled={isGeneratingCert}
+                                        className="w-full py-2 bg-cyan-900/30 hover:bg-cyan-900/50 border border-cyan-800 hover:border-cyan-500 text-cyan-300 rounded transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider group"
                                     >
-                                        {fmt.toUpperCase()}
+                                        {isGeneratingCert ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
+                                        <span>Generar Certificado Público</span>
                                     </button>
-                                ))}
+                                )}
                             </div>
                         </div>
-
-                        <button
-                            onClick={handleExportAudit}
-                            disabled={isExportingAudit}
-                            className="w-full mt-2 py-3 rounded-lg border border-titanium-700 hover:border-titanium-500 text-titanium-400 hover:text-white transition-all flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider group"
-                        >
-                            {isExportingAudit ? <Loader2 size={14} className="animate-spin" /> : <Shield size={14} className="group-hover:text-emerald-400 transition-colors" />}
-                            <span>Descargar Certificado de Autoría</span>
-                        </button>
 
                         <div className="mt-3 text-center">
                             <span className="text-[10px] text-titanium-600">

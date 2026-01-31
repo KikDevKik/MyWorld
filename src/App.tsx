@@ -431,6 +431,33 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         setCurrentFileName(name);
     };
 
+    // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
+    const handleInsertContent = (text: string) => {
+        if (!selectedFileContent && !currentFileId) {
+            toast.error("No hay archivo abierto para insertar contenido.");
+            return;
+        }
+
+        const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
+        setSelectedFileContent(newContent);
+
+        // 🟢 THE SPY: LOG AI GENERATION
+        if (folderId && user) {
+            CreativeAuditService.updateAuditStats(folderId, user.uid, 0, text.length);
+
+            CreativeAuditService.logCreativeEvent({
+                projectId: folderId,
+                userId: user.uid,
+                component: 'DirectorPanel',
+                actionType: 'INJECTION',
+                description: 'User accepted AI text insertion',
+                payload: { length: text.length }
+            });
+        }
+
+        toast.success("Contenido insertado con éxito.");
+    };
+
     // 🟢 LOADING GATE
     if (isAppLoading) {
         return (
@@ -486,6 +513,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     folderId={folderId}
                     driftAlerts={driftAlerts}
                     accessToken={oauthToken}
+                    onInsertContent={handleInsertContent}
                 />
             );
         } else if (activeView === 'tribunal') {
