@@ -8,6 +8,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
+import { getAIKey } from "./utils/security";
 
 // 🛡️ SENTINEL CONSTANTS
 const MAX_BATCH_SIZE = 50;
@@ -167,7 +168,7 @@ export const analyzeNexusBatch = onCall(
                 return { candidates: [] };
             }
 
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
             // 🟢 STAGE 1: THE HARVESTER (MODEL LOW COST)
             logger.info("🤖 STAGE 1: HARVESTER (Flash) Initiated...");

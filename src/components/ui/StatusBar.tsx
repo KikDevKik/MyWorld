@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Target, Clock, Type, RefreshCw, ScanEye } from 'lucide-react';
+import { Settings, Target, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { GuardianStatus } from '../../hooks/useGuardian';
+import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 
 interface StatusBarProps {
     content: string;
@@ -22,6 +23,8 @@ const getTodayKey = () => {
 };
 
 const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick }) => {
+    const { customGeminiKey } = useProjectConfig();
+
     // METRICS STATE
     // 🟢 FIX: Initialize with current count to avoid "delta = total - 0" on mount
     const [wordCount, setWordCount] = useState(() => countWords(content));
@@ -101,6 +104,25 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
 
             {/* LEFT: METRICS & GUARDIAN */}
             <div className="flex items-center gap-4">
+                {/* 🟢 BYOK INDICATOR */}
+                <div
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-help transition-colors ${
+                        customGeminiKey
+                            ? 'text-purple-400 bg-purple-900/20 hover:bg-purple-900/30'
+                            : 'text-amber-400 bg-amber-900/20 hover:bg-amber-900/30'
+                    }`}
+                    title={customGeminiKey
+                        ? "PRO KEY: Usando tu API Key personal (Sin límites)"
+                        : "MODO DEMO: Usando cuota del sistema (Límites compartidos)"}
+                >
+                   {customGeminiKey ? <Key size={12} /> : <AlertTriangle size={12} />}
+                   <span className="font-bold tracking-wider">
+                       {customGeminiKey ? 'PRO KEY' : 'MODO DEMO'}
+                   </span>
+                </div>
+
+                <div className="h-3 w-px bg-titanium-800 mx-1" />
+
                 {/* 🛡️ EYE OF ARGOS (GUARDIAN TRIGGER) */}
                 {guardianStatus && (
                     <button

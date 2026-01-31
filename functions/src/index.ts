@@ -31,6 +31,7 @@ import { _getDriveFileContentInternal, streamToString } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { maskLog } from "./utils/logger";
 import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
+import { getAIKey } from "./utils/security";
 
 const htmlToPdfmake = require('html-to-pdfmake');
 const { JSDOM } = require('jsdom');
@@ -562,7 +563,7 @@ export const analyzeConnection = onCall(
     if (context && context.length > MAX_CONNECTION_CONTEXT_CHARS) throw new HttpsError("invalid-argument", "Context too long.");
 
     try {
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST, // Gemini 3 Flash for speed
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -721,7 +722,7 @@ export const syncWorldManifest = onCall(
         let nodesUpserted = 0;
 
         // Model setup (Flash for high throughput)
-        const genAI = new GoogleGenerativeAI(googleApiKey.value());
+        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
         const model = genAI.getGenerativeModel({
              model: MODEL_LOW_COST,
              safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -1114,9 +1115,11 @@ export const enrichCharacterContext = onCall(
     try {
       logger.info(`🔮 Deep Analysis Triggered for: ${name} (Saga: ${saga || 'Global'}) | Status: ${status || 'Unknown'}`);
 
+      const finalKey = getAIKey(request.data, googleApiKey.value());
+
       // 1. SETUP VECTORS
       const embeddings = new GoogleGenerativeAIEmbeddings({
-        apiKey: googleApiKey.value(),
+        apiKey: finalKey,
         model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_QUERY,
       });
@@ -1170,7 +1173,7 @@ export const enrichCharacterContext = onCall(
       const sources = Array.from(new Set(chunksData.map(c => c.fileName)));
 
       // 4. AI ANALYSIS (Gemini 3 Pro)
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(finalKey);
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -1632,7 +1635,7 @@ export const indexTDB = onCall(
     try {
       // A. Configurar Embeddings
       const embeddings = new GoogleGenerativeAIEmbeddings({
-        apiKey: googleApiKey.value(),
+        apiKey: getAIKey(request.data, googleApiKey.value()),
         model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
       });
@@ -2051,9 +2054,11 @@ ${analysis}
         logger.info(`✂️ Historial recortado a los últimos 20 mensajes para ahorrar tokens.`);
       }
 
+      const finalKey = getAIKey(request.data, googleApiKey.value());
+
       // 2. Vectorizar Pregunta
       const embeddings = new GoogleGenerativeAIEmbeddings({
-        apiKey: googleApiKey.value(),
+        apiKey: finalKey,
         model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_QUERY,
       });
@@ -2339,7 +2344,7 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
 
       // 🟢 OPERATION BYPASS TOTAL: NATIVE SDK IMPLEMENTATION
       try {
-        const genAI = new GoogleGenerativeAI(googleApiKey.value());
+        const genAI = new GoogleGenerativeAI(finalKey);
 
         // --- 1. CONFIGURATION ---
         const generationConfig = {
@@ -2548,7 +2553,7 @@ export const worldEngine = onCall(
           dynamicTemp = 1.1;
       }
 
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -3120,7 +3125,7 @@ export const addForgeMessage = onCall(
                 const conversation = histSnapshot.docs.map(d => `${d.data().role}: ${d.data().text}`).join('\n');
 
                 const titleModel = new ChatGoogleGenerativeAI({
-                    apiKey: googleApiKey.value(),
+                    apiKey: getAIKey(request.data, googleApiKey.value()),
                     model: MODEL_LOW_COST, // Flash is fast and cheap
                     temperature: 0.4,
                 });
@@ -3255,8 +3260,10 @@ export const forgeToDrive = onCall(
         return `${d.role === 'user' ? 'USUARIO' : 'IA'}: ${d.text}`;
       }).join("\n\n");
 
+      const finalKey = getAIKey(request.data, googleApiKey.value());
+
       const synthesisModel = new ChatGoogleGenerativeAI({
-        apiKey: googleApiKey.value(),
+        apiKey: finalKey,
         model: MODEL_LOW_COST,
         temperature: TEMP_PRECISION,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -3288,7 +3295,7 @@ export const forgeToDrive = onCall(
       let fileName = "";
       try {
         const titleModel = new ChatGoogleGenerativeAI({
-          apiKey: googleApiKey.value(),
+          apiKey: finalKey,
           model: MODEL_LOW_COST,
           temperature: TEMP_PRECISION,
           safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -3538,7 +3545,7 @@ export const extractTimelineEvents = onCall(
     }
 
     try {
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -4119,7 +4126,7 @@ export const syncCharacterManifest = onCall(
 
     // Initialize Embeddings for Ingestion
     const embeddings = new GoogleGenerativeAIEmbeddings({
-        apiKey: googleApiKey.value(),
+        apiKey: getAIKey(request.data, googleApiKey.value()),
         model: "text-embedding-004",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
     });
@@ -4520,7 +4527,7 @@ export const forgeAnalyzer = onCall(
       });
 
       // 2. PREPARAR PROMPT DE ANÁLISIS
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -4765,7 +4772,7 @@ export const updateForgeCharacter = onCall(
                 const currentContent = await _getDriveFileContentInternal(drive, driveFileId);
 
                 // B. Use AI to surgicaly update
-                const genAI = new GoogleGenerativeAI(googleApiKey.value());
+                const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
                 const model = genAI.getGenerativeModel({
                   model: MODEL_HIGH_REASONING,
                   safetySettings: SAFETY_SETTINGS_PERMISSIVE,
