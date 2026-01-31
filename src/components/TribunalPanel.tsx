@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { X, Scale, Gavel, Feather, Skull, Loader2, FileText, Type } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
+import { callFunction } from '../services/api';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 
@@ -43,8 +43,6 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
         }
 
         setIsLoading(true);
-        const functions = getFunctions();
-        const summonTheTribunal = httpsCallable(functions, 'summonTheTribunal', { timeout: 540000 }); // 👈 9 minute timeout
 
         try {
             // 🟢 Send different payload based on mode
@@ -52,12 +50,14 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 ? { text, context }
                 : { fileId: currentFileId, accessToken, context, text: '' }; // Send empty text if file mode
 
-            const response = await summonTheTribunal(payload);
+            const response = await callFunction('summonTheTribunal', payload, { timeout: 540000 });
             setResult(response.data as TribunalResult);
             toast.success("El Tribunal ha dictado sentencia.");
-        } catch (error) {
+        } catch (error: any) {
             console.error("Error summoning tribunal:", error);
-            toast.error("El Tribunal está en receso (Error).");
+            if (!error.message?.includes('INVALID_CUSTOM_KEY')) {
+                toast.error("El Tribunal está en receso (Error).");
+            }
         } finally {
             setIsLoading(false);
         }

@@ -3376,7 +3376,10 @@ export const summonTheTribunal = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión para convocar al Tribunal.");
     }
 
-    const { text, fileId, context, accessToken } = request.data;
+    const { text, fileId, context, accessToken, _authOverride } = request.data;
+
+    // 🔑 PRIORITY LOGIC: Custom Key vs System Key
+    const finalApiKey = _authOverride || googleApiKey.value();
 
     let textToAnalyze = text;
 
@@ -3423,7 +3426,7 @@ export const summonTheTribunal = onCall(
       `;
 
       const chatModel = new ChatGoogleGenerativeAI({
-        apiKey: googleApiKey.value(),
+        apiKey: finalApiKey, // 🟢 Usamos la llave ganadora
         model: MODEL_HIGH_REASONING,
         temperature: TEMP_CREATIVE,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -3493,6 +3496,13 @@ export const summonTheTribunal = onCall(
 
     } catch (error: any) {
       logger.error("Error en summonTheTribunal:", error);
+
+      // 🛡️ AUTH ERROR TRAP: Detect invalid custom key
+      if (_authOverride && (error.message?.includes('400') || error.message?.includes('API key') || error.status === 400)) {
+          logger.warn(`⚠️ Custom API Key rejected for user ${userId}`);
+          throw new HttpsError("invalid-argument", "INVALID_CUSTOM_KEY");
+      }
+
       throw new HttpsError("internal", error.message);
     }
   }
