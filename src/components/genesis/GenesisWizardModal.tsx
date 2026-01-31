@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Loader2, Send, Wand2 } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { CreativeAuditService } from '../../services/CreativeAuditService';
+import { callFunction } from '../../services/api';
 
 interface GenesisWizardModalProps {
     isOpen: boolean;
@@ -89,9 +89,6 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         }
 
         try {
-            const functions = getFunctions();
-            const chatWithGem = httpsCallable(functions, 'chatWithGem');
-
             // Construct specific system prompt for this context
             const systemInstruction = `
                 You are a Socratic Architect (El Arquitecto Socrático).
@@ -107,7 +104,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                 - Otherwise, just ask the next question.
             `;
 
-            const result = await chatWithGem({
+            const data = await callFunction<any>('chatWithGem', {
                 query: userMsg.message,
                 history: newHistory.slice(0, -1), // Send previous history
                 systemInstruction: systemInstruction,
@@ -115,7 +112,6 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                 isFallbackContext: true // Treat as isolated context
             });
 
-            const data = result.data as any;
             if (data.response) {
                 let responseText = data.response;
 
@@ -176,15 +172,10 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         }
 
         try {
-            const functions = getFunctions();
-            const genesisManifest = httpsCallable(functions, 'genesisManifest');
-
-            const result = await genesisManifest({
+            const data = await callFunction<any>('genesisManifest', {
                 chatHistory: messages,
                 accessToken: tokenToUse // Use Fresh Token
             });
-
-            const data = result.data as any;
 
             if (data.success) {
                 toast.success(data.message || "¡Mundo Materializado!");

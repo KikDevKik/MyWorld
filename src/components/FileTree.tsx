@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getFunctions, httpsCallable } from "firebase/functions";
 import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { callFunction } from '../services/api';
 
 interface FileNode {
     id: string;
@@ -105,12 +105,10 @@ const FileTreeNode: React.FC<{
 
             setIsLoading(true);
             try {
-                const functions = getFunctions();
-                const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
-                const result = await getDriveFiles({ folderId: node.id, accessToken });
+                const result = await callFunction<any>('getDriveFiles', { folderId: node.id, accessToken });
 
                 // 🟢 FIX: Usamos el extractor seguro
-                const files = extractFiles(result.data);
+                const files = extractFiles(result);
 
                 setChildren(files);
                 setIsLoaded(true);
@@ -126,11 +124,8 @@ const FileTreeNode: React.FC<{
     const loadContent = async () => {
         setIsLoading(true);
         try {
-            const functions = getFunctions();
-            const getDriveFileContent = httpsCallable(functions, 'getDriveFileContent');
-            const result = await getDriveFileContent({ fileId: node.id, accessToken });
-            const content = (result.data as any).content;
-            onFileSelect(node.id, content, node.name);
+            const result = await callFunction<{ content: string }>('getDriveFileContent', { fileId: node.id, accessToken });
+            onFileSelect(node.id, result.content, node.name);
         } catch (error) {
             console.error("Error loading file:", error);
             toast.error("Error al abrir archivo");
@@ -149,13 +144,10 @@ const FileTreeNode: React.FC<{
 
         setIsSaving(true);
         try {
-            const functions = getFunctions();
-            const renameDriveFolder = httpsCallable(functions, 'renameDriveFolder');
-
             // Use driveId if available (for Shortcuts/Preloaded), else id
             const targetId = node.driveId || node.id;
 
-            await renameDriveFolder({
+            await callFunction('renameDriveFolder', {
                 accessToken,
                 fileId: targetId,
                 newName: editName
@@ -326,12 +318,10 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
             if (!folderId || !accessToken) return; // 🛡️ Si no hay token, no intentamos
             setIsLoading(true);
             try {
-                const functions = getFunctions();
-                const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
-                const result = await getDriveFiles({ folderId, accessToken });
+                const result = await callFunction<any>('getDriveFiles', { folderId, accessToken });
 
                 // 🟢 FIX: Usamos el extractor seguro
-                const files = extractFiles(result.data);
+                const files = extractFiles(result);
 
                 setRootFiles(files);
                 if (onLoad) onLoad(files); // 👈 Notificamos al padre

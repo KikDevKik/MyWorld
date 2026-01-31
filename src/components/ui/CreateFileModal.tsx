@@ -3,8 +3,8 @@ import { X, Folder, FilePlus, Loader2, Save } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import useDrivePicker from 'react-google-drive-picker';
 import { FolderRole } from '../../types/core';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
+import { callFunction } from '../../services/api';
 
 interface CreateFileModalProps {
     isOpen: boolean;
@@ -128,19 +128,14 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
 
         setIsSubmitting(true);
         try {
-            const functions = getFunctions();
-            const forgeToolExecution = httpsCallable(functions, 'forgeToolExecution');
-
             const fileContent = `# ${fileName}\n\n`;
 
-            const result = await forgeToolExecution({
+            const data = await callFunction<any>('forgeToolExecution', {
                 title: fileName,
                 content: fileContent,
                 folderId: selectedFolder.id,
                 accessToken: accessToken
             });
-
-            const data = result.data as any;
 
             if (data.success) {
                 toast.success("Archivo creado exitosamente.");
