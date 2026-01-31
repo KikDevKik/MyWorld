@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getAuth, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserSessionPersistence } from 'firebase/auth';
 import { Shield, Lock, ChevronRight, AlertCircle } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -24,6 +24,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         });
 
         try {
+            // 🟢 CONFIGURAR PERSISTENCIA DE SESIÓN (SOLO PESTAÑA)
+            await setPersistence(auth, browserSessionPersistence);
+
             const result = await signInWithPopup(auth, provider);
             // 🟢 CAPTURAR EL TOKEN AQUÍ
             const credential = GoogleAuthProvider.credentialFromResult(result);
