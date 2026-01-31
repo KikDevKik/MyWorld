@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
+import { callFunction } from '../services/api';
 import { ChatMessageData } from '../components/director/chat/ChatMessage';
 
 interface UseDirectorChatProps {
@@ -29,31 +29,21 @@ export const useDirectorChat = ({
     const [purgingIds, setPurgingIds] = useState<Set<string>>(new Set());
     const [rescuingIds, setRescuingIds] = useState<Set<string>>(new Set());
 
-    const functions = getFunctions();
-    const getForgeHistory = httpsCallable(functions, 'getForgeHistory');
-    const addForgeMessage = httpsCallable(functions, 'addForgeMessage');
-    const createForgeSession = httpsCallable(functions, 'createForgeSession');
-    const chatWithGem = httpsCallable(functions, 'chatWithGem');
-    const forgeAnalyzer = httpsCallable(functions, 'forgeAnalyzer');
-    const summonTheTribunal = httpsCallable(functions, 'summonTheTribunal');
-    const purgeEcho = httpsCallable(functions, 'purgeEcho');
-    const rescueEcho = httpsCallable(functions, 'rescueEcho');
-
     // 🟢 INIT SESSION HELPER
     const ensureSession = useCallback(async (): Promise<string | null> => {
         if (activeSessionId) return activeSessionId;
 
         try {
-            const result = await createForgeSession({ name: `Director ${new Date().toLocaleDateString()}`, type: 'director' });
+            const result = await callFunction('createForgeSession', { name: `Director ${new Date().toLocaleDateString()}`, type: 'director' });
             const data = result.data as { sessionId: string };
             onSessionSelect(data.sessionId);
             return data.sessionId;
         } catch (error) {
             console.error("Failed to create session:", error);
-            toast.error("Error iniciando sesión del Director.");
+            // toast.error("Error iniciando sesión del Director."); // Handled by api.ts for known errors
             return null;
         }
-    }, [activeSessionId, createForgeSession, onSessionSelect]);
+    }, [activeSessionId, onSessionSelect]);
 
     // 🟢 LOAD HISTORY
     useEffect(() => {
@@ -61,7 +51,7 @@ export const useDirectorChat = ({
             if (activeSessionId) {
                 setIsLoadingHistory(true);
                 try {
-                    const result = await getForgeHistory({ sessionId: activeSessionId });
+                    const result = await callFunction('getForgeHistory', { sessionId: activeSessionId });
                     const history = result.data as any[];
 
                     const formatted: ChatMessageData[] = history.map(h => {
@@ -205,9 +195,9 @@ export const useDirectorChat = ({
         setIsThinking(true);
 
         try {
-            await addForgeMessage({ sessionId: currentSessionId, role: 'user', text: text });
+            await callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'user', text: text });
 
-            const result = await chatWithGem({
+            const result = await callFunction('chatWithGem', {
                 query: text,
                 sessionId: currentSessionId,
                 activeFileContent,
@@ -218,7 +208,7 @@ export const useDirectorChat = ({
 
             const data = result.data as { response: string };
 
-            await addForgeMessage({ sessionId: currentSessionId, role: 'ia', text: data.response });
+            await callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'ia', text: data.response });
 
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),
@@ -228,9 +218,11 @@ export const useDirectorChat = ({
                 type: 'text'
             }]);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Director Error:", error);
-            toast.error("Error del Director.");
+            if (!error.message?.includes('INVALID_CUSTOM_KEY')) {
+                toast.error("Error del Director.");
+            }
             setMessages(prev => [...prev, {
                 id: 'err-' + Date.now(),
                 role: 'system',
@@ -305,10 +297,10 @@ export const useDirectorChat = ({
         }]);
 
         try {
-            await addForgeMessage({ sessionId: sid, role: 'user', text: "[ACTION: INSPECTOR INVOKED]" });
+            await callFunction('addForgeMessage', { sessionId: sid, role: 'user', text: "[ACTION: INSPECTOR INVOKED]" });
 
             // Call Backend
-            const result = await forgeAnalyzer({
+            const result = await callFunction('forgeAnalyzer', {
                  fileId: fileId,
                  accessToken: accessToken // Passed from props
             });
@@ -316,7 +308,7 @@ export const useDirectorChat = ({
             const data = result.data;
 
             // Save implicit history?
-             await addForgeMessage({
+             await callFunction('addForgeMessage', {
                 sessionId: sid,
                 role: 'system',
                 text: "Reporte de Inspector Generado (Visualizado en UI)",
@@ -403,7 +395,7 @@ export const useDirectorChat = ({
         }]);
 
         try {
-            await addForgeMessage({ sessionId: sid, role: 'user', text: "[ACTION: TRIBUNAL SUMMONED]" });
+            await callFunction('addForgeMessage', { sessionId: sid, role: 'user', text: "[ACTION: TRIBUNAL SUMMONED]" });
 
             // Smart Slicing (Max 3000 chars if full content)
             let finalPayload = textToAnalyze;
@@ -411,14 +403,14 @@ export const useDirectorChat = ({
                 finalPayload = textToAnalyze.slice(-3000);
             }
 
-            const result = await summonTheTribunal({
+            const result = await callFunction('summonTheTribunal', {
                 text: finalPayload,
                 context: "Director Panel Quick Judgment"
             });
 
             const verdictData = result.data;
 
-            await addForgeMessage({
+            await callFunction('addForgeMessage', {
                 sessionId: sid,
                 role: 'system',
                 text: "Veredicto del Tribunal Emitido",
@@ -469,7 +461,7 @@ export const useDirectorChat = ({
         }]);
 
         if (sid) {
-            addForgeMessage({
+            callFunction('addForgeMessage', {
                 sessionId: sid,
                 role: 'system',
                 text: systemMsg
@@ -488,7 +480,7 @@ export const useDirectorChat = ({
         setRescuingIds(prev => new Set(prev).add(msgId));
 
         try {
-            const result = await rescueEcho({ chunkPath: drift.chunkPath, driftCategory: category });
+            const result = await callFunction('rescueEcho', { chunkPath: drift.chunkPath, driftCategory: category });
             const data = (result.data as any);
 
             toast.success("Eco rescatado.", { id: toastId });
@@ -526,7 +518,7 @@ export const useDirectorChat = ({
         setPurgingIds(prev => new Set(prev).add(msgId));
 
         try {
-             await purgeEcho({ chunkPath: drift.chunkPath });
+             await callFunction('purgeEcho', { chunkPath: drift.chunkPath });
              toast.success("Eco purgado.", { id: toastId });
 
              setMessages(prev => prev.map(m => {
