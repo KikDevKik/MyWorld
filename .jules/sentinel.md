@@ -87,3 +87,11 @@
 **Vulnerability:** Authentication functions (`exchangeAuthCode`, `refreshDriveToken`) threw raw `HttpsError("internal", error.message)`, exposing Google API error details and potential token fragments to the client.
 **Learning:** Developers prioritized debugging speed over security, bypassing safe error wrapping. This pattern was widespread across `functions/src/index.ts` and `auth.ts`, risking leakage of sensitive internal state.
 **Prevention:** Enforced use of `handleSecureError` wrapper for the Auth module (`functions/src/auth.ts`) as a critical first step. This wrapper logs the full error server-side for debugging but returns a generic, sanitized message to the client. Future work should extend this to `index.ts`.
+
+## 2025-05-29 - [CRITICAL] Hardcoded Secrets in Client Bundle
+**Vulnerability:** Hardcoded API Key in Source Code
+**Learning:** `src/lib/firebase.ts` contained a fallback configuration object with a hardcoded Google API Key. This practice exposes sensitive credentials in the source code (and potentially the public bundle), bypassing environment-based security controls.
+**Prevention:**
+1. Removed the hardcoded fallback completely.
+2. Implemented a strict runtime check that throws a CRITICAL SECURITY error if the environment variable is missing.
+3. Created `.env.example` to guide developers on required configuration. Security must take precedence over convenience.
