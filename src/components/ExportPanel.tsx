@@ -264,44 +264,44 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
         try {
             if (auditFormat === 'pdf') {
-                 toast.loading("Compilando PDF oficial...", { id: toastId });
-                 const pdfBase64 = await CreativeAuditService.fetchAuditPDF(folderId);
+                toast.loading("Compilando PDF oficial...", { id: toastId });
+                const pdfBase64 = await CreativeAuditService.fetchAuditPDF(folderId);
 
-                 if (!pdfBase64) throw new Error("PDF generation failed.");
+                if (!pdfBase64) throw new Error("PDF generation failed.");
 
-                 // Convert Base64 to Blob
-                 const byteCharacters = atob(pdfBase64);
-                 const byteNumbers = new Array(byteCharacters.length);
-                 for (let i = 0; i < byteCharacters.length; i++) {
-                     byteNumbers[i] = byteCharacters.charCodeAt(i);
-                 }
-                 const byteArray = new Uint8Array(byteNumbers);
-                 const blob = new Blob([byteArray], { type: "application/pdf" });
+                // Convert Base64 to Blob
+                const byteCharacters = atob(pdfBase64);
+                const byteNumbers = new Array(byteCharacters.length);
+                for (let i = 0; i < byteCharacters.length; i++) {
+                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                }
+                const byteArray = new Uint8Array(byteNumbers);
+                const blob = new Blob([byteArray], { type: "application/pdf" });
 
-                 // Download
-                 const url = URL.createObjectURL(blob);
-                 const a = document.createElement('a');
-                 a.href = url;
-                 a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.pdf`;
-                 document.body.appendChild(a);
-                 a.click();
-                 document.body.removeChild(a);
-                 URL.revokeObjectURL(url);
+                // Download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.pdf`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             } else {
-                 const reportText = await CreativeAuditService.generateAuditReport(folderId, user.uid, auditFormat);
+                const reportText = await CreativeAuditService.generateAuditReport(folderId, user.uid, auditFormat);
 
-                 const mime = auditFormat === 'md' ? 'text/markdown' : 'text/plain';
-                 const ext = auditFormat;
+                const mime = auditFormat === 'md' ? 'text/markdown' : 'text/plain';
+                const ext = auditFormat;
 
-                 const blob = new Blob([reportText], { type: mime });
-                 const url = URL.createObjectURL(blob);
-                 const a = document.createElement('a');
-                 a.href = url;
-                 a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.${ext}`;
-                 document.body.appendChild(a);
-                 a.click();
-                 document.body.removeChild(a);
-                 URL.revokeObjectURL(url);
+                const blob = new Blob([reportText], { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${(title || 'Project').replace(/ /g, '_')}_Legal_Audit.${ext}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             }
 
             toast.success(`Certificado de Autoría (${auditFormat.toUpperCase()}) descargado.`, { id: toastId });
@@ -442,7 +442,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div
                                     className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.includeCover ? 'bg-cyan-600 border-cyan-500' : 'border-titanium-600 group-hover:border-titanium-400'}`}
-                                    onClick={() => setOptions({...options, includeCover: !options.includeCover})}
+                                    onClick={() => setOptions({ ...options, includeCover: !options.includeCover })}
                                 >
                                     {options.includeCover && <CheckSquare size={14} className="text-white" />}
                                 </div>
@@ -452,7 +452,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div
                                     className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.includeToc ? 'bg-cyan-600 border-cyan-500' : 'border-titanium-600 group-hover:border-titanium-400'}`}
-                                    onClick={() => setOptions({...options, includeToc: !options.includeToc})}
+                                    onClick={() => setOptions({ ...options, includeToc: !options.includeToc })}
                                 >
                                     {options.includeToc && <CheckSquare size={14} className="text-white" />}
                                 </div>
@@ -462,7 +462,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div
                                     className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.pageBreakPerFile ? 'bg-cyan-600 border-cyan-500' : 'border-titanium-600 group-hover:border-titanium-400'}`}
-                                    onClick={() => setOptions({...options, pageBreakPerFile: !options.pageBreakPerFile})}
+                                    onClick={() => setOptions({ ...options, pageBreakPerFile: !options.pageBreakPerFile })}
                                 >
                                     {options.pageBreakPerFile && <CheckSquare size={14} className="text-white" />}
                                 </div>
@@ -473,7 +473,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                             <label className="flex items-center gap-3 cursor-pointer group p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 hover:border-amber-500/40 transition-all">
                                 <div
                                     className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${options.smartBreaks ? 'bg-amber-600 border-amber-500' : 'border-amber-700 group-hover:border-amber-500'}`}
-                                    onClick={() => setOptions({...options, smartBreaks: !options.smartBreaks})}
+                                    onClick={() => setOptions({ ...options, smartBreaks: !options.smartBreaks })}
                                 >
                                     {options.smartBreaks && <CheckSquare size={14} className="text-white" />}
                                 </div>
@@ -562,7 +562,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                             <div className="pt-3 border-t border-titanium-800">
                                 <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block flex items-center gap-2">
                                     <Shield size={10} className="text-cyan-400" />
-                                    Certificado Público (Blockchain)
+                                    Certificado Público
                                 </label>
 
                                 {certificateLink ? (
