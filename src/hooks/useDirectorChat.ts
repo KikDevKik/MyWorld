@@ -34,8 +34,7 @@ export const useDirectorChat = ({
         if (activeSessionId) return activeSessionId;
 
         try {
-            const result = await callFunction('createForgeSession', { name: `Director ${new Date().toLocaleDateString()}`, type: 'director' });
-            const data = result.data as { sessionId: string };
+            const data = await callFunction<{ sessionId: string }>('createForgeSession', { name: `Director ${new Date().toLocaleDateString()}`, type: 'director' });
             onSessionSelect(data.sessionId);
             return data.sessionId;
         } catch (error) {
@@ -51,8 +50,7 @@ export const useDirectorChat = ({
             if (activeSessionId) {
                 setIsLoadingHistory(true);
                 try {
-                    const result = await callFunction('getForgeHistory', { sessionId: activeSessionId });
-                    const history = result.data as any[];
+                    const history = await callFunction<any[]>('getForgeHistory', { sessionId: activeSessionId });
 
                     const formatted: ChatMessageData[] = history.map(h => {
                          let type: ChatMessageData['type'] = 'text';
@@ -197,7 +195,7 @@ export const useDirectorChat = ({
         try {
             await callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'user', text: text });
 
-            const result = await callFunction('chatWithGem', {
+            const data = await callFunction<{ response: string }>('chatWithGem', {
                 query: text,
                 sessionId: currentSessionId,
                 activeFileContent,
@@ -205,8 +203,6 @@ export const useDirectorChat = ({
                 isFallbackContext,
                 systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable. If you see a Drift Alert in history, address it professionally."
             });
-
-            const data = result.data as { response: string };
 
             await callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'ia', text: data.response });
 
@@ -300,12 +296,10 @@ export const useDirectorChat = ({
             await callFunction('addForgeMessage', { sessionId: sid, role: 'user', text: "[ACTION: INSPECTOR INVOKED]" });
 
             // Call Backend
-            const result = await callFunction('forgeAnalyzer', {
+            const data = await callFunction<any>('forgeAnalyzer', {
                  fileId: fileId,
                  accessToken: accessToken // Passed from props
             });
-
-            const data = result.data;
 
             // Save implicit history?
              await callFunction('addForgeMessage', {
@@ -403,12 +397,10 @@ export const useDirectorChat = ({
                 finalPayload = textToAnalyze.slice(-3000);
             }
 
-            const result = await callFunction('summonTheTribunal', {
+            const verdictData = await callFunction<any>('summonTheTribunal', {
                 text: finalPayload,
                 context: "Director Panel Quick Judgment"
             });
-
-            const verdictData = result.data;
 
             await callFunction('addForgeMessage', {
                 sessionId: sid,
@@ -480,8 +472,7 @@ export const useDirectorChat = ({
         setRescuingIds(prev => new Set(prev).add(msgId));
 
         try {
-            const result = await callFunction('rescueEcho', { chunkPath: drift.chunkPath, driftCategory: category });
-            const data = (result.data as any);
+            const data = await callFunction<any>('rescueEcho', { chunkPath: drift.chunkPath, driftCategory: category });
 
             toast.success("Eco rescatado.", { id: toastId });
 

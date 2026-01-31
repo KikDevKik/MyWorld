@@ -1,11 +1,11 @@
-import { getFunctions, httpsCallable as firebaseHttpsCallable } from 'firebase/functions';
+import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions } from 'firebase/functions';
 import { toast } from 'sonner';
 
 /**
  * Wrapper for Firebase Cloud Functions that injects custom BYOK keys.
  * Implements the "Injection Protocol" for secure key transport.
  */
-export const callFunction = async (name: string, data: any = {}, options?: any) => {
+export const callFunction = async <T>(name: string, data: any = {}, options?: HttpsCallableOptions): Promise<T> => {
     const functions = getFunctions();
     const customKey = localStorage.getItem('myworld_custom_gemini_key');
 
@@ -15,7 +15,8 @@ export const callFunction = async (name: string, data: any = {}, options?: any) 
     const fn = firebaseHttpsCallable(functions, name, options);
 
     try {
-        return await fn(payload);
+        const result = await fn(payload);
+        return result.data as T;
     } catch (error: any) {
         // Manejo de Errores (Safety Net)
         // Detectamos el código específico INVALID_CUSTOM_KEY que envía el backend
