@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
+import { callFunction } from '../services/api';
 
 export interface GuardianFact {
     entity: string;
@@ -95,16 +95,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         if (isManual) toast.loading("Iniciando escaneo de seguridad...", { id: 'guardian-audit' });
 
         try {
-            const functions = getFunctions();
-            const auditContent = httpsCallable(functions, 'auditContent', { timeout: 600000 }); // 10 Minutes
-
-            const result = await auditContent({
-                content: textToAudit,
-                projectId: projectId || 'global',
-                fileId: fileId
-            });
-
-            const data = result.data as {
+            const data = await callFunction<{
                 success: boolean,
                 status?: string,
                 message?: string,
@@ -114,7 +105,11 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
                 personality_drift?: GuardianPersonalityDrift[],
                 resonance_matches?: ResonanceMatch[], // 🟢
                 structure_analysis?: StructureAnalysis // 🟢
-            };
+            }>('auditContent', {
+                content: textToAudit,
+                projectId: projectId || 'global',
+                fileId: fileId
+            }, { timeout: 600000 }); // 10 Minutes
 
             if (data.success) {
                 if (data.status === 'skipped_unchanged') {
