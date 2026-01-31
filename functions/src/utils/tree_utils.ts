@@ -13,7 +13,7 @@ interface FileNode {
 
 export async function updateFirestoreTree(
     userId: string,
-    operation: 'add' | 'rename',
+    operation: 'add' | 'rename' | 'delete',
     targetId: string, // For rename: fileId. For add: unused (or new fileId)
     payload: { name?: string; parentId?: string; newNode?: FileNode }
 ) {
@@ -73,6 +73,21 @@ export async function updateFirestoreTree(
                 if (!found) {
                      logger.warn(`⚠️ updateFirestoreTree: Parent ${parentId} not found in tree. Node not added.`);
                 }
+            } else if (operation === 'delete') {
+                const deleteNode = (nodes: FileNode[]): boolean => {
+                    for (let i = 0; i < nodes.length; i++) {
+                        const node = nodes[i];
+                        if (node.id === targetId || node.driveId === targetId) {
+                            nodes.splice(i, 1);
+                            return true;
+                        }
+                        if (node.children) {
+                            if (deleteNode(node.children)) return true;
+                        }
+                    }
+                    return false;
+                };
+                deleteNode(tree);
             }
 
             t.set(treeRef, { tree, updatedAt: new Date().toISOString() }, { merge: true });

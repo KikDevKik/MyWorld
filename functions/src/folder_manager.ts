@@ -446,3 +446,70 @@ export const renameDriveFolder = onCall(
         }
     }
 );
+
+/**
+ * 2.4. MOVER A PAPELERA (The Shredder)
+ * Mueve múltiples archivos/carpetas a la papelera de Drive.
+ */
+export const trashDriveItems = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { accessToken, fileIds } = request.data;
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+        if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+            throw new HttpsError("invalid-argument", "Falta lista de IDs (fileIds).");
+        }
+
+        const userId = request.auth.uid;
+
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            logger.info(`🗑️ Trashing ${fileIds.length} items for user ${userId}`);
+
+            let successCount = 0;
+            const errors: any[] = [];
+
+            // Execute Sequentially to be safe, or Promise.all for speed.
+            // Promise.all is fine for reasonable batch sizes.
+            await Promise.all(fileIds.map(async (fileId: string) => {
+                try {
+                    await drive.files.update({
+                        fileId: fileId,
+                        requestBody: {
+                            trashed: true
+                        }
+                    });
+
+                    // 🟢 PERSISTENCE: Update Firestore Tree (Sync Memory)
+                    // We fire this asynchronously but await it to ensure consistency?
+                    // Let's await to avoid race conditions if user immediately reloads.
+                    await updateFirestoreTree(userId, 'delete', fileId, {});
+                    successCount++;
+                } catch (e: any) {
+                    logger.error(`   ❌ Failed to trash item ${fileId}:`, e.message);
+                    errors.push({ id: fileId, error: e.message });
+                }
+            }));
+
+            if (successCount === 0 && errors.length > 0) {
+                throw new HttpsError("aborted", "No se pudo eliminar ningún elemento.", errors);
+            }
+
+            logger.info(`✅ Trash complete. Success: ${successCount}, Failures: ${errors.length}`);
+            return { success: true, count: successCount, errors };
+
+        } catch (error: any) {
+            logger.error("Error trashing items:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);

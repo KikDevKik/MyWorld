@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 
@@ -21,6 +21,9 @@ interface FileTreeProps {
     conflictingFileIds?: Set<string>; // 👈 NEW: Conflicting Files
     showOnlyHealthy?: boolean; // 👈 NEW: Filter
     activeFileId?: string | null; // 👈 NEW: Active File Highlighting
+    isDeleteMode?: boolean; // 👈 NEW: Delete Mode
+    selectedDeleteIds?: Set<string>; // 👈 NEW: Selection
+    onToggleDeleteSelect?: (id: string) => void; // 👈 NEW: Selection Handler
 }
 
 // --- HELPER PARA EXTRAER DATOS DE FORMA SEGURA ---
@@ -42,7 +45,10 @@ const FileTreeNode: React.FC<{
     conflictingFileIds?: Set<string>;
     showOnlyHealthy?: boolean;
     activeFileId?: string | null;
-}> = ({ node, depth, onFileSelect, accessToken, isPreloaded, conflictingFileIds, showOnlyHealthy, activeFileId }) => {
+    isDeleteMode?: boolean;
+    selectedDeleteIds?: Set<string>;
+    onToggleDeleteSelect?: (id: string) => void;
+}> = ({ node, depth, onFileSelect, accessToken, isPreloaded, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [children, setChildren] = useState<FileNode[]>(node.children || []);
     const [isLoading, setIsLoading] = useState(false);
@@ -82,14 +88,23 @@ const FileTreeNode: React.FC<{
         return null; // Hide this node
     }
 
+    // 🟢 DELETE MODE SELECTION STATE
+    const isDeleteSelected = selectedDeleteIds?.has(node.id);
+
     const handleToggle = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation(); // Stop propagation
 
+        // 🟢 DELETE MODE: FILE CLICK -> SELECT
+        // If it's a file, we select it. If it's a folder icon click, we still expand it (below).
+        // But if this is called from the row wrapper?
+
         if (!isFolder) {
+            if (isDeleteMode && onToggleDeleteSelect) {
+                onToggleDeleteSelect(node.id);
+                return;
+            }
+
             // ES UN ARCHIVO: CARGAR CONTENIDO
-            // Note: Click on file text selects it. Click on icon also selects it.
-            // This function handles "toggle" logic, usually called by icon click.
-            // For files, toggle logic implies selection.
             loadContent();
             return;
         }
@@ -197,11 +212,13 @@ const FileTreeNode: React.FC<{
             <div
                 className={`
                     flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
-                    ${isActive && !isEditing
+                    ${isActive && !isEditing && !isDeleteMode
                         ? 'bg-cyan-900/20 text-cyan-400 font-medium'
                         : isConflicting
                             ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-900/20'
-                            : 'text-titanium-300 hover:text-titanium-100 hover:bg-cyan-900/20'
+                            : isDeleteSelected
+                                ? 'bg-red-900/20 text-red-300' // Highlight selected for delete
+                                : 'text-titanium-300 hover:text-titanium-100 hover:bg-cyan-900/20'
                     }
                     ${!isFolder && isLoading ? 'animate-pulse' : ''}
                 `}
@@ -210,6 +227,19 @@ const FileTreeNode: React.FC<{
                 tabIndex={0}
                 title={isConflicting ? "Divergencia Narrativa detectada por el Guardián. Revisión pendiente." : undefined}
             >
+                {/* 🟢 DELETE MODE CHECKBOX */}
+                {isDeleteMode && (
+                    <div
+                        className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer mr-1 hover:text-red-400 text-titanium-500 transition-colors"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            if (onToggleDeleteSelect) onToggleDeleteSelect(node.id);
+                        }}
+                    >
+                        {isDeleteSelected ? <CheckSquare size={14} className="text-red-500" /> : <Square size={14} />}
+                    </div>
+                )}
+
                 {/* 🟢 CLICK AREA 1: ICON (TOGGLE) */}
                 <div
                     className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer hover:text-cyan-400 transition-colors"
@@ -244,26 +274,23 @@ const FileTreeNode: React.FC<{
                     <span
                         className={`text-xs truncate cursor-pointer flex-1 ${isConflicting ? 'font-bold' : ''}`}
                         onClick={(e) => {
+                            if (isDeleteMode && onToggleDeleteSelect) {
+                                // In delete mode, clicking name toggles selection
+                                e.stopPropagation();
+                                onToggleDeleteSelect(node.id);
+                                return;
+                            }
+
                             if (!isFolder) {
                                 // Files select on click
                                 loadContent();
                             } else {
-                                // Folders toggle on single click too?
-                                // User said: "click de abrir la carpeta solo sea donde este la flechita... click para cambiar nombres solo sea donde esten las letras"
-                                // Implying letters click does NOT toggle? Or letters click triggers rename?
-                                // User said: "doble click podra editar... click para cambiar nombres solo sea donde esten las letras"
-                                // This implies single click on text MIGHT do nothing for folders, or select?
-                                // Standard UI: Single click selects/focuses, Double click renames (or opens).
-                                // User requirement: "doble click en esta ... podra editar".
-                                // User requirement: "click de abrir ... solo sea flechita".
-                                // So single click on text does NOT open folder.
                                 e.stopPropagation();
                             }
                         }}
                         onDoubleClick={(e) => {
                             e.stopPropagation();
-                            // Enable renaming for both files and folders
-                            setIsEditing(true);
+                            if (!isDeleteMode) setIsEditing(true);
                         }}
                     >
                         {node.name}
@@ -285,6 +312,9 @@ const FileTreeNode: React.FC<{
                             conflictingFileIds={conflictingFileIds} // Pass Down
                             showOnlyHealthy={showOnlyHealthy} // Pass Down
                             activeFileId={activeFileId} // Pass Down
+                            isDeleteMode={isDeleteMode} // Pass Down
+                            selectedDeleteIds={selectedDeleteIds} // Pass Down
+                            onToggleDeleteSelect={onToggleDeleteSelect} // Pass Down
                         />
                     ))}
                     {children.length === 0 && !isLoading && (
@@ -301,7 +331,7 @@ const FileTreeNode: React.FC<{
     );
 };
 
-const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId }) => {
+const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect }) => {
     const [rootFiles, setRootFiles] = useState<FileNode[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -364,6 +394,9 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
                     conflictingFileIds={conflictingFileIds} // Pass Down
                     showOnlyHealthy={showOnlyHealthy} // Pass Down
                     activeFileId={activeFileId} // Pass Down
+                    isDeleteMode={isDeleteMode}
+                    selectedDeleteIds={selectedDeleteIds}
+                    onToggleDeleteSelect={onToggleDeleteSelect}
                 />
             ))}
         </div>
