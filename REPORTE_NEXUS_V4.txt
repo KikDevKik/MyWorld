@@ -1,0 +1,85 @@
+================================================================================
+REPORTE DE ESTADO: SISTEMA NEXUS & PERFORADOR V2
+================================================================================
+FECHA: Actualidad (v4.0 - Fase 6: La Revelación)
+ESTADO: EN PRODUCCIÓN / DESPLIEGUE FINAL
+--------------------------------------------------------------------------------
+1. CAMBIOS RECIENTES EN EL NÚCLEO (ÚLTIMA ITERACIÓN)
+--------------------------------------------------------------------------------
+El sistema ha alcanzado la madurez con la integración completa del "Manual de Campo"
+y el "Escriba Mayor" como interfaz de usuario.
+
+A. PROTOCOLO DE IDENTIDAD DETERMINISTA (CONFIRMADO)
+- Los IDs se generan mediante `DJB2 Hash` (Slug + ProjectID).
+- BENEFICIO: Predicción de enlaces y fusión implícita inmediata entre archivos
+dispersos sin necesidad de base de datos centralizada.
+
+B. PROTOCOLO DE FUSIÓN (THE UNIFIER)
+- El "Tribunal Nexus" ahora soporta "Batch Merge" (Fusión por Lotes) para unificar
+múltiples menciones ("El Rey", "Rey Arturo", "Arturo") en una sola entidad.
+
+C. PROTOCOLO DE LISTA NEGRA (EL RENCOR)
+- Persistencia total de `ignoredTerms` en `project_config`.
+- La IA ahora ignora activamente términos prohibidos durante el escaneo.
+
+--------------------------------------------------------------------------------
+2. EXPERIENCIA VISUAL: EL PERFORADOR DE MUNDOS V2
+--------------------------------------------------------------------------------
+[EL LIENZO]
+* Motor: `react-zoom-pan-pinch` para navegación infinita.
+* Física: `d3-force` optimizada para >500 nodos.
+* Visual: "Titanium Dark" (`#141413`) con conexiones de neón dinámicas.
+
+[HUD - HEADS UP DISPLAY]
+A. EL OJO (TOP) - NEXUS
+* Gatillo principal para el escaneo de entidades en tiempo real.
+B. LA BOCA (BOTTOM) - COMMAND BAR
+* Control de "Reality Mode" (Rigor/Fusión/Entropía).
+C. EL ARSENAL (RIGHT) - DOCK
+* Acceso directo a herramientas satélite (Forja, Laboratorio).
+
+--------------------------------------------------------------------------------
+3. LA FRAGUA DE REALIDADES (THE BUILDER UI)
+--------------------------------------------------------------------------------
+El motor generativo activo que permite "soñar" entidades antes de crearlas.
+
+[EL TALLER - SPLIT VIEW]
+* Izquierda (Diálogo Socrático): Chat con la IA Arquitecto.
+* Derecha (Holograma): Visualización de "Ghost Graph" (Nodos Fantasma).
+
+[SINTONIZADOR DE REALIDAD (REALITY TUNER)]
+Tres frecuencias de operación que alteran la temperatura del modelo (Gemini 3.0 Pro):
+* RIGOR (Cian): Lógica estricta. Cero alucinaciones. Canon puro.
+* FUSIÓN (Plata): Equilibrio narrativo. Conexiones plausibles.
+* ENTROPÍA (Violeta): Caos creativo. Ideas salvajes y giros de trama.
+
+[PROTOCOLO DE CRISTALIZACIÓN]
+El proceso de convertir "Fantasmas" en "Anclas":
+1. PREVISUALIZACIÓN: El usuario aprueba el grafo propuesto.
+2. MATERIALIZACIÓN: `crystallizeGraph` genera el contenido.
+3. FORJADO: Creación física de archivos `.md` en Google Drive.
+4. AUDITORÍA: Registro del evento en `audit_log` (Acción: STRUCTURE).
+
+--------------------------------------------------------------------------------
+4. OBSERVACIONES TÉCNICAS Y SUGERENCIAS (v4.0)
+--------------------------------------------------------------------------------
+A. INYECCIÓN DE CONTEXTO CANON
+- ESTADO: Mejorado. Ahora utiliza `structureAnalysis` para inyectar solo el
+contexto relevante de la fase narrativa actual (ej: "Rising Action").
+- SUGERENCIA: Migrar a búsqueda vectorial completa (Embeddings) en v4.1 para
+proyectos >1M palabras.
+
+B. STREAMING Y PARSEO FRONTEND
+- ESTADO: Estable. Se ha implementado un parser robusto de JSON/Markdown híbrido
+para tolerar "alucinaciones de formato" de la IA.
+
+C. SINCRONIZACIÓN
+- ESTADO: Activa. El `ProjectConfigContext` escucha cambios en tiempo real
+y el `SentinelStatus` permite purgar archivos corruptos (Fantasmas de 0 bytes).
+
+--------------------------------------------------------------------------------
+CONCLUSIÓN
+--------------------------------------------------------------------------------
+La versión 4.0 marca el fin de la etapa experimental. Con la documentación ("La Revelación")
+y las mecánicas invisibles (Auditoría, Auto-Guardado) operativas, el sistema es
+ahora un entorno de producción seguro y legalmente defendible para autores profesionales.
