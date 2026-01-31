@@ -69,6 +69,75 @@ export const generateAuditPDF = onCall(
 
             const printer = new PdfPrinter(fonts);
 
+            // PROCESS LOGS FOR LAYOUT
+            const processedLogs = logs
+                .filter(log => {
+                    // 🟢 FILTER: Hide old spammy auto-saves (legacy)
+                    // We only keep it if it has content snapshot OR is not the old auto-save description
+                    if (log.description === 'User manually edited content (Auto-Save)') {
+                        // Check if it has content (new version) - actually new version uses different description.
+                        // So we can safely hide this legacy noise.
+                        return false;
+                    }
+                    return true;
+                })
+                .map(log => {
+                    let dateStr = 'PENDING';
+                    if (log.timestamp && typeof log.timestamp.toDate === 'function') {
+                        dateStr = log.timestamp.toDate().toISOString().replace('T', ' ').substring(0, 19);
+                    } else if (log.timestamp) {
+                        dateStr = String(log.timestamp);
+                    }
+
+                    // 🟢 MAPPING: Human Input Label
+                    const isHumanInput = log.actionType === 'INJECTION';
+                    const displayType = isHumanInput ? 'HUMAN INPUT' : log.actionType;
+
+                    // 🟢 CONTENT EXTRACTION
+                    let content = '';
+                    if (log.payload?.promptContent) content = log.payload.promptContent;
+                    else if (log.payload?.contentSnapshot) content = log.payload.contentSnapshot;
+
+                    return { ...log, dateStr, displayType, content, isHumanInput };
+                });
+
+            // BUILD LOG BLOCKS
+            const logBlocks: any[] = [];
+            processedLogs.forEach(log => {
+                // Header Line
+                logBlocks.push({
+                    text: [
+                        { text: `[${log.dateStr}]  `, style: 'logMeta' },
+                        { text: `${log.component.toUpperCase()}  `, style: 'logMeta' },
+                        { text: log.displayType, style: log.isHumanInput ? 'logTypeHuman' : 'logTypeSystem' }
+                    ],
+                    margin: [0, 5, 0, 2]
+                });
+
+                // Description
+                logBlocks.push({
+                    text: log.description,
+                    style: 'logDescription',
+                    margin: [0, 0, 0, 2]
+                });
+
+                // Content (if Human Input)
+                if (log.content) {
+                    logBlocks.push({
+                        text: log.content,
+                        style: 'logContent',
+                        margin: [10, 2, 0, 5] // Indented
+                    });
+                }
+
+                // Divider
+                logBlocks.push({
+                    canvas: [ { type: 'line', x1: 0, y1: 5, x2: 515, y2: 5, lineWidth: 0.5, lineColor: '#E0E0E0' } ],
+                    margin: [0, 0, 0, 5]
+                });
+            });
+
+
             const docDefinition: any = {
                 content: [
                     // HEADER
@@ -124,42 +193,9 @@ export const generateAuditPDF = onCall(
                         margin: [0, 0, 0, 20]
                     },
 
-                    // AUDIT LOG TABLE
-                    { text: 'AUDIT TRAIL (IMMUTABLE)', style: 'sectionHeader', margin: [0, 0, 0, 5] },
-                    {
-                        table: {
-                            headerRows: 1,
-                            widths: ['auto', 'auto', 'auto', '*'],
-                            body: [
-                                [
-                                    { text: 'Date / Time', style: 'tableHeader' },
-                                    { text: 'Type', style: 'tableHeader' },
-                                    { text: 'Component', style: 'tableHeader' },
-                                    { text: 'Description', style: 'tableHeader' }
-                                ],
-                                ...logs.map(log => {
-                                    let dateStr = 'PENDING';
-                                    if (log.timestamp && typeof log.timestamp.toDate === 'function') {
-                                        dateStr = log.timestamp.toDate().toISOString().replace('T', ' ').substring(0, 19);
-                                    } else if (log.timestamp) {
-                                        dateStr = String(log.timestamp);
-                                    }
-
-                                    return [
-                                        { text: dateStr, style: 'tableCell', noWrap: true },
-                                        { text: log.actionType, style: 'tableCell', bold: true },
-                                        { text: log.component, style: 'tableCell' },
-                                        { text: log.description, style: 'tableCell' }
-                                    ];
-                                })
-                            ]
-                        },
-                        layout: {
-                            fillColor: function (rowIndex: number) {
-                                return (rowIndex % 2 === 0) ? '#F5F5F5' : null;
-                            }
-                        }
-                    },
+                    // AUDIT LOG BLOCKS (New Layout)
+                    { text: 'AUDIT TRAIL (IMMUTABLE)', style: 'sectionHeader', margin: [0, 0, 0, 10] },
+                    ...logBlocks,
 
                     // FOOTER
                     { text: 'Verified by Titanium Creative Audit Service', style: 'footer', alignment: 'center', margin: [0, 50, 0, 0] }
@@ -188,9 +224,30 @@ export const generateAuditPDF = onCall(
                         color: 'black',
                         fillColor: '#EEEEEE'
                     },
-                    tableCell: {
+                    logMeta: {
+                        fontSize: 8,
+                        color: '#666666',
+                        bold: true
+                    },
+                    logTypeHuman: {
                         fontSize: 9,
+                        color: '#000000',
+                        bold: true,
+                        background: '#FFF8E1' // Highlight
+                    },
+                    logTypeSystem: {
+                        fontSize: 8,
+                        color: '#888888'
+                    },
+                    logDescription: {
+                        fontSize: 10,
+                        bold: true,
                         color: '#333333'
+                    },
+                    logContent: {
+                        fontSize: 9,
+                        color: '#444444',
+                        font: 'Roboto'
                     },
                     footer: {
                         fontSize: 8,
