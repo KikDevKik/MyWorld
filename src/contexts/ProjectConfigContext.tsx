@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
 import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { toast } from 'sonner';
 import { ProjectConfig } from '../types';
+import { callFunction } from '../services/api';
 
 // 🟢 NEW: File Node Interface (Lifted from VaultSidebar)
 interface FileNode {
@@ -168,9 +168,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     }
 
     try {
-        const functions = getFunctions();
-        const saveProjectConfig = httpsCallable(functions, 'saveProjectConfig');
-        await saveProjectConfig(newConfig);
+        await callFunction('saveProjectConfig', newConfig);
         setConfig(newConfig);
         toast.success('Configuración guardada correctamente.');
     } catch (error) {

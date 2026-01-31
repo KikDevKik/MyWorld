@@ -4,7 +4,7 @@
  */
 import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
-import { getFunctions, httpsCallable } from "firebase/functions";
+import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
@@ -98,15 +98,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         setIsSaving(true);
         try {
-            const functions = getFunctions();
-            const saveDriveFile = httpsCallable(functions, 'saveDriveFile');
-
             // 🟢 SIGNIFICANT EDIT DETECTION
             // If the user writes a paragraph (>50 chars) in one go (2s debounce), we flag it.
             const diff = Math.abs(contentToSave.length - lastSavedContent.length);
             const isSignificant = diff > 50;
 
-            await saveDriveFile({
+            await callFunction('saveDriveFile', {
                 fileId: fileIdToSave,
                 content: contentToSave,
                 accessToken: oauthToken,
@@ -188,10 +185,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 setIsScanningDrift(true);
                 try {
                     console.log("📡 [SENTINEL] Triggering Deep Drift Scan...");
-                    const functions = getFunctions();
-                    const scanProjectDrift = httpsCallable(functions, 'scanProjectDrift');
-                    const result = await scanProjectDrift({ projectId: folderId });
-                    const data = result.data as any;
+                    const data = await callFunction<any>('scanProjectDrift', { projectId: folderId });
 
                     if (data.success && data.alerts) {
                         console.log("📡 [SENTINEL] Scan Results:", data.alerts);
@@ -237,7 +231,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             if (configLoading) return; // Wait for config context to be ready
 
             console.log("🚀 INICIANDO HYDRATION DEL PROYECTO...");
-            const functions = getFunctions();
 
             // 1. RESTORE TOKEN (Already done in parent)
 
@@ -256,9 +249,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     console.log("👻 GHOST MODE: Bypassing Index Check");
                     setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
                 } else {
-                    const checkIndexStatus = httpsCallable(functions, 'checkIndexStatus');
-                    const result = await checkIndexStatus();
-                    const status = result.data as { isIndexed: boolean, lastIndexedAt: string | null };
+                    const status = await callFunction<{ isIndexed: boolean, lastIndexedAt: string | null }>('checkIndexStatus');
                     console.log("🧠 Estado de Memoria:", status);
                     setIndexStatus(status);
                 }
@@ -286,11 +277,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // HANDLERS
     const handleLogout = async () => {
         const auth = getAuth();
-        const functions = getFunctions();
         try {
             // 🟢 REVOKE DRIVE ACCESS ON LOGOUT (Security)
-            const revokeDriveAccess = httpsCallable(functions, 'revokeDriveAccess');
-            await revokeDriveAccess().catch(e => console.warn("Revoke failed (maybe already cleared):", e));
+            await callFunction('revokeDriveAccess').catch(e => console.warn("Revoke failed (maybe already cleared):", e));
 
             await signOut(auth);
             setFolderId("");
@@ -349,9 +338,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // 🧠 LÓGICA DE INDEXADO (BOTÓN ROJO)
     const executeIndexing = async () => {
-        const functions = getFunctions();
-        const indexTDB = httpsCallable(functions, 'indexTDB');
-
         if (!config) {
             toast.error("Configuración no cargada. Intenta de nuevo.");
             return;
@@ -367,7 +353,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         try {
             console.log("Iniciando indexado estricto...", folderIds);
 
-            const promise = indexTDB({
+            const promise = callFunction<any>('indexTDB', {
                 folderIds: folderIds,
                 projectId: config.folderId || folderId,
                 accessToken: oauthToken,
@@ -379,7 +365,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 success: (result: any) => {
                     setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
                     refreshConfig();
-                    return `¡Aprendizaje Completado! ${result.data.message}`;
+                    return `¡Aprendizaje Completado! ${result.message}`;
                 },
                 error: 'Error al indexar. Revisa la consola.',
             });
@@ -424,12 +410,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         setSelectedFileContent("Cargando...");
         setCurrentFileId(fileId);
 
-        const functions = getFunctions();
-        const getDriveFileContent = httpsCallable(functions, 'getDriveFileContent');
-
         try {
-            const result = await getDriveFileContent({ fileId, accessToken: oauthToken });
-            const data = result.data as { content: string; name: string };
+            const data = await callFunction<{ content: string; name: string }>('getDriveFileContent', { fileId, accessToken: oauthToken });
             setSelectedFileContent(data.content);
             setLastSavedContent(data.content); // 🟢 SYNC BASELINE
             setCurrentFileName(data.name);
@@ -830,10 +812,7 @@ function App() {
                 if (response.code) {
                     const toastId = toast.loading("Vinculando Drive permanentemente...");
                     try {
-                        const functions = getFunctions();
-                        const exchangeAuthCode = httpsCallable(functions, 'exchangeAuthCode');
-                        const res = await exchangeAuthCode({ code: response.code });
-                        const data = res.data as any;
+                        const data = await callFunction<any>('exchangeAuthCode', { code: response.code });
 
                         if (data.success && data.accessToken) {
                             setOauthToken(data.accessToken);
@@ -858,11 +837,8 @@ function App() {
     const handleTokenRefresh = async (): Promise<string | null> => {
         setDriveStatus('refreshing');
         try {
-            const functions = getFunctions();
             // 🟢 BACKEND REFRESH (SILENT)
-            const refreshDriveToken = httpsCallable(functions, 'refreshDriveToken');
-            const result = await refreshDriveToken();
-            const data = result.data as any;
+            const data = await callFunction<any>('refreshDriveToken');
 
             if (data.success && data.accessToken) {
                 console.log("✅ Token refrescado silenciosamente (Backend).");

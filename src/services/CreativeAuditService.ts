@@ -1,5 +1,5 @@
 import { getFirestore, collection, addDoc, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { callFunction } from './api';
 
 export type CreativeActionType = 'INJECTION' | 'CURATION' | 'STRUCTURE' | 'RESEARCH';
 
@@ -156,11 +156,7 @@ export const CreativeAuditService = {
      */
     async fetchAuditPDF(projectId: string): Promise<string | null> {
         try {
-            const functions = getFunctions();
-            const generateFn = httpsCallable(functions, 'generateAuditPDF');
-
-            const result = await generateFn({ projectId });
-            const data = result.data as any;
+            const data = await callFunction<any>('generateAuditPDF', { projectId });
 
             if (data.success && data.pdf) {
                 return data.pdf; // Base64 string
