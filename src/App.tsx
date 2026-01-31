@@ -280,11 +280,23 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // HANDLERS
     const handleLogout = async () => {
         const auth = getAuth();
-        try {
-            // 🟢 REVOKE DRIVE ACCESS ON LOGOUT (Security)
-            await callFunction('revokeDriveAccess').catch(e => console.warn("Revoke failed (maybe already cleared):", e));
+        // 🟢 UX: Feedback Inmediato
+        const toastId = toast.loading("Cerrando sesión de forma segura...");
 
+        try {
+            // 🟢 REVOKE DRIVE ACCESS (Best Effort - No bloquear por siempre)
+            // Race: Si revoke toma > 1.5s, procedemos a salir.
+            const revokePromise = callFunction('revokeDriveAccess');
+            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
+
+            await Promise.race([revokePromise, timeoutPromise]).catch(e => console.warn("Revoke skipped/failed:", e));
+
+        } catch (error) {
+            console.error("Logout preparation error", error);
+        } finally {
+            // 🟢 SIEMPRE CERRAR SESIÓN
             await signOut(auth);
+
             setFolderId("");
             setSelectedFileContent("");
             setLastSavedContent(""); // 🟢 RESET BASELINE
@@ -292,8 +304,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setOauthToken(null);
             setDriveStatus('disconnected');
             localStorage.removeItem('google_drive_token');
-        } catch (error) {
-            console.error("Logout error", error);
+
+            toast.dismiss(toastId);
         }
     };
 
