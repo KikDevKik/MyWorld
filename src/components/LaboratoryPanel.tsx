@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import ChatPanel from './ChatPanel';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { callFunction } from '../services/api';
 
 interface LaboratoryPanelProps {
     onClose: () => void;
@@ -97,14 +97,12 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
 
             if (untagged.length > 0) {
                 setIsClassifying(true);
-                const functions = getFunctions();
-                const classifyFn = httpsCallable(functions, 'classifyResource');
 
                 // Process sequentially
                 for (const file of untagged) {
                     try {
                         console.log(`🏷️ Auto-Classifying: ${file.name}`);
-                        await classifyFn({
+                        await callFunction('classifyResource', {
                             fileId: file.id,
                             fileName: file.name,
                             mimeType: file.mimeType

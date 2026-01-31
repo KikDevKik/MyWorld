@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { getFunctions, httpsCallable } from "firebase/functions";
 import type { ChatMessage, GemId, Gem, DriveFile } from '../types';
+import { callFunction } from '../services/api';
 import { GEMS } from '../constants';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -115,7 +115,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
 
       const context = msg.contextFiles || [];
-      const functions = getFunctions();
 
       if (context.length === 1) {
           // Scenario A: Smart Patch
@@ -125,8 +124,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
           const toastId = toast.loading("Cristalizando...");
           try {
-              const patchFn = httpsCallable(functions, 'scribePatchFile');
-              await patchFn({
+              await callFunction('scribePatchFile', {
                   fileId: targetFile.id,
                   patchContent: msg.text,
                   accessToken: accessToken,
@@ -146,8 +144,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
                const toastId = toast.loading("Forjando nuevo archivo...");
                try {
-                   const createFn = httpsCallable(functions, 'scribeCreateFile');
-                   await createFn({
+                   await callFunction('scribeCreateFile', {
                        entityId: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
                        entityData: { name: name, type: 'concept', tags: ['crystallized'] },
                        chatContent: msg.text,
@@ -180,13 +177,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     setIsLoading(true);
 
     try {
-      const functions = getFunctions();
-
       // 🟢 1. FETCH CONTENT FOR ATTACHED FILES
       let enrichedFiles: any[] = [];
       if (attachedFiles.length > 0 && accessToken) {
-          const getContent = httpsCallable(functions, 'getDriveFileContent');
-
           const promises = attachedFiles.map(async (file) => {
               try {
                   // Only fetch text-readable files
@@ -195,8 +188,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       return { name: file.name, content: "[Binary File - Skipped]" };
                   }
 
-                  const res = await getContent({ fileId: file.id, accessToken });
-                  const data = res.data as any;
+                  const data = await callFunction<{ content: string }>('getDriveFileContent', { fileId: file.id, accessToken });
                   return { name: file.name, content: data.content };
               } catch (e) {
                   console.error(`Failed to read ${file.name}`, e);
@@ -208,9 +200,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
 
       // 🟢 2. SEND TO CHAT
-      const chatWithGem = httpsCallable(functions, 'chatWithGem', { timeout: 540000 });
-
-      const result = await chatWithGem({
+      const data = await callFunction<any>('chatWithGem', {
         query: text,
         systemInstruction: activeGem.systemInstruction,
         history: messages.map(m => ({ role: m.role, message: m.text })),
@@ -220,9 +210,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         activeFileName: activeFileName || "",
         isFallbackContext: isFallbackContext,
         attachedFiles: enrichedFiles // 👈 Pass Enriched Context
-      });
+      }, { timeout: 540000 });
 
-      const data = result.data as any;
       const aiMessage: ExtendedChatMessage = {
         role: 'model',
         text: data.response,

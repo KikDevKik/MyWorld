@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { getFunctions, httpsCallable } from "firebase/functions";
 import {
     Printer,
     Download,
@@ -17,6 +16,7 @@ import {
 import { toast } from 'sonner';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { CreativeAuditService } from '../services/CreativeAuditService';
+import { callFunction } from '../services/api';
 
 interface ExportPanelProps {
     onClose: () => void;
@@ -199,9 +199,6 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
         toast.info("Iniciando prensas de impresión...");
 
         try {
-            const functions = getFunctions();
-            const compileFn = httpsCallable(functions, 'compileManuscript');
-
             // CONSTRUCT ORDERED LIST
             // We must traverse the tree to maintain structure order,
             // picking only selected files.
@@ -220,7 +217,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
             const orderedFiles = fileTree ? getOrderedSelection(fileTree) : [];
 
-            const result = await compileFn({
+            const data = await callFunction<any>('compileManuscript', {
                 fileIds: orderedFiles,
                 title,
                 subtitle,
@@ -229,7 +226,6 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                 accessToken
             });
 
-            const data = result.data as any;
             if (data.success && data.pdf) {
                 // Convert Base64 to Blob URL
                 const byteCharacters = atob(data.pdf);
