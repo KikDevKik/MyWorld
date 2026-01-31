@@ -7,10 +7,10 @@ import {
     Globe
 } from 'lucide-react';
 import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove, query, where, limit } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { callFunction } from '../../services/api';
 import { GraphNode, EntityType } from '../../types/graph';
 import CrystallizeModal from '../ui/CrystallizeModal';
 import { VisualNode, AnalysisCandidate, RealityMode } from './types';
@@ -289,12 +289,11 @@ const WorldEnginePageV2: React.FC<{
         const targetNode = overrideNode || crystallizeModal.node;
         if (!targetNode) return;
         setIsCrystallizing(true);
-        const functions = getFunctions();
-        const crystallizeNodeFn = httpsCallable(functions, 'crystallizeNode');
+
         try {
             const token = localStorage.getItem('google_drive_token');
             if (!token) throw new Error("Falta Token.");
-            await crystallizeNodeFn({
+            await callFunction('crystallizeNode', {
                 accessToken: token,
                 folderId: data.folderId,
                 fileName: data.fileName,

@@ -23,12 +23,12 @@ import {
     Trash2
 } from 'lucide-react';
 import { getFirestore, collection, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { GraphNode, EntityType } from '../types/graph';
 import CrystallizeModal from './ui/CrystallizeModal';
+import { callFunction } from '../services/api';
 
 // 🟢 VISUAL TYPES
 interface VisualNode extends GraphNode {
@@ -605,12 +605,11 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         const targetNode = overrideNode || crystallizeModal.node;
         if (!targetNode) return;
         setIsCrystallizing(true);
-        const functions = getFunctions();
-        const crystallizeNodeFn = httpsCallable(functions, 'crystallizeNode');
+
         try {
             const token = localStorage.getItem('google_drive_token');
             if (!token) throw new Error("Falta Token.");
-            await crystallizeNodeFn({
+            await callFunction('crystallizeNode', {
                 accessToken: token,
                 folderId: data.folderId,
                 fileName: data.fileName,
@@ -742,11 +741,10 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         // ... (Simplified World Engine Call - keeping core logic assumed from context)
         // For brevity in this refactor, I'll simulate or copy minimal logic.
         // Actually I should preserve the logic.
-        const functions = getFunctions();
-        const worldEngineFn = httpsCallable(functions, 'worldEngine');
+
         try {
              toast.info("🧠 Contactando al Motor...");
-             const result: any = await worldEngineFn({
+             const data = await callFunction<any>('worldEngine', {
                 prompt: inputValue,
                 agentId: 'nexus-terminal',
                 chaosLevel: entropy,
@@ -754,7 +752,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 currentGraphContext: unifiedNodes.slice(0, 20),
                 accessToken: localStorage.getItem('google_drive_token')
              });
-             const data = result.data;
+
              if(data.newNodes) {
                  const newG = data.newNodes.map((n: any) => ({
                      id: n.id || `ai-${Date.now()}`,
