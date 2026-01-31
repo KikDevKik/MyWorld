@@ -38,7 +38,7 @@ const titaniumTheme = EditorView.theme({
         caretColor: "var(--color-text-primary)",
         paddingBottom: "50vh", // Scroll past end
         paddingTop: "2rem",
-        maxWidth: "800px", // Zen width
+        maxWidth: "var(--editor-max-width, 800px)", // Dynamic Zen width
         margin: "0 auto",
     },
     ".cm-cursor": {

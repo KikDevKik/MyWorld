@@ -25,8 +25,14 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
             ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}
         `}>
             {/* FONT TOGGLE */}
-            <div className="flex items-center bg-titanium-950/50 rounded-full p-0.5 border border-titanium-800">
+            <div
+                className="flex items-center bg-titanium-950/50 rounded-full p-0.5 border border-titanium-800"
+                role="radiogroup"
+                aria-label="Selección de fuente"
+            >
                 <button
+                    role="radio"
+                    aria-checked={fontFamily === 'serif'}
                     onClick={() => setFontFamily('serif')}
                     className={`p-2 rounded-full transition-all ${fontFamily === 'serif' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Serif (Novela)"
@@ -35,6 +41,8 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
                     <span className="font-serif font-bold text-xs">Ag</span>
                 </button>
                 <button
+                    role="radio"
+                    aria-checked={fontFamily === 'sans'}
                     onClick={() => setFontFamily('sans')}
                     className={`p-2 rounded-full transition-all ${fontFamily === 'sans' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Sans (Digital)"
@@ -47,8 +55,14 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
             <div className="w-px h-4 bg-titanium-700/50" />
 
             {/* WIDTH TOGGLE */}
-            <div className="flex items-center bg-titanium-950/50 rounded-full p-0.5 border border-titanium-800">
+            <div
+                className="flex items-center bg-titanium-950/50 rounded-full p-0.5 border border-titanium-800"
+                role="radiogroup"
+                aria-label="Ancho del editor"
+            >
                 <button
+                    role="radio"
+                    aria-checked={editorWidth === 'narrow'}
                     onClick={() => setEditorWidth('narrow')}
                     className={`p-2 rounded-full transition-all ${editorWidth === 'narrow' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Ancho Libro"
@@ -57,6 +71,8 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
                     <AlignCenter size={14} />
                 </button>
                 <button
+                    role="radio"
+                    aria-checked={editorWidth === 'wide'}
                     onClick={() => setEditorWidth('wide')}
                     className={`p-2 rounded-full transition-all ${editorWidth === 'wide' ? 'bg-titanium-700 text-white shadow-sm' : 'text-titanium-500 hover:text-titanium-300'}`}
                     title="Ancho Pantalla"
