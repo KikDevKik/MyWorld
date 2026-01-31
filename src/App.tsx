@@ -1,3 +1,7 @@
+/**
+ * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
+ * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+ */
 import { useState, useEffect } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getFunctions, httpsCallable } from "firebase/functions";

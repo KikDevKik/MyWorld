@@ -1,7 +1,11 @@
+/**
+ * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
+ * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+ */
 import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Info } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
 
@@ -14,7 +18,7 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
     const { config, updateConfig } = useProjectConfig(); // 🟢 Use Context
-    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'info'>('general');
 
     // 🟢 STYLE IDENTITY STATE
     const [styleIdentity, setStyleIdentity] = useState('');
@@ -368,6 +372,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <HardDrive size={16} />
                         Memoria (Debug)
                     </button>
+                    <button
+                        onClick={() => setActiveTab('info')}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                            activeTab === 'info'
+                            ? 'border-cyan-400 text-cyan-400'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                        }`}
+                    >
+                        <Info size={16} />
+                        Acerca de
+                    </button>
                 </div>
 
                 {/* CONTENT AREA */}
@@ -527,6 +542,39 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         {isRefreshingAuth ? <RefreshCw className="animate-spin" size={16}/> : <ShieldCheck size={16}/>}
                                         {isRefreshingAuth ? 'Renovando...' : 'Renovar Permisos'}
                                     </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB: INFO (ABOUT) */}
+                    {activeTab === 'info' && (
+                        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200 items-center text-center py-8">
+
+                            <div className="p-4 bg-titanium-800/50 rounded-full border border-titanium-700 shadow-xl mb-2">
+                                <Brain size={48} className="text-cyan-400" />
+                            </div>
+
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-bold text-white tracking-tight">MyWorld Titanium</h2>
+                                <p className="text-sm text-cyan-400 font-mono tracking-wide">
+                                    Built for Gemini Hackathon 3 | Powered by Gemini 3.0 Pro
+                                </p>
+                            </div>
+
+                            <div className="h-px w-24 bg-titanium-800 my-2" />
+
+                            <div className="max-w-md space-y-4">
+                                <p className="text-xs text-titanium-400 leading-relaxed">
+                                    Este software y su código fuente son propiedad intelectual de <strong className="text-titanium-200">Deiner David Trelles Renteria</strong>.
+                                    Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+                                </p>
+
+                                <div className="p-3 bg-titanium-900/50 border border-titanium-800 rounded-lg">
+                                    <p className="text-[10px] text-titanium-500 font-mono">
+                                        Licensed under Apache License 2.0<br/>
+                                        Copyright © 2026 Deiner David Trelles Renteria
+                                    </p>
                                 </div>
                             </div>
                         </div>
