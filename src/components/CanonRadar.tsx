@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2, Sparkles, BrainCircuit, Flag } from 'lucide-react';
 import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict, GuardianPersonalityDrift, ResonanceMatch, StructureAnalysis } from '../hooks/useGuardian';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { callFunction } from '../services/api';
 
 interface CanonRadarProps {
     status: GuardianStatus;
@@ -27,8 +27,6 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
     onForceAudit,
     accessToken
 }) => {
-    const functions = getFunctions();
-    const updateForgeCharacter = httpsCallable(functions, 'updateForgeCharacter');
     const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
 
     // 🟢 SORTING LOGIC: TRAITOR (Critical) FIRST, then EVOLVED
@@ -62,7 +60,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 personality: `[Updated] ${drift.detected_behavior}`
             };
 
-            await updateForgeCharacter({
+            await callFunction('updateForgeCharacter', {
                 characterId: drift.character.toLowerCase().replace(/\s+/g, '-'),
                 newTraits: traits,
                 rationale: `CanonRadar Auto-Sync: ${drift.hater_comment}`,

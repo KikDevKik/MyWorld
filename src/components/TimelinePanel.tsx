@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { getFirestore, collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { X, CalendarClock, FileText, Clock, Calendar, Sparkles, Check, Trash2, AlertCircle } from 'lucide-react';
+import { callFunction } from '../services/api';
 import { TimelineEvent } from '../types';
 import { toast } from 'sonner';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
@@ -112,18 +112,15 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
         }
 
         setAnalyzing(true);
-        const functions = getFunctions();
-        const extractTimelineEvents = httpsCallable(functions, 'extractTimelineEvents');
-        const getDriveFileContent = httpsCallable(functions, 'getDriveFileContent');
 
         try {
-            const contentResult = await getDriveFileContent({
+            const contentData = await callFunction<{ content: string }>('getDriveFileContent', {
                 fileId: currentFileId,
                 accessToken: accessToken
             });
-            const content = (contentResult.data as any).content;
+            const content = contentData.content;
 
-            const result = await extractTimelineEvents({
+            const data = await callFunction<{ count: number }>('extractTimelineEvents', {
                 fileId: currentFileId,
                 content: content,
                 currentYear,
@@ -131,7 +128,6 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                 accessToken // 🟢 REQUIRED FOR DUAL-WRITE
             });
 
-            const data = result.data as any;
             toast.success(`¡Cronista finalizado! ${data.count} eventos encontrados.`);
 
         } catch (error: any) {
