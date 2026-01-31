@@ -7,6 +7,7 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
+import { getAIKey } from "./utils/security";
 import { generateAnchorContent, generateDraftContent } from "./templates/forge";
 import { FolderRole, ProjectConfig } from "./types/project";
 import { updateFirestoreTree } from "./utils/tree_utils";
@@ -75,7 +76,7 @@ export const genesisManifest = onCall(
         // 2. AI EXTRACTION (The Architect)
         const historyText = chatHistory.map((h: any) => `${h.role}: ${h.message}`).join("\n");
 
-        const genAI = new GoogleGenerativeAI(googleApiKey.value());
+        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
         const model = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
             safetySettings: SAFETY_SETTINGS_PERMISSIVE,

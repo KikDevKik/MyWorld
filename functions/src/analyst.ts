@@ -6,6 +6,7 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Readable } from 'stream';
 import { MODEL_HIGH_REASONING, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { getAIKey } from "./utils/security";
 
 // --- CONFIG ---
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -129,7 +130,7 @@ export const analyzeStyleDNA = onCall(
             }
 
             // 2. AI Analysis
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const model = genAI.getGenerativeModel({
                 model: MODEL_HIGH_REASONING,
                 safetySettings: SAFETY_SETTINGS_PERMISSIVE,

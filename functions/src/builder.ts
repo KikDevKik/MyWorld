@@ -8,6 +8,7 @@ import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
+import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -104,7 +105,8 @@ export const builderStream = onRequest(
           return `[FILE: ${d.fileName}]: ${d.text.substring(0, 500)}...`; // Truncate per chunk to save space
       }).join("\n\n");
 
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const finalKey = getAIKey(req.body, googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(finalKey);
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         tools: tools,
@@ -282,7 +284,7 @@ export const builderStream = onRequest(
                          let narrativeSummary = "No narrative memory found.";
                          try {
                              const embeddings = new GoogleGenerativeAIEmbeddings({
-                                apiKey: googleApiKey.value(),
+                                apiKey: finalKey,
                                 model: "text-embedding-004",
                                 taskType: TaskType.RETRIEVAL_QUERY,
                              });

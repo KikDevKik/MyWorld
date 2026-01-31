@@ -7,6 +7,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as crypto from 'crypto';
 import { cosineSimilarity } from "./similarity";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
@@ -144,7 +145,7 @@ export const auditContent = onCall(
             }
         }
 
-        const genAI = new GoogleGenerativeAI(googleApiKey.value());
+        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
         // 3. EXTRACTION STEP (Low Cost Model)
         const extractorModel = genAI.getGenerativeModel({

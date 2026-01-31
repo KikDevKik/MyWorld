@@ -8,6 +8,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
+import { getAIKey } from "./utils/security";
 
 const MAX_BATCH_SIZE = 50;
 const MAX_TOTAL_CONTENT_CHARS = 500000; // 500k chars limit
@@ -79,7 +80,7 @@ export const analyzeForgeBatch = onCall(
 
             if (combinedContent.length < 50) return { candidates: [] };
 
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const model = genAI.getGenerativeModel({
                 model: MODEL_HIGH_REASONING, // Use Pro for quality
                 safetySettings: SAFETY_SETTINGS_PERMISSIVE,

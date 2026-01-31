@@ -8,6 +8,7 @@ import { TaskType } from "@google/generative-ai"; // Import TaskType enum
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, TEMP_CREATIVE, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -104,7 +105,8 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
           parts: [{ text: h.message }]
       }));
 
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const finalKey = getAIKey(req.body, googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(finalKey);
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         tools: tools,
@@ -168,7 +170,7 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
                      // The Native SDK might default to v1beta/models which lacks legacy models,
                      // but LangChain wrapper handles it correctly for RAG consistency.
                      const embeddings = new GoogleGenerativeAIEmbeddings({
-                        apiKey: googleApiKey.value(),
+                        apiKey: finalKey,
                         model: "text-embedding-004",
                         taskType: TaskType.RETRIEVAL_QUERY,
                      });
