@@ -39,6 +39,7 @@ import { CreativeAuditService } from './services/CreativeAuditService';
 import EmptyEditorState from './components/editor/EmptyEditorState';
 import CreateFileModal from './components/ui/CreateFileModal';
 import StatusBar from './components/ui/StatusBar';
+import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
@@ -213,6 +214,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
     const [isAppLoading, setIsAppLoading] = useState(true);
+    const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
+    const [editorWidth, setEditorWidth] = useState<'narrow' | 'wide'>('narrow');
     const [indexStatus, setIndexStatus] = useState<{ isIndexed: boolean; lastIndexedAt: string | null }>({ isIndexed: false, lastIndexedAt: null });
 
     // 🟢 FILE LOCKING
@@ -626,8 +629,28 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
 
         return (
-            <div className="flex flex-col h-full overflow-hidden">
-                <div className="flex-1 overflow-hidden relative">
+            <div className="flex flex-col h-full overflow-hidden relative group/editor-area">
+                {/* 🟢 READING TOOLBAR (Floating) */}
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover/editor-area:opacity-100 transition-opacity duration-300 pointer-events-none hover:!opacity-100 focus-within:!opacity-100">
+                     <div className="pointer-events-auto">
+                        <ReadingToolbar
+                            fontFamily={fontFamily}
+                            setFontFamily={setFontFamily}
+                            editorWidth={editorWidth}
+                            setEditorWidth={setEditorWidth}
+                            isZenMode={isZenMode}
+                            setIsZenMode={setIsZenMode}
+                        />
+                     </div>
+                </div>
+
+                <div
+                    className="flex-1 overflow-hidden relative transition-all duration-300"
+                    style={{
+                        '--font-serif': fontFamily === 'sans' ? 'var(--font-display)' : '"Merriweather", serif',
+                        '--editor-max-width': editorWidth === 'wide' ? '100%' : '800px'
+                    } as React.CSSProperties}
+                >
                     <HybridEditor
                         content={selectedFileContent}
                         onContentChange={handleContentChange}
