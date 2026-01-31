@@ -1,7 +1,11 @@
+/*
+ * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
+ * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+ */
 import React, { useState, useEffect } from 'react';
 import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
 
@@ -14,7 +18,7 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
     const { config, updateConfig, customGeminiKey, setCustomGeminiKey } = useProjectConfig(); // 🟢 Use Context
-    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config' | 'info'>('general');
 
     // 🟢 STYLE IDENTITY STATE
     const [styleIdentity, setStyleIdentity] = useState('');
@@ -390,6 +394,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <HardDrive size={16} />
                         Memoria (Debug)
                     </button>
+                    <button
+                        onClick={() => setActiveTab('info')}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                            activeTab === 'info'
+                            ? 'border-cyan-400 text-cyan-400'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                        }`}
+                    >
+                        <Info size={16} />
+                        Acerca de
+                    </button>
                 </div>
 
                 {/* CONTENT AREA */}
@@ -606,6 +621,47 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         {isRefreshingAuth ? 'Renovando...' : 'Renovar Permisos'}
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB: INFO (ABOUT) */}
+                    {activeTab === 'info' && (
+                        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            <div className="flex items-center gap-2 mb-2">
+                                <Info size={18} className="text-cyan-400" />
+                                <h4 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">Acerca de MyWorld</h4>
+                            </div>
+
+                            <div className="p-6 bg-gradient-to-br from-titanium-900 to-titanium-950 border border-titanium-800 rounded-xl flex flex-col items-center text-center space-y-4 shadow-xl">
+                                <div className="w-16 h-16 bg-cyan-900/20 rounded-full flex items-center justify-center border border-cyan-500/30 mb-2">
+                                    <Sparkles size={32} className="text-cyan-400" />
+                                </div>
+
+                                <h3 className="text-xl font-bold text-white tracking-tight">
+                                    MyWorld Titanium <span className="text-cyan-500">v4.0</span>
+                                </h3>
+
+                                <div className="px-4 py-2 bg-black/40 rounded-full border border-titanium-700/50">
+                                    <p className="text-xs font-mono text-cyan-300 font-medium tracking-wide">
+                                        Built for Gemini Hackathon 3 | Powered by Gemini 3.0 Pro & Jules
+                                    </p>
+                                </div>
+
+                                <p className="text-sm text-titanium-400 max-w-sm leading-relaxed">
+                                    Plataforma de escritura creativa de próxima generación, diseñada para orquestar universos narrativos complejos con la ayuda de Inteligencia Artificial.
+                                </p>
+                            </div>
+
+                            <div className="p-4 border-l-2 border-titanium-600 pl-4 space-y-2">
+                                <h5 className="text-xs font-bold text-titanium-300 uppercase tracking-widest">Aviso Legal & Autoría</h5>
+                                <p className="text-xs text-titanium-500 leading-relaxed font-mono">
+                                    Este software y su código fuente son propiedad intelectual de <strong className="text-titanium-300">Deiner David Trelles Renteria</strong>.
+                                    Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+                                </p>
+                                <p className="text-[10px] text-titanium-600 pt-2">
+                                    Licensed under Apache License 2.0
+                                </p>
                             </div>
                         </div>
                     )}
