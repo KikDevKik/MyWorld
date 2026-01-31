@@ -114,46 +114,46 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // 🟢 UPDATE TREE SPLIT LOGIC
     useEffect(() => {
         if (!fileTree) {
-             setTopLevelFolders([]);
-             setCanonNodes([]);
-             setResourceNodes([]);
-             setUnassignedNodes([]);
-             return;
+            setTopLevelFolders([]);
+            setCanonNodes([]);
+            setResourceNodes([]);
+            setUnassignedNodes([]);
+            return;
         }
 
         if (Array.isArray(fileTree)) {
-             // 1. Saga Selector (Raw Folders)
-             const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
-             setTopLevelFolders(folders);
+            // 1. Saga Selector (Raw Folders)
+            const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
+            setTopLevelFolders(folders);
 
-             // 2. Split Logic (Canon vs Resources)
-             if (config) {
-                 const canonIds = new Set(config.canonPaths?.map(p => p.id) || []);
-                 const resourceIds = new Set(config.resourcePaths?.map(p => p.id) || []);
+            // 2. Split Logic (Canon vs Resources)
+            if (config) {
+                const canonIds = new Set(config.canonPaths?.map(p => p.id) || []);
+                const resourceIds = new Set(config.resourcePaths?.map(p => p.id) || []);
 
-                 const cNodes: FileNode[] = [];
-                 const rNodes: FileNode[] = [];
-                 const uNodes: FileNode[] = [];
+                const cNodes: FileNode[] = [];
+                const rNodes: FileNode[] = [];
+                const uNodes: FileNode[] = [];
 
-                 fileTree.forEach(node => {
-                     // Check ID (Shortcut ID from config)
-                     // Note: node.id is the Original ID (Shortcut ID) as per backend update.
-                     if (canonIds.has(node.id)) {
-                         cNodes.push(node);
-                     } else if (resourceIds.has(node.id)) {
-                         rNodes.push(node);
-                     } else {
-                         uNodes.push(node);
-                     }
-                 });
+                fileTree.forEach(node => {
+                    // Check ID (Shortcut ID from config)
+                    // Note: node.id is the Original ID (Shortcut ID) as per backend update.
+                    if (canonIds.has(node.id)) {
+                        cNodes.push(node);
+                    } else if (resourceIds.has(node.id)) {
+                        rNodes.push(node);
+                    } else {
+                        uNodes.push(node);
+                    }
+                });
 
-                 setCanonNodes(cNodes);
-                 setResourceNodes(rNodes);
-                 setUnassignedNodes(uNodes);
-             } else {
-                 // Fallback if config not loaded yet
-                 setUnassignedNodes(fileTree);
-             }
+                setCanonNodes(cNodes);
+                setResourceNodes(rNodes);
+                setUnassignedNodes(uNodes);
+            } else {
+                // Fallback if config not loaded yet
+                setUnassignedNodes(fileTree);
+            }
         }
     }, [fileTree, config]);
 
@@ -464,9 +464,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
                     {/* COPYRIGHT FOOTER */}
                     <div className="mt-4 pt-2 flex justify-center">
-                         <span className="text-[10px] text-titanium-500 font-mono text-center opacity-70">
-                             © 2026 Deiner David Trelles Renteria
-                         </span>
+                        <span className="text-[10px] text-titanium-500 font-mono text-center opacity-70">
+                            © 2026 MyWorld
+                        </span>
                     </div>
                 </div>
             </div>
