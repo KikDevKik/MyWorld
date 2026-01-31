@@ -61,11 +61,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
             // 🟢 NEW: Save Project Config (Project Name + Style Identity)
             if (config) {
-                 await updateConfig({
-                     ...config,
-                     projectName: localProjectName,
-                     styleIdentity: styleIdentity // 👈 Persist Style DNA
-                 });
+                await updateConfig({
+                    ...config,
+                    projectName: localProjectName,
+                    styleIdentity: styleIdentity // 👈 Persist Style DNA
+                });
             }
 
             // 🟢 BYOK: Save Custom Key to LocalStorage (via Context)
@@ -106,9 +106,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             }
 
             if (!safeToken) {
-                 toast.error("Error de credenciales. Por favor recarga la página.");
-                 setIsAnalyzing(false);
-                 return;
+                toast.error("Error de credenciales. Por favor recarga la página.");
+                setIsAnalyzing(false);
+                return;
             }
 
             const fileIds = selectedFiles.map(f => f.id);
@@ -166,8 +166,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
         const allPaths = [...config.canonPaths, ...config.resourcePaths];
         if (allPaths.length === 0) {
-             toast.error("No hay carpetas configuradas. Ve a la pestaña Proyecto y añade carpetas.");
-             return;
+            toast.error("No hay carpetas configuradas. Ve a la pestaña Proyecto y añade carpetas.");
+            return;
         }
 
         // Construct IDs from config
@@ -197,9 +197,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             }
 
             if (!token) {
-                 toast.error("Error de autenticación: No hay token disponible.");
-                 setIsAuditing(false);
-                 return;
+                toast.error("Error de autenticación: No hay token disponible.");
+                setIsAuditing(false);
+                return;
             }
 
             toast.info('Escaneando estructura de carpetas (puede tardar)...');
@@ -235,8 +235,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
         const allPaths = [...config.canonPaths, ...config.resourcePaths];
         if (allPaths.length === 0) {
-             toast.error("No hay carpetas configuradas para indexar.");
-             return;
+            toast.error("No hay carpetas configuradas para indexar.");
+            return;
         }
 
         const folderIds = allPaths.map(p => p.id);
@@ -270,9 +270,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             }
 
             if (!token) {
-                 toast.error("Error de autenticación: No hay token disponible.");
-                 setIsReindexing(false);
-                 return;
+                toast.error("Error de autenticación: No hay token disponible.");
+                setIsReindexing(false);
+                return;
             }
 
             toast.info('Iniciando Purga y Re-indexación Nuclear...');
@@ -341,55 +341,50 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 <div className="flex border-b border-titanium-800 bg-titanium-900/30 px-6">
                     <button
                         onClick={() => setActiveTab('general')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'general'
-                            ? 'border-accent-DEFAULT text-accent-DEFAULT'
-                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'general'
+                                ? 'border-accent-DEFAULT text-accent-DEFAULT'
+                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            }`}
                     >
                         <Brain size={16} />
                         General
                     </button>
                     <button
                         onClick={() => setActiveTab('profile')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'profile'
-                            ? 'border-accent-DEFAULT text-accent-DEFAULT'
-                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profile'
+                                ? 'border-accent-DEFAULT text-accent-DEFAULT'
+                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            }`}
                     >
                         <Sparkles size={16} />
                         Perfil
                     </button>
                     <button
                         onClick={() => setActiveTab('ai_config')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'ai_config'
-                            ? 'border-purple-400 text-purple-400'
-                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'ai_config'
+                                ? 'border-purple-400 text-purple-400'
+                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            }`}
                     >
                         <Key size={16} />
                         Configuración IA
                     </button>
                     <button
                         onClick={() => setActiveTab('memory')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'memory'
-                            ? 'border-red-400 text-red-400'
-                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'memory'
+                                ? 'border-red-400 text-red-400'
+                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            }`}
                     >
                         <HardDrive size={16} />
                         Memoria (Debug)
                     </button>
                     <button
                         onClick={() => setActiveTab('info')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                            activeTab === 'info'
-                            ? 'border-cyan-400 text-cyan-400'
-                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
-                        }`}
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'info'
+                                ? 'border-cyan-400 text-cyan-400'
+                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            }`}
                     >
                         <Info size={16} />
                         Acerca de
@@ -546,13 +541,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 <div className="flex items-start justify-between gap-4">
                                     <div>
                                         <h5 className="text-white font-bold flex items-center gap-2">
-                                            <FileSearch size={16} className="text-blue-400"/>
+                                            <FileSearch size={16} className="text-blue-400" />
                                             Auditoría de Rutas (Dry Run)
                                         </h5>
                                         <p className="text-xs text-titanium-400 mt-1">
                                             Escanea recursivamente TODAS las carpetas sin modificar nada.
                                             Usa esto para verificar si la IA puede "ver" archivos profundos (Ficha Megu.md).
-                                            <br/><strong className="text-blue-400">Revisa la consola del navegador (F12) para ver los logs.</strong>
+                                            <br /><strong className="text-blue-400">Revisa la consola del navegador (F12) para ver los logs.</strong>
                                         </p>
                                     </div>
                                     <button
@@ -560,7 +555,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         disabled={isAuditing || isReindexing}
                                         className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-600/50 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
                                     >
-                                        {isAuditing ? <RefreshCw className="animate-spin" size={16}/> : <FileSearch size={16}/>}
+                                        {isAuditing ? <RefreshCw className="animate-spin" size={16} /> : <FileSearch size={16} />}
                                         {isAuditing ? 'Auditando...' : 'Auditar'}
                                     </button>
                                 </div>
@@ -583,7 +578,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         disabled={isAuditing || isReindexing || isRefreshingAuth}
                                         className="flex items-center gap-2 px-4 py-2 bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/30 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
                                     >
-                                        {isReindexing ? <RefreshCw className="animate-spin" size={16}/> : <AlertTriangle size={16}/>}
+                                        {isReindexing ? <RefreshCw className="animate-spin" size={16} /> : <AlertTriangle size={16} />}
                                         {isReindexing ? 'Purgando...' : 'Nuclear'}
                                     </button>
                                 </div>
@@ -606,7 +601,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         disabled={isAuditing || isReindexing || isRefreshingAuth}
                                         className="flex items-center gap-2 px-4 py-2 bg-yellow-600/10 text-yellow-500 hover:bg-yellow-600/20 border border-yellow-600/30 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
                                     >
-                                        {isRefreshingAuth ? <RefreshCw className="animate-spin" size={16}/> : <ShieldCheck size={16}/>}
+                                        {isRefreshingAuth ? <RefreshCw className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
                                         {isRefreshingAuth ? 'Renovando...' : 'Renovar Permisos'}
                                     </button>
                                 </div>
@@ -628,7 +623,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 </div>
 
                                 <h3 className="text-xl font-bold text-white tracking-tight">
-                                    MyWorld Titanium <span className="text-cyan-500">v4.0</span>
+                                    MyWorld <span className="text-cyan-500"></span>
                                 </h3>
 
                                 <div className="px-4 py-2 bg-black/40 rounded-full border border-titanium-700/50">
@@ -680,9 +675,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             {isAnalyzerOpen && (
                 <InternalFileSelector
                     onFileSelected={(files) => {
-                         // Type assertion to handle single vs multi return, though we expect array from multi-select
-                         const list = Array.isArray(files) ? files : [files];
-                         handleAnalyzeStyle(list);
+                        // Type assertion to handle single vs multi return, though we expect array from multi-select
+                        const list = Array.isArray(files) ? files : [files];
+                        handleAnalyzeStyle(list);
                     }}
                     onCancel={() => setIsAnalyzerOpen(false)}
                     multiSelect={true} // 👈 Enable Multi-Select
