@@ -1,0 +1,114 @@
+================================================================================
+MANIFIESTO DEL PROYECTO TITANIUM: DOCUMENTACIÓN GENERAL
+================================================================================
+VERSIÓN: 4.0 (Fase 6 - La Revelación: Documentación, Génesis & Guardián)
+ESTADO: EN DESPLIEGUE (PRODUCCIÓN)
+AUTOR: EQUIPO DE INGENIERÍA (IA + HUMANO)
+DOCUMENTOS ANEXOS: DOCUMENTATION_GUIDE.md (Mapa Narrativo), FUNCTION_ANALYSIS.md
+--------------------------------------------------------------------------------
+1. VISIÓN: LA CATEDRAL Y EL BÚNKER
+--------------------------------------------------------------------------------
+No estamos construyendo un simple editor de texto. Estamos construyendo una
+"Catedral de Titanio": una estructura monumental diseñada para elevar el proceso
+creativo humano, sostenida por una infraestructura de seguridad paranoica.
+
+Nuestra filosofía se basa en tres principios sagrados:
+1. LA MAGIA (La Catedral): La IA es un "Espejo Activo" que entiende la trama,
+detecta contradicciones (Guardián) y visualiza la estructura (Nexus).
+2. LA SEGURIDAD (El Búnker): La "Verdad" nunca se pierde. Archivos físicos en
+Google Drive, logs inmutables en Firestore y auditoría legal creativa.
+3. LA REVELACIÓN (El Manual): El sistema es complejo, por lo que el "Escriba Mayor"
+(Cyber-Mage) guía al usuario mediante manuales arcanos pero técnicos.
+
+--------------------------------------------------------------------------------
+2. ARQUITECTURA SAGRADA (EL STACK)
+--------------------------------------------------------------------------------
+Nuestro sistema es un híbrido "Nube-Local" diseñado para la persistencia absoluta.
+
+[CEREBRO]
+* Google Gemini 2.0/3.0 (Pro & Flash): Motor cognitivo multimodal.
+* "High Reasoning" para el Tribunal y Perforador.
+* "Flash" para análisis en tiempo real (Drift Plugin, Canon Radar).
+
+[CUERPO]
+* Frontend: React + Vite + Tailwind CSS ("Titanium Shell").
+* Backend: Firebase Cloud Functions v2 (Node.js). Serverless.
+* Identidad: Google Identity Services v2 (OAuth 2.0 con Refresh Token persistente).
+
+[MEMORIA]
+* Nivel 0 (La Verdad Física): Google Drive. Archivos Markdown (.md).
+* Nivel 1 (La Verdad Indexada): Firestore `TDB_Index`. Metadatos y Vectores.
+* Nivel 2 (La Verdad Legal): Firestore `audit_log`. Registro forense de autoría.
+
+--------------------------------------------------------------------------------
+3. LOS PILARES (ZONAS OPERATIVAS)
+--------------------------------------------------------------------------------
+
+A. ZONA A: LA MEMORIA (THE VAULT)
+---------------------------------
+* **El Búnker (Sidebar):** Navegación taxonómica que separa CANON (Verdad) de RECURSOS.
+* **Enlace Neural:** Conexión persistente con Google Drive.
+* **Modo Zen:** Escudo cognitivo que oculta distracciones.
+
+B. ZONA B: EL ESCENARIO (ACTION)
+--------------------------------
+* **Editor Híbrido:** Lienzo CodeMirror con "Drift Plugin" (subrayado de incoherencias).
+* **La Forja de Almas:** Gestor de personajes con detección recursiva en carpetas.
+* **Perforador de Mundos V2 (Nexus):** Visualización de grafos, física de fuerzas y
+"Cristalización" de entidades fantasma (Drafts -> Archivos).
+* **El Cronograma:** Extracción de eventos temporales con doble escritura (JSON + DB).
+* **El Laboratorio:** Chat RAG ("El Bibliotecario") aislado para investigación.
+
+C. ZONA C: LA INTELIGENCIA (THE ARSENAL)
+----------------------------------------
+* **El Director:** Co-piloto creativo con memoria de largo plazo y modos de vista
+(Estratega/War Room).
+* **El Tribunal:** Consejo de tres jueces (Arquitecto, Bardo, Hater) que evalúa
+prosa, estructura y viabilidad comercial.
+* **El Guardián (Canon Radar):** Sistema de vigilancia pasiva.
+    - Detección de "Traición Narrativa" (Personality Drift).
+    - Alerta de "Fracturas de Realidad" (Violación de reglas mágicas/físicas).
+    - Análisis de Resonancia (Plot Seeds).
+* **Estado del Centinela:** Panel de diagnóstico y "The Purge" (limpieza de archivos basura).
+
+--------------------------------------------------------------------------------
+4. PROTOCOLOS DE ORIGEN & MECÁNICAS INVISIBLES
+--------------------------------------------------------------------------------
+
+A. PROTOCOLO GÉNESIS
+--------------------
+Un asistente socrático (Wizard) que entrevista al autor para generar la "semilla"
+del mundo (Protagonista, Incidente, Escenario) y crear la estructura de carpetas
+automáticamente.
+
+B. AUDITORÍA CREATIVA (Creative Audit)
+--------------------------------------
+"La Caja Negra". Un servicio que registra cada inyección humana, decisión de curación
+y cambio estructural con firma de tiempo segura. Permite generar "Certificados de Autoría"
+legales para probar que la obra no fue generada puramente por IA.
+
+C. SINCRONIZACIÓN NEURONAL
+--------------------------
+El backend escucha cambios en Drive y actualiza el índice vectorial en tiempo real.
+Si el usuario edita externamente, la IA "aprende" el cambio instantáneamente.
+
+--------------------------------------------------------------------------------
+5. ESTADO ACTUAL (FASE 6)
+--------------------------------------------------------------------------------
+El sistema ha alcanzado la madurez operativa.
+1. **Documentación Completa**: Manuales de usuario redactados por el "Escriba Mayor".
+2. **Estabilidad del Guardián**: El Canon Radar ahora detecta drifts de personalidad.
+3. **Identidad**: El sistema de autenticación con Google Drive es robusto y persistente.
+
+--------------------------------------------------------------------------------
+6. EL FUTURO (ROADMAP)
+--------------------------------------------------------------------------------
+* [ ] Exportación EPUB/Kindle nativa en La Imprenta.
+* [ ] "Cursores Multijugador" para colaboración en tiempo real.
+* [ ] Modo "Offline First" agresivo (PWA).
+
+--------------------------------------------------------------------------------
+NOTA FINAL
+--------------------------------------------------------------------------------
+Este documento certifica que el Proyecto Titanium ha trascendido de "Herramienta"
+a "Ecosistema". La Catedral está abierta.
