@@ -4,7 +4,9 @@ import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
 import {
     Plus,
     Loader2,
-    Globe
+    Globe,
+    Eye,
+    EyeOff
 } from 'lucide-react';
 import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove, query, where, limit } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -94,6 +96,7 @@ const WorldEnginePageV2: React.FC<{
     // STATE: THE BUILDER
     const [isBuilderOpen, setIsBuilderOpen] = useState(false);
     const [builderInitialPrompt, setBuilderInitialPrompt] = useState("");
+    const [showUI, setShowUI] = useState(true);
 
     // ⚖️ AUDIT: THE DIRECTION (Reality Mode)
     const handleModeChange = (newMode: RealityMode) => {
@@ -771,50 +774,67 @@ const WorldEnginePageV2: React.FC<{
                         </TransformComponent>
 
                         {/* 🟢 ZOOM CONTROLS */}
-                        <div className="absolute bottom-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
-                             <button onClick={() => zoomIn()} aria-label="Acercar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
-                             <button onClick={() => zoomOut()} aria-label="Alejar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
-                        </div>
+                        {showUI && (
+                            <div className="absolute bottom-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
+                                <button onClick={() => zoomIn()} aria-label="Acercar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
+                                <button onClick={() => zoomOut()} aria-label="Alejar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
+                            </div>
+                        )}
                     </>
                 )}
              </TransformWrapper>
 
-             {/* 🟢 NEXUS BUTTON (The Eye - Top Center) */}
-             <div className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
+             {/* 🟢 UI TOGGLE (Top Left) */}
+             <div className="absolute top-8 left-8 pointer-events-auto z-50">
                  <button
-                    onClick={handleNexusClick}
-                    disabled={isScanning}
-                    aria-label={isScanning ? "Escaneando Nexus..." : "Iniciar Escaneo Nexus"}
-                    className={`
-                        group relative flex items-center justify-center px-8 py-4
-                        bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full
-                        transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.1)]
-                        ${isScanning ? 'w-[400px] cursor-wait border-cyan-500/80 bg-cyan-950/50' : 'hover:bg-cyan-900/30 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
-                    `}
+                    onClick={() => setShowUI(!showUI)}
+                    aria-label={showUI ? "Ocultar Interfaz" : "Mostrar Interfaz"}
+                    className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"
                  >
-                     {isScanning ? (
-                         <div className="flex items-center gap-3">
-                             <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
-                             <span className="font-mono text-xs font-bold text-cyan-300 tracking-widest animate-pulse">{scanStatus}</span>
-                         </div>
-                     ) : (
-                         <>
-                            <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
-                            <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">NEXUS</span>
-                         </>
-                     )}
+                     {showUI ? <EyeOff size={20} /> : <Eye size={20} />}
                  </button>
              </div>
 
+             {/* 🟢 NEXUS BUTTON (The Eye - Top Center) */}
+             {showUI && (
+                 <div className="absolute top-8 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
+                     <button
+                        onClick={handleNexusClick}
+                        disabled={isScanning}
+                        aria-label={isScanning ? "Escaneando Nexus..." : "Iniciar Escaneo Nexus"}
+                        className={`
+                            group relative flex items-center justify-center px-8 py-4
+                            bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full
+                            transition-all duration-300 shadow-[0_0_20px_rgba(6,182,212,0.1)]
+                            ${isScanning ? 'w-[400px] cursor-wait border-cyan-500/80 bg-cyan-950/50' : 'hover:bg-cyan-900/30 hover:border-cyan-400/50 hover:shadow-[0_0_30px_rgba(6,182,212,0.3)]'}
+                        `}
+                     >
+                         {isScanning ? (
+                             <div className="flex items-center gap-3">
+                                 <Loader2 className="w-5 h-5 text-cyan-400 animate-spin" />
+                                 <span className="font-mono text-xs font-bold text-cyan-300 tracking-widest animate-pulse">{scanStatus}</span>
+                             </div>
+                         ) : (
+                             <>
+                                <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
+                                <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">NEXUS</span>
+                             </>
+                         )}
+                     </button>
+                 </div>
+             )}
+
              {/* 🟢 COMMAND BAR (The Mouth - Bottom Center) */}
-             <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
-                <CommandBar
-                    onClearAll={() => setIsClearAllOpen(true)}
-                    onCommit={handleBuilderTrigger}
-                    mode={realityMode}
-                    onModeChange={handleModeChange}
-                />
-             </div>
+             {showUI && (
+                 <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
+                    <CommandBar
+                        onClearAll={() => setIsClearAllOpen(true)}
+                        onCommit={handleBuilderTrigger}
+                        mode={realityMode}
+                        onModeChange={handleModeChange}
+                    />
+                 </div>
+             )}
 
              {/* THE BUILDER */}
              <TheBuilder
