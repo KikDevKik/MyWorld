@@ -1,0 +1,88 @@
+# 🏛️ ZONA A: LA MEMORIA (THE VAULT)
+
+*Registro de la Arquitectura Sagrada del Universo Titanium.*
+
+---
+
+## 1. LA BÓVEDA (The Vault)
+
+**La Promesa:**
+El dominio absoluto sobre tu creación; un índice vivo que respira al ritmo de tu Drive y separa la Verdad (Canon) de la Inspiración (Recursos).
+
+**Mecánica Sagrada (Cómo se usa):**
+1.  **Navegación:** Despliega el árbol de archivos. Observarás dos grandes divisiones: **CANON** (La Verdad de tu historia) y **RECURSOS** (Material de referencia).
+2.  **Filtrado de Sagas:** Usa el selector superior ("Vista Global") para aislar una Saga específica y ocultar el ruido irrelevante.
+3.  **Gestión de Archivos:**
+    *   **Un Clic:** Selecciona y abre el archivo en el Editor Híbrido.
+    *   **Doble Clic:** Invoca el ritual de **Renombramiento** (permite editar el nombre del archivo o carpeta directamente en Drive).
+4.  **La Chispa:** Si te sientes perdido, pulsa el botón *"¿Tienes una Chispa?"* para invocar al Protocolo Génesis.
+
+**La Magia Oculta (Lo Técnico):**
+Bajo la superficie, `VaultSidebar.tsx` no es un simple explorador. Escucha en tiempo real (vía `onSnapshot`) la colección `TDB_Index` de Firestore.
+*   **Split Logic:** El código intercepta tu configuración (`ProjectConfigContext`) y separa visualmente los IDs que pertenecen al *Canon* de los que son simples *Recursos*, aunque en Drive estén mezclados.
+*   **Sentinel Filter:** Si un archivo tiene conflictos de sincronización (`isConflicting: true`), el árbol lo marca en ámbar o lo oculta si el "Filtro de Salud" está activo.
+
+**Advertencias:**
+*   ⚠️ **Renombramiento:** Al renombrar un archivo aquí, se renombra *físicamente* en Google Drive. No hay "Deshacer".
+*   ⚠️ **Latencia:** Los cambios realizados directamente en Drive pueden tardar unos segundos en reflejarse si el *Listener* de Firestore no recibe el "latido" inmediato.
+
+---
+
+## 2. EL ENLACE NEURAL (Neural Link)
+
+**La Promesa:**
+La soberanía de tus datos; tu mundo vive en tu Google Drive personal, no en nuestros servidores, garantizando que eres el único dueño de tu obra.
+
+**Mecánica Sagrada (Cómo se usa):**
+1.  **Iniciación:** Al crear un proyecto o desconectarte, verás el panel "Conexión Neuronal".
+2.  **El Ritual de Enlace:** Pulsa "Conectar Drive". Se abrirá una ventana de Google.
+3.  **El Pacto:** Debes conceder permisos totales (Scope: `drive.file`) para que el Escriba pueda leer y *escribir* tus manuscritos.
+4.  **La Perpetuidad:** Una vez enlazado, el sistema renovará el acceso automáticamente en silencio.
+
+**La Magia Oculta (Lo Técnico):**
+El sistema utiliza el protocolo **Google Identity Services v2** (`initCodeClient`) con `prompt: 'consent'`.
+*   Esto fuerza la generación de un **Refresh Token** de larga duración, que el backend (`exchangeAuthCode`) almacena cifrado.
+*   Una Cloud Function llamada `refreshDriveToken` se ejecuta periódicamente o ante errores 401, renovando el `accessToken` sin que tengas que volver a iniciar sesión jamás.
+
+**Advertencias:**
+*   ⚠️ **Cuentas de Servicio:** Si compartes carpetas manualmente, asegúrate de invitar al correo del "Service Account" del sistema, o el enlace arrojará un error 404 (Vacío).
+
+---
+
+## 3. CONFIGURACIÓN DEL UNIVERSO (Project Matrix)
+
+**La Promesa:**
+Define la física y la taxonomía de tu mundo, enseñando a la IA qué es historia (Lore) y qué es trama (Saga), para que nunca confunda un personaje con una ciudad.
+
+**Mecánica Sagrada (Cómo se usa):**
+1.  **Acceso:** Abre el menú de *Ajustes* (icono de engranaje o carpeta) en el pie de la Bóveda.
+2.  **Taxonomía (El Cerebro):**
+    *   **Auto-Detectar:** Deja que la IA escanee tus carpetas e intente adivinar qué es qué.
+    *   **Crear Estándar:** Si tu carpeta está vacía, invoca la estructura "Titanium" para crear automáticamente las carpetas sagradas (Mundo, Personajes, Borradores).
+3.  **Mapeo Manual:** Asigna manualmente carpetas de Drive a roles específicos (Ej: "Carpeta X" = "Bestiario").
+
+**La Magia Oculta (Lo Técnico):**
+Este panel (`ProjectSettingsModal.tsx`) manipula el `ProjectConfig` en Firestore.
+*   **Indexación Estricta:** Al guardar, el sistema dispara `getDriveFiles` con `persist: true`. Esto purga el índice antiguo y re-escanea *solo* las carpetas mapeadas, asegurando que la IA no "alucine" con archivos basura que no hayas autorizado explícitamente.
+
+**Advertencias:**
+*   ⚠️ **El Gran Olvido:** Si desvinculas una carpeta de su rol (ej: quitas la carpeta de "Personajes"), la IA olvidará instantáneamente a todos los seres que vivían allí.
+
+---
+
+## 4. MODO ZEN (Sentinel Shell)
+
+**La Promesa:**
+El silencio absoluto. Un escudo cognitivo que colapsa la realidad para dejarte a solas con tus palabras.
+
+**Mecánica Sagrada (Cómo se usa):**
+1.  **Activación:** Invocado automáticamente al entrar en flujo o manualmente desde la Barra de Comandos.
+2.  **Efecto:** La Bóveda (Sidebar) y el Arsenal (Tools) se pliegan en la nada. Solo queda el Editor Híbrido.
+3.  **Retorno:** Mueve el cursor a los bordes o presiona la tecla de invocación para traer de vuelta la interfaz.
+
+**La Magia Oculta (Lo Técnico):**
+Controlado por `SentinelShell.tsx` y el `useLayoutStore`.
+*   No es solo CSS (`display: none`). El componente desmonta parcialmente los paneles pesados para liberar recursos de la memoria del navegador, manteniendo solo el núcleo del editor (`CodeMirror`) activo para máxima fluidez.
+
+**Advertencias:**
+*   ⚠️ **Ceguera Temporal:** En Modo Zen, las alertas del Guardián (Canon Radar) son silenciadas visualmente. Escribes bajo tu propio riesgo de continuidad.
