@@ -111,6 +111,25 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 isSignificant: isSignificant
             });
 
+            // ⚖️ AUDIT: LOG SIGNIFICANT WRITES
+            // Only log if the edit was "significant" (>50 chars or similar heuristic from above)
+            // This reduces spam and ensures we capture actual human effort.
+            if (isSignificant && folderId && user) {
+                CreativeAuditService.logCreativeEvent({
+                    projectId: folderId,
+                    userId: user.uid,
+                    component: 'HybridEditor',
+                    actionType: 'INJECTION',
+                    description: 'Manual Writing (Significant)',
+                    payload: {
+                        fileId: currentFileId,
+                        fileName: currentFileName,
+                        timestamp: Date.now(),
+                        contentSnapshot: contentToSave // 🟢 CAPTURE CONTENT
+                    }
+                });
+            }
+
             // Update lastSavedContent to what we just saved
             setLastSavedContent(contentToSave);
         } catch (error) {
@@ -145,38 +164,22 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [isDirty, isSaving]);
 
-    // ⚖️ AUDIT: THE LABOR (Debounced Auto-Save Log)
-    useEffect(() => {
-        if (!currentFileId || !folderId || !user) return;
-
-        const timer = setTimeout(() => {
-            // Only log if content exists
-            if (selectedFileContent && selectedFileContent.length > 0) {
-                CreativeAuditService.logCreativeEvent({
-                    projectId: folderId,
-                    userId: user.uid,
-                    component: 'HybridEditor',
-                    actionType: 'INJECTION',
-                    description: 'User manually edited content (Auto-Save)',
-                    payload: {
-                        fileId: currentFileId,
-                        fileName: currentFileName,
-                        timestamp: Date.now()
-                    }
-                });
-            }
-        }, 5000); // 5 seconds debounce
-
-        return () => clearTimeout(timer);
-    }, [selectedFileContent, currentFileId, folderId, user]);
-
     // 🟢 CALCULATE EFFECTIVE CONTEXT (FALLBACK LOGIC)
     const effectiveFileContent = selectedFileContent;
     const effectiveFileName = currentFileName;
     const isFallbackContext = false; // Always live now.
 
     // 🛡️ GUARDIAN HOOK (ARGOS)
-    const { status: guardianStatus, conflicts: guardianConflicts, facts: guardianFacts, forceAudit } = useGuardian(effectiveFileContent, folderId);
+    const {
+        status: guardianStatus,
+        conflicts: guardianConflicts,
+        facts: guardianFacts,
+        lawConflicts: guardianLawConflicts,
+        personalityDrifts: guardianPersonalityDrifts,
+        resonanceMatches: guardianResonanceMatches,
+        structureAnalysis: guardianStructureAnalysis,
+        forceAudit
+    } = useGuardian(effectiveFileContent, folderId, currentFileId || undefined);
 
     // 🟢 TRIGGER DRIFT SCAN WHEN DIRECTOR OPENS (ONCE PER OPEN)
     // Updated dependency to activeView
@@ -280,11 +283,23 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // HANDLERS
     const handleLogout = async () => {
         const auth = getAuth();
-        try {
-            // 🟢 REVOKE DRIVE ACCESS ON LOGOUT (Security)
-            await callFunction('revokeDriveAccess').catch(e => console.warn("Revoke failed (maybe already cleared):", e));
+        // 🟢 UX: Feedback Inmediato
+        const toastId = toast.loading("Cerrando sesión de forma segura...");
 
+        try {
+            // 🟢 REVOKE DRIVE ACCESS (Best Effort - No bloquear por siempre)
+            // Race: Si revoke toma > 1.5s, procedemos a salir.
+            const revokePromise = callFunction('revokeDriveAccess');
+            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
+
+            await Promise.race([revokePromise, timeoutPromise]).catch(e => console.warn("Revoke skipped/failed:", e));
+
+        } catch (error) {
+            console.error("Logout preparation error", error);
+        } finally {
+            // 🟢 SIEMPRE CERRAR SESIÓN
             await signOut(auth);
+
             setFolderId("");
             setSelectedFileContent("");
             setLastSavedContent(""); // 🟢 RESET BASELINE
@@ -292,8 +307,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setOauthToken(null);
             setDriveStatus('disconnected');
             localStorage.removeItem('google_drive_token');
-        } catch (error) {
-            console.error("Logout error", error);
+
+            toast.dismiss(toastId);
         }
     };
 
@@ -534,6 +549,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     status={guardianStatus}
                     facts={guardianFacts}
                     conflicts={guardianConflicts}
+                    lawConflicts={guardianLawConflicts}
+                    personalityDrifts={guardianPersonalityDrifts}
+                    resonanceMatches={guardianResonanceMatches}
+                    structureAnalysis={guardianStructureAnalysis}
                     onClose={() => setActiveView('editor')}
                     onForceAudit={forceAudit}
                     accessToken={oauthToken}

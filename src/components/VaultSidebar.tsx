@@ -3,7 +3,7 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles, Trash2 } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
@@ -12,6 +12,7 @@ import { getFirestore, onSnapshot, collection, query, where } from "firebase/fir
 import { getAuth } from "firebase/auth";
 import { toast } from 'sonner';
 import CreateProjectModal from './ui/CreateProjectModal';
+import DeleteConfirmationModal from './ui/DeleteConfirmationModal'; // 🟢 NEW
 import { callFunction } from '../services/api';
 
 interface VaultSidebarProps {
@@ -80,6 +81,12 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
     // const [showOnlyHealthy, setShowOnlyHealthy] = useState(false); // REMOVED LOCAL STATE
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+    // 🟢 DELETE MODE STATE
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
+    const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<string>>(new Set());
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
     useEffect(() => {
@@ -182,6 +189,53 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     };
 
+    // 🟢 DELETE LOGIC
+    const handleToggleDeleteMode = () => {
+        if (isDeleteMode) {
+            setIsDeleteMode(false);
+            setSelectedDeleteIds(new Set());
+        } else {
+            setIsDeleteMode(true);
+        }
+    };
+
+    const handleToggleDeleteSelect = (id: string) => {
+        const newSet = new Set(selectedDeleteIds);
+        if (newSet.has(id)) {
+            newSet.delete(id);
+        } else {
+            newSet.add(id);
+        }
+        setSelectedDeleteIds(newSet);
+    };
+
+    const handleDeleteClick = () => {
+        if (selectedDeleteIds.size === 0) return;
+        setIsDeleteModalOpen(true);
+    };
+
+    const handleConfirmDelete = async () => {
+        setIsDeleting(true);
+        try {
+            await callFunction('trashDriveItems', {
+                accessToken,
+                fileIds: Array.from(selectedDeleteIds)
+            });
+            toast.success(`${selectedDeleteIds.size} elementos movidos a la papelera.`);
+
+            // Cleanup
+            setIsDeleteMode(false);
+            setSelectedDeleteIds(new Set());
+            setIsDeleteModalOpen(false);
+
+            // Note: Firestore listener will auto-refresh the tree
+        } catch (error: any) {
+            toast.error("Error al borrar: " + error.message);
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
     // 🟢 STATUS INDICATOR HELPER
     const getStatusConfig = () => {
         switch (driveStatus) {
@@ -228,7 +282,28 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Explorador</h2>
 
                     {/* ACTION BUTTONS (DISTRIBUTED) */}
-                    <div className="ml-auto flex items-center gap-3">
+                    <div className="ml-auto flex items-center gap-2">
+                        {/* 🟢 DELETE TOGGLE */}
+                        <button
+                            onClick={handleToggleDeleteMode}
+                            className={`p-1.5 rounded-md transition-colors shrink-0 ${isDeleteMode ? 'text-red-500 bg-titanium-800' : 'text-titanium-400 hover:text-red-400 hover:bg-titanium-700'}`}
+                            title={isDeleteMode ? "Salir de Modo Borrado" : "Activar Modo Borrado"}
+                            aria-label="Activar Modo Borrado"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+
+                        {/* 🟢 EXECUTE DELETE */}
+                        {isDeleteMode && selectedDeleteIds.size > 0 && (
+                            <button
+                                onClick={handleDeleteClick}
+                                className="px-2 py-1 rounded-md bg-red-900/50 text-red-400 hover:bg-red-900/80 hover:text-white text-xs font-bold transition-all animate-in fade-in zoom-in"
+                                title="Confirmar Borrado"
+                            >
+                                Borrar ({selectedDeleteIds.size})
+                            </button>
+                        )}
+
                         {onCreateFile && (
                             <button
                                 onClick={onCreateFile}
@@ -350,6 +425,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         conflictingFileIds={conflictingFileIds}
                                         showOnlyHealthy={showOnlyHealthy}
                                         activeFileId={activeFileId}
+                                        isDeleteMode={isDeleteMode}
+                                        selectedDeleteIds={selectedDeleteIds}
+                                        onToggleDeleteSelect={handleToggleDeleteSelect}
                                     />
                                 )}
                             </div>
@@ -379,6 +457,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         conflictingFileIds={conflictingFileIds}
                                         showOnlyHealthy={showOnlyHealthy}
                                         activeFileId={activeFileId}
+                                        isDeleteMode={isDeleteMode}
+                                        selectedDeleteIds={selectedDeleteIds}
+                                        onToggleDeleteSelect={handleToggleDeleteSelect}
                                     />
                                 )}
                             </div>
@@ -402,12 +483,23 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     conflictingFileIds={conflictingFileIds}
                                     showOnlyHealthy={showOnlyHealthy}
                                     activeFileId={activeFileId}
+                                    isDeleteMode={isDeleteMode}
+                                    selectedDeleteIds={selectedDeleteIds}
+                                    onToggleDeleteSelect={handleToggleDeleteSelect}
                                 />
                             </div>
                         )}
                     </>
                 )}
             </div>
+
+            <DeleteConfirmationModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleConfirmDelete}
+                count={selectedDeleteIds.size}
+                isDeleting={isDeleting}
+            />
 
             <CreateProjectModal
                 isOpen={isCreateModalOpen}
@@ -461,13 +553,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <LogOut size={16} />
                         <span>Cerrar Sesión</span>
                     </button>
-
-                    {/* COPYRIGHT FOOTER */}
-                    <div className="mt-4 pt-2 flex justify-center">
-                        <span className="text-[10px] text-titanium-500 font-mono text-center opacity-70">
-                            © 2026 MyWorld
-                        </span>
-                    </div>
                 </div>
             </div>
         </div>

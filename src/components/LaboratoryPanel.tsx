@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, FlaskConical, Search, FileText, Image as ImageIcon, Music, Book, MoreHorizontal, Tag, Filter, Loader2, Sparkles } from 'lucide-react';
+import { FlaskConical, Search, FileText, Image as ImageIcon, Music, Book, MoreHorizontal, Tag, Filter, Loader2, Sparkles } from 'lucide-react';
 import { DriveFile, Gem } from '../types';
 import { toast } from 'sonner';
 import ChatPanel from './ChatPanel';
@@ -138,7 +138,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
     // 🟢 VIRTUAL GEM: THE LIBRARIAN
     const librarianGem: Gem = {
         id: 'laboratorio',
-        name: 'El Bibliotecario',
+        name: 'Laboratorio de Ideas',
         model: 'gemini-2.5-flash',
         color: 'emerald',
         backgroundImage: '',
@@ -157,11 +157,6 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                         <div className="flex items-center gap-2 text-emerald-500">
                             <FlaskConical size={20} />
                             <h2 className="font-bold tracking-wider text-sm">RECURSOS</h2>
-                        </div>
-                        <div className="flex gap-1">
-                             <button onClick={onClose} aria-label="Cerrar Laboratorio" className="p-1 hover:bg-titanium-800 rounded text-titanium-400 hover:text-white">
-                                <X size={16} />
-                            </button>
                         </div>
                     </div>
 

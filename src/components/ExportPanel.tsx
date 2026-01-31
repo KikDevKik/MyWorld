@@ -9,7 +9,6 @@ import {
     CheckSquare,
     Square,
     Loader2,
-    AlertTriangle,
     BookOpen,
     Shield
 } from 'lucide-react';
@@ -351,10 +350,6 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                         <h2 className="text-lg font-bold text-white tracking-wide">LA IMPRENTA <span className="text-xs text-titanium-500 font-normal ml-2">v3.3 TITAN</span></h2>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-2 hover:bg-red-500/20 rounded-full group transition-colors">
-                    <span className="sr-only">Cerrar</span>
-                    <AlertTriangle size={20} className="text-titanium-500 group-hover:text-red-400" />
-                </button>
             </div>
 
             <div className="flex-1 flex overflow-hidden">
