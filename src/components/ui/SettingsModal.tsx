@@ -3,11 +3,11 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
+import { callFunction } from '../../services/api';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -112,17 +112,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             }
 
             const fileIds = selectedFiles.map(f => f.id);
-            const functions = getFunctions();
-            const analyzeStyleDNA = httpsCallable(functions, 'analyzeStyleDNA');
 
             toast.info("🧬 Extrayendo ADN Narrativo... (Esto puede tardar unos segundos)");
 
-            const result = await analyzeStyleDNA({
+            const data = await callFunction<any>('analyzeStyleDNA', {
                 fileIds,
                 accessToken: safeToken // 👈 USE FRESH TOKEN
             });
 
-            const data = result.data as any;
             if (data.styleIdentity) {
                 setStyleIdentity(data.styleIdentity);
                 toast.success("¡ADN Narrativo extraído con éxito!");
@@ -205,18 +202,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                  return;
             }
 
-            const functions = getFunctions();
-            const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
-
             toast.info('Escaneando estructura de carpetas (puede tardar)...');
 
-            const result = await getDriveFiles({
+            const fileTree = await callFunction<any[]>('getDriveFiles', {
                 folderIds: folderIds, // 👈 New: Pass array of IDs
                 recursive: true,
                 accessToken: token
             });
 
-            const fileTree = result.data as any[];
             console.log('📦 Raw File Tree:', fileTree);
 
             const totalFiles = traverseAndLog(fileTree);
@@ -282,21 +275,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                  return;
             }
 
-            const functions = getFunctions();
-            const indexTDB = httpsCallable(functions, 'indexTDB');
-
             toast.info('Iniciando Purga y Re-indexación Nuclear...');
 
-            const result = await indexTDB({
+            const stats = await callFunction<any>('indexTDB', {
                 folderIds: folderIds, // 👈 New: Pass array of IDs
                 projectId: config.folderId, // 👈 Important: Pass legacy ID as Project Context
                 forceFullReindex: true,
                 accessToken: token
             });
 
-            console.log("☢️ Nuclear Re-index Result:", result.data);
+            console.log("☢️ Nuclear Re-index Result:", stats);
 
-            const stats = result.data as any;
             toast.success(`¡Memoria reconstruida! Archivos: ${stats.filesIndexed || 0}, Chunks: ${stats.chunksCreated || 0}, Fantasmas eliminados: ${stats.ghostFilesPruned || 0}`);
         } catch (error: any) {
             console.error('Nuclear reindex failed:', error);

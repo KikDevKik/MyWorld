@@ -9,10 +9,10 @@ import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { useLayoutStore } from "../stores/useLayoutStore"; // 🟢 IMPORT STORE
 import { getFirestore, onSnapshot, collection, query, where } from "firebase/firestore";
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getAuth } from "firebase/auth";
 import { toast } from 'sonner';
 import CreateProjectModal from './ui/CreateProjectModal';
+import { callFunction } from '../services/api';
 
 interface VaultSidebarProps {
     folderId: string;
@@ -161,12 +161,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // 🟢 CREATE STANDARD PROJECT
     const handleCreateProject = async (name: string) => {
         try {
-            const functions = getFunctions();
-            const createTitaniumStructure = httpsCallable(functions, 'createTitaniumStructure');
-
             toast.info("Creando estructura del proyecto...");
 
-            await createTitaniumStructure({
+            await callFunction('createTitaniumStructure', {
                 accessToken: accessToken,
                 newProjectName: name
             });

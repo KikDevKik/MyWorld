@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { X, Plus, Trash2, Save, Folder, Book, Star, Brain, Cpu, LayoutTemplate } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import useDrivePicker from 'react-google-drive-picker';
 import { ProjectPath, FolderRole } from '../../types/core';
+import { callFunction } from '../../services/api';
 
 interface ProjectSettingsModalProps {
     onClose: () => void;
@@ -55,13 +55,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                     // 🟢 STRICT LOGIC: Do NOT append config.folderId fallback.
                     // If the list is empty, we MUST send empty list to clear the tree.
 
-                    const functions = getFunctions();
-                    const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
-
                     // Fire and forget (or await if critical) - Awaiting to ensure consistency
                     toast.info(folderIds.length > 0 ? "Actualizando índice de archivos..." : "Limpiando índice...");
 
-                    await getDriveFiles({
+                    await callFunction('getDriveFiles', {
                         folderIds, // Can be empty []
                         accessToken: token,
                         recursive: true,
@@ -156,12 +153,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         if (!token) return;
 
         try {
-            const functions = getFunctions();
-            const discoverFolderRoles = httpsCallable(functions, 'discoverFolderRoles');
-
             toast.info("Escaneando estructura de carpetas...");
-            const result = await discoverFolderRoles({ accessToken: token });
-            const data = result.data as any;
+            const data = await callFunction<any>('discoverFolderRoles', { accessToken: token });
 
             if (data.suggestion && Object.keys(data.suggestion).length > 0) {
                 setFolderMapping(prev => ({ ...prev, ...data.suggestion }));
@@ -192,12 +185,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         }
 
         try {
-            const functions = getFunctions();
-            const createTitaniumStructure = httpsCallable(functions, 'createTitaniumStructure');
-
             toast.info("Construyendo cimientos...");
-            const result = await createTitaniumStructure({ accessToken: token, rootFolderId: rootId });
-            const data = result.data as any;
+            const data = await callFunction<any>('createTitaniumStructure', { accessToken: token, rootFolderId: rootId });
 
             if (data.success) {
                 setFolderMapping(data.mapping);
