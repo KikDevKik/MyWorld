@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Save, Sparkles, Database, Loader2, BrainCircuit } from 'lucide-react';
 import { Character } from '../../types';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { toast } from 'sonner';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { motion, AnimatePresence } from 'framer-motion';
+import { callFunction } from '../../services/api';
 
 // Define a unified interface for display (Now Compatible with Character type)
 interface InspectorData extends Partial<Character> {
@@ -98,16 +98,13 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
     // 🔮 PHASE 2: DEEP ANALYSIS TRIGGER (WITH SYNC)
     const handleDeepAnalysis = async () => {
         setIsAnalyzing(true);
-        const functions = getFunctions();
-        const enrichContext = httpsCallable(functions, 'enrichCharacterContext');
-        const syncManifest = httpsCallable(functions, 'syncCharacterManifest');
 
         try {
             // 1. HARD SYNC: If we have a masterFileId, force update from Drive first
             if (realData?.masterFileId && accessToken) {
                  try {
                      toast.info("Syncing latest data from Drive...");
-                     await syncManifest({
+                     await callFunction('syncCharacterManifest', {
                          masterVaultId: null, // Ignored
                          accessToken: accessToken,
                          specificFileId: realData.masterFileId
@@ -127,7 +124,7 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
             }
 
             // 2. AI ANALYSIS
-            const result: any = await enrichContext({
+            const result = await callFunction<any>('enrichCharacterContext', {
                 characterId: data.id,
                 name: data.name,
                 saga: realData?.sourceContext || 'Global',
@@ -135,17 +132,17 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
                 status: data.status // 🟢 Pass status for correct routing
             });
 
-            if (result.data.success) {
+            if (result.success) {
                 toast.success("Context Analysis Complete!");
                 // Update local state to show result immediately
                 setRealData((prev: any) => ({
                     ...prev,
-                    contextualAnalysis: result.data.analysis,
-                    sources: result.data.sources, // 📚 Store Sources
-                    lastAnalyzed: result.data.timestamp
+                    contextualAnalysis: result.analysis,
+                    sources: result.sources, // 📚 Store Sources
+                    lastAnalyzed: result.timestamp
                 }));
             } else {
-                toast.error(result.data.message || "Analysis returned no results.");
+                toast.error(result.message || "Analysis returned no results.");
             }
         } catch (error: any) {
             console.error("Analysis failed:", error);
@@ -157,8 +154,6 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
 
     const handleMaterialize = async () => {
         setIsSaving(true);
-        const functions = getFunctions();
-        const forgeToolExecution = httpsCallable(functions, 'forgeToolExecution');
 
         try {
             // Generate basic content template
@@ -178,7 +173,7 @@ Materialized from Deep Scan.
 `;
 
             // Call backend to create file
-            await forgeToolExecution({
+            await callFunction('forgeToolExecution', {
                 title: data.name,
                 content: content,
                 folderId: folderId,

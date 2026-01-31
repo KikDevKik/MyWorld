@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { callFunction } from '../../services/api';
 
 interface SentinelStatus {
   status: 'SECURE' | 'FAILED' | 'LOADING';
@@ -19,12 +19,8 @@ const ProjectHUD: React.FC = () => {
   useEffect(() => {
     const pulse = async () => {
       try {
-        const functions = getFunctions();
-        const checkSentinelIntegrity = httpsCallable(functions, 'checkSentinelIntegrity');
-
         // Silent Check (Background Pulse)
-        const result = await checkSentinelIntegrity();
-        const data = result.data as any;
+        const data = await callFunction<any>('checkSentinelIntegrity');
 
         if (data.status === 'SECURE') {
             setSentinel({ status: 'SECURE', connection: true, project: data.project });

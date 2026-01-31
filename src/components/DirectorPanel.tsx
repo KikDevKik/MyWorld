@@ -6,11 +6,11 @@ import { DirectorTools } from './DirectorTools';
 import { SessionList } from './ui/SessionList';
 import { useDirectorChat } from '../hooks/useDirectorChat';
 import { ChatMessage } from './director/chat/ChatMessage';
-import { httpsCallable, getFunctions } from 'firebase/functions';
 import { CreativeAuditService } from '../services/CreativeAuditService';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useContextStatus } from '../hooks/useContextStatus';
 import { toast } from 'sonner';
+import { callFunction } from '../services/api';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -115,7 +115,6 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     // 🟢 LOAD WAR ROOM SESSIONS
     const [embeddedSessions, setEmbeddedSessions] = useState<any[]>([]);
     const [isSessionsLoading, setIsSessionsLoading] = useState(false);
-    const functions = getFunctions();
     const { user, config } = useProjectConfig();
 
     // 🟢 CONTEXT STATUS CHECK
@@ -125,14 +124,13 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const handleQuickIndex = async () => {
         if (!config) return;
         setIsIndexing(true);
-        const indexTDB = httpsCallable(functions, 'indexTDB');
 
         const allPaths = [...(config.canonPaths || []), ...(config.resourcePaths || [])];
         const folderIds = allPaths.map(p => p.id);
 
         try {
             toast.promise(
-                indexTDB({
+                callFunction('indexTDB', {
                     folderIds: folderIds,
                     projectId: config.folderId || folderId,
                     accessToken: accessToken, // Passed from prop
@@ -157,9 +155,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
             const loadSessions = async () => {
                 setIsSessionsLoading(true);
                 try {
-                    const getSessions = httpsCallable(functions, 'getForgeSessions');
-                    const result = await getSessions({ type: 'director' });
-                    const fetched = (result.data as any[]).sort((a, b) =>
+                    const result = await callFunction<any[]>('getForgeSessions', { type: 'director' });
+                    const fetched = result.sort((a, b) =>
                         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
                     );
                     setEmbeddedSessions(fetched);

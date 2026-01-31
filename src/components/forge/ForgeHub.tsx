@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Folder, Loader2, Book, AlertTriangle, ChevronRight, Home, ArrowLeft, Hammer } from 'lucide-react';
 import { DriveFile, ProjectPath } from '../../types';
+import { callFunction } from '../../services/api';
 
 interface ForgeHubProps {
     roots: ProjectPath[]; // 🟢 CHANGED: Multi-root support
@@ -51,16 +51,12 @@ const ForgeHub: React.FC<ForgeHubProps> = ({ roots, accessToken, onSelectSaga })
                 }
 
                 const currentFolder = currentPath[currentPath.length - 1];
-                const functions = getFunctions();
-                const getDriveFiles = httpsCallable(functions, 'getDriveFiles');
 
-                const result: any = await getDriveFiles({
+                const files = await callFunction<DriveFile[]>('getDriveFiles', {
                     folderIds: [currentFolder.id],
                     accessToken,
                     recursive: false
                 });
-
-                const files = result.data as DriveFile[];
 
                 if (files && files.length > 0 && files[0].children) {
                     // Filter for Folders only (Navigation Mode)

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, DragStartEvent } from '@dnd-kit/core';
@@ -10,6 +9,7 @@ import ForgeChat from './ForgeChat';
 import ForgeCard from './ForgeCard';
 import { Character, DriveFile } from '../../types';
 import { ForgePayload, SoulEntity } from '../../types/forge';
+import { callFunction } from '../../services/api';
 
 interface ForgeDashboardProps {
     folderId: string; // Project Root ID (for global context)
@@ -169,9 +169,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         setIsSorting(true);
         const toastId = toast.loading("Ejecutando Soul Sorter...");
         try {
-            const functions = getFunctions();
-            const classifyEntities = httpsCallable<any, ForgePayload>(functions, 'classifyEntities');
-            await classifyEntities({ projectId: folderId, sagaId: saga.id });
+            await callFunction<ForgePayload>('classifyEntities', { projectId: folderId, sagaId: saga.id });
             toast.success("Análisis completado.", { id: toastId });
         } catch (error) {
             console.error(error);
@@ -186,10 +184,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         setShowPurgeModal(false);
         const toastId = toast.loading("Purgando base de datos...");
         try {
-            const functions = getFunctions();
-            const purgeForgeEntities = httpsCallable(functions, 'purgeForgeEntities');
-            const res = await purgeForgeEntities();
-            const data = res.data as any;
+            const data = await callFunction<any>('purgeForgeEntities');
             toast.success(`Base de datos purgada. (${data.count || 0} entidades eliminadas)`, { id: toastId });
         } catch (error) {
             console.error(error);

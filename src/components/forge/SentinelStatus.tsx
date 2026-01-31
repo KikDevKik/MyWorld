@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { ShieldCheck, ShieldAlert, Cloud, CloudOff, RefreshCw, X, Trash2, AlertTriangle, Loader2, Eye } from 'lucide-react';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLayoutStore } from "../../stores/useLayoutStore";
+import { callFunction } from '../../services/api';
 
 interface SentinelStatusProps {
     onClose: () => void;
@@ -25,11 +25,6 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
     const [isScanning, setIsScanning] = useState(false);
     const [isPurging, setIsPurging] = useState(false);
     const [scanResult, setScanResult] = useState<ScanResult | null>(null);
-
-    // 🟢 CLOUD FUNCTIONS
-    const functions = getFunctions();
-    const scanVaultHealth = httpsCallable(functions, 'scanVaultHealth');
-    const purgeArtifacts = httpsCallable(functions, 'purgeArtifacts');
 
     // 🟢 HANDLE SCAN
     const handleScan = async () => {
@@ -65,11 +60,10 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
         }
 
         try {
-            const result = await scanVaultHealth({
+            const data = await callFunction<ScanResult>('scanVaultHealth', {
                 folderId: config.folderId,
                 accessToken: token
             });
-            const data = result.data as ScanResult;
             setScanResult(data);
 
             if (data.ghostCount > 0) {
@@ -99,7 +93,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
 
         try {
             const ghostIds = scanResult.ghosts.map(g => g.id);
-            const result = await purgeArtifacts({
+            await callFunction('purgeArtifacts', {
                 fileIds: ghostIds,
                 accessToken: token
             });
