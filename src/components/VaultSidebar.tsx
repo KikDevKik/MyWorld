@@ -1,3 +1,7 @@
+/*
+ * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
+ * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+ */
 import React, { useState, useEffect } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles } from 'lucide-react';
 import FileTree from './FileTree';
@@ -460,6 +464,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <LogOut size={16} />
                         <span>Cerrar Sesión</span>
                     </button>
+
+                    {/* COPYRIGHT FOOTER */}
+                    <div className="mt-4 pt-2 flex justify-center">
+                         <span className="text-[10px] text-titanium-500 font-mono text-center opacity-70">
+                             © 2026 Deiner David Trelles Renteria
+                         </span>
+                    </div>
                 </div>
             </div>
         </div>

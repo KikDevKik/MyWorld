@@ -1,5 +1,7 @@
 # 🌍 MyWorld - Creative Writing IDE (Titanium Edition)
 
+Built for Gemini Hackathon 3 | Powered by Gemini 3.0 Pro
+
 Plataforma de escritura avanzada potenciada por IA para novelistas y creadores de mundos.
 
 ## 🚀 Módulos del Sistema
