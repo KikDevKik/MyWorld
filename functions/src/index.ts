@@ -4983,7 +4983,7 @@ export { classifyResource } from "./laboratory";
  * Semantic folder discovery and creation.
  */
 export { discoverFolderRoles, createTitaniumStructure, renameDriveFolder } from "./folder_manager";
-export { generateAuditPDF } from "./audit";
+export { generateAuditPDF, generateCertificate } from "./audit";
 
 /**
  * 37. AUTHENTICATION (The Keymaster)

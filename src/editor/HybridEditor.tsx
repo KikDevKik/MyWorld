@@ -13,6 +13,8 @@ import { lintKeymap } from '@codemirror/lint';
 
 import { driftExtension, setDriftMarkers, DriftMarker } from './extensions/driftPlugin';
 import { Lock } from 'lucide-react';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
+import { CreativeAuditService } from '../services/CreativeAuditService';
 
 interface HybridEditorProps {
     content: string;
@@ -71,6 +73,25 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
     const viewRef = useRef<EditorView | null>(null);
     const editableCompartment = useMemo(() => new Compartment(), []);
 
+    // 🟢 THE SPY: AUDIT LOGIC
+    const { config, user } = useProjectConfig();
+    const folderId = config?.folderId; // Use config folderId as projectId
+    const bufferRef = useRef({ human: 0, ai: 0 }); // Local buffer
+    const lastTypeTime = useRef(Date.now());
+
+    // FLUSH TIMER (The Spy's Report)
+    useEffect(() => {
+        const interval = setInterval(() => {
+            if (folderId && user && (bufferRef.current.human > 0 || bufferRef.current.ai > 0)) {
+                if (import.meta.env.DEV) console.log("🕵️ [THE SPY] Flushing Report:", bufferRef.current);
+
+                CreativeAuditService.updateAuditStats(folderId, user.uid, bufferRef.current.human, bufferRef.current.ai);
+                bufferRef.current = { human: 0, ai: 0 }; // Reset
+            }
+        }, 5000); // 5s flush
+        return () => clearInterval(interval);
+    }, [folderId, user]);
+
     // 1. INITIALIZE EDITOR
     useEffect(() => {
         if (!editorRef.current) return;
@@ -116,10 +137,37 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
                 // Custom Extensions
                 driftExtension,
 
-                // Update Listener
+                // Update Listener (The Spy's Eyes)
                 EditorView.updateListener.of((update) => {
-                    if (update.docChanged && onContentChange) {
-                        onContentChange(update.state.doc.toString());
+                    if (update.docChanged) {
+                        // 🟢 CHECK SOURCE: Only count USER events (keyboard/input)
+                        // This prevents counting programmatic updates (like AI Insertion) as human typing.
+                        const isUserEvent = update.transactions.some(tr =>
+                            tr.isUserEvent('input') || tr.isUserEvent('delete') || tr.isUserEvent('undo') || tr.isUserEvent('redo')
+                        );
+
+                        if (isUserEvent) {
+                            // 1. Calculate Change Metrics
+                            let charsAdded = 0;
+                            update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {
+                                charsAdded += (toB - fromB);
+                            });
+
+                            // 2. Heuristic Analysis
+                            if (charsAdded > 0) {
+                                // If > 50 chars added in one event, assume PASTE (Suspicious)
+                                if (charsAdded > 50) {
+                                    if (import.meta.env.DEV) console.log(`🕵️ [THE SPY] Paste Detected (+${charsAdded} chars) -> IGNORED`);
+                                } else {
+                                    // 🟢 VALID: HUMAN TYPING
+                                    bufferRef.current.human += charsAdded;
+                                }
+                            }
+                        }
+
+                        if (onContentChange) {
+                            onContentChange(update.state.doc.toString());
+                        }
                     }
                 })
             ]

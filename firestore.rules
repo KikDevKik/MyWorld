@@ -11,6 +11,12 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // 🟢 PUBLIC CERTIFICATES (THE JUDGE)
+    match /public_certificates/{certificateId} {
+      allow read: if true; // Public Verification
+      allow write: if false; // Only Cloud Function can write
+    }
+
     // ¡¡¡AQUÍ ESTÁ LA LLAVE!!!
     // ¡BLOQUEA TODO por defecto! ¡Nadie entra!
     match /{document=**} {
@@ -68,6 +74,11 @@ service cloud.firestore {
 
         // 🟢 AUDIT LOG (Creative Audit Service)
         match /audit_log/{logId} {
+           allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+
+        // 🟢 AUDIT STATS (The Spy's Memory)
+        match /stats/{statId} {
            allow read, write: if request.auth != null && request.auth.uid == userId;
         }
       }

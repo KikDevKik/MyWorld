@@ -1,5 +1,5 @@
 import React from 'react';
-import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle } from 'lucide-react';
+import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle, FilePlus } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AnalysisCard } from './AnalysisCard';
@@ -29,6 +29,7 @@ interface ChatMessageProps {
     message: ChatMessageData;
     onRescue: (drift: any, id: string, category: string) => void;
     onPurge: (drift: any, id: string) => void;
+    onInsert?: (text: string) => void;
     rescuingIds: Set<string>;
     purgingIds: Set<string>;
 }
@@ -37,6 +38,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     message,
     onRescue,
     onPurge,
+    onInsert,
     rescuingIds,
     purgingIds
 }) => {
@@ -189,6 +191,20 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     {message.text}
                 </ReactMarkdown>
                 </div>
+
+                {/* 🟢 INSERT BUTTON (Only for Assistant) */}
+                {message.role === 'assistant' && onInsert && (
+                    <div className="mt-3 pt-2 border-t border-titanium-800/50 flex justify-end">
+                        <button
+                            onClick={() => onInsert(message.text)}
+                            className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:text-emerald-300 bg-emerald-900/10 hover:bg-emerald-900/30 px-2 py-1.5 rounded transition-all uppercase tracking-wider"
+                            title="Insertar en el editor activo"
+                        >
+                            <FilePlus size={12} />
+                            <span>Insertar</span>
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

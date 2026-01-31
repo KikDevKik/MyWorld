@@ -26,6 +26,7 @@ interface DirectorPanelProps {
     folderId?: string;
     driftAlerts?: any;
     accessToken?: string | null;
+    onInsertContent?: (text: string) => void;
 }
 
 const DirectorPanel: React.FC<DirectorPanelProps> = ({
@@ -41,7 +42,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     isFallbackContext,
     folderId,
     accessToken,
-    driftAlerts
+    driftAlerts,
+    onInsertContent
 }) => {
     // 🟢 GLOBAL STORE
     const { isArsenalWide, toggleArsenalWidth, directorWidth } = useLayoutStore();
@@ -311,6 +313,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                     onPurge={handlePurge}
                                     rescuingIds={rescuingIds}
                                     purgingIds={purgingIds}
+                                    onInsert={onInsertContent}
                                 />
                             ))
                         )}
