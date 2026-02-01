@@ -288,7 +288,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             onClick={handleToggleDeleteMode}
                             className={`p-1.5 rounded-md transition-colors shrink-0 ${isDeleteMode ? 'text-red-500 bg-titanium-800' : 'text-titanium-400 hover:text-red-400 hover:bg-titanium-700'}`}
                             title={isDeleteMode ? "Salir de Modo Borrado" : "Activar Modo Borrado"}
-                            aria-label="Activar Modo Borrado"
+                            aria-label="Alternar Modo Borrado"
+                            aria-pressed={isDeleteMode}
                         >
                             <Trash2 size={16} />
                         </button>
@@ -407,6 +408,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 <button
                                     onClick={() => setIsCanonOpen(!isCanonOpen)}
                                     className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-emerald-900/10 transition-colors group"
+                                    aria-expanded={isCanonOpen}
                                 >
                                     <ChevronDown size={12} className={`text-emerald-500 transition-transform ${isCanonOpen ? '' : '-rotate-90'}`} />
                                     <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
@@ -439,6 +441,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 <button
                                     onClick={() => setIsResourcesOpen(!isResourcesOpen)}
                                     className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-blue-900/10 transition-colors group"
+                                    aria-expanded={isResourcesOpen}
                                 >
                                     <ChevronDown size={12} className={`text-blue-500 transition-transform ${isResourcesOpen ? '' : '-rotate-90'}`} />
                                     <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
@@ -537,8 +540,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     {/* 🟢 STATUS INDICATOR BUTTON */}
                     <button
                         onClick={onRefreshTokens}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium group ${status.color}`}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium group ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
                         title="Click para renovar manualmente"
+                        disabled={driveStatus === 'refreshing'}
+                        aria-label={`Estado de conexión: ${status.text}`}
                     >
                         <status.icon size={16} className="transition-colors" />
                         <span>{status.text}</span>

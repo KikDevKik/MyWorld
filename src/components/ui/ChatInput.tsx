@@ -163,6 +163,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         onClick={handleRemoveAttachment}
                         className="p-1 hover:bg-red-500/20 text-titanium-400 hover:text-red-400 rounded-full transition-colors"
                         title="Quitar archivo"
+                        aria-label="Quitar archivo adjunto"
                     >
                         <X size={16} />
                     </button>
@@ -182,6 +183,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                         : 'text-titanium-400 hover:text-emerald-400 hover:bg-titanium-800'
                     }`}
                     title="Adjuntar imagen o audio"
+                    aria-label="Adjuntar imagen o audio"
                 >
                     <Paperclip size={20} />
                 </button>
@@ -209,6 +211,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     onClick={() => handleSubmit()}
                     disabled={(!text.trim() && !attachment) || disabled}
                     className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0"
+                    aria-label="Enviar mensaje"
                 >
                     <Send size={20} />
                 </button>
