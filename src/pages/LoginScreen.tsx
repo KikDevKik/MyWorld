@@ -58,8 +58,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                 <div className="flex flex-col items-center gap-6 text-center">
 
                     {/* LOGO - Image from Assets */}
-                    <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center border border-white/10 shadow-lg overflow-hidden p-1">
-                         <img src="/logo.png" alt="MyWorld Logo" className="w-full h-full object-contain" />
+                    <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center border border-white/10 shadow-lg overflow-hidden p-0">
+                         <img src="/assets/mw-logo-icon.png" alt="MyWorld Logo" className="w-full h-full object-cover" />
                     </div>
 
                     <div className="space-y-1">
