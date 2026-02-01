@@ -1,23 +1,37 @@
 import React from 'react';
 import { SoulEntity } from '../../types/forge';
-import { Ghost, FileEdit, Anchor, ArrowRight, Zap, Database } from 'lucide-react';
+import { Ghost, FileEdit, Anchor, ArrowRight, Zap, Database, PawPrint, Flower, User } from 'lucide-react';
 
 interface ForgeCardProps {
     entity: SoulEntity;
     onAction: (entity: SoulEntity) => void;
 }
 
+const CategoryIcon = ({ category, className }: { category?: string, className?: string }) => {
+    switch (category) {
+        case 'CREATURE': return <PawPrint className={className} />;
+        case 'FLORA': return <Flower className={className} />;
+        case 'PERSON': default: return <User className={className} />;
+    }
+};
+
 const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
+
+    const isBestiary = entity.category === 'CREATURE' || entity.category === 'FLORA';
+    const accentColor = isBestiary ? (entity.category === 'FLORA' ? 'text-pink-400' : 'text-purple-400') : 'text-cyan-400';
+    const borderColor = isBestiary ? (entity.category === 'FLORA' ? 'border-pink-500/30' : 'border-purple-500/30') : 'border-cyan-500/30';
+    const hoverBg = isBestiary ? (entity.category === 'FLORA' ? 'hover:bg-pink-900/30' : 'hover:bg-purple-900/30') : 'hover:bg-cyan-900/30';
 
     // VARIANT A: GHOST (The Radar)
     if (entity.tier === 'GHOST') {
         return (
-            <div className="group relative p-4 rounded-xl border border-dashed border-cyan-500/30 bg-cyan-950/20 hover:bg-cyan-900/30 hover:border-cyan-400/50 transition-all duration-300 backdrop-blur-sm">
+            <div className={`group relative p-4 rounded-xl border border-dashed ${borderColor} bg-titanium-950/40 ${hoverBg} transition-all duration-300 backdrop-blur-sm`}>
                 <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-titanium-200 font-mono tracking-wide group-hover:text-cyan-300 transition-colors">
+                    <h3 className={`text-titanium-200 font-mono tracking-wide group-hover:text-white transition-colors flex items-center gap-2`}>
+                        <CategoryIcon category={entity.category} className={`w-3 h-3 opacity-50`} />
                         {entity.name}
                     </h3>
-                    <Ghost size={14} className="text-cyan-500/50 group-hover:text-cyan-400" />
+                    <Ghost size={14} className={`${isBestiary ? 'text-purple-500' : 'text-cyan-500'} opacity-50 group-hover:opacity-100`} />
                 </div>
 
                 <p className="text-xs text-titanium-500 italic mb-4 line-clamp-3 font-serif leading-relaxed">
@@ -26,7 +40,11 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
 
                 <button
                     onClick={() => onAction(entity)}
-                    className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-cyan-500/80 border border-cyan-500/20 rounded hover:bg-cyan-500/10 hover:text-cyan-300 transition-all"
+                    className={`w-full py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider border rounded transition-all
+                        ${isBestiary
+                            ? 'text-purple-500/80 border-purple-500/20 hover:bg-purple-500/10 hover:text-purple-300'
+                            : 'text-cyan-500/80 border-cyan-500/20 hover:bg-cyan-500/10 hover:text-cyan-300'}
+                    `}
                 >
                     <Zap size={12} />
                     Materializar
@@ -40,7 +58,8 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
         return (
             <div className="group p-4 rounded-xl border border-amber-500/30 bg-titanium-900/50 hover:bg-amber-950/10 hover:border-amber-500/60 transition-all duration-300 shadow-sm">
                 <div className="flex items-start justify-between mb-2">
-                    <h3 className="text-lg font-bold text-titanium-100 group-hover:text-amber-200 transition-colors">
+                    <h3 className="text-lg font-bold text-titanium-100 group-hover:text-amber-200 transition-colors flex items-center gap-2">
+                         <CategoryIcon category={entity.category} className="w-4 h-4 text-amber-500/50" />
                         {entity.name}
                     </h3>
                     <FileEdit size={14} className="text-amber-500/50 group-hover:text-amber-400" />
@@ -82,14 +101,17 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
 
             <div className="relative z-10">
                 <div className="flex items-start justify-between mb-1">
-                    <h3 className="text-xl font-serif font-bold text-titanium-100 group-hover:text-emerald-300 transition-colors">
+                    <h3 className="text-xl font-serif font-bold text-titanium-100 group-hover:text-emerald-300 transition-colors flex items-center gap-2">
+                        {entity.category === 'CREATURE' && <PawPrint size={18} className="text-emerald-600" />}
+                        {entity.category === 'FLORA' && <Flower size={18} className="text-pink-600" />}
+                        {(!entity.category || entity.category === 'PERSON') && <User size={18} className="text-titanium-600 group-hover:text-emerald-500" />}
                         {entity.name}
                     </h3>
                     <Anchor size={16} className="text-titanium-600 group-hover:text-emerald-500 transition-colors" />
                 </div>
 
                 <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/80 mb-3">
-                    {entity.role || "PERSONAJE REGISTRADO"}
+                    {entity.role || (entity.category === 'CREATURE' ? "FAUNA REGISTRADA" : entity.category === 'FLORA' ? "FLORA REGISTRADA" : "PERSONAJE REGISTRADO")}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-titanium-500 mb-4 font-mono">

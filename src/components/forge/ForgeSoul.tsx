@@ -1,17 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, ArrowUpCircle, Loader2 } from 'lucide-react';
+import { FileText, ArrowUpCircle, Loader2, PawPrint, Flower, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import Editor from '../editor/Editor';
 import { callFunction } from '../../services/api';
-
-interface Character {
-    id: string;
-    name: string;
-    tier: 'MAIN' | 'SUPPORTING';
-    sourceType: 'MASTER' | 'LOCAL' | 'HYBRID';
-    masterFileId?: string;
-    snippets?: { text: string; sourceBookId: string }[];
-}
+import { Character, EntityCategory } from '../../types';
 
 interface ForgeSoulProps {
     activeChar: Character;
@@ -21,7 +13,6 @@ interface ForgeSoulProps {
 const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
     const [content, setContent] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isSaving, setIsSaving] = useState(false);
 
     // FETCH CONTENT
     useEffect(() => {
@@ -51,19 +42,29 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
         fetchContent();
     }, [activeChar, accessToken]);
 
-    // AUTO-SAVE (Debounced in Editor, but here we handle the actual save call if needed or rely on Editor's prop)
+    // AUTO-SAVE
     const handleContentChange = async (newContent: string) => {
         setContent(newContent);
-        // Note: Real-time saving to Drive should ideally be debounced.
-        // For this implementation, we assume the user might want a manual save or the Editor handles it via a prop.
-        // But since the `Editor` component usually has an `onSave` or debounced `onChange`, we'll leverage that.
-        // For now, we'll keep it simple: We just update local state.
-
-        // TODO: Implement `saveDriveFile` call if Editor doesn't handle it internally with the fileId.
     };
 
     const handlePromote = () => {
         toast.info("Promotion logic would go here (Create File -> Update Firestore -> Refresh).");
+    };
+
+    const handleInjectTemplate = () => {
+        const template = `## ${activeChar.name}
+
+**Tipo:** ${activeChar.category === 'FLORA' ? 'Flora' : 'Fauna'}
+**Tamaño:**
+**Apariencia:**
+**Dieta:**
+**Habilidad Clave:**
+**Comportamiento:**
+`;
+        setContent(template);
+        // Trigger save if needed, but Editor handles it on change usually.
+        // We manually trigger the change handler to sync up.
+        handleContentChange(template);
     };
 
     if (isLoading) {
@@ -74,15 +75,26 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
         );
     }
 
+    const isBestiary = activeChar.category === 'CREATURE' || activeChar.category === 'FLORA';
+    const headerColor = activeChar.category === 'FLORA' ? 'text-pink-400' : (activeChar.category === 'CREATURE' ? 'text-purple-400' : 'text-cyan-400');
+
     return (
         <div className="h-full flex flex-col bg-titanium-950 relative">
-            {/* TIER 3 OVERLAY / HEADER */}
-            {activeChar.tier === 'SUPPORTING' && (
-                <div className="bg-titanium-900 border-b border-titanium-800 p-4 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-2 text-titanium-400">
-                        <FileText size={16} />
-                        <span className="text-xs uppercase font-bold tracking-wider">Local Snippet (Read Only)</span>
-                    </div>
+
+            {/* HEADER / BESTIARY INDICATOR */}
+            <div className={`bg-titanium-900 border-b border-titanium-800 p-4 flex items-center justify-between shrink-0`}>
+                <div className={`flex items-center gap-2 ${headerColor} font-bold tracking-wider text-xs uppercase`}>
+                    {activeChar.category === 'CREATURE' && <PawPrint size={16} />}
+                    {activeChar.category === 'FLORA' && <Flower size={16} />}
+                    {!isBestiary && <FileText size={16} />}
+
+                    <span>
+                        {activeChar.tier === 'SUPPORTING' ? "FRAGMENTO LOCAL (Read Only)" :
+                         (isBestiary ? "REGISTRO DE BESTIARIO" : "ARCHIVO MAESTRO")}
+                    </span>
+                </div>
+
+                {activeChar.tier === 'SUPPORTING' ? (
                     <button
                         onClick={handlePromote}
                         className="flex items-center gap-2 px-3 py-1.5 bg-accent-DEFAULT/10 hover:bg-accent-DEFAULT/20 text-accent-DEFAULT text-xs font-bold rounded-lg border border-accent-DEFAULT/30 transition-all"
@@ -90,8 +102,19 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
                         <ArrowUpCircle size={14} />
                         <span>Promote to Master</span>
                     </button>
-                </div>
-            )}
+                ) : (
+                    // Template Injector for Empty Files
+                    (content.trim().length === 0 && isBestiary) && (
+                        <button
+                            onClick={handleInjectTemplate}
+                            className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-bold rounded-lg border border-purple-500/30 transition-all"
+                        >
+                            <Zap size={14} />
+                            <span>Usar Plantilla Bestiario</span>
+                        </button>
+                    )
+                )}
+            </div>
 
             {/* EDITOR AREA */}
             <div className="flex-1 overflow-hidden relative">

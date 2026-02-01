@@ -7,7 +7,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
-import { EntityTier, ForgePayload, SoulEntity } from "./types/forge";
+import { EntityTier, EntityCategory, ForgePayload, SoulEntity } from "./types/forge";
 
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
@@ -78,6 +78,7 @@ interface SorterRequest {
 interface DetectedEntity {
     name: string;
     tier: EntityTier;
+    category?: EntityCategory; // 🟢 NEW
     confidence: number;
     reasoning?: string;
     sourceFileId?: string;
@@ -416,20 +417,25 @@ export const classifyEntities = onCall(
 
             const extractionPrompt = `
             ACT AS: The Soul Sorter.
-            TASK: Extract all CHARACTER NAMES from the narrative text.
+            TASK: Extract all ENTITY NAMES (Characters, Creatures, Flora) from the narrative text.
 
-            KNOWN CHARACTERS: [${knownEntitiesList}]
+            KNOWN ENTITIES: [${knownEntitiesList}]
 
             RULES:
             1. Extract Proper Names of People/Beings (e.g. "Thomas", "Megu").
-            2. IGNORE Locations (Cities, Planets).
-            3. IGNORE Objects (Swords, Ships).
-            4. IGNORE Generic titles ("The King", "The Soldier") unless capitalized as a proper alias.
-            5. DEDUPLICATION: If a detected name is a variation or alias of a KNOWN CHARACTER (e.g. "Megu" -> "Megu (Apellido Desconocido)"), use the KNOWN CHARACTER'S full name in the output.
+            2. Extract Names of MYTHICAL CREATURES or SPECIAL FAUNA (e.g. "Baku-fante", "Shadow Wolf").
+            3. Extract Names of SPECIAL FLORA (e.g. "Moon Flower").
+            4. CLASSIFY each entity as: 'PERSON', 'CREATURE', or 'FLORA'.
+            5. IGNORE Locations (Cities, Planets) and Generic Objects (Swords).
+            6. DEDUPLICATION: Use known names if possible.
 
             OUTPUT JSON (Array):
             [
-              { "name": "Name", "context": "Brief context snippet (max 10 words)" }
+              {
+                "name": "Name",
+                "category": "PERSON" | "CREATURE" | "FLORA",
+                "context": "Brief context snippet (max 10 words)"
+              }
             ]
             `;
 
@@ -449,11 +455,19 @@ export const classifyEntities = onCall(
                                 if (!existing.foundIn) existing.foundIn = [];
                                 // Avoid spamming foundIn
                                 if (existing.foundIn.length < 5) existing.foundIn.push(item.context || "Mentioned");
+
+                                // Update Category if not set (or if we trust AI more?)
+                                // Let's trust existing category if set, otherwise adopt AI's suggestion
+                                if (!existing.category && item.category) {
+                                    existing.category = item.category as EntityCategory;
+                                }
+
                             } else {
                                 // New GHOST
                                 entitiesMap.set(key, {
                                     name: item.name,
                                     tier: 'GHOST',
+                                    category: (item.category as EntityCategory) || 'PERSON',
                                     confidence: 50,
                                     reasoning: "Mención en Narrativa",
                                     saga: sagaId || 'Global', // Default to current scope
@@ -558,6 +572,7 @@ export const classifyEntities = onCall(
                     id: entityHash,
                     name: entity.name,
                     tier: entity.tier,
+                    category: entity.category || 'PERSON',
                     sourceSnippet: sourceSnippet,
                     occurrences: (entity.foundIn?.length || 1) * (entity.tier === 'ANCHOR' ? 10 : 1), // Anchors weigh more
                     driveId: entity.sourceFileId,
@@ -592,6 +607,7 @@ export const classifyEntities = onCall(
                     role: e.role || null,
                     avatar: e.avatar || null,
                     driveId: e.driveId || null, // 🟢 Fix: Ensure driveId is never undefined
+                    category: e.category || 'PERSON', // 🟢 Persist Category
                     sourceSnippet: e.sourceSnippet || "No preview available",
                     mergeSuggestion: e.mergeSuggestion || null,
                     tags: e.tags || [],
