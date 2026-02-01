@@ -6,26 +6,26 @@ import { GemId } from '../../types';
 interface ArsenalDockProps {
     activeGemId: GemId | null;
     onGemSelect: (id: GemId) => void;
-    onToggleDirector: () => void; // 👈 Keep prop name, but implementation changes in parent
     onSimulateDrift?: () => void; // 🟢 SMOKE TEST
     isSecurityReady?: boolean; // 🟢 NEW PROP
     onToggleSentinel?: () => void; // 🟢 NEW PROP
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onToggleDirector, onSimulateDrift, isSecurityReady, onToggleSentinel }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, isSecurityReady, onToggleSentinel }) => {
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
-    const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'imprenta'];
+    const DOCK_GEMS: GemId[] = ['director', 'perforador', 'forja', 'laboratorio', 'tribunal', 'guardian', 'imprenta'];
 
     // 🟢 ENGLISH LABELS FOR ACCESSIBILITY
     const GEM_LABELS: Record<string, string> = {
+        director: 'Director',
         perforador: 'World Engine',
         forja: 'Forge',
-        guardian: 'Guardian',
-        tribunal: 'Tribunal',
         laboratorio: 'Laboratory',
-        cronograma: 'Timeline',
-        imprenta: 'Press'
+        tribunal: 'Tribunal',
+        guardian: 'Guardian',
+        imprenta: 'Press',
+        cronograma: 'Timeline'
     };
 
     // Función auxiliar para elegir el icono correcto según la ID de la Gem
@@ -94,7 +94,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
             </div>
             <div className="flex-1" /> {/* Espaciador flexible para empujar lo de abajo */}
 
-            {/* 🟢 ACCESOS DIRECTOS FLOTANTES (Director) */}
+            {/* 🟢 ACCESOS DIRECTOS FLOTANTES (Dev Only) */}
             <div className="flex flex-col gap-4 w-full px-2 pb-4">
                 {/* 🧪 DRIFT SIMULATION BUTTON (DEV ONLY) */}
                 {onSimulateDrift && (
@@ -106,23 +106,6 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onT
                         <FlaskConical size={20} />
                     </button>
                 )}
-
-                 <button
-                    onClick={onToggleDirector}
-                    // Highlight if Director is active (activeGemId comes from activeView in parent)
-                    className={`
-                        group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
-                        focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none
-                        ${activeGemId === 'director'
-                            ? 'bg-titanium-800 text-titanium-100 shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-titanium-600'
-                            : 'text-titanium-500 hover:text-accent-DEFAULT hover:bg-titanium-900 border border-transparent hover:border-titanium-700'
-                        }
-                    `}
-                    title="Director de Escena"
-                    aria-label="Director"
-                >
-                    <Clapperboard size={20} />
-                </button>
             </div>
 
         </div>

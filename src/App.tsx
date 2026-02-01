@@ -513,7 +513,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             <ArsenalDock
                 activeGemId={activeView as GemId}
                 onGemSelect={handleGemSelect}
-                onToggleDirector={() => setActiveView('director')}
                 onSimulateDrift={import.meta.env.VITE_JULES_MODE === 'true' ? handleSimulateDrift : undefined}
                 isSecurityReady={isSecurityReady}
                 onToggleSentinel={() => setActiveView(activeView === 'sentinel' ? 'editor' : 'sentinel')}
