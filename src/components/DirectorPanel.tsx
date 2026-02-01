@@ -80,31 +80,6 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
 
-    // 🟢 DRIFT SCORE CALCULATION (UI ONLY)
-    const [driftScore, setDriftScore] = useState(100);
-    useEffect(() => {
-        if (!driftAlerts) {
-            setDriftScore(100);
-            return;
-        }
-        let penalty = 0;
-        Object.values(driftAlerts).forEach((alerts: any) => {
-            if (Array.isArray(alerts)) {
-                alerts.forEach((alert: any) => {
-                    if (alert.severity === 'critical' || alert.drift_score > 0.7) penalty += 20;
-                    else penalty += 5;
-                });
-            }
-        });
-        setDriftScore(Math.max(0, 100 - penalty));
-    }, [driftAlerts]);
-
-    const getDriftColor = () => {
-        if (driftScore >= 80) return "text-emerald-500";
-        if (driftScore >= 50) return "text-amber-500";
-        return "text-red-500";
-    };
-
     // 🟢 LOAD WAR ROOM SESSIONS
     const [embeddedSessions, setEmbeddedSessions] = useState<any[]>([]);
     const [isSessionsLoading, setIsSessionsLoading] = useState(false);
@@ -223,14 +198,6 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
             {/* HEADER */}
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
                 <div className="flex items-center gap-3">
-                    <div className="relative w-8 h-8 flex items-center justify-center">
-                        <svg className="w-full h-full transform -rotate-90">
-                            <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="transparent" className="text-titanium-800" />
-                            <circle cx="16" cy="16" r="14" stroke="currentColor" strokeWidth="2" fill="transparent" className={getDriftColor()} strokeDasharray={88} strokeDashoffset={88 - (88 * driftScore) / 100} />
-                        </svg>
-                        <span className={`absolute text-[9px] font-bold ${getDriftColor()}`}>{Math.round(driftScore)}</span>
-                    </div>
-
                     <div>
                          <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100 leading-none">Director</h2>
                          <div className="text-[9px] text-titanium-500 uppercase tracking-wider mt-0.5">
