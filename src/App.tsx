@@ -29,6 +29,7 @@ import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
 import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
+import { useNarrator } from './hooks/useNarrator'; // 🟢 IMPORT NARRATOR HOOK
 import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfigContext";
 import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
@@ -69,6 +70,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 DRIFT STATE
     const [driftAlerts, setDriftAlerts] = useState<any>(null); // 👈 STORE GROUPED ALERTS
     const [isScanningDrift, setIsScanningDrift] = useState(false);
+
+    // 🟢 NARRATOR STATE
+    const {
+        controls: narratorControls,
+        isLoading: isNarratorLoading,
+        analyze: analyzeScene,
+        activeSegment
+    } = useNarrator();
 
     // 🧪 DRIFT SIMULATION (PHASE 3)
     const [driftMarkers, setDriftMarkers] = useState<DriftMarker[]>([]);
@@ -227,6 +236,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // 🟢 INITIALIZATION & HYDRATION
     useEffect(() => {
+        // 👻 GHOST MODE: Force Mock File for UI Testing
+        if (import.meta.env.VITE_JULES_MODE === 'true' && !currentFileId) {
+            setCurrentFileId('mock-file-id');
+            setSelectedFileContent('# Mock Content\n\nThis is a test.');
+            setCurrentFileName('Mock File.md');
+        }
+
         const initApp = async () => {
             if (!user) {
                 // If no user, we are done loading (LoginScreen will show)
@@ -659,6 +675,21 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             setEditorWidth={setEditorWidth}
                             isZenMode={isZenMode}
                             setIsZenMode={setIsZenMode}
+                            // 🟢 NARRATOR CONTROLS INJECTION
+                            narratorControls={{
+                                isPlaying: narratorControls.isPlaying,
+                                onPlayPause: () => {
+                                    if (narratorControls.isPlaying) {
+                                        narratorControls.pause();
+                                    } else if (narratorControls.currentSegmentIndex > 0) {
+                                        narratorControls.play();
+                                    } else {
+                                        // Start fresh analysis if not playing and at start
+                                        analyzeScene(selectedFileContent, []); // Pass empty chars for now or fetch from context
+                                    }
+                                },
+                                isLoading: isNarratorLoading
+                            }}
                         />
                      </div>
                 </div>
@@ -674,6 +705,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         content={selectedFileContent}
                         onContentChange={handleContentChange}
                         driftMarkers={driftMarkers}
+                        activeSegment={activeSegment} // 🟢 PASS ACTIVE SEGMENT
                         className="h-full"
                         readOnly={isReadOnly}
                     />

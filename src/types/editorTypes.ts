@@ -23,6 +23,10 @@ export interface AudioSegment {
   speakerId: string | null; // Link to Character Forge ID
   speakerName: string; // Fallback name
   voiceProfile: VoiceProfile;
+
+  // 🟢 NEW: Location Metadata for highlighting
+  from?: number;
+  to?: number;
 }
 
 export interface NarratorControls {

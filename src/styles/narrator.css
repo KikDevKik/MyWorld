@@ -1,0 +1,19 @@
+@keyframes neon-breathe {
+    0% { opacity: 0.6; }
+    50% { opacity: 0.9; }
+    100% { opacity: 0.6; }
+}
+
+.narrator-active-pulse {
+    /*
+     * The variable --speaker-neon-color is injected via style attribute
+     * by the ViewPlugin based on the speaker's hash color.
+     */
+    background: linear-gradient(90deg, var(--speaker-neon-color) 0%, transparent 80%);
+    box-shadow: inset 4px 0 0 0 var(--speaker-neon-color);
+    animation: neon-breathe 2s infinite ease-in-out;
+
+    /* Ensure text remains readable */
+    color: var(--color-text-primary);
+    border-radius: 2px;
+}

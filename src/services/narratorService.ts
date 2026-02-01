@@ -77,7 +77,8 @@ Schema:
             const cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
             const segments: AudioSegment[] = JSON.parse(cleanJson);
 
-            return segments;
+            // 6. 🟢 REALIGN SEGMENTS (Map back to original text offsets)
+            return NarratorService.realignSegments(text, segments);
 
         } catch (error) {
             console.error("NarratorService Analysis Failed:", error);
@@ -92,8 +93,44 @@ Schema:
                     age: 'ADULT',
                     tone: 'Neutral',
                     emotion: 'Neutral'
-                }
+                },
+                from: 0,
+                to: text.length
             }];
         }
+    },
+
+    /**
+     * Maps the AI-generated segments back to the original text to find absolute offsets.
+     */
+    realignSegments: (originalText: string, segments: AudioSegment[]): AudioSegment[] => {
+        let currentIndex = 0;
+        const result: AudioSegment[] = [];
+
+        for (const segment of segments) {
+            // Normalize for safer matching (ignore whitespace differences)
+            const searchStr = segment.text.trim();
+            if (!searchStr) continue;
+
+            // Find the occurrence of this segment's text starting from currentIndex
+            const foundIndex = originalText.indexOf(searchStr, currentIndex);
+
+            if (foundIndex !== -1) {
+                const end = foundIndex + searchStr.length;
+                result.push({
+                    ...segment,
+                    from: foundIndex,
+                    to: end
+                });
+                currentIndex = end;
+            } else {
+                // If not found (AI hallucinated text mismatch), try fuzzy or skip.
+                // For now, we skip highlighting for this segment but keep it in the list.
+                // Or we can try to find it from the beginning if out of order (unlikely but possible).
+                 console.warn(`Narrator alignment warning: Could not find "${searchStr.substring(0, 20)}..." at index ${currentIndex}`);
+                 result.push(segment); // Push without offsets
+            }
+        }
+        return result;
     }
 };

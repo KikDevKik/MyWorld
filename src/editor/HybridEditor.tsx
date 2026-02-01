@@ -13,6 +13,8 @@ import { lintKeymap } from '@codemirror/lint';
 
 import { driftExtension, setDriftMarkers, DriftMarker } from './extensions/driftPlugin';
 import { livePreview } from './extensions/livePreviewPlugin';
+import { narratorHighlighter, setActiveSegment, ActiveSegmentState } from './extensions/narratorHighlighter'; // 🟢 NEW
+import '../styles/narrator.css'; // 🟢 NEW
 import { Lock } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { CreativeAuditService } from '../services/CreativeAuditService';
@@ -21,6 +23,7 @@ interface HybridEditorProps {
     content: string;
     onContentChange?: (content: string) => void;
     driftMarkers?: DriftMarker[];
+    activeSegment?: ActiveSegmentState | null; // 🟢 NEW
     className?: string;
     readOnly?: boolean;
 }
@@ -67,6 +70,7 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
     content,
     onContentChange,
     driftMarkers = [],
+    activeSegment = null,
     className = "",
     readOnly = false
 }) => {
@@ -138,6 +142,7 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
                 // Custom Extensions
                 driftExtension,
                 livePreview,
+                narratorHighlighter, // 🟢 NEW
 
                 // Update Listener (The Spy's Eyes)
                 EditorView.updateListener.of((update) => {
@@ -201,15 +206,6 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
         if (viewRef.current) {
             const currentDoc = viewRef.current.state.doc.toString();
             if (content !== currentDoc) {
-                 // Calculate diff or just replace?
-                 // For now, replacing full content if significantly different to avoid loop.
-                 // Ideally we avoid this if the change originated from the editor.
-                 // But since we have `onContentChange`, parent updates `content`.
-                 // We need to be careful not to reset cursor.
-                 // A simple check: if the difference is just typing, we might already have it?
-                 // React strict mode might cause double render.
-                 // If the content passed in is exactly what we just typed, do nothing.
-                 // If it's different (e.g. file switch), replace.
                  viewRef.current.dispatch({
                      changes: { from: 0, to: currentDoc.length, insert: content }
                  });
@@ -217,7 +213,7 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
         }
     }, [content]);
 
-    // 3. HANDLE DRIFT MARKERS
+    // 4. HANDLE DRIFT MARKERS
     useEffect(() => {
         if (viewRef.current) {
             viewRef.current.dispatch({
@@ -225,6 +221,15 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
             });
         }
     }, [driftMarkers]);
+
+    // 5. 🟢 HANDLE NARRATOR UPDATES
+    useEffect(() => {
+        if (viewRef.current) {
+            viewRef.current.dispatch({
+                effects: setActiveSegment.of(activeSegment)
+            });
+        }
+    }, [activeSegment]);
 
     return (
         <div className="relative h-full w-full">
