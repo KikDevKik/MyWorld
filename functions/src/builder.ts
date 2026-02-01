@@ -117,11 +117,7 @@ export const builderStream = onRequest(
       });
 
       // 4. Chat Session
-      const chat = model.startChat({
-        history: [
-            {
-                role: "user",
-                parts: [{ text: `
+      const systemPrompt = `
                     SYSTEM: You are THE BUILDER, an advanced Architect AI for a narrative graph.
                     OBJECTIVE: Analyze the user's request and generate a JSON payload representing new nodes and connections.
 
@@ -144,8 +140,19 @@ export const builderStream = onRequest(
                        - At the very end, output a JSON block wrapped in \`\`\`json\`\`\`.
                        - Structure: { "nodes": [...], "edges": [{ "source": "id", "target": "id", "label": "RELATION" }] }
 
-                    USER REQUEST: ${req.body.prompt}
-                ` }]
+                    USER REQUEST: ${req.body.prompt || "Analyze the visual attachment."}
+                `;
+
+      const userParts: any[] = [{ text: systemPrompt }];
+      if (req.body.mediaAttachment) {
+          userParts.push({ inlineData: req.body.mediaAttachment });
+      }
+
+      const chat = model.startChat({
+        history: [
+            {
+                role: "user",
+                parts: userParts
             }
         ]
       });

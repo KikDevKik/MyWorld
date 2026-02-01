@@ -1927,12 +1927,18 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId, attachedFiles } = request.data;
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId, attachedFiles, mediaAttachment } = request.data;
 
-    if (!query) throw new HttpsError("invalid-argument", "Falta la pregunta.");
+    // 🟢 ALLOW EMPTY QUERY IF ATTACHMENT IS PRESENT
+    if (!query && !mediaAttachment) {
+        throw new HttpsError("invalid-argument", "Falta la pregunta.");
+    }
+
+    // Default query for image-only requests
+    const finalQuery = query || "Analiza este archivo adjunto.";
 
     // 🛡️ SENTINEL CHECK: INPUT LIMITS
-    if (query.length > MAX_CHAT_MESSAGE_LIMIT) {
+    if (finalQuery.length > MAX_CHAT_MESSAGE_LIMIT) {
         throw new HttpsError("resource-exhausted", `La pregunta excede el límite de ${MAX_CHAT_MESSAGE_LIMIT} caracteres.`);
     }
 
@@ -1976,7 +1982,7 @@ RULES: ${profile.rules || 'Not specified'}
       // 🟢 0.5. ENTITY RECOGNITION (RAG++ OPTIMIZATION)
       let entityContext = "";
       try {
-          const lowerQuery = query.toLowerCase();
+          const lowerQuery = finalQuery.toLowerCase();
 
           // Strategy: Fetch names only to match, then fetch full doc
           const charsRef = db.collection("users").doc(userId).collection("characters").select("name");
@@ -2027,7 +2033,7 @@ ${analysis}
       }
 
       // 1. Preparar Búsqueda Contextual
-      let searchQuery = query;
+      let searchQuery = finalQuery;
       let historyText = "No hay historial previo.";
 
       if (history && Array.isArray(history) && history.length > 0) {
@@ -2041,9 +2047,9 @@ ${analysis}
           .map((h: any) => h.message)
           .join(" ");
 
-        searchQuery = `Contexto: ${userHistory} \n Pregunta: ${query}`;
+        searchQuery = `Contexto: ${userHistory} \n Pregunta: ${finalQuery}`;
         // 🛡️ SENTINEL: Mask sensitive query data in logs
-        logger.info(`🔍 Búsqueda Vectorial Enriquecida (Length: ${searchQuery.length}):`, maskLog(query, 100));
+        logger.info(`🔍 Búsqueda Vectorial Enriquecida (Length: ${searchQuery.length}):`, maskLog(finalQuery, 100));
       }
 
       if (history && Array.isArray(history) && history.length > 20) {
@@ -2339,7 +2345,7 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         ${historyText}
         -------------------------------------------
 
-        PREGUNTA DEL USUARIO: "${query}"
+        PREGUNTA DEL USUARIO: "${finalQuery}"
       `;
 
       // 🟢 OPERATION BYPASS TOTAL: NATIVE SDK IMPLEMENTATION
@@ -2359,8 +2365,18 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
             safetySettings: SAFETY_SETTINGS_PERMISSIVE
         });
 
+        // 🟢 MULTIMODAL PAYLOAD
+        let payload: any = promptFinal;
+        if (mediaAttachment) {
+            payload = [
+                { text: promptFinal },
+                { inlineData: mediaAttachment }
+            ];
+            logger.info("📸 Multimodal Payload Detected");
+        }
+
         logger.info("🚀 [BYPASS] Attempt 1: Calling Gemini Native SDK...");
-        let result = await model.generateContent(promptFinal);
+        let result = await model.generateContent(payload);
         let response = result.response;
         let finishReason = response.candidates?.[0]?.finishReason;
 
@@ -2392,13 +2408,21 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
                 ${historyText}
                 -------------------------------------------
 
-                PREGUNTA DEL USUARIO: "${query}"
+                PREGUNTA DEL USUARIO: "${finalQuery}"
              `;
+
+             let sanitizedPayload: any = sanitizedPrompt;
+             if (mediaAttachment) {
+                 sanitizedPayload = [
+                     { text: sanitizedPrompt },
+                     { inlineData: mediaAttachment }
+                 ];
+             }
 
              logger.info("🚀 [BYPASS] Attempt 2: Retrying with SANITIZED PROMPT...");
 
              // Retry with same permissive settings but clean prompt
-             result = await model.generateContent(sanitizedPrompt);
+             result = await model.generateContent(sanitizedPayload);
              response = result.response;
              finishReason = response.candidates?.[0]?.finishReason;
 

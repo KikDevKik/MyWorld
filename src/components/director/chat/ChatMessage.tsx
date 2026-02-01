@@ -23,6 +23,8 @@ export interface ChatMessageData {
     // 🟢 FLAGS (Legacy/Aux)
     isError?: boolean;
     isDriftAlert?: boolean;
+    attachmentPreview?: string; // 🟢 Base64/Url preview of attachment
+    attachmentType?: 'image' | 'audio';
 }
 
 interface ChatMessageProps {
@@ -176,6 +178,17 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                     ? 'bg-red-950/30 border border-red-900/50 text-red-200'
                     : 'bg-titanium-900/50 border border-titanium-800 text-titanium-200'}
             `}>
+                {/* 🟢 ATTACHMENT PREVIEW */}
+                {message.attachmentPreview && (
+                    <div className="mb-2 rounded-lg overflow-hidden border border-white/10">
+                        {message.attachmentType === 'audio' ? (
+                            <audio controls src={message.attachmentPreview} className="w-full" />
+                        ) : (
+                            <img src={message.attachmentPreview} alt="Attachment" className="max-w-full h-auto max-h-60 object-cover" />
+                        )}
+                    </div>
+                )}
+
                 <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words">
                 <ReactMarkdown
                     remarkPlugins={[remarkGfm]}

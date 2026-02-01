@@ -9,6 +9,8 @@ import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { SoulEntity } from '../../types/forge';
 import { CreativeAuditService } from '../../services/CreativeAuditService';
 import { callFunction } from '../../services/api';
+import ChatInput from '../ui/ChatInput';
+import { fileToGenerativePart } from '../../services/geminiService';
 
 interface Message {
     id?: string;
@@ -17,6 +19,8 @@ interface Message {
     timestamp?: string;
     sources?: string[];
     hidden?: boolean; // 🟢 Control UI visibility
+    attachmentPreview?: string;
+    attachmentType?: 'image' | 'audio';
 }
 
 interface ForgeChatProps {
@@ -51,7 +55,6 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 }) => {
     const { config, user } = useProjectConfig();
     const [messages, setMessages] = useState<Message[]>([]);
-    const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false); // Initial load
     const [isSending, setIsSending] = useState(false);
     const [isCrystallizing, setIsCrystallizing] = useState(false);
@@ -61,7 +64,6 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     const [streamStatus, setStreamStatus] = useState<string>('');
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const activeEntityRef = useRef<string | null>(null); // To track changes
 
     // SCROLL TO BOTTOM
@@ -104,8 +106,22 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     }, [sessionId]);
 
     // --- 2. CORE SEND LOGIC ---
-    const executeStreamConnection = async (text: string, options: { hidden: boolean }) => {
+    const executeStreamConnection = async (text: string, options: { hidden: boolean, attachment?: File | null }) => {
         if (isSending) return;
+
+        // 🟢 PREPARE ATTACHMENT
+        let mediaAttachment = undefined;
+        let previewUrl = undefined;
+        if (options.attachment) {
+             previewUrl = URL.createObjectURL(options.attachment);
+             try {
+                 const part = await fileToGenerativePart(options.attachment);
+                 mediaAttachment = part.inlineData;
+             } catch (e) {
+                 toast.error("Error al procesar el adjunto.");
+                 return;
+             }
+        }
 
         setIsSending(true);
         // If hidden (Injection), set state to ANALYZING to show special loader
@@ -116,7 +132,9 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
         const tempUserMsg: Message = {
             role: 'user',
             text: text,
-            hidden: options.hidden
+            hidden: options.hidden,
+            attachmentPreview: previewUrl,
+            attachmentType: options.attachment?.type.startsWith('audio') ? 'audio' : 'image'
         };
 
         // We add it to local state so it is sent as history context in the stream request
@@ -142,7 +160,8 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
                         promptContent: text, // Capture "The Seed"
                         promptLength: text.length,
                         sessionId: sessionId,
-                        scope: selectedScope.name
+                        scope: selectedScope.name,
+                        hasAttachment: !!options.attachment
                     }
                 });
             }
@@ -179,7 +198,8 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
                     history: historyContext,
                     folderId: folderId,
                     filterScopePath: selectedScope.path,
-                    activeFileName: activeContextFile?.name
+                    activeFileName: activeContextFile?.name,
+                    mediaAttachment: mediaAttachment
                 })
             });
 
@@ -329,19 +349,6 @@ Hazme una pregunta provocadora sobre su motivación oculta.
 
 
     // --- HANDLERS ---
-    const handleUserSend = () => {
-        if (!input.trim()) return;
-        const text = input.trim();
-        setInput('');
-
-        // Reset height
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-        }
-
-        executeStreamConnection(text, { hidden: false });
-    };
-
     const handlePurgeSession = async () => {
         if (!window.confirm("¿Borrar chat actual?")) return;
         setMessages([]);
@@ -457,6 +464,17 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                             )}
 
                             <div className={`flex-1 flex flex-col gap-2 max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                {/* 🟢 ATTACHMENT PREVIEW */}
+                                {msg.attachmentPreview && (
+                                    <div className="mb-1 rounded-lg overflow-hidden border border-white/10 max-w-sm">
+                                        {msg.attachmentType === 'audio' ? (
+                                            <audio controls src={msg.attachmentPreview} className="w-full" />
+                                        ) : (
+                                            <img src={msg.attachmentPreview} alt="Attachment" className="max-w-full h-auto object-cover" />
+                                        )}
+                                    </div>
+                                )}
+
                                 <div className={`p-4 rounded-xl text-sm leading-relaxed shadow-sm overflow-hidden break-words whitespace-pre-wrap ${msg.role === 'user'
                                         ? 'bg-titanium-800 text-titanium-100 border border-titanium-700'
                                         : 'bg-transparent text-titanium-300 w-full'
@@ -529,45 +547,19 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                     </div>
 
                     {/* TEXTAREA WRAPPER */}
-                    <div className={`relative flex items-end gap-2 bg-zinc-900 border rounded-2xl p-2 transition-all shadow-lg ${
+                    <div className={`rounded-2xl p-1 transition-all shadow-lg ${
                          selectedScope.id
-                                ? 'border-cyan-900/50 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/50'
-                                : 'border-titanium-700 focus-within:border-accent-DEFAULT focus-within:ring-1 focus-within:ring-accent-DEFAULT/50'
+                                ? 'border border-cyan-900/50 focus-within:border-cyan-500 focus-within:ring-1 focus-within:ring-cyan-500/50 bg-zinc-900'
+                                : 'border border-titanium-700 focus-within:border-accent-DEFAULT focus-within:ring-1 focus-within:ring-accent-DEFAULT/50 bg-zinc-900'
                     }`}>
-                        <textarea
-                            ref={textareaRef}
-                            value={input}
-                            onChange={(e) => {
-                                setInput(e.target.value);
-                                e.target.style.height = 'auto';
-                                e.target.style.height = Math.min(e.target.scrollHeight, 200) + 'px';
-                            }}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleUserSend();
-                                }
-                            }}
-                            placeholder={activeEntity ? `Interrogar a ${activeEntity.name}... (Shift+Enter para saltar línea)` : "Escribe a la Forja..."}
-                            className="flex-1 bg-transparent text-sm text-zinc-200 placeholder-titanium-500 focus:outline-none px-3 py-3 max-h-[200px] resize-none overflow-y-auto"
-                            rows={1}
+                        <ChatInput
+                            onSend={(text, attachment) => executeStreamConnection(text, { hidden: false, attachment: attachment })}
+                            placeholder={activeEntity ? `Interrogar a ${activeEntity.name}...` : "Escribe a la Forja..."}
                             disabled={isSending || thinkingState === 'ANALYZING'}
                             autoFocus
+                            className="w-full"
+                            textAreaClassName="bg-transparent text-sm text-zinc-200 placeholder-titanium-500"
                         />
-
-                        <button
-                            onClick={handleUserSend}
-                            disabled={!input.trim() || isSending}
-                            className={`p-3 rounded-xl transition-all mb-[1px] ${
-                                !input.trim()
-                                    ? 'bg-titanium-800 text-titanium-600 cursor-not-allowed'
-                                    : selectedScope.id
-                                        ? 'bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-900/20'
-                                        : 'bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 shadow-lg shadow-accent-DEFAULT/20'
-                            }`}
-                        >
-                            {isSending ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                        </button>
                     </div>
                 </div>
             </div>

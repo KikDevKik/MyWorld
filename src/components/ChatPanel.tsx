@@ -8,6 +8,8 @@ import remarkBreaks from 'remark-breaks';
 import { X, FileText, Paperclip, Loader2, Folder, Gem as GemIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import ContextSelectorModal from './ContextSelectorModal';
+import ChatInput from './ui/ChatInput';
+import { fileToGenerativePart } from '../services/geminiService';
 
 interface ChatPanelProps {
   activeGemId: GemId | null;
@@ -33,6 +35,8 @@ interface Source {
 interface ExtendedChatMessage extends ChatMessage {
   sources?: Source[];
   contextFiles?: DriveFile[]; // 🟢 Context Snapshot for Smart Patch
+  attachmentPreview?: string;
+  attachmentType?: 'image' | 'audio';
 }
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
@@ -51,7 +55,6 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   isFallbackContext
 }) => {
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
-  const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<DriveFile[]>([]); // 🟢 Context Chips
   const [isDragging, setIsDragging] = useState(false);
@@ -160,8 +163,22 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       }
   };
 
-  const handleSendMessage = async (text: string) => {
-    if (!text.trim() || !activeGem) return;
+  const handleSendMessage = async (text: string, attachment: File | null = null) => {
+    if ((!text.trim() && !attachment) || !activeGem) return;
+
+    // 🟢 PREPARE ATTACHMENT
+    let mediaAttachment = undefined;
+    let previewUrl = undefined;
+    if (attachment) {
+         previewUrl = URL.createObjectURL(attachment);
+         try {
+             const part = await fileToGenerativePart(attachment);
+             mediaAttachment = part.inlineData;
+         } catch (e) {
+             toast.error("Error al procesar el adjunto.");
+             return;
+         }
+    }
 
     // 🟢 Capture context at the moment of sending
     const currentContext = [...attachedFiles];
@@ -169,15 +186,16 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     const userMessage: ExtendedChatMessage = {
         role: 'user',
         text,
-        contextFiles: currentContext
+        contextFiles: currentContext,
+        attachmentPreview: previewUrl,
+        attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
     };
 
     setMessages(prev => [...prev, userMessage]);
-    setInput('');
     setIsLoading(true);
 
     try {
-      // 🟢 1. FETCH CONTENT FOR ATTACHED FILES
+      // 🟢 1. FETCH CONTENT FOR ATTACHED FILES (DRIVE CONTEXT)
       let enrichedFiles: any[] = [];
       if (attachedFiles.length > 0 && accessToken) {
           const promises = attachedFiles.map(async (file) => {
@@ -209,7 +227,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         activeFileContent: activeFileContent || "",
         activeFileName: activeFileName || "",
         isFallbackContext: isFallbackContext,
-        attachedFiles: enrichedFiles // 👈 Pass Enriched Context
+        attachedFiles: enrichedFiles, // 👈 Pass Enriched Context
+        mediaAttachment: mediaAttachment // 🟢 Pass Multimodal Attachment
       }, { timeout: 540000 });
 
       const aiMessage: ExtendedChatMessage = {
@@ -277,6 +296,17 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-titanium-700 scrollbar-track-transparent">
         {messages.map((msg, idx) => (
           <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            {/* 🟢 ATTACHMENT PREVIEW */}
+            {msg.attachmentPreview && (
+                <div className={`mb-1 rounded-lg overflow-hidden border border-white/10 max-w-[85%] ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
+                    {msg.attachmentType === 'audio' ? (
+                        <audio controls src={msg.attachmentPreview} className="w-full" />
+                    ) : (
+                        <img src={msg.attachmentPreview} alt="Attachment" className="max-w-full h-auto max-h-60 object-cover" />
+                    )}
+                </div>
+            )}
+
             <div
               className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${msg.role === 'user'
                 ? 'bg-titanium-800 text-titanium-100 rounded-br-none border border-titanium-700'
@@ -349,35 +379,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <Folder size={20} />
             </button>
 
-            <div className="relative flex-1">
-                <textarea
-                    value={input}
-                    onChange={(e) => setInput(e.target.value)}
-                    onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSendMessage(input);
-                    }
-                    }}
-                    placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
-                    disabled={!activeGem || isLoading}
-                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl px-4 py-3 pr-12 text-sm focus:outline-none focus:border-emerald-500 transition-all resize-none h-[52px] max-h-[150px] overflow-y-auto scrollbar-hide"
-                />
-                <button
-                    onClick={() => handleSendMessage(input)}
-                    disabled={!input.trim() || !activeGem || isLoading}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-titanium-800 text-titanium-400 rounded-lg hover:bg-titanium-700 hover:text-white disabled:opacity-50 transition-all"
-                >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                    </svg>
-                </button>
-            </div>
-        </div>
-        <div className="text-[10px] text-center mt-2 text-titanium-600 flex justify-between px-2">
-            <span>Arrastra archivos o usa el Portal (📁)</span>
-            <span>Enter para enviar</span>
+            <ChatInput
+                onSend={handleSendMessage}
+                placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
+                disabled={!activeGem || isLoading}
+                className="flex-1"
+                textAreaClassName="bg-slate-800 text-white placeholder-gray-400"
+            />
         </div>
       </div>
 

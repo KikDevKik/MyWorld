@@ -10,6 +10,8 @@ import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { generateId } from "../../utils/sha256";
 import InternalFolderSelector from '../InternalFolderSelector';
 import { callFunction } from '../../services/api';
+import ChatInput from '../ui/ChatInput';
+import { fileToGenerativePart } from '../../services/geminiService';
 
 interface TheBuilderProps {
     isOpen: boolean;
@@ -18,6 +20,13 @@ interface TheBuilderProps {
     initialMode: RealityMode;
     accessToken?: string | null;
     onRefreshTokens?: () => Promise<string | null>;
+}
+
+interface BuilderMessage {
+    role: 'user' | 'system';
+    content: string;
+    attachmentPreview?: string;
+    attachmentType?: 'image' | 'audio';
 }
 
 const MODES: { id: RealityMode; label: string }[] = [
@@ -31,8 +40,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
     const projectId = config?.folderId || "unknown_project";
 
     const [mode, setMode] = useState<RealityMode>(initialMode);
-    const [messages, setMessages] = useState<{role: 'user' | 'system', content: string}[]>([]);
-    const [input, setInput] = useState("");
+    const [messages, setMessages] = useState<BuilderMessage[]>([]);
     const [isTyping, setIsTyping] = useState(false);
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
     const [ghostEdges, setGhostEdges] = useState<VisualEdge[]>([]);
@@ -61,7 +69,6 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 setGhostNodes([]);
                 setGhostEdges([]);
             }
-            setInput("");
         }
     }, [isOpen, initialPrompt]);
 
@@ -70,13 +77,31 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isTyping]);
 
-    const handleSend = async (text: string) => {
-        if (!text.trim()) return;
+    const handleSend = async (text: string, attachment: File | null = null) => {
+        if (!text.trim() && !attachment) return;
+
+        // 🟢 PREPARE ATTACHMENT
+        let mediaAttachment = undefined;
+        let previewUrl = undefined;
+        if (attachment) {
+             previewUrl = URL.createObjectURL(attachment);
+             try {
+                 const part = await fileToGenerativePart(attachment);
+                 mediaAttachment = part.inlineData;
+             } catch (e) {
+                 toast.error("Error al procesar el adjunto.");
+                 return;
+             }
+        }
 
         // 1. Add User Message
-        const newMessages = [...messages, { role: 'user' as const, content: text }];
+        const newMessages: BuilderMessage[] = [...messages, {
+            role: 'user' as const,
+            content: text,
+            attachmentPreview: previewUrl,
+            attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
+        }];
         setMessages(newMessages);
-        setInput("");
         setIsTyping(true);
 
         try {
@@ -102,7 +127,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                     prompt: text,
                     projectId: projectId,
                     mode: mode,
-                    // Pass current graph context if needed? For now, we rely on backend tool.
+                    mediaAttachment: mediaAttachment
                 })
             });
 
@@ -370,7 +395,18 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                         <Panel defaultSize={40} minSize={30} className="flex flex-col bg-black/20">
                              <div className="flex-1 p-6 overflow-y-auto space-y-4 font-mono text-sm custom-scrollbar">
                                 {messages.map((msg, i) => (
-                                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                    <div key={i} className={`flex flex-col gap-1 ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                        {/* 🟢 ATTACHMENT PREVIEW */}
+                                        {msg.attachmentPreview && (
+                                            <div className="mb-1 rounded-lg overflow-hidden border border-white/10 max-w-[80%]">
+                                                {msg.attachmentType === 'audio' ? (
+                                                    <audio controls src={msg.attachmentPreview} className="w-full" />
+                                                ) : (
+                                                    <img src={msg.attachmentPreview} alt="Attachment" className="max-w-full h-auto object-cover" />
+                                                )}
+                                            </div>
+                                        )}
+
                                         <div className={`
                                             max-w-[80%] p-3 rounded-lg border whitespace-pre-wrap
                                             ${msg.role === 'user'
@@ -395,27 +431,13 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
 
                              {/* CHAT INPUT */}
                              <div className="p-4 border-t border-white/10 bg-black/40">
-                                 <div className="flex gap-2">
-                                     <textarea
-                                        value={input}
-                                        onChange={e => setInput(e.target.value)}
-                                        placeholder="Describe your architecture..."
-                                        className="flex-1 bg-transparent border border-white/10 rounded-lg p-3 text-sm text-white focus:border-cyan-500 outline-none resize-none h-20 custom-scrollbar"
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && !e.shiftKey) {
-                                                e.preventDefault();
-                                                if(input.trim()) handleSend(input);
-                                            }
-                                        }}
-                                     />
-                                     <button
-                                        onClick={() => handleSend(input)}
-                                        aria-label="Enviar Mensaje"
-                                        className="w-20 bg-cyan-900/20 border border-cyan-500/30 rounded-lg flex items-center justify-center hover:bg-cyan-900/40 text-cyan-400 transition-colors"
-                                     >
-                                        <Send size={20} />
-                                     </button>
-                                 </div>
+                                <ChatInput
+                                    onSend={handleSend}
+                                    placeholder="Describe your architecture..."
+                                    disabled={isTyping}
+                                    textAreaClassName="bg-transparent text-sm text-white focus:outline-none"
+                                    className="border border-white/10 rounded-lg bg-transparent"
+                                />
                              </div>
                         </Panel>
 
