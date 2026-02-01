@@ -28,6 +28,11 @@ async function listModels(apiKey: string) {
         const response = await fetch(`${BASE_URL}?key=${apiKey}`);
         const data = await response.json();
         console.log("📢 Available Gemini Models:", data);
+
+        // Filter specifically for "flash" models as requested
+        if (data.models) {
+             console.log("🔎 FLASH MODELS:", data.models.filter((m: any) => m.name.includes("flash")));
+        }
     } catch (e) {
         console.warn("Failed to list models", e);
     }
@@ -125,6 +130,9 @@ async function callGeminiTTS(model: string, apiKey: string, promptText: string, 
 
     const data = await response.json();
 
+    // 📥 DEEP DIAGNOSTIC: Log Raw Response
+    console.log("📥 GEMINI RAW RESPONSE:", JSON.stringify(data, null, 2));
+
     // Parse Response to find Audio Blob
     const candidate = data.candidates?.[0];
     const part = candidate?.content?.parts?.[0];
@@ -138,7 +146,13 @@ async function callGeminiTTS(model: string, apiKey: string, promptText: string, 
     }
 
     const base64Audio = part.inlineData.data;
-    const mimeType = part.inlineData.mimeType || 'audio/mp3';
+
+    // 🔍 BASE64 HEADER CHECK
+    console.log("🔍 BASE64 HEADER:", base64Audio.substring(0, 50));
+
+    // MIME Type Logic: Trust API, fallback to WAV (Gemini default)
+    const mimeType = part.inlineData.mimeType || 'audio/wav';
+    console.log("🎧 DETECTED MIME TYPE:", mimeType);
 
     // Convert Base64 to Blob
     const binaryString = window.atob(base64Audio);
