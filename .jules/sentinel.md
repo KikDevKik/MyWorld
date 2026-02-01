@@ -95,3 +95,8 @@
 1. Removed the hardcoded fallback completely.
 2. Implemented a strict runtime check that throws a CRITICAL SECURITY error if the environment variable is missing.
 3. Created `.env.example` to guide developers on required configuration. Security must take precedence over convenience.
+
+## 2025-05-30 - [DoS Prevention: Batch Limit & Input Validation]
+**Vulnerability:** Unbounded Batch Size & Filename Length
+**Learning:** The `trashDriveItems` function allowed processing an unlimited number of files in parallel, creating a DoS vector. Additionally, `renameDriveFolder` had no maximum length check, allowing potentially problematic long filenames.
+**Prevention:** Implemented `MAX_BATCH_SIZE = 50` and `MAX_FILENAME_LENGTH = 255` in `folder_manager.ts` to strictly bound these operations.

@@ -12,6 +12,10 @@ import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UT
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
+// 🛡️ SENTINEL SECURITY CONSTANTS
+const MAX_BATCH_SIZE = 50; // Prevent DoS loop via unbounded batch operations
+const MAX_FILENAME_LENGTH = 255; // Prevent filesystem abuse via massive filenames
+
 // Internal helper to get config (avoiding circular dependency with index.ts)
 async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
   const db = getFirestore();
@@ -426,6 +430,11 @@ export const renameDriveFolder = onCall(
             const safeName = newName.trim();
             if (safeName.length === 0) throw new HttpsError("invalid-argument", "Nombre vacío.");
 
+            // 🛡️ SENTINEL CHECK: Input Length
+            if (safeName.length > MAX_FILENAME_LENGTH) {
+                throw new HttpsError("invalid-argument", `El nombre excede el límite de ${MAX_FILENAME_LENGTH} caracteres.`);
+            }
+
             logger.info(`🏷️ Renaming file/folder ${fileId} to "${safeName}"`);
 
             await drive.files.update({
@@ -464,6 +473,11 @@ export const trashDriveItems = onCall(
         if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
         if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
             throw new HttpsError("invalid-argument", "Falta lista de IDs (fileIds).");
+        }
+
+        // 🛡️ SENTINEL CHECK: Batch Size (DoS Prevention)
+        if (fileIds.length > MAX_BATCH_SIZE) {
+            throw new HttpsError("invalid-argument", `El lote excede el límite de ${MAX_BATCH_SIZE} elementos.`);
         }
 
         const userId = request.auth.uid;
