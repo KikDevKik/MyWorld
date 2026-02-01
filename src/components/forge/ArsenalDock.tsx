@@ -15,7 +15,7 @@ interface ArsenalDockProps {
 const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onToggleDirector, onSimulateDrift, isSecurityReady, onToggleSentinel }) => {
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
-    const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'cronograma', 'imprenta'];
+    const DOCK_GEMS: GemId[] = ['perforador', 'forja', 'guardian', 'tribunal', 'laboratorio', 'imprenta'];
 
     // 🟢 ENGLISH LABELS FOR ACCESSIBILITY
     const GEM_LABELS: Record<string, string> = {
