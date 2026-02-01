@@ -2,8 +2,7 @@ import { AudioSegment } from '../types/editorTypes';
 import { toast } from 'sonner';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const PRIMARY_MODEL = 'gemini-2.5-flash-preview-tts'; // As requested
-const FALLBACK_MODEL = 'gemini-2.0-flash-exp';
+const TTS_MODEL = 'gemini-2.0-flash-exp'; // Minimal Viable Payload Target
 
 // Simple in-memory cache for the session
 // Key: Segment Text + Voice Profile Hash -> Value: Blob URL
@@ -24,7 +23,7 @@ const generateCacheKey = (text: string, profile: AudioSegment['voiceProfile']): 
 export const TTSService = {
 
     /**
-     * Synthesizes speech for a given text segment using Gemini 2.5/2.0.
+     * Synthesizes speech for a given text segment using Gemini 2.0.
      *
      * @param text The text to speak.
      * @param context The context including voice profile (gender, tone, etc).
@@ -47,32 +46,18 @@ export const TTSService = {
             return null;
         }
 
-        // 3. Construct Prompt for Audio Generation
-        // We need to instruct the model *how* to speak.
-        const promptText = `
-Generate audio for the following text: "${text}"
+        // 3. Construct Prompt with Context embedded as "Stage Direction"
+        // This keeps the character's soul (Gender/Age) without breaking the JSON schema.
+        const directorNote = `(Context: Speaking as a ${context.age} ${context.gender}. Tone: ${context.emotion})`;
+        const fullText = `${directorNote} ${text}`;
 
-Speaker Profile:
-- Gender: ${context.gender}
-- Age: ${context.age}
-- Tone: ${context.tone}
-- Emotion: ${context.emotion}
-
-Return ONLY the audio data.
-`;
-
-        // 4. Try Primary Model
+        // 4. Call API directly (no fallback logic anymore)
         try {
-            return await callGeminiTTS(PRIMARY_MODEL, apiKey, promptText, cacheKey);
+            return await callGeminiTTS(TTS_MODEL, apiKey, fullText, cacheKey);
         } catch (error) {
-            console.warn(`TTS: ${PRIMARY_MODEL} failed, trying fallback ${FALLBACK_MODEL}.`, error);
-            try {
-                return await callGeminiTTS(FALLBACK_MODEL, apiKey, promptText, cacheKey);
-            } catch (fallbackError) {
-                console.error("TTS Generation Failed completely.", fallbackError);
-                toast.error("Error al generar el audio.");
-                return null;
-            }
+            console.error("TTS Generation Failed.", error);
+            toast.error("Error al generar el audio.");
+            return null;
         }
     },
 
@@ -89,35 +74,40 @@ Return ONLY the audio data.
 /**
  * Helper to call the Gemini API.
  */
-async function callGeminiTTS(model: string, apiKey: string, prompt: string, cacheKey: string): Promise<string> {
+async function callGeminiTTS(model: string, apiKey: string, promptText: string, cacheKey: string): Promise<string> {
     const url = `${BASE_URL}/${model}:generateContent?key=${apiKey}`;
+
+    const body = {
+        contents: [{
+            parts: [{
+                text: promptText
+            }]
+        }],
+        generationConfig: {
+            responseModalities: ["AUDIO"] // This is the ONLY required flag for V2
+        }
+    };
+
+    console.log("📢 SENDING TTS PAYLOAD:", JSON.stringify(body, null, 2));
 
     const response = await fetch(url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-            contents: [{
-                parts: [{
-                    text: prompt
-                }]
-            }],
-            generationConfig: {
-                responseMimeType: "audio/mp3"
-            }
-        })
+        body: JSON.stringify(body)
     });
 
     if (!response.ok) {
-        throw new Error(`API Error ${response.status}: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error("TTS API Error Body:", errorText);
+        throw new Error(`API Error ${response.status}: ${response.statusText} - ${errorText}`);
     }
 
     const data = await response.json();
 
     // Parse Response to find Audio Blob
     // Expected structure for Audio model: candidates[0].content.parts[0].inlineData (base64)
-    // Or sometimes it might return a fileUri if configured differently.
 
     const candidate = data.candidates?.[0];
     const part = candidate?.content?.parts?.[0];
@@ -126,7 +116,7 @@ async function callGeminiTTS(model: string, apiKey: string, prompt: string, cach
         // Sometimes it returns text if it refused to generate audio
         if (part?.text) {
              console.warn("TTS Model returned text instead of audio:", part.text);
-             throw new Error("Model returned text instead of audio.");
+             throw new Error("Model returned text instead of audio: " + part.text);
         }
         throw new Error("Invalid response structure from TTS model.");
     }
