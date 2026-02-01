@@ -85,6 +85,18 @@ export const useNarrator = () => {
         setCurrentSegmentIndex(index);
 
         try {
+            // 🚀 LATENCY OPTIMIZATION: "Look-Ahead" Pre-fetching
+            // Start fetching the NEXT segment immediately in the background
+            if (index + 1 < segmentList.length) {
+                const nextSeg = segmentList[index + 1];
+                // We don't await this; we let it populate the cache asynchronously
+                TTSService.synthesize(nextSeg.text, nextSeg.voiceProfile)
+                    .then(url => {
+                        if (url) console.log(`🚀 Pre-fetched segment ${index + 1}`);
+                    })
+                    .catch(e => console.warn("Pre-fetch failed", e));
+            }
+
             // 1. Synthesize (or get from cache)
             const audioUrl = await TTSService.synthesize(segment.text, segment.voiceProfile);
 
@@ -146,13 +158,6 @@ export const useNarrator = () => {
             };
 
             await audio.play();
-
-            // 3. Preload Next (Optimistic) - Only for AI TTS
-            if (index + 1 < segmentList.length) {
-                const nextSeg = segmentList[index + 1];
-                // Don't await, just trigger cache
-                TTSService.synthesize(nextSeg.text, nextSeg.voiceProfile).catch(e => console.log("Preload failed", e));
-            }
 
         } catch (error) {
             console.error("Playback Sequence Error:", error);
