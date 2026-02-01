@@ -287,6 +287,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
         <button
           onClick={onClose}
           className="text-titanium-500 hover:text-white transition-colors"
+          aria-label="Cerrar chat"
         >
           <X size={20} />
         </button>
@@ -325,6 +326,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                       onClick={() => handleCrystallize(msg)}
                       className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10"
                       title="Cristalizar esta idea"
+                      aria-label="Cristalizar esta idea"
                   >
                       <GemIcon size={14} />
                   </button>
@@ -363,7 +365,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                     <div key={file.id} className="flex items-center gap-2 bg-titanium-800 border border-titanium-700 text-titanium-200 px-2 py-1 rounded text-xs animate-in fade-in zoom-in duration-200">
                         <FileText size={12} className="text-emerald-400" />
                         <span className="max-w-[100px] truncate">{file.name}</span>
-                        <button onClick={() => removeAttachedFile(file.id)} className="hover:text-red-400"><X size={12}/></button>
+                        <button onClick={() => removeAttachedFile(file.id)} className="hover:text-red-400" aria-label={`Quitar ${file.name}`}><X size={12}/></button>
                     </div>
                 ))}
             </div>
@@ -375,6 +377,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 onClick={() => setIsContextModalOpen(true)}
                 className="p-3 bg-titanium-900 border border-titanium-800 rounded-xl text-titanium-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all mb-[1px]"
                 title="Abrir Portal de Contexto"
+                aria-label="Abrir Portal de Contexto"
             >
                 <Folder size={20} />
             </button>
