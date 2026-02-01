@@ -77,6 +77,7 @@ export interface ProjectConfig {
   activeBookContext: string;
   folderId?: string;
   characterVaultId?: string | null;
+  bestiaryVaultId?: string | null; // 🟢 NEW: Bestiary Vault
     folderMapping?: Partial<Record<FolderRole, string>>; // 👈 Phase 2: Semantic Mapping (Role -> FolderID)
   lastIndexed?: string;
   lastForgeScan?: string; // 👈 Timestamp for Incremental Forge Scan
@@ -98,6 +99,8 @@ export interface CharacterSnippet {
   text: string;
 }
 
+export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA';
+
 export interface Character {
   id: string; // Slug
   name: string;
@@ -118,4 +121,7 @@ export interface Character {
   status?: 'EXISTING' | 'DETECTED';
   contextualAnalysis?: string; // 🔮 Phase 2: AI RAG Analysis
   sources?: string[]; // 📚 Phase 3: RAG Transparency
+
+  category?: EntityCategory; // 🟢 NEW
+  metadata?: Record<string, any>; // 🟢 GENERIC METADATA
 }

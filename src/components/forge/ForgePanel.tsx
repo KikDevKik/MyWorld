@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw, AlertTriangle, CheckCircle, Search, Unlink } from 'lucide-react';
+import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw, AlertTriangle, Search, Unlink, Settings, User, PawPrint } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
@@ -16,289 +16,274 @@ interface ForgePanelProps {
 const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken }) => {
     const { config, updateConfig, loading } = useProjectConfig();
 
-    // 🟢 SAGA STATE (The Vault)
-    const [activeSaga, setActiveSaga] = useState<DriveFile | null>(null);
-    const [isResolvingVault, setIsResolvingVault] = useState(false);
+    // 🟢 SAGA STATE
+    const [characterSaga, setCharacterSaga] = useState<DriveFile | null>(null);
+    const [bestiarySaga, setBestiarySaga] = useState<DriveFile | null>(null);
+    const [isResolving, setIsResolving] = useState(false);
+
+    // 🟢 VIEW STATE
+    // If no character vault, force SETTINGS. Otherwise DASHBOARD.
+    const [viewMode, setViewMode] = useState<'DASHBOARD' | 'SETTINGS'>('DASHBOARD');
 
     // 🟢 SELECTION STATE
     const [showSelector, setShowSelector] = useState(false);
+    const [targetVault, setTargetVault] = useState<'CHARACTER' | 'BESTIARY'>('CHARACTER');
+    const [pendingFolder, setPendingFolder] = useState<{ id: string, name: string } | null>(null);
     const [showConfirmation, setShowConfirmation] = useState(false);
-    const [showUnlinkConfirmation, setShowUnlinkConfirmation] = useState(false);
-    const [pendingVault, setPendingVault] = useState<{ id: string, name: string } | null>(null);
-    const [isCreatingVault, setIsCreatingVault] = useState(false);
 
-    // --- 1. AUTO-DETECT VAULT ---
+    // --- 1. RESOLVER ---
     useEffect(() => {
-        const resolveVault = async () => {
+        const resolveVaults = async () => {
             if (loading || !config) return;
 
-            // If we have a vault ID, try to set it as active saga
-            if (config.characterVaultId && !activeSaga && !isResolvingVault) {
-                console.log("Found Character Vault ID:", config.characterVaultId);
-                setIsResolvingVault(true);
+            // If we already have sagas match config, skip
+            if (characterSaga?.id === config.characterVaultId && bestiarySaga?.id === config.bestiaryVaultId) return;
 
-                // We need the name. If it's in canonPaths, we can grab it.
-                const existingPath = config.canonPaths.find(p => p.id === config.characterVaultId);
-                if (existingPath) {
-                    setActiveSaga({
-                        id: existingPath.id,
-                        name: existingPath.name,
-                        type: 'folder',
-                        mimeType: 'application/vnd.google-apps.folder'
-                    });
-                    setIsResolvingVault(false);
-                    return;
-                }
+            setIsResolving(true);
+            try {
+                // Helper to resolve one ID
+                const resolve = async (id: string | null | undefined): Promise<DriveFile | null> => {
+                    if (!id) return null;
+                    // Check Canon Paths first
+                    const existing = config.canonPaths.find(p => p.id === id);
+                    if (existing) return { id: existing.id, name: existing.name, type: 'folder', mimeType: 'application/vnd.google-apps.folder' };
 
-                // If not, fetch from Drive
-                try {
-                   if (accessToken) {
-                       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${config.characterVaultId}?fields=id,name,mimeType`, {
+                    // Fetch from Drive
+                    if (accessToken) {
+                         const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,mimeType`, {
                            headers: { Authorization: `Bearer ${accessToken}` }
                        });
                        if (res.ok) {
                            const file = await res.json();
-                           setActiveSaga({
-                               id: file.id,
-                               name: file.name,
-                               type: 'folder',
-                               mimeType: file.mimeType || 'application/vnd.google-apps.folder'
-                           });
-                       } else {
-                           console.warn("Failed to resolve vault name. Using fallback.");
-                           setActiveSaga({
-                               id: config.characterVaultId,
-                               name: "Bóveda de Personajes",
-                               type: 'folder',
-                               mimeType: 'application/vnd.google-apps.folder'
-                           });
+                           return { id: file.id, name: file.name, type: 'folder', mimeType: file.mimeType };
                        }
-                   } else {
-                        // If no token, fallback immediately
-                        throw new Error("No access token for vault resolution");
-                   }
-                } catch (e) {
-                    console.warn("Error resolving vault (using fallback):", e);
-                    // Fallback for offline/error/ghost mode
-                    setActiveSaga({
-                       id: config.characterVaultId!,
-                       name: "Bóveda de Personajes",
-                       type: 'folder',
-                       mimeType: 'application/vnd.google-apps.folder'
-                   });
-                } finally {
-                    setIsResolvingVault(false);
+                    }
+                    // Fallback
+                    return { id, name: "Carpeta Desconocida", type: 'folder', mimeType: 'application/vnd.google-apps.folder' };
+                };
+
+                const [charVault, beastVault] = await Promise.all([
+                    resolve(config.characterVaultId),
+                    resolve(config.bestiaryVaultId)
+                ]);
+
+                setCharacterSaga(charVault);
+                setBestiarySaga(beastVault);
+
+                // Auto-redirect to Settings if missing primary vault
+                if (!charVault) {
+                    setViewMode('SETTINGS');
+                } else if (viewMode === 'SETTINGS' && charVault) {
+                    // Optional: Auto-switch to dashboard if just connected?
+                    // Let's keep user in Settings until they click "Open Forge" or "Back"
                 }
+
+            } catch (e) {
+                console.error("Error resolving vaults:", e);
+            } finally {
+                setIsResolving(false);
             }
         };
-
-        resolveVault();
+        resolveVaults();
     }, [config, loading, accessToken]);
 
-    // --- 2. OPTION A: CREATE VAULT ---
-    const handleCreateVault = async () => {
-        if (!accessToken || !config) return;
-        setIsCreatingVault(true);
+    // --- 2. HANDLERS ---
 
-        try {
-            // 1. Create Folder
-            const metadata = {
-                name: 'Personajes',
-                mimeType: 'application/vnd.google-apps.folder',
-                parents: [folderId] // Create in Project Root
-            };
-
-            const res = await fetch('https://www.googleapis.com/drive/v3/files', {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(metadata)
-            });
-
-            if (!res.ok) throw new Error("Failed to create folder");
-
-            const file = await res.json();
-
-            // 2. Update Config
-            const newConfig: ProjectConfig = {
-                ...config,
-                characterVaultId: file.id
-            };
-            await updateConfig(newConfig);
-
-            toast.success("Bóveda creada exitosamente: /Personajes");
-
-            // 3. Set Active (State update will trigger, but we set manually for speed)
-            setActiveSaga({
-                id: file.id,
-                name: 'Personajes',
-                type: 'folder',
-                mimeType: 'application/vnd.google-apps.folder'
-            });
-
-        } catch (error) {
-            console.error("Error creating vault:", error);
-            toast.error("Error creando la carpeta. Intenta de nuevo.");
-        } finally {
-            setIsCreatingVault(false);
-        }
+    const handleOpenSelector = (target: 'CHARACTER' | 'BESTIARY') => {
+        setTargetVault(target);
+        setShowSelector(true);
     };
 
-    // --- 3. OPTION B: SELECT EXISTING ---
     const handleFolderSelected = (folder: { id: string; name: string }) => {
-        setPendingVault(folder);
+        setPendingFolder(folder);
         setShowSelector(false);
         setShowConfirmation(true);
     };
 
     const confirmSelection = async () => {
-        if (!pendingVault || !config) return;
-
+        if (!pendingFolder || !config) return;
         try {
-             const newConfig: ProjectConfig = {
-                ...config,
-                characterVaultId: pendingVault.id
-            };
+            const newConfig: ProjectConfig = { ...config };
+            if (targetVault === 'CHARACTER') newConfig.characterVaultId = pendingFolder.id;
+            if (targetVault === 'BESTIARY') newConfig.bestiaryVaultId = pendingFolder.id;
+
             await updateConfig(newConfig);
             toast.success("Bóveda vinculada exitosamente.");
 
-             setActiveSaga({
-                id: pendingVault.id,
-                name: pendingVault.name,
-                type: 'folder',
-                mimeType: 'application/vnd.google-apps.folder'
-            });
+            // Local state update handled by useEffect
         } catch (e) {
-            toast.error("Error al guardar la configuración.");
+            toast.error("Error al guardar configuración.");
         } finally {
             setShowConfirmation(false);
+            setPendingFolder(null);
         }
     };
 
-    // --- 4. UNLINK VAULT ---
-    const handleUnlinkVault = async () => {
-        if (!config) return;
+    const handleCreateVault = async (target: 'CHARACTER' | 'BESTIARY') => {
+        if (!accessToken || !config) return;
+        const name = target === 'CHARACTER' ? 'Personajes' : 'Bestiario';
+
         try {
-            const newConfig: ProjectConfig = {
-                ...config,
-                characterVaultId: null // Clear it
+             const metadata = {
+                name: name,
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [folderId]
             };
+            const res = await fetch('https://www.googleapis.com/drive/v3/files', {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(metadata)
+            });
+            if (!res.ok) throw new Error("Failed to create folder");
+            const file = await res.json();
+
+            const newConfig: ProjectConfig = { ...config };
+            if (target === 'CHARACTER') newConfig.characterVaultId = file.id;
+            if (target === 'BESTIARY') newConfig.bestiaryVaultId = file.id;
+
             await updateConfig(newConfig);
-            setActiveSaga(null); // Clear local state immediately
-            toast.success("Bóveda desvinculada. Regresando a configuración inicial.");
+            toast.success(`Carpeta /${name} creada y vinculada.`);
         } catch (e) {
-            toast.error("Error al desvincular la bóveda.");
-        } finally {
-            setShowUnlinkConfirmation(false);
+            toast.error("Error al crear carpeta.");
         }
     };
 
-    // --- LOADING STATE ---
-    if (loading || isResolvingVault) {
+    const handleUnlink = async (target: 'CHARACTER' | 'BESTIARY') => {
+        if (!config) return;
+        const newConfig = { ...config };
+        if (target === 'CHARACTER') newConfig.characterVaultId = null;
+        if (target === 'BESTIARY') newConfig.bestiaryVaultId = null;
+        await updateConfig(newConfig);
+        toast.info("Desvinculado.");
+    };
+
+    // --- 3. RENDER ---
+
+    if (loading || isResolving) {
         return (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-500 gap-4">
+             <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-500 gap-4">
                 <RefreshCw size={40} className="animate-spin text-accent-DEFAULT" />
-                <p className="text-sm font-mono opacity-70">
-                    {isResolvingVault ? "Localizando Bóveda..." : "Cargando Configuración..."}
-                </p>
+                <p className="text-sm font-mono opacity-70">Sincronizando Bóvedas...</p>
             </div>
         );
     }
 
-    // --- DASHBOARD VIEW (VAULT ACTIVE) ---
-    if (activeSaga) {
+    // A. SETTINGS VIEW (Connections Manager)
+    if (viewMode === 'SETTINGS') {
         return (
             <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in">
-                {/* HEADER */}
-                <div className="relative z-20 h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
-                    <div className="flex items-center gap-2 text-titanium-100">
-                        <button
-                            onClick={onClose}
-                            className="p-1 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors mr-2"
-                            title="Salir"
-                            aria-label="Cerrar panel"
-                        >
-                             {/* Usually we don't go back to 'Selection' once selected, so this just closes or we can remove the back button */}
-                            <ArrowLeft size={20} />
-                        </button>
-
-                        <span className="flex items-center gap-2 text-titanium-400 shrink-0">
-                            <Hammer size={20} />
-                            <span className="font-bold hidden md:inline">Forja de Almas</span>
-                        </span>
-
-                        <span className="text-titanium-600">/</span>
-
-                        {/* 🟢 VAULT NAME IN HEADER */}
-                        <div className="flex items-center gap-2 px-3 py-1 rounded bg-titanium-800/50 border border-titanium-700/50">
-                            <Book size={14} className="text-accent-DEFAULT" />
-                            <span className="font-bold text-sm text-titanium-200">Bóveda: {activeSaga.name}</span>
-                        </div>
-
-                        {/* UNLINK BUTTON */}
-                        <button
-                            onClick={() => setShowUnlinkConfirmation(true)}
-                            className="p-1.5 ml-2 hover:bg-red-900/20 rounded text-titanium-500 hover:text-red-400 transition-colors"
-                            title="Desvincular Bóveda"
-                            aria-label="Desvincular Bóveda"
-                        >
-                            <Unlink size={16} />
-                        </button>
+                {/* Header */}
+                <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
+                    <div className="flex items-center gap-3 text-white">
+                        {characterSaga && (
+                            <button onClick={() => setViewMode('DASHBOARD')} className="p-1 hover:bg-titanium-800 rounded-full mr-2">
+                                <ArrowLeft size={20} />
+                            </button>
+                        )}
+                        <Settings size={20} className="text-titanium-400" />
+                        <h2 className="font-bold text-lg">Configuración de la Forja</h2>
                     </div>
                 </div>
 
-                {/* DASHBOARD */}
-                <div className="flex-1 overflow-hidden relative">
-                    <ForgeDashboard
-                        folderId={folderId} // Project Root
-                        accessToken={accessToken}
-                        saga={activeSaga} // 🟢 Pass Vault as Saga
-                    />
-                </div>
+                {/* Content */}
+                <div className="flex-1 p-8 overflow-y-auto">
+                    <div className="max-w-3xl mx-auto">
+                        <h3 className="text-xs font-bold text-titanium-500 uppercase tracking-widest mb-6">Nivel 2: Las Entidades (Base de Datos)</h3>
 
-                {/* MODAL: UNLINK CONFIRMATION (Inside Active View) */}
-                {showUnlinkConfirmation && (
-                    <div
-                        className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="unlink-title"
-                        aria-describedby="unlink-desc"
-                    >
-                        <div className="w-full max-w-md bg-titanium-900 border border-red-900/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
+                        <div className="flex flex-col gap-4">
 
-                            <div className="flex flex-col gap-4 relative z-10">
-                                <div className="w-12 h-12 rounded-full bg-red-900/30 flex items-center justify-center text-red-500 mb-2">
-                                    <Unlink size={24} />
-                                </div>
-
-                                <h3 id="unlink-title" className="text-xl font-bold text-white">¿Desvincular Bóveda?</h3>
-
-                                <div id="unlink-desc" className="text-titanium-300 text-sm leading-relaxed space-y-3">
-                                    <p>
-                                        Estás a punto de desconectar la carpeta <span className="font-bold text-white">{activeSaga.name}</span> de la Forja.
-                                    </p>
-                                    <div className="p-3 bg-red-900/10 border border-red-900/20 rounded-lg text-red-200/80 text-xs">
-                                        <strong>Tranquilo:</strong> Esto NO borrará tus archivos en Drive. Solo reiniciará la vista de la Forja para que puedas elegir otra carpeta.
+                            {/* ROW 1: CHARACTERS */}
+                            <div className="p-6 bg-titanium-900 border border-titanium-800 rounded-2xl flex items-center justify-between hover:border-accent-DEFAULT/30 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${characterSaga ? 'bg-accent-DEFAULT/20 text-accent-DEFAULT' : 'bg-titanium-800 text-titanium-600'}`}>
+                                        <User size={24} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-titanium-100 text-lg">Personajes (Forja)</h4>
+                                        <p className="text-sm text-titanium-500">Humanoides con diálogo y psicología compleja.</p>
+                                        {characterSaga ? (
+                                            <div className="mt-2 flex items-center gap-2 text-xs text-accent-DEFAULT font-mono">
+                                                <CheckCircleIcon />
+                                                <span>Conectado: {characterSaga.name}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-2 text-xs text-red-400 font-bold">Desconectado (Requerido)</div>
+                                        )}
                                     </div>
                                 </div>
-
-                                <div className="flex gap-3 mt-4">
+                                <div className="flex gap-2">
+                                    {characterSaga ? (
+                                        <button onClick={() => handleUnlink('CHARACTER')} className="px-4 py-2 text-titanium-400 hover:text-red-400 text-sm font-medium">Desvincular</button>
+                                    ) : (
+                                        <button onClick={() => handleCreateVault('CHARACTER')} className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-sm">Crear</button>
+                                    )}
                                     <button
-                                        onClick={() => setShowUnlinkConfirmation(false)}
-                                        className="flex-1 py-3 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 font-bold rounded-lg transition-colors"
+                                        onClick={() => handleOpenSelector('CHARACTER')}
+                                        className="px-6 py-2 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 text-white rounded-lg text-sm font-bold shadow-sm"
                                     >
-                                        Cancelar
-                                    </button>
-                                    <button
-                                        onClick={handleUnlinkVault}
-                                        className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors shadow-lg shadow-red-900/20"
-                                    >
-                                        Desconectar
+                                        {characterSaga ? 'Cambiar' : 'Conectar'}
                                     </button>
                                 </div>
+                            </div>
+
+                            {/* ROW 2: BESTIARY */}
+                            <div className="p-6 bg-titanium-900 border border-titanium-800 rounded-2xl flex items-center justify-between hover:border-emerald-500/30 transition-colors">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${bestiarySaga ? 'bg-emerald-500/20 text-emerald-500' : 'bg-titanium-800 text-titanium-600'}`}>
+                                        <PawPrint size={24} />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-titanium-100 text-lg">Bestiario</h4>
+                                        <p className="text-sm text-titanium-500">Criaturas, Monstruos, Flora y Fauna.</p>
+                                        {bestiarySaga ? (
+                                            <div className="mt-2 flex items-center gap-2 text-xs text-emerald-500 font-mono">
+                                                <CheckCircleIcon />
+                                                <span>Conectado: {bestiarySaga.name}</span>
+                                            </div>
+                                        ) : (
+                                            <div className="mt-2 text-xs text-titanium-600">Opcional</div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex gap-2">
+                                    {bestiarySaga ? (
+                                        <button onClick={() => handleUnlink('BESTIARY')} className="px-4 py-2 text-titanium-400 hover:text-red-400 text-sm font-medium">Desvincular</button>
+                                    ) : (
+                                        <button onClick={() => handleCreateVault('BESTIARY')} className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-sm">Crear</button>
+                                    )}
+                                    <button
+                                        onClick={() => handleOpenSelector('BESTIARY')}
+                                        className="px-6 py-2 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 text-white rounded-lg text-sm font-bold shadow-sm"
+                                    >
+                                        {bestiarySaga ? 'Cambiar' : 'Conectar'}
+                                    </button>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+
+                 {/* MODAL: SELECTOR */}
+                 {showSelector && (
+                    <InternalFolderSelector
+                        onFolderSelected={handleFolderSelected}
+                        onCancel={() => setShowSelector(false)}
+                        currentFolderId={targetVault === 'CHARACTER' ? config?.characterVaultId : config?.bestiaryVaultId}
+                    />
+                )}
+
+                {/* MODAL: CONFIRMATION */}
+                {showConfirmation && pendingFolder && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
+                        <div className="w-full max-w-md bg-titanium-900 border border-accent-DEFAULT/30 rounded-2xl p-6">
+                            <h3 className="text-xl font-bold text-white mb-2">Confirmar Vinculación</h3>
+                            <p className="text-titanium-400 mb-6">
+                                ¿Vincular <strong>{pendingFolder.name}</strong> como {targetVault === 'CHARACTER' ? 'Bóveda de Personajes' : 'Bestiario'}?
+                            </p>
+                            <div className="flex gap-3">
+                                <button onClick={() => setShowConfirmation(false)} className="flex-1 py-3 bg-titanium-800 rounded-lg text-titanium-300">Cancelar</button>
+                                <button onClick={confirmSelection} className="flex-1 py-3 bg-accent-DEFAULT text-titanium-950 font-bold rounded-lg">Confirmar</button>
                             </div>
                         </div>
                     </div>
@@ -307,141 +292,22 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         );
     }
 
-    // --- SELECTION VIEW (NO VAULT) ---
+    // B. DASHBOARD VIEW
+    // Pass everything needed to Dashboard
     return (
-        <div className="w-full h-full flex flex-col bg-titanium-950 animate-fade-in relative">
-
-            {/* HEADER */}
-            <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
-                <div className="flex items-center gap-3 text-accent-DEFAULT">
-                    <Hammer size={24} />
-                    <h2 className="font-bold text-xl text-titanium-100">Forja de Almas</h2>
-                </div>
-            </div>
-
-            {/* CONTENT */}
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center overflow-y-auto z-10">
-
-                <div className="max-w-2xl w-full flex flex-col gap-8">
-
-                    <div className="text-center mb-4">
-                        <div className="w-20 h-20 bg-titanium-900 rounded-3xl flex items-center justify-center text-accent-DEFAULT mb-6 border border-titanium-800 mx-auto shadow-2xl shadow-accent-DEFAULT/10">
-                            <FolderInput size={40} />
-                        </div>
-                        <h3 className="text-3xl font-bold text-titanium-100 mb-3">Configuración Inicial</h3>
-                        <p className="text-titanium-400 text-lg">
-                            No detecto una carpeta de personajes predeterminada. <br/>
-                            ¿Cómo deseas organizar tus almas?
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {/* OPTION A: CREATE */}
-                        <button
-                            onClick={handleCreateVault}
-                            disabled={isCreatingVault}
-                            aria-label="Crear nueva bóveda de personajes"
-                            className="group relative flex flex-col items-center p-8 bg-titanium-900 border border-titanium-800 hover:border-accent-DEFAULT/50 rounded-2xl transition-all hover:bg-titanium-800/50 text-left"
-                        >
-                            <div className="mb-4 p-4 rounded-full bg-accent-DEFAULT/10 text-accent-DEFAULT group-hover:bg-accent-DEFAULT group-hover:text-titanium-950 transition-colors">
-                                {isCreatingVault ? <RefreshCw className="animate-spin" size={32} /> : <FolderPlus size={32} />}
-                            </div>
-                            <h4 className="text-xl font-bold text-titanium-100 mb-2">Crear Bóveda</h4>
-                            <p className="text-sm text-titanium-400 text-center">
-                                Crea una carpeta <span className="text-accent-DEFAULT font-mono">/Personajes</span> en la raíz de tu proyecto automáticamente.
-                            </p>
-                            <div className="mt-6 px-4 py-1 bg-titanium-950 rounded border border-titanium-800 text-xs text-titanium-500 font-mono">
-                                Recomendado para nuevos
-                            </div>
-                        </button>
-
-                        {/* OPTION B: SELECT */}
-                        <button
-                            onClick={() => setShowSelector(true)}
-                            aria-label="Seleccionar bóveda existente"
-                            className="group relative flex flex-col items-center p-8 bg-titanium-900 border border-titanium-800 hover:border-cyan-500/50 rounded-2xl transition-all hover:bg-titanium-800/50 text-left"
-                        >
-                            <div className="mb-4 p-4 rounded-full bg-cyan-900/20 text-cyan-400 group-hover:bg-cyan-500 group-hover:text-white transition-colors">
-                                <Search size={32} />
-                            </div>
-                            <h4 className="text-xl font-bold text-titanium-100 mb-2">Ya tengo una</h4>
-                            <p className="text-sm text-titanium-400 text-center">
-                                Selecciona una carpeta existente desde la estructura de MyWorld.
-                            </p>
-                            <div className="mt-6 px-4 py-1 bg-titanium-950 rounded border border-titanium-800 text-xs text-titanium-500 font-mono">
-                                Para usuarios avanzados
-                            </div>
-                        </button>
-                    </div>
-
-                </div>
-            </div>
-
-            {/* MODAL: SELECTOR */}
-            {showSelector && (
-                <InternalFolderSelector
-                    onFolderSelected={handleFolderSelected}
-                    onCancel={() => setShowSelector(false)}
-                    currentFolderId={config?.characterVaultId}
-                />
-            )}
-
-            {/* MODAL: CONFIRMATION */}
-            {showConfirmation && pendingVault && (
-                <div
-                    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200"
-                    role="dialog"
-                    aria-modal="true"
-                    aria-labelledby="confirm-title"
-                    aria-describedby="confirm-desc"
-                >
-                    <div className="w-full max-w-md bg-titanium-900 border border-yellow-600/30 rounded-2xl shadow-2xl p-6 relative overflow-hidden">
-
-                        {/* WARNING ICON */}
-                        <div className="absolute top-0 right-0 p-8 -mr-4 -mt-4 opacity-10">
-                            <AlertTriangle size={120} className="text-yellow-600" />
-                        </div>
-
-                        <div className="flex flex-col gap-4 relative z-10">
-                            <div className="w-12 h-12 rounded-full bg-yellow-900/30 flex items-center justify-center text-yellow-500 mb-2">
-                                <AlertTriangle size={24} />
-                            </div>
-
-                            <h3 id="confirm-title" className="text-xl font-bold text-white">Confirmar Ubicación</h3>
-
-                            <div id="confirm-desc" className="text-titanium-300 text-sm leading-relaxed space-y-3">
-                                <p>
-                                    Has seleccionado: <span className="font-bold text-white">{pendingVault.name}</span>
-                                </p>
-                                <div className="p-3 bg-yellow-900/10 border border-yellow-600/20 rounded-lg text-yellow-200/80 text-xs">
-                                    <strong>Ojo:</strong> Si esta carpeta tiene subcarpetas, la Forja las leerá todas recursivamente, pero los nuevos personajes se crearán en la raíz de esta carpeta.
-                                </div>
-                                <p className="opacity-70">
-                                    No necesitas mover archivos manualmente, el sistema los detectará donde estén.
-                                </p>
-                            </div>
-
-                            <div className="flex gap-3 mt-4">
-                                <button
-                                    onClick={() => setShowConfirmation(false)}
-                                    className="flex-1 py-3 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 font-bold rounded-lg transition-colors"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    onClick={confirmSelection}
-                                    className="flex-1 py-3 bg-yellow-600 hover:bg-yellow-500 text-black font-bold rounded-lg transition-colors shadow-lg shadow-yellow-900/20"
-                                >
-                                    Confirmar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-        </div>
+        <ForgeDashboard
+            folderId={folderId}
+            accessToken={accessToken}
+            characterSaga={characterSaga}
+            bestiarySaga={bestiarySaga}
+            onOpenSettings={() => setViewMode('SETTINGS')}
+        />
     );
 };
+
+// Icon Helper
+const CheckCircleIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+);
 
 export default ForgePanel;
