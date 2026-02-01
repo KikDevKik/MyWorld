@@ -206,7 +206,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 </div>
 
                 {/* 🟢 INSERT BUTTON (Only for Assistant) */}
-                {message.role === 'assistant' && onInsert && (
+                {message.role === 'assistant' && onInsert && message.id !== 'intro' && (
                     <div className="mt-3 pt-2 border-t border-titanium-800/50 flex justify-end">
                         <button
                             onClick={() => onInsert(message.text)}
