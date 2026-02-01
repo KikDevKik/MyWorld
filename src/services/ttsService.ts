@@ -40,6 +40,50 @@ async function listModels(apiKey: string) {
 
 let hasListedModels = false;
 
+/**
+ * Helper: Adds a valid WAV header to raw PCM data.
+ * @param pcmData The raw PCM audio data.
+ * @param sampleRate The sample rate (e.g., 24000).
+ * @param numChannels Number of channels (default 1 for Gemini).
+ */
+function addWavHeader(pcmData: ArrayBuffer, sampleRate: number, numChannels: number = 1): ArrayBuffer {
+    const header = new ArrayBuffer(44);
+    const view = new DataView(header);
+    const numSamples = pcmData.byteLength / 2; // 16-bit = 2 bytes per sample
+
+    // RIFF Chunk
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + pcmData.byteLength, true); // File size
+    writeString(view, 8, 'WAVE');
+
+    // fmt Chunk
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // Chunk size (16 for PCM)
+    view.setUint16(20, 1, true); // Audio format (1 = PCM)
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * numChannels * 2, true); // Byte rate
+    view.setUint16(32, numChannels * 2, true); // Block align
+    view.setUint16(34, 16, true); // Bits per sample
+
+    // data Chunk
+    writeString(view, 36, 'data');
+    view.setUint32(40, pcmData.byteLength, true);
+
+    // Concatenate Header + PCM
+    const wavBuffer = new Uint8Array(header.byteLength + pcmData.byteLength);
+    wavBuffer.set(new Uint8Array(header), 0);
+    wavBuffer.set(new Uint8Array(pcmData), header.byteLength);
+
+    return wavBuffer.buffer;
+}
+
+function writeString(view: DataView, offset: number, string: string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
 export const TTSService = {
 
     /**
@@ -150,18 +194,38 @@ async function callGeminiTTS(model: string, apiKey: string, promptText: string, 
     // 🔍 BASE64 HEADER CHECK
     console.log("🔍 BASE64 HEADER:", base64Audio.substring(0, 50));
 
-    // MIME Type Logic: Trust API, fallback to WAV (Gemini default)
-    const mimeType = part.inlineData.mimeType || 'audio/wav';
-    console.log("🎧 DETECTED MIME TYPE:", mimeType);
+    // Detect MIME Type from API or Default
+    let mimeType = part.inlineData.mimeType || 'audio/wav';
+    console.log("🎧 RAW MIME TYPE:", mimeType);
 
-    // Convert Base64 to Blob
-    const binaryString = window.atob(base64Audio);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
+    // Extract Sample Rate if available (e.g., "audio/L16;rate=24000")
+    let sampleRate = 24000; // Default fallback
+    const rateMatch = mimeType.match(/rate=(\d+)/);
+    if (rateMatch) {
+        sampleRate = parseInt(rateMatch[1], 10);
+        console.log(`⏱️ Detected Sample Rate: ${sampleRate}Hz`);
     }
-    const blob = new Blob([bytes], { type: mimeType });
-    const blobUrl = URL.createObjectURL(blob);
+
+    // Convert Base64 to Raw Bytes
+    const binaryString = window.atob(base64Audio);
+    const pcmBytes = new Uint8Array(binaryString.length);
+    for (let i = 0; i < binaryString.length; i++) {
+        pcmBytes[i] = binaryString.charCodeAt(i);
+    }
+
+    // WRAPPING LOGIC: If it's Raw PCM (L16), wrap it in WAV
+    let finalBlob: Blob;
+
+    if (mimeType.includes("L16") || mimeType.includes("pcm")) {
+        console.log("🛠️ Wrapping Raw PCM in WAV Header...");
+        const wavBuffer = addWavHeader(pcmBytes.buffer, sampleRate, 1); // 1 Channel Mono
+        finalBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+    } else {
+        // Assume it's already a valid container (MP3/WAV)
+        finalBlob = new Blob([pcmBytes], { type: mimeType });
+    }
+
+    const blobUrl = URL.createObjectURL(finalBlob);
 
     // Update Cache
     audioCache.set(cacheKey, blobUrl);
