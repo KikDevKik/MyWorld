@@ -1,7 +1,8 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { Character } from '../types/core';
 import { AudioSegment, NarratorControls } from '../types/editorTypes';
 import { NarratorService } from '../services/narratorService';
+import { stringToColor } from '../utils/colorUtils';
 import { toast } from 'sonner';
 
 export const useNarrator = () => {
@@ -54,7 +55,7 @@ export const useNarrator = () => {
                 }
                 return next;
             });
-        }, 2000); // 2 seconds per segment simulation
+        }, 3000); // 🟢 TUNED: 3 seconds per segment for better reading flow
     }, []);
 
     const play = useCallback(() => {
@@ -109,10 +110,31 @@ export const useNarrator = () => {
         skipBackward
     };
 
+    // 🟢 DERIVED: Current Active Segment for Editor
+    const activeSegment = useMemo(() => {
+        if (!isPlaying || segments.length === 0 || currentSegmentIndex >= segments.length) {
+            return null;
+        }
+        const seg = segments[currentSegmentIndex];
+
+        // Ensure offsets exist
+        if (typeof seg.from !== 'number' || typeof seg.to !== 'number') return null;
+
+        // Generate Color (Deterministic Fallback)
+        const color = stringToColor(seg.speakerName || 'Narrator');
+
+        return {
+            from: seg.from,
+            to: seg.to,
+            color
+        };
+    }, [isPlaying, segments, currentSegmentIndex]);
+
     return {
         controls,
         segments,
         isLoading,
-        analyze
+        analyze,
+        activeSegment // 👈 Exposed for Editor wiring
     };
 };

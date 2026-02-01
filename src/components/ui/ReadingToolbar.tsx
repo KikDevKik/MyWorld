@@ -1,5 +1,5 @@
 import React from 'react';
-import { Type, Monitor, Maximize, Minimize, AlignJustify, AlignCenter } from 'lucide-react';
+import { Type, Monitor, Maximize, Minimize, AlignJustify, AlignCenter, Play, Pause, Loader2 } from 'lucide-react';
 
 interface ReadingToolbarProps {
     fontFamily: 'serif' | 'sans';
@@ -8,6 +8,13 @@ interface ReadingToolbarProps {
     setEditorWidth: (width: 'narrow' | 'wide') => void;
     isZenMode: boolean;
     setIsZenMode: (isZen: boolean) => void;
+
+    // 🟢 NARRATOR CONTROLS
+    narratorControls?: {
+        isPlaying: boolean;
+        onPlayPause: () => void;
+        isLoading: boolean;
+    };
 }
 
 const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
@@ -16,7 +23,8 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
     editorWidth,
     setEditorWidth,
     isZenMode,
-    setIsZenMode
+    setIsZenMode,
+    narratorControls
 }) => {
     return (
         <div className={`
@@ -24,6 +32,32 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
             transition-all duration-300
             ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}
         `}>
+            {/* 🟢 NARRATOR TOGGLE */}
+            {narratorControls && (
+                <>
+                    <button
+                        onClick={narratorControls.onPlayPause}
+                        disabled={narratorControls.isLoading}
+                        className={`
+                            p-2 rounded-full transition-all border border-transparent flex items-center justify-center
+                            ${narratorControls.isPlaying
+                                ? 'bg-cyan-900/30 text-cyan-400 border-cyan-900/50 hover:bg-cyan-900/50 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
+                                : 'text-titanium-400 hover:text-cyan-400 hover:bg-titanium-800'}
+                        `}
+                        title={narratorControls.isPlaying ? "Pausar Narración" : "Iniciar Narración (IA)"}
+                    >
+                        {narratorControls.isLoading ? (
+                            <Loader2 size={14} className="animate-spin" />
+                        ) : narratorControls.isPlaying ? (
+                            <Pause size={14} fill="currentColor" />
+                        ) : (
+                            <Play size={14} fill="currentColor" />
+                        )}
+                    </button>
+                    <div className="w-px h-4 bg-titanium-700/50" />
+                </>
+            )}
+
             {/* FONT TOGGLE */}
             <div
                 className="flex items-center bg-titanium-950/50 rounded-full p-0.5 border border-titanium-800"
