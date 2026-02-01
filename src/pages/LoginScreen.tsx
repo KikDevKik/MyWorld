@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { Shield, Lock, ChevronRight, AlertCircle } from 'lucide-react';
+import { Lock, AlertCircle } from 'lucide-react';
 
 interface LoginScreenProps {
     onLoginSuccess: (user: User, token: string | null) => void;
@@ -50,36 +50,35 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     };
 
     return (
-        <div className="h-screen w-screen bg-titanium-950 flex items-center justify-center relative overflow-hidden">
-            {/* FONDO ANIMADO SUTIL */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-titanium-900/20 via-titanium-950 to-titanium-950 pointer-events-none" />
+        <div className="h-screen w-screen bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
+            {/* FONDO ANIMADO SUTIL - Radial Gradient */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-[#0a0a0a] to-[#0a0a0a] pointer-events-none" />
 
-            <div className="w-full max-w-md p-8 relative z-10">
+            <div className="w-full max-w-md p-8 relative z-10 bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
                 <div className="flex flex-col items-center gap-6 text-center">
 
-                    {/* LOGO / ICONO */}
-                    <div className="w-16 h-16 bg-titanium-900 rounded-2xl flex items-center justify-center border border-titanium-800 shadow-2xl shadow-black/50">
-                        <Shield size={32} className="text-titanium-100" />
+                    {/* LOGO - Image from Assets */}
+                    <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center border border-white/10 shadow-lg overflow-hidden p-3">
+                         <img src="/assets/mw-logo-icon.png" alt="MyWorld Logo" className="w-full h-full object-contain drop-shadow-md" />
                     </div>
 
-                    <div className="space-y-2">
-                        <h1 className="text-3xl font-bold text-titanium-100 tracking-tight">Acceso Restringido</h1>
-                        <p className="text-titanium-500 text-sm">Identifícate para acceder a la Bóveda Creativa.</p>
+                    <div className="space-y-1">
+                        <h1 className="text-4xl font-extrabold text-white tracking-tight">MyWorld</h1>
+                        <p className="text-xs font-mono text-gray-500 uppercase tracking-widest">Creative IDE</p>
                     </div>
 
-                    {/* BOTÓN DE LOGIN */}
+                    {/* BOTÓN DE LOGIN - Minimal */}
                     <button
                         onClick={handleLogin}
                         disabled={isLoading}
-                        className="group relative w-full py-4 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 rounded-xl font-bold transition-all shadow-[0_0_20px_rgba(56,189,248,0.2)] hover:shadow-[0_0_30px_rgba(56,189,248,0.4)] flex items-center justify-center gap-3 overflow-hidden"
+                        className="group relative w-full py-3 bg-white hover:bg-gray-200 text-black rounded-lg font-medium transition-all shadow-lg flex items-center justify-center gap-3 mt-4"
                     >
                         {isLoading ? (
-                            <span className="animate-pulse">Autenticando...</span>
+                            <span className="animate-pulse">Authenticating...</span>
                         ) : (
                             <>
-                                <Lock size={18} className="group-hover:hidden transition-all" />
-                                <ChevronRight size={18} className="hidden group-hover:block transition-all" />
-                                <span>Iniciar Sesión con Google</span>
+                                <Lock size={16} className="text-gray-600 group-hover:text-black transition-colors" />
+                                <span>Sign in with Google</span>
                             </>
                         )}
                     </button>
@@ -89,16 +88,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         <div
                             role="alert"
                             aria-live="assertive"
-                            className="flex items-center gap-2 text-red-400 text-xs bg-red-900/10 p-3 rounded-lg border border-red-900/20 w-full justify-center animate-fade-in"
+                            className="flex items-center gap-2 text-red-400 text-xs bg-red-900/10 p-3 rounded-lg border border-red-900/20 w-full justify-center animate-fade-in mt-2"
                         >
                             <AlertCircle size={14} />
                             <span>{error}</span>
                         </div>
                     )}
-
-                    <p className="text-[10px] text-titanium-700 uppercase tracking-widest mt-8">
-                        MyWorld Creative IDE v2.0
-                    </p>
                 </div>
             </div>
         </div>
