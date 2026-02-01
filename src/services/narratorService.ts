@@ -18,6 +18,32 @@ export const NarratorService = {
         sessionId?: string
     ): Promise<AudioSegment[]> => {
 
+        // 🟢 GHOST MODE MOCK
+        if (import.meta.env.VITE_JULES_MODE === 'true') {
+             console.log("👻 Narrator Mock Mode Active");
+             await new Promise(r => setTimeout(r, 1000)); // Fake latency
+             return [
+                {
+                    text: "Esto es una prueba del sistema de narración.",
+                    type: "NARRATION",
+                    speakerId: null,
+                    speakerName: "Narrador",
+                    voiceProfile: { gender: "MALE", age: "ADULT", tone: "Neutral", emotion: "Neutral" },
+                    from: 0,
+                    to: 10 // Dummy offsets
+                },
+                {
+                    text: "¡Funciona perfectamente!",
+                    type: "DIALOGUE",
+                    speakerId: "hero",
+                    speakerName: "Héroe",
+                    voiceProfile: { gender: "FEMALE", age: "ADULT", tone: "Excited", emotion: "Joy" },
+                    from: 11,
+                    to: 20
+                }
+             ];
+        }
+
         // 1. Prepare Character Context for Gemini
         const characterList = characters.map(c => `- ${c.name} (ID: ${c.id})`).join('\n');
 
