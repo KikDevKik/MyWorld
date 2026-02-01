@@ -86,6 +86,9 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
+    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) {
+        return;
+    }
     setIsDragging(false);
   };
 
@@ -265,7 +268,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
     >
       {/* DRAG OVERLAY */}
       {isDragging && (
-          <div className="absolute inset-0 bg-emerald-500/20 z-50 flex items-center justify-center border-2 border-emerald-500 border-dashed backdrop-blur-sm">
+          <div className="absolute inset-0 bg-emerald-500/20 z-50 flex items-center justify-center border-2 border-emerald-500 border-dashed backdrop-blur-sm pointer-events-none">
               <div className="text-emerald-400 font-bold text-xl flex items-center gap-3">
                   <Paperclip size={32} />
                   Soltar para adjuntar contexto
