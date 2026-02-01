@@ -88,6 +88,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
         e.preventDefault();
+        if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) {
+            return;
+        }
         setIsDragging(false);
     };
 
@@ -130,7 +133,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
         >
             {/* Drag Overlay */}
             {isDragging && (
-                <div className="absolute inset-0 z-50 bg-emerald-500/20 border-2 border-emerald-500 border-dashed rounded-lg flex items-center justify-center backdrop-blur-sm">
+                <div className="absolute inset-0 z-50 bg-emerald-500/20 border-2 border-emerald-500 border-dashed rounded-lg flex items-center justify-center backdrop-blur-sm pointer-events-none">
                     <div className="text-emerald-400 font-bold flex items-center gap-2">
                         <Paperclip size={20} />
                         <span>Soltar para adjuntar</span>
