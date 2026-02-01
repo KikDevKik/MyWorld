@@ -76,7 +76,7 @@ export const forgeChatStream = onRequest(
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Transfer-Encoding', 'chunked');
 
-    const { query, history, filterScopePath } = req.body;
+    const { query, history, filterScopePath, mediaAttachment } = req.body;
     const db = getFirestore();
 
     try {
@@ -131,7 +131,15 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
       });
 
       // 4. Execution Loop
-      let currentResult = await chat.sendMessageStream(query);
+      let messagePayload: any = query || "Analiza el adjunto.";
+      if (mediaAttachment) {
+          messagePayload = [
+              { text: query || "Analiza el adjunto." },
+              { inlineData: mediaAttachment }
+          ];
+      }
+
+      let currentResult = await chat.sendMessageStream(messagePayload);
 
       // Helper to emit JSON lines
       const emit = (data: any) => res.write(JSON.stringify(data) + '\n');

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 import { ChatMessageData } from '../components/director/chat/ChatMessage';
+import { fileToGenerativePart } from '../services/geminiService';
 
 interface UseDirectorChatProps {
     activeSessionId: string | null;
@@ -142,18 +143,24 @@ export const useDirectorChat = ({
     }, [driftAlerts]);
 
     // 🟢 SEND MESSAGE
-    const handleSendMessage = async (text: string) => {
-        if (!text.trim()) return;
+    const handleSendMessage = async (text: string, attachment: File | null = null) => {
+        if (!text.trim() && !attachment) return;
 
         // 👻 GHOST MODE: SIMULATION
         if (import.meta.env.VITE_JULES_MODE === 'true') {
             const tempId = Date.now().toString();
+
+            let previewUrl: string | undefined = undefined;
+            if (attachment) previewUrl = URL.createObjectURL(attachment);
+
             setMessages(prev => [...prev, {
                 id: tempId,
                 role: 'user',
                 text: text,
                 timestamp: Date.now(),
-                type: 'text'
+                type: 'text',
+                attachmentPreview: previewUrl,
+                attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
             }]);
 
             setIsThinking(true);
@@ -181,12 +188,31 @@ export const useDirectorChat = ({
         if (!currentSessionId) return;
 
         const tempId = Date.now().toString();
+
+        // Prepare attachment for display & sending
+        let previewUrl: string | undefined = undefined;
+        let mediaPart = undefined;
+
+        if (attachment) {
+            previewUrl = URL.createObjectURL(attachment);
+            try {
+                const part = await fileToGenerativePart(attachment);
+                mediaPart = part.inlineData;
+            } catch (e) {
+                console.error(e);
+                toast.error("Error procesando adjunto.");
+                return;
+            }
+        }
+
         const newUserMsg: ChatMessageData = {
             id: tempId,
             role: 'user',
             text: text,
             timestamp: Date.now(),
-            type: 'text'
+            type: 'text',
+            attachmentPreview: previewUrl,
+            attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
         };
 
         setMessages(prev => [...prev, newUserMsg]);
@@ -201,6 +227,7 @@ export const useDirectorChat = ({
                 activeFileContent,
                 activeFileName,
                 isFallbackContext,
+                mediaAttachment: mediaPart,
                 systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable. If you see a Drift Alert in history, address it professionally."
             });
 

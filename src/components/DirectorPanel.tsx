@@ -11,6 +11,7 @@ import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useContextStatus } from '../hooks/useContextStatus';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
+import ChatInput from './ui/ChatInput';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -76,18 +77,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
         accessToken
     });
 
-    const [inputValue, setInputValue] = useState('');
     const messagesEndRef = useRef<HTMLDivElement>(null);
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
     const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
-
-    // 🟢 AUTO-GROW TEXTAREA
-    useEffect(() => {
-        if (textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 150)}px`;
-        }
-    }, [inputValue]);
 
     // 🟢 DRIFT SCORE CALCULATION (UI ONLY)
     const [driftScore, setDriftScore] = useState(100);
@@ -332,76 +323,31 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                     </div>
 
                     <div className="pt-4 px-4 pb-10 border-t border-titanium-800 bg-titanium-900/30 shrink-0">
-                        <form
-                            onSubmit={(e) => {
-                                e.preventDefault();
-                                if (!e.shiftKey) {
-                                    handleSendMessage(inputValue);
+                        <ChatInput
+                            onSend={(text, attachment) => {
+                                handleSendMessage(text, attachment || undefined);
 
-                                    // ⚖️ AUDIT: THE SEED (Director Prompt)
-                                    if (user && folderId) {
-                                        CreativeAuditService.logCreativeEvent({
-                                            projectId: folderId,
-                                            userId: user.uid,
-                                            component: 'DirectorPanel',
-                                            actionType: 'INJECTION',
-                                            description: 'User sent directive',
-                                            payload: {
-                                                promptContent: inputValue,
-                                                promptLength: inputValue.length,
-                                                sessionId: activeSessionId
-                                            }
-                                        });
-                                    }
-
-                                    setInputValue('');
-                                    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+                                // ⚖️ AUDIT: THE SEED (Director Prompt)
+                                if (user && folderId) {
+                                    CreativeAuditService.logCreativeEvent({
+                                        projectId: folderId,
+                                        userId: user.uid,
+                                        component: 'DirectorPanel',
+                                        actionType: 'INJECTION',
+                                        description: 'User sent directive',
+                                        payload: {
+                                            promptContent: text,
+                                            promptLength: text.length,
+                                            sessionId: activeSessionId,
+                                            hasAttachment: !!attachment
+                                        }
+                                    });
                                 }
                             }}
-                            className="flex gap-2 items-end"
-                        >
-                            <textarea
-                                ref={textareaRef}
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && !e.shiftKey) {
-                                        e.preventDefault();
-                                        handleSendMessage(inputValue);
-
-                                        // ⚖️ AUDIT: THE SEED (Director Prompt)
-                                        if (user && folderId) {
-                                            CreativeAuditService.logCreativeEvent({
-                                                projectId: folderId,
-                                                userId: user.uid,
-                                                component: 'DirectorPanel',
-                                                actionType: 'INJECTION',
-                                                description: 'User sent directive',
-                                                payload: {
-                                                    promptContent: inputValue,
-                                                    promptLength: inputValue.length,
-                                                    sessionId: activeSessionId
-                                                }
-                                            });
-                                        }
-
-                                        setInputValue('');
-                                        if (textareaRef.current) textareaRef.current.style.height = 'auto';
-                                    }
-                                }}
-                                placeholder="Escribe al director..."
-                                className="flex-1 bg-titanium-950 border border-titanium-800 rounded-lg px-4 py-3 text-sm text-titanium-200 focus:outline-none focus:border-emerald-500/50 transition-colors resize-none overflow-y-auto min-h-[46px] max-h-[150px]"
-                                rows={1}
-                                autoFocus
-                            />
-                            <button
-                                type="submit"
-                                disabled={!inputValue.trim() || isThinking}
-                                className="bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 p-3 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none mb-[1px]"
-                            >
-                                <Send size={16} />
-                            </button>
-                        </form>
+                            placeholder="Escribe al director..."
+                            disabled={isThinking}
+                            autoFocus
+                        />
                     </div>
                 </div>
 
