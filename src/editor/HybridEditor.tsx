@@ -107,6 +107,9 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
                 // 🟢 READ ONLY STATE (Compartment)
                 editableCompartment.of(EditorView.editable.of(!readOnly)),
 
+                // 🟢 ENABLE SPELLCHECK
+                EditorView.contentAttributes.of({ spellcheck: "true" }),
+
                 // Base
                 lineNumbers(),
                 highlightActiveLineGutter(),
