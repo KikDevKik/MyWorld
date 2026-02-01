@@ -1,4 +1,4 @@
-import { AudioSegment } from '../types/editorTypes';
+import { AudioSegment, VoiceProfile } from '../types/editorTypes';
 import { toast } from 'sonner';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -18,6 +18,33 @@ interface TTSRequest {
  */
 const generateCacheKey = (text: string, profile: AudioSegment['voiceProfile']): string => {
     return `${text}|${profile.gender}|${profile.age}|${profile.tone}|${profile.emotion}`;
+};
+
+/**
+ * Helper: Maps Voice Profile to "Voice Anchor" adjectives for consistency.
+ */
+const getVoiceDescription = (profile: VoiceProfile): string => {
+    // 1. Base Anchor based on Age & Gender
+    let anchor = "Neutral";
+
+    if (profile.gender === 'MALE') {
+        if (profile.age === 'CHILD') anchor = "Young, High-pitched Male";
+        else if (profile.age === 'TEEN') anchor = "Energetic, Youthful Male";
+        else if (profile.age === 'ADULT') anchor = "Deep, Resonant Male";
+        else if (profile.age === 'ELDER') anchor = "Raspy, Weathered, Old Male";
+    } else if (profile.gender === 'FEMALE') {
+        if (profile.age === 'CHILD') anchor = "Young, Soft-spoken Female";
+        else if (profile.age === 'TEEN') anchor = "Bright, Clear Female";
+        else if (profile.age === 'ADULT') anchor = "Warm, Melodic Female";
+        else if (profile.age === 'ELDER') anchor = "Shaky, Wise, Old Female";
+    }
+
+    // 2. Add Tone context if provided (e.g., "Sarcastic", "Whispering")
+    if (profile.tone) {
+        anchor += `, ${profile.tone}`;
+    }
+
+    return anchor;
 };
 
 /**
@@ -49,7 +76,11 @@ let hasListedModels = false;
 function addWavHeader(pcmData: ArrayBuffer, sampleRate: number, numChannels: number = 1): ArrayBuffer {
     const header = new ArrayBuffer(44);
     const view = new DataView(header);
-    const numSamples = pcmData.byteLength / 2; // 16-bit = 2 bytes per sample
+
+    // Derived Parameters
+    const bitsPerSample = 16;
+    const blockAlign = (numChannels * bitsPerSample) / 8; // Should be 2 for 16-bit Mono
+    const byteRate = sampleRate * blockAlign; // Should be 48000 for 24kHz
 
     // RIFF Chunk
     writeString(view, 0, 'RIFF');
@@ -61,10 +92,10 @@ function addWavHeader(pcmData: ArrayBuffer, sampleRate: number, numChannels: num
     view.setUint32(16, 16, true); // Chunk size (16 for PCM)
     view.setUint16(20, 1, true); // Audio format (1 = PCM)
     view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * numChannels * 2, true); // Byte rate
-    view.setUint16(32, numChannels * 2, true); // Block align
-    view.setUint16(34, 16, true); // Bits per sample
+    view.setUint32(24, sampleRate, true); // Sample Rate
+    view.setUint32(28, byteRate, true);   // Byte Rate
+    view.setUint16(32, blockAlign, true); // Block Align
+    view.setUint16(34, bitsPerSample, true); // Bits per sample
 
     // data Chunk
     writeString(view, 36, 'data');
@@ -115,8 +146,9 @@ export const TTSService = {
             hasListedModels = true;
         }
 
-        // 3. Construct Prompt with Context embedded as "Stage Direction"
-        const directorNote = `(Context: Speaking as a ${context.age} ${context.gender}. Tone: ${context.emotion})`;
+        // 3. Construct Prompt with Voice Anchors (Voice Stabilization)
+        const voiceDesc = getVoiceDescription(context);
+        const directorNote = `(Context: Voice: ${voiceDesc}. Emotion: ${context.emotion})`;
         const fullText = `${directorNote} ${text}`;
 
         // 4. Call API directly
