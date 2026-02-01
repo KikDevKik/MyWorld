@@ -18,7 +18,7 @@ export const useNarrator = () => {
     // Track latest play request to handle race conditions
     const playRequestRef = useRef(0);
 
-    // Audio Player Ref
+    // Audio Player Ref (AI Voice)
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     // Caching Refs
@@ -35,6 +35,7 @@ export const useNarrator = () => {
                 audioRef.current.pause();
                 audioRef.current = null;
             }
+            window.speechSynthesis.cancel();
             TTSService.clearCache();
         };
     }, []);
@@ -50,6 +51,7 @@ export const useNarrator = () => {
             audioRef.current.pause();
             audioRef.current = null;
         }
+        window.speechSynthesis.cancel();
         isPlayingRef.current = false;
         setIsPlaying(false);
         setCurrentSegmentIndex(0);
@@ -59,12 +61,13 @@ export const useNarrator = () => {
         if (audioRef.current) {
             audioRef.current.pause();
         }
+        window.speechSynthesis.pause(); // Standard browser pause
         isPlayingRef.current = false;
         setIsPlaying(false);
     }, []);
 
     // 🟢 TTS ENGINE (THE THROAT)
-    // Now powered by Gemini TTS via TTSService
+    // Now powered by Gemini TTS via TTSService, with Browser Fallback
     const speakSegment = useCallback(async (index: number, segmentList: AudioSegment[]) => {
         // Safety Check
         if (!isPlayingRef.current) return;
@@ -91,31 +94,45 @@ export const useNarrator = () => {
                 return;
             }
 
-            if (!audioUrl) {
-                // If synthesis fails, maybe skip?
-                console.warn(`Skipping segment ${index} due to TTS failure.`);
-                if (isPlayingRef.current) {
-                    speakSegment(index + 1, segmentList);
-                }
-                return;
-            }
-
             // Check if we were stopped while fetching
             if (!isPlayingRef.current) return;
 
-            // 2. Play Audio
+            // Stop any previous audio
             if (audioRef.current) {
-                audioRef.current.pause(); // Ensure previous is stopped
+                audioRef.current.pause();
+            }
+            window.speechSynthesis.cancel(); // Cancel any overlapping browser speech
+
+            if (!audioUrl) {
+                // FALLBACK: Browser Speech Synthesis
+                console.warn(`Fallback to Browser TTS for segment ${index}`);
+
+                const utterance = new SpeechSynthesisUtterance(segment.text);
+                utterance.lang = 'es-ES'; // Default to Spanish as requested
+                // Optional: Map voiceProfile to utterance properties (pitch/rate) if desired, but keeping it simple for stability.
+
+                utterance.onend = () => {
+                    if (isPlayingRef.current && requestId === playRequestRef.current) {
+                        speakSegment(index + 1, segmentList);
+                    }
+                };
+
+                utterance.onerror = (e) => {
+                    console.error("Browser TTS Error:", e);
+                    if (isPlayingRef.current && requestId === playRequestRef.current) {
+                         speakSegment(index + 1, segmentList);
+                    }
+                };
+
+                window.speechSynthesis.speak(utterance);
+                return;
             }
 
+            // 2. Play AI Audio
             const audio = new Audio(audioUrl);
             audioRef.current = audio;
 
             audio.onended = () => {
-                // Only proceed if we are still the active request context (or if play flow is valid)
-                // Actually, onended triggers for the *current* audio.
-                // If a new request overwrote audioRef.current, the old audio would be garbage or paused.
-                // But good to be safe.
                 if (isPlayingRef.current && requestId === playRequestRef.current) {
                     speakSegment(index + 1, segmentList);
                 }
@@ -130,9 +147,10 @@ export const useNarrator = () => {
 
             await audio.play();
 
-            // 3. Preload Next (Optimistic)
+            // 3. Preload Next (Optimistic) - Only for AI TTS
             if (index + 1 < segmentList.length) {
                 const nextSeg = segmentList[index + 1];
+                // Don't await, just trigger cache
                 TTSService.synthesize(nextSeg.text, nextSeg.voiceProfile).catch(e => console.log("Preload failed", e));
             }
 
@@ -152,20 +170,24 @@ export const useNarrator = () => {
         setIsPlaying(true);
         isPlayingRef.current = true;
 
-        // If audio is already instantiated and paused, resume it?
-        // Implementing simple resume:
+        // Case 1: Browser Speech is paused
+        if (window.speechSynthesis.paused && window.speechSynthesis.speaking) {
+             window.speechSynthesis.resume();
+             return;
+        }
+
+        // Case 2: Audio Element is paused
         if (audioRef.current && audioRef.current.paused && audioRef.current.currentTime > 0) {
             audioRef.current.play()
-                .then(() => {
-                    // Re-attach ended listener just in case? (It should persist)
-                })
                 .catch(e => {
                     console.error("Resume failed, restarting segment", e);
                     speakSegment(currentSegmentIndex, segments);
                 });
-        } else {
-             speakSegment(currentSegmentIndex, segments);
+            return;
         }
+
+        // Case 3: Start Fresh (or was stopped)
+        speakSegment(currentSegmentIndex, segments);
 
     }, [segments, currentSegmentIndex, speakSegment]);
 
@@ -174,6 +196,7 @@ export const useNarrator = () => {
 
         // Stop current audio immediately
         if (audioRef.current) audioRef.current.pause();
+        window.speechSynthesis.cancel();
 
         const nextIndex = Math.min(currentSegmentIndex + 1, segments.length - 1);
 
@@ -189,6 +212,7 @@ export const useNarrator = () => {
 
         // Stop current audio
         if (audioRef.current) audioRef.current.pause();
+        window.speechSynthesis.cancel();
 
         const nextIndex = Math.max(currentSegmentIndex - 1, 0);
 

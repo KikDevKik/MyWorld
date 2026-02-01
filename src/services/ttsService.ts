@@ -2,7 +2,7 @@ import { AudioSegment } from '../types/editorTypes';
 import { toast } from 'sonner';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const TTS_MODEL = 'gemini-2.0-flash-exp'; // Minimal Viable Payload Target
+const TTS_MODEL = 'gemini-2.5-flash-preview-tts'; // Target Model
 
 // Simple in-memory cache for the session
 // Key: Segment Text + Voice Profile Hash -> Value: Blob URL
@@ -20,14 +20,29 @@ const generateCacheKey = (text: string, profile: AudioSegment['voiceProfile']): 
     return `${text}|${profile.gender}|${profile.age}|${profile.tone}|${profile.emotion}`;
 };
 
+/**
+ * Diagnostic: List available models to verify the name.
+ */
+async function listModels(apiKey: string) {
+    try {
+        const response = await fetch(`${BASE_URL}?key=${apiKey}`);
+        const data = await response.json();
+        console.log("📢 Available Gemini Models:", data);
+    } catch (e) {
+        console.warn("Failed to list models", e);
+    }
+}
+
+let hasListedModels = false;
+
 export const TTSService = {
 
     /**
-     * Synthesizes speech for a given text segment using Gemini 2.0.
+     * Synthesizes speech for a given text segment using Gemini 2.5 (or returns null for fallback).
      *
      * @param text The text to speak.
      * @param context The context including voice profile (gender, tone, etc).
-     * @returns A Promise resolving to a Blob URL of the audio.
+     * @returns A Promise resolving to a Blob URL of the audio, or NULL if it fails.
      */
     synthesize: async (text: string, context: AudioSegment['voiceProfile']): Promise<string | null> => {
         // 1. Check Cache
@@ -37,7 +52,6 @@ export const TTSService = {
         }
 
         // 2. Prepare API Key
-        // Priority: BYOK (localStorage) > Environment Variable
         const apiKey = localStorage.getItem('myworld_custom_gemini_key') || import.meta.env.VITE_GOOGLE_API_KEY;
 
         if (!apiKey) {
@@ -46,17 +60,22 @@ export const TTSService = {
             return null;
         }
 
+        // Diagnostic Log (Run once)
+        if (!hasListedModels) {
+            listModels(apiKey);
+            hasListedModels = true;
+        }
+
         // 3. Construct Prompt with Context embedded as "Stage Direction"
-        // This keeps the character's soul (Gender/Age) without breaking the JSON schema.
         const directorNote = `(Context: Speaking as a ${context.age} ${context.gender}. Tone: ${context.emotion})`;
         const fullText = `${directorNote} ${text}`;
 
-        // 4. Call API directly (no fallback logic anymore)
+        // 4. Call API directly
         try {
             return await callGeminiTTS(TTS_MODEL, apiKey, fullText, cacheKey);
         } catch (error) {
-            console.error("TTS Generation Failed.", error);
-            toast.error("Error al generar el audio.");
+            console.warn(`TTS: ${TTS_MODEL} failed. Fallback to Browser.`, error);
+            // Return null to trigger browser fallback in useNarrator
             return null;
         }
     },
@@ -84,11 +103,11 @@ async function callGeminiTTS(model: string, apiKey: string, promptText: string, 
             }]
         }],
         generationConfig: {
-            responseModalities: ["AUDIO"] // This is the ONLY required flag for V2
+            responseModalities: ["AUDIO"] // Minimal Viable Payload for V2/V2.5
         }
     };
 
-    console.log("📢 SENDING TTS PAYLOAD:", JSON.stringify(body, null, 2));
+    console.log(`📢 SENDING TTS PAYLOAD TO ${model}:`, JSON.stringify(body, null, 2));
 
     const response = await fetch(url, {
         method: 'POST',
@@ -107,13 +126,10 @@ async function callGeminiTTS(model: string, apiKey: string, promptText: string, 
     const data = await response.json();
 
     // Parse Response to find Audio Blob
-    // Expected structure for Audio model: candidates[0].content.parts[0].inlineData (base64)
-
     const candidate = data.candidates?.[0];
     const part = candidate?.content?.parts?.[0];
 
     if (!part || !part.inlineData) {
-        // Sometimes it returns text if it refused to generate audio
         if (part?.text) {
              console.warn("TTS Model returned text instead of audio:", part.text);
              throw new Error("Model returned text instead of audio: " + part.text);
