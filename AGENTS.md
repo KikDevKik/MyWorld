@@ -48,3 +48,11 @@ Este archivo documenta los roles activos de la IA y los protocolos de mantenimie
 *   **Nivel 1:** Firestore `TDB_Index` (Metadatos y Vectores). La memoria de trabajo.
 *   **Nivel 2:** Firestore `users/{uid}/profile` (Configuración y Preferencias).
 *   **Purga:** Cuando el Janitor elimina un archivo, debe hacerlo en Nivel 0 y Nivel 1 simultáneamente.
+
+## 🟣 4. FUNCIONES DESACTIVADAS (LEGACY / HIBERNACIÓN)
+
+### CRONOGRAMA (Timeline)
+*   **Estado:** Desactivado (UI Oculta).
+*   **Motivo:** Problemas técnicos pendientes de resolución (Fase de presentación).
+*   **Componentes:** `TimelinePanel`, `cronograma` (GemId).
+*   **Instrucción:** La lógica y los componentes existen (`src/components/TimelinePanel.tsx`) pero se han eliminado los puntos de acceso en `ArsenalDock` y `FieldManualModal`. Si se requiere reactivar, revertir los cambios en UI.
