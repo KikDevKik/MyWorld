@@ -12,6 +12,7 @@ import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { lintKeymap } from '@codemirror/lint';
 
 import { driftExtension, setDriftMarkers, DriftMarker } from './extensions/driftPlugin';
+import { livePreview } from './extensions/livePreviewPlugin';
 import { Lock } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { CreativeAuditService } from '../services/CreativeAuditService';
@@ -136,6 +137,7 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
 
                 // Custom Extensions
                 driftExtension,
+                livePreview,
 
                 // Update Listener (The Spy's Eyes)
                 EditorView.updateListener.of((update) => {
