@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserSessionPersistence } from 'firebase/auth';
-import { LayoutGrid, Lock, ChevronRight, AlertCircle } from 'lucide-react';
+import { Lock, AlertCircle } from 'lucide-react';
 
 interface LoginScreenProps {
     onLoginSuccess: (user: User, token: string | null) => void;
@@ -57,9 +57,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             <div className="w-full max-w-md p-8 relative z-10 bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
                 <div className="flex flex-col items-center gap-6 text-center">
 
-                    {/* LOGO / ICONO - Simple stylized geometric shape */}
-                    <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center border border-white/10 shadow-lg">
-                        <LayoutGrid size={32} className="text-white opacity-80" />
+                    {/* LOGO - Image from Assets */}
+                    <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center border border-white/10 shadow-lg overflow-hidden p-1">
+                         <img src="/logo.png" alt="MyWorld Logo" className="w-full h-full object-contain" />
                     </div>
 
                     <div className="space-y-1">
@@ -95,11 +95,6 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         </div>
                     )}
                 </div>
-            </div>
-
-            {/* FOOTER */}
-            <div className="absolute bottom-8 text-[10px] text-gray-700 font-mono tracking-wider">
-                SYSTEM STATUS: ONLINE | PROJECT TITANIUM
             </div>
         </div>
     );
