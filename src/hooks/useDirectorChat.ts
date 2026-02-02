@@ -30,6 +30,11 @@ export const useDirectorChat = ({
     const [purgingIds, setPurgingIds] = useState<Set<string>>(new Set());
     const [rescuingIds, setRescuingIds] = useState<Set<string>>(new Set());
 
+    // 🟢 OPTIMISTIC UI STORE
+    // Stores messages that are being processed during session initialization
+    // to prevent history re-fetch from wiping them out.
+    const pendingOptimisticUpdates = useRef<ChatMessageData[]>([]);
+
     // 🟢 INIT SESSION HELPER
     const ensureSession = useCallback(async (): Promise<string | null> => {
         if (activeSessionId) return activeSessionId;
@@ -72,6 +77,15 @@ export const useDirectorChat = ({
                             driftCategory: h.driftCategory
                         };
                     });
+
+                    // 🟢 MERGE PENDING OPTIMISTIC MESSAGES
+                    // If we have messages that were added locally while waiting for session/history, re-inject them.
+                    if (pendingOptimisticUpdates.current.length > 0) {
+                        const existingIds = new Set(formatted.map(m => m.id));
+                        const uniquePending = pendingOptimisticUpdates.current.filter(m => !existingIds.has(m.id));
+                        formatted.push(...uniquePending);
+                    }
+
                     setMessages(formatted);
                 } catch (error) {
                     console.error("Failed to load history:", error);
@@ -146,63 +160,11 @@ export const useDirectorChat = ({
     const handleSendMessage = async (text: string, attachment: File | null = null) => {
         if (!text.trim() && !attachment) return;
 
-        // 👻 GHOST MODE: SIMULATION
-        if (import.meta.env.VITE_JULES_MODE === 'true') {
-            const tempId = Date.now().toString();
-
-            let previewUrl: string | undefined = undefined;
-            if (attachment) previewUrl = URL.createObjectURL(attachment);
-
-            setMessages(prev => [...prev, {
-                id: tempId,
-                role: 'user',
-                text: text,
-                timestamp: Date.now(),
-                type: 'text',
-                attachmentPreview: previewUrl,
-                attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
-            }]);
-
-            setIsThinking(true);
-            setTimeout(() => {
-                const mockResponses = [
-                    "El ritmo de la escena decae en el segundo párrafo. Sugiero cortar el diálogo interno.",
-                    "La tensión visual es buena, pero el conflicto subyacente necesita más claridad.",
-                    "Interesante uso de la iluminación. ¿Has considerado enfocar la cámara en sus manos?"
-                ];
-                const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
-
-                setMessages(prev => [...prev, {
-                    id: (Date.now() + 1).toString(),
-                    role: 'assistant',
-                    text: response,
-                    timestamp: Date.now(),
-                    type: 'text'
-                }]);
-                setIsThinking(false);
-            }, 1500);
-            return;
-        }
-
-        const currentSessionId = await ensureSession();
-        if (!currentSessionId) return;
-
         const tempId = Date.now().toString();
-
-        // Prepare attachment for display & sending
         let previewUrl: string | undefined = undefined;
-        let mediaPart = undefined;
 
         if (attachment) {
             previewUrl = URL.createObjectURL(attachment);
-            try {
-                const part = await fileToGenerativePart(attachment);
-                mediaPart = part.inlineData;
-            } catch (e) {
-                console.error(e);
-                toast.error("Error procesando adjunto.");
-                return;
-            }
         }
 
         const newUserMsg: ChatMessageData = {
@@ -215,11 +177,62 @@ export const useDirectorChat = ({
             attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
         };
 
+        // 🟢 OPTIMISTIC UPDATE: Show immediately
+        pendingOptimisticUpdates.current.push(newUserMsg);
         setMessages(prev => [...prev, newUserMsg]);
         setIsThinking(true);
 
+        // 👻 GHOST MODE: SIMULATION
+        if (import.meta.env.VITE_JULES_MODE === 'true') {
+            setTimeout(() => {
+                const mockResponses = [
+                    "El ritmo de la escena decae en el segundo párrafo. Sugiero cortar el diálogo interno.",
+                    "La tensión visual es buena, pero el conflicto subyacente necesita más claridad.",
+                    "Interesante uso de la iluminación. ¿Has considerado enfocar la cámara en sus manos?"
+                ];
+                const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+
+                const botMsg: ChatMessageData = {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    text: response,
+                    timestamp: Date.now(),
+                    type: 'text'
+                };
+
+                setMessages(prev => [...prev, botMsg]);
+                setIsThinking(false);
+                // Clear pending since we are done
+                pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
+            }, 1500);
+            return;
+        }
+
         try {
+            // 🟢 AWAIT SESSION (Background)
+            const currentSessionId = await ensureSession();
+            if (!currentSessionId) {
+                throw new Error("No se pudo iniciar la sesión.");
+            }
+
+            // Prepare attachment
+            let mediaPart = undefined;
+            if (attachment) {
+                try {
+                    const part = await fileToGenerativePart(attachment);
+                    mediaPart = part.inlineData;
+                } catch (e) {
+                    console.error(e);
+                    toast.error("Error procesando adjunto.");
+                    setIsThinking(false);
+                    return;
+                }
+            }
+
             await callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'user', text: text });
+
+            // Message is now saved, we can safely remove it from pending list eventually,
+            // but keeping it until response ensures stability if history reloads again.
 
             const data = await callFunction<{ response: string }>('chatWithGem', {
                 query: text,
@@ -256,23 +269,35 @@ export const useDirectorChat = ({
             }]);
         } finally {
             setIsThinking(false);
+            // 🟢 CLEANUP: Remove from pending now that flow is complete
+            pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }
     };
 
     // 🟢 INSPECTOR (READ ONLY)
     const handleInspector = async (fileId?: string) => {
+        if (!fileId && import.meta.env.VITE_JULES_MODE !== 'true') {
+             toast.error("Guarda el archivo en Drive para usar el Inspector.");
+             return;
+        }
+
+        const tempId = Date.now().toString();
+
+        // 🟢 OPTIMISTIC UPDATE: Show immediately
+        const initMsg: ChatMessageData = {
+            id: tempId,
+            role: 'system',
+            text: import.meta.env.VITE_JULES_MODE === 'true' ? "Analizando Elenco (Modo Fantasma)..." : "Analizando Elenco (Modo Lectura)...",
+            timestamp: Date.now(),
+            type: 'system_alert'
+        };
+
+        pendingOptimisticUpdates.current.push(initMsg);
+        setMessages(prev => [...prev, initMsg]);
+        setIsThinking(true);
+
         // 👻 GHOST MODE: SIMULATION
         if (import.meta.env.VITE_JULES_MODE === 'true') {
-            setIsThinking(true);
-            const tempId = Date.now().toString();
-            setMessages(prev => [...prev, {
-                id: tempId,
-                role: 'system',
-                text: "Analizando Elenco (Modo Fantasma)...",
-                timestamp: Date.now(),
-                type: 'system_alert'
-            }]);
-
             setTimeout(() => {
                 const mockReport = {
                     characters: [
@@ -296,30 +321,15 @@ export const useDirectorChat = ({
                     return m;
                 }));
                 setIsThinking(false);
+                pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
             }, 2000);
             return;
         }
 
-        if (!fileId) {
-             toast.error("Guarda el archivo en Drive para usar el Inspector.");
-             return;
-        }
-
-        const sid = await ensureSession();
-        if (!sid) return;
-
-        setIsThinking(true);
-        const tempId = Date.now().toString();
-
-        setMessages(prev => [...prev, {
-            id: tempId,
-            role: 'system',
-            text: "Analizando Elenco (Modo Lectura)...",
-            timestamp: Date.now(),
-            type: 'system_alert'
-        }]);
-
         try {
+            const sid = await ensureSession();
+            if (!sid) throw new Error("No session");
+
             await callFunction('addForgeMessage', { sessionId: sid, role: 'user', text: "[ACTION: INSPECTOR INVOKED]" });
 
             // Call Backend
@@ -353,6 +363,8 @@ export const useDirectorChat = ({
             setMessages(prev => prev.filter(m => m.id !== tempId));
         } finally {
             setIsThinking(false);
+            // 🟢 CLEANUP
+            pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }
     };
 
@@ -365,18 +377,23 @@ export const useDirectorChat = ({
             return;
         }
 
+        const tempId = Date.now().toString();
+
+        // 🟢 OPTIMISTIC UPDATE
+        const initMsg: ChatMessageData = {
+            id: tempId,
+            role: 'system',
+            text: import.meta.env.VITE_JULES_MODE === 'true' ? "Convocando al Tribunal (Modo Fantasma)..." : "Convocando al Tribunal...",
+            timestamp: Date.now(),
+            type: 'system_alert'
+        };
+
+        pendingOptimisticUpdates.current.push(initMsg);
+        setMessages(prev => [...prev, initMsg]);
+        setIsThinking(true);
+
         // 👻 GHOST MODE: SIMULATION
         if (import.meta.env.VITE_JULES_MODE === 'true') {
-            setIsThinking(true);
-            const tempId = Date.now().toString();
-            setMessages(prev => [...prev, {
-                id: tempId,
-                role: 'system',
-                text: "Convocando al Tribunal (Modo Fantasma)...",
-                timestamp: Date.now(),
-                type: 'system_alert'
-            }]);
-
             setTimeout(() => {
                 const mockVerdict = {
                     verdict: "Aprobado con Reservas",
@@ -397,25 +414,15 @@ export const useDirectorChat = ({
                     return m;
                 }));
                 setIsThinking(false);
+                pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
             }, 2000);
             return;
         }
 
-        const sid = await ensureSession();
-        if (!sid) return;
-
-        setIsThinking(true);
-        const tempId = Date.now().toString();
-
-        setMessages(prev => [...prev, {
-            id: tempId,
-            role: 'system',
-            text: "Convocando al Tribunal...",
-            timestamp: Date.now(),
-            type: 'system_alert'
-        }]);
-
         try {
+            const sid = await ensureSession();
+            if (!sid) throw new Error("No session");
+
             await callFunction('addForgeMessage', { sessionId: sid, role: 'user', text: "[ACTION: TRIBUNAL SUMMONED]" });
 
             // Smart Slicing (Max 3000 chars if full content)
@@ -453,6 +460,8 @@ export const useDirectorChat = ({
             setMessages(prev => prev.filter(m => m.id !== tempId));
         } finally {
             setIsThinking(false);
+            // 🟢 CLEANUP
+            pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }
     };
 
@@ -463,22 +472,26 @@ export const useDirectorChat = ({
             return;
         }
 
-        const sid = await ensureSession();
-
         const snippet = activeFileContent.length > 500
             ? activeFileContent.slice(-500) + "..."
             : activeFileContent;
 
         const systemMsg = `CONTEXTO ACTUALIZADO: El usuario está trabajando en este fragmento: "${snippet}". Ajusta tus consejos a este contenido.`;
 
-        setMessages(prev => [...prev, {
-            id: `ctx-${Date.now()}`,
+        // 🟢 OPTIMISTIC UPDATE
+        const tempId = `ctx-${Date.now()}`;
+        const initMsg: ChatMessageData = {
+            id: tempId,
             role: 'system',
             text: `Sinapsis Completada: Contexto local actualizado (${activeFileContent.length} caracteres).`,
             type: 'system_alert',
             timestamp: Date.now()
-        }]);
+        };
 
+        pendingOptimisticUpdates.current.push(initMsg);
+        setMessages(prev => [...prev, initMsg]);
+
+        const sid = await ensureSession();
         if (sid) {
             callFunction('addForgeMessage', {
                 sessionId: sid,
@@ -486,6 +499,13 @@ export const useDirectorChat = ({
                 text: systemMsg
             }).catch(e => console.error("Context Log Error", e));
         }
+
+        // Cleanup after delay or immediately?
+        // Since this is a simple fire-and-forget, we can clear it reasonably quickly or just leave it.
+        // It's just a system alert.
+        setTimeout(() => {
+             pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
+        }, 5000);
     };
 
     // 🟢 RESCUE & PURGE HANDLERS
