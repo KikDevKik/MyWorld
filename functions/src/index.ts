@@ -5015,3 +5015,4 @@ export { generateAuditPDF, generateCertificate } from "./audit";
  */
 export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from "./auth";
 export { genesisManifest } from "./genesis";
+export { generateSpeech } from "./tts";

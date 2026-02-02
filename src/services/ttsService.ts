@@ -1,8 +1,6 @@
 import { AudioSegment, VoiceProfile } from '../types/editorTypes';
 import { toast } from 'sonner';
-
-const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const TTS_MODEL = 'gemini-2.5-flash-preview-tts'; // Target Model
+import { callFunction } from './api';
 
 // Simple in-memory cache for the session
 // Key: Segment Text + Voice Profile Hash -> Value: Blob URL
@@ -13,59 +11,17 @@ interface TTSRequest {
     voiceProfile: AudioSegment['voiceProfile'];
 }
 
+interface TTSResponse {
+    audioData: string;
+    mimeType: string;
+}
+
 /**
  * Generates a unique key for caching based on text and voice settings.
  */
 const generateCacheKey = (text: string, profile: AudioSegment['voiceProfile']): string => {
     return `${text}|${profile.gender}|${profile.age}|${profile.tone}|${profile.emotion}`;
 };
-
-/**
- * Helper: Maps Voice Profile to "Voice Anchor" adjectives for consistency.
- */
-const getVoiceDescription = (profile: VoiceProfile): string => {
-    // 1. Base Anchor based on Age & Gender
-    let anchor = "Neutral";
-
-    if (profile.gender === 'MALE') {
-        if (profile.age === 'CHILD') anchor = "Young, High-pitched Male";
-        else if (profile.age === 'TEEN') anchor = "Energetic, Youthful Male";
-        else if (profile.age === 'ADULT') anchor = "Deep, Resonant Male";
-        else if (profile.age === 'ELDER') anchor = "Raspy, Weathered, Old Male";
-    } else if (profile.gender === 'FEMALE') {
-        if (profile.age === 'CHILD') anchor = "Young, Soft-spoken Female";
-        else if (profile.age === 'TEEN') anchor = "Bright, Clear Female";
-        else if (profile.age === 'ADULT') anchor = "Warm, Melodic Female";
-        else if (profile.age === 'ELDER') anchor = "Shaky, Wise, Old Female";
-    }
-
-    // 2. Add Tone context if provided (e.g., "Sarcastic", "Whispering")
-    if (profile.tone) {
-        anchor += `, ${profile.tone}`;
-    }
-
-    return anchor;
-};
-
-/**
- * Diagnostic: List available models to verify the name.
- */
-async function listModels(apiKey: string) {
-    try {
-        const response = await fetch(`${BASE_URL}?key=${apiKey}`);
-        const data = await response.json();
-        console.log("📢 Available Gemini Models:", data);
-
-        // Filter specifically for "flash" models as requested
-        if (data.models) {
-             console.log("🔎 FLASH MODELS:", data.models.filter((m: any) => m.name.includes("flash")));
-        }
-    } catch (e) {
-        console.warn("Failed to list models", e);
-    }
-}
-
-let hasListedModels = false;
 
 /**
  * Helper: Adds a valid WAV header to raw PCM data.
@@ -118,7 +74,7 @@ function writeString(view: DataView, offset: number, string: string) {
 export const TTSService = {
 
     /**
-     * Synthesizes speech for a given text segment using Gemini 2.5 (or returns null for fallback).
+     * Synthesizes speech for a given text segment using Gemini 2.5 (via Backend Proxy).
      *
      * @param text The text to speak.
      * @param context The context including voice profile (gender, tone, etc).
@@ -131,31 +87,54 @@ export const TTSService = {
             return audioCache.get(cacheKey)!;
         }
 
-        // 2. Prepare API Key
-        const apiKey = localStorage.getItem('myworld_custom_gemini_key') || import.meta.env.VITE_GOOGLE_API_KEY;
-
-        if (!apiKey) {
-            console.error("TTS Error: No API Key found.");
-            toast.error("Falta la llave de API para la voz.");
-            return null;
-        }
-
-        // Diagnostic Log (Run once)
-        if (!hasListedModels) {
-            listModels(apiKey);
-            hasListedModels = true;
-        }
-
-        // 3. Construct Prompt with Voice Anchors (Voice Stabilization)
-        const voiceDesc = getVoiceDescription(context);
-        const directorNote = `(Context: Voice: ${voiceDesc}. Emotion: ${context.emotion})`;
-        const fullText = `${directorNote} ${text}`;
-
-        // 4. Call API directly
+        // 2. Call Backend (Secure Proxy)
         try {
-            return await callGeminiTTS(TTS_MODEL, apiKey, fullText, cacheKey);
+            const data = await callFunction<TTSResponse>('generateSpeech', {
+                text: text,
+                voiceProfile: context
+            });
+
+            if (!data || !data.audioData) {
+                throw new Error("Empty response from TTS Service");
+            }
+
+            const { audioData, mimeType } = data;
+
+            // 3. Process Response (Frontend Logic: Decode & Wrap)
+            // Extract Sample Rate if available (e.g., "audio/L16;rate=24000")
+            let sampleRate = 24000; // Default fallback
+            const rateMatch = mimeType.match(/rate=(\d+)/);
+            if (rateMatch) {
+                sampleRate = parseInt(rateMatch[1], 10);
+            }
+
+            // Convert Base64 to Raw Bytes
+            const binaryString = window.atob(audioData);
+            const pcmBytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                pcmBytes[i] = binaryString.charCodeAt(i);
+            }
+
+            // WRAPPING LOGIC: If it's Raw PCM (L16), wrap it in WAV
+            let finalBlob: Blob;
+
+            if (mimeType.includes("L16") || mimeType.includes("pcm")) {
+                const wavBuffer = addWavHeader(pcmBytes.buffer, sampleRate, 1); // 1 Channel Mono
+                finalBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+            } else {
+                // Assume it's already a valid container (MP3/WAV)
+                finalBlob = new Blob([pcmBytes], { type: mimeType });
+            }
+
+            const blobUrl = URL.createObjectURL(finalBlob);
+
+            // Update Cache
+            audioCache.set(cacheKey, blobUrl);
+
+            return blobUrl;
+
         } catch (error) {
-            console.warn(`TTS: ${TTS_MODEL} failed. Fallback to Browser.`, error);
+            console.warn(`TTS: Backend Generation failed. Fallback to Browser.`, error);
             // Return null to trigger browser fallback in useNarrator
             return null;
         }
@@ -170,97 +149,3 @@ export const TTSService = {
         audioCache.clear();
     }
 };
-
-/**
- * Helper to call the Gemini API.
- */
-async function callGeminiTTS(model: string, apiKey: string, promptText: string, cacheKey: string): Promise<string> {
-    const url = `${BASE_URL}/${model}:generateContent?key=${apiKey}`;
-
-    const body = {
-        contents: [{
-            parts: [{
-                text: promptText
-            }]
-        }],
-        generationConfig: {
-            responseModalities: ["AUDIO"] // Minimal Viable Payload for V2/V2.5
-        }
-    };
-
-    console.log(`📢 SENDING TTS PAYLOAD TO ${model}:`, JSON.stringify(body, null, 2));
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(body)
-    });
-
-    if (!response.ok) {
-        const errorText = await response.text();
-        console.error("TTS API Error Body:", errorText);
-        throw new Error(`API Error ${response.status}: ${response.statusText} - ${errorText}`);
-    }
-
-    const data = await response.json();
-
-    // 📥 DEEP DIAGNOSTIC: Log Raw Response
-    console.log("📥 GEMINI RAW RESPONSE:", JSON.stringify(data, null, 2));
-
-    // Parse Response to find Audio Blob
-    const candidate = data.candidates?.[0];
-    const part = candidate?.content?.parts?.[0];
-
-    if (!part || !part.inlineData) {
-        if (part?.text) {
-             console.warn("TTS Model returned text instead of audio:", part.text);
-             throw new Error("Model returned text instead of audio: " + part.text);
-        }
-        throw new Error("Invalid response structure from TTS model.");
-    }
-
-    const base64Audio = part.inlineData.data;
-
-    // 🔍 BASE64 HEADER CHECK
-    console.log("🔍 BASE64 HEADER:", base64Audio.substring(0, 50));
-
-    // Detect MIME Type from API or Default
-    let mimeType = part.inlineData.mimeType || 'audio/wav';
-    console.log("🎧 RAW MIME TYPE:", mimeType);
-
-    // Extract Sample Rate if available (e.g., "audio/L16;rate=24000")
-    let sampleRate = 24000; // Default fallback
-    const rateMatch = mimeType.match(/rate=(\d+)/);
-    if (rateMatch) {
-        sampleRate = parseInt(rateMatch[1], 10);
-        console.log(`⏱️ Detected Sample Rate: ${sampleRate}Hz`);
-    }
-
-    // Convert Base64 to Raw Bytes
-    const binaryString = window.atob(base64Audio);
-    const pcmBytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-        pcmBytes[i] = binaryString.charCodeAt(i);
-    }
-
-    // WRAPPING LOGIC: If it's Raw PCM (L16), wrap it in WAV
-    let finalBlob: Blob;
-
-    if (mimeType.includes("L16") || mimeType.includes("pcm")) {
-        console.log("🛠️ Wrapping Raw PCM in WAV Header...");
-        const wavBuffer = addWavHeader(pcmBytes.buffer, sampleRate, 1); // 1 Channel Mono
-        finalBlob = new Blob([wavBuffer], { type: 'audio/wav' });
-    } else {
-        // Assume it's already a valid container (MP3/WAV)
-        finalBlob = new Blob([pcmBytes], { type: mimeType });
-    }
-
-    const blobUrl = URL.createObjectURL(finalBlob);
-
-    // Update Cache
-    audioCache.set(cacheKey, blobUrl);
-
-    return blobUrl;
-}
