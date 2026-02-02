@@ -261,8 +261,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 {/* 🟢 GENESIS BUTTON (REPLACES 'MANUAL DE CAMPO' SECTION) */}
                 <div className="mb-4">
                     <button
+                        type="button"
                         onClick={onGenesis}
-                        className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden"
+                        aria-label="Iniciar proceso creativo (Génesis)"
+                        className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
                     >
                         {/* Glow Effect */}
                         <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -406,9 +408,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         {canonNodes.length > 0 && (
                             <div className="mb-4">
                                 <button
+                                    type="button"
                                     onClick={() => setIsCanonOpen(!isCanonOpen)}
-                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-emerald-900/10 transition-colors group"
+                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-emerald-900/10 transition-colors group focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
                                     aria-expanded={isCanonOpen}
+                                    aria-controls="canon-tree"
                                 >
                                     <ChevronDown size={12} className={`text-emerald-500 transition-transform ${isCanonOpen ? '' : '-rotate-90'}`} />
                                     <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
@@ -418,19 +422,21 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 </button>
 
                                 {isCanonOpen && (
-                                    <FileTree
-                                        folderId={folderId}
-                                        onFileSelect={onFileSelect}
-                                        accessToken={accessToken}
-                                        rootFilterId={selectedSagaId}
-                                        preloadedTree={canonNodes}
-                                        conflictingFileIds={conflictingFileIds}
-                                        showOnlyHealthy={showOnlyHealthy}
-                                        activeFileId={activeFileId}
-                                        isDeleteMode={isDeleteMode}
-                                        selectedDeleteIds={selectedDeleteIds}
-                                        onToggleDeleteSelect={handleToggleDeleteSelect}
-                                    />
+                                    <div id="canon-tree">
+                                        <FileTree
+                                            folderId={folderId}
+                                            onFileSelect={onFileSelect}
+                                            accessToken={accessToken}
+                                            rootFilterId={selectedSagaId}
+                                            preloadedTree={canonNodes}
+                                            conflictingFileIds={conflictingFileIds}
+                                            showOnlyHealthy={showOnlyHealthy}
+                                            activeFileId={activeFileId}
+                                            isDeleteMode={isDeleteMode}
+                                            selectedDeleteIds={selectedDeleteIds}
+                                            onToggleDeleteSelect={handleToggleDeleteSelect}
+                                        />
+                                    </div>
                                 )}
                             </div>
                         )}
@@ -439,9 +445,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         {resourceNodes.length > 0 && (
                             <div className="mb-4">
                                 <button
+                                    type="button"
                                     onClick={() => setIsResourcesOpen(!isResourcesOpen)}
-                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-blue-900/10 transition-colors group"
+                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-blue-900/10 transition-colors group focus-visible:ring-2 focus-visible:ring-blue-500 outline-none"
                                     aria-expanded={isResourcesOpen}
+                                    aria-controls="resources-tree"
                                 >
                                     <ChevronDown size={12} className={`text-blue-500 transition-transform ${isResourcesOpen ? '' : '-rotate-90'}`} />
                                     <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
@@ -451,19 +459,21 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 </button>
 
                                 {isResourcesOpen && (
-                                    <FileTree
-                                        folderId={folderId}
-                                        onFileSelect={onFileSelect}
-                                        accessToken={accessToken}
-                                        rootFilterId={selectedSagaId}
-                                        preloadedTree={resourceNodes}
-                                        conflictingFileIds={conflictingFileIds}
-                                        showOnlyHealthy={showOnlyHealthy}
-                                        activeFileId={activeFileId}
-                                        isDeleteMode={isDeleteMode}
-                                        selectedDeleteIds={selectedDeleteIds}
-                                        onToggleDeleteSelect={handleToggleDeleteSelect}
-                                    />
+                                    <div id="resources-tree">
+                                        <FileTree
+                                            folderId={folderId}
+                                            onFileSelect={onFileSelect}
+                                            accessToken={accessToken}
+                                            rootFilterId={selectedSagaId}
+                                            preloadedTree={resourceNodes}
+                                            conflictingFileIds={conflictingFileIds}
+                                            showOnlyHealthy={showOnlyHealthy}
+                                            activeFileId={activeFileId}
+                                            isDeleteMode={isDeleteMode}
+                                            selectedDeleteIds={selectedDeleteIds}
+                                            onToggleDeleteSelect={handleToggleDeleteSelect}
+                                        />
+                                    </div>
                                 )}
                             </div>
                         )}
