@@ -2,13 +2,13 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import VaultSidebar from './components/VaultSidebar';
-import HybridEditor from './editor/HybridEditor'; // 👈 IMPORT NEW EDITOR
+import HybridEditor, { HybridEditorHandle } from './editor/HybridEditor'; // 👈 IMPORT NEW EDITOR
 import { DriftMarker } from './editor/extensions/driftPlugin';
 import ChatPanel from './components/ChatPanel';
 import ForgePanel from './components/forge/ForgePanel';
@@ -226,6 +226,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
     const [isAppLoading, setIsAppLoading] = useState(true);
+    const hybridEditorRef = useRef<HybridEditorHandle>(null); // 🟢 EDITOR HANDLE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
     const [editorWidth, setEditorWidth] = useState<'narrow' | 'wide'>('narrow');
     const [indexStatus, setIndexStatus] = useState<{ isIndexed: boolean; lastIndexedAt: string | null }>({ isIndexed: false, lastIndexedAt: null });
@@ -466,30 +467,66 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
-    const handleInsertContent = (text: string) => {
+    const handleInsertContent = async (text: string) => {
         if (!selectedFileContent && !currentFileId) {
             toast.error("No hay archivo abierto para insertar contenido.");
             return;
         }
 
-        const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
-        setSelectedFileContent(newContent);
-
-        // 🟢 THE SPY: LOG AI GENERATION
-        if (folderId && user) {
-            CreativeAuditService.updateAuditStats(folderId, user.uid, 0, text.length);
-
-            CreativeAuditService.logCreativeEvent({
-                projectId: folderId,
-                userId: user.uid,
-                component: 'DirectorPanel',
-                actionType: 'INJECTION',
-                description: 'User accepted AI text insertion',
-                payload: { length: text.length }
+        // 🟢 SMART INTEGRATION PROTOCOL
+        if (hybridEditorRef.current) {
+            const toastId = toast.loading("Integrando narrativa con IA...", {
+                description: "El Tejedor está reescribiendo la sugerencia..."
             });
-        }
 
-        toast.success("Contenido insertado con éxito.");
+            try {
+                // 1. Get Context
+                const context = hybridEditorRef.current.getCursorContext();
+
+                // 2. Call Backend
+                const result = await callFunction<{ success: boolean; text: string }>('integrateNarrative', {
+                    suggestion: text,
+                    precedingContext: context.preceding,
+                    followingContext: context.following
+                });
+
+                if (result.success && result.text) {
+                    // 3. Insert Result
+                    hybridEditorRef.current.insertAtCursor(result.text);
+
+                    // 🟢 THE SPY: LOG AI GENERATION
+                    if (folderId && user) {
+                        CreativeAuditService.updateAuditStats(folderId, user.uid, 0, result.text.length);
+                        CreativeAuditService.logCreativeEvent({
+                            projectId: folderId,
+                            userId: user.uid,
+                            component: 'DirectorPanel',
+                            actionType: 'INJECTION',
+                            description: 'Smart Narrative Insertion',
+                            payload: { length: result.text.length, originalSuggestion: text }
+                        });
+                    }
+
+                    toast.dismiss(toastId);
+                    toast.success("Narrativa integrada exitosamente.");
+                } else {
+                    throw new Error("Respuesta vacía del servidor.");
+                }
+
+            } catch (error) {
+                console.error("Smart Insert Error:", error);
+                toast.dismiss(toastId);
+                toast.error("Fallo la integración inteligente. Insertando texto crudo.");
+
+                // Fallback: Raw Insert
+                hybridEditorRef.current.insertAtCursor(text);
+            }
+        } else {
+            // Fallback if ref is missing
+            const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
+            setSelectedFileContent(newContent);
+            toast.warning("Editor desconectado. Texto adjunto al final.");
+        }
     };
 
     // 🟢 LOADING GATE
@@ -701,6 +738,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     } as React.CSSProperties}
                 >
                     <HybridEditor
+                        ref={hybridEditorRef}
                         content={selectedFileContent}
                         onContentChange={handleContentChange}
                         driftMarkers={driftMarkers}
