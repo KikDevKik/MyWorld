@@ -32,6 +32,7 @@ import { parseSecureJSON } from "./utils/json";
 import { maskLog } from "./utils/logger";
 import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
 import { getAIKey } from "./utils/security";
+import { extractUrls, fetchWebPageContent } from "./utils/scraper";
 
 const htmlToPdfmake = require('html-to-pdfmake');
 const { JSDOM } = require('jsdom');
@@ -2235,6 +2236,27 @@ ${filesContent}
 `;
       }
 
+      // 🟢 0.6. WEB CONTENT INJECTION (The Spider)
+      let webContext = "";
+      const urls = extractUrls(finalQuery || "");
+      if (urls.length > 0) {
+          // Only scrape the first URL to avoid latency explosion
+          const targetUrl = urls[0];
+          const scrapeResult = await fetchWebPageContent(targetUrl);
+
+          if (scrapeResult) {
+              webContext = `
+[CONTEXTO DEL ENLACE - ${scrapeResult.title}]:
+(El usuario ha proporcionado un enlace. Aquí tienes el contenido extraído de la web para que puedas responder basándote en él).
+URL: ${scrapeResult.url}
+CONTENIDO:
+${scrapeResult.content}
+--------------------------------------------------
+`;
+              logger.info(`🌐 Web Context Injected (${scrapeResult.content.length} chars)`);
+          }
+      }
+
       // 🟢 REVISION 00131.2: SYSTEM IDENTITY OVERWRITE (CLOAKING MODE)
       const CONTINUITY_PROTOCOL = `
 === PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00131.2 - CHAMELEON UPDATE) ===
@@ -2338,6 +2360,8 @@ Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero 
         ${activeContextSection}
 
         ${attachedContextSection}
+
+        ${webContext}
 
         ${longTermMemorySection}
 
