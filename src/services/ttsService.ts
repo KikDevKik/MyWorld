@@ -119,6 +119,21 @@ export const TTSService = {
             let finalBlob: Blob;
 
             if (mimeType.includes("L16") || mimeType.includes("pcm")) {
+                // FIXED: L16 is Big Endian. WAV expects Little Endian.
+                // We must swap bytes to prevent "Static Noise" artifacts.
+                const len = pcmBytes.length;
+                if (len % 2 !== 0) {
+                     console.warn("Odd number of bytes in 16-bit PCM data, trimming last byte.");
+                }
+
+                // In-place byte swap (BE -> LE)
+                for (let i = 0; i < len - 1; i += 2) {
+                    const highByte = pcmBytes[i];
+                    const lowByte = pcmBytes[i+1];
+                    pcmBytes[i] = lowByte;
+                    pcmBytes[i+1] = highByte;
+                }
+
                 const wavBuffer = addWavHeader(pcmBytes.buffer, sampleRate, 1); // 1 Channel Mono
                 finalBlob = new Blob([wavBuffer], { type: 'audio/wav' });
             } else {

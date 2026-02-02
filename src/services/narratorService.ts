@@ -50,41 +50,46 @@ export const NarratorService = {
         const characterList = characters.map(c => `- ${c.name} (ID: ${c.id})`).join('\n');
 
         const systemInstruction = `
-You are a Drama Director and Voice Acting Coach.
-Your task is to analyze the provided text scene and break it down into a "Semantic Audio Script" for TTS (Text-to-Speech) enactment.
+You are an expert Audiobook Narrator and Director.
+Your task is to analyze the provided text scene and prepare it for a full Text-to-Speech performance.
 
 ### INPUT DATA:
 - Characters available:
 ${characterList}
 
-### RULES:
-1. Break the text into logical audio chunks (sentences or phrases).
-2. For EACH chunk, identify the 'type': 'NARRATION', 'DIALOGUE', or 'INTERNAL_MONOLOGUE'.
-3. If 'DIALOGUE' or 'INTERNAL_MONOLOGUE', identify the 'speakerName' and 'speakerId' (use the provided IDs if possible, or fuzzy match).
-4. If 'NARRATION', 'speakerName' should be "Narrator" and 'speakerId' null.
-5. Analyze the emotional context to provide a 'voiceProfile':
-   - 'gender': 'MALE', 'FEMALE', or 'NEUTRAL'.
-   - 'age': 'CHILD', 'TEEN', 'ADULT', or 'ELDER'.
-   - 'tone': Descriptive string (e.g., "Whispering", "Shouting", "Sarcastic").
-   - 'emotion': Descriptive string (e.g., "Fear", "Joy", "Neutral").
+### CRITICAL RULES:
+1. **FULL COVERAGE**: You MUST include 100% of the input text verbatim. Do not skip narration, descriptions, or internal monologues.
+2. **SEQUENCE**: Return segments in the exact order they appear in the text.
+3. **SEGMENTATION**: Break the text into logical audio chunks.
+    - **NARRATION**: Use this for descriptive text, actions, and unquoted thoughts.
+    - **DIALOGUE**: Use this for spoken text (usually in quotes).
+    - **INTERNAL_MONOLOGUE**: Use this for thoughts (often in italics or specific markers).
+4. **ATTRIBUTION**:
+    - For DIALOGUE/MONOLOGUE: Identify the 'speakerName' and 'speakerId'.
+    - For NARRATION: 'speakerName' must be "Narrator".
+5. **VOICE PROFILE**:
+    - Analyze emotional context for 'voiceProfile'.
+    - 'gender': 'MALE', 'FEMALE', 'NEUTRAL'.
+    - 'age': 'CHILD', 'TEEN', 'ADULT', 'ELDER'.
+    - 'tone': Descriptive (e.g., "Whispering", "Excited").
+    - 'emotion': Descriptive (e.g., "Fear", "Joy").
 
 ### OUTPUT FORMAT:
-Return ONLY a valid JSON array. Do not include markdown formatting.
+Return ONLY a valid JSON array.
 Schema:
 [
   {
-    "text": "The text content",
-    "type": "DIALOGUE",
-    "speakerId": "char_id",
-    "speakerName": "Character Name",
+    "text": "The exact text content from the source",
+    "type": "DIALOGUE", // or NARRATION
+    "speakerId": "char_id", // or null for Narrator
+    "speakerName": "Character Name", // or "Narrator"
     "voiceProfile": {
       "gender": "FEMALE",
       "age": "ADULT",
       "tone": "Sharp",
       "emotion": "Anger"
     }
-  },
-  ...
+  }
 ]
 `;
 
@@ -98,7 +103,7 @@ Schema:
                 result = await callGeminiBrain(BRAIN_MODEL_FALLBACK, apiKey, text, systemInstruction);
             }
 
-            // 4. Realign
+            // 4. Realign and Fill Gaps
             return NarratorService.realignSegments(text, result);
 
         } catch (error) {
@@ -124,6 +129,7 @@ Schema:
 
     /**
      * Maps the AI-generated segments back to the original text to find absolute offsets.
+     * CRITICAL: Automatically fills "gaps" (missed narration) with a default Narrator segment.
      */
     realignSegments: (originalText: string, segments: AudioSegment[]): AudioSegment[] => {
         let currentIndex = 0;
@@ -136,6 +142,29 @@ Schema:
             const foundIndex = originalText.indexOf(searchStr, currentIndex);
 
             if (foundIndex !== -1) {
+                // DETECT GAP
+                if (foundIndex > currentIndex) {
+                    const missedText = originalText.substring(currentIndex, foundIndex).trim();
+                    if (missedText.length > 0) {
+                         // Insert Bridge Segment for missed narration
+                         result.push({
+                            text: originalText.substring(currentIndex, foundIndex), // Keep original spacing for audio? Or trim? Better keep raw.
+                            type: 'NARRATION',
+                            speakerId: null,
+                            speakerName: 'Narrator',
+                            voiceProfile: {
+                                gender: 'NEUTRAL',
+                                age: 'ADULT',
+                                tone: 'Neutral',
+                                emotion: 'Neutral'
+                            },
+                            from: currentIndex,
+                            to: foundIndex
+                         });
+                    }
+                }
+
+                // Push Actual Segment
                 const end = foundIndex + searchStr.length;
                 result.push({
                     ...segment,
@@ -145,9 +174,34 @@ Schema:
                 currentIndex = end;
             } else {
                  console.warn(`Narrator alignment warning: Could not find segment at index ${currentIndex}`);
+                 // If we can't find it, we skip adding it to maintain the strict timeline,
+                 // OR we just push it without offsets (which might break highlighting).
+                 // Best effort: Push it, but it won't have valid highlighting.
                  result.push(segment);
             }
         }
+
+        // CHECK TAIL
+        if (currentIndex < originalText.length) {
+            const tailText = originalText.substring(currentIndex);
+            if (tailText.trim().length > 0) {
+                result.push({
+                    text: tailText,
+                    type: 'NARRATION',
+                    speakerId: null,
+                    speakerName: 'Narrator',
+                    voiceProfile: {
+                        gender: 'NEUTRAL',
+                        age: 'ADULT',
+                        tone: 'Neutral',
+                        emotion: 'Neutral'
+                    },
+                    from: currentIndex,
+                    to: originalText.length
+                });
+            }
+        }
+
         return result;
     }
 };
