@@ -109,20 +109,31 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         try {
             // Extract top-level IDs
             const fileIds = fileTree.map(node => node.id);
+            const BATCH_SIZE = 5; // Conservative batch size to prevent OOM
+            const totalBatches = Math.ceil(fileIds.length / BATCH_SIZE);
 
-            // 🟢 Trash items
-            await callFunction('trashDriveItems', {
-                accessToken: accessToken,
-                fileIds: fileIds
-            });
+            for (let i = 0; i < fileIds.length; i += BATCH_SIZE) {
+                const batch = fileIds.slice(i, i + BATCH_SIZE);
+                const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
 
+                toast.loading(`Eliminando lote ${currentBatch}/${totalBatches}...`, { id: 'nuke-toast' });
+
+                await callFunction('trashDriveItems', {
+                    accessToken: accessToken,
+                    fileIds: batch
+                });
+            }
+
+            toast.dismiss('nuke-toast');
             toast.success(t.nukeSuccess);
 
             // 🟢 Force Reload to Reset State
             setTimeout(() => window.location.reload(), 1500);
 
         } catch (error: any) {
-            toast.error("Error: " + error.message);
+            toast.dismiss('nuke-toast');
+            console.error("Nuke Error:", error);
+            toast.error("Error al destruir: " + (error.message || "Error desconocido"));
         } finally {
             setIsLoading(false);
         }
