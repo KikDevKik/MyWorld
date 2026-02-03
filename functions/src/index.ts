@@ -2350,10 +2350,11 @@ ${contextText || "No se encontraron datos relevantes en la memoria."}
 [INSTRUCCIÓN]:
 Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero basa tus sugerencias profundas en la Memoria a Largo Plazo. Si el usuario pregunta algo, verifica si ya existe en la Memoria antes de inventar.
 
-[RESTRICCIÓN TÉCNICA - IMPORTANTE]:
-NO PUEDES editar, insertar ni modificar el documento del usuario directamente. NO digas "He insertado el texto" o "Aquí tienes la escena actualizada en tu archivo".
-TU FUNCIÓN es generar el texto y presentárselo al usuario en el chat.
-SIEMPRE di: "Aquí tienes el borrador", "Te propongo esta versión", o "Copia y pega esto".
+[PROTOCOLO DE REDACCIÓN]:
+Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o párrafos completos:
+1. Redacta el contenido claramente.
+2. Invita al usuario a utilizar la herramienta de inserción (Botón "Insertar") para agregarlo al documento.
+3. EJEMPLO: "Aquí tienes una propuesta para la escena. Puedes usar el botón de insertar para agregarla directamente."
       `;
 
       const promptFinal = `

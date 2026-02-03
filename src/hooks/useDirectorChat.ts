@@ -244,6 +244,16 @@ export const useDirectorChat = ({
             // Message is now saved, we can safely remove it from pending list eventually,
             // but keeping it until response ensures stability if history reloads again.
 
+            // 🟢 PREPARE HISTORY CONTEXT
+            // We pass the last 20 messages to give the AI conversational memory.
+            const historyPayload = messages
+                .filter(m => m.role !== 'system' && !m.isError) // Exclude system alerts and errors
+                .slice(-20) // Limit to last 20 to save bandwidth
+                .map(m => ({
+                    role: m.role,
+                    message: m.text
+                }));
+
             const data = await callFunction<{ response: string }>('chatWithGem', {
                 query: text,
                 sessionId: currentSessionId,
@@ -251,6 +261,7 @@ export const useDirectorChat = ({
                 activeFileName,
                 isFallbackContext,
                 mediaAttachment: mediaPart,
+                history: historyPayload, // 🟢 INJECT HISTORY
                 systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable. If you see a Drift Alert in history, address it professionally."
             });
 
