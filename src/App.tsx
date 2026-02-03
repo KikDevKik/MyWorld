@@ -39,13 +39,14 @@ import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 import { CreativeAuditService } from './services/CreativeAuditService';
 import EmptyEditorState from './components/editor/EmptyEditorState';
 import CreateFileModal from './components/ui/CreateFileModal';
+import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
 import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: any) {
-    const { config, updateConfig, refreshConfig, loading: configLoading, technicalError } = useProjectConfig();
+    const { config, updateConfig, refreshConfig, loading: configLoading, technicalError, fileTree } = useProjectConfig();
 
     // 🟢 GLOBAL STORE CONSUMPTION
     const { activeView, setActiveView } = useLayoutStore();
@@ -221,6 +222,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
     const [isCreateFileModalOpen, setIsCreateFileModalOpen] = useState(false);
     const [isGenesisOpen, setIsGenesisOpen] = useState(false);
+    const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
 
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
@@ -697,10 +699,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         // Default: Editor
         if (!currentFileId) {
+            const isEmptyProject = !fileTree || fileTree.length === 0;
             return (
                 <EmptyEditorState
                     onCreate={() => setIsCreateFileModalOpen(true)}
                     onGenesis={() => setIsGenesisOpen(true)}
+                    isEmptyProject={isEmptyProject}
+                    onCreateProject={() => setIsCreateProjectModalOpen(true)}
+                    onConnectDrive={() => setIsConnectModalOpen(true)}
                 />
             );
         }
@@ -821,6 +827,28 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onClose={() => setIsGenesisOpen(false)}
                 accessToken={oauthToken}
                 onRefreshTokens={handleTokenRefresh}
+            />
+
+            <CreateProjectModal
+                isOpen={isCreateProjectModalOpen}
+                onClose={() => setIsCreateProjectModalOpen(false)}
+                onSubmit={async (name) => {
+                    try {
+                        toast.info("Creando estructura del proyecto...");
+                        await callFunction('createTitaniumStructure', {
+                            accessToken: oauthToken,
+                            newProjectName: name
+                        });
+                        toast.success("¡Proyecto creado exitosamente!");
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } catch (error: any) {
+                        console.error("Error creating project:", error);
+                        toast.error("Error al crear el proyecto: " + error.message);
+                        throw error;
+                    }
+                }}
             />
 
             <SentinelShell

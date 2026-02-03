@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { getLocalizedFolderName } from '../utils/folderLocalization';
 
 interface FileNode {
     id: string;
@@ -61,6 +63,10 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     const [editName, setEditName] = useState(node.name);
     const [isSaving, setIsSaving] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+
+    // 🟢 LOCALIZATION
+    const { currentLanguage } = useLanguageStore();
+    const displayName = getLocalizedFolderName(node.name, currentLanguage);
 
     // Update children if node prop changes (essential for preloaded updates)
     useEffect(() => {
@@ -295,7 +301,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
                             if (!isDeleteMode) setIsEditing(true);
                         }}
                     >
-                        {node.name}
+                        {displayName}
                     </span>
                 )}
             </div>
