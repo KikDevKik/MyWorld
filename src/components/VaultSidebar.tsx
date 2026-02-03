@@ -14,6 +14,8 @@ import { toast } from 'sonner';
 import CreateProjectModal from './ui/CreateProjectModal';
 import DeleteConfirmationModal from './ui/DeleteConfirmationModal'; // 🟢 NEW
 import { callFunction } from '../services/api';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface VaultSidebarProps {
     folderId: string;
@@ -76,6 +78,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // 🟢 CONSUME GLOBAL CONTEXT
     const { fileTree, isFileTreeLoading, config } = useProjectConfig();
     const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
+
+    // 🟢 LOCALIZATION
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].sidebar;
+    const tStatus = TRANSLATIONS[currentLanguage].status;
 
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
@@ -240,13 +247,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const getStatusConfig = () => {
         switch (driveStatus) {
             case 'connected':
-                return { color: 'text-green-500', text: 'Conexión Estable', icon: Key };
+                return { color: 'text-green-500', text: tStatus.connected, icon: Key };
             case 'refreshing':
-                return { color: 'text-yellow-500 animate-pulse', text: 'Refrescando...', icon: Key };
+                return { color: 'text-yellow-500 animate-pulse', text: tStatus.refreshing, icon: Key };
             case 'error':
-                return { color: 'text-red-500', text: 'Reconectar', icon: HelpCircle };
+                return { color: 'text-red-500', text: tStatus.reconnect, icon: HelpCircle };
             default:
-                return { color: 'text-titanium-600', text: 'Conectar Drive', icon: Key };
+                return { color: 'text-titanium-600', text: tStatus.connect, icon: Key };
         }
     };
 
@@ -270,7 +277,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
                         <Sparkles size={14} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
-                        <span className="text-xs font-medium tracking-wide">¿Tienes una Chispa?</span>
+                        <span className="text-xs font-medium tracking-wide">{t.spark}</span>
                     </button>
                 </div>
 
@@ -281,7 +288,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         </svg>
                     </div>
                     {/* Replaced 'Manual de Campo' text with generic 'Explorador' or similar if needed, or kept structural header */}
-                    <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">Explorador</h2>
+                    <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">{t.explorer}</h2>
 
                     {/* ACTION BUTTONS (DISTRIBUTED) */}
                     <div className="ml-auto flex items-center gap-2">
@@ -289,8 +296,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <button
                             onClick={handleToggleDeleteMode}
                             className={`p-1.5 rounded-md transition-colors shrink-0 ${isDeleteMode ? 'text-red-500 bg-titanium-800' : 'text-titanium-400 hover:text-red-400 hover:bg-titanium-700'}`}
-                            title={isDeleteMode ? "Salir de Modo Borrado" : "Activar Modo Borrado"}
-                            aria-label="Alternar Modo Borrado"
+                            title={isDeleteMode ? t.deleteMode : t.deleteMode} // Toggle msg is dynamic enough
+                            aria-label={t.deleteMode}
                             aria-pressed={isDeleteMode}
                         >
                             <Trash2 size={16} />
@@ -303,7 +310,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 className="px-2 py-1 rounded-md bg-red-900/50 text-red-400 hover:bg-red-900/80 hover:text-white text-xs font-bold transition-all animate-in fade-in zoom-in"
                                 title="Confirmar Borrado"
                             >
-                                Borrar ({selectedDeleteIds.size})
+                                {t.delete} ({selectedDeleteIds.size})
                             </button>
                         )}
 
@@ -311,8 +318,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             <button
                                 onClick={onCreateFile}
                                 className="p-1.5 rounded-md hover:bg-titanium-700 transition-colors text-titanium-400 hover:text-cyan-400"
-                                title="Crear Nuevo Archivo"
-                                aria-label="Crear Nuevo Archivo"
+                                title={t.newFile}
+                                aria-label={t.newFile}
                             >
                                 <FilePlus size={16} />
                             </button>
@@ -322,8 +329,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <button
                             onClick={onIndexRequest}
                             className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
-                            title={isIndexed ? "Memoria Sincronizada (Click para forzar)" : "Indexar Conocimiento (TDB)"}
-                            aria-label="Indexar base de conocimiento"
+                            title={isIndexed ? t.index : t.index}
+                            aria-label={t.index}
                         >
                             <BrainCircuit size={16} />
                         </button>
@@ -338,7 +345,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         disabled={!fileTree || fileTree.length === 0}
                         aria-label="Filtrar por Saga"
                     >
-                        <option value="" className="bg-titanium-950 text-titanium-100">Vista Global</option>
+                        <option value="" className="bg-titanium-950 text-titanium-100">{t.globalView}</option>
                         {topLevelFolders.map(folder => (
                             <option key={folder.id} value={folder.id} className="bg-titanium-950 text-titanium-100">
                                 {folder.name}
@@ -376,9 +383,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 </div>
 
                                 <div className="space-y-1">
-                                    <h3 className="text-sm font-bold text-titanium-200 tracking-wide">Proyecto Vacío</h3>
+                                    <h3 className="text-sm font-bold text-titanium-200 tracking-wide">{t.emptyProject}</h3>
                                     <p className="text-[11px] text-titanium-400 leading-relaxed max-w-[200px] mx-auto">
-                                        Tu bóveda está vacía. Crea un nuevo proyecto para comenzar.
+                                        {t.emptyVaultMsg}
                                     </p>
                                 </div>
 
@@ -390,7 +397,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         aria-label="Crear estructura estándar"
                                     >
                                         <LayoutTemplate size={14} className="text-cyan-500 group-hover:text-cyan-400 transition-colors" />
-                                        Crear Estándar
+                                        {t.createStandard}
                                     </button>
 
                                     {/* Secondary Action */}
@@ -398,7 +405,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         onClick={onOpenProjectSettings}
                                         className="w-full py-2 text-xs font-medium text-titanium-300 hover:text-white hover:bg-titanium-800/50 rounded-lg transition-all border border-titanium-700 hover:border-titanium-500"
                                     >
-                                        Ya tengo carpeta en Drive
+                                        {t.alreadyHaveFolder}
                                     </button>
                                 </div>
                             </div>
@@ -416,7 +423,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 >
                                     <ChevronDown size={12} className={`text-emerald-500 transition-transform ${isCanonOpen ? '' : '-rotate-90'}`} />
                                     <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
-                                        CANON (La Verdad)
+                                        {t.canon}
                                     </div>
                                     <div className="h-px flex-1 bg-emerald-900/30 ml-2 group-hover:bg-emerald-900/50 transition-colors"></div>
                                 </button>
@@ -453,7 +460,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 >
                                     <ChevronDown size={12} className={`text-blue-500 transition-transform ${isResourcesOpen ? '' : '-rotate-90'}`} />
                                     <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
-                                        RECURSOS (Inspiración)
+                                        {t.resources}
                                     </div>
                                     <div className="h-px flex-1 bg-blue-900/30 ml-2 group-hover:bg-blue-900/50 transition-colors"></div>
                                 </button>
@@ -483,7 +490,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             <div className="mb-4">
                                 <div className="flex items-center gap-2 px-2 py-1.5 mb-1 text-titanium-500">
                                     <div className="text-[10px] font-bold uppercase tracking-widest">
-                                        Sin Asignar
+                                        {t.unassigned}
                                     </div>
                                     <div className="h-px flex-1 bg-titanium-800"></div>
                                 </div>
@@ -528,7 +535,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <HelpCircle size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
-                        <span>Guía</span>
+                        <span>{t.guide}</span>
                     </button>
 
                     <button
@@ -536,7 +543,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <FolderCog size={16} className="group-hover:text-cyan-500 transition-colors" />
-                        <span>Proyecto</span>
+                        <span>{t.project}</span>
                     </button>
 
                     <button
@@ -544,7 +551,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <Settings size={16} className="group-hover:text-cyan-500 transition-colors" />
-                        <span>Preferencias</span>
+                        <span>{t.settings}</span>
                     </button>
 
                     {/* 🟢 STATUS INDICATOR BUTTON */}
@@ -566,7 +573,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-red-400 hover:bg-red-900/10 transition-all text-xs font-medium group"
                     >
                         <LogOut size={16} />
-                        <span>Cerrar Sesión</span>
+                        <span>{t.logout}</span>
                     </button>
                 </div>
             </div>

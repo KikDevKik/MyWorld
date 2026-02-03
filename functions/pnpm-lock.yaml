@@ -65,6 +65,9 @@ importers:
       marked:
         specifier: ^17.0.1
         version: 17.0.1
+      p-limit:
+        specifier: ^3.1.0
+        version: 3.1.0
       pdfmake:
         specifier: ^0.2.20
         version: 0.2.23

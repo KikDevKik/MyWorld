@@ -465,6 +465,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         setCurrentFileName(name);
     };
 
+    // 🟢 HANDLE TTS SELECTION
+    const handleReadSelection = async (text: string) => {
+        if (!text) return;
+        // Pass empty characters list for now. NarratorService will infer or default to Narrator.
+        await analyzeScene(text, []);
+    };
+
     // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
     const handleInsertContent = async (text: string) => {
         if (!selectedFileContent && !currentFileId) {
@@ -732,7 +739,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 <div
                     className="flex-1 overflow-hidden relative transition-all duration-300"
                     style={{
-                        '--font-serif': fontFamily === 'sans' ? 'var(--font-display)' : '"Merriweather", serif',
+                        '--editor-font-family': fontFamily === 'sans' ? 'var(--font-display)' : 'var(--font-serif)',
                         '--editor-max-width': editorWidth === 'wide' ? '100%' : '800px'
                     } as React.CSSProperties}
                 >
@@ -744,6 +751,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         activeSegment={activeSegment} // 🟢 PASS ACTIVE SEGMENT
                         className="h-full"
                         readOnly={isReadOnly}
+                        onReadSelection={handleReadSelection} // 🟢 NEW
                     />
                 </div>
                 <StatusBar

@@ -18,6 +18,7 @@ import '../styles/narrator.css';
 import { Lock } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { CreativeAuditService } from '../services/CreativeAuditService';
+import BubbleMenu from '../components/ui/BubbleMenu'; // 🟢 IMPORT BUBBLE MENU
 
 // 🟢 EXPOSE HANDLE FOR IMPERATIVE ACTIONS
 export interface HybridEditorHandle {
@@ -32,14 +33,20 @@ interface HybridEditorProps {
     activeSegment?: ActiveSegmentState | null;
     className?: string;
     readOnly?: boolean;
+    onReadSelection?: (text: string) => void; // 🟢 NEW PROP
 }
+
+// 🟢 HOST COMPONENT TO PREVENT RE-RENDERS
+const CodeMirrorHost = React.memo(forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => (
+    <div ref={ref} {...props} />
+)));
 
 // 🟢 TITANIUM THEME OVERRIDES
 const titaniumTheme = EditorView.theme({
     "&": {
         color: "var(--color-text-primary)",
         backgroundColor: "transparent",
-        fontFamily: "var(--font-serif)", // Merriweather
+        fontFamily: "var(--editor-font-family, var(--font-serif))", // Dynamic Font with Fallback
         fontSize: "1.1rem",
         lineHeight: "1.8", // increased line height
         height: "100%", // Explicit height
@@ -83,6 +90,7 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const editableCompartment = useMemo(() => new Compartment(), []);
+    const [bubbleMenu, setBubbleMenu] = React.useState<{ visible: boolean; x: number; y: number } | null>(null); // 🟢 STATE
 
     // 🟢 EXPOSE IMPERATIVE HANDLE
     useImperativeHandle(ref, () => ({
@@ -219,6 +227,27 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                             onContentChange(update.state.doc.toString());
                         }
                     }
+
+                    // 🟢 BUBBLE MENU LOGIC
+                    if (update.selectionSet || update.docChanged || update.viewportChanged || update.focusChanged) {
+                        const selection = update.state.selection.main;
+                        if (selection.empty) {
+                            setBubbleMenu(null);
+                        } else {
+                            const view = update.view;
+                            // Calculate position at the head (cursor) or ranges?
+                            // Let's use the 'head' (where the cursor is) to keep it near interaction
+                            // OR 'from' (start) to be stable.
+                            const range = view.coordsAtPos(selection.from);
+                            if (range) {
+                                setBubbleMenu({
+                                    visible: true,
+                                    x: range.left,
+                                    y: range.top
+                                });
+                            }
+                        }
+                    }
                 })
             ]
         });
@@ -276,11 +305,22 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
 
     return (
         <div className="relative h-full w-full">
-            <div
+            <CodeMirrorHost
                 ref={editorRef}
                 className={`h-full w-full overflow-hidden ${className} ${readOnly ? 'opacity-80' : ''}`}
                 style={{ fontSize: '16px' }}
             />
+
+            {/* 🟢 BUBBLE MENU PORTAL */}
+            {bubbleMenu && onReadSelection && (
+                <BubbleMenu
+                    visible={bubbleMenu.visible}
+                    position={bubbleMenu}
+                    view={viewRef.current}
+                    onReadSelection={onReadSelection}
+                />
+            )}
+
             {readOnly && (
                 <div className="absolute top-4 right-8 bg-red-950/90 border border-red-500/50 text-red-200 px-3 py-1.5 rounded-lg flex items-center gap-2 shadow-xl z-50 pointer-events-none animate-in fade-in slide-in-from-top-2 duration-300">
                     <Lock size={14} />
