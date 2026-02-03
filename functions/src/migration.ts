@@ -235,6 +235,19 @@ export const executeBaptismProtocol = onCall(
         let batch = db.batch();
         let batchCount = 0;
 
+        // 5.1 PRE-WARM CACHE (Parallel Execution)
+        const uniqueFolderIds = Array.from(new Set(
+            snapshot.docs
+                .map(d => d.data().folderId)
+                .filter(id => id && id !== 'unknown')
+        )) as string[];
+
+        const CONCURRENCY_LIMIT = 10;
+        for (let i = 0; i < uniqueFolderIds.length; i += CONCURRENCY_LIMIT) {
+            const chunk = uniqueFolderIds.slice(i, i + CONCURRENCY_LIMIT);
+            await Promise.all(chunk.map(fid => resolveProjectRoot(drive, fid, targetRootId, folderCache)));
+        }
+
         // 6. ITERATION
         for (const doc of snapshot.docs) {
             const data = doc.data();
@@ -248,6 +261,7 @@ export const executeBaptismProtocol = onCall(
             }
 
             // CHECK CACHE / RESOLVE
+            // Now instant due to Pre-Warm step
             const resolvedRoot = await resolveProjectRoot(drive, folderId, targetRootId, folderCache);
 
             if (resolvedRoot === targetRootId) {
