@@ -90,9 +90,19 @@ export const SessionList: React.FC<SessionListProps> = ({
                             {groupSessions.map(session => (
                                 <div
                                     key={session.id}
+                                    role="button"
+                                    tabIndex={0}
+                                    aria-selected={activeSessionId === session.id}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                            e.preventDefault();
+                                            onSessionSelect(session.id);
+                                        }
+                                    }}
                                     onClick={() => onSessionSelect(session.id)}
                                     className={`
                                         group relative w-full text-left p-3 rounded-lg border transition-all cursor-pointer
+                                        focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none
                                         ${activeSessionId === session.id
                                             ? 'bg-cyan-950/20 border-cyan-900/50 hover:bg-cyan-950/30'
                                             : 'bg-titanium-950/30 border-titanium-800 hover:border-titanium-600 hover:bg-titanium-900'}
@@ -122,6 +132,7 @@ export const SessionList: React.FC<SessionListProps> = ({
                                                 onClick={(e) => onDeleteSession(e, session.id)}
                                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-titanium-500 hover:text-red-400 hover:bg-red-950/30 rounded focus:opacity-100"
                                                 title="Eliminar permanentemente"
+                                                aria-label={`Eliminar sesión ${session.name}`}
                                                 disabled={isDeleting === session.id}
                                             >
                                                 {isDeleting === session.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
