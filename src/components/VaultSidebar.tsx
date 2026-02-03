@@ -80,6 +80,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const { fileTree, isFileTreeLoading, config } = useProjectConfig();
     const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
 
+    // 🟢 DERIVED STATE
+    const isEmptyProject = !fileTree || fileTree.length === 0;
+
     // 🟢 LOCALIZATION
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].sidebar;
@@ -267,20 +270,22 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             <div className="px-4 py-4 border-b border-titanium-800 bg-titanium-900/50">
 
                 {/* 🟢 GENESIS BUTTON (REPLACES 'MANUAL DE CAMPO' SECTION) */}
-                <div className="mb-4">
-                    <button
-                        type="button"
-                        onClick={onGenesis}
-                        aria-label="Iniciar proceso creativo (Génesis)"
-                        className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
-                    >
-                        {/* Glow Effect */}
-                        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                {!isEmptyProject && (
+                    <div className="mb-4">
+                        <button
+                            type="button"
+                            onClick={onGenesis}
+                            aria-label="Iniciar proceso creativo (Génesis)"
+                            className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
+                        >
+                            {/* Glow Effect */}
+                            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
 
-                        <Sparkles size={14} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
-                        <span className="text-xs font-medium tracking-wide">{t.spark}</span>
-                    </button>
-                </div>
+                            <Sparkles size={14} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
+                            <span className="text-xs font-medium tracking-wide">{t.spark}</span>
+                        </button>
+                    </div>
+                )}
 
                 <div className="flex items-center gap-2 mb-3">
                     <div className="text-titanium-500">
@@ -315,7 +320,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             </button>
                         )}
 
-                        {onCreateFile && (
+                        {onCreateFile && !isEmptyProject && (
                             <button
                                 onClick={onCreateFile}
                                 className="p-1.5 rounded-md hover:bg-titanium-700 transition-colors text-titanium-400 hover:text-cyan-400"

@@ -125,6 +125,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             }
 
             toast.dismiss('nuke-toast');
+
+            // 🟢 Reset Project Identity (Name & Style)
+            if (config) {
+                 await updateConfig({
+                    ...config,
+                    projectName: '',
+                    styleIdentity: '',
+                    canonPaths: [],      // 🟢 CLEAR CANON
+                    resourcePaths: [],   // 🟢 CLEAR RESOURCES
+                    primaryCanonPathId: null,
+                    characterVaultId: null,
+                    bestiaryVaultId: null,
+                    folderMapping: {},
+                    activeBookContext: ''
+                });
+            }
+
             toast.success(t.nukeSuccess);
 
             // 🟢 Force Reload to Reset State
