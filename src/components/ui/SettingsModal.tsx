@@ -4,10 +4,12 @@
  */
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info, Globe2 } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
 import { callFunction } from '../../services/api';
+import { useLanguageStore, Language } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -18,6 +20,9 @@ interface SettingsModalProps {
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
     const { config, updateConfig, customGeminiKey, setCustomGeminiKey } = useProjectConfig(); // 🟢 Use Context
+    const { currentLanguage, setLanguage } = useLanguageStore(); // 🟢 LANGUAGE STORE
+    const t = TRANSLATIONS[currentLanguage].settings; // 🟢 LOCALIZED TEXTS
+
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config' | 'info'>('general');
 
     // 🟢 STYLE IDENTITY STATE
@@ -71,7 +76,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             // 🟢 BYOK: Save Custom Key to LocalStorage (via Context)
             setCustomGeminiKey(localGeminiKey);
 
-            toast.success('Configuración guardada correctamente');
+            toast.success(t.savedSuccess);
             onClose();
         } catch (error) {
             console.error('Error saving profile:', error);
@@ -324,7 +329,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
     return (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-            <div className="bg-titanium-950 rounded-xl border border-titanium-800 shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
+            {/* 🟢 INCREASED MAX WIDTH: max-w-2xl -> max-w-5xl */}
+            <div className="bg-titanium-950 rounded-xl border border-titanium-800 shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
 
                 {/* HEADER */}
                 <div className="flex items-center gap-3 border-b border-titanium-800 p-6 pb-4 bg-titanium-900/50">
@@ -332,8 +338,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <User size={24} className="text-accent-DEFAULT" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-titanium-100">Configuración</h3>
-                        <p className="text-xs text-titanium-400">Personaliza tu experiencia de escritura</p>
+                        <h3 className="text-lg font-bold text-titanium-100">{t.title}</h3>
+                        <p className="text-xs text-titanium-400">{t.subtitle}</p>
                     </div>
                 </div>
 
@@ -347,7 +353,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             }`}
                     >
                         <Brain size={16} />
-                        General
+                        {t.tabGeneral}
                     </button>
                     <button
                         onClick={() => setActiveTab('profile')}
@@ -357,7 +363,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             }`}
                     >
                         <Sparkles size={16} />
-                        Perfil
+                        {t.tabProfile}
                     </button>
                     <button
                         onClick={() => setActiveTab('ai_config')}
@@ -367,7 +373,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             }`}
                     >
                         <Key size={16} />
-                        Configuración IA
+                        {t.tabAi}
                     </button>
                     <button
                         onClick={() => setActiveTab('memory')}
@@ -377,7 +383,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             }`}
                     >
                         <HardDrive size={16} />
-                        Memoria (Debug)
+                        {t.tabMemory}
                     </button>
                     <button
                         onClick={() => setActiveTab('info')}
@@ -387,7 +393,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             }`}
                     >
                         <Info size={16} />
-                        Acerca de
+                        {t.tabAbout}
                     </button>
                 </div>
 
@@ -399,27 +405,54 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Brain size={18} className="text-accent-DEFAULT" />
-                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">Configuración General</h4>
+                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">{t.genConfig}</h4>
                             </div>
 
-                            <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-titanium-100">Nombre del Proyecto (Universo)</label>
-                                <input
-                                    type="text"
-                                    value={localProjectName}
-                                    onChange={(e) => setLocalProjectName(e.target.value)}
-                                    className="w-full bg-slate-800 text-white placeholder-gray-500 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none"
-                                    placeholder="Ej: Crónicas de la Eternidad"
-                                />
-                                <p className="text-xs text-titanium-400">
-                                    Este nombre aparecerá en la interfaz y definirá la identidad global del universo.
-                                </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Project Name */}
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium text-titanium-100">{t.projectName}</label>
+                                    <input
+                                        type="text"
+                                        value={localProjectName}
+                                        onChange={(e) => setLocalProjectName(e.target.value)}
+                                        className="w-full bg-slate-800 text-white placeholder-gray-500 border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none"
+                                        placeholder="Ej: Crónicas de la Eternidad"
+                                    />
+                                    <p className="text-xs text-titanium-400">
+                                        {t.projectNameDesc}
+                                    </p>
+                                </div>
+
+                                {/* 🟢 LANGUAGE SELECTOR */}
+                                <div className="flex flex-col gap-2">
+                                    <label className="text-sm font-medium text-titanium-100 flex items-center gap-2">
+                                        <Globe2 size={16} />
+                                        {t.language}
+                                    </label>
+                                    <div className="relative">
+                                        <select
+                                            value={currentLanguage}
+                                            onChange={(e) => setLanguage(e.target.value as Language)}
+                                            className="w-full appearance-none bg-slate-800 text-white border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none cursor-pointer"
+                                        >
+                                            <option value="es">Español (ES)</option>
+                                            <option value="en">English (EN)</option>
+                                            <option value="jp">日本語 (JP)</option>
+                                            <option value="ko">한국어 (KO)</option>
+                                            <option value="zh">中文 (ZH)</option>
+                                        </select>
+                                    </div>
+                                    <p className="text-xs text-titanium-400">
+                                        {t.languageDesc}
+                                    </p>
+                                </div>
                             </div>
 
                             <div className="h-px bg-titanium-800 my-2" />
 
                             <p className="text-sm text-titanium-400 italic">
-                                La configuración de carpetas se ha movido a la sección "Proyecto".
+                                {t.folderConfigMoved}
                             </p>
                         </div>
                     )}
@@ -659,14 +692,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         disabled={isLoading || isAuditing || isReindexing}
                         className="px-5 py-2 text-titanium-400 text-sm font-bold hover:bg-white/10 rounded-lg transition-colors disabled:opacity-50"
                     >
-                        Cancelar
+                        {t.cancel}
                     </button>
                     <button
                         onClick={handleSave}
                         disabled={isLoading || isAuditing || isReindexing}
                         className="px-5 py-2 bg-accent-DEFAULT text-titanium-950 text-sm font-bold rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
                     >
-                        {isLoading ? 'Guardando...' : 'Guardar Cambios'}
+                        {isLoading ? t.saving : t.save}
                     </button>
                 </div>
             </div>
