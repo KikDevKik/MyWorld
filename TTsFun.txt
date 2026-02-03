@@ -1,0 +1,60 @@
+# Informe Técnico: Lógica y Diagnóstico del Sistema TTS (Text-to-Speech)
+
+Este documento detalla la arquitectura actual del sistema de narración, las causas de los problemas reportados ("lee todo", "no cambia de voz") y las soluciones técnicas implementadas.
+
+## 1. Arquitectura Actual
+
+El sistema de narración opera en tres capas principales:
+
+1.  **El Director (Cerebro - `NarratorService.ts`):**
+    *   **Función:** Analiza el texto bruto de la escena.
+    *   **Modelo:** Usa Google Gemini (`gemini-3.0-flash` o `gemini-2.0-flash`).
+    *   **Prompt Actual:** Tiene una instrucción estricta de **"FULL COVERAGE: You MUST include 100% of the input text verbatim"**. Esto se diseñó para evitar que la IA se saltara párrafos aburridos, pero tiene el efecto secundario de obligarla a incluir notas técnicas, cronologías (`-TIMELINE`) y comentarios de usuario.
+
+2.  **El Protocolo de Supervivencia (`realignSegments`):**
+    *   **Función:** Es un mecanismo de seguridad en el frontend.
+    *   **Lógica:** Compara el texto original con lo que devolvió la IA.
+    *   **El Problema "Lee Todo":** Si la IA decide inteligentemente saltarse una nota técnica (ej. `-[TIMELINE...]`), este protocolo detecta que falta ese trozo de texto en la secuencia de audio. Para evitar "huecos" (silencios inesperados), crea automáticamente un segmento "Puente" con la voz por defecto (Narrador) y obliga al sistema a leerlo.
+    *   **Consecuencia:** Incluso si corregimos al Cerebro para que ignore las notas, este protocolo las reinsertaba a la fuerza.
+
+3.  **El Motor de Voz (`TTSService.ts` / `functions/tts.ts`):**
+    *   **Función:** Convierte el texto segmentado en audio real.
+    *   **Modelo:** Usa `gemini-2.5-flash-preview-tts` para voces emocionales y variadas.
+    *   **El Problema "No cambia de voz":** Según los logs del sistema, el proyecto ha excedido la cuota de uso de la API de Google (`429 Too Many Requests`).
+    *   **Fallback (Plan B):** Cuando la API falla por cuota, el sistema activa automáticamente `window.speechSynthesis` (la voz robótica del navegador). Esta voz del navegador **no soporta los perfiles emocionales** de Gemini, resultando en una lectura plana, monocromática y con una sola voz para todos los personajes.
+
+## 2. Diagnóstico de Errores Reportados
+
+| Síntoma | Causa Técnica | Solución Propuesta |
+| :--- | :--- | :--- |
+| **"Lee todo (TIMELINE, notas...)"** | La regla "100% Verbatim" en el prompt + La función `realignSegments` que rellena cualquier hueco detectado. | 1. Modificar Prompt para excluir metadatos.<br>2. Actualizar `realignSegments` para ignorar huecos que coincidan con patrones de metadatos. |
+| **"No cambia de voz"** | Error de Cuota (`429`) en la API de Google. El sistema cae al navegador (Browser TTS). | No se puede arreglar por código (es un límite de facturación/uso de Google), pero el código funciona correctamente cuando hay cuota. |
+| **"Un solo color de resaltado"** | Consecuencia del fallback al navegador o de la generación masiva de segmentos "Narrador" por defecto. | Al arreglar la segmentación (ignorar metadatos), el resaltado volverá a ser preciso (cuando la API de voz funcione). |
+
+## 3. Plan de Reparación (Incluido en esta actualización)
+
+Se realizarán los siguientes cambios en el código para resolver el problema de "Leer todo":
+
+### A. Filtrado en `realignSegments` (`src/services/narratorService.ts`)
+Se inyectará lógica de "Ignorancia Selectiva". Si el sistema detecta un hueco en el texto, verificará si ese hueco parece una nota técnica (Regex).
+
+```typescript
+// Patrones a ignorar (Pseudo-código)
+const IGNORE_PATTERNS = [
+    /^-\[TIMELINE/i,   // Líneas de línea de tiempo
+    /^\*\*/,            // Marcas de negrita sueltas o comentarios
+    /^\[.*\]/,          // Notas entre corchetes
+    /^<.*>/             // Tags HTML/XML
+];
+```
+
+Si el texto faltante coincide con estos patrones, **no se creará audio** para él y se saltará silenciosamente.
+
+### B. Ajuste del Prompt (`src/services/narratorService.ts`)
+Se modificará la instrucción del sistema para el modelo Gemini:
+
+*   **Antes:** "Include 100% of text verbatim."
+*   **Ahora:** "Include 100% of the *story* text verbatim. You MUST EXCLUDE metadata, timeline markers (e.g., -[TIMELINE...]), and user notes."
+
+---
+*Este documento ha sido generado por Jules para explicar la lógica interna del sistema TTS.*

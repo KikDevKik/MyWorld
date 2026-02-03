@@ -6,6 +6,15 @@ const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 const BRAIN_MODEL_PRIMARY = 'gemini-3-flash-preview'; // Exact string requested by user
 const BRAIN_MODEL_FALLBACK = 'gemini-2.0-flash'; // Safe fallback
 
+// Patterns that should NOT be read aloud
+const IGNORE_PATTERNS = [
+    /^-\s*\[TIMELINE/i,       // Timeline markers e.g., "-[TIMELINE..."
+    /^\[TIMELINE/i,           // Timeline markers e.g., "[TIMELINE..."
+    /^\s*[-_*]{3,}\s*$/,      // Horizontal rules e.g., "---", "***"
+    /^\s*#+\s*.*$/,           // Markdown headers e.g., "# Chapter 1" (Optionally ignore headers if desired, usually better to skip reading "Chapter One" if it's just a marker)
+    /^\s*<!--[\s\S]*?-->/     // Markdown comments
+];
+
 export const NarratorService = {
     /**
      * Analyzes a text scene to determine who is speaking and how.
@@ -58,16 +67,21 @@ Your task is to analyze the provided text scene and prepare it for a full Text-t
 ${characterList}
 
 ### CRITICAL RULES:
-1. **FULL COVERAGE**: You MUST include 100% of the input text verbatim. Do not skip narration, descriptions, or internal monologues.
-2. **SEQUENCE**: Return segments in the exact order they appear in the text.
-3. **SEGMENTATION**: Break the text into logical audio chunks.
+1. **STORY COVERAGE**: You MUST include 100% of the *story* text (dialogue, narration, monologue) verbatim.
+2. **METADATA EXCLUSION**: You MUST EXCLUDE and IGNORE:
+    - Timeline markers (e.g., "-[TIMELINE...", "[DATE]").
+    - User notes or comments (e.g., lines starting with "**", "//", or notes in brackets).
+    - Structural markers (e.g., "---", "***").
+    - Do NOT generate segments for these lines.
+3. **SEQUENCE**: Return segments in the exact order they appear in the text.
+4. **SEGMENTATION**: Break the text into logical audio chunks.
     - **NARRATION**: Use this for descriptive text, actions, and unquoted thoughts.
     - **DIALOGUE**: Use this for spoken text (usually in quotes).
     - **INTERNAL_MONOLOGUE**: Use this for thoughts (often in italics or specific markers).
-4. **ATTRIBUTION**:
+5. **ATTRIBUTION**:
     - For DIALOGUE/MONOLOGUE: Identify the 'speakerName' and 'speakerId'.
     - For NARRATION: 'speakerName' must be "Narrator".
-5. **VOICE PROFILE**:
+6. **VOICE PROFILE**:
     - Analyze emotional context for 'voiceProfile'.
     - 'gender': 'MALE', 'FEMALE', 'NEUTRAL'.
     - 'age': 'CHILD', 'TEEN', 'ADULT', 'ELDER'.
@@ -145,7 +159,11 @@ Schema:
                 // DETECT GAP
                 if (foundIndex > currentIndex) {
                     const missedText = originalText.substring(currentIndex, foundIndex).trim();
-                    if (missedText.length > 0) {
+
+                    // Check if missed text is actually valid narration or just metadata we should skip
+                    const isMetadata = IGNORE_PATTERNS.some(pattern => pattern.test(missedText));
+
+                    if (missedText.length > 0 && !isMetadata) {
                          // Insert Bridge Segment for missed narration
                          result.push({
                             text: originalText.substring(currentIndex, foundIndex), // Keep original spacing for audio? Or trim? Better keep raw.
@@ -161,6 +179,8 @@ Schema:
                             from: currentIndex,
                             to: foundIndex
                          });
+                    } else if (isMetadata) {
+                        console.log("Skipping Metadata Segment:", missedText);
                     }
                 }
 
@@ -184,7 +204,9 @@ Schema:
         // CHECK TAIL
         if (currentIndex < originalText.length) {
             const tailText = originalText.substring(currentIndex);
-            if (tailText.trim().length > 0) {
+            const isTailMetadata = IGNORE_PATTERNS.some(pattern => pattern.test(tailText.trim()));
+
+            if (tailText.trim().length > 0 && !isTailMetadata) {
                 result.push({
                     text: tailText,
                     type: 'NARRATION',
