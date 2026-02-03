@@ -36,7 +36,7 @@ const extractFiles = (resultData: any): FileNode[] => {
     return [];
 };
 
-const FileTreeNode: React.FC<{
+interface FileTreeNodeProps {
     node: FileNode;
     depth: number;
     onFileSelect: (id: string, content: string, name?: string) => void;
@@ -48,7 +48,9 @@ const FileTreeNode: React.FC<{
     isDeleteMode?: boolean;
     selectedDeleteIds?: Set<string>;
     onToggleDeleteSelect?: (id: string) => void;
-}> = ({ node, depth, onFileSelect, accessToken, isPreloaded, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect }) => {
+}
+
+const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPreloaded, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect }: FileTreeNodeProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const [children, setChildren] = useState<FileNode[]>(node.children || []);
     const [isLoading, setIsLoading] = useState(false);
@@ -329,7 +331,7 @@ const FileTreeNode: React.FC<{
             )}
         </div>
     );
-};
+});
 
 const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect }) => {
     const [rootFiles, setRootFiles] = useState<FileNode[]>([]);
