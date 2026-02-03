@@ -1,45 +1,119 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Sparkles, Maximize2, CheckCircle, Bold, Italic, Heading1, Heading2 } from 'lucide-react';
-import { Editor } from '@tiptap/react';
+import { Sparkles, Maximize2, CheckCircle, Bold, Italic, Heading1, Heading2, Mic } from 'lucide-react';
+import { EditorView } from '@codemirror/view';
+import { EditorSelection, Text } from '@codemirror/state';
 
 interface BubbleMenuProps {
     visible: boolean;
-    x: number;
-    y: number;
-    onAction: (action: string) => void;
-    editor: Editor | null;
+    position: { x: number; y: number } | null;
+    view: EditorView | null;
+    onReadSelection: (text: string) => void;
 }
 
-const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, x, y, onAction, editor }) => {
-    if (!visible || !editor) return null;
+const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onReadSelection }) => {
+    // console.log("Rendering BubbleMenu", { visible, position, view: !!view });
+    if (!visible || !position || !view) return null;
 
-    // 🛡️ EL BLINDAJE: Usamos createPortal para teletransportarlo al BODY
-    // Esto lo saca del editor y lo pone en la capa superior absoluta del navegador.
+    // --- MARKDOWN HELPERS ---
+
+    const toggleWrapper = (marker: string) => {
+        if (!view) return;
+        const state = view.state;
+        const selection = state.selection.main;
+        const text = state.sliceDoc(selection.from, selection.to);
+        const markerLen = marker.length;
+
+        // Check if already wrapped (naive check: just checks selected text boundaries)
+        const isWrapped = text.startsWith(marker) && text.endsWith(marker) && text.length >= markerLen * 2;
+
+        if (isWrapped) {
+            // Unwrap
+            view.dispatch({
+                changes: {
+                    from: selection.from,
+                    to: selection.to,
+                    insert: text.slice(markerLen, -markerLen)
+                },
+                selection: EditorSelection.range(selection.from, selection.to - markerLen * 2)
+            });
+        } else {
+            // Wrap
+            view.dispatch({
+                changes: {
+                    from: selection.from,
+                    to: selection.to,
+                    insert: `${marker}${text}${marker}`
+                },
+                selection: EditorSelection.range(selection.from, selection.to + markerLen * 2)
+            });
+        }
+        view.focus();
+    };
+
+    const toggleHeading = (level: 1 | 2) => {
+        if (!view) return;
+        const state = view.state;
+        const line = state.doc.lineAt(state.selection.main.head);
+        const lineText = line.text;
+        const marker = '#'.repeat(level) + ' ';
+
+        // Regex to detect existing headers
+        const match = lineText.match(/^(#{1,6})\s/);
+
+        let newText = lineText;
+        if (match) {
+            // If it already has THIS level, remove it.
+            if (match[1].length === level) {
+                newText = lineText.replace(/^(#{1,6})\s/, '');
+            } else {
+                // If it has diff level, replace it.
+                newText = lineText.replace(/^(#{1,6})\s/, marker);
+            }
+        } else {
+            // Add header
+            newText = marker + lineText;
+        }
+
+        view.dispatch({
+            changes: {
+                from: line.from,
+                to: line.to,
+                insert: newText
+            }
+        });
+        view.focus();
+    };
+
+    const handleRead = () => {
+        if (!view) return;
+        const text = view.state.sliceDoc(view.state.selection.main.from, view.state.selection.main.to);
+        if (text) {
+            onReadSelection(text);
+        }
+    };
+
     return createPortal(
         <div
-            className="fixed flex items-center gap-1 p-1 rounded-lg shadow-2xl animate-fade-in border border-titanium-700"
+            className="fixed flex items-center gap-1 p-1 rounded-lg shadow-2xl animate-in fade-in zoom-in-95 duration-200 border border-titanium-700"
             style={{
-                left: x,
-                top: y - 10, // Un poco más arriba del cursor
-                transform: 'translate(-50%, -100%)', // Centrado y hacia arriba
-                zIndex: 99999, // 🚀 Z-Index Nivel Dios
-                backgroundColor: '#09090b', // 🖤 Negro Titanium Sólido (Hex directo para asegurar opacidad)
+                left: position.x,
+                top: position.y - 10,
+                transform: 'translate(-50%, -100%)',
+                zIndex: 99999,
+                backgroundColor: '#09090b',
                 pointerEvents: 'auto',
                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.8), 0 8px 10px -6px rgba(0, 0, 0, 0.8)'
             }}
             onMouseDown={(e) => {
-                // 🛑 ESTO ES CRÍTICO: Evita que al hacer clic en el menú se pierda la selección de texto
                 e.preventDefault();
                 e.stopPropagation();
             }}
         >
-            {/* --- FORMATTING SECTION --- */}
-
             {/* BOLD */}
             <button
-                onClick={() => editor.chain().focus().toggleBold().run()}
-                className={`p-2 rounded-md transition-colors ${editor.isActive('bold') ? 'text-white bg-titanium-700' : 'text-titanium-300 hover:text-white hover:bg-titanium-800'}`}
+                onClick={() => toggleWrapper('**')}
+                className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Negrita"
             >
                 <Bold size={16} />
@@ -47,8 +121,8 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, x, y, onAction, editor
 
             {/* ITALIC */}
             <button
-                onClick={() => editor.chain().focus().toggleItalic().run()}
-                className={`p-2 rounded-md transition-colors ${editor.isActive('italic') ? 'text-white bg-titanium-700' : 'text-titanium-300 hover:text-white hover:bg-titanium-800'}`}
+                onClick={() => toggleWrapper('*')}
+                className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Cursiva"
             >
                 <Italic size={16} />
@@ -56,8 +130,8 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, x, y, onAction, editor
 
             {/* H1 */}
             <button
-                onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-                className={`p-2 rounded-md transition-colors ${editor.isActive('heading', { level: 1 }) ? 'text-white bg-titanium-700' : 'text-titanium-300 hover:text-white hover:bg-titanium-800'}`}
+                onClick={() => toggleHeading(1)}
+                className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Título 1"
             >
                 <Heading1 size={16} />
@@ -65,52 +139,31 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, x, y, onAction, editor
 
             {/* H2 */}
             <button
-                onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-                className={`p-2 rounded-md transition-colors ${editor.isActive('heading', { level: 2 }) ? 'text-white bg-titanium-700' : 'text-titanium-300 hover:text-white hover:bg-titanium-800'}`}
+                onClick={() => toggleHeading(2)}
+                className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Título 2"
             >
                 <Heading2 size={16} />
             </button>
 
-            {/* SEPARADOR */}
             <div className="w-px h-4 bg-titanium-700 mx-0.5" />
 
-            {/* --- AI SECTION --- */}
-
-            {/* BOTÓN MEJORAR */}
+            {/* TTS READ */}
             <button
-                onClick={() => onAction('mejorar')}
-                className="p-2 text-titanium-300 hover:text-accent-DEFAULT hover:bg-titanium-800 rounded-md transition-colors group relative"
-                title="Mejorar prosa"
+                onClick={handleRead}
+                className="p-2 text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/30 rounded-md transition-colors flex items-center gap-2"
+                title="Leer selección"
             >
-                <Sparkles size={16} />
+                <Mic size={16} />
             </button>
 
-            {/* BOTÓN EXPANDIR */}
-            <button
-                onClick={() => onAction('expandir')}
-                className="p-2 text-titanium-300 hover:text-purple-400 hover:bg-titanium-800 rounded-md transition-colors"
-                title="Expandir escena"
-            >
-                <Maximize2 size={16} />
-            </button>
-
-            {/* BOTÓN CORREGIR */}
-            <button
-                onClick={() => onAction('corregir')}
-                className="p-2 text-titanium-300 hover:text-green-400 hover:bg-titanium-800 rounded-md transition-colors"
-                title="Corregir gramática"
-            >
-                <CheckCircle size={16} />
-            </button>
-
-            {/* FLECHITA DECORATIVA (Triángulo abajo) */}
+            {/* DECORATION */}
             <div
                 className="absolute left-1/2 bottom-[-5px] w-2.5 h-2.5 bg-[#09090b] border-r border-b border-titanium-700 transform -translate-x-1/2 rotate-45"
-                style={{ zIndex: -1 }} // Detrás del menú
+                style={{ zIndex: -1 }}
             />
         </div>,
-        document.body // 📍 Destino del Portal
+        document.body
     );
 };
 
