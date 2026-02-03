@@ -1048,8 +1048,9 @@ function App() {
 
     // 🟢 INITIAL CHECK (ON LOAD)
     useEffect(() => {
-        if (user && !oauthToken) {
-            // Try silent refresh on load if no token
+        if (user) {
+            // Always try silent refresh on load to validate token freshness
+            // This prevents "Green but Broken" state (Stale Token)
             handleTokenRefresh();
         }
     }, [user]);
