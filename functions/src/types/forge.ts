@@ -33,3 +33,18 @@ export interface ForgePayload {
     totalAnchors: number;
   };
 }
+
+export interface DetectedEntity {
+    name: string;
+    tier: EntityTier;
+    category?: EntityCategory; // 🟢 NEW
+    confidence: number;
+    reasoning?: string;
+    sourceFileId?: string;
+    sourceFileName?: string;
+    saga?: string;
+    foundIn?: string[]; // Snippets or File Names
+    rawContent?: string; // For Limbos: First few lines or raw content for AI
+    role?: string;
+    avatar?: string;
+}
