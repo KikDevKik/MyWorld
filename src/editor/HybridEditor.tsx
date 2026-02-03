@@ -85,7 +85,8 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
     driftMarkers = [],
     activeSegment = null,
     className = "",
-    readOnly = false
+    readOnly = false,
+    onReadSelection
 }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
@@ -238,13 +239,19 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                             // Calculate position at the head (cursor) or ranges?
                             // Let's use the 'head' (where the cursor is) to keep it near interaction
                             // OR 'from' (start) to be stable.
-                            const range = view.coordsAtPos(selection.from);
-                            if (range) {
-                                setBubbleMenu({
-                                    visible: true,
-                                    x: range.left,
-                                    y: range.top
-                                });
+                            try {
+                                const range = view.coordsAtPos(selection.from);
+                                if (range) {
+                                    setBubbleMenu({
+                                        visible: true,
+                                        x: range.left,
+                                        y: range.top
+                                    });
+                                }
+                            } catch (error) {
+                                // Fallback or silent fail if layout isn't ready
+                                if (import.meta.env.DEV) console.warn("⚠️ [HybridEditor] BubbleMenu pos failed:", error);
+                                setBubbleMenu(null);
                             }
                         }
                     }
