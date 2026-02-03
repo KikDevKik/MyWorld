@@ -226,6 +226,75 @@ export const scribeCreateFile = onCall(
 );
 
 /**
+ * THE WEAVER (El Tejedor)
+ * Integrates a raw chat suggestion into the narrative flow seamlessly.
+ */
+export const integrateNarrative = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        memory: "1GiB",
+        timeoutSeconds: 60,
+        secrets: [googleApiKey],
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+
+        const { suggestion, precedingContext, followingContext, userStyle } = request.data;
+
+        if (!suggestion) {
+            throw new HttpsError("invalid-argument", "Missing suggestion text.");
+        }
+
+        try {
+            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const model = genAI.getGenerativeModel({
+                model: MODEL_LOW_COST, // Flash is fast and sufficient for rewriting
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+                generationConfig: { temperature: 0.7 } // Creative but grounded
+            });
+
+            // 🟢 CONSTRUCT PROMPT
+            const prompt = `
+            ACT AS: Expert Ghostwriter & Narrative Editor.
+            TASK: Transform the "SUGGESTION" into seamless narrative prose that fits the "CONTEXT".
+
+            INPUT DATA:
+            - CONTEXT (Preceding): "...${(precedingContext || '').slice(-2000)}..."
+            - CONTEXT (Following): "...${(followingContext || '').slice(0, 500)}..."
+            - USER STYLE: ${userStyle || 'Neutral/Standard'}
+            - SUGGESTION (Raw Idea): "${suggestion}"
+
+            INSTRUCTIONS:
+            1. **Rewrite** the SUGGESTION into high-quality prose.
+            2. **Match the Tone** of the Preceding Context (First/Third person, Tense, Vocabulary).
+            3. **Remove Meta-Talk**: Strip out phrases like "Option 1:", "Sure, here is...", "I suggest...", or quotes around the whole block unless it's dialogue.
+            4. **Seamless Flow**: The output should start naturally where the Preceding Context ends.
+            5. **Do not repeat** the Preceding Context. Only output the NEW text to be inserted.
+            6. **Strict Output**: Return ONLY the narrative text. No markdown fences. No "Here is the rewritten text".
+
+            OUTPUT:
+            `;
+
+            const result = await model.generateContent(prompt);
+            let integratedText = result.response.text().trim();
+
+            // Cleanup fences if any
+            if (integratedText.startsWith('```')) {
+                integratedText = integratedText.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
+            }
+
+            return { success: true, text: integratedText };
+
+        } catch (error: any) {
+            logger.error("🔥 Error del Tejedor (Integrate):", error);
+            throw new HttpsError("internal", error.message || "Fallo al integrar narrativa.");
+        }
+    }
+);
+
+/**
  * THE SMART PATCH (El Restaurador)
  * Intelligent merging of new insights into existing records.
  */

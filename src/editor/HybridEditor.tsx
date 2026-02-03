@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useMemo } from 'react';
+import React, { useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { EditorState, Compartment } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
@@ -13,17 +13,23 @@ import { lintKeymap } from '@codemirror/lint';
 
 import { driftExtension, setDriftMarkers, DriftMarker } from './extensions/driftPlugin';
 import { livePreview } from './extensions/livePreviewPlugin';
-import { narratorHighlighter, setActiveSegment, ActiveSegmentState } from './extensions/narratorHighlighter'; // 🟢 NEW
-import '../styles/narrator.css'; // 🟢 NEW
+import { narratorHighlighter, setActiveSegment, ActiveSegmentState } from './extensions/narratorHighlighter';
+import '../styles/narrator.css';
 import { Lock } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { CreativeAuditService } from '../services/CreativeAuditService';
+
+// 🟢 EXPOSE HANDLE FOR IMPERATIVE ACTIONS
+export interface HybridEditorHandle {
+    insertAtCursor: (text: string) => void;
+    getCursorContext: (before?: number, after?: number) => { preceding: string; following: string };
+}
 
 interface HybridEditorProps {
     content: string;
     onContentChange?: (content: string) => void;
     driftMarkers?: DriftMarker[];
-    activeSegment?: ActiveSegmentState | null; // 🟢 NEW
+    activeSegment?: ActiveSegmentState | null;
     className?: string;
     readOnly?: boolean;
 }
@@ -66,23 +72,51 @@ const titaniumTheme = EditorView.theme({
     }
 }, { dark: true });
 
-const HybridEditor: React.FC<HybridEditorProps> = ({
+const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
     content,
     onContentChange,
     driftMarkers = [],
     activeSegment = null,
     className = "",
     readOnly = false
-}) => {
+}, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const editableCompartment = useMemo(() => new Compartment(), []);
+
+    // 🟢 EXPOSE IMPERATIVE HANDLE
+    useImperativeHandle(ref, () => ({
+        insertAtCursor: (text: string) => {
+            if (viewRef.current) {
+                const view = viewRef.current;
+                // Use CodeMirror's native replaceSelection to handle cursor or range
+                const transaction = view.state.replaceSelection(text);
+                view.dispatch(transaction);
+                view.focus(); // Refocus editor
+            }
+        },
+        getCursorContext: (before = 2000, after = 500) => {
+            if (viewRef.current) {
+                const view = viewRef.current;
+                const state = view.state;
+                const head = state.selection.main.head;
+
+                const from = Math.max(0, head - before);
+                const to = Math.min(state.doc.length, head + after);
+
+                return {
+                    preceding: state.sliceDoc(from, head),
+                    following: state.sliceDoc(head, to)
+                };
+            }
+            return { preceding: "", following: "" };
+        }
+    }));
 
     // 🟢 THE SPY: AUDIT LOGIC
     const { config, user } = useProjectConfig();
     const folderId = config?.folderId; // Use config folderId as projectId
     const bufferRef = useRef({ human: 0, ai: 0 }); // Local buffer
-    const lastTypeTime = useRef(Date.now());
 
     // FLUSH TIMER (The Spy's Report)
     useEffect(() => {
@@ -249,6 +283,6 @@ const HybridEditor: React.FC<HybridEditorProps> = ({
             )}
         </div>
     );
-};
+});
 
 export default HybridEditor;
