@@ -118,6 +118,32 @@ export const scanVaultHealth = onCall(
   }
 );
 
+// Helper: Delete single artifact
+async function deleteFileArtifact(drive: any, db: admin.firestore.Firestore, userId: string, fileId: string) {
+    try {
+        // STEP 1: DRIVE DELETE (Level 0)
+        await drive.files.delete({ fileId });
+        logger.info(`   -> Drive Delete OK: ${fileId}`);
+
+        // STEP 2: FIRESTORE DELETE (Level 1)
+        await db.collection("TDB_Index").doc(userId).collection("files").doc(fileId).delete();
+        logger.info(`   -> Firestore Index Delete OK: ${fileId}`);
+
+        // RECURSIVE DELETE (Chunks)
+        // Ideally yes, but 'files' doc delete doesn't cascade to 'chunks' unless we do recursive.
+        // Let's assume standard architecture: `TDB_Index/{uid}/files/{fileId}/chunks`.
+        // So we should do recursive delete on the file doc.
+        await db.recursiveDelete(db.collection("TDB_Index").doc(userId).collection("files").doc(fileId));
+        logger.info(`   -> Recursive Delete OK (Chunks Cleaned).`);
+
+        return { id: fileId, status: 'purged' };
+
+    } catch (err: any) {
+        logger.error(`   ❌ Failed to purge ${fileId}:`, err);
+        return { id: fileId, status: 'error', error: err.message };
+    }
+}
+
 /**
  * PURGE ARTIFACTS (The Incinerator)
  * Hard deletes files from Drive and Firestore.
@@ -153,35 +179,7 @@ export const purgeArtifacts = onCall(
         auth.setCredentials({ access_token: accessToken });
         const drive = google.drive({ version: "v3", auth });
 
-        const results: any[] = [];
-
-        for (const fileId of fileIds) {
-            try {
-                // STEP 1: DRIVE DELETE (Level 0)
-                await drive.files.delete({ fileId });
-                logger.info(`   -> Drive Delete OK: ${fileId}`);
-
-                // STEP 2: FIRESTORE DELETE (Level 1)
-                await db.collection("TDB_Index").doc(userId).collection("files").doc(fileId).delete();
-                logger.info(`   -> Firestore Index Delete OK: ${fileId}`);
-
-                // OPTIONAL: Delete chunks?
-                // Ideally yes, but 'files' doc delete doesn't cascade to 'chunks' unless we do recursive.
-                // However, Chunks are in 'TDB_Index/{uid}/chunks' or subcollection of file?
-                // The current schema has 'chunks' as a collectionGroup? Or subcollection of `files`?
-                // In `ingestion.ts` (implied), chunks are usually subcollections of the file doc OR root collection.
-                // Let's assume standard architecture: `TDB_Index/{uid}/files/{fileId}/chunks`.
-                // So we should do recursive delete on the file doc.
-                await db.recursiveDelete(db.collection("TDB_Index").doc(userId).collection("files").doc(fileId));
-                logger.info(`   -> Recursive Delete OK (Chunks Cleaned).`);
-
-                results.push({ id: fileId, status: 'purged' });
-
-            } catch (err: any) {
-                logger.error(`   ❌ Failed to purge ${fileId}:`, err);
-                results.push({ id: fileId, status: 'error', error: err.message });
-            }
-        }
+        const results = await Promise.all(fileIds.map(fileId => deleteFileArtifact(drive, db, userId, fileId)));
 
         return { success: true, results };
 
