@@ -411,7 +411,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
     return (
         <div className="flex flex-col h-full bg-titanium-950">
             {/* HEADER */}
-            <div className="h-16 flex items-center gap-4 px-6 border-b border-titanium-800 bg-titanium-900 shrink-0">
+            <div className="h-16 flex items-center gap-4 px-6 pr-16 border-b border-titanium-800 bg-titanium-900 shrink-0">
                 <div>
                     <h2 className="font-bold text-titanium-100 truncate max-w-[300px]">{sessionName}</h2>
                     <p className="text-[10px] text-titanium-400 uppercase tracking-wider flex items-center gap-1">

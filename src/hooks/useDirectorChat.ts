@@ -82,7 +82,17 @@ export const useDirectorChat = ({
                     // If we have messages that were added locally while waiting for session/history, re-inject them.
                     if (pendingOptimisticUpdates.current.length > 0) {
                         const existingIds = new Set(formatted.map(m => m.id));
-                        const uniquePending = pendingOptimisticUpdates.current.filter(m => !existingIds.has(m.id));
+                        // Deduplication by Content (Role + Text) for recent messages to catch ID shifts
+                        const recentSignatures = new Set(
+                            formatted.slice(-20).map(m => `${m.role}:${m.text.trim()}`)
+                        );
+
+                        const uniquePending = pendingOptimisticUpdates.current.filter(m => {
+                            if (existingIds.has(m.id)) return false;
+                            const signature = `${m.role}:${m.text.trim()}`;
+                            return !recentSignatures.has(signature);
+                        });
+
                         formatted.push(...uniquePending);
                     }
 
