@@ -304,12 +304,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const toastId = toast.loading("Cerrando sesión de forma segura...");
 
         try {
-            // 🟢 REVOKE DRIVE ACCESS (Best Effort - No bloquear por siempre)
-            // Race: Si revoke toma > 1.5s, procedemos a salir.
-            const revokePromise = callFunction('revokeDriveAccess');
-            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 1500));
-
-            await Promise.race([revokePromise, timeoutPromise]).catch(e => console.warn("Revoke skipped/failed:", e));
+            // 🟢 PERSISTENCIA DE SESIÓN:
+            // Ya no revocamos el token de Drive al salir.
+            // Esto permite que al volver a entrar, el backend recuerde la conexión (Refresh Token).
+            // Si el usuario quiere desconectar Drive, deberá hacerlo explícitamente (Futura función).
+            console.log("Preserving Drive Link for next session...");
 
         } catch (error) {
             console.error("Logout preparation error", error);
