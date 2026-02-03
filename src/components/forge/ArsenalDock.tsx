@@ -2,6 +2,8 @@ import React from 'react';
 import { Clapperboard, Globe2, Hammer, ShieldCheck, Image as ImageIcon, Scale, FlaskConical, CalendarClock, Printer } from 'lucide-react';
 import { GEMS } from '../../constants';
 import { GemId } from '../../types';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ArsenalDockProps {
     activeGemId: GemId | null;
@@ -12,21 +14,11 @@ interface ArsenalDockProps {
 }
 
 const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, isSecurityReady, onToggleSentinel }) => {
+    const { currentLanguage } = useLanguageStore();
+    const tTools = TRANSLATIONS[currentLanguage].tools;
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
     const DOCK_GEMS: GemId[] = ['director', 'perforador', 'forja', 'laboratorio', 'tribunal', 'guardian', 'imprenta'];
-
-    // 🟢 ENGLISH LABELS FOR ACCESSIBILITY
-    const GEM_LABELS: Record<string, string> = {
-        director: 'Director',
-        perforador: 'World Engine',
-        forja: 'Forge',
-        laboratorio: 'Laboratory',
-        tribunal: 'Tribunal',
-        guardian: 'Guardian',
-        imprenta: 'Press',
-        cronograma: 'Timeline'
-    };
 
     // Función auxiliar para elegir el icono correcto según la ID de la Gem
     const getIcon = (id: string) => {
@@ -41,6 +33,11 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
             case 'imprenta': return <Printer size={20} />;
             default: return <Globe2 size={20} />;
         }
+    };
+
+    // Helper to get translated name safely
+    const getTranslatedName = (id: GemId) => {
+        return tTools[id] || GEMS[id].name;
     };
 
     return (
@@ -66,6 +63,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
             <div className="flex flex-col gap-4 w-full px-2">
                 {DOCK_GEMS.map((gemId) => {
                     const isActive = activeGemId === gemId;
+                    const translatedName = getTranslatedName(gemId);
                     return (
                         <button
                             key={gemId}
@@ -78,8 +76,8 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                                     : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}
                                 active:scale-95
                             `}
-                            title={GEMS[gemId].name}
-                            aria-label={GEM_LABELS[gemId] || GEMS[gemId].name}
+                            title={translatedName}
+                            aria-label={translatedName}
                         >
                             <div className="relative z-10">
                                 {getIcon(gemId)}
