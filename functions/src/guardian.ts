@@ -608,7 +608,6 @@ export const auditContent = onCall(
 export const purgeEcho = onCall(
     {
         region: FUNCTIONS_REGION,
-        // TODO: Refactor hardcoded CORS origins to environment variables for better portability.
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
     },
