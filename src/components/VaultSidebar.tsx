@@ -16,6 +16,7 @@ import DeleteConfirmationModal from './ui/DeleteConfirmationModal'; // 🟢 NEW
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
+import { getLocalizedFolderName } from '../utils/folderLocalization';
 
 interface VaultSidebarProps {
     folderId: string;
@@ -348,7 +349,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <option value="" className="bg-titanium-950 text-titanium-100">{t.globalView}</option>
                         {topLevelFolders.map(folder => (
                             <option key={folder.id} value={folder.id} className="bg-titanium-950 text-titanium-100">
-                                {folder.name}
+                                {getLocalizedFolderName(folder.name, currentLanguage)}
                             </option>
                         ))}
                     </select>

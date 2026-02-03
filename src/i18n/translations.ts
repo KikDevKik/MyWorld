@@ -22,6 +22,24 @@ export const TRANSLATIONS: Record<Language, any> = {
             newFile: "Nuevo Archivo",
             index: "Indexar Memoria"
         },
+        folderNames: {
+            universe: "UNIVERSO",
+            characters: "PERSONAJES",
+            bestiary: "BESTIARIO",
+            manuscript: "MANUSCRITO",
+            extras: "EXTRAS",
+            resources: "RECURSOS"
+        },
+        editor: {
+            emptyTitle: "Espacio de Trabajo Vacío",
+            emptyDesc: "No veo que hayas seleccionado un archivo. ¿Te gustaría comenzar a escribir algo nuevo?",
+            createNew: "Crear Nuevo Archivo",
+            spark: "¿Tienes una Chispa?",
+            noProjectTitle: "Proyecto Vacío",
+            noProjectDesc: "Tu universo aún no existe. Crea una estructura estándar o conecta una carpeta existente.",
+            createProject: "Crear Estructura Estándar",
+            connectDrive: "Conectar Carpeta Drive"
+        },
         status: {
             connected: "Conexión Estable",
             refreshing: "Refrescando...",
@@ -45,7 +63,15 @@ export const TRANSLATIONS: Record<Language, any> = {
             save: "Guardar Cambios",
             saving: "Guardando...",
             savedSuccess: "Configuración guardada correctamente",
-            folderConfigMoved: "La configuración de carpetas se ha movido a la sección 'Proyecto'."
+            folderConfigMoved: "La configuración de carpetas se ha movido a la sección 'Proyecto'.",
+            nukeZone: "ZONA DE PELIGRO",
+            nukeTitle: "Destruir Obra Completa",
+            nukeDesc: "Borra TODOS los archivos del proyecto, incluyendo Google Drive y la Memoria de la IA.",
+            nukeButton: "Borrar Todo",
+            nukeModalTitle: "¿ESTÁS ABSOLUTAMENTE SEGURO?",
+            nukeWarning: "Esta acción es IRREVERSIBLE. Se eliminarán todas las carpetas, archivos y memorias asociadas a este proyecto. No podrás deshacer esto.",
+            nukeConfirmInput: "Escribe 'Borrar' para confirmar",
+            nukeSuccess: "El universo ha sido destruido."
         },
         tools: {
             director: "Director",
@@ -79,6 +105,24 @@ export const TRANSLATIONS: Record<Language, any> = {
             newFile: "New File",
             index: "Index Memory"
         },
+        folderNames: {
+            universe: "UNIVERSE",
+            characters: "CHARACTERS",
+            bestiary: "BESTIARY",
+            manuscript: "MANUSCRIPT",
+            extras: "EXTRAS",
+            resources: "RESOURCES"
+        },
+        editor: {
+            emptyTitle: "Empty Workspace",
+            emptyDesc: "I don't see any file selected. Would you like to start writing something new?",
+            createNew: "Create New File",
+            spark: "Got a Spark?",
+            noProjectTitle: "Empty Project",
+            noProjectDesc: "Your universe doesn't exist yet. Create a standard structure or connect an existing folder.",
+            createProject: "Create Standard Structure",
+            connectDrive: "Connect Drive Folder"
+        },
         status: {
             connected: "Connected",
             refreshing: "Refreshing...",
@@ -102,7 +146,15 @@ export const TRANSLATIONS: Record<Language, any> = {
             save: "Save Changes",
             saving: "Saving...",
             savedSuccess: "Settings saved successfully",
-            folderConfigMoved: "Folder configuration has been moved to the 'Project' section."
+            folderConfigMoved: "Folder configuration has been moved to the 'Project' section.",
+            nukeZone: "DANGER ZONE",
+            nukeTitle: "Destroy Entire Work",
+            nukeDesc: "Deletes ALL project files, including Google Drive and AI Memory.",
+            nukeButton: "Delete All",
+            nukeModalTitle: "ARE YOU ABSOLUTELY SURE?",
+            nukeWarning: "This action is IRREVERSIBLE. All folders, files, and memories associated with this project will be deleted. You cannot undo this.",
+            nukeConfirmInput: "Type 'Delete' to confirm",
+            nukeSuccess: "The universe has been destroyed."
         },
         tools: {
             director: "Director",

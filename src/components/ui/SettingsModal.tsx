@@ -19,7 +19,7 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
-    const { config, updateConfig, customGeminiKey, setCustomGeminiKey } = useProjectConfig(); // 🟢 Use Context
+    const { config, updateConfig, customGeminiKey, setCustomGeminiKey, fileTree } = useProjectConfig(); // 🟢 Use Context
     const { currentLanguage, setLanguage } = useLanguageStore(); // 🟢 LANGUAGE STORE
     const t = TRANSLATIONS[currentLanguage].settings; // 🟢 LOCALIZED TEXTS
 
@@ -81,6 +81,48 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         } catch (error) {
             console.error('Error saving profile:', error);
             toast.error('Error al guardar la configuración');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // 🟢 NUKE LOGIC
+    const handleNukeProject = async () => {
+        if (!fileTree || fileTree.length === 0) {
+            toast.error("El proyecto ya está vacío.");
+            return;
+        }
+
+        // 1. First Confirmation
+        if (!window.confirm(t.nukeWarning)) return;
+
+        // 2. Second Confirmation (Typed)
+        const keyword = currentLanguage === 'es' ? 'Borrar' : 'Delete';
+        const input = window.prompt(`${t.nukeModalTitle}\n\n${t.nukeConfirmInput}`);
+
+        if (input !== keyword) {
+            toast.error("Confirmación incorrecta.");
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            // Extract top-level IDs
+            const fileIds = fileTree.map(node => node.id);
+
+            // 🟢 Trash items
+            await callFunction('trashDriveItems', {
+                accessToken: accessToken,
+                fileIds: fileIds
+            });
+
+            toast.success(t.nukeSuccess);
+
+            // 🟢 Force Reload to Reset State
+            setTimeout(() => window.location.reload(), 1500);
+
+        } catch (error: any) {
+            toast.error("Error: " + error.message);
         } finally {
             setIsLoading(false);
         }
@@ -454,6 +496,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             <p className="text-sm text-titanium-400 italic">
                                 {t.folderConfigMoved}
                             </p>
+
+                            {/* 🟢 NUKE ZONE */}
+                            <div className="mt-4 p-4 bg-red-950/20 border border-red-900/30 rounded-xl space-y-3">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle size={18} className="text-red-500" />
+                                    <h4 className="text-sm font-bold text-red-500 uppercase tracking-wider">{t.nukeZone}</h4>
+                                </div>
+                                <p className="text-xs text-titanium-400">
+                                    {t.nukeDesc}
+                                </p>
+                                <button
+                                    onClick={handleNukeProject}
+                                    className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={16} />
+                                    {t.nukeButton}
+                                </button>
+                            </div>
                         </div>
                     )}
 
