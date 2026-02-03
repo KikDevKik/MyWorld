@@ -380,3 +380,70 @@ export const scribePatchFile = onCall(
         }
     }
 );
+
+/**
+ * THE GUIDE (El Guionista)
+ * Transforms narrative text into a structured writing prompt/guide for the user.
+ */
+export const transformToGuide = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        memory: "1GiB",
+        timeoutSeconds: 60,
+        secrets: [googleApiKey],
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+
+        const { text, perspective } = request.data;
+
+        if (!text) {
+            throw new HttpsError("invalid-argument", "Missing text to transform.");
+        }
+
+        try {
+            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const model = genAI.getGenerativeModel({
+                model: MODEL_LOW_COST,
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+                generationConfig: { temperature: 0.7 }
+            });
+
+            const prompt = `
+            ACT AS: Expert Writing Coach & Outliner.
+            TASK: Transform the following NARRATIVE SCENE into a set of INSTRUCTIONS (Beats/Guide) for the author to write it themselves.
+
+            OBJECTIVE:
+            - The author does NOT want the AI to write the scene.
+            - The author wants a STEP-BY-STEP GUIDE on what to write.
+            - Summarize the key actions, dialogue ideas, and emotional beats from the text.
+            - Format each point as a directive (e.g., "(Here describe X...)", "(Make the character feel Y...)").
+
+            PERSPECTIVE CONTEXT: ${perspective || 'Unknown'}
+
+            INPUT NARRATIVE:
+            "${text}"
+
+            OUTPUT FORMAT:
+            - A list of short, parenthetical instructions.
+            - Example:
+              (Describe the cold wind hitting their face.)
+              (Have them notice the strange mark on the door.)
+              (Dialogue: They argue about the map.)
+
+            STRICT OUTPUT: Return ONLY the list of instructions. No intro/outro.
+            `;
+
+            const result = await model.generateContent(prompt);
+            let guideText = result.response.text().trim();
+
+            return { success: true, text: guideText };
+
+        } catch (error: any) {
+            logger.error("🔥 Error del Guionista (Transform):", error);
+            throw new HttpsError("internal", error.message || "Fallo al transformar texto en guía.");
+        }
+    }
+);

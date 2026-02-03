@@ -1,9 +1,10 @@
-import React from 'react';
-import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle, FilePlus } from 'lucide-react';
+import React, { useState } from 'react';
+import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle, FilePlus, Wand2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AnalysisCard } from './AnalysisCard';
 import { VerdictCard } from './VerdictCard';
+import { callFunction } from '../../../services/api';
 
 export interface ChatMessageData {
     id: string;
@@ -44,6 +45,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     rescuingIds,
     purgingIds
 }) => {
+    // 🟢 State for transformation
+    const [isTransforming, setIsTransforming] = useState(false);
 
     // 1. INSPECTOR CARD
     if (message.type === 'analysis_card' && message.inspectorData) {
@@ -207,14 +210,27 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
 
                 {/* 🟢 INSERT BUTTON (Only for Assistant) */}
                 {message.role === 'assistant' && onInsert && message.id !== 'intro' && (
-                    <div className="mt-3 pt-2 border-t border-titanium-800/50 flex justify-end">
+                    <div className="mt-3 pt-2 border-t border-titanium-800/50 flex justify-end gap-2">
                         <button
-                            onClick={() => onInsert(message.text)}
+                            onClick={() => {
+                                setIsTransforming(true);
+                                callFunction<{text: string}>('transformToGuide', {
+                                    text: message.text
+                                }).then((res) => {
+                                    if (onInsert) onInsert(res.text);
+                                }).catch((err) => {
+                                    console.error("Transform failed", err);
+                                    if (onInsert) onInsert(message.text); // Fallback to raw text
+                                }).finally(() => {
+                                    setIsTransforming(false);
+                                });
+                            }}
+                            disabled={isTransforming}
                             className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:text-emerald-300 bg-emerald-900/10 hover:bg-emerald-900/30 px-2 py-1.5 rounded transition-all uppercase tracking-wider"
-                            title="Insertar en el editor activo"
+                            title="Transformar en Guía e Insertar (Magia)"
                         >
-                            <FilePlus size={12} />
-                            <span>Insertar</span>
+                            {isTransforming ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                            <span>{isTransforming ? 'Transformando...' : 'Insertar (Guía)'}</span>
                         </button>
                     </div>
                 )}
