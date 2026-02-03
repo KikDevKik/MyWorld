@@ -7,7 +7,8 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
-import { EntityTier, EntityCategory, ForgePayload, SoulEntity } from "./types/forge";
+import { EntityTier, EntityCategory, ForgePayload, SoulEntity, DetectedEntity } from "./types/forge";
+import { enrichEntitiesParallel } from "./services/enrichment";
 
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
@@ -73,21 +74,6 @@ const MAX_BATCH_CHARS = 100000; // 100k chars per AI call
 interface SorterRequest {
     projectId: string;
     sagaId?: string; // Optional Scope (Used for Output Tagging)
-}
-
-interface DetectedEntity {
-    name: string;
-    tier: EntityTier;
-    category?: EntityCategory; // 🟢 NEW
-    confidence: number;
-    reasoning?: string;
-    sourceFileId?: string;
-    sourceFileName?: string;
-    saga?: string;
-    foundIn?: string[]; // Snippets or File Names
-    rawContent?: string; // For Limbos: First few lines or raw content for AI
-    role?: string;
-    avatar?: string;
 }
 
 /**
@@ -483,103 +469,22 @@ export const classifyEntities = onCall(
 
             // --- 4. ENRICHMENT PHASE (The Transformer) ---
             // Prepare the Embeddings Model (Native SDK)
-            const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+            // const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" }); // Moved to Service
 
             // Iterate and Enrich
             // We convert Map to Array for processing
             const entityList = Array.from(entitiesMap.values());
-            const enrichedEntities: SoulEntity[] = [];
 
-            for (const entity of entityList) {
-                const entityHash = entity.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
-
-                let sourceSnippet = (entity.foundIn && entity.foundIn.length > 0) ? entity.foundIn[0] : "Entidad detectada.";
-                let role = entity.role;
-                let avatar = entity.avatar;
-
-                // A. ENRICH GHOSTS (Vector Search)
-                if (entity.tier === 'GHOST') {
-                    try {
-                        const embeddingResult = await embeddingModel.embedContent({
-                            content: { role: 'user', parts: [{ text: `Contexto y rol de ${entity.name}` }] },
-                            taskType: TaskType.RETRIEVAL_QUERY
-                        });
-                        const queryVector = embeddingResult.embedding.values;
-
-                        const chunksColl = db.collectionGroup("chunks");
-
-                        // Vector Search
-                        const vectorQuery = chunksColl.where("userId", "==", uid).findNearest({
-                            queryVector: queryVector,
-                            limit: 1,
-                            distanceMeasure: 'COSINE',
-                            vectorField: 'embedding'
-                        });
-
-                        const vectorSnap = await vectorQuery.get();
-                        if (!vectorSnap.empty) {
-                            const chunkData = vectorSnap.docs[0].data();
-                            // Use snippet from chunk
-                            const text = chunkData.text || "";
-                            // Find name in text to crop around it
-                            const idx = text.toLowerCase().indexOf(entity.name.toLowerCase());
-                            if (idx !== -1) {
-                                const start = Math.max(0, idx - 50);
-                                const end = Math.min(text.length, idx + 150);
-                                sourceSnippet = "..." + text.substring(start, end).replace(/\n/g, ' ') + "...";
-                            } else {
-                                sourceSnippet = text.substring(0, 150) + "...";
-                            }
-                        }
-                    } catch (e) {
-                        logger.warn(`Failed to enrich Ghost ${entity.name}:`, e);
-                        // Keep default foundIn snippet
-                    }
-                }
-
-                // B. ENRICH LIMBOS (Light AI)
-                if (entity.tier === 'LIMBO' && entity.rawContent) {
-                    try {
-                        const limboModel = genAI.getGenerativeModel({
-                            model: MODEL_LOW_COST,
-                            safetySettings: SAFETY_SETTINGS_PERMISSIVE
-                        });
-                        const limboPrompt = `
-                            Analyze this character note.
-                            1. DETECT LANGUAGE of the content (e.g. Spanish, English).
-                            2. Extract:
-                               - A brief preview (max 100 chars) in the SAME LANGUAGE.
-                               - Detected Traits (max 3 adjectives) in the SAME LANGUAGE.
-
-                            Content: "${entity.rawContent.substring(0, 500)}"
-
-                            JSON Output: { "preview": "...", "traits": ["A", "B"] }
-                        `;
-
-                        const res = await limboModel.generateContent(limboPrompt);
-                        const data = parseSecureJSON(res.response.text(), "LimboEnrichment");
-
-                        if (data.preview) sourceSnippet = data.preview;
-                        if (data.traits && Array.isArray(data.traits)) {
-                             role = `Rasgos: ${data.traits.join(', ')}`;
-                        }
-                    } catch (e) {
-                        logger.warn(`Failed to enrich Limbo ${entity.name}:`, e);
-                    }
-                }
-
-                enrichedEntities.push({
-                    id: entityHash,
-                    name: entity.name,
-                    tier: entity.tier,
-                    category: entity.category || 'PERSON',
-                    sourceSnippet: sourceSnippet,
-                    occurrences: (entity.foundIn?.length || 1) * (entity.tier === 'ANCHOR' ? 10 : 1), // Anchors weigh more
-                    driveId: entity.sourceFileId,
-                    role: role,
-                    avatar: avatar
-                });
-            }
+            // 🚀 PARALLEL OPTIMIZATION (with Retry & Concurrency Limit)
+            // Reuse existing Client instance
+            const enrichedEntities = await enrichEntitiesParallel(
+                entityList,
+                uid,
+                genAI,
+                db,
+                sagaId,
+                5 // Concurrency Limit
+            );
 
             // --- 5. PERSISTENCE (WRITE TO FIRESTORE CACHE) ---
             const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
