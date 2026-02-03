@@ -1963,6 +1963,38 @@ RULES: ${profile.rules || 'Not specified'}
       logger.info(`🎨 Profile injected for user ${userId}`);
     }
 
+    // 🟢 0.4. PERSPECTIVE DETECTION (Auto-Align)
+    let perspectiveContext = "";
+    if (activeFileContent) {
+        const sample = activeFileContent.substring(0, 3000).toLowerCase();
+        // Simple heuristic: Count pronouns (English & Spanish)
+        // English: I, me, my, mine, myself
+        // Spanish: yo, mi, mis, me, conmigo
+        const firstPersonMatches = (sample.match(/\b(i|me|my|mine|myself|yo|mi|mis|conmigo)\b/g) || []).length;
+
+        // English: he, him, his, she, her, hers, it, they, them, their
+        // Spanish: él, ella, su, sus, le, les, ellos, ellas
+        // Note: We avoid 'el' (the) and strictly use 'él' (he).
+        const thirdPersonMatches = (sample.match(/\b(he|him|his|she|her|hers|it|they|them|their|él|ella|su|sus|le|les|ellos|ellas)\b/g) || []).length;
+
+        let detectedPerspective = "Neutral/Unknown";
+        if (firstPersonMatches > thirdPersonMatches && firstPersonMatches > 3) {
+            detectedPerspective = "FIRST PERSON (I/Me/Yo)";
+        } else if (thirdPersonMatches > firstPersonMatches && thirdPersonMatches > 3) {
+             detectedPerspective = "THIRD PERSON (He/She/El/Ella)";
+        }
+
+        if (detectedPerspective !== "Neutral/Unknown") {
+            perspectiveContext = `
+[PERSPECTIVE PROTOCOL - CRITICAL]:
+The user is writing in ${detectedPerspective}.
+You MUST write all narrative examples, suggestions, and rewritten scenes in ${detectedPerspective}.
+DO NOT switch perspective. If the user writes "I walked", do not reply with "He walked".
+`;
+            logger.info(`👁️ Perspective Detected: ${detectedPerspective} (1st: ${firstPersonMatches}, 3rd: ${thirdPersonMatches})`);
+        }
+    }
+
     try {
       // 🟢 0. DEEP TRACE: CONNECTIVITY CHECK
       try {
@@ -2359,6 +2391,7 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
 
       const promptFinal = `
         ${profileContext}
+        ${perspectiveContext}
         ${finalSystemInstruction}
 
         ${coAuthorInstruction}
@@ -5028,7 +5061,7 @@ export { classifyEntities } from "./soul_sorter";
  */
 export { purgeForgeEntities } from "./janitor";
 export { crystallizeForgeEntity } from "./crystallization";
-export { scribeCreateFile, integrateNarrative } from "./scribe";
+export { scribeCreateFile, integrateNarrative, transformToGuide } from "./scribe";
 
 /**
  * 35. LABORATORY - RESOURCE CLASSIFIER
