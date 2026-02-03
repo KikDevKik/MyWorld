@@ -31,7 +31,7 @@ import { _getDriveFileContentInternal, streamToString } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { maskLog } from "./utils/logger";
 import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
-import { getAIKey } from "./utils/security";
+import { getAIKey, handleSecureError } from "./utils/security";
 import { extractUrls, fetchWebPageContent } from "./utils/scraper";
 
 const htmlToPdfmake = require('html-to-pdfmake');
@@ -911,8 +911,7 @@ export const syncWorldManifest = onCall(
         return { success: true, filesProcessed: processedCount, nodesUpserted: nodesUpserted };
 
     } catch (error: any) {
-        logger.error("Error en syncWorldManifest:", error);
-        throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "syncWorldManifest");
     }
   }
 );
@@ -1060,8 +1059,7 @@ export const getDriveFiles = onCall(
 
       return fileTree;
     } catch (error: any) {
-      logger.error("Error en getDriveFiles:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "getDriveFiles");
     }
   }
 );
@@ -1277,8 +1275,7 @@ export const enrichCharacterContext = onCall(
       };
 
     } catch (error: any) {
-      logger.error("Error en enrichCharacterContext:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "enrichCharacterContext");
     }
   }
 );
@@ -1383,8 +1380,7 @@ export const crystallizeNode = onCall(
       };
 
     } catch (error: any) {
-      logger.error("Error en crystallizeNode:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "crystallizeNode");
     }
   }
 );
@@ -1476,8 +1472,7 @@ export const getProjectConfig = onCall(
       return config;
 
     } catch (error: any) {
-      logger.error(`💥 Error al recuperar config para ${userId}:`, error);
-      throw new HttpsError("internal", `Error al recuperar config: ${error.message}`);
+      throw handleSecureError(error, "getProjectConfig");
     }
   }
 );
@@ -1522,8 +1517,7 @@ export const saveProjectConfig = onCall(
       return { success: true };
 
     } catch (error: any) {
-      logger.error(`💥 Error al guardar config para ${userId}:`, error);
-      throw new HttpsError("internal", `Error al guardar config: ${error.message}`);
+      throw handleSecureError(error, "saveProjectConfig");
     }
   }
 );
@@ -1596,8 +1590,7 @@ export const checkIndexStatus = onCall(
 
       return { isIndexed, lastIndexedAt };
     } catch (error: any) {
-      logger.error("Error checking index status:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "checkIndexStatus");
     }
   }
 );
@@ -1903,8 +1896,7 @@ export const indexTDB = onCall(
       };
 
     } catch (error: any) {
-      logger.error("Error crítico en Indexador:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "indexTDB");
     }
   }
 );
@@ -2761,8 +2753,7 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
       return parsedResult;
 
     } catch (error: any) {
-      logger.error("💥 TITAN LINK FAILED:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "worldEngine");
     }
   }
 );
@@ -2849,8 +2840,7 @@ export const saveDriveFile = onCall(
       };
 
     } catch (error: any) {
-      logger.error(`💥 Error al guardar archivo ${fileId}:`, error);
-      throw new HttpsError("internal", `Error al guardar: ${error.message}`);
+      throw handleSecureError(error, "saveDriveFile");
     }
   }
 );
@@ -2897,8 +2887,7 @@ export const saveUserProfile = onCall(
       return { success: true };
 
     } catch (error: any) {
-      logger.error(`💥 Error al guardar perfil para ${userId}:`, error);
-      throw new HttpsError("internal", `Error al guardar perfil: ${error.message}`);
+      throw handleSecureError(error, "saveUserProfile");
     }
   }
 );
@@ -2934,8 +2923,7 @@ export const getUserProfile = onCall(
       return doc.data();
 
     } catch (error: any) {
-      logger.error(`💥 Error al recuperar perfil para ${userId}:`, error);
-      throw new HttpsError("internal", `Error al recuperar perfil: ${error.message}`);
+      throw handleSecureError(error, "getUserProfile");
     }
   }
 );
@@ -2984,8 +2972,7 @@ export const createForgeSession = onCall(
       return { id: sessionId, sessionId, name, type: sessionType, createdAt: now, updatedAt: now };
 
     } catch (error: any) {
-      logger.error("Error creando sesión de forja:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "createForgeSession");
     }
   }
 );
@@ -3030,8 +3017,7 @@ export const getForgeSessions = onCall(
       return sessions;
 
     } catch (error: any) {
-      logger.error("Error obteniendo sesiones de forja:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "getForgeSessions");
     }
   }
 );
@@ -3068,8 +3054,7 @@ export const deleteForgeSession = onCall(
       return { success: true };
 
     } catch (error: any) {
-      logger.error("Error eliminando sesión de forja:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "deleteForgeSession");
     }
   }
 );
@@ -3213,8 +3198,7 @@ export const addForgeMessage = onCall(
       return { success: true, id: msgRef.id };
 
     } catch (error: any) {
-      logger.error("Error guardando mensaje de forja:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "addForgeMessage");
     }
   }
 );
@@ -3258,8 +3242,7 @@ export const getForgeHistory = onCall(
       return messages;
 
     } catch (error: any) {
-      logger.error("Error recuperando historial de forja:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "getForgeHistory");
     }
   }
 );
@@ -3411,8 +3394,7 @@ export const forgeToDrive = onCall(
       return { success: true, fileName: file.data.name, fileId: file.data.id };
 
     } catch (error: any) {
-      logger.error("Error en Forge to Drive:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "forgeToDrive");
     }
   }
 );
@@ -3556,15 +3538,13 @@ export const summonTheTribunal = onCall(
       return tribunalVerdict;
 
     } catch (error: any) {
-      logger.error("Error en summonTheTribunal:", error);
-
       // 🛡️ AUTH ERROR TRAP: Detect invalid custom key
       if (_authOverride && (error.message?.includes('400') || error.message?.includes('API key') || error.status === 400)) {
           logger.warn(`⚠️ Custom API Key rejected for user ${userId}`);
           throw new HttpsError("invalid-argument", "INVALID_CUSTOM_KEY");
       }
 
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "summonTheTribunal");
     }
   }
 );
@@ -3762,8 +3742,7 @@ export const extractTimelineEvents = onCall(
       return { success: true, count, events };
 
     } catch (error: any) {
-      logger.error("Error en extractTimelineEvents:", error);
-      throw new HttpsError("internal", "Error analizando cronología: " + error.message);
+      throw handleSecureError(error, "extractTimelineEvents");
     }
   }
 );
@@ -4070,8 +4049,7 @@ export const compileManuscript = onCall(
       };
 
     } catch (error: any) {
-      logger.error("Error compilando manuscrito:", error);
-      throw new HttpsError("internal", "Error generando PDF: " + error.message);
+      throw handleSecureError(error, "compileManuscript");
     }
   }
 );
@@ -4137,8 +4115,7 @@ export const debugGetIndexStats = onCall(
       };
 
     } catch (error: any) {
-      logger.error("Error obteniendo stats del index:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "debugGetIndexStats");
     }
   }
 );
@@ -4404,8 +4381,7 @@ export const syncCharacterManifest = onCall(
         return { success: true, count: processedCount };
 
     } catch (error: any) {
-        logger.error("Error en syncCharacterManifest:", error);
-        throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "syncCharacterManifest");
     }
   }
 );
@@ -4492,8 +4468,7 @@ export const forgeToolExecution = onCall(
       };
 
     } catch (error: any) {
-      logger.error("Error en forgeToolExecution:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "forgeToolExecution");
     }
   }
 );
@@ -4720,8 +4695,7 @@ export const forgeAnalyzer = onCall(
       return parsed;
 
     } catch (error: any) {
-      logger.error("Error en forgeAnalyzer:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "forgeAnalyzer");
     }
   }
 );
@@ -4766,8 +4740,7 @@ export const clearSessionMessages = onCall(
       return { success: true };
 
     } catch (error: any) {
-      logger.error("Error purgando sesión:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "clearSessionMessages");
     }
   }
 );
@@ -4895,8 +4868,7 @@ export const updateForgeCharacter = onCall(
         return { success: true };
 
     } catch (error: any) {
-        logger.error("Error in updateForgeCharacter:", error);
-        throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "updateForgeCharacter");
     }
   }
 );
@@ -4992,8 +4964,7 @@ export const restoreTimelineFromMaster = onCall(
       return { success: true, count };
 
     } catch (error: any) {
-      logger.error("Error in restoreTimelineFromMaster:", error);
-      throw new HttpsError("internal", error.message);
+      throw handleSecureError(error, "restoreTimelineFromMaster");
     }
   }
 );
