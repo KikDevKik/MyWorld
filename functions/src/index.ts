@@ -811,98 +811,123 @@ export const syncWorldManifest = onCall(
                 }
             }));
 
-            // PHASE 2: SEQUENTIAL UPSERT (DB)
-            // Critical to avoid "Last Write Wins" race conditions if same entity appears in multiple files in batch
+            // PHASE 2: BATCH UPSERT (DB) - OPTIMIZED
             const entitiesRef = db.collection("users").doc(userId).collection("projects").doc(projectId).collection("entities");
 
+            const uniqueNodeIds = new Set<string>();
+            const operations: Array<{ nodeId: string, rawName: string, finalType: string, file: DriveFile, entity: any }> = [];
+
+            // 1. Prepare Operations
             for (const res of batchResults) {
                 const { file, entities } = res;
-                // Note: We use a batch write per file or small groups, but we must await the READ before WRITE for each entity
-                // Since firestore batch doesn't support "update based on read" atomically without transaction,
-                // and transactions limit 500 ops... iterating sequentially with individual transactions or simple atomic merges is safest.
-                // Given "Upsert" logic requires reading `foundInFiles`, we must read first.
-
-                // Optimization: Group by Entity ID within this file result?
-                // Actually, just process sequentially. Speed < Integrity here.
-
                 for (const entity of entities) {
-                    if (!entity.name || !entity.type) continue;
+                     if (!entity.name || !entity.type) continue;
+                     const rawName = entity.name.trim();
+                     const rawType = entity.type.toLowerCase().trim();
+                     const validTypes = ['character', 'location', 'object', 'event', 'faction', 'concept'];
+                     const finalType = validTypes.includes(rawType) ? rawType : 'concept';
+                     const nodeId = generateDeterministicId(projectId, rawName, finalType);
 
-                    const rawName = entity.name.trim();
-                    const rawType = entity.type.toLowerCase().trim();
-                    const validTypes = ['character', 'location', 'object', 'event', 'faction', 'concept'];
-                    const finalType = validTypes.includes(rawType) ? rawType : 'concept';
+                     uniqueNodeIds.add(nodeId);
+                     operations.push({ nodeId, rawName, finalType, file, entity });
+                }
+            }
 
-                    const nodeId = generateDeterministicId(projectId, rawName, finalType);
-                    const nodeRef = entitiesRef.doc(nodeId);
+            if (uniqueNodeIds.size > 0) {
+                // 2. Fetch Existing State (Batch Read)
+                const refs = Array.from(uniqueNodeIds).map(id => entitiesRef.doc(id));
+                const snapshots = await db.getAll(...refs);
+                const docsMap = new Map<string, FirebaseFirestore.DocumentData>();
 
-                    try {
-                        await db.runTransaction(async (transaction) => {
-                            const docSnap = await transaction.get(nodeRef);
-                            const existingData = docSnap.exists ? docSnap.data() as GraphNode : undefined;
-
-                            const fileEntry = {
-                                fileId: file.id,
-                                fileName: file.name,
-                                lastSeen: new Date().toISOString()
-                            };
-
-                            // MERGE LOGIC (Inside Transaction = Safe)
-                            let newFoundInFiles = [fileEntry];
-                            if (existingData?.foundInFiles) {
-                                const others = existingData.foundInFiles.filter(f => f.fileId !== file.id);
-                                newFoundInFiles = [...others, fileEntry];
-                            }
-
-                            let finalDescription = entity.description;
-                            if (existingData?.locked) {
-                                finalDescription = existingData.description;
-                            }
-
-                            const newAliases = Array.isArray(entity.aliases) ? entity.aliases : [];
-                            const existingAliases = existingData?.aliases || [];
-                            const mergedAliases = Array.from(new Set([...existingAliases, ...newAliases]));
-
-                            const payload: any = {
-                                id: nodeId,
-                                name: rawName,
-                                type: finalType,
-                                projectId: projectId,
-                                description: finalDescription,
-                                aliases: mergedAliases,
-                                foundInFiles: newFoundInFiles,
-                                lastUpdated: new Date().toISOString()
-                            };
-
-                            // MERGE RELATIONS (Robust)
-                            if (entity.relationships && Array.isArray(entity.relationships)) {
-                                const newRelations = entity.relationships.map((rel: any) => ({
-                                    targetId: generateDeterministicId(projectId, rel.target || "Unknown", rel.targetType || "concept"),
-                                    targetName: rel.target || "Unknown Entity",
-                                    targetType: rel.targetType || 'concept',
-                                    relation: rel.type || 'NEUTRAL',
-                                    context: rel.context || "No context provided.",
-                                    sourceFileId: file.id
-                                }));
-
-                                let finalRelations = newRelations;
-                                if (existingData?.relations) {
-                                    // Remove old relations from this file to prevent duplicates, keep others
-                                    const others = existingData.relations.filter((r: any) => r.sourceFileId !== file.id);
-                                    finalRelations = [...others, ...newRelations];
-                                }
-                                payload.relations = finalRelations;
-                            }
-
-                            if (existingData?.locked) payload.locked = true;
-                            if (!existingData?.meta) payload.meta = { tier: 'secondary' };
-
-                            transaction.set(nodeRef, payload, { merge: true });
-                        });
-                        nodesUpserted++;
-                    } catch (txError) {
-                        logger.error(`   💥 Transaction failed for node ${rawName}:`, txError);
+                snapshots.forEach(snap => {
+                    if (snap.exists) {
+                        docsMap.set(snap.id, snap.data()!);
                     }
+                });
+
+                // 3. Merge Logic In-Memory
+                const finalWrites = new Map<string, any>();
+
+                for (const op of operations) {
+                    const { nodeId, rawName, finalType, file, entity } = op;
+
+                    // Priority: Current Pending Write > DB Existing > Undefined
+                    const existingData = finalWrites.get(nodeId) || docsMap.get(nodeId);
+
+                    const fileEntry = {
+                        fileId: file.id,
+                        fileName: file.name,
+                        lastSeen: new Date().toISOString()
+                    };
+
+                    let newFoundInFiles = [fileEntry];
+                    if (existingData?.foundInFiles) {
+                        const others = existingData.foundInFiles.filter((f: any) => f.fileId !== file.id);
+                        newFoundInFiles = [...others, fileEntry];
+                    }
+
+                    let finalDescription = entity.description;
+                    if (existingData?.locked) {
+                        finalDescription = existingData.description;
+                    }
+
+                    const newAliases = Array.isArray(entity.aliases) ? entity.aliases : [];
+                    const existingAliases = existingData?.aliases || [];
+                    const mergedAliases = Array.from(new Set([...existingAliases, ...newAliases]));
+
+                    const payload: any = {
+                        id: nodeId,
+                        name: rawName,
+                        type: finalType,
+                        projectId: projectId,
+                        description: finalDescription,
+                        aliases: mergedAliases,
+                        foundInFiles: newFoundInFiles,
+                        lastUpdated: new Date().toISOString()
+                    };
+
+                    if (entity.relationships && Array.isArray(entity.relationships)) {
+                        const newRelations = entity.relationships.map((rel: any) => ({
+                            targetId: generateDeterministicId(projectId, rel.target || "Unknown", rel.targetType || "concept"),
+                            targetName: rel.target || "Unknown Entity",
+                            targetType: rel.targetType || 'concept',
+                            relation: rel.type || 'NEUTRAL',
+                            context: rel.context || "No context provided.",
+                            sourceFileId: file.id
+                        }));
+
+                        let finalRelations = newRelations;
+                        if (existingData?.relations) {
+                            const others = existingData.relations.filter((r: any) => r.sourceFileId !== file.id);
+                            finalRelations = [...others, ...newRelations];
+                        }
+                        payload.relations = finalRelations;
+                    }
+
+                    if (existingData?.locked) payload.locked = true;
+                    if (existingData?.meta) {
+                         payload.meta = existingData.meta;
+                    } else {
+                         if (!payload.meta) payload.meta = { tier: 'secondary' };
+                    }
+
+                    finalWrites.set(nodeId, payload);
+                }
+
+                // 4. Batch Commit (Chunked)
+                const writeOperations = Array.from(finalWrites.entries());
+                const CHUNK_SIZE = 450;
+
+                for (let k = 0; k < writeOperations.length; k += CHUNK_SIZE) {
+                    const chunk = writeOperations.slice(k, k + CHUNK_SIZE);
+                    const batch = db.batch();
+
+                    for (const [id, data] of chunk) {
+                        batch.set(entitiesRef.doc(id), data, { merge: true });
+                    }
+
+                    await batch.commit();
+                    nodesUpserted += chunk.length;
                 }
             }
         }
