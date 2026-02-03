@@ -1,0 +1,46 @@
+SUGERENCIAS A LOS PROBLEMAS ACTUALES - INFORME TÉCNICO
+
+1. Director de Escena: Duplicación de Mensajes
+   - PROBLEMA: Al enviar mensajes, se duplicaban en la interfaz.
+   - CAUSA: El evento `onKeyDown` (Enter) se propagaba al contenedor padre o se disparaba dos veces en ciertos navegadores/contextos de React. Además, la carga optimista (mostrar el mensaje antes de que el servidor responda) entraba en conflicto con la recarga del historial.
+   - SOLUCIÓN IMPLEMENTADA: Se añadió `e.stopPropagation()` al input del chat y se mejoró la lógica de deduplicación en el hook `useDirectorChat` para filtrar mensajes idénticos (mismo rol y contenido) al cargar el historial.
+   - SUGERENCIA ADICIONAL: Si persiste en móviles, verificar eventos `onTouchEnd`.
+
+2. Director de Escena: Falsas Inserciones
+   - PROBLEMA: La IA decía "he insertado el texto" pero no ocurría nada.
+   - CAUSA: Alucinación del modelo. La IA no tiene capacidad directa de escribir en el editor por seguridad; solo puede generar texto para que el usuario lo inserte.
+   - SOLUCIÓN IMPLEMENTADA: Se actualizó el "System Prompt" para prohibir explícitamente que la IA afirme haber modificado el archivo. Ahora debe presentar el texto y pedir al usuario que use el botón "Insertar".
+   - NOTA: El límite de tokens (8192) y tiempo (540s) ya eran suficientes para capítulos largos.
+
+3. Nexus: Ventana de Aprobación Atascada
+   - PROBLEMA: Al aprobar todo ("Approve All"), la ventana modal no se cerraba automáticamente.
+   - SOLUCIÓN IMPLEMENTADA: Se añadió un efecto (`useEffect`) que detecta cuando la lista de candidatos llega a 0 y cierra el modal automáticamente.
+
+4. The Builder: Markdown y Errores de Materialización
+   - PROBLEMA 1: No se renderizaban negritas (**texto**).
+   - SOLUCIÓN 1: Se implementó `ReactMarkdown` en el componente `TheBuilder.tsx` para renderizar correctamente el formato.
+   - PROBLEMA 2: Error "Forge reported critical failure".
+   - SOLUCIÓN 2: Se mejoró el manejo de errores para mostrar el mensaje específico del servidor (backend) en lugar de un error genérico. También se añadió una validación para evitar enviar solicitudes si el proyecto no está identificado ("unknown_project"), lo que causaba duplicados.
+
+5. Forja de Almas: Ecos Incorrectos (Thomas vs Carla)
+   - PROBLEMA: La descripción de un eco (personaje detectado) incluía texto de otros personajes mencionados en el mismo párrafo.
+   - SOLUCIÓN IMPLEMENTADA: Se ajustó el prompt del `forgeAnalyzer` en el backend. Ahora se exige explícitamente que el fragmento de texto extraído sea *relevante* para el personaje detectado, ignorando menciones pasivas.
+
+6. Forja de Almas: Botón Cristalizar Superpuesto
+   - PROBLEMA: El botón "Cristalizar" chocaba con la "X" de cerrar en pantallas pequeñas o modales.
+   - SOLUCIÓN IMPLEMENTADA: Se añadió `padding-right` (espacio extra) al encabezado del chat (`ForgeChat.tsx`) para asegurar que los botones no se solapen.
+
+7. Laboratorio de Ideas: Mezcla de Información
+   - PROBLEMA: La clasificación de recursos era imprecisa.
+   - SOLUCIÓN IMPLEMENTADA: Se aumentó el tamaño del fragmento de texto analizado (de 500 a 2000 caracteres) y se instruyó a la IA para que genere un "razonamiento" antes de clasificar, lo que mejora drásticamente la precisión lógica (Chain of Thought).
+
+8. Certificado de Autoría: Porcentaje Humano Incorrecto
+   - PROBLEMA: El porcentaje decía "100% IA" incluso con intervención humana.
+   - CAUSA: Los contadores de caracteres humanos se enviaban periódicamente (cada 5s). Si el usuario cerraba el editor o cambiaba de pestaña rápido, los últimos cambios no se registraban.
+   - SOLUCIÓN IMPLEMENTADA: Se añadió un "flush" (envío forzado) de las estadísticas al desmontar el componente del editor (`HybridEditor.tsx`), asegurando que cada tecla pulsada se cuente antes de salir.
+
+---
+RECOMENDACIONES GENERALES:
+- Mantener la consola del navegador abierta (F12) para ver los logs de "THE SPY" y verificar que el conteo de caracteres humanos se está enviando correctamente.
+- Si se nota lentitud en el chat del Director, considerar reducir el historial enviado (actualmente se envían todos los mensajes previos como contexto).
+- Para el "Builder", asegurar siempre que el proyecto esté conectado a una carpeta de Drive válida antes de materializar.

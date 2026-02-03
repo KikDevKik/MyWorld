@@ -2349,6 +2349,11 @@ ${contextText || "No se encontraron datos relevantes en la memoria."}
       const coAuthorInstruction = `
 [INSTRUCCIÓN]:
 Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero basa tus sugerencias profundas en la Memoria a Largo Plazo. Si el usuario pregunta algo, verifica si ya existe en la Memoria antes de inventar.
+
+[RESTRICCIÓN TÉCNICA - IMPORTANTE]:
+NO PUEDES editar, insertar ni modificar el documento del usuario directamente. NO digas "He insertado el texto" o "Aquí tienes la escena actualizada en tu archivo".
+TU FUNCIÓN es generar el texto y presentárselo al usuario en el chat.
+SIEMPRE di: "Aquí tienes el borrador", "Te propongo esta versión", o "Copia y pega esto".
       `;
 
       const promptFinal = `
@@ -4647,7 +4652,11 @@ export const forgeAnalyzer = onCall(
         5. ANALYZE DATA GAPS:
            - For "DETECTED" characters:
              a) Summarize their Role/Traits.
-             b) **EXTRACT A RICH CONTEXT WINDOW**: Extract approximately 800-1000 characters of text surrounding their key appearance. This MUST include the paragraph immediately preceding the mention, the paragraph of the mention, and the paragraph immediately following it. Return this in the 'description' field.
+             b) **EXTRACT A RICH CONTEXT WINDOW**: Extract approximately 800-1000 characters of text surrounding their key appearance.
+             ***CRITICAL CONSTRAINT***: The snippet MUST be about THIS specific character.
+             - If the character 'Carla' is mentioned but the scene is about 'Thomas', DO NOT use that paragraph unless Carla takes an action.
+             - Find the scene where the character is MOST ACTIVE or Described.
+             - Return this in the 'description' field.
            - For "EXISTING" characters, flag if the text contradicts known traits (optional).
         6. GENERATE A STATUS REPORT:
            - A brief, professional summary addressed to the user with the appropriate rank title based on the language ('Commander' for English, 'Comandante' for Spanish).

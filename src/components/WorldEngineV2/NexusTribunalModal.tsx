@@ -92,6 +92,13 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
     // STATE: PROCESSING
     const [isProcessing, setIsProcessing] = useState(false);
 
+    // AUTO-CLOSE WHEN EMPTY
+    React.useEffect(() => {
+        if (isOpen && candidates.length === 0) {
+            onClose();
+        }
+    }, [candidates, isOpen, onClose]);
+
     // DERIVED: HIGH CONFIDENCE SETS
     const highConfidenceCreates = React.useMemo(() => {
         return candidates.filter(c => c.confidence >= 85 && c.suggestedAction !== 'MERGE' && c.ambiguityType !== 'CONFLICT' && c.ambiguityType !== 'DUPLICATE');

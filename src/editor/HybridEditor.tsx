@@ -120,15 +120,21 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
 
     // FLUSH TIMER (The Spy's Report)
     useEffect(() => {
-        const interval = setInterval(() => {
+        const flush = () => {
             if (folderId && user && (bufferRef.current.human > 0 || bufferRef.current.ai > 0)) {
                 if (import.meta.env.DEV) console.log("🕵️ [THE SPY] Flushing Report:", bufferRef.current);
 
                 CreativeAuditService.updateAuditStats(folderId, user.uid, bufferRef.current.human, bufferRef.current.ai);
                 bufferRef.current = { human: 0, ai: 0 }; // Reset
             }
-        }, 5000); // 5s flush
-        return () => clearInterval(interval);
+        };
+
+        const interval = setInterval(flush, 5000); // 5s flush
+
+        return () => {
+            clearInterval(interval);
+            flush(); // Flush on unmount
+        };
     }, [folderId, user]);
 
     // 1. INITIALIZE EDITOR

@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
 import { X, Send, Hammer, Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { toast } from 'sonner';
@@ -223,6 +225,11 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
             return;
         }
 
+        if (projectId === "unknown_project") {
+            toast.error("Error crítico: Proyecto no identificado. Recarga la página.");
+            return;
+        }
+
         // 🟢 AUTH CHECK BEFORE OPENING MODAL
         if (!accessToken && onRefreshTokens) {
             const toastId = toast.loading("Refrescando credenciales de seguridad...");
@@ -276,10 +283,10 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
             });
 
             // 🟢 HANDLE RESULTS & ERRORS
-            if (data.success) {
-                // PARTIAL SUCCESS IS STILL SUCCESS
-                const createdCount = data.created;
-                const failedCount = data.failed;
+            // If data.success is true, OR if we have created items despite errors (Partial Success)
+            if (data.success || (data.created > 0)) {
+                const createdCount = data.created || 0;
+                const failedCount = data.failed || 0;
 
                 if (createdCount > 0) {
                     toast.success(`✨ Reality Forged: ${createdCount} Entities Created.`);
@@ -300,11 +307,17 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 }
 
                 if (createdCount === 0 && failedCount > 0) {
-                     // Total failure despite success: true (batch processed but all items failed logic)
                      throw new Error("All entities failed to materialize. Check error messages.");
                 }
 
             } else {
+                // If explicit failure
+                if (data.errors && data.errors.length > 0) {
+                     data.errors.forEach((err: any) => {
+                         toast.error(`Error en '${err.name}': ${err.error}`, { duration: 5000 });
+                    });
+                    throw new Error(`Materialization Failed: ${data.errors[0].error}`);
+                }
                 throw new Error("Forge reported critical failure.");
             }
 
@@ -408,12 +421,14 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                         )}
 
                                         <div className={`
-                                            max-w-[80%] p-3 rounded-lg border whitespace-pre-wrap
+                                            max-w-[80%] p-3 rounded-lg border
                                             ${msg.role === 'user'
                                                 ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-100 rounded-br-none'
                                                 : 'bg-zinc-900/50 border-white/10 text-slate-300 rounded-bl-none'}
                                         `}>
-                                            {msg.content}
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none break-words">
+                                                {msg.content}
+                                            </ReactMarkdown>
                                         </div>
                                     </div>
                                 ))}

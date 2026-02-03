@@ -53,22 +53,23 @@ export const classifyResource = onCall(
 
             FILENAME: "${fileName}"
             TYPE: "${mimeType || 'Unknown'}"
-            CONTENT SNIPPET: "${snippet ? snippet.substring(0, 500) : 'No content preview'}"
+            CONTENT SNIPPET: "${snippet ? snippet.substring(0, 2000) : 'No content preview'}"
 
             CATEGORIES:
-            - 'LORE': World info, history, maps, geography, politics.
-            - 'CIENCIA': Physics, biology, technology, hard systems.
-            - 'INSPIRACIÓN': Moodboards, vibes, loose ideas, psychology.
+            - 'LORE': World info, history, maps, geography, politics, religion.
+            - 'CIENCIA': Physics, biology, technology, hard magic systems, rules.
+            - 'INSPIRACIÓN': Moodboards, vibes, loose ideas, psychology, drafts.
             - 'VISUAL': Images, diagrams, aesthetic references (if file is image).
             - 'AUDIO': Music, sound effects, voice notes.
             - 'OTROS': Admin, metadata, or unclassifiable.
 
             INSTRUCTIONS:
-            1. Analyze Filename and Snippet.
-            2. Return JSON with the best fitting tag.
+            1. Analyze Filename and Snippet deeply.
+            2. Distinguish between 'LORE' (Factual World) and 'INSPIRACIÓN' (Meta/Drafts).
+            3. Return JSON with the best fitting tag and short reasoning.
 
             OUTPUT JSON:
-            { "tag": "LORE" }
+            { "tag": "LORE", "reason": "Describes the political system of X." }
             `;
 
             const result = await model.generateContent(prompt);
