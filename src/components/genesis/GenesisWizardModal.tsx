@@ -129,11 +129,31 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
 
             if (data.response) {
                 let responseText = data.response;
+                let readyDetected = false;
 
-                // Check for Readiness Signal
+                // 1. Check for explicit tag
                 if (responseText.includes('[GENESIS_READY]')) {
-                    setIsReadyToMaterialize(true);
+                    readyDetected = true;
                     responseText = responseText.replace('[GENESIS_READY]', '').trim();
+                }
+
+                // 2. Check for semantic phrases (Backup mechanism)
+                // "The simulation is ready to begin", "La simulación está lista", etc.
+                const readyPatterns = [
+                    /simulation is ready/i,
+                    /ready to begin/i,
+                    /ready to materialize/i,
+                    /simulaci[óo]n est[áa] lista/i,
+                    /listo para comenzar/i,
+                    /listo para materializar/i
+                ];
+
+                if (!readyDetected && readyPatterns.some(pattern => pattern.test(responseText))) {
+                    readyDetected = true;
+                }
+
+                if (readyDetected) {
+                    setIsReadyToMaterialize(true);
                 }
 
                 setMessages(prev => [...prev, { role: 'model', message: responseText }]);
@@ -207,9 +227,9 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
     };
 
     // Show Materialize button if we have at least 3 turns (User + Model pairs)
-    // 3 user messages means we likely have Protagonist, Setting, Incident info.
+    // OR if the AI has explicitly signaled it is ready.
     const hasMinInteractions = messages.filter(m => m.role === 'user').length >= 3;
-    const showMaterialize = hasMinInteractions;
+    const showMaterialize = hasMinInteractions || isReadyToMaterialize;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-300">
