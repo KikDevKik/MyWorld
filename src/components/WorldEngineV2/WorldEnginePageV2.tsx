@@ -449,6 +449,7 @@ const WorldEnginePageV2: React.FC<{
         // 2. APPROVE: DB Operations
         if (action === 'APPROVE') {
             const collectionPath = `${projectRoot}/entities`;
+            console.log(`[Tribunal] Approving Candidate: ${candidate.name} (Action: ${candidate.suggestedAction})`);
 
             try {
                 // CASE A: MERGE
@@ -458,6 +459,8 @@ const WorldEnginePageV2: React.FC<{
                          toast.error("Error: No se identificó con quién fusionar.");
                          return;
                      }
+
+                     console.log(`[Tribunal] Attempting MERGE with target ID: ${candidate.mergeWithId}`);
 
                      // 🟢 FIX V3: SMART ID RESOLUTION (Fallback Protocol)
                      let realTargetId = candidate.mergeWithId;
@@ -475,6 +478,7 @@ const WorldEnginePageV2: React.FC<{
                              docSnap = await getDoc(targetRef);
                              console.info(`[Tribunal] Resolved "${candidate.mergeWithId}" to ID: ${realTargetId}`);
                          } else {
+                             console.error(`[Tribunal] Resolution failed for "${candidate.mergeWithId}".`);
                              toast.error(`Error Crítico: El nodo destino "${candidate.mergeWithId}" no existe ni se pudo resolver.`);
                              return;
                          }

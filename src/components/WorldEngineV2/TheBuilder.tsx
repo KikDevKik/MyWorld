@@ -312,6 +312,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
 
             const data = await callFunction<any>('crystallizeGraph', {
                 nodes: ghostNodes,
+                edges: ghostEdges, // 🟢 PASS EDGES
                 folderId: targetFolderId,
                 subfolderName,
                 accessToken: token,

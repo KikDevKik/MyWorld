@@ -254,6 +254,7 @@ export const analyzeNexusBatch = onCall(
             6. LEY DEL ENJAMBRE: Ignora grupos sin nombre.
             7. LEY DE BIOLOGÍA: CREATURE (Animal) vs RACE (Especie) vs FACTION (Política).
             8. LEY DE DETALLE: Subtype obligatorio de 1 palabra.
+            9. LEY DE DESCRIPCIÓN: Genera SIEMPRE una 'description' rica y detallada (2-3 oraciones) separada del 'reasoning'.
 
             *** SOURCE PROVENANCE DIRECTIVE ***
             - When merging or identifying an entity, you MUST preserve the source filenames from the input list.
@@ -272,8 +273,9 @@ export const analyzeNexusBatch = onCall(
             [
               {
                 "name": "Exact Name",
-                "type": "CHARACTER",
+                "type": "CHARACTER", // ENFORCE: CHARACTER, LOCATION, FACTION, OBJECT, EVENT, CONCEPT
                 "subtype": "Optional Subtype",
+                "description": "Rich description for the final node.",
                 "category": "ENTITY",
                 "ambiguityType": "NEW", // NEW, CONFLICT, ITEM_LORE, DUPLICATE
                 "suggestedAction": "CREATE", // CREATE, MERGE, CONVERT_TYPE, IGNORE
