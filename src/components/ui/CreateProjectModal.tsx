@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { X, Sparkles, Loader2 } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface CreateProjectModalProps {
     isOpen: boolean;
@@ -10,6 +12,10 @@ interface CreateProjectModalProps {
 const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose, onSubmit }) => {
     const [projectName, setProjectName] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+
+    // 🟢 LOCALIZATION
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].createProject;
 
     if (!isOpen) return null;
 
@@ -37,7 +43,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
                 <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-800/30">
                     <h2 className="text-lg font-bold text-titanium-100 flex items-center gap-2">
                         <Sparkles className="text-cyan-500" size={18} />
-                        Nuevo Universo
+                        {t.modalTitle}
                     </h2>
                     <button
                         onClick={onClose}
@@ -52,20 +58,20 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
                     <div className="space-y-2">
                         <label htmlFor="projectName" className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
-                            Nombre del Proyecto
+                            {t.projectName}
                         </label>
                         <input
                             id="projectName"
                             type="text"
                             value={projectName}
                             onChange={(e) => setProjectName(e.target.value)}
-                            placeholder="Ej. Crónicas de la Eternidad"
+                            placeholder={t.placeholder}
                             className="w-full px-4 py-3 bg-titanium-950 border border-titanium-700 rounded-lg text-titanium-100 placeholder-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition-all"
                             autoFocus
                             disabled={isLoading}
                         />
                         <p className="text-[11px] text-titanium-500 leading-relaxed">
-                            Crearemos automáticamente una estructura de carpetas optimizada (Canon, Personajes, Manuscrito) en tu Google Drive.
+                            {t.description}
                         </p>
                     </div>
 
@@ -76,7 +82,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
                             disabled={isLoading}
                             className="px-4 py-2 text-sm font-medium text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50 rounded-lg transition-colors"
                         >
-                            Cancelar
+                            {t.cancel}
                         </button>
                         <button
                             type="submit"
@@ -86,10 +92,10 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
                             {isLoading ? (
                                 <>
                                     <Loader2 size={16} className="animate-spin" />
-                                    Creando...
+                                    {t.creating}
                                 </>
                             ) : (
-                                "Crear Universo"
+                                t.create
                             )}
                         </button>
                     </div>

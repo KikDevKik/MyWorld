@@ -73,6 +73,15 @@ export const TRANSLATIONS: Record<Language, any> = {
             nukeConfirmInput: "Escribe 'Borrar' para confirmar",
             nukeSuccess: "El universo ha sido destruido."
         },
+        createProject: {
+            modalTitle: "Nuevo Universo",
+            projectName: "Nombre del Proyecto",
+            placeholder: "Ej. Crónicas de la Eternidad",
+            description: "Crearemos automáticamente una estructura de carpetas optimizada (Canon, Personajes, Manuscrito) en tu Google Drive.",
+            cancel: "Cancelar",
+            create: "Crear Universo",
+            creating: "Creando..."
+        },
         tools: {
             director: "Director",
             perforador: "Motor de Mundos",
@@ -156,6 +165,15 @@ export const TRANSLATIONS: Record<Language, any> = {
             nukeConfirmInput: "Type 'Delete' to confirm",
             nukeSuccess: "The universe has been destroyed."
         },
+        createProject: {
+            modalTitle: "New Universe",
+            projectName: "Project Name",
+            placeholder: "Ex. Chronicles of Eternity",
+            description: "We will automatically create an optimized folder structure (Canon, Characters, Manuscript) in your Google Drive.",
+            cancel: "Cancel",
+            create: "Create Universe",
+            creating: "Creating..."
+        },
         tools: {
             director: "Director",
             perforador: "World Engine",
@@ -212,6 +230,15 @@ export const TRANSLATIONS: Record<Language, any> = {
             saving: "保存中...",
             savedSuccess: "設定が保存されました",
             folderConfigMoved: "フォルダ設定は「プロジェクト」セクションに移動しました。"
+        },
+        createProject: {
+            modalTitle: "新しいユニバース",
+            projectName: "プロジェクト名",
+            placeholder: "例：永遠の年代記",
+            description: "Google Driveに最適化されたフォルダ構造（カノン、キャラクター、原稿）を自動的に作成します。",
+            cancel: "キャンセル",
+            create: "ユニバースを作成",
+            creating: "作成中..."
         },
         tools: {
             director: "ディレクター",
@@ -270,6 +297,15 @@ export const TRANSLATIONS: Record<Language, any> = {
             savedSuccess: "설정이 저장되었습니다",
             folderConfigMoved: "폴더 설정이 '프로젝트' 섹션으로 이동되었습니다."
         },
+        createProject: {
+            modalTitle: "새로운 유니버스",
+            projectName: "프로젝트 이름",
+            placeholder: "예: 영원의 연대기",
+            description: "Google Drive에 최적화된 폴더 구조(캐논, 캐릭터, 원고)를 자동으로 생성합니다.",
+            cancel: "취소",
+            create: "유니버스 생성",
+            creating: "생성 중..."
+        },
         tools: {
             director: "디렉터",
             perforador: "월드 엔진",
@@ -326,6 +362,15 @@ export const TRANSLATIONS: Record<Language, any> = {
             saving: "保存中...",
             savedSuccess: "设置已保存",
             folderConfigMoved: "文件夹配置已移动到“项目”部分。"
+        },
+        createProject: {
+            modalTitle: "新宇宙",
+            projectName: "项目名称",
+            placeholder: "例如：永恒编年史",
+            description: "我们将自动在您的 Google Drive 中创建优化的文件夹结构（正典、角色、手稿）。",
+            cancel: "取消",
+            create: "创建宇宙",
+            creating: "创建中..."
         },
         tools: {
             director: "导演",
