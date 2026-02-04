@@ -58,15 +58,16 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
         setWordCount(currentCount);
         setReadingTime(Math.ceil(currentCount / 200));
 
-        // Calculate Delta for Daily Goal (Only positive progress counts!)
+        // Calculate Delta for Daily Goal (Positive adds, Negative removes, Bulk ignored)
         const delta = currentCount - prevWordCount;
 
         if (delta !== 0) {
-            const isLikelyPasteOrLoad = delta > 50;
+            // Ignore changes larger than 50 words (likely paste, load, or bulk delete)
+            const isBulkChange = Math.abs(delta) > 50;
 
-            if (delta > 0 && !isLikelyPasteOrLoad) {
+            if (!isBulkChange) {
                 setDailyProgress(prev => {
-                    const newProgress = prev + delta;
+                    const newProgress = Math.max(0, prev + delta);
                     localStorage.setItem(getTodayKey(), newProgress.toString());
                     return newProgress;
                 });
