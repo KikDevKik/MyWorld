@@ -3,6 +3,8 @@ import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw, AlertTrian
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 import ForgeDashboard from './ForgeDashboard';
 import InternalFolderSelector from '../InternalFolderSelector';
 import { ProjectConfig, DriveFile } from '../../types';
@@ -15,6 +17,8 @@ interface ForgePanelProps {
 
 const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken }) => {
     const { config, updateConfig, loading } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
 
     // 🟢 SAGA STATE
     const [characterSaga, setCharacterSaga] = useState<DriveFile | null>(null);
@@ -163,7 +167,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         return (
              <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-500 gap-4">
                 <RefreshCw size={40} className="animate-spin text-accent-DEFAULT" />
-                <p className="text-sm font-mono opacity-70">Sincronizando Bóvedas...</p>
+                <p className="text-sm font-mono opacity-70">{t.common.syncing}</p>
             </div>
         );
     }
@@ -204,24 +208,24 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                         {characterSaga ? (
                                             <div className="mt-2 flex items-center gap-2 text-xs text-accent-DEFAULT font-mono">
                                                 <CheckCircleIcon />
-                                                <span>Conectado: {characterSaga.name}</span>
+                                        <span>{t.common.connected}: {characterSaga.name}</span>
                                             </div>
                                         ) : (
-                                            <div className="mt-2 text-xs text-red-400 font-bold">Desconectado (Requerido)</div>
+                                    <div className="mt-2 text-xs text-red-400 font-bold">{t.common.disconnected}</div>
                                         )}
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
                                     {characterSaga ? (
-                                        <button onClick={() => handleUnlink('CHARACTER')} className="px-4 py-2 text-titanium-400 hover:text-red-400 text-sm font-medium">Desvincular</button>
+                                <button onClick={() => handleUnlink('CHARACTER')} className="px-4 py-2 text-titanium-400 hover:text-red-400 text-sm font-medium">{t.common.unlink}</button>
                                     ) : (
-                                        <button onClick={() => handleCreateVault('CHARACTER')} className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-sm">Crear</button>
+                                <button onClick={() => handleCreateVault('CHARACTER')} className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-sm">{t.common.create}</button>
                                     )}
                                     <button
                                         onClick={() => handleOpenSelector('CHARACTER')}
                                         className="px-6 py-2 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 text-white rounded-lg text-sm font-bold shadow-sm"
                                     >
-                                        {characterSaga ? 'Cambiar' : 'Conectar'}
+                                {characterSaga ? t.common.change : t.status.connect}
                                     </button>
                                 </div>
                             </div>
@@ -238,24 +242,24 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                         {bestiarySaga ? (
                                             <div className="mt-2 flex items-center gap-2 text-xs text-emerald-500 font-mono">
                                                 <CheckCircleIcon />
-                                                <span>Conectado: {bestiarySaga.name}</span>
+                                        <span>{t.common.connected}: {bestiarySaga.name}</span>
                                             </div>
                                         ) : (
-                                            <div className="mt-2 text-xs text-titanium-600">Opcional</div>
+                                    <div className="mt-2 text-xs text-titanium-600">{t.common.optional}</div>
                                         )}
                                     </div>
                                 </div>
                                 <div className="flex gap-2">
                                     {bestiarySaga ? (
-                                        <button onClick={() => handleUnlink('BESTIARY')} className="px-4 py-2 text-titanium-400 hover:text-red-400 text-sm font-medium">Desvincular</button>
+                                <button onClick={() => handleUnlink('BESTIARY')} className="px-4 py-2 text-titanium-400 hover:text-red-400 text-sm font-medium">{t.common.unlink}</button>
                                     ) : (
-                                        <button onClick={() => handleCreateVault('BESTIARY')} className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-sm">Crear</button>
+                                <button onClick={() => handleCreateVault('BESTIARY')} className="px-4 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-sm">{t.common.create}</button>
                                     )}
                                     <button
                                         onClick={() => handleOpenSelector('BESTIARY')}
                                         className="px-6 py-2 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 text-white rounded-lg text-sm font-bold shadow-sm"
                                     >
-                                        {bestiarySaga ? 'Cambiar' : 'Conectar'}
+                                {bestiarySaga ? t.common.change : t.status.connect}
                                     </button>
                                 </div>
                             </div>
@@ -277,13 +281,13 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                 {showConfirmation && pendingFolder && (
                     <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm">
                         <div className="w-full max-w-md bg-titanium-900 border border-accent-DEFAULT/30 rounded-2xl p-6">
-                            <h3 className="text-xl font-bold text-white mb-2">Confirmar Vinculación</h3>
+                            <h3 className="text-xl font-bold text-white mb-2">{t.common.confirmation}</h3>
                             <p className="text-titanium-400 mb-6">
                                 ¿Vincular <strong>{pendingFolder.name}</strong> como {targetVault === 'CHARACTER' ? 'Bóveda de Personajes' : 'Bestiario'}?
                             </p>
                             <div className="flex gap-3">
-                                <button onClick={() => setShowConfirmation(false)} className="flex-1 py-3 bg-titanium-800 rounded-lg text-titanium-300">Cancelar</button>
-                                <button onClick={confirmSelection} className="flex-1 py-3 bg-accent-DEFAULT text-titanium-950 font-bold rounded-lg">Confirmar</button>
+                                <button onClick={() => setShowConfirmation(false)} className="flex-1 py-3 bg-titanium-800 rounded-lg text-titanium-300">{t.common.cancel}</button>
+                                <button onClick={confirmSelection} className="flex-1 py-3 bg-accent-DEFAULT text-titanium-950 font-bold rounded-lg">{t.common.confirm}</button>
                             </div>
                         </div>
                     </div>

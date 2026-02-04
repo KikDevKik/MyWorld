@@ -1,6 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { X, Folder, FileText, Check, ChevronRight, ChevronDown, Search, Loader2 } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 import { DriveFile } from '../types';
 
 interface ContextSelectorModalProps {
@@ -19,6 +21,8 @@ interface FileNode {
 
 const ContextSelectorModal: React.FC<ContextSelectorModalProps> = ({ isOpen, onClose, onConfirm, initialSelection = [] }) => {
     const { fileTree, isFileTreeLoading } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(initialSelection));
     const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
@@ -152,6 +156,7 @@ const ContextSelectorModal: React.FC<ContextSelectorModalProps> = ({ isOpen, onC
             id: n.id,
             name: n.name,
             mimeType: n.mimeType,
+            type: n.mimeType === 'application/vnd.google-apps.folder' ? 'folder' : 'file',
             // Defaults
             parents: [],
             createdTime: new Date().toISOString(),
@@ -201,7 +206,7 @@ const ContextSelectorModal: React.FC<ContextSelectorModalProps> = ({ isOpen, onC
                     {isFileTreeLoading ? (
                         <div className="flex items-center justify-center h-full text-titanium-500 gap-2">
                             <Loader2 size={20} className="animate-spin" />
-                            <span className="text-xs">Cargando TDB Index...</span>
+                            <span className="text-xs">{t.common.loadingIndex}</span>
                         </div>
                     ) : (
                         searchQuery ? renderSearchResults() : (
@@ -225,7 +230,7 @@ const ContextSelectorModal: React.FC<ContextSelectorModalProps> = ({ isOpen, onC
                         className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors shadow-lg shadow-emerald-900/20 flex items-center gap-2"
                     >
                         <Check size={14} />
-                        CONFIRMAR
+                        {t.common.confirm}
                     </button>
                 </div>
             </div>

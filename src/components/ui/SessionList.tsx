@@ -1,5 +1,7 @@
 import React from 'react';
 import { Archive, Trash2, Calendar, AlertTriangle, MessageSquare, Loader2 } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ForgeSession {
     id: string;
@@ -29,6 +31,8 @@ export const SessionList: React.FC<SessionListProps> = ({
     isDeleting,
     embedded = false
 }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
 
     // --- GROUPING LOGIC ---
     const groupedSessions = sessions.reduce((groups, session) => {
@@ -62,7 +66,7 @@ export const SessionList: React.FC<SessionListProps> = ({
         return (
             <div className="flex flex-col items-center justify-center py-12 text-titanium-500 gap-3">
                 <Loader2 className="animate-spin" size={32} />
-                <span className="text-xs uppercase tracking-wider">Accediendo a la Forja...</span>
+                <span className="text-xs uppercase tracking-wider">{t.common.loading}</span>
             </div>
         );
     }
@@ -131,8 +135,8 @@ export const SessionList: React.FC<SessionListProps> = ({
                                             <button
                                                 onClick={(e) => onDeleteSession(e, session.id)}
                                                 className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-titanium-500 hover:text-red-400 hover:bg-red-950/30 rounded focus:opacity-100"
-                                                title="Eliminar permanentemente"
-                                                aria-label={`Eliminar sesión ${session.name}`}
+                                                title={t.common.deleteSession}
+                                                aria-label={`${t.common.deleteSession} ${session.name}`}
                                                 disabled={isDeleting === session.id}
                                             >
                                                 {isDeleting === session.id ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
