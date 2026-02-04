@@ -2,6 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2, Sparkles, BrainCircuit, Flag } from 'lucide-react';
 import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict, GuardianPersonalityDrift, ResonanceMatch, StructureAnalysis } from '../hooks/useGuardian';
 import { callFunction } from '../services/api';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface CanonRadarProps {
     status: GuardianStatus;
@@ -27,6 +29,8 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
     onForceAudit,
     accessToken
 }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].canonRadar;
     const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
 
     // 🟢 SORTING LOGIC: TRAITOR (Critical) FIRST, then EVOLVED
@@ -70,7 +74,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
             onForceAudit(); // Re-scan to clear the alert
         } catch (e: any) {
             console.error("Sync Failed:", e);
-            alert(`Error sincronizando: ${e.message}`);
+            alert(`${t.syncError}: ${e.message}`);
         } finally {
             setSyncingIds(prev => {
                 const next = new Set(prev);
@@ -86,9 +90,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
                 <div className="flex items-center gap-2 text-titanium-100">
                     <ScanEye className={`w-5 h-5 ${status === 'scanning' ? 'text-amber-400 animate-pulse' : 'text-zinc-400'}`} />
-                    <h2 className="font-bold text-sm tracking-widest uppercase">Radar de Canon</h2>
+                    <h2 className="font-bold text-sm tracking-widest uppercase">{t.title}</h2>
                 </div>
-                <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors" title="Cerrar Radar" aria-label="Cerrar Radar">
+                <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors" title={t.close} aria-label={t.close}>
                     <X size={16} />
                 </button>
             </div>
@@ -101,11 +105,11 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                   status === 'clean' ? 'bg-emerald-900/20 text-emerald-500' :
                   'bg-titanium-900 text-titanium-500'}
             `}>
-                {status === 'scanning' && <span>Analizando...</span>}
-                {status === 'conflict' && <span>Divergencia Detectada</span>}
-                {status === 'clean' && <span>Canon Estable</span>}
-                {status === 'idle' && <span>En Espera</span>}
-                {status === 'error' && <span>Error de Sistema</span>}
+                {status === 'scanning' && <span>{t.analyzing}</span>}
+                {status === 'conflict' && <span>{t.divergence}</span>}
+                {status === 'clean' && <span>{t.stable}</span>}
+                {status === 'idle' && <span>{t.idle}</span>}
+                {status === 'error' && <span>{t.error}</span>}
             </div>
 
             {/* CONTENT AREA */}
@@ -116,7 +120,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                     <div className="space-y-4 animate-pulse">
                         <div className="flex items-center gap-2 text-titanium-500 text-xs font-bold uppercase mb-2">
                              <Loader2 size={12} className="animate-spin" />
-                             <span>Buscando anomalías...</span>
+                             <span>{t.searching}</span>
                         </div>
                         {/* Fake Drift Card */}
                         <div className="border border-titanium-800 rounded-lg p-3 bg-titanium-900/20">
@@ -137,7 +141,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-cyan-400 text-xs font-bold uppercase mb-2">
                             <Sparkles size={14} />
-                            <span>Frecuencias de Resonancia ({activeResonance.length})</span>
+                            <span>{t.resonance} ({activeResonance.length})</span>
                         </div>
 
                         {activeResonance.map((match, idx) => (
@@ -168,7 +172,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                         <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 text-titanium-300 font-bold text-xs uppercase">
                                 <Flag size={12} />
-                                <span>Estructura Detectada</span>
+                                <span>{t.structure}</span>
                             </div>
                             <span className="text-[10px] bg-titanium-800 px-2 py-0.5 rounded text-titanium-400">
                                 {structureAnalysis.detected_phase.replace('_', ' ')}
@@ -187,8 +191,8 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(sortedDrifts || []).length > 0 && (
                     <div className="space-y-3">
                          <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase mb-2 animate-pulse">
-                            <Skull size={14} title="El Hater: Inconsistencia detectada" aria-label="El Hater: Inconsistencia de Personalidad Detectada" />
-                            <span>Traición Narrativa ({(sortedDrifts || []).length})</span>
+                            <Skull size={14} title={t.narrativeBetrayal} aria-label={t.narrativeBetrayal} />
+                            <span>{t.narrativeBetrayal} ({(sortedDrifts || []).length})</span>
                         </div>
 
                         {(sortedDrifts || []).map((drift, idx) => {
@@ -216,7 +220,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                 {/* Hater Comment */}
                                 <div className="bg-black/40 rounded p-2 border border-titanium-800 relative mt-2">
                                     <div className="flex items-start gap-2">
-                                        <Skull size={14} className="text-titanium-500 mt-0.5 shrink-0" title="Comentario del Crítico" aria-label="Comentario del Crítico" />
+                                        <Skull size={14} className="text-titanium-500 mt-0.5 shrink-0" title={t.haterComment} aria-label={t.haterComment} />
                                         <p className="text-titanium-400 text-[10px] font-mono leading-relaxed">
                                             {drift.hater_comment}
                                         </p>
@@ -233,17 +237,17 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                                 ? 'bg-blue-950 border-blue-900 text-blue-500 cursor-wait'
                                                 : 'bg-blue-900/30 hover:bg-blue-900/50 border-blue-800 text-blue-300'}
                                         `}
-                                        aria-label="Sincronizar cambios en ficha"
+                                        aria-label={t.sync}
                                     >
                                         {isSyncing ? (
                                             <>
                                                 <Loader2 size={10} className="animate-spin" />
-                                                <span>Sincronizando...</span>
+                                                <span>{t.syncing}</span>
                                             </>
                                         ) : (
                                             <>
                                                 <RefreshCw size={10} />
-                                                <span>Actualizar Canon</span>
+                                                <span>{t.update}</span>
                                             </>
                                         )}
                                     </button>
@@ -257,8 +261,8 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(lawConflicts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-amber-500 text-xs font-bold uppercase mb-2 animate-pulse">
-                            <Zap size={14} className="fill-amber-500/20" title="Fractura de Realidad" aria-label="Fractura de Realidad: Violación de Leyes del Mundo" />
-                            <span>Fracturas de Realidad ({(lawConflicts || []).length})</span>
+                            <Zap size={14} className="fill-amber-500/20" title={t.realityFractures} aria-label={t.realityFractures} />
+                            <span>{t.realityFractures} ({(lawConflicts || []).length})</span>
                         </div>
 
                         {(lawConflicts || []).map((item, idx) => (
@@ -281,7 +285,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                     {/* The Violation Explanation */}
                                     <div className="bg-black/40 rounded p-2 border border-amber-900/50">
                                         <div className="flex items-start gap-1.5">
-                                            <AlertTriangle size={12} className="text-amber-500 mt-0.5 shrink-0" title="Explicación del conflicto" aria-label="Explicación del conflicto" />
+                                            <AlertTriangle size={12} className="text-amber-500 mt-0.5 shrink-0" title={t.explanation} aria-label={t.explanation} />
                                             <p className="text-titanium-200 text-[11px] leading-relaxed">
                                                 {item.conflict.explanation}
                                             </p>
@@ -289,7 +293,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                         {/* Canonical Rule Reference */}
                                         {item.conflict.canonical_rule && (
                                             <div className="mt-2 pt-2 border-t border-amber-900/30">
-                                                <span className="text-[9px] text-amber-500/70 uppercase block mb-0.5">Regla Canónica:</span>
+                                                <span className="text-[9px] text-amber-500/70 uppercase block mb-0.5">{t.canonicalRule}:</span>
                                                 <p className="text-titanium-400 text-[10px] font-mono">
                                                     {item.conflict.canonical_rule}
                                                 </p>
@@ -312,15 +316,15 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(conflicts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase mb-2">
-                            <ShieldAlert size={14} title="Conflicto detectado" aria-label="Conflicto detectado" />
-                            <span>Conflictos Activos ({(conflicts || []).length})</span>
+                            <ShieldAlert size={14} title={t.activeConflicts} aria-label={t.activeConflicts} />
+                            <span>{t.activeConflicts} ({(conflicts || []).length})</span>
                         </div>
 
                         {(conflicts || []).map((conflict, idx) => (
                             <div key={idx} className="bg-red-950/30 border border-red-900/50 rounded-lg p-3 shadow-sm hover:border-red-500/50 transition-colors animate-in fade-in slide-in-from-bottom-2 duration-500">
                                 <div className="flex justify-between items-start mb-1">
                                     <span className="text-red-200 font-bold text-sm">{conflict.entity}</span>
-                                    <span className="text-[10px] bg-red-900/50 text-red-300 px-1.5 py-0.5 rounded uppercase">Contradicción</span>
+                                    <span className="text-[10px] bg-red-900/50 text-red-300 px-1.5 py-0.5 rounded uppercase">{t.contradiction}</span>
                                 </div>
                                 <p className="text-titanium-200 text-xs italic mb-2">"{conflict.fact}"</p>
 
@@ -334,7 +338,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                     {conflict.source && (
                                         <div className="mt-1.5 flex items-center gap-1 text-[10px] text-titanium-500">
                                             <FileText size={10} />
-                                            <span>Fuente: {conflict.source}</span>
+                                            <span>{t.source}: {conflict.source}</span>
                                         </div>
                                     )}
                                 </div>
@@ -347,8 +351,8 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(facts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase mb-2">
-                            <CheckCircle size={14} title="Hecho verificado" aria-label="Hecho verificado" />
-                            <span>Hechos Verificados ({(facts || []).length})</span>
+                            <CheckCircle size={14} title={t.verifiedFacts} aria-label={t.verifiedFacts} />
+                            <span>{t.verifiedFacts} ({(facts || []).length})</span>
                         </div>
 
                         {(facts || []).map((fact, idx) => (
@@ -359,7 +363,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                         fact.status === 'new' ? 'border-blue-900 text-blue-400 bg-blue-900/20' :
                                         'border-emerald-900 text-emerald-400 bg-emerald-900/20'
                                     }`}>
-                                        {fact.status === 'new' ? 'Nuevo' : 'Validado'}
+                                        {fact.status === 'new' ? t.new : t.validated}
                                     </span>
                                 </div>
                                 <p className="text-titanium-400 text-[11px]">{fact.fact}</p>
@@ -372,10 +376,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {status === 'clean' && (conflicts || []).length === 0 && (lawConflicts || []).length === 0 && (facts || []).length === 0 && (personalityDrifts || []).length === 0 && (activeResonance.length === 0) && (
                     <div className="text-center py-10 opacity-50 flex flex-col items-center animate-in fade-in duration-700">
                         <ScanEye size={48} className="text-emerald-500/50 mb-4 animate-pulse" />
-                        <h3 className="text-emerald-500 font-bold text-sm uppercase tracking-wider mb-2">Canon Estable</h3>
-                        <p className="text-titanium-500 text-xs max-w-[200px]">
-                            El Canon está en equilibrio. <br/>
-                            Escribe con libertad.
+                        <h3 className="text-emerald-500 font-bold text-sm uppercase tracking-wider mb-2">{t.stable}</h3>
+                        <p className="text-titanium-500 text-xs max-w-[200px] whitespace-pre-line">
+                            {t.stableMessage}
                         </p>
                     </div>
                 )}
@@ -387,11 +390,11 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                     onClick={onForceAudit}
                     disabled={status === 'scanning'}
                     className="w-full py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Forzar análisis manual"
-                    aria-label="Forzar análisis manual"
+                    title={t.forceAudit}
+                    aria-label={t.forceAudit}
                 >
                     <ScanEye size={14} />
-                    {status === 'scanning' ? 'Analizando...' : 'Forzar Auditoría'}
+                    {status === 'scanning' ? t.analyzing : t.forceAudit}
                 </button>
             </div>
         </div>

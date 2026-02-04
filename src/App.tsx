@@ -44,10 +44,15 @@ import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
 import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
+import { useLanguageStore } from './stores/useLanguageStore';
+import { TRANSLATIONS } from './i18n/translations';
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: any) {
     const { config, updateConfig, refreshConfig, loading: configLoading, technicalError, fileTree } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].toasts;
+    const commonT = TRANSLATIONS[currentLanguage].common;
 
     // 🟢 GLOBAL STORE CONSUMPTION
     const { activeView, setActiveView } = useLayoutStore();
@@ -99,7 +104,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             { from: 0, to: 10, level: 'high' },
             { from: 50, to: 60, level: 'low' }
         ]);
-        toast.info("Simulación de Drift Activada (Líneas marcadas)");
+        toast.info(t.driftActivated);
     };
 
     // 🟢 REAL-TIME CONTENT SYNC (DEBOUNCED FROM EDITOR)
@@ -157,7 +162,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setLastSavedContent(contentToSave);
         } catch (error) {
             console.error("❌ Auto-save failed:", error);
-            toast.error("Error al guardar cambios automáticos.");
+            toast.error(t.autoSaveError);
         } finally {
             setIsSaving(false);
         }
@@ -316,7 +321,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const handleLogout = async () => {
         const auth = getAuth();
         // 🟢 UX: Feedback Inmediato
-        const toastId = toast.loading("Cerrando sesión de forma segura...");
+        const toastId = toast.loading(t.loggingOut);
 
         try {
             // 🟢 PERSISTENCIA DE SESIÓN:
@@ -388,7 +393,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🧠 LÓGICA DE INDEXADO (BOTÓN ROJO)
     const executeIndexing = async () => {
         if (!config) {
-            toast.error("Configuración no cargada. Intenta de nuevo.");
+            toast.error(t.configError);
             return;
         }
 
@@ -429,10 +434,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const displayDate = config?.lastIndexed || indexStatus.lastIndexedAt;
 
         if (indexStatus.isIndexed) {
-             toast("Memoria ya sincronizada", {
-                description: `Última actualización: ${displayDate ? new Date(displayDate).toLocaleDateString() : 'Desconocida'}`,
+             toast(t.memorySynced, {
+                description: `${t.lastUpdate}${displayDate ? new Date(displayDate).toLocaleDateString() : t.unknown}`,
                 action: {
-                    label: "Re-aprender todo",
+                    label: t.relearn,
                     onClick: () => executeIndexing()
                 },
             });
@@ -440,14 +445,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
 
         if (!folderId) {
-            toast.warning("¡Conecta una carpeta primero!");
+            toast.warning(t.connectFolderFirst);
             return;
         }
 
-        toast("¿Iniciar Protocolo de Aprendizaje?", {
-            description: "Esto leerá tu Drive y actualizará la memoria de la IA.",
+        toast(t.learningProtocol, {
+            description: t.learningProtocolDesc,
             action: {
-                label: "Confirmar",
+                label: commonT.confirm,
                 onClick: () => executeIndexing()
             },
         });
@@ -456,7 +461,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 HANDLE TIMELINE FILE SELECT
     const handleTimelineFileSelect = async (fileId: string) => {
         setActiveView('editor'); // Go back to editor to show content
-        setSelectedFileContent("Cargando...");
+        setSelectedFileContent(commonT.loading);
         setCurrentFileId(fileId);
 
         try {
@@ -466,7 +471,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setCurrentFileName(data.name);
         } catch (error) {
             console.error("Error loading file from timeline:", error);
-            toast.error("Error al abrir el archivo.");
+            toast.error(t.openError);
             setSelectedFileContent("");
             setLastSavedContent("");
         }
@@ -490,14 +495,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
     const handleInsertContent = async (text: string) => {
         if (!selectedFileContent && !currentFileId) {
-            toast.error("No hay archivo abierto para insertar contenido.");
+            toast.error(t.noFileOpen);
             return;
         }
 
         // 🟢 SMART INTEGRATION PROTOCOL
         if (hybridEditorRef.current) {
-            const toastId = toast.loading("Integrando narrativa con IA...", {
-                description: "El Tejedor está reescribiendo la sugerencia..."
+            const toastId = toast.loading(t.integrating, {
+                description: t.weavingDesc
             });
 
             try {
@@ -529,7 +534,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     }
 
                     toast.dismiss(toastId);
-                    toast.success("Narrativa integrada exitosamente.");
+                    toast.success(t.integrated);
                 } else {
                     throw new Error("Respuesta vacía del servidor.");
                 }
@@ -537,7 +542,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             } catch (error) {
                 console.error("Smart Insert Error:", error);
                 toast.dismiss(toastId);
-                toast.error("Fallo la integración inteligente. Insertando texto crudo.");
+                toast.error(t.integrationFailed);
 
                 // Fallback: Raw Insert
                 hybridEditorRef.current.insertAtCursor(text);
@@ -546,7 +551,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             // Fallback if ref is missing
             const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
             setSelectedFileContent(newContent);
-            toast.warning("Editor desconectado. Texto adjunto al final.");
+            toast.warning(t.editorDisconnected);
         }
     };
 
@@ -847,7 +852,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onClose={() => setIsCreateProjectModalOpen(false)}
                 onSubmit={async (name) => {
                     try {
-                        toast.info("Creando estructura del proyecto...");
+                        toast.info(t.creatingStructure);
                         await callFunction('createTitaniumStructure', {
                             accessToken: oauthToken,
                             newProjectName: name
@@ -892,8 +897,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                                 const isDirtyRef = selectedFileContentRef.current !== lastSavedContentRef.current;
                                 if (isDirtyRef) {
                                      // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
-                                     toast.warning("Versión más reciente disponible en Drive", {
-                                        description: "No se actualizó para proteger tus cambios recientes."
+                                     toast.warning(t.versionConflict, {
+                                        description: t.versionConflictDesc
                                     });
                                 } else {
                                      // ✅ SAFE: Upgrade content

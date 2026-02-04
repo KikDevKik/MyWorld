@@ -1,6 +1,8 @@
 import React from 'react';
 import { SoulEntity } from '../../types/forge';
 import { Ghost, FileEdit, Anchor, ArrowRight, Zap, Database, PawPrint, Flower, User } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ForgeCardProps {
     entity: SoulEntity;
@@ -16,6 +18,8 @@ const CategoryIcon = ({ category, className }: { category?: string, className?: 
 };
 
 const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].forge;
 
     const isBestiary = entity.category === 'CREATURE' || entity.category === 'FLORA';
     const accentColor = isBestiary ? (entity.category === 'FLORA' ? 'text-pink-400' : 'text-purple-400') : 'text-cyan-400';
@@ -35,7 +39,7 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                 </div>
 
                 <p className="text-xs text-titanium-500 italic mb-4 line-clamp-3 font-serif leading-relaxed">
-                    "{entity.sourceSnippet || "Sin contexto detectado..."}"
+                    "{entity.sourceSnippet || t.noContext}"
                 </p>
 
                 <button
@@ -47,7 +51,7 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                     `}
                 >
                     <Zap size={12} />
-                    Materializar
+                    {t.materialize}
                 </button>
             </div>
         );
@@ -73,12 +77,12 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                         </span>
                     ))}
                     {(!entity.tags || entity.tags.length === 0) && (
-                        <span className="text-[10px] text-titanium-600 italic">Sin etiquetas</span>
+                        <span className="text-[10px] text-titanium-600 italic">{t.noTags}</span>
                     )}
                 </div>
 
                 <p className="text-xs text-titanium-400 mb-4 line-clamp-2 leading-relaxed">
-                   {entity.sourceSnippet || entity.role || "Borrador sin contenido previo."}
+                   {entity.sourceSnippet || entity.role || t.draftNoContent}
                 </p>
 
                 <button
@@ -86,7 +90,7 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                     className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold text-amber-500 border border-amber-500/30 rounded hover:bg-amber-500 hover:text-titanium-950 transition-all"
                 >
                     <ArrowRight size={12} />
-                    Refinar
+                    {t.refine}
                 </button>
             </div>
         );
@@ -94,6 +98,11 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
 
     // VARIANT C: ANCHOR (The Library)
     // Fallback to ANCHOR styling for anything else
+
+    let registeredLabel = t.registeredCharacter;
+    if (entity.category === 'CREATURE') registeredLabel = t.registeredFauna;
+    else if (entity.category === 'FLORA') registeredLabel = t.registeredFlora;
+
     return (
         <div className="group relative p-5 rounded-xl border border-titanium-700 bg-gradient-to-br from-titanium-900 to-titanium-950 hover:border-emerald-500/50 hover:shadow-[0_0_15px_rgba(16,185,129,0.1)] transition-all duration-300">
             {/* Metallic Shine Effect (Pseudo) */}
@@ -111,19 +120,19 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                 </div>
 
                 <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600/80 mb-3">
-                    {entity.role || (entity.category === 'CREATURE' ? "FAUNA REGISTRADA" : entity.category === 'FLORA' ? "FLORA REGISTRADA" : "PERSONAJE REGISTRADO")}
+                    {entity.role || registeredLabel}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs text-titanium-500 mb-4 font-mono">
                     <Database size={10} />
-                    <span>Apariciones: {entity.occurrences || "?"}</span>
+                    <span>{t.appearances}: {entity.occurrences || "?"}</span>
                 </div>
 
                 <button
                     onClick={() => onAction(entity)}
                     className="w-full py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider text-titanium-400 bg-titanium-800/50 rounded hover:bg-emerald-600 hover:text-white transition-all"
                 >
-                    Editar Ficha
+                    {t.editSheet}
                 </button>
             </div>
         </div>
