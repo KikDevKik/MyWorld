@@ -2,7 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles, Trash2 } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -82,6 +82,35 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
     // 🟢 DERIVED STATE
     const isEmptyProject = !fileTree || fileTree.length === 0;
+
+    // 🟢 SMART SYNC STATE
+    const hasSyncedRef = useRef(false);
+
+    // 🟢 RESET SYNC ON FOLDER CHANGE
+    useEffect(() => {
+        hasSyncedRef.current = false;
+    }, [folderId]);
+
+    // 🟢 SMART SYNC (AUTO-INDEX EXTERNAL CHANGES)
+    useEffect(() => {
+        if (driveStatus === 'connected' && accessToken && folderId && !isFileTreeLoading && !isEmptyProject && !hasSyncedRef.current) {
+            hasSyncedRef.current = true;
+            console.log("🔄 Triggering Initial Smart Sync...");
+
+            callFunction<{ added: number, deleted: number, success: boolean }>('syncSmart', { accessToken })
+                .then(res => {
+                    if (res && res.success && (res.added > 0 || res.deleted > 0)) {
+                        console.log(`🔄 Smart Sync: +${res.added} / -${res.deleted}`);
+                        toast.success("Sincronización Inteligente", {
+                            description: `Se detectaron ${res.added} nuevos y ${res.deleted} eliminados externos.`
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.warn("Smart Sync skipped/failed:", err);
+                });
+        }
+    }, [driveStatus, accessToken, folderId, isFileTreeLoading, isEmptyProject]);
 
     // 🟢 LOCALIZATION
     const { currentLanguage } = useLanguageStore();

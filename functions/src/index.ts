@@ -20,7 +20,7 @@ import {
 import { Chunk, addVectors, divideVector } from "./similarity";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
-import { ingestFile } from "./ingestion";
+import { ingestFile, deleteFileVectors } from "./ingestion";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { marked } from 'marked';
 import JSON5 from 'json5';
@@ -2851,6 +2851,7 @@ export const saveDriveFile = onCall(
        throw new HttpsError("resource-exhausted", `El archivo excede el límite de ${MAX_FILE_SAVE_BYTES / 1024 / 1024}MB.`);
     }
 
+    const userId = request.auth.uid;
     logger.info(`💾 Guardando archivo: ${fileId} (Significant: ${!!isSignificant})`);
 
     try {
@@ -2870,7 +2871,6 @@ export const saveDriveFile = onCall(
       // 🟢 HYBRID INDEXING: Update Metadata if Significant
       if (isSignificant) {
           const db = getFirestore();
-          const userId = request.auth.uid;
           const now = new Date().toISOString();
 
           // 1. Update Global Config (Triggers Alert)
@@ -2888,6 +2888,64 @@ export const saveDriveFile = onCall(
               }, { merge: true });
           } catch (e) {
               // Ignore if file not indexed yet
+          }
+
+          // 🟢 AUTO-INDEX (RAG)
+          try {
+             const config = await _getProjectConfigInternal(userId);
+             const projectAnchorId = config.folderId || "unknown_project";
+
+             const finalApiKey = getAIKey(request.data, googleApiKey.value());
+             const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+                apiKey: finalApiKey,
+                model: "text-embedding-004",
+                taskType: TaskType.RETRIEVAL_DOCUMENT,
+             });
+
+             let fileName = "Unknown File.md";
+             let path = "Unknown File.md";
+             let saga = 'Global';
+             let category: 'canon'|'reference' = 'canon';
+
+             // Try to get metadata from Index (Fast)
+             const fileIdxQuery = db.collection("TDB_Index").doc(userId).collection("files").where("driveId", "==", fileId).limit(1);
+             const fileIdxSnap = await fileIdxQuery.get();
+             if (!fileIdxSnap.empty) {
+                 const d = fileIdxSnap.docs[0].data();
+                 fileName = d.name || fileName;
+                 path = d.path || fileName;
+                 saga = d.saga || 'Global';
+                 category = d.category || 'canon';
+             } else {
+                 // Fallback to Drive (Slow but necessary for new files)
+                 try {
+                     const meta = await drive.files.get({ fileId: fileId, fields: 'name' });
+                     fileName = meta.data.name || fileName;
+                     path = fileName;
+                 } catch (e) {
+                     logger.warn("Could not fetch file metadata for indexing");
+                 }
+             }
+
+             await ingestFile(
+                db,
+                userId,
+                projectAnchorId,
+                {
+                    id: fileId,
+                    name: fileName,
+                    path: path,
+                    saga: saga,
+                    parentId: projectAnchorId,
+                    category: category
+                },
+                content,
+                embeddingsModel
+             );
+             logger.info(`🧠 [SAVE] Auto-indexed significant edit for ${fileName}`);
+
+          } catch (idxErr) {
+             logger.warn(`⚠️ [SAVE] Auto-index failed:`, idxErr);
           }
       }
 
@@ -4478,6 +4536,9 @@ export const forgeToolExecution = onCall(
       throw new HttpsError("unauthenticated", "Falta accessToken.");
     }
 
+    const userId = request.auth.uid;
+    const db = getFirestore();
+
     logger.info(`🔨 TOOL EXECUTION: Creating file '${title}' in ${folderId}`);
 
     try {
@@ -4507,7 +4568,7 @@ export const forgeToolExecution = onCall(
 
       // 🟢 PERSISTENCE: Update Firestore Tree (Sync Memory)
       if (file.data.id) {
-          await updateFirestoreTree(request.auth.uid, 'add', file.data.id, {
+          await updateFirestoreTree(userId, 'add', file.data.id, {
               parentId: folderId,
               newNode: {
                   id: file.data.id,
@@ -4517,6 +4578,35 @@ export const forgeToolExecution = onCall(
                   children: []
               }
           });
+
+          // 🟢 AUTO-INDEX (RAG)
+          try {
+             const finalApiKey = getAIKey(request.data, googleApiKey.value());
+             const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+                apiKey: finalApiKey,
+                model: "text-embedding-004",
+                taskType: TaskType.RETRIEVAL_DOCUMENT,
+             });
+
+             await ingestFile(
+                db,
+                userId,
+                folderId, // Scope anchor
+                {
+                    id: file.data.id,
+                    name: fileName,
+                    path: fileName,
+                    saga: 'Forge Tool',
+                    parentId: folderId,
+                    category: 'canon'
+                },
+                content,
+                embeddingsModel
+             );
+             logger.info(`🧠 [FORGE] Auto-indexed ${fileName}`);
+          } catch (idxErr) {
+             logger.warn(`⚠️ [FORGE] Auto-index failed for ${fileName}:`, idxErr);
+          }
       }
 
       return {
@@ -5080,3 +5170,115 @@ export { generateAuditPDF, generateCertificate } from "./audit";
 export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from "./auth";
 export { genesisManifest } from "./genesis";
 export { generateSpeech } from "./tts";
+
+/**
+ * SMART SYNC (The Watcher)
+ * Detects external changes (Drive vs Index) and reconciles vectors.
+ */
+export const syncSmart = onCall(
+  {
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 540,
+    memory: "1GiB",
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+     if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+     const userId = request.auth.uid;
+     const { accessToken } = request.data;
+     if (!accessToken) throw new HttpsError("unauthenticated", "AccessToken required.");
+
+     const db = getFirestore();
+     const config = await _getProjectConfigInternal(userId);
+     const rootId = config.folderId;
+
+     if (!rootId) return { message: "No project configured.", success: false };
+
+     try {
+         const auth = new google.auth.OAuth2();
+         auth.setCredentials({ access_token: accessToken });
+         const drive = google.drive({ version: "v3", auth });
+
+         // 1. Scan Drive (Metadata Only)
+         const tree = await fetchFolderContents(drive, rootId, config, true);
+         const flatDriveFiles = flattenFileTree(tree);
+         const driveIds = new Set(flatDriveFiles.map(f => f.id));
+
+         // 2. Scan Index
+         const indexSnap = await db.collection("TDB_Index").doc(userId).collection("files").get();
+         const indexIds = new Set<string>();
+
+         const toDelete: string[] = [];
+
+         indexSnap.forEach(doc => {
+             const d = doc.data();
+             const drvId = d.driveId || doc.id; // Fallback
+             indexIds.add(drvId);
+
+             if (!driveIds.has(drvId)) {
+                 toDelete.push(drvId);
+             }
+         });
+
+         const toAdd = flatDriveFiles.filter(f => !indexIds.has(f.id));
+
+         logger.info(`🔄 [SMART SYNC] Analysis: +${toAdd.length} / -${toDelete.length}`);
+
+         // 3. Execute Updates
+
+         // A. Delete Vectors for Orphans
+         // Use deleteFileVectors helper imported from ingestion
+         // Note: deleteFileVectors is in ingestion.ts.
+         // We need to import it. It is imported at top of index.ts?
+         // Let's check imports. Yes, I added it in Step 1. Wait, did I add import in Step 1?
+         // No, I added it to ingestion.ts exports. I need to add import here if not present.
+         // Wait, I updated index.ts imports in Step 2b? No, I checked imports.
+         // I need to ensure deleteFileVectors is imported.
+         // Since I cannot check imports right now easily without scrolling, I will assume I need to add it or it fails.
+         // Actually, `index.ts` imports `ingestFile` from `./ingestion`.
+         // I should change that import to `{ ingestFile, deleteFileVectors }`.
+
+         await Promise.all(toDelete.map(fid => deleteFileVectors(db, userId, fid)));
+
+         // B. Ingest New Files
+         if (toAdd.length > 0) {
+             const finalApiKey = getAIKey(request.data, googleApiKey.value());
+             const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+                apiKey: finalApiKey,
+                model: "text-embedding-004",
+                taskType: TaskType.RETRIEVAL_DOCUMENT,
+             });
+
+             for (const f of toAdd) {
+                 try {
+                     const content = await _getDriveFileContentInternal(drive, f.id);
+                     await ingestFile(
+                        db,
+                        userId,
+                        rootId,
+                        {
+                            id: f.id,
+                            name: f.name,
+                            path: f.path,
+                            saga: f.saga,
+                            parentId: f.parentId,
+                            category: f.category
+                        },
+                        content,
+                        embeddingsModel
+                     );
+                 } catch (e) {
+                     logger.error(`Failed to ingest new file ${f.name}:`, e);
+                 }
+             }
+         }
+
+         return { added: toAdd.length, deleted: toDelete.length, success: true };
+
+     } catch (e: any) {
+         throw handleSecureError(e, "syncSmart");
+     }
+  }
+);
