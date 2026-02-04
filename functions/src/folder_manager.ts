@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { FolderRole, ProjectConfig } from "./types/project";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
-import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
+import { updateFirestoreTree, updateFirestoreTreeBatch } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -465,6 +465,7 @@ export const trashDriveItems = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
+        memory: "1GiB", // 🟢 INCREASE MEMORY
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -491,6 +492,7 @@ export const trashDriveItems = onCall(
 
             let successCount = 0;
             const errors: any[] = [];
+            const deletedIds: string[] = [];
 
             // Execute Sequentially to be safe, or Promise.all for speed.
             // Promise.all is fine for reasonable batch sizes.
@@ -503,16 +505,18 @@ export const trashDriveItems = onCall(
                         }
                     });
 
-                    // 🟢 PERSISTENCE: Update Firestore Tree (Sync Memory)
-                    // We fire this asynchronously but await it to ensure consistency?
-                    // Let's await to avoid race conditions if user immediately reloads.
-                    await updateFirestoreTree(userId, 'delete', fileId, {});
+                    deletedIds.push(fileId);
                     successCount++;
                 } catch (e: any) {
                     logger.error(`   ❌ Failed to trash item ${fileId}:`, e.message);
                     errors.push({ id: fileId, error: e.message });
                 }
             }));
+
+            // 🟢 PERSISTENCE: Batch Update Firestore Tree (Sync Memory)
+            if (deletedIds.length > 0) {
+                await updateFirestoreTreeBatch(userId, 'delete', deletedIds);
+            }
 
             if (successCount === 0 && errors.length > 0) {
                 throw new HttpsError("aborted", "No se pudo eliminar ningún elemento.", errors);

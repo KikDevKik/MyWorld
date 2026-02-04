@@ -97,3 +97,47 @@ export async function updateFirestoreTree(
         logger.error("Failed to update Firestore Tree:", e);
     }
 }
+
+export async function updateFirestoreTreeBatch(
+    userId: string,
+    operation: 'delete',
+    targetIds: string[]
+) {
+    const db = getFirestore();
+    const treeRef = db.collection("TDB_Index").doc(userId).collection("structure").doc("tree");
+
+    try {
+        await db.runTransaction(async (t) => {
+            const doc = await t.get(treeRef);
+            if (!doc.exists) return;
+
+            const treeData = doc.data();
+            if (!treeData || !Array.isArray(treeData.tree)) return;
+
+            const tree = treeData.tree as FileNode[];
+            const targets = new Set(targetIds);
+
+            if (operation === 'delete') {
+                const deleteNodes = (nodes: FileNode[]) => {
+                    for (let i = nodes.length - 1; i >= 0; i--) {
+                        const node = nodes[i];
+                        const matches = targets.has(node.id) || (node.driveId && targets.has(node.driveId));
+
+                        if (matches) {
+                            nodes.splice(i, 1);
+                            // Continue to next sibling, no return
+                        } else if (node.children) {
+                            deleteNodes(node.children);
+                        }
+                    }
+                };
+                deleteNodes(tree);
+            }
+
+            t.set(treeRef, { tree, updatedAt: new Date().toISOString() }, { merge: true });
+        });
+        logger.info(`🌳 Firestore Tree Batch Updated: ${operation} on ${targetIds.length} items`);
+    } catch (e) {
+        logger.error("Failed to update Firestore Tree Batch:", e);
+    }
+}
