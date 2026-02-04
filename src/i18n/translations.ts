@@ -131,6 +131,20 @@ export const TRANSLATIONS: Record<Language, any> = {
             guardian: "Guardián",
             imprenta: "Imprenta",
             cronograma: "Cronograma"
+        },
+        genesis: {
+            title: "Protocolo Génesis",
+            subtitle: "El Arquitecto Socrático",
+            initialMessage: "Veo una chispa en ti. Cuéntame, ¿qué idea tienes en mente? ¿Quién es el protagonista o en qué mundo sucede?",
+            placeholder: "Responde al Arquitecto...",
+            thinking: "El Arquitecto está pensando...",
+            materializeButton: "Materializar Mundo",
+            materializing: "Materializando...",
+            materializeStart: "Iniciando el Big Bang...",
+            success: "¡Mundo Materializado!",
+            errorConnection: "Error conectando con el Arquitecto.",
+            errorSession: "Error de sesión: No se pudo refrescar el token.",
+            errorMaterialize: "Error al materializar: "
         }
     },
     en: {
@@ -263,6 +277,20 @@ export const TRANSLATIONS: Record<Language, any> = {
             guardian: "Guardian",
             imprenta: "Press",
             cronograma: "Timeline"
+        },
+        genesis: {
+            title: "Genesis Protocol",
+            subtitle: "The Socratic Architect",
+            initialMessage: "I see a spark in you. Tell me, what idea do you have in mind? Who is the protagonist or in what world does it take place?",
+            placeholder: "Answer the Architect...",
+            thinking: "The Architect is thinking...",
+            materializeButton: "Materialize World",
+            materializing: "Materializing...",
+            materializeStart: "Initiating Big Bang...",
+            success: "World Materialized!",
+            errorConnection: "Error connecting to the Architect.",
+            errorSession: "Session error: Could not refresh token.",
+            errorMaterialize: "Error materializing: "
         }
     },
     jp: {
@@ -387,6 +415,20 @@ export const TRANSLATIONS: Record<Language, any> = {
             guardian: "ガーディアン",
             imprenta: "印刷",
             cronograma: "タイムライン"
+        },
+        genesis: {
+            title: "ジェネシス・プロトコル",
+            subtitle: "ソクラテス的建築家",
+            initialMessage: "あなたの中に輝きが見えます。どんなアイデアをお持ちですか？主人公は誰で、どんな世界の話ですか？",
+            placeholder: "建築家に答える...",
+            thinking: "建築家が思考中...",
+            materializeButton: "世界を具現化",
+            materializing: "具現化中...",
+            materializeStart: "ビッグバンを開始...",
+            success: "世界が具現化されました！",
+            errorConnection: "建築家との接続エラー。",
+            errorSession: "セッションエラー：トークンを更新できませんでした。",
+            errorMaterialize: "具現化エラー："
         }
     },
     ko: {
@@ -511,6 +553,20 @@ export const TRANSLATIONS: Record<Language, any> = {
             guardian: "가디언",
             imprenta: "인쇄소",
             cronograma: "타임라인"
+        },
+        genesis: {
+            title: "제네시스 프로토콜",
+            subtitle: "소크라테스적 건축가",
+            initialMessage: "당신에게서 불꽃이 보입니다. 어떤 아이디어를 가지고 계신가요? 주인공은 누구이며, 어떤 세상에서 일어나는 이야기인가요?",
+            placeholder: "건축가에게 답하기...",
+            thinking: "건축가가 생각 중...",
+            materializeButton: "세계 구현",
+            materializing: "구현 중...",
+            materializeStart: "빅뱅 시작 중...",
+            success: "세계가 구현되었습니다!",
+            errorConnection: "건축가 연결 오류.",
+            errorSession: "세션 오류: 토큰을 갱신할 수 없습니다.",
+            errorMaterialize: "구현 오류: "
         }
     },
     zh: {
@@ -635,6 +691,20 @@ export const TRANSLATIONS: Record<Language, any> = {
             guardian: "守护者",
             imprenta: "印刷",
             cronograma: "时间轴"
+        },
+        genesis: {
+            title: "创世纪协议",
+            subtitle: "苏格拉底式架构师",
+            initialMessage: "我看到了你心中的火花。告诉我，你有什么想法？主角是谁，故事发生在什么样的世界？",
+            placeholder: "回答架构师...",
+            thinking: "架构师正在思考...",
+            materializeButton: "具象化世界",
+            materializing: "具象化中...",
+            materializeStart: "正在启动大爆炸...",
+            success: "世界已具象化！",
+            errorConnection: "连接架构师时出错。",
+            errorSession: "会话错误：无法刷新令牌。",
+            errorMaterialize: "具象化错误："
         }
     }
 };

@@ -4,6 +4,8 @@ import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { CreativeAuditService } from '../../services/CreativeAuditService';
 import { callFunction } from '../../services/api';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface GenesisWizardModalProps {
     isOpen: boolean;
@@ -19,6 +21,9 @@ interface Message {
 
 const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose, accessToken, onRefreshTokens }) => {
     const { user, config } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].genesis;
+
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -31,10 +36,10 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
     useEffect(() => {
         if (isOpen && messages.length === 0) {
             setMessages([
-                { role: 'model', message: "Veo una chispa en ti. Cuéntame, ¿qué idea tienes en mente? ¿Quién es el protagonista o en qué mundo sucede?" }
+                { role: 'model', message: t.initialMessage }
             ]);
         }
-    }, [isOpen]);
+    }, [isOpen, t.initialMessage]);
 
     // Auto-scroll
     useEffect(() => {
@@ -89,6 +94,16 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         }
 
         try {
+            // Map current language code to full English name for the prompt
+            const languageNameMap: Record<string, string> = {
+                es: "Spanish",
+                en: "English",
+                jp: "Japanese",
+                ko: "Korean",
+                zh: "Chinese"
+            };
+            const targetLangName = languageNameMap[currentLanguage] || "English";
+
             // Construct specific system prompt for this context
             const systemInstruction = `
                 You are a Socratic Architect (El Arquitecto Socrático).
@@ -97,7 +112,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                 - Ask ONE or TWO focused questions at a time.
                 - Do not write the story.
                 - Be concise, mysterious, and encouraging.
-                - Language: Detect user's language (Spanish/English) and reply in the same.
+                - Language: ALWAYS respond in ${targetLangName}.
 
                 PROTOCOL:
                 - If you have gathered enough information (Protagonist, Setting, Inciting Incident), append exactly "[GENESIS_READY]" at the very end of your response.
@@ -126,7 +141,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
 
         } catch (error) {
             console.error("Genesis Chat Error:", error);
-            toast.error("Error conectando con el Arquitecto.");
+            toast.error(t.errorConnection);
         } finally {
             setIsLoading(false);
         }
@@ -142,7 +157,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
     const handleMaterialize = async () => {
         if (isMaterializing) return;
         setIsMaterializing(true);
-        toast.info("Iniciando el Big Bang...");
+        toast.info(t.materializeStart);
 
         // 🟢 1. REFRESH TOKEN (CRITICAL)
         // Ensure we have a fresh token for Drive operations
@@ -150,7 +165,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
         const tokenToUse = freshToken || accessToken;
 
         if (!tokenToUse) {
-            toast.error("Error de sesión: No se pudo refrescar el token.");
+            toast.error(t.errorSession);
             setIsMaterializing(false);
             return;
         }
@@ -178,14 +193,14 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
             });
 
             if (data.success) {
-                toast.success(data.message || "¡Mundo Materializado!");
+                toast.success(data.message || t.success);
                 onClose();
                 setTimeout(() => window.location.reload(), 1500);
             }
 
         } catch (error: any) {
             console.error("Genesis Materialize Error:", error);
-            toast.error("Error al materializar: " + error.message);
+            toast.error(t.errorMaterialize + error.message);
         } finally {
             setIsMaterializing(false);
         }
@@ -205,9 +220,9 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                     <div>
                         <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-cyan-400 flex items-center gap-2">
                             <Sparkles size={20} className="text-cyan-400" />
-                            Protocolo Génesis
+                            {t.title}
                         </h2>
-                        <p className="text-xs text-titanium-400 mt-1">El Arquitecto Socrático</p>
+                        <p className="text-xs text-titanium-400 mt-1">{t.subtitle}</p>
                     </div>
                     <button onClick={onClose} className="text-titanium-500 hover:text-white transition-colors">
                         <X size={24} />
@@ -232,7 +247,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                         <div className="flex justify-start">
                              <div className="bg-titanium-900/50 rounded-2xl px-4 py-3 flex items-center gap-2 border border-titanium-800">
                                 <Loader2 size={14} className="animate-spin text-cyan-500" />
-                                <span className="text-xs text-titanium-500">El Arquitecto está pensando...</span>
+                                <span className="text-xs text-titanium-500">{t.thinking}</span>
                              </div>
                         </div>
                     )}
@@ -261,12 +276,12 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                                 {isMaterializing ? (
                                     <>
                                         <Loader2 size={18} className="animate-spin" />
-                                        Materializando...
+                                        {t.materializing}
                                     </>
                                 ) : (
                                     <>
                                         <Wand2 size={18} className={`transition-transform ${isReadyToMaterialize ? 'group-hover:rotate-12' : ''}`} />
-                                        <span>Materializar Mundo</span>
+                                        <span>{t.materializeButton}</span>
                                     </>
                                 )}
                                 {isReadyToMaterialize && (
@@ -282,7 +297,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             onKeyDown={handleKeyDown}
-                            placeholder="Responde al Arquitecto..."
+                            placeholder={t.placeholder}
                             className="w-full pl-5 pr-12 py-4 bg-titanium-950 border border-titanium-700 rounded-xl text-titanium-200 placeholder-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 focus:border-cyan-500/50 transition-all shadow-inner resize-none min-h-[56px] max-h-[200px]"
                             autoFocus
                             disabled={isMaterializing || isLoading}
