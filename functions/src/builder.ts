@@ -88,7 +88,7 @@ export const builderStream = onRequest(
 
       const entitiesList = entitiesSnapshot.docs.map(doc => {
           const d = doc.data();
-          return `- ${d.name} (${d.type})`;
+          return `- ${d.name} (${d.type}) [ID: ${doc.id}]`;
       }).join("\n");
 
       // B. Canon Narrative Context (Top Priority Chunks)
@@ -135,7 +135,7 @@ export const builderStream = onRequest(
                     3. **DEEP CONTEXT CHECK:** If the user mentions an entity, call 'get_entity_context(name)'.
                     4. **ANCHOR STRATEGY:**
                        - If an entity exists (check WORLD MAP), do NOT create a new full node.
-                       - Use an Anchor Node: { "id": "existing_id", "name": "Name", "isAnchor": true, ... }
+                       - Use an Anchor Node: { "id": "THE_ID_IN_BRACKETS", "name": "Name", "isAnchor": true, ... }
                     5. **FINAL OUTPUT (HIDDEN):**
                        - At the very end, output a JSON block wrapped in \`\`\`json\`\`\`.
                        - Structure: { "nodes": [...], "edges": [{ "source": "id", "target": "id", "label": "RELATION" }] }
