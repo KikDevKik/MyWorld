@@ -158,6 +158,56 @@ function extractValidFiles(
     return results;
 }
 
+/**
+ * Internal Consolidation Protocol
+ * - Merges duplicate candidates found across different files/batches
+ * - Combines evidence, confidence, and reasoning
+ */
+function consolidateIntraScanCandidates(candidates: AnalysisCandidate[]): AnalysisCandidate[] {
+    const map = new Map<string, AnalysisCandidate>();
+
+    for (const c of candidates) {
+        const key = normalizeName(c.name);
+
+        if (map.has(key)) {
+            const existing = map.get(key)!;
+
+            // 1. Merge Evidence (Unique by snippet/file)
+            const existingEvidence = new Set(existing.foundInFiles?.map(e => e.fileName + e.contextSnippet) || []);
+            const newEvidence = c.foundInFiles || [];
+
+            for (const ev of newEvidence) {
+                const sig = ev.fileName + ev.contextSnippet;
+                if (!existingEvidence.has(sig)) {
+                    if (!existing.foundInFiles) existing.foundInFiles = [];
+                    existing.foundInFiles.push(ev);
+                    existingEvidence.add(sig);
+                }
+            }
+
+            // 2. Merge Relations
+            if (c.relations) {
+                if (!existing.relations) existing.relations = [];
+                existing.relations.push(...c.relations);
+            }
+
+            // 3. Max Confidence
+            existing.confidence = Math.max(existing.confidence, c.confidence);
+
+            // 4. Combine Reasoning (if distinct)
+            if (c.reasoning && !existing.reasoning.includes(c.reasoning)) {
+                existing.reasoning += `\n\n[Fusionado]: ${c.reasoning}`;
+            }
+
+        } else {
+            // Clone to avoid mutating original if needed
+            map.set(key, { ...c, foundInFiles: c.foundInFiles ? [...c.foundInFiles] : [] });
+        }
+    }
+
+    return Array.from(map.values());
+}
+
 export const scanProjectFiles = async (
     projectId: string, // 🟢 NEW: Mandatory for Backend Context
     fileTree: FileNode[],
@@ -250,6 +300,9 @@ export const scanProjectFiles = async (
         processedCount++;
         onProgress(`Lote ${processedCount} completado.`, processedCount, batchKeys.length);
     }
+
+    // 🟢 NEW: INTERNAL CONSOLIDATION (Fix for duplicates)
+    allCandidates = consolidateIntraScanCandidates(allCandidates);
 
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
     onProgress("Cross-referencing...", batchKeys.length, batchKeys.length);
