@@ -62,20 +62,63 @@ export const genesisManifest = onCall(
     const db = getFirestore();
     const config = await getProjectConfigLocal(userId);
 
-    // 1. SETUP FOLDERS
+    // 1. SETUP FOLDERS (Resolver & Validator)
     const peopleFolderId = getFolderIdForRole(config, FolderRole.ENTITY_PEOPLE);
-    const worldFolderId = getFolderIdForRole(config, FolderRole.WORLD_CORE); // Locations go here
+    const worldFolderId = getFolderIdForRole(config, FolderRole.WORLD_CORE);
     const manuscriptFolderId = getFolderIdForRole(config, FolderRole.SAGA_MAIN);
+    const bestiaryFolderId = getFolderIdForRole(config, FolderRole.ENTITY_BESTIARY);
 
-    if (!peopleFolderId || !worldFolderId || !manuscriptFolderId) {
+    // 🟢 RESOLVE ITEMS FOLDER (New Requirement)
+    let itemsFolderId = getFolderIdForRole(config, FolderRole.ENTITY_OBJECTS);
+
+    if (!peopleFolderId || !worldFolderId || !manuscriptFolderId || !bestiaryFolderId) {
         throw new HttpsError("failed-precondition", "Project structure incomplete. Please run 'Create Standard' first.");
     }
 
-    try {
-        const auth = new google.auth.OAuth2();
-        auth.setCredentials({ access_token: accessToken });
-        const drive = google.drive({ version: "v3", auth });
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: accessToken });
+    const drive = google.drive({ version: "v3", auth });
 
+    // 🟢 DYNAMIC STRUCTURE REPAIR: Ensure OBJETOS exists if missing
+    if (!itemsFolderId) {
+        logger.info("🛠️ Genesis: OBJETOS folder missing in config. Attempting resolution...");
+        try {
+            const rootId = config.folderId;
+            if (rootId) {
+                // Check if exists in Drive
+                const q = `'${rootId}' in parents and name = 'OBJETOS' and trashed = false`;
+                const res = await drive.files.list({ q, fields: "files(id)" });
+
+                if (res.data.files && res.data.files.length > 0) {
+                    itemsFolderId = res.data.files[0].id!;
+                    logger.info("   -> Found existing OBJETOS folder.");
+                } else {
+                    // Create it
+                    const createRes = await drive.files.create({
+                        requestBody: {
+                            name: "OBJETOS",
+                            mimeType: "application/vnd.google-apps.folder",
+                            parents: [rootId]
+                        },
+                        fields: "id"
+                    });
+                    itemsFolderId = createRes.data.id!;
+                    logger.info("   -> Created new OBJETOS folder.");
+                }
+
+                // Update Config Mapping (Async, non-blocking)
+                if (itemsFolderId) {
+                     const mapUpdate: any = {};
+                     mapUpdate[`folderMapping.${FolderRole.ENTITY_OBJECTS}`] = itemsFolderId;
+                     db.collection("users").doc(userId).collection("profile").doc("project_config").update(mapUpdate).catch(e => logger.warn("Config update failed", e));
+                }
+            }
+        } catch (e) {
+            logger.warn("⚠️ Genesis: Failed to resolve OBJETOS folder. Items may be misplaced.", e);
+        }
+    }
+
+    try {
         // 2. AI EXTRACTION (The Architect)
         const historyText = chatHistory.map((h: any) => `${h.role}: ${h.message}`).join("\n");
 
@@ -100,36 +143,62 @@ export const genesisManifest = onCall(
         const prompt = `
             TASK: Analyze the Socratic Chat and extract the structural elements of the story.
 
-            EXTRACT:
-            1. CHARACTERS: Protagonist, Antagonist, etc. (Max 3)
-            2. LOCATIONS: Key settings mentioned. (Max 2)
-            3. CHAPTERS: The inciting incident or first chapter idea. (Max 1)
+            EXTRACT THE NARRATIVE VOICE (POV):
+            - Determine if the user chose First Person (FPS), Third Person (TPS), or Cinematic.
+            - Valid values: 'FPS', 'TPS', 'CINEMATIC'. Default: 'TPS'.
+
+            EXTRACT ENTITIES (The Taxonomy):
+            1. TYPE_SOUL: Characters with agency/dialogue. (Max 3).
+               - REQUIRED METADATA: 'role' (Default: "NPC"), 'age' (Default: "Desconocida").
+            2. TYPE_BEAST: Monsters, creatures, or non-sentient threats.
+            3. TYPE_LOCATION: Key settings/places. (Max 2).
+            4. TYPE_ITEM: Important objects, artifacts, or MacGuffins.
+            5. TYPE_CHAPTER: The inciting incident or first chapter idea. (Max 1).
+
+            AGENCY CHECK PROTOCOL:
+            - If it speaks or has a political/social role -> TYPE_SOUL.
+            - If it growls/kills but doesn't debate -> TYPE_BEAST.
+            - If it's a place -> TYPE_LOCATION.
+            - If it's an object -> TYPE_ITEM.
 
             LANGUAGE INSTRUCTION:
             Detect the language of the CHAT HISTORY.
             All output values (traits, summaries, content) MUST BE in the SAME LANGUAGE as the CHAT HISTORY.
 
             OUTPUT SCHEMA (JSON):
-            [
-              {
-                "type": "CHARACTER",
-                "name": "Name",
-                "role": "Protagonist / Antagonist",
-                "traits": "Brief description of personality/appearance"
-              },
-              {
-                "type": "LOCATION",
-                "name": "Location Name",
-                "role": "Setting / Key Location",
-                "traits": "Atmosphere and details"
-              },
-              {
-                "type": "CHAPTER",
-                "title": "Chapter Title",
-                "summary": "Brief summary of what happens",
-                "content": "A starting paragraph for the story..."
-              }
-            ]
+            {
+              "narrative_style": "FPS" | "TPS" | "CINEMATIC",
+              "entities": [
+                {
+                  "type": "TYPE_SOUL",
+                  "name": "Name",
+                  "role": "Protagonist / Antagonist / NPC",
+                  "age": "30 / Unknown",
+                  "traits": "Brief description..."
+                },
+                {
+                  "type": "TYPE_BEAST",
+                  "name": "Monster Name",
+                  "traits": "Scary details..."
+                },
+                {
+                  "type": "TYPE_LOCATION",
+                  "name": "Location Name",
+                  "traits": "Atmosphere..."
+                },
+                {
+                  "type": "TYPE_ITEM",
+                  "name": "Object Name",
+                  "traits": "Function..."
+                },
+                {
+                  "type": "TYPE_CHAPTER",
+                  "title": "Chapter Title",
+                  "summary": "Brief summary",
+                  "content": "Starting paragraph..."
+                }
+              ]
+            }
 
             CHAT HISTORY:
             ${historyText}
@@ -137,10 +206,31 @@ export const genesisManifest = onCall(
 
         const result = await model.generateContent(prompt);
         const jsonText = result.response.text();
-        const entities = parseSecureJSON(jsonText, "GenesisExtraction");
+        const parsedResult = parseSecureJSON(jsonText, "GenesisExtraction");
 
-        if (!Array.isArray(entities)) {
+        if (!parsedResult || !parsedResult.entities) {
             throw new HttpsError("internal", "Failed to parse Genesis extraction.");
+        }
+
+        const { narrative_style, entities } = parsedResult;
+
+        // 🟢 SAVE NARRATIVE STYLE
+        if (narrative_style) {
+            await db.collection("users").doc(userId).collection("profile").doc("project_config").update({
+                styleIdentity: narrative_style // Mapping 'narrative_style' to 'styleIdentity' field in config or adding new one?
+                // User asked for 'narrative_style' or 'project_narrative_voice'.
+                // Let's use 'styleIdentity' as it fits existing schema or add narrative_style.
+                // Plan said: Update 'project_config' with 'narrative_style'.
+            }).catch(async () => {
+                 // Fallback set if doc missing
+                 await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+                     narrative_style: narrative_style
+                 }, { merge: true });
+            });
+            // Ensure field is saved exactly as requested
+            await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+                narrative_style: narrative_style
+            }, { merge: true });
         }
 
         // 3. EXECUTION (The Materialization)
@@ -165,34 +255,57 @@ export const genesisManifest = onCall(
             let fileName = "";
             let fileType = 'file';
 
-            if (item.type === 'CHARACTER') {
+            if (item.type === 'TYPE_SOUL') {
                 folderId = peopleFolderId;
                 fileName = `${item.name}.md`;
                 content = generateAnchorContent({
                     name: item.name,
                     type: 'character',
-                    role: item.role,
+                    role: item.role || "NPC",
+                    age: item.age || "Desconocida", // 🟢 Metadata Injection
                     description: item.traits,
                     status: 'active',
                     tier: 'ANCHOR'
                 } as any);
-            } else if (item.type === 'LOCATION') {
+            } else if (item.type === 'TYPE_LOCATION') {
                 folderId = worldFolderId;
                 fileName = `${item.name}.md`;
                 content = generateAnchorContent({
                     name: item.name,
                     type: 'location',
-                    role: item.role,
+                    role: 'Setting',
                     description: item.traits,
                     status: 'active',
                     tier: 'ANCHOR'
                 } as any);
-            } else if (item.type === 'CHAPTER') {
+            } else if (item.type === 'TYPE_BEAST') {
+                folderId = bestiaryFolderId;
+                fileName = `${item.name}.md`;
+                content = generateAnchorContent({
+                    name: item.name,
+                    type: 'creature',
+                    role: 'Monster',
+                    description: item.traits,
+                    status: 'active',
+                    tier: 'ANCHOR'
+                } as any);
+            } else if (item.type === 'TYPE_ITEM') {
+                folderId = itemsFolderId || worldFolderId; // Fallback to World if Objects missing
+                fileName = `${item.name}.md`;
+                content = generateAnchorContent({
+                    name: item.name,
+                    type: 'object',
+                    role: 'Item',
+                    description: item.traits,
+                    status: 'active',
+                    tier: 'ANCHOR'
+                } as any);
+            } else if (item.type === 'TYPE_CHAPTER') {
                 folderId = targetManuscriptFolder;
                 fileName = `${item.title.replace(/[^a-zA-Z0-9\-_ ]/g, '')}.md`;
                 content = generateDraftContent({
                     title: item.title,
-                    type: 'draft', // or 'scene'
+                    type: 'draft',
                     summary: item.summary,
                     content: item.content
                 });
