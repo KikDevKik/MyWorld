@@ -1,6 +1,6 @@
 import React from 'react';
 import { SoulEntity } from '../../types/forge';
-import { Ghost, FileEdit, Anchor, ArrowRight, Zap, Database, PawPrint, Flower, User } from 'lucide-react';
+import { Ghost, FileEdit, Anchor, ArrowRight, Zap, Database, PawPrint, Flower, User, MapPin, Box } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 
@@ -13,6 +13,8 @@ const CategoryIcon = ({ category, className }: { category?: string, className?: 
     switch (category) {
         case 'CREATURE': return <PawPrint className={className} />;
         case 'FLORA': return <Flower className={className} />;
+        case 'LOCATION': return <MapPin className={className} />;
+        case 'OBJECT': return <Box className={className} />;
         case 'PERSON': default: return <User className={className} />;
     }
 };
@@ -102,6 +104,8 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
     let registeredLabel = t.registeredCharacter;
     if (entity.category === 'CREATURE') registeredLabel = t.registeredFauna;
     else if (entity.category === 'FLORA') registeredLabel = t.registeredFlora;
+    else if (entity.category === 'LOCATION') registeredLabel = t.registeredLocation;
+    else if (entity.category === 'OBJECT') registeredLabel = t.registeredObject;
 
     return (
         <div className="group relative p-5 rounded-xl border border-titanium-700 bg-gradient-to-br from-titanium-900 to-titanium-950 hover:border-emerald-500/50 hover:shadow-[0_0_15px_rgba(16,185,129,0.1)] transition-all duration-300">
@@ -113,6 +117,8 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                     <h3 className="text-xl font-serif font-bold text-titanium-100 group-hover:text-emerald-300 transition-colors flex items-center gap-2">
                         {entity.category === 'CREATURE' && <PawPrint size={18} className="text-emerald-600" />}
                         {entity.category === 'FLORA' && <Flower size={18} className="text-pink-600" />}
+                        {entity.category === 'LOCATION' && <MapPin size={18} className="text-blue-500" />}
+                        {entity.category === 'OBJECT' && <Box size={18} className="text-amber-500" />}
                         {(!entity.category || entity.category === 'PERSON') && <User size={18} className="text-titanium-600 group-hover:text-emerald-500" />}
                         {entity.name}
                     </h3>
