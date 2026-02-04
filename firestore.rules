@@ -7,8 +7,16 @@ service cloud.firestore {
     // 🟢 GHOST MODE EXCEPTION (TEMPORARY FOR JULES)
     // Allows unauthenticated access to the Commander's specific data silo
     // NOTE: Write disabled for safety as per code review.
-    match /users/1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq/{document=**} {
+    // 🛡️ SENTINEL FIX: Replaced recursive wildcard with explicit allowlist to prevent
+    // exposure of sensitive subcollections like 'system_secrets' (Refresh Tokens).
+    match /users/1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq {
       allow read: if true;
+
+      match /characters/{document=**} { allow read: if true; }
+      match /projects/{document=**} { allow read: if true; }
+      match /profile/{document=**} { allow read: if true; }
+      match /forge_detected_entities/{document=**} { allow read: if true; }
+      match /file_locks/{document=**} { allow read: if true; }
     }
 
     // 🟢 PUBLIC CERTIFICATES (THE JUDGE)

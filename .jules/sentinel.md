@@ -100,3 +100,8 @@
 **Vulnerability:** Unbounded Batch Size & Filename Length
 **Learning:** The `trashDriveItems` function allowed processing an unlimited number of files in parallel, creating a DoS vector. Additionally, `renameDriveFolder` had no maximum length check, allowing potentially problematic long filenames.
 **Prevention:** Implemented `MAX_BATCH_SIZE = 50` and `MAX_FILENAME_LENGTH = 255` in `folder_manager.ts` to strictly bound these operations.
+
+## 2025-05-31 - [CRITICAL] Ghost Mode Secrets Leak
+**Vulnerability:** Public Exposure of Refresh Tokens in Ghost Mode.
+**Learning:** Recursive wildcards (`{document=**}`) grant access to ALL subcollections, including sensitive ones like `system_secrets` created by backend processes.
+**Prevention:** Use explicit subcollection matching for public/exception rules.
