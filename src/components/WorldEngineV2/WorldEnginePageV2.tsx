@@ -508,9 +508,32 @@ const WorldEnginePageV2: React.FC<{
                          if (!exists) mergedRelations.push(newRel);
                      });
 
+                     // 🟢 MERGE EVIDENCE (With Timestamps)
+                     const existingEvidence = docSnap.data()?.foundInFiles || [];
+                     const newEvidence = candidate.foundInFiles?.map(f => ({
+                         fileId: f.fileId || 'nexus-scan',
+                         fileName: f.fileName,
+                         lastSeen: new Date().toISOString(),
+                         fileLastModified: f.fileLastModified
+                     })) || [];
+
+                     const mergedEvidence = [...existingEvidence];
+                     newEvidence.forEach(ne => {
+                         // If fileId is missing (legacy), try to match by name, otherwise append
+                         const idx = mergedEvidence.findIndex((e: any) =>
+                            (ne.fileId && e.fileId === ne.fileId) || (!ne.fileId && e.fileName === ne.fileName)
+                         );
+                         if (idx >= 0) {
+                             mergedEvidence[idx] = ne; // Update timestamp/version
+                         } else {
+                             mergedEvidence.push(ne);
+                         }
+                     });
+
                      const updates: any = {
                          aliases: arrayUnion(...(candidate.aliases || [candidate.name])),
-                         relations: mergedRelations
+                         relations: mergedRelations,
+                         foundInFiles: mergedEvidence
                      };
 
                      // If description was explicitly edited/staged, update it too
@@ -553,9 +576,10 @@ const WorldEnginePageV2: React.FC<{
                          relations: mappedRelations, // 🟢 INJECTED
                          // Map evidence
                          foundInFiles: candidate.foundInFiles?.map(f => ({
-                             fileId: 'nexus-scan', // Placeholder as we don't have exact ID here
+                             fileId: f.fileId || 'nexus-scan',
                              fileName: f.fileName,
-                             lastSeen: new Date().toISOString()
+                             lastSeen: new Date().toISOString(),
+                             fileLastModified: f.fileLastModified
                          })) || [],
                          meta: {},
                          // STRICT: No Coordinates (Let Physics decide)
@@ -673,9 +697,10 @@ const WorldEnginePageV2: React.FC<{
                      sourceFileId: 'nexus-scan'
                  })) || [],
                  foundInFiles: originalCandidate.foundInFiles?.map(f => ({
-                     fileId: 'nexus-scan',
+                     fileId: f.fileId || 'nexus-scan',
                      fileName: f.fileName,
-                     lastSeen: new Date().toISOString()
+                     lastSeen: new Date().toISOString(),
+                     fileLastModified: f.fileLastModified
                  })) || [],
                  meta: {},
              };

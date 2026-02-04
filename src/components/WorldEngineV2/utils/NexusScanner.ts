@@ -16,6 +16,30 @@ const validateToken = async (token: string): Promise<boolean> => {
     }
 };
 
+// 🟢 HELPER: BATCH METADATA FETCH
+const fetchFileMetadata = async (fileIds: string[], token: string): Promise<Record<string, { id: string, name: string, modifiedTime: string }>> => {
+    const results: Record<string, { id: string, name: string, modifiedTime: string }> = {};
+    const CHUNK_SIZE = 10; // 10 parallel requests to avoid rate limits
+
+    for (let i = 0; i < fileIds.length; i += CHUNK_SIZE) {
+        const chunk = fileIds.slice(i, i + CHUNK_SIZE);
+        await Promise.all(chunk.map(async (id) => {
+            try {
+                const res = await fetch(`https://www.googleapis.com/drive/v3/files/${id}?fields=id,name,modifiedTime`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    results[id] = { id: data.id, name: data.name, modifiedTime: data.modifiedTime };
+                }
+            } catch (e) {
+                console.warn(`[NexusScanner] Metadata fetch failed for ${id}`, e);
+            }
+        }));
+    }
+    return results;
+};
+
 // Type definitions matching the context/backend
 export interface FileNode {
     id: string;
@@ -247,16 +271,54 @@ export const scanProjectFiles = async (
         return [];
     }
 
+    // 🟢 1.5. DIFFERENTIAL SCANNING (The Filter)
+    onProgress("Verificando actualizaciones...", 0, targetFiles.length);
+    const fileMetadataMap = await fetchFileMetadata(targetFiles.map(f => f.id), token);
+
+    const filesToScan = targetFiles.filter(f => {
+        const meta = fileMetadataMap[f.id];
+        if (!meta) {
+            console.warn(`[NexusScanner] Could not fetch metadata for ${f.name}, forcing scan.`);
+            return true;
+        }
+
+        // Logic: Check if we have ALREADY processed this file version in ANY node
+        const isRecorded = existingNodes.some(node => {
+            const evidence = node.foundInFiles?.find(ev => ev.fileId === f.id);
+            if (!evidence) return false;
+
+            // If evidence is missing timestamp, it's old data -> re-scan
+            if (!evidence.fileLastModified) return false;
+
+            // Compare timestamps
+            // If recorded >= current, we have seen this version.
+            return new Date(evidence.fileLastModified).getTime() >= new Date(meta.modifiedTime).getTime();
+        });
+
+        if (isRecorded) {
+            // console.log(`[NexusScanner] Skipping unchanged file: ${f.name}`);
+            return false;
+        }
+        return true;
+    });
+
+    console.log(`[NexusScanner] Differential Analysis: ${filesToScan.length} files changed/new out of ${targetFiles.length}.`);
+
+    if (filesToScan.length === 0) {
+        onProgress("Todo está actualizado.", 100, 100);
+        return [];
+    }
+
     // 🟢 2. GROUPING (BATCHING STRATEGY)
-    const batches: Record<string, typeof targetFiles> = {};
-    targetFiles.forEach(f => {
+    const batches: Record<string, typeof filesToScan> = {};
+    filesToScan.forEach(f => {
         const pid = f.parentId || 'root';
         if (!batches[pid]) batches[pid] = [];
         batches[pid].push(f);
     });
 
     const batchKeys = Object.keys(batches);
-    onProgress("Batching...", 0, batchKeys.length);
+    // onProgress("Batching...", 0, batchKeys.length);
 
     // 3. Process Batches
     let allCandidates: AnalysisCandidate[] = [];
@@ -269,7 +331,7 @@ export const scanProjectFiles = async (
         const contextType = batchFiles[0].context; // Assume batch shares context type (usually per folder)
 
         // 🟢 UI FEEDBACK: BICAMERAL PROTOCOL
-        onProgress(`EJECUTANDO CEREBRO BICAMERAL (FLASH + PRO)... Analizando Lote ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} archivos).`, processedCount, batchKeys.length);
+        onProgress(`ANALIZANDO NOVEDADES... Lote ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} archivos).`, processedCount, batchKeys.length);
 
         try {
             const token = localStorage.getItem('google_drive_token');
@@ -285,11 +347,31 @@ export const scanProjectFiles = async (
             }, { timeout: 540000 }); // 9 Minutes
 
             if (data.candidates && Array.isArray(data.candidates)) {
-                // 🟢 ID GENERATION & RELATION MAPPING
-                const candidatesWithIds = data.candidates.map(c => ({
-                    ...c,
-                    id: c.id || `cand-${Date.now()}-${Math.floor(Math.random() * 10000)}`
-                }));
+                // 🟢 ID GENERATION & RELATION MAPPING & METADATA INJECTION
+                const candidatesWithIds = data.candidates.map(c => {
+                    // Inject File Metadata using mapped name
+                    const enhancedFoundInFiles = c.foundInFiles?.map(ev => {
+                        // Robust Matching: Try exact first, then normalized
+                        let matchFile = batchFiles.find(bf => bf.name === ev.fileName);
+                        if (!matchFile) {
+                             const normEv = normalizeName(ev.fileName);
+                             matchFile = batchFiles.find(bf => normalizeName(bf.name) === normEv);
+                        }
+                        const meta = matchFile ? fileMetadataMap[matchFile.id] : null;
+
+                        return {
+                            ...ev,
+                            fileId: meta?.id,
+                            fileLastModified: meta?.modifiedTime
+                        };
+                    }) || [];
+
+                    return {
+                        ...c,
+                        id: c.id || `cand-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
+                        foundInFiles: enhancedFoundInFiles
+                    };
+                });
                 allCandidates = [...allCandidates, ...candidatesWithIds];
             }
 
@@ -305,7 +387,7 @@ export const scanProjectFiles = async (
     allCandidates = consolidateIntraScanCandidates(allCandidates);
 
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
-    onProgress("Cross-referencing...", batchKeys.length, batchKeys.length);
+    onProgress("Integrando conocimientos...", batchKeys.length, batchKeys.length);
 
     const finalizedCandidates = allCandidates.map(candidate => {
         // 🟢 CRITICAL FIX: Resolve ID if AI Suggested Merge
