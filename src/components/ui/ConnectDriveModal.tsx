@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { HardDrive, X, Check, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ConnectDriveModalProps {
     isOpen: boolean;
@@ -10,6 +12,8 @@ interface ConnectDriveModalProps {
 
 const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, onSubmit }) => {
     const [inputId, setInputId] = useState('');
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
 
     if (!isOpen) return null;
 
@@ -85,14 +89,14 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
                                 onClick={onClose}
                                 className="flex-1 py-3 bg-gray-900 hover:bg-gray-800 text-gray-400 hover:text-white rounded-xl text-sm font-medium transition-colors outline-none"
                             >
-                                Cancelar
+                                {t.common.cancel}
                             </button>
                             <button
                                 type="submit"
                                 className="flex-1 py-3 bg-white hover:bg-gray-200 text-black rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 outline-none shadow-[0_0_15px_rgba(255,255,255,0.1)]"
                             >
                                 <Check size={16} />
-                                Conectar
+                                {t.status.connect}
                             </button>
                         </div>
                     </form>

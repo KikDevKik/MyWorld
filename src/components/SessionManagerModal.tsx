@@ -4,6 +4,8 @@ import { Modal } from './ui/Modal';
 import { Loader2, AlertTriangle, Zap } from 'lucide-react';
 import { SessionList } from './ui/SessionList';
 import { callFunction } from '../services/api';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface SessionManagerModalProps {
     isOpen: boolean;
@@ -33,6 +35,8 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
     const [isLoading, setIsLoading] = useState(false);
     const [isDeleting, setIsDeleting] = useState<string | null>(null);
     const [isPurging, setIsPurging] = useState(false);
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
 
     useEffect(() => {
         if (isOpen) {
@@ -59,7 +63,7 @@ export const SessionManagerModal: React.FC<SessionManagerModalProps> = ({
 
     const handleDelete = async (e: React.MouseEvent, sessionId: string) => {
         e.stopPropagation(); // Prevent selection
-        if (!confirm("¿Eliminar esta sesión permanentemente?")) return;
+        if (!confirm(t.common.deleteSessionConfirm)) return;
 
         setIsDeleting(sessionId);
         try {

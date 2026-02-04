@@ -5,6 +5,8 @@ import useDrivePicker from 'react-google-drive-picker';
 import { FolderRole } from '../../types/core';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface CreateFileModalProps {
     isOpen: boolean;
@@ -15,6 +17,8 @@ interface CreateFileModalProps {
 
 const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFileCreated, accessToken }) => {
     const { config, fileTree } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
     const [fileName, setFileName] = useState("");
     const [selectedFolder, setSelectedFolder] = useState<{ id: string; name: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -162,7 +166,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                 {/* Header */}
                 <div className="p-5 border-b border-titanium-700/50 bg-titanium-800/30 flex justify-between items-center">
                     <h3 className="text-lg font-bold text-titanium-100 flex items-center gap-2">
-                        <FilePlus size={20} className="text-cyan-500"/> Nuevo Manuscrito
+                        <FilePlus size={20} className="text-cyan-500"/> {t.editor.createNew}
                     </h3>
                     <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors">
                         <X size={20} />
@@ -175,7 +179,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                     {/* Name Input */}
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
-                            Nombre del Archivo
+                            {t.common.fileName}
                         </label>
                         <input
                             type="text"
@@ -193,7 +197,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                     {/* Folder Select */}
                     <div className="space-y-2">
                          <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
-                            Ubicación
+                            {t.common.location}
                         </label>
                         <div className="flex items-center justify-between bg-titanium-800/50 border border-titanium-700 rounded-lg p-3">
                             <div className="flex items-center gap-3 overflow-hidden">
@@ -202,10 +206,10 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                     <span className="text-sm font-medium text-titanium-200 truncate">
-                                        {selectedFolder ? selectedFolder.name : "Cargando..."}
+                                        {selectedFolder ? selectedFolder.name : t.common.loading}
                                     </span>
                                     <span className="text-[10px] text-titanium-500 font-mono truncate">
-                                        {selectedFolder ? (selectedFolder.name.toLowerCase().includes('libro') ? 'Recomendado' : 'Carpeta de destino') : 'Detectando...'}
+                                        {selectedFolder ? (selectedFolder.name.toLowerCase().includes('libro') ? t.common.recommended : t.common.destinationFolder) : t.common.detecting}
                                     </span>
                                 </div>
                             </div>
@@ -213,7 +217,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                                 onClick={handleOpenPicker}
                                 className="text-xs font-medium text-cyan-500 hover:text-cyan-400 hover:underline px-2 py-1"
                             >
-                                Cambiar
+                                {t.common.change}
                             </button>
                         </div>
                     </div>
@@ -225,7 +229,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                         onClick={onClose}
                         className="px-4 py-2 rounded-lg text-sm font-medium text-titanium-400 hover:text-white hover:bg-titanium-700 transition-colors"
                     >
-                        Cancelar
+                        {t.common.cancel}
                     </button>
                     <button
                         onClick={handleSubmit}
@@ -233,7 +237,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                         className="flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold bg-cyan-600 text-white hover:bg-cyan-500 transition-all shadow-lg shadow-cyan-900/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isSubmitting ? <Loader2 size={16} className="animate-spin"/> : <Save size={16} />}
-                        {isSubmitting ? 'Creando...' : 'Crear Archivo'}
+                        {isSubmitting ? t.common.creating : t.common.create}
                     </button>
                 </div>
             </div>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface DeleteConfirmationModalProps {
     isOpen: boolean;
@@ -11,6 +13,8 @@ interface DeleteConfirmationModalProps {
 
 const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpen, onClose, onConfirm, count, isDeleting }) => {
     const [step, setStep] = useState(1);
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
 
     // Reset step when modal opens/closes
     useEffect(() => {
@@ -37,7 +41,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
                 <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-red-900/10">
                     <h2 className="text-lg font-bold text-titanium-100 flex items-center gap-2">
                         <Trash2 className="text-red-500" size={18} />
-                        {step === 1 ? 'Eliminar Elementos' : 'Confirmación Final'}
+                        {step === 1 ? t.common.confirmDeleteStep1 : t.common.confirmDeleteTitle}
                     </h2>
                     <button
                         onClick={onClose}
@@ -69,13 +73,13 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
                                     onClick={onClose}
                                     className="flex-1 py-2 text-sm font-medium text-titanium-300 hover:bg-titanium-800 rounded-lg transition-colors border border-transparent hover:border-titanium-700"
                                 >
-                                    Cancelar
+                                    {t.common.cancel}
                                 </button>
                                 <button
                                     onClick={handleFirstConfirm}
                                     className="flex-1 py-2 bg-titanium-800 hover:bg-red-900/30 text-red-400 hover:text-red-300 border border-titanium-700 hover:border-red-500/50 rounded-lg text-sm font-bold transition-all"
                                 >
-                                    Sí, eliminar
+                                    {t.common.yesDelete}
                                 </button>
                             </div>
                         </>
@@ -86,7 +90,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
                                     <AlertTriangle size={32} />
                                 </div>
                                 <h3 className="text-titanium-100 font-semibold text-base">
-                                    Confirmación de Seguridad
+                                    {t.common.securityConfirmation}
                                 </h3>
                                 <p className="text-titanium-400 text-sm leading-relaxed">
                                     Esta acción eliminará {count} elemento{count !== 1 ? 's' : ''} de la vista del proyecto. Confirma nuevamente para proceder.
@@ -99,7 +103,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
                                     disabled={isDeleting}
                                     className="flex-1 py-2 text-sm font-medium text-titanium-300 hover:bg-titanium-800 rounded-lg transition-colors border border-transparent hover:border-titanium-700 disabled:opacity-50"
                                 >
-                                    Cancelar
+                                    {t.common.cancel}
                                 </button>
                                 <button
                                     onClick={handleFinalConfirm}
@@ -109,10 +113,10 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
                                     {isDeleting ? (
                                         <>
                                             <Loader2 size={16} className="animate-spin" />
-                                            Borrando...
+                                            {t.common.deleting}
                                         </>
                                     ) : (
-                                        "CONFIRMAR BORRADO"
+                                        t.common.confirmDelete
                                     )}
                                 </button>
                             </div>

@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { X, Plus, Trash2, Save, Folder, Book, Star, Brain, Cpu, LayoutTemplate } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 import useDrivePicker from 'react-google-drive-picker';
 import { ProjectPath, FolderRole } from '../../types/core';
 import { callFunction } from '../../services/api';
@@ -12,6 +14,8 @@ interface ProjectSettingsModalProps {
 
 const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) => {
     const { config, updateConfig, loading } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
 
     // Local state for form handling
     const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
@@ -172,7 +176,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     // 🟢 BUILD TITANIUM STRUCTURE
     const handleCreateStructure = async () => {
-        if (!confirm("Esto creará la estructura de carpetas estándar 'Titanium' en tu carpeta raíz. ¿Continuar?")) return;
+        if (!confirm(t.editor.noProjectDesc)) return; // reusing message approx
 
         setIsAnalyzing(true);
         const token = localStorage.getItem('google_drive_token');
@@ -401,7 +405,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                                         disabled={isAnalyzing}
                                         className="px-3 py-1.5 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 rounded text-xs font-medium text-titanium-300 transition-colors flex items-center gap-2 disabled:opacity-50"
                                     >
-                                        <LayoutTemplate size={14} /> Crear Estándar
+                                        <LayoutTemplate size={14} /> {t.sidebar.createStandard}
                                     </button>
                                 </div>
                             </div>
@@ -434,7 +438,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                         onClick={onClose}
                         className="px-4 py-2 rounded-lg text-sm font-medium text-titanium-300 hover:text-white hover:bg-titanium-700 transition-colors"
                     >
-                        Cancelar
+                        {t.common.cancel}
                     </button>
                     <button
                         onClick={handleSave}
@@ -442,7 +446,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                         className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-accent-DEFAULT text-white hover:bg-accent-hover transition-all shadow-lg shadow-accent-DEFAULT/20 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Save size={16} />
-                        {isSaving ? 'Guardando...' : 'Guardar Configuración'}
+                        {isSaving ? t.common.saving : t.common.save}
                     </button>
                 </div>
 

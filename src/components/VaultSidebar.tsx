@@ -87,6 +87,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].sidebar;
     const tStatus = TRANSLATIONS[currentLanguage].status;
+    const tCommon = TRANSLATIONS[currentLanguage].common;
 
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
@@ -314,7 +315,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             <button
                                 onClick={handleDeleteClick}
                                 className="px-2 py-1 rounded-md bg-red-900/50 text-red-400 hover:bg-red-900/80 hover:text-white text-xs font-bold transition-all animate-in fade-in zoom-in"
-                                title="Confirmar Borrado"
+                                title={tCommon.confirm}
                             >
                                 {t.delete} ({selectedDeleteIds.size})
                             </button>
@@ -372,7 +373,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             <div className="flex-1 overflow-y-auto p-2 scrollbar-hide">
                 {isFileTreeLoading ? (
                     // 🟢 TITANIUM SKELETON (CIRCUIT BREAKER VISUAL)
-                    <div className="flex flex-col gap-3 p-2 animate-pulse" role="status" aria-label="Cargando estructura de archivos...">
+                    <div className="flex flex-col gap-3 p-2 animate-pulse" role="status" aria-label={tCommon.loading}>
                         <div className="h-4 bg-titanium-700/50 rounded w-3/4"></div>
                         <div className="h-4 bg-titanium-700/30 rounded w-1/2 ml-4"></div>
                         <div className="h-4 bg-titanium-700/30 rounded w-2/3 ml-4"></div>
@@ -400,7 +401,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     <button
                                         onClick={() => setIsCreateModalOpen(true)}
                                         className="group w-full flex items-center justify-center gap-2.5 py-2.5 bg-gradient-to-b from-titanium-700 to-titanium-800 hover:from-titanium-600 hover:to-titanium-700 border border-titanium-600 hover:border-titanium-500 text-titanium-100 rounded-lg text-xs font-semibold transition-all shadow-md hover:shadow-lg hover:shadow-black/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
-                                        aria-label="Crear estructura estándar"
+                                        aria-label={t.createStandard}
                                     >
                                         <LayoutTemplate size={14} className="text-cyan-500 group-hover:text-cyan-400 transition-colors" />
                                         {t.createStandard}
@@ -564,9 +565,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     <button
                         onClick={onRefreshTokens}
                         className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium group ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
-                        title="Click para renovar manualmente"
+                        title={tStatus.reconnect}
                         disabled={driveStatus === 'refreshing'}
-                        aria-label={`Estado de conexión: ${status.text}`}
+                        aria-label={status.text}
                     >
                         <status.icon size={16} className="transition-colors" />
                         <span>{status.text}</span>

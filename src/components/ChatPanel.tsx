@@ -7,6 +7,8 @@ import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
 import { X, FileText, Paperclip, Loader2, Folder, Gem as GemIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 import ContextSelectorModal from './ContextSelectorModal';
 import ChatInput from './ui/ChatInput';
 import { fileToGenerativePart } from '../services/geminiService';
@@ -59,6 +61,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   const [attachedFiles, setAttachedFiles] = useState<DriveFile[]>([]); // 🟢 Context Chips
   const [isDragging, setIsDragging] = useState(false);
   const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+  const { currentLanguage } = useLanguageStore();
+  const t = TRANSLATIONS[currentLanguage];
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -143,12 +147,12 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           }
       } else {
           // Scenario B: Create New
-          const confirm = window.confirm("¿Crear un nuevo archivo con esta información?");
+          const confirm = window.confirm(t.common.createFromChatConfirm);
           if (confirm) {
-               const name = window.prompt("Nombre del nuevo archivo:");
+               const name = window.prompt(t.editor.enterFileName);
                if (!name) return;
 
-               const toastId = toast.loading("Forjando nuevo archivo...");
+               const toastId = toast.loading(t.common.creating);
                try {
                    await callFunction('scribeCreateFile', {
                        entityId: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
