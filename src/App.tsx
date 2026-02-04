@@ -7,6 +7,7 @@ import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuth
 import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
+import { FileCache } from './utils/fileCache';
 import VaultSidebar from './components/VaultSidebar';
 import HybridEditor, { HybridEditorHandle } from './editor/HybridEditor'; // 👈 IMPORT NEW EDITOR
 import { DriftMarker } from './editor/extensions/driftPlugin';
@@ -56,6 +57,15 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [selectedFileContent, setSelectedFileContent] = useState<string>("");
     const [currentFileId, setCurrentFileId] = useState<string | null>(null);
     const [currentFileName, setCurrentFileName] = useState<string>('');
+
+    // 🟢 REF SYNC FOR CLOSURE SAFETY (FILE TREE BACKGROUND UPDATE)
+    const currentFileIdRef = useRef(currentFileId);
+    const selectedFileContentRef = useRef(selectedFileContent);
+    const lastSavedContentRef = useRef(lastSavedContent); // To detect isDirty in closure
+
+    useEffect(() => { currentFileIdRef.current = currentFileId; }, [currentFileId]);
+    useEffect(() => { selectedFileContentRef.current = selectedFileContent; }, [selectedFileContent]);
+    useEffect(() => { lastSavedContentRef.current = lastSavedContent; }, [lastSavedContent]);
 
     // 🟢 AUTO-SAVE STATE
     const [lastSavedContent, setLastSavedContent] = useState<string>("");
@@ -120,6 +130,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 accessToken: oauthToken,
                 isSignificant: isSignificant
             });
+
+            // 🟢 CACHE UPDATE: Keep local cache in sync with saves
+            FileCache.set(fileIdToSave, contentToSave);
 
             // ⚖️ AUDIT: LOG SIGNIFICANT WRITES
             // Only log if the edit was "significant" (>50 chars or similar heuristic from above)
@@ -858,11 +871,42 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     <VaultSidebar
                         folderId={folderId}
                         onFolderIdChange={setFolderId}
-                        onFileSelect={(id, content, name) => {
-                            setCurrentFileId(id);
-                            setSelectedFileContent(content);
-                            setLastSavedContent(content); // 🟢 SYNC BASELINE
-                            setCurrentFileName(name || 'Documento');
+                        onFileSelect={(id, content, name, isBackgroundUpdate) => {
+                            // 🟢 LOGIC:
+                            // If isBackgroundUpdate is true, we verify against LIVE state (Refs).
+                            // If false (User Click), we switch unconditionally.
+
+                            if (isBackgroundUpdate) {
+                                // 1. Verify we are still on the same file
+                                if (id !== currentFileIdRef.current) {
+                                    // User switched to another file while this one was loading. Ignore.
+                                    return;
+                                }
+
+                                // 2. Verify content is actually different
+                                if (content === selectedFileContentRef.current) {
+                                    return;
+                                }
+
+                                // 3. Check for unsaved changes (Dirty State)
+                                const isDirtyRef = selectedFileContentRef.current !== lastSavedContentRef.current;
+                                if (isDirtyRef) {
+                                     // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
+                                     toast.warning("Versión más reciente disponible en Drive", {
+                                        description: "No se actualizó para proteger tus cambios recientes."
+                                    });
+                                } else {
+                                     // ✅ SAFE: Upgrade content
+                                     setSelectedFileContent(content);
+                                     setLastSavedContent(content);
+                                }
+                            } else {
+                                // 🔴 STANDARD USER SWITCH
+                                setCurrentFileId(id);
+                                setSelectedFileContent(content);
+                                setLastSavedContent(content);
+                                setCurrentFileName(name || 'Documento');
+                            }
                         }}
                         onOpenConnectModal={() => setIsConnectModalOpen(true)}
                         onLogout={handleLogout}

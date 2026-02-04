@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { getLocalizedFolderName } from '../utils/folderLocalization';
+import { FileCache } from '../utils/fileCache';
 
 interface FileNode {
     id: string;
@@ -15,7 +16,7 @@ interface FileNode {
 
 interface FileTreeProps {
     folderId?: string; // Made optional
-    onFileSelect: (id: string, content: string, name?: string) => void;
+    onFileSelect: (id: string, content: string, name?: string, isBackgroundUpdate?: boolean) => void;
     accessToken: string | null;
     rootFilterId?: string | null; // 👈 NUEVO: Filtro de Saga
     onLoad?: (files: FileNode[]) => void; // 👈 NUEVO: Callback para el Sidebar
@@ -41,7 +42,7 @@ const extractFiles = (resultData: any): FileNode[] => {
 interface FileTreeNodeProps {
     node: FileNode;
     depth: number;
-    onFileSelect: (id: string, content: string, name?: string) => void;
+    onFileSelect: (id: string, content: string, name?: string, isBackgroundUpdate?: boolean) => void;
     accessToken: string | null;
     isPreloaded?: boolean;
     conflictingFileIds?: Set<string>;
@@ -145,13 +146,41 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     };
 
     const loadContent = async () => {
-        setIsLoading(true);
+        // 1. CACHE STRATEGY (Instant Load)
+        const cachedContent = FileCache.get(node.id);
+        const hasLoadedCache = cachedContent !== null;
+
+        if (hasLoadedCache) {
+            // Optimistic UI: Show cached content immediately
+            onFileSelect(node.id, cachedContent!, node.name, false);
+            // Don't set isLoading to true if we have cache, to keep it snappy
+        } else {
+            // Only show loading spinner if no cache
+            setIsLoading(true);
+        }
+
         try {
+            // 2. NETWORK STRATEGY (Background Refresh)
             const result = await callFunction<{ content: string }>('getDriveFileContent', { fileId: node.id, accessToken });
-            onFileSelect(node.id, result.content, node.name);
+
+            // 3. SYNC
+            if (result.content) {
+                FileCache.set(node.id, result.content);
+
+                // If content differs from cache (or cache was empty), update it
+                if (result.content !== cachedContent) {
+                    // If we served cache, this is a BACKGROUND UPDATE (true)
+                    // If we didn't serve cache, this is the INITIAL LOAD (false)
+                    onFileSelect(node.id, result.content, node.name, hasLoadedCache);
+                }
+            }
         } catch (error) {
             console.error("Error loading file:", error);
-            toast.error("Error al abrir archivo");
+            if (!cachedContent) {
+                toast.error("Error al abrir archivo");
+            } else {
+                toast.warning("Modo Offline: Usando versión en caché");
+            }
         } finally {
             setIsLoading(false);
         }
