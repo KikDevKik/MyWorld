@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 interface ModalProps {
     isOpen: boolean;
     onClose: () => void;
-    title: string;
+    title: React.ReactNode;
     children: React.ReactNode;
     footer?: React.ReactNode;
     className?: string;
@@ -60,7 +60,7 @@ export const Modal: React.FC<ModalProps> = ({
             >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-950/50 rounded-t-lg">
-                    <h2 id="modal-title" className="text-lg font-bold text-titanium-100 uppercase tracking-wide">
+                    <h2 id="modal-title" className="text-lg font-bold text-titanium-100 uppercase tracking-wide flex items-center gap-2">
                         {title}
                     </h2>
                     <button
