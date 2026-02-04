@@ -169,10 +169,31 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                             // 4. Final Payload (Graph Updates)
                             const payload = data.payload; // { nodes: [], edges: [] }
 
+                            // 🟢 ID RESOLVER (Name/ID -> Final ID)
+                            const idResolver = new Map<string, string>();
+
+                            // 1. Register Existing Ghost Nodes
+                            // Note: ghostNodes closure might be stale if multiple updates happen, but usually acceptable for this flow.
+                            ghostNodes.forEach(n => {
+                                idResolver.set(n.id, n.id);
+                                if (n.name) idResolver.set(n.name, n.id); // Name fallback
+                                if (n.name) idResolver.set(n.name.toLowerCase(), n.id);
+                            });
+
+                            let processedNodes: VisualNode[] = [];
+
                             if (Array.isArray(payload.nodes)) {
-                                const processedNodes = payload.nodes.map((n: any) => {
+                                processedNodes = payload.nodes.map((n: any) => {
                                     // Deterministic ID Calculation
                                     const id = n.id || generateId(projectId, n.name, n.type);
+
+                                    // Register mapping
+                                    idResolver.set(id, id);
+                                    if (n.name) idResolver.set(n.name, id);
+                                    if (n.name) idResolver.set(n.name.toLowerCase(), id);
+                                    // Map original ID if provided by AI
+                                    if (n.id) idResolver.set(n.id, id);
+
                                     return {
                                         ...n,
                                         id: id,
@@ -194,8 +215,25 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                             }
 
                             if (Array.isArray(payload.edges)) {
+                                const validEdges: VisualEdge[] = [];
+
+                                payload.edges.forEach((edge: any) => {
+                                    const sId = idResolver.get(edge.source) || idResolver.get(edge.source.toLowerCase());
+                                    const tId = idResolver.get(edge.target) || idResolver.get(edge.target.toLowerCase());
+
+                                    if (sId && tId) {
+                                        validEdges.push({
+                                            ...edge,
+                                            source: sId,
+                                            target: tId
+                                        });
+                                    } else {
+                                        console.warn(`⚠️ Dropping invalid edge: ${edge.source} -> ${edge.target} (Node not found)`);
+                                    }
+                                });
+
                                 setGhostEdges(prev => {
-                                    const combined = [...prev, ...payload.edges];
+                                    const combined = [...prev, ...validEdges];
                                     // Deduplicate by source-target key
                                     const unique = new Map();
                                     combined.forEach(edge => {
