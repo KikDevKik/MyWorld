@@ -741,21 +741,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             setEditorWidth={setEditorWidth}
                             isZenMode={isZenMode}
                             setIsZenMode={setIsZenMode}
-                            // 🟢 NARRATOR CONTROLS INJECTION
-                            narratorControls={{
-                                isPlaying: narratorControls.isPlaying,
-                                onPlayPause: () => {
-                                    if (narratorControls.isPlaying) {
-                                        narratorControls.pause();
-                                    } else if (narratorControls.currentSegmentIndex > 0) {
-                                        narratorControls.play();
-                                    } else {
-                                        // Start fresh analysis if not playing and at start
-                                        analyzeScene(selectedFileContent, []); // Pass empty chars for now or fetch from context
-                                    }
-                                },
-                                isLoading: isNarratorLoading
-                            }}
                         />
                      </div>
                 </div>
@@ -776,6 +761,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         className="h-full"
                         readOnly={isReadOnly}
                         onReadSelection={handleReadSelection} // 🟢 NEW
+                        narratorState={{
+                            isPlaying: narratorControls.isPlaying,
+                            isLoading: isNarratorLoading,
+                            stop: narratorControls.stop
+                        }}
                     />
                 </div>
                 <StatusBar
@@ -783,6 +773,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     guardianStatus={guardianStatus}
                     onGuardianClick={() => setActiveView('guardian')}
                     className="z-50 shrink-0"
+                    narratorControls={{
+                        ...narratorControls,
+                        isLoading: isNarratorLoading
+                    }}
                 />
             </div>
         );

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle } from 'lucide-react';
+import { Settings, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle, Loader2, Pause, Square, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLanguageStore } from '../../stores/useLanguageStore';
@@ -10,6 +10,14 @@ interface StatusBarProps {
     className?: string;
     guardianStatus?: string;
     onGuardianClick?: () => void;
+    narratorControls?: {
+        isPlaying: boolean;
+        isLoading: boolean;
+        pause: () => void;
+        stop: () => void;
+        play: () => void;
+        currentSegmentIndex?: number;
+    };
 }
 
 // HELPERS
@@ -23,7 +31,7 @@ const getTodayKey = () => {
     return `myword_daily_${date}`;
 };
 
-const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, narratorControls }) => {
     const { customGeminiKey } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].statusBar;
@@ -136,6 +144,46 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                              guardianStatus === 'conflict' ? t.conflict : t.argos}
                         </span>
                     </button>
+                )}
+
+                {/* 🟢 NARRATOR CONTROLS (NEW) */}
+                {(narratorControls?.isPlaying || narratorControls?.isLoading) && (
+                    <>
+                        <div className="h-3 w-px bg-titanium-800 mx-1" />
+                        <div className="flex items-center gap-2 px-2 py-0.5 rounded bg-cyan-950/30 border border-cyan-900/30">
+                            {narratorControls.isLoading ? (
+                                <Loader2 size={12} className="animate-spin text-cyan-400" />
+                            ) : (
+                                <span className="flex h-2 w-2 relative">
+                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                                </span>
+                            )}
+
+                            <span className="text-cyan-200 font-bold tracking-wide">
+                                {narratorControls.isLoading ? "Analizando..." : "Narrando"}
+                            </span>
+
+                            {!narratorControls.isLoading && (
+                                <div className="flex items-center gap-1 ml-1">
+                                    <button
+                                        onClick={narratorControls.pause}
+                                        className="hover:text-cyan-400 hover:bg-cyan-900/50 rounded p-0.5 transition-colors"
+                                        title="Pausar"
+                                    >
+                                        <Pause size={10} fill="currentColor" />
+                                    </button>
+                                    <button
+                                        onClick={narratorControls.stop}
+                                        className="hover:text-red-400 hover:bg-red-900/50 rounded p-0.5 transition-colors"
+                                        title="Detener"
+                                    >
+                                        <Square size={10} fill="currentColor" />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </>
                 )}
 
                 <div className="h-3 w-px bg-titanium-800 mx-1" />
