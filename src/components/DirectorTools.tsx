@@ -1,5 +1,7 @@
 import React from 'react';
 import { Search, BrainCircuit, Gavel } from 'lucide-react';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface DirectorToolsProps {
     mode: 'sentinel' | 'strategist' | 'war-room';
@@ -10,6 +12,8 @@ interface DirectorToolsProps {
 }
 
 export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector, onTribunal, onContext, isThinking }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].director;
 
     // In Sentinel Mode (Small), tools might be hidden or in a dropdown (handled by parent or simplified)
     if (mode === 'sentinel') return null;
@@ -23,20 +27,20 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
             <button
                 onClick={onInspector}
                 disabled={isThinking}
-                aria-label="Abrir Inspector de Personajes"
+                aria-label={t.inspector}
                 className={`
                     group flex items-center justify-center rounded transition-all
                     ${mode === 'war-room'
                         ? 'p-4 bg-titanium-800/20 hover:bg-amber-900/20 border border-titanium-700/50 hover:border-amber-500/50 gap-3 justify-start'
                         : 'w-10 h-10 hover:bg-amber-900/20 text-titanium-400 hover:text-amber-400'}
                 `}
-                title="Analizar (Inspector)"
+                title={`${t.inspector} (${t.analyzeCast})`}
             >
                 <Search size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-amber-500' : ''} />
                 {mode === 'war-room' && (
                     <div className="text-left">
-                        <div className="text-sm font-bold text-amber-100">Inspector</div>
-                        <div className="text-[10px] text-titanium-500 uppercase">Analizar Elenco</div>
+                        <div className="text-sm font-bold text-amber-100">{t.inspector}</div>
+                        <div className="text-[10px] text-titanium-500 uppercase">{t.analyzeCast}</div>
                     </div>
                 )}
             </button>
@@ -45,20 +49,20 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
             <button
                 onClick={onTribunal}
                 disabled={isThinking}
-                aria-label="Abrir Tribunal Literario"
+                aria-label={t.tribunal}
                 className={`
                     group flex items-center justify-center rounded transition-all
                     ${mode === 'war-room'
                         ? 'p-4 bg-titanium-800/20 hover:bg-purple-900/20 border border-titanium-700/50 hover:border-purple-500/50 gap-3 justify-start'
                         : 'w-10 h-10 hover:bg-purple-900/20 text-titanium-400 hover:text-purple-400'}
                 `}
-                title="Juzgar (Tribunal)"
+                title={`${t.tribunal} (${t.summonJudges})`}
             >
                 <Gavel size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-purple-500' : ''} />
                 {mode === 'war-room' && (
                     <div className="text-left">
-                        <div className="text-sm font-bold text-purple-100">Tribunal</div>
-                        <div className="text-[10px] text-titanium-500 uppercase">Invocar Jueces</div>
+                        <div className="text-sm font-bold text-purple-100">{t.tribunal}</div>
+                        <div className="text-[10px] text-titanium-500 uppercase">{t.summonJudges}</div>
                     </div>
                 )}
             </button>
@@ -67,20 +71,20 @@ export const DirectorTools: React.FC<DirectorToolsProps> = ({ mode, onInspector,
             <button
                 onClick={onContext}
                 disabled={isThinking}
-                aria-label="Sincronizar Contexto y Memoria"
+                aria-label={t.memory}
                 className={`
                     group flex items-center justify-center rounded transition-all
                     ${mode === 'war-room'
                         ? 'p-4 bg-titanium-800/20 hover:bg-cyan-900/20 border border-titanium-700/50 hover:border-cyan-500/50 gap-3 justify-start'
                         : 'w-10 h-10 hover:bg-cyan-900/20 text-titanium-400 hover:text-cyan-400'}
                 `}
-                title="Contexto (Memoria)"
+                title={`${t.memory} (${t.forceRead})`}
             >
                 <BrainCircuit size={mode === 'war-room' ? 18 : 16} className={mode === 'war-room' ? 'text-cyan-500' : ''} />
                 {mode === 'war-room' && (
                     <div className="text-left">
-                        <div className="text-sm font-bold text-cyan-100">Memoria</div>
-                        <div className="text-[10px] text-titanium-500 uppercase">Forzar Lectura</div>
+                        <div className="text-sm font-bold text-cyan-100">{t.memory}</div>
+                        <div className="text-[10px] text-titanium-500 uppercase">{t.forceRead}</div>
                     </div>
                 )}
             </button>

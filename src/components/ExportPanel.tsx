@@ -16,6 +16,9 @@ import { toast } from 'sonner';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { CreativeAuditService } from '../services/CreativeAuditService';
 import { callFunction } from '../services/api';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
+import { getLocalizedFolderName } from '../utils/folderLocalization';
 
 interface ExportPanelProps {
     onClose: () => void;
@@ -60,6 +63,7 @@ const CheckableTreeNode: React.FC<{
     selectedIds: Set<string>;
     onToggleSelect: (ids: string[], selected: boolean) => void;
 }> = ({ node, depth, selectedIds, onToggleSelect }) => {
+    const { currentLanguage } = useLanguageStore();
     const [isOpen, setIsOpen] = useState(depth < 1); // Auto-expand root
     const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
 
@@ -81,6 +85,8 @@ const CheckableTreeNode: React.FC<{
         e.stopPropagation();
         setIsOpen(!isOpen);
     };
+
+    const displayName = isFolder ? getLocalizedFolderName(node.name, currentLanguage) : node.name;
 
     return (
         <div className="select-none text-titanium-100">
@@ -122,7 +128,7 @@ const CheckableTreeNode: React.FC<{
                     ) : (
                         <FileText size={14} className="text-cyan-500/80" />
                     )}
-                    <span className="text-sm truncate">{node.name}</span>
+                    <span className="text-sm truncate">{displayName}</span>
                 </div>
             </div>
 
@@ -147,6 +153,8 @@ const CheckableTreeNode: React.FC<{
 // --- MAIN PANEL ---
 const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToken }) => {
     const { config, fileTree, isFileTreeLoading, user } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].export;
 
     // UI STATE
     const [title, setTitle] = useState('');
@@ -187,17 +195,17 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     // HANDLER: COMPILE
     const handleCompile = async () => {
         if (selectedFileIds.size === 0) {
-            toast.error("Selecciona al menos un archivo para imprimir.");
+            toast.error(t.errorSelect);
             return;
         }
         if (!title || !author) {
-            toast.error("El Título y el Autor son obligatorios.");
+            toast.error(t.errorMeta);
             return;
         }
 
         setIsCompiling(true);
         setDownloadUrl(null);
-        toast.info("Iniciando prensas de impresión...");
+        toast.info(t.start);
 
         try {
             // CONSTRUCT ORDERED LIST
@@ -239,12 +247,12 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                 const url = URL.createObjectURL(blob);
 
                 setDownloadUrl(url);
-                toast.success(`¡Manuscrito compilado! (${data.fileCount} archivos)`);
+                toast.success(`${t.success} (${data.fileCount} ${t.files})`);
             }
 
         } catch (error: any) {
             console.error("Compilation Error:", error);
-            toast.error(`Error en la imprenta: ${error.message}`);
+            toast.error(`Error: ${error.message}`);
         } finally {
             setIsCompiling(false);
         }
@@ -328,11 +336,11 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
             if (result.success && result.certificateId) {
                 const link = `${window.location.origin}/verify/${result.certificateId}`;
                 setCertificateLink(link);
-                toast.success("¡Certificado Acuñado!", { id: toastId });
+                toast.success(t.certMinted, { id: toastId });
             }
         } catch (error) {
             console.error("Certificate Error:", error);
-            toast.error("Error al generar certificado.", { id: toastId });
+            toast.error(t.certError, { id: toastId });
         } finally {
             setIsGeneratingCert(false);
         }
@@ -347,7 +355,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                         <Printer className="text-cyan-400" size={20} />
                     </div>
                     <div>
-                        <h2 className="text-lg font-bold text-white tracking-wide">LA IMPRENTA <span className="text-xs text-titanium-500 font-normal ml-2">v3.3 TITAN</span></h2>
+                        <h2 className="text-lg font-bold text-white tracking-wide">{t.title} <span className="text-xs text-titanium-500 font-normal ml-2">{t.version}</span></h2>
                     </div>
                 </div>
             </div>
@@ -356,15 +364,15 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                 {/* ZONE A: COMPOSITION (LEFT 60%) */}
                 <div className="w-[60%] border-r border-titanium-800 flex flex-col bg-titanium-900/20">
                     <div className="p-4 border-b border-titanium-800 bg-titanium-900/30 flex justify-between items-center">
-                        <h3 className="text-xs font-bold text-titanium-400 uppercase tracking-wider">Composición del Manuscrito</h3>
-                        <span className="text-xs text-cyan-500 font-mono">{selectedFileIds.size} archivos</span>
+                        <h3 className="text-xs font-bold text-titanium-400 uppercase tracking-wider">{t.composition}</h3>
+                        <span className="text-xs text-cyan-500 font-mono">{selectedFileIds.size} {t.files}</span>
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-4 scrollbar-thin scrollbar-thumb-titanium-700">
                         {isFileTreeLoading ? (
                             <div className="flex flex-col items-center justify-center h-40 gap-3 text-titanium-500">
                                 <Loader2 className="animate-spin text-cyan-500" size={24} />
-                                <span className="text-sm">Escaneando estructura del proyecto...</span>
+                                <span className="text-sm">{t.scanning}</span>
                             </div>
                         ) : fileTree && fileTree.length > 0 ? (
                             <div className="flex flex-col gap-1">
@@ -381,7 +389,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                         ) : (
                             <div className="flex flex-col items-center justify-center h-full text-titanium-600">
                                 <Folder size={32} className="mb-2 opacity-20" />
-                                <p>No se encontraron archivos.</p>
+                                <p>{t.noFiles}</p>
                             </div>
                         )}
                     </div>
@@ -390,39 +398,39 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                 {/* ZONE B: SETTINGS (RIGHT 40%) */}
                 <div className="w-[40%] flex flex-col bg-titanium-800/10">
                     <div className="p-4 border-b border-titanium-800 bg-titanium-900/30">
-                        <h3 className="text-xs font-bold text-titanium-400 uppercase tracking-wider">Prensa y Ajustes</h3>
+                        <h3 className="text-xs font-bold text-titanium-400 uppercase tracking-wider">{t.settings}</h3>
                     </div>
 
                     <div className="p-6 flex flex-col gap-6 overflow-y-auto">
                         {/* METADATA */}
                         <div className="space-y-4">
                             <div className="space-y-1">
-                                <label className="text-xs text-titanium-400 font-bold uppercase">Título del Libro</label>
+                                <label className="text-xs text-titanium-400 font-bold uppercase">{t.bookTitle}</label>
                                 <input
                                     type="text"
                                     value={title}
                                     onChange={(e) => setTitle(e.target.value)}
-                                    placeholder="Ej. Crónicas de Titán"
+                                    placeholder={t.bookTitlePlaceholder}
                                     className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 outline-none transition-all placeholder:text-titanium-700"
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-titanium-400 font-bold uppercase">Subtítulo (Opcional)</label>
+                                <label className="text-xs text-titanium-400 font-bold uppercase">{t.subtitle}</label>
                                 <input
                                     type="text"
                                     value={subtitle}
                                     onChange={(e) => setSubtitle(e.target.value)}
-                                    placeholder="Ej. Libro I: El Despertar"
+                                    placeholder={t.subtitlePlaceholder}
                                     className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-cyan-500 outline-none transition-all placeholder:text-titanium-700"
                                 />
                             </div>
                             <div className="space-y-1">
-                                <label className="text-xs text-titanium-400 font-bold uppercase">Autor</label>
+                                <label className="text-xs text-titanium-400 font-bold uppercase">{t.author}</label>
                                 <input
                                     type="text"
                                     value={author}
                                     onChange={(e) => setAuthor(e.target.value)}
-                                    placeholder="Nombre del Autor"
+                                    placeholder={t.authorPlaceholder}
                                     className="w-full bg-titanium-950 border border-titanium-700 rounded-lg p-3 text-white focus:border-cyan-500 outline-none transition-all placeholder:text-titanium-700"
                                 />
                             </div>
@@ -432,7 +440,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
                         {/* FORMAT OPTIONS */}
                         <div className="space-y-3">
-                            <h4 className="text-xs text-titanium-500 font-bold uppercase mb-2">Formato de Salida</h4>
+                            <h4 className="text-xs text-titanium-500 font-bold uppercase mb-2">{t.outputFormat}</h4>
 
                             <label className="flex items-center gap-3 cursor-pointer group">
                                 <div
@@ -441,7 +449,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                 >
                                     {options.includeCover && <CheckSquare size={14} className="text-white" />}
                                 </div>
-                                <span className="text-sm text-titanium-200">Incluir Portada</span>
+                                <span className="text-sm text-titanium-200">{t.includeCover}</span>
                             </label>
 
                             <label className="flex items-center gap-3 cursor-pointer group">
@@ -451,7 +459,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                 >
                                     {options.includeToc && <CheckSquare size={14} className="text-white" />}
                                 </div>
-                                <span className="text-sm text-titanium-200">Incluir Índice (TOC)</span>
+                                <span className="text-sm text-titanium-200">{t.includeToc}</span>
                             </label>
 
                             <label className="flex items-center gap-3 cursor-pointer group">
@@ -461,7 +469,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                 >
                                     {options.pageBreakPerFile && <CheckSquare size={14} className="text-white" />}
                                 </div>
-                                <span className="text-sm text-titanium-200">Salto de página por archivo</span>
+                                <span className="text-sm text-titanium-200">{t.pageBreaks}</span>
                             </label>
 
                             {/* SMART BREAKS */}
@@ -473,8 +481,8 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                     {options.smartBreaks && <CheckSquare size={14} className="text-white" />}
                                 </div>
                                 <div className="flex flex-col">
-                                    <span className="text-sm text-amber-100 font-medium">Auto-Detectar Capítulos</span>
-                                    <span className="text-[10px] text-amber-500/80">Usa headers (#) como saltos de página</span>
+                                    <span className="text-sm text-amber-100 font-medium">{t.smartBreaks}</span>
+                                    <span className="text-[10px] text-amber-500/80">{t.smartBreaksDesc}</span>
                                 </div>
                             </label>
                         </div>
@@ -498,12 +506,12 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                 {isCompiling ? (
                                     <>
                                         <Loader2 className="animate-spin" />
-                                        <span>Prensando...</span>
+                                        <span>{t.compiling}</span>
                                     </>
                                 ) : (
                                     <>
                                         <BookOpen size={20} />
-                                        <span>Compilar Manuscrito</span>
+                                        <span>{t.compileButton}</span>
                                     </>
                                 )}
                             </button>
@@ -519,14 +527,14 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                 "
                             >
                                 <Download size={20} />
-                                <span>Descargar PDF</span>
+                                <span>{t.downloadPdf}</span>
                             </a>
                         )}
 
                         {/* LEGAL AUDIT & PUBLIC CERTIFICATE */}
                         <div className="mt-4 p-3 bg-titanium-900/40 rounded-lg border border-titanium-800 space-y-3">
                             <div>
-                                <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block">Formato del Reporte (Privado)</label>
+                                <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block">{t.reportFormat}</label>
                                 <div className="flex gap-2">
                                     {['txt', 'md', 'pdf'].map(fmt => (
                                         <button
@@ -550,14 +558,14 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                     className="w-full mt-2 py-2 rounded border border-titanium-700 hover:border-titanium-500 text-titanium-400 hover:text-white transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider group"
                                 >
                                     {isExportingAudit ? <Loader2 size={12} className="animate-spin" /> : <Download size={12} className="group-hover:text-emerald-400 transition-colors" />}
-                                    <span>Descargar Reporte</span>
+                                    <span>{t.downloadReport}</span>
                                 </button>
                             </div>
 
                             <div className="pt-3 border-t border-titanium-800">
                                 <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block flex items-center gap-2">
                                     <Shield size={10} className="text-cyan-400" />
-                                    Certificado Público
+                                    {t.publicCert}
                                 </label>
 
                                 {certificateLink ? (
@@ -571,16 +579,16 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                             rel="noopener noreferrer"
                                             className="text-center py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-bold uppercase rounded transition-colors"
                                         >
-                                            Ver Certificado
+                                            {t.viewCert}
                                         </a>
                                         <button
                                             onClick={() => {
                                                 navigator.clipboard.writeText(certificateLink);
-                                                toast.success("Enlace copiado");
+                                                toast.success(t.linkCopied);
                                             }}
                                             className="text-center py-1.5 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 text-[10px] font-bold uppercase rounded transition-colors"
                                         >
-                                            Copiar Enlace
+                                            {t.copyLink}
                                         </button>
                                     </div>
                                 ) : (
@@ -590,7 +598,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                         className="w-full py-2 bg-cyan-900/30 hover:bg-cyan-900/50 border border-cyan-800 hover:border-cyan-500 text-cyan-300 rounded transition-all flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-wider group"
                                     >
                                         {isGeneratingCert ? <Loader2 size={12} className="animate-spin" /> : <Shield size={12} />}
-                                        <span>Generar Certificado Público</span>
+                                        <span>{t.generateCert}</span>
                                     </button>
                                 )}
                             </div>
@@ -598,7 +606,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
                         <div className="mt-3 text-center">
                             <span className="text-[10px] text-titanium-600">
-                                {isCompiling ? 'Esto puede tardar unos segundos. No cierres la ventana.' : 'Formato PDF v1.4 (Titanium Engine)'}
+                                {isCompiling ? t.waitMessage : t.engine}
                             </span>
                         </div>
                     </div>

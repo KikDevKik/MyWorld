@@ -12,6 +12,8 @@ import { useContextStatus } from '../hooks/useContextStatus';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 import ChatInput from './ui/ChatInput';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -48,6 +50,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
 }) => {
     // 🟢 GLOBAL STORE
     const { isArsenalWide, toggleArsenalWidth, directorWidth } = useLayoutStore();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].director;
 
     // 🟢 RESPONSIVE LAYOUT MODES
     const isSentinelMode = directorWidth < 500;
@@ -105,9 +109,9 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                     forceFullReindex: false
                 }),
                 {
-                    loading: 'Actualizando memoria...',
-                    success: '¡Memoria sincronizada!',
-                    error: 'Error al indexar.'
+                    loading: t.indexing,
+                    success: t.memoryUpdated,
+                    error: t.indexError
                 }
             );
             // State update will happen via Firestore listener automatically
@@ -182,7 +186,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 <div className="bg-amber-900/20 border-b border-amber-500/30 p-2 px-4 flex items-center justify-between animate-in slide-in-from-top duration-300">
                     <div className="flex items-center gap-2 text-amber-200/80 text-xs">
                         <AlertCircle size={14} className="text-amber-500" />
-                        <span>Cambios detectados. La memoria de la IA puede estar desactualizada.</span>
+                        <span>{t.changesDetected}</span>
                     </div>
                     <button
                         onClick={handleQuickIndex}
@@ -190,7 +194,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         className="flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded text-[10px] text-amber-300 transition-colors uppercase tracking-wider font-bold"
                     >
                         {isIndexing ? <Loader2 size={10} className="animate-spin" /> : <RefreshCcw size={10} />}
-                        {isIndexing ? 'Indexando...' : 'Sincronizar'}
+                        {isIndexing ? t.indexing : t.sync}
                     </button>
                 </div>
             )}
@@ -199,9 +203,9 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
             <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
                 <div className="flex items-center gap-3">
                     <div>
-                         <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100 leading-none">Director</h2>
+                         <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100 leading-none">{t.title}</h2>
                          <div className="text-[9px] text-titanium-500 uppercase tracking-wider mt-0.5">
-                             {activeSessionId ? 'Sesión Activa' : 'Standby'}
+                             {activeSessionId ? t.activeSession : t.standby}
                          </div>
                     </div>
                 </div>
@@ -210,14 +214,14 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                     <button
                         onClick={() => setIsSessionManagerOpen(true)}
                         className="p-1.5 text-titanium-300 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
-                        title="Archivos de Sesión"
+                        title={t.sessionFiles}
                     >
                         <Archive size={16} />
                     </button>
                     <button
                         onClick={toggleArsenalWidth}
                         className={`p-1.5 transition-colors rounded hover:bg-titanium-800 ${isArsenalWide ? 'text-cyan-400' : 'text-titanium-400 hover:text-white'}`}
-                        title="Modo Estratega (Expandir)"
+                        title={t.strategistMode}
                     >
                         <LayoutTemplate size={16} />
                     </button>
@@ -237,7 +241,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 {isWarRoomMode && (
                     <div className="h-full border-r border-titanium-800 bg-titanium-900/30 flex flex-col min-w-0 overflow-hidden">
                         <div className="p-3 border-b border-titanium-800 text-xs font-bold text-titanium-400 uppercase tracking-wider bg-titanium-900/50">
-                            Archivos
+                            {t.archives}
                         </div>
                         <div className="flex-1 overflow-hidden p-2">
                             {isSessionsLoading ? (
@@ -282,7 +286,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                     <Loader2 size={14} className="animate-spin text-emerald-400" />
                                 </div>
                                 <div className="bg-titanium-900/50 border border-titanium-800 rounded-xl p-3 text-xs text-titanium-500 italic">
-                                    Analizando estructura...
+                                    {t.analyzing}
                                 </div>
                             </div>
                         )}
@@ -311,7 +315,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                     });
                                 }
                             }}
-                            placeholder="Escribe al director..."
+                            placeholder={t.writePlaceholder}
                             disabled={isThinking}
                             autoFocus
                         />
@@ -326,7 +330,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         <div className={`${isWarRoomMode ? 'h-full flex flex-col overflow-hidden' : 'pointer-events-auto'}`}>
                             {isWarRoomMode && (
                                 <div className="p-3 border-b border-titanium-800 text-xs font-bold text-titanium-400 uppercase tracking-wider bg-titanium-900/50">
-                                    Herramientas
+                                    {t.tools}
                                 </div>
                             )}
 
