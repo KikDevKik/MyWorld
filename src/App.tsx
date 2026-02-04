@@ -58,6 +58,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [currentFileId, setCurrentFileId] = useState<string | null>(null);
     const [currentFileName, setCurrentFileName] = useState<string>('');
 
+    // 🟢 AUTO-SAVE STATE
+    const [lastSavedContent, setLastSavedContent] = useState<string>("");
+    const [isSaving, setIsSaving] = useState(false);
+
     // 🟢 REF SYNC FOR CLOSURE SAFETY (FILE TREE BACKGROUND UPDATE)
     const currentFileIdRef = useRef(currentFileId);
     const selectedFileContentRef = useRef(selectedFileContent);
@@ -66,10 +70,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     useEffect(() => { currentFileIdRef.current = currentFileId; }, [currentFileId]);
     useEffect(() => { selectedFileContentRef.current = selectedFileContent; }, [selectedFileContent]);
     useEffect(() => { lastSavedContentRef.current = lastSavedContent; }, [lastSavedContent]);
-
-    // 🟢 AUTO-SAVE STATE
-    const [lastSavedContent, setLastSavedContent] = useState<string>("");
-    const [isSaving, setIsSaving] = useState(false);
     const isDirty = selectedFileContent !== lastSavedContent;
 
     // 🟢 MIGRATION NOTE: Old state 'activeGemId', 'isChatOpen', etc. removed.
