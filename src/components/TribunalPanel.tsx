@@ -4,6 +4,8 @@ import ReactMarkdown from 'react-markdown';
 import { callFunction } from '../services/api';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface TribunalPanelProps {
     onClose: () => void;
@@ -25,6 +27,9 @@ interface TribunalResult {
 }
 
 const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = '', currentFileId, accessToken }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].tribunal;
+
     const [text, setText] = useState(initialText);
     const [context, setContext] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -34,11 +39,11 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
     const handleSummon = async () => {
         // Validation based on mode
         if (mode === 'manual' && !text.trim()) {
-            toast.error("El Tribunal exige un texto para juzgar.");
+            toast.error(t.errorEmpty);
             return;
         }
         if (mode === 'file' && !currentFileId) {
-            toast.error("No hay ningún archivo seleccionado para juzgar.");
+            toast.error(t.errorNoFile);
             return;
         }
 
@@ -52,11 +57,11 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
 
             const verdict = await callFunction<TribunalResult>('summonTheTribunal', payload, { timeout: 540000 });
             setResult(verdict);
-            toast.success("El Tribunal ha dictado sentencia.");
+            toast.success(t.success);
         } catch (error: any) {
             console.error("Error summoning tribunal:", error);
             if (!error.message?.includes('INVALID_CUSTOM_KEY')) {
-                toast.error("El Tribunal está en receso (Error).");
+                toast.error("El Tribunal está en receso (Error)."); // Fallback error
             }
         } finally {
             setIsLoading(false);
@@ -75,7 +80,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
             <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shadow-md z-10">
                 <div className="flex items-center gap-3 text-red-500">
                     <Gavel size={24} />
-                    <h2 className="font-bold text-xl text-titanium-100 tracking-wider">TRIBUNAL LITERARIO</h2>
+                    <h2 className="font-bold text-xl text-titanium-100 tracking-wider">{t.title}</h2>
                 </div>
                 <button
                     onClick={onClose}
@@ -108,7 +113,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                 }`}
                         >
                             <Type size={16} />
-                            Texto Manual
+                            {t.manualText}
                         </button>
                         <button
                             onClick={() => setMode('file')}
@@ -120,20 +125,20 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                 }`}
                         >
                             <FileText size={16} />
-                            Archivo Actual
+                            {t.currentFile}
                         </button>
                     </div>
 
                     <div className="flex-1 flex flex-col gap-2">
                         <label className="text-xs font-bold text-titanium-400 uppercase tracking-widest">
-                            {mode === 'manual' ? 'Texto a Juzgar' : 'Documento Seleccionado'}
+                            {mode === 'manual' ? t.textLabel : t.fileLabel}
                         </label>
 
                         {mode === 'manual' ? (
                             <textarea
                                 value={text}
                                 onChange={(e) => setText(e.target.value)}
-                                placeholder="Pega aquí tu escena, capítulo o fragmento..."
+                                placeholder={t.manualPlaceholder}
                                 className="flex-1 bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl p-4 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all resize-none font-mono text-sm leading-relaxed"
                                 aria-label="Texto a juzgar"
                             />
@@ -145,11 +150,11 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                             <FileText size={32} />
                                         </div>
                                         <div>
-                                            <h3 className="text-lg font-bold text-titanium-100">Documento Vinculado</h3>
+                                            <h3 className="text-lg font-bold text-titanium-100">{t.linkedDoc}</h3>
                                             <p className="text-titanium-400 text-xs mt-1 font-mono">{currentFileId}</p>
                                         </div>
                                         <p className="text-sm text-titanium-300 max-w-xs">
-                                            El Tribunal leerá directamente este archivo desde Google Drive. Esto puede tardar unos segundos más.
+                                            {t.fileWarning}
                                         </p>
                                     </>
                                 ) : (
@@ -157,9 +162,9 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                         <div className="w-16 h-16 bg-titanium-800 rounded-full flex items-center justify-center text-red-500">
                                             <X size={32} />
                                         </div>
-                                        <h3 className="text-lg font-bold text-titanium-100">No hay archivo</h3>
+                                        <h3 className="text-lg font-bold text-titanium-100">{t.noFile}</h3>
                                         <p className="text-sm text-titanium-400">
-                                            Abre un documento desde la barra lateral para analizarlo.
+                                            {t.noFileDesc}
                                         </p>
                                     </>
                                 )}
@@ -168,11 +173,11 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                     </div>
 
                     <div className="h-32 flex flex-col gap-2">
-                        <label className="text-xs font-bold text-titanium-400 uppercase tracking-widest">Contexto (Opcional)</label>
+                        <label className="text-xs font-bold text-titanium-400 uppercase tracking-widest">{t.contextLabel}</label>
                         <textarea
                             value={context}
                             onChange={(e) => setContext(e.target.value)}
-                            placeholder="¿Qué está pasando? ¿Quiénes son los personajes? (Ayuda a los jueces a entender)"
+                            placeholder={t.contextPlaceholder}
                             aria-label="Contexto adicional para el tribunal"
                             className="flex-1 bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded-xl p-3 focus:outline-none focus:border-red-500/50 focus:ring-1 focus:ring-red-500/50 transition-all resize-none text-sm"
                         />
@@ -185,7 +190,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                     >
                         {isLoading ? <Loader2 className="animate-spin" /> : <Gavel size={20} />}
                         <span className="tracking-widest">
-                            {isLoading ? 'DELIBERANDO...' : 'INVOCAR AL TRIBUNAL'}
+                            {isLoading ? t.deliberating : t.summonButton}
                         </span>
                     </button>
                 </div>
@@ -195,8 +200,8 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                     {!result ? (
                         <div className="h-full flex flex-col items-center justify-center text-titanium-600 opacity-50">
                             <Scale size={64} className="mb-4" />
-                            <p className="text-lg font-medium">El estrado está vacío.</p>
-                            <p className="text-sm">Presenta tu evidencia para recibir juicio.</p>
+                            <p className="text-lg font-medium">{t.emptyState}</p>
+                            <p className="text-sm">{t.emptyDesc}</p>
                         </div>
                     ) : (
                         <div className="flex flex-col gap-6">
@@ -212,8 +217,8 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                             <Scale size={24} />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-lg text-blue-100">El Arquitecto</h3>
-                                            <p className="text-xs text-blue-400 uppercase tracking-wider">Lógica y Estructura</p>
+                                            <h3 className="font-bold text-lg text-blue-100">{t.architect}</h3>
+                                            <p className="text-xs text-blue-400 uppercase tracking-wider">{t.architectRole}</p>
                                         </div>
                                     </div>
                                     <div className={`text-2xl font-black ${getScoreColor(result.architect.score)}`}>
@@ -245,8 +250,8 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                             <Feather size={24} />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-lg text-purple-100">El Bardo</h3>
-                                            <p className="text-xs text-purple-400 uppercase tracking-wider">Estética y Emoción</p>
+                                            <h3 className="font-bold text-lg text-purple-100">{t.bard}</h3>
+                                            <p className="text-xs text-purple-400 uppercase tracking-wider">{t.bardRole}</p>
                                         </div>
                                     </div>
                                     <div className={`text-2xl font-black ${getScoreColor(result.bard.score)}`}>
@@ -278,8 +283,8 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                             <Skull size={24} />
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-lg text-red-100">El Hater</h3>
-                                            <p className="text-xs text-red-400 uppercase tracking-wider">Mercado y Cinismo</p>
+                                            <h3 className="font-bold text-lg text-red-100">{t.hater}</h3>
+                                            <p className="text-xs text-red-400 uppercase tracking-wider">{t.haterRole}</p>
                                         </div>
                                     </div>
                                     <div className={`text-2xl font-black ${getScoreColor(result.hater.score)}`}>

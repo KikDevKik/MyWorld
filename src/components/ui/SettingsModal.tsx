@@ -97,6 +97,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         if (!window.confirm(t.nukeWarning)) return;
 
         // 2. Second Confirmation (Typed)
+        // Hardcode expected keywords per language to match translation logic if needed,
+        // or just accept English/Spanish 'Delete'/'Borrar' universally for safety.
+        // For strict localization, we can rely on what the prompt asks.
         const keyword = currentLanguage === 'es' ? 'Borrar' : 'Delete';
         const input = window.prompt(`${t.nukeModalTitle}\n\n${t.nukeConfirmInput}`);
 
@@ -550,17 +553,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Sparkles size={18} className="text-accent-DEFAULT" />
-                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">Identidad Narrativa</h4>
+                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">{t.narrativeIdentity}</h4>
                             </div>
                             <p className="text-xs text-titanium-400 -mt-2 mb-2">
-                                El ADN de tu escritura. La IA imitará este estilo en todas sus generaciones.
+                                {t.dnaDesc}
                             </p>
 
                             <div className="flex flex-col gap-2 h-full">
                                 <div className="flex items-center justify-between">
                                     <label className="text-sm font-medium text-titanium-100 flex items-center gap-2">
                                         <Dna size={14} className="text-purple-400" />
-                                        Definición de Estilo
+                                        {t.styleDef}
                                     </label>
                                     <button
                                         onClick={() => setIsAnalyzerOpen(true)}
@@ -572,7 +575,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         ) : (
                                             <Sparkles size={12} />
                                         )}
-                                        {isAnalyzing ? 'Analizando...' : 'Extraer ADN de Archivo'}
+                                        {isAnalyzing ? t.analyzing : t.extractDna}
                                     </button>
                                 </div>
                                 <textarea
@@ -588,7 +591,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             <div className="mt-2 p-3 bg-titanium-900/50 border border-titanium-800 rounded-lg flex items-start gap-3">
                                 <HardDrive size={16} className="text-titanium-400 shrink-0 mt-0.5" />
                                 <p className="text-xs text-titanium-400">
-                                    <strong className="text-titanium-200">Nota:</strong> Este perfil sobrescribe cualquier instrucción previa. Úsalo para definir la "Voz" del proyecto.
+                                    <strong className="text-titanium-200">{t.note}</strong> {t.noteDesc}
                                 </p>
                             </div>
                         </div>
@@ -599,11 +602,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Key size={18} className="text-purple-400" />
-                                <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wider">Bring Your Own Key (BYOK)</h4>
+                                <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wider">{t.byok}</h4>
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-titanium-100">Google Gemini API Key</label>
+                                <label className="text-sm font-medium text-titanium-100">{t.googleKey}</label>
                                 <div className="relative">
                                     <input
                                         type={showKey ? "text" : "password"}
@@ -622,14 +625,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 </div>
                                 <div className="flex justify-between items-start mt-1 gap-4">
                                     <p className="text-xs text-titanium-400">
-                                        Esta clave te permite usar modelos superiores y saltar los límites de la capa gratuita.
+                                        {t.keyDesc}
                                     </p>
                                     {localGeminiKey && (
                                         <button
                                             onClick={() => setLocalGeminiKey('')}
                                             className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1 shrink-0"
                                         >
-                                            <Trash2 size={12} /> Limpiar
+                                            <Trash2 size={12} /> {t.clear}
                                         </button>
                                     )}
                                 </div>
@@ -638,12 +641,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             <div className="p-4 bg-purple-900/10 border border-purple-900/30 rounded-xl flex items-start gap-3">
                                 <ShieldCheck size={18} className="text-purple-400 shrink-0 mt-0.5" />
                                 <div>
-                                    <h5 className="text-sm font-bold text-purple-300">Privacidad Garantizada</h5>
+                                    <h5 className="text-sm font-bold text-purple-300">{t.privacyTitle}</h5>
                                     <p className="text-xs text-titanium-400 mt-1 leading-relaxed">
-                                        Tu clave se guarda <strong className="text-purple-200">exclusivamente en tu navegador (localStorage)</strong>.
-                                        Nunca se almacena en nuestros servidores ni base de datos.
-                                        Si borras la caché o cambias de dispositivo, tendrás que volver a introducirla.
-                                        Esta clave tiene prioridad sobre la del sistema.
+                                        {t.privacyDesc}
                                     </p>
                                 </div>
                             </div>
@@ -655,7 +655,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <AlertTriangle size={18} className="text-red-400" />
-                                <h4 className="text-sm font-bold text-red-400 uppercase tracking-wider">Zona de Peligro & Debug</h4>
+                                <h4 className="text-sm font-bold text-red-400 uppercase tracking-wider">{t.dangerZone}</h4>
                             </div>
 
                             <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl space-y-4">
@@ -663,12 +663,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     <div>
                                         <h5 className="text-white font-bold flex items-center gap-2">
                                             <FileSearch size={16} className="text-blue-400" />
-                                            Auditoría de Rutas (Dry Run)
+                                            {t.auditPath}
                                         </h5>
                                         <p className="text-xs text-titanium-400 mt-1">
-                                            Escanea recursivamente TODAS las carpetas sin modificar nada.
-                                            Usa esto para verificar si la IA puede "ver" archivos profundos (Ficha Megu.md).
-                                            <br /><strong className="text-blue-400">Revisa la consola del navegador (F12) para ver los logs.</strong>
+                                            {t.auditDesc}
                                         </p>
                                     </div>
                                     <button
@@ -677,7 +675,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         className="flex items-center gap-2 px-4 py-2 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 border border-blue-600/50 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
                                     >
                                         {isAuditing ? <RefreshCw className="animate-spin" size={16} /> : <FileSearch size={16} />}
-                                        {isAuditing ? 'Auditando...' : 'Auditar'}
+                                        {isAuditing ? t.auditing : t.auditButton}
                                     </button>
                                 </div>
                             </div>
@@ -687,11 +685,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     <div>
                                         <h5 className="text-red-400 font-bold flex items-center gap-2">
                                             <Trash2 size={16} />
-                                            Forzar Re-indexación Total
+                                            {t.forceIndex}
                                         </h5>
                                         <p className="text-xs text-titanium-400 mt-1">
-                                            <span className="text-red-400 font-bold">OPCIÓN NUCLEAR.</span> Borra TODOS los vectores existentes y re-escanea todo desde cero.
-                                            Útil si sospechas que hay datos corruptos o archivos fantasma.
+                                            <span className="text-red-400 font-bold">{t.nuclearOption}</span> {t.forceIndexDesc}
                                         </p>
                                     </div>
                                     <button
@@ -700,7 +697,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         className="flex items-center gap-2 px-4 py-2 bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/30 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
                                     >
                                         {isReindexing ? <RefreshCw className="animate-spin" size={16} /> : <AlertTriangle size={16} />}
-                                        {isReindexing ? 'Purgando...' : 'Nuclear'}
+                                        {isReindexing ? t.purging : t.nuclearButton}
                                     </button>
                                 </div>
                             </div>
@@ -710,11 +707,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     <div>
                                         <h5 className="text-yellow-400 font-bold flex items-center gap-2">
                                             <ShieldCheck size={16} />
-                                            Renovar Permisos (Re-Auth)
+                                            {t.reauth}
                                         </h5>
                                         <p className="text-xs text-titanium-400 mt-1">
-                                            Si la auditoría devuelve 0 archivos, usa esto.
-                                            Forzará una nueva autenticación para garantizar que la IA tenga permiso de lectura (ReadOnly) sobre tus bóvedas externas.
+                                            {t.reauthDesc}
                                         </p>
                                     </div>
                                     <button
@@ -723,7 +719,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         className="flex items-center gap-2 px-4 py-2 bg-yellow-600/10 text-yellow-500 hover:bg-yellow-600/20 border border-yellow-600/30 rounded-lg text-sm font-bold transition-all disabled:opacity-50"
                                     >
                                         {isRefreshingAuth ? <RefreshCw className="animate-spin" size={16} /> : <ShieldCheck size={16} />}
-                                        {isRefreshingAuth ? 'Renovando...' : 'Renovar Permisos'}
+                                        {isRefreshingAuth ? t.renewing : t.reauthButton}
                                     </button>
                                 </div>
                             </div>
@@ -735,7 +731,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Info size={18} className="text-cyan-400" />
-                                <h4 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">Acerca de MyWorld</h4>
+                                <h4 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">{t.about}</h4>
                             </div>
 
                             <div className="p-6 bg-gradient-to-br from-titanium-900 to-titanium-950 border border-titanium-800 rounded-xl flex flex-col items-center text-center space-y-4 shadow-xl">
@@ -759,7 +755,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             </div>
 
                             <div className="p-4 border-l-2 border-titanium-600 pl-4 space-y-2">
-                                <h5 className="text-xs font-bold text-titanium-300 uppercase tracking-widest">Aviso Legal & Autoría</h5>
+                                <h5 className="text-xs font-bold text-titanium-300 uppercase tracking-widest">{t.legal}</h5>
                                 <p className="text-xs text-titanium-500 leading-relaxed font-mono">
                                     Este software y su código fuente son propiedad intelectual de <strong className="text-titanium-300">Deiner David Trelles Renteria</strong>.
                                     Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
