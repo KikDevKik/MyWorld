@@ -37,7 +37,17 @@ export const TRANSLATIONS: Record<Language, any> = {
             configured: "Configurado",
             securityConfirmation: "Confirmación de Seguridad",
             yesDelete: "Sí, eliminar",
-            confirmDelete: "CONFIRMAR BORRADO"
+            confirmDelete: "CONFIRMAR BORRADO",
+            filterPlaceholder: "Filtrar...",
+            allCaps: "TODO",
+            tagging: "Etiquetando...",
+            noResources: "No se encontraron recursos.",
+            writeTo: "Escribe a",
+            selectTool: "Selecciona una herramienta...",
+            analyzing: "Analizando..."
+        },
+        laboratory: {
+            systemInstruction: "Eres el Bibliotecario. Tu misión es analizar referencias y conectar puntos."
         },
         sidebar: {
             explorer: "EXPLORADOR",
@@ -155,7 +165,7 @@ export const TRANSLATIONS: Record<Language, any> = {
             director: "Director",
             perforador: "Motor de Mundos",
             forja: "Forja",
-            laboratorio: "Laboratorio",
+            laboratorio: "Laboratorio de Ideas",
             tribunal: "Tribunal",
             guardian: "Guardián",
             imprenta: "Imprenta",
@@ -414,7 +424,17 @@ export const TRANSLATIONS: Record<Language, any> = {
             configured: "Configured",
             securityConfirmation: "Security Confirmation",
             yesDelete: "Yes, delete",
-            confirmDelete: "CONFIRM DELETE"
+            confirmDelete: "CONFIRM DELETE",
+            filterPlaceholder: "Filter...",
+            allCaps: "ALL",
+            tagging: "Tagging...",
+            noResources: "No resources found.",
+            writeTo: "Write to",
+            selectTool: "Select a tool...",
+            analyzing: "Analyzing..."
+        },
+        laboratory: {
+            systemInstruction: "You are the Librarian. Your mission is to analyze references and connect dots."
         },
         sidebar: {
             explorer: "EXPLORER",
@@ -532,7 +552,7 @@ export const TRANSLATIONS: Record<Language, any> = {
             director: "Director",
             perforador: "World Engine",
             forja: "Forge",
-            laboratorio: "Laboratory",
+            laboratorio: "Ideas Lab",
             tribunal: "Tribunal",
             guardian: "Guardian",
             imprenta: "Press",
@@ -791,7 +811,17 @@ export const TRANSLATIONS: Record<Language, any> = {
             configured: "設定済み",
             securityConfirmation: "セキュリティ確認",
             yesDelete: "はい、削除します",
-            confirmDelete: "削除を確認"
+            confirmDelete: "削除を確認",
+            filterPlaceholder: "フィルター...",
+            allCaps: "すべて",
+            tagging: "タグ付け中...",
+            noResources: "リソースが見つかりません。",
+            writeTo: "〜へ書く",
+            selectTool: "ツールを選択...",
+            analyzing: "分析中..."
+        },
+        laboratory: {
+            systemInstruction: "あなたは司書です。あなたの使命は、参考文献を分析し、点をつなぐことです。"
         },
         sidebar: {
             explorer: "エクスプローラー",
@@ -909,7 +939,7 @@ export const TRANSLATIONS: Record<Language, any> = {
             director: "ディレクター",
             perforador: "ワールドエンジン",
             forja: "フォージ",
-            laboratorio: "ラボ",
+            laboratorio: "アイデアラボ",
             tribunal: "法廷",
             guardian: "ガーディアン",
             imprenta: "印刷",
@@ -1168,7 +1198,17 @@ export const TRANSLATIONS: Record<Language, any> = {
             configured: "설정됨",
             securityConfirmation: "보안 확인",
             yesDelete: "예, 삭제합니다",
-            confirmDelete: "삭제 확인"
+            confirmDelete: "삭제 확인",
+            filterPlaceholder: "필터...",
+            allCaps: "전체",
+            tagging: "태그 지정 중...",
+            noResources: "리소스를 찾을 수 없습니다.",
+            writeTo: "에게 쓰기",
+            selectTool: "도구 선택...",
+            analyzing: "분석 중..."
+        },
+        laboratory: {
+            systemInstruction: "당신은 사서입니다. 당신의 임무는 참고 문헌을 분석하고 점들을 연결하는 것입니다."
         },
         sidebar: {
             explorer: "탐색기",
@@ -1286,7 +1326,7 @@ export const TRANSLATIONS: Record<Language, any> = {
             director: "디렉터",
             perforador: "월드 엔진",
             forja: "대장간",
-            laboratorio: "실험실",
+            laboratorio: "아이디어 랩",
             tribunal: "재판소",
             guardian: "가디언",
             imprenta: "인쇄소",
@@ -1545,7 +1585,17 @@ export const TRANSLATIONS: Record<Language, any> = {
             configured: "已配置",
             securityConfirmation: "安全确认",
             yesDelete: "是，删除",
-            confirmDelete: "确认删除"
+            confirmDelete: "确认删除",
+            filterPlaceholder: "筛选...",
+            allCaps: "全部",
+            tagging: "正在标记...",
+            noResources: "未找到资源。",
+            writeTo: "写给",
+            selectTool: "选择工具...",
+            analyzing: "分析中..."
+        },
+        laboratory: {
+            systemInstruction: "你是图书管理员。你的任务是分析参考资料并连接各个点。"
         },
         sidebar: {
             explorer: "资源管理器",
@@ -1663,7 +1713,7 @@ export const TRANSLATIONS: Record<Language, any> = {
             director: "导演",
             perforador: "世界引擎",
             forja: "锻造",
-            laboratorio: "实验室",
+            laboratorio: "创意实验室",
             tribunal: "法庭",
             guardian: "守护者",
             imprenta: "印刷",

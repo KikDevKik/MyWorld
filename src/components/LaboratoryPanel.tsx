@@ -6,6 +6,8 @@ import ChatPanel from './ChatPanel';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { callFunction } from '../services/api';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface LaboratoryPanelProps {
     onClose: () => void;
@@ -17,6 +19,9 @@ const SMART_TAGS = ['LORE', 'CIENCIA', 'INSPIRACIÓN', 'VISUAL', 'AUDIO', 'OTROS
 
 const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, accessToken }) => {
     const { fileTree, isFileTreeLoading, user } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+
     const [fileTags, setFileTags] = useState<Record<string, string[]>>({});
     const [activeTag, setActiveTag] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
@@ -136,14 +141,14 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
     };
 
     // 🟢 VIRTUAL GEM: THE LIBRARIAN
-    const librarianGem: Gem = {
+    const librarianGem: Gem = useMemo(() => ({
         id: 'laboratorio',
-        name: 'Laboratorio de Ideas',
+        name: t.tools.laboratorio,
         model: 'gemini-2.5-flash',
         color: 'emerald',
         backgroundImage: '',
-        systemInstruction: `Eres el Bibliotecario. Tu misión es analizar referencias y conectar puntos.`
-    };
+        systemInstruction: t.laboratory.systemInstruction
+    }), [t]);
 
     return (
         <div className="w-full h-full flex bg-titanium-950 animate-fade-in overflow-hidden">
@@ -156,7 +161,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2 text-emerald-500">
                             <FlaskConical size={20} />
-                            <h2 className="font-bold tracking-wider text-sm">RECURSOS</h2>
+                            <h2 className="font-bold tracking-wider text-sm">{t.folderNames.resources}</h2>
                         </div>
                     </div>
 
@@ -165,8 +170,8 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-titanium-500" />
                         <input
                             type="text"
-                            placeholder="Filtrar..."
-                            aria-label="Filtrar recursos"
+                            placeholder={t.common.filterPlaceholder}
+                            aria-label={t.common.filterPlaceholder}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="w-full bg-titanium-900 border border-titanium-800 rounded-lg py-2 pl-9 pr-3 text-xs text-titanium-200 focus:outline-none focus:border-emerald-500 transition-colors"
@@ -180,7 +185,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                             aria-pressed={!activeTag}
                             className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${!activeTag ? 'bg-emerald-900/50 border-emerald-500/50 text-emerald-400' : 'bg-titanium-900 border-titanium-800 text-titanium-500 hover:text-titanium-300'}`}
                         >
-                            TODO
+                            {t.common.allCaps}
                         </button>
                         {SMART_TAGS.map(tag => (
                             <button
@@ -204,7 +209,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                     ) : visibleFiles.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-40 text-titanium-600 text-center px-4">
                             <Filter size={24} className="mb-2 opacity-50" />
-                            <p className="text-xs">No se encontraron recursos.</p>
+                            <p className="text-xs">{t.common.noResources}</p>
                         </div>
                     ) : (
                         <div className="space-y-1">
@@ -232,7 +237,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                                                 )) : (
                                                     <span className="text-[9px] text-titanium-700 flex items-center gap-1">
                                                         {isClassifying ? <Loader2 size={8} className="animate-spin" /> : <Sparkles size={8} />}
-                                                        Analizando...
+                                                        {t.common.analyzing}
                                                     </span>
                                                 )}
                                             </div>
@@ -249,8 +254,8 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
 
                 {/* STATUS BAR */}
                 <div className="h-8 border-t border-titanium-800 bg-titanium-950 flex items-center justify-between px-3 text-[10px] text-titanium-500">
-                    <span>{visibleFiles.length} Archivos</span>
-                    {isClassifying && <span className="flex items-center gap-1 text-emerald-500"><Loader2 size={10} className="animate-spin"/> Etiquetando...</span>}
+                    <span>{visibleFiles.length} {t.export.files}</span>
+                    {isClassifying && <span className="flex items-center gap-1 text-emerald-500"><Loader2 size={10} className="animate-spin"/> {t.common.tagging}</span>}
                 </div>
             </div>
 

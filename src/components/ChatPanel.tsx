@@ -68,6 +68,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
   const activeGem = customGem || (activeGemId ? GEMS[activeGemId] : null);
 
+  const displayGemName = customGem
+      ? customGem.name
+      : (activeGemId && t.tools[activeGemId] ? t.tools[activeGemId] : (activeGem?.name || ""));
+
   useEffect(() => {
     if (initialMessage) {
       handleSendMessage(initialMessage);
@@ -286,10 +290,10 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
           {activeGem && (
             <>
               <div className={`w-2 h-2 rounded-full ${activeGem.color === 'blue' ? 'bg-blue-500' : activeGem.color === 'purple' ? 'bg-purple-500' : activeGem.color === 'emerald' ? 'bg-emerald-500' : 'bg-green-500'} shadow-[0_0_10px_currentColor]`} />
-              <span className="font-bold text-titanium-100 tracking-wide">{activeGem.name}</span>
+              <span className="font-bold text-titanium-100 tracking-wide">{displayGemName}</span>
             </>
           )}
-          {!activeGem && <span className="text-titanium-500 text-sm">Sistema Inactivo</span>}
+          {!activeGem && <span className="text-titanium-500 text-sm">{t.common.selectTool}</span>}
         </div>
         <button
           onClick={onClose}
@@ -391,7 +395,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
             <ChatInput
                 onSend={handleSendMessage}
-                placeholder={activeGem ? `Escribe a ${activeGem.name}...` : "Selecciona una herramienta..."}
+                placeholder={activeGem ? `${t.common.writeTo} ${displayGemName}...` : t.common.selectTool}
                 disabled={!activeGem || isLoading}
                 className="flex-1"
                 textAreaClassName="bg-slate-800 text-white placeholder-gray-400"
