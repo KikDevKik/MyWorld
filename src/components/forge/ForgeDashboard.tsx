@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
-import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle, User, PawPrint, ExternalLink } from 'lucide-react';
+import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle, User, PawPrint, ExternalLink, MapPin, Box } from 'lucide-react';
 import { toast } from 'sonner';
 import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, DragStartEvent } from '@dnd-kit/core';
 
@@ -72,6 +72,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     // 🟢 MODE SWITCH
     const [activeMode, setActiveMode] = useState<'PERSON' | 'CREATURE'>('PERSON');
     const [bestiaryFilter, setBestiaryFilter] = useState<'ALL' | 'CREATURE' | 'FLORA'>('ALL'); // 🟢 Sub-filter
+    const [personFilter, setPersonFilter] = useState<'ALL' | 'PERSON' | 'LOCATION' | 'OBJECT'>('ALL'); // 🟢 Sub-filter
     const activeSaga = activeMode === 'PERSON' ? characterSaga : bestiarySaga;
 
     const [state, setState] = useState<DashboardState>('SCANNING');
@@ -242,7 +243,9 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     // 🟢 FILTER LOGIC
     const filterByMode = (entity: SoulEntity) => {
         if (activeMode === 'PERSON') {
-            return !entity.category || entity.category === 'PERSON';
+            if (personFilter === 'ALL') return !entity.category || entity.category === 'PERSON' || entity.category === 'LOCATION' || entity.category === 'OBJECT';
+            if (personFilter === 'PERSON') return !entity.category || entity.category === 'PERSON';
+            return entity.category === personFilter;
         } else {
             // Bestiary Mode
             if (bestiaryFilter === 'ALL') return entity.category === 'CREATURE' || entity.category === 'FLORA';
@@ -318,6 +321,37 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                     {t.bestiary}
                                 </button>
                             </div>
+
+                            {/* 🟢 PERSON SUB-FILTER */}
+                            {activeMode === 'PERSON' && (
+                                <div className="flex items-center gap-2 text-xs font-mono text-titanium-500 animate-in fade-in slide-in-from-left-2">
+                                    <span className="opacity-50">|</span>
+                                    <button
+                                        onClick={() => setPersonFilter('ALL')}
+                                        className={`hover:text-emerald-400 transition-colors ${personFilter === 'ALL' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
+                                    >
+                                        {t.all}
+                                    </button>
+                                    <button
+                                        onClick={() => setPersonFilter('PERSON')}
+                                        className={`hover:text-emerald-400 transition-colors ${personFilter === 'PERSON' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
+                                    >
+                                        {t.people}
+                                    </button>
+                                    <button
+                                        onClick={() => setPersonFilter('LOCATION')}
+                                        className={`hover:text-emerald-400 transition-colors ${personFilter === 'LOCATION' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
+                                    >
+                                        {t.locations}
+                                    </button>
+                                    <button
+                                        onClick={() => setPersonFilter('OBJECT')}
+                                        className={`hover:text-emerald-400 transition-colors ${personFilter === 'OBJECT' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
+                                    >
+                                        {t.objects}
+                                    </button>
+                                </div>
+                            )}
 
                             {/* 🟢 BESTIARY SUB-FILTER */}
                             {activeMode === 'CREATURE' && (

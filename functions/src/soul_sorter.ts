@@ -372,7 +372,14 @@ export const classifyEntities = onCall(
                 // D. NARRATIVE ACCUMULATION
                 // We send EVERYTHING to AI to find Ghosts (names mentioned in narrative)
                 // even if it's an Anchor file (it might mention OTHER characters).
-                narrativeBuffer.push(`--- FILE: ${file.name} (Saga: ${file.saga}) ---\n${file.content}\n--- END ---\n`);
+                // 🟢 CLEANUP: Strip frontmatter to avoid leaking metadata into descriptions
+                let cleanContent = file.content;
+                try {
+                    const parsed = matter(file.content);
+                    cleanContent = parsed.content;
+                } catch (e) { /* Fallback to raw */ }
+
+                narrativeBuffer.push(`--- FILE: ${file.name} (Saga: ${file.saga}) ---\n${cleanContent}\n--- END ---\n`);
             }
 
             // --- 3. AI EXTRACTION (GHOST SWEEP) ---

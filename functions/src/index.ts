@@ -4332,6 +4332,22 @@ export const syncCharacterManifest = onCall(
 
                         // ⚡ FAST PATH: Role Extraction
                         let resolvedRole = 'Unregistered Entity';
+                        // 🟢 CATEGORY EXTRACTION
+                        // Map file type/category to Firestore 'category' field
+                        // Valid Categories: 'PERSON', 'CREATURE', 'FLORA', 'LOCATION', 'OBJECT'
+                        let resolvedCategory = 'PERSON'; // Default
+                        const rawType = (fm.type || fm.category || '').toLowerCase();
+
+                        if (rawType === 'location' || rawType === 'place' || rawType === 'lugar') {
+                            resolvedCategory = 'LOCATION';
+                        } else if (rawType === 'object' || rawType === 'item' || rawType === 'thing' || rawType === 'artefact' || rawType === 'objeto') {
+                            resolvedCategory = 'OBJECT';
+                        } else if (rawType === 'creature' || rawType === 'beast' || rawType === 'monster' || rawType === 'criatura') {
+                            resolvedCategory = 'CREATURE';
+                        } else if (rawType === 'flora' || rawType === 'plant' || rawType === 'planta') {
+                            resolvedCategory = 'FLORA';
+                        }
+
                         if (fm.role) resolvedRole = fm.role;
                         else if (fm.class) resolvedRole = fm.class;
                         else {
@@ -4375,6 +4391,7 @@ export const syncCharacterManifest = onCall(
                             id: slug,
                             name: fm.name || cleanName,
                             role: finalRole, // 🟢 USES PROTECTED ROLE
+                            category: resolvedCategory, // 🟢 SAVE CATEGORY
                             tier: fm.tier || 'MAIN',
                             age: fm.age || null,
                             avatar: fm.avatar || null,
