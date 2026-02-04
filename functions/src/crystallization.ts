@@ -22,6 +22,7 @@ interface CrystallizeGraphRequest {
         description: string;
         [key: string]: any;
     }>;
+    edges?: Array<{ source: string; target: string; label: string }>; // 🟢 NEW: Edges Support
     folderId: string;
     subfolderName?: string; // Optional subfolder creation
     accessToken: string;
@@ -43,7 +44,7 @@ export const crystallizeGraph = onCall(
         const db = getFirestore();
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
 
-        const { nodes, folderId, subfolderName, accessToken, chatContext, projectId, mode = 'FUSION' } = request.data as CrystallizeGraphRequest;
+        const { nodes, edges, folderId, subfolderName, accessToken, chatContext, projectId, mode = 'FUSION' } = request.data as CrystallizeGraphRequest;
 
         if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
             throw new HttpsError("invalid-argument", "No nodes provided to crystallize.");
@@ -99,6 +100,25 @@ export const crystallizeGraph = onCall(
         } catch (e) {
             logger.warn("Failed to resolve virtual path for graph crystallization.", e);
             virtualPathRoot = "Unknown_Graph_Path";
+        }
+
+        // 🟢 PRE-PROCESS RELATIONS (Edges)
+        const relationsMap = new Map<string, any[]>();
+        if (edges && Array.isArray(edges)) {
+             edges.forEach(edge => {
+                 if (!relationsMap.has(edge.source)) relationsMap.set(edge.source, []);
+
+                 // Lookup target in 'nodes' (New) or pass through ID (Existing)
+                 const targetNode = nodes.find(n => n.id === edge.target);
+
+                 relationsMap.get(edge.source)?.push({
+                     targetId: edge.target,
+                     targetName: targetNode?.name || "Unknown Entity",
+                     targetType: targetNode?.type || "concept",
+                     relation: edge.label || "NEUTRAL",
+                     context: "Created by Builder"
+                 });
+             });
         }
 
         let successCount = 0;
@@ -165,7 +185,7 @@ export const crystallizeGraph = onCall(
                         type: (node.type as any) || 'concept',
                         role: node.type === 'character' ? (node.description || 'Character') : node.type,
                         project_id: projectId,
-                        tags: [node.type],
+                        tags: [node.type || 'concept'], // 🟢 Fix Undefined Tag
                         rawBodyContent: bodyContent // 🟢 Injected Body
                     });
 
@@ -203,6 +223,8 @@ export const crystallizeGraph = onCall(
                             .collection("projects").doc(projectId)
                             .collection("entities").doc(node.id);
 
+                        const nodeRelations = relationsMap.get(node.id) || [];
+
                         await entityRef.set({
                             id: node.id,
                             name: node.name,
@@ -212,6 +234,7 @@ export const crystallizeGraph = onCall(
                             isAnchor: true,
                             masterFileId: fileId,
                             nexusId: nexusId, // Link to Deterministic ID
+                            relations: nodeRelations, // 🟢 SAVE RELATIONS
                             lastUpdated: new Date().toISOString()
                         }, { merge: true });
 

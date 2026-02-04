@@ -43,8 +43,8 @@ const safeYamlString = (str?: string): string => {
 };
 
 const safeYamlArray = (arr?: string[]): string => {
-    if (!arr || arr.length === 0) return "[]";
-    return `[${arr.map(s => `"${s.replace(/"/g, '\\"')}"`).join(", ")}]`;
+    if (!arr || !Array.isArray(arr) || arr.length === 0) return "[]";
+    return `[${arr.filter(s => s && typeof s === 'string').map(s => `"${s.replace(/"/g, '\\"')}"`).join(", ")}]`;
 };
 
 /**
