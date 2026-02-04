@@ -228,8 +228,8 @@ export const crystallizeGraph = onCall(
                         await entityRef.set({
                             id: node.id,
                             name: node.name,
-                            type: node.type,
-                            description: node.description,
+                            type: node.type || 'concept',
+                            description: node.description || "",
                             isGhost: false,
                             isAnchor: true,
                             masterFileId: fileId,
