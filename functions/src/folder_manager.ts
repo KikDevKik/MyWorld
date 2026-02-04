@@ -182,6 +182,7 @@ export const createTitaniumStructure = onCall(
         { name: "UNIVERSO", legacyName: "00_UNIVERSO", role: FolderRole.WORLD_CORE },
         { name: "PERSONAJES", legacyName: "01_PERSONAJES", role: FolderRole.ENTITY_PEOPLE },
         { name: "BESTIARIO", legacyName: "02_BESTIARIO", role: FolderRole.ENTITY_BESTIARY },
+        { name: "OBJETOS", legacyName: "98_OBJETOS", role: FolderRole.ENTITY_OBJECTS },
         { name: "MANUSCRITO", legacyName: "03_MANUSCRITO", role: FolderRole.SAGA_MAIN },
         { name: "EXTRAS", legacyName: "04_EXTRAS", role: FolderRole.SAGA_EXTRAS },
         { name: "RECURSOS", legacyName: "99_RECURSOS", role: FolderRole.RESOURCES }
