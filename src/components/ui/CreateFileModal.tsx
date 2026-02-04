@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Folder, FilePlus, Loader2, Save } from 'lucide-react';
+import { Folder, FilePlus, Loader2, Save } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import useDrivePicker from 'react-google-drive-picker';
 import { FolderRole } from '../../types/core';
@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
+import { Modal } from './Modal';
 
 interface CreateFileModalProps {
     isOpen: boolean;
@@ -157,74 +158,19 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
         }
     };
 
-    if (!isOpen) return null;
-
     return (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div className="bg-titanium-900 border border-titanium-700 rounded-xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
-
-                {/* Header */}
-                <div className="p-5 border-b border-titanium-700/50 bg-titanium-800/30 flex justify-between items-center">
-                    <h3 className="text-lg font-bold text-titanium-100 flex items-center gap-2">
-                        <FilePlus size={20} className="text-cyan-500"/> {t.editor.createNew}
-                    </h3>
-                    <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="p-6 space-y-6">
-
-                    {/* Name Input */}
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
-                            {t.common.fileName}
-                        </label>
-                        <input
-                            type="text"
-                            value={fileName}
-                            onChange={(e) => setFileName(e.target.value)}
-                            placeholder="Ej. Capítulo 1: El Inicio"
-                            className="w-full bg-titanium-950 border border-titanium-700 rounded-lg px-4 py-3 text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
-                            autoFocus
-                        />
-                        <p className="text-[10px] text-titanium-500">
-                            Se creará como un archivo Markdown (.md)
-                        </p>
-                    </div>
-
-                    {/* Folder Select */}
-                    <div className="space-y-2">
-                         <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
-                            {t.common.location}
-                        </label>
-                        <div className="flex items-center justify-between bg-titanium-800/50 border border-titanium-700 rounded-lg p-3">
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <div className="p-2 bg-titanium-900 rounded-md shrink-0">
-                                    <Folder size={16} className="text-titanium-400" />
-                                </div>
-                                <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-medium text-titanium-200 truncate">
-                                        {selectedFolder ? selectedFolder.name : t.common.loading}
-                                    </span>
-                                    <span className="text-[10px] text-titanium-500 font-mono truncate">
-                                        {selectedFolder ? (selectedFolder.name.toLowerCase().includes('libro') ? t.common.recommended : t.common.destinationFolder) : t.common.detecting}
-                                    </span>
-                                </div>
-                            </div>
-                            <button
-                                onClick={handleOpenPicker}
-                                className="text-xs font-medium text-cyan-500 hover:text-cyan-400 hover:underline px-2 py-1"
-                            >
-                                {t.common.change}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="p-5 border-t border-titanium-700/50 bg-titanium-800/30 flex justify-end gap-3">
+        <Modal
+            isOpen={isOpen}
+            onClose={onClose}
+            className="max-w-md"
+            title={
+                <>
+                    <FilePlus size={20} className="text-cyan-500"/>
+                    {t.editor.createNew}
+                </>
+            }
+            footer={
+                <>
                     <button
                         onClick={onClose}
                         className="px-4 py-2 rounded-lg text-sm font-medium text-titanium-400 hover:text-white hover:bg-titanium-700 transition-colors"
@@ -239,9 +185,61 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                         {isSubmitting ? <Loader2 size={16} className="animate-spin"/> : <Save size={16} />}
                         {isSubmitting ? t.common.creating : t.common.create}
                     </button>
+                </>
+            }
+        >
+            <div className="space-y-6">
+                {/* Name Input */}
+                <div className="space-y-2">
+                    <label
+                        htmlFor="file-name-input"
+                        className="text-xs font-semibold text-titanium-400 uppercase tracking-wider"
+                    >
+                        {t.common.fileName}
+                    </label>
+                    <input
+                        id="file-name-input"
+                        type="text"
+                        value={fileName}
+                        onChange={(e) => setFileName(e.target.value)}
+                        placeholder="Ej. Capítulo 1: El Inicio"
+                        className="w-full bg-titanium-950 border border-titanium-700 rounded-lg px-4 py-3 text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all"
+                        autoFocus
+                    />
+                    <p className="text-[10px] text-titanium-500">
+                        Se creará como un archivo Markdown (.md)
+                    </p>
+                </div>
+
+                {/* Folder Select */}
+                <div className="space-y-2">
+                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                        {t.common.location}
+                    </label>
+                    <div className="flex items-center justify-between bg-titanium-800/50 border border-titanium-700 rounded-lg p-3">
+                        <div className="flex items-center gap-3 overflow-hidden">
+                            <div className="p-2 bg-titanium-900 rounded-md shrink-0">
+                                <Folder size={16} className="text-titanium-400" />
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-sm font-medium text-titanium-200 truncate">
+                                    {selectedFolder ? selectedFolder.name : t.common.loading}
+                                </span>
+                                <span className="text-[10px] text-titanium-500 font-mono truncate">
+                                    {selectedFolder ? (selectedFolder.name.toLowerCase().includes('libro') ? t.common.recommended : t.common.destinationFolder) : t.common.detecting}
+                                </span>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleOpenPicker}
+                            className="text-xs font-medium text-cyan-500 hover:text-cyan-400 hover:underline px-2 py-1"
+                        >
+                            {t.common.change}
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </Modal>
     );
 };
 
