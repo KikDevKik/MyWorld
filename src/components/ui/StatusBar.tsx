@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, Target, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle } from 'lucide-react';
+import { Settings, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { GuardianStatus } from '../../hooks/useGuardian';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface StatusBarProps {
     content: string;
     className?: string;
-    guardianStatus?: string; // 🟢 FIX TYPE
-    onGuardianClick?: () => void;    // 🟢 NEW PROP
+    guardianStatus?: string;
+    onGuardianClick?: () => void;
 }
 
 // HELPERS
@@ -24,9 +25,10 @@ const getTodayKey = () => {
 
 const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick }) => {
     const { customGeminiKey } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].statusBar;
 
     // METRICS STATE
-    // 🟢 FIX: Initialize with current count to avoid "delta = total - 0" on mount
     const [wordCount, setWordCount] = useState(() => countWords(content));
     const [readingTime, setReadingTime] = useState(() => Math.ceil(countWords(content) / 200));
 
@@ -34,7 +36,6 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
     const [dailyGoal, setDailyGoal] = useState(1000);
     const [dailyProgress, setDailyProgress] = useState(0);
 
-    // 🟢 FIX: Initialize prevWordCount with current count
     const [prevWordCount, setPrevWordCount] = useState(() => countWords(content));
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -61,15 +62,9 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
         const delta = currentCount - prevWordCount;
 
         if (delta !== 0) {
-            // 🟢 HEURISTIC: Ignore massive jumps (> 50 words) if prev was 0 (initial load async issue)
-            // or just generally if it looks like a paste/load (e.g. > 100 words in 1 tick?)
-            // Let's be conservative: If delta > 50, it's likely a paste or load, NOT typing.
-            // Unless the user types REALLY fast. 50 words is a lot for one render cycle.
-
             const isLikelyPasteOrLoad = delta > 50;
 
             if (delta > 0 && !isLikelyPasteOrLoad) {
-                // Use functional update to ensure we have the latest dailyProgress
                 setDailyProgress(prev => {
                     const newProgress = prev + delta;
                     localStorage.setItem(getTodayKey(), newProgress.toString());
@@ -77,7 +72,6 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 });
             }
 
-            // Update previous count to current
             setPrevWordCount(currentCount);
         }
 
@@ -94,7 +88,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
     const handleResetProgress = () => {
         setDailyProgress(0);
         localStorage.setItem(getTodayKey(), '0');
-        toast.success("Progreso diario reiniciado");
+        toast.success(t.resetSuccess);
     };
 
     const progressPercentage = Math.min(100, (dailyProgress / dailyGoal) * 100);
@@ -111,13 +105,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                             ? 'text-purple-400 bg-purple-900/20 hover:bg-purple-900/30'
                             : 'text-amber-400 bg-amber-900/20 hover:bg-amber-900/30'
                     }`}
-                    title={customGeminiKey
-                        ? "PRO KEY: Usando tu API Key personal (Sin límites)"
-                        : "MODO DEMO: Usando cuota del sistema (Límites compartidos)"}
+                    title={customGeminiKey ? t.tooltipPro : t.tooltipDemo}
                 >
                    {customGeminiKey ? <Key size={12} /> : <AlertTriangle size={12} />}
                    <span className="font-bold tracking-wider">
-                       {customGeminiKey ? 'PRO KEY' : 'MODO DEMO'}
+                       {customGeminiKey ? t.proKey : t.demoMode}
                    </span>
                 </div>
 
@@ -134,13 +126,13 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                               guardianStatus === 'clean' ? 'text-zinc-500 hover:text-emerald-400' :
                               'text-zinc-600 hover:text-zinc-400'}
                         `}
-                        title="Estado del Canon (Clic para forzar auditoría)"
-                        aria-label={guardianStatus === 'scanning' ? 'Escaneando canon' : guardianStatus === 'conflict' ? 'Conflicto detectado' : 'Estado del Guardián: Limpio'}
+                        title={guardianStatus === 'scanning' ? t.tooltipArgosScan : guardianStatus === 'conflict' ? t.tooltipArgosConflict : t.tooltipArgosClean}
+                        aria-label={guardianStatus === 'scanning' ? t.scanning : guardianStatus === 'conflict' ? t.conflict : t.argos}
                     >
                         <ScanEye size={12} />
                         <span className="font-bold tracking-wider">
-                            {guardianStatus === 'scanning' ? 'ESCANEO...' :
-                             guardianStatus === 'conflict' ? 'CONFLICTO' : 'ARGOS'}
+                            {guardianStatus === 'scanning' ? t.scanning :
+                             guardianStatus === 'conflict' ? t.conflict : t.argos}
                         </span>
                     </button>
                 )}
@@ -149,11 +141,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
 
                 <div className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors">
                     <Type size={12} />
-                    <span>{wordCount.toLocaleString()} palabras</span>
+                    <span>{wordCount.toLocaleString()} {t.words}</span>
                 </div>
                 <div className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors">
                     <Clock size={12} />
-                    <span>~{readingTime} min</span>
+                    <span>~{readingTime} {t.minutes}</span>
                 </div>
             </div>
 
@@ -164,7 +156,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 {isSettingsOpen && (
                     <div className="absolute bottom-10 right-0 bg-titanium-950 border border-titanium-700 p-3 rounded-lg shadow-2xl w-48 z-50 animate-in fade-in slide-in-from-bottom-2">
                         <div className="mb-3">
-                            <label htmlFor="daily-goal-input" className="block text-xs font-bold text-titanium-100 mb-2">Meta Diaria</label>
+                            <label htmlFor="daily-goal-input" className="block text-xs font-bold text-titanium-100 mb-2">{t.dailyTarget}</label>
                             <input
                                 id="daily-goal-input"
                                 type="number"
@@ -177,11 +169,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         <button
                             onClick={handleResetProgress}
                             className="w-full flex items-center justify-center gap-2 px-2 py-1.5 bg-titanium-800 hover:bg-red-900/30 text-titanium-300 hover:text-red-400 rounded transition-colors text-xs"
-                            aria-label="Reiniciar progreso diario"
-                            title="Reiniciar contador de palabras hoy"
+                            aria-label={t.resetProgress}
+                            title={t.tooltipReset}
                         >
                             <RefreshCw size={12} />
-                            Reiniciar Progreso
+                            {t.resetProgress}
                         </button>
                     </div>
                 )}
@@ -189,7 +181,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 <div className="flex flex-col w-32 gap-1">
                     <div className="flex justify-between text-[9px] uppercase tracking-wider font-bold">
                         <span className={dailyProgress >= dailyGoal ? "text-emerald-400" : "text-titanium-500"}>
-                            {dailyProgress >= dailyGoal ? "¡Objetivo Cumplido!" : "Objetivo Diario"}
+                            {dailyProgress >= dailyGoal ? t.goalMet : t.dailyGoal}
                         </span>
                         <span className="text-titanium-400">{dailyProgress} / {dailyGoal}</span>
                     </div>
@@ -204,8 +196,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 <button
                     onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                     className="p-1 hover:bg-titanium-800 rounded text-titanium-500 hover:text-white transition-colors"
-                    title="Configuración de lectura"
-                    aria-label="Configuración de lectura"
+                    title={t.tooltipSettings}
+                    aria-label={t.tooltipSettings}
                     aria-expanded={isSettingsOpen}
                     aria-haspopup="true"
                 >

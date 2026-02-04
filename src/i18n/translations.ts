@@ -145,6 +145,27 @@ export const TRANSLATIONS: Record<Language, any> = {
             errorConnection: "Error conectando con el Arquitecto.",
             errorSession: "Error de sesión: No se pudo refrescar el token.",
             errorMaterialize: "Error al materializar: "
+        },
+        statusBar: {
+            demoMode: "MODO DEMO",
+            proKey: "PRO KEY",
+            argos: "ARGOS",
+            scanning: "ESCANEO...",
+            conflict: "CONFLICTO",
+            words: "palabras",
+            minutes: "min",
+            dailyGoal: "Objetivo Diario",
+            goalMet: "¡Objetivo Cumplido!",
+            dailyTarget: "Meta Diaria",
+            resetProgress: "Reiniciar Progreso",
+            resetSuccess: "Progreso diario reiniciado",
+            tooltipPro: "PRO KEY: Usando tu API Key personal (Sin límites)",
+            tooltipDemo: "MODO DEMO: Usando cuota del sistema (Límites compartidos)",
+            tooltipArgosScan: "Escaneando canon",
+            tooltipArgosConflict: "Conflicto detectado",
+            tooltipArgosClean: "Estado del Guardián: Limpio",
+            tooltipReset: "Reiniciar contador de palabras hoy",
+            tooltipSettings: "Configuración de lectura"
         }
     },
     en: {
@@ -291,6 +312,27 @@ export const TRANSLATIONS: Record<Language, any> = {
             errorConnection: "Error connecting to the Architect.",
             errorSession: "Session error: Could not refresh token.",
             errorMaterialize: "Error materializing: "
+        },
+        statusBar: {
+            demoMode: "DEMO MODE",
+            proKey: "PRO KEY",
+            argos: "ARGOS",
+            scanning: "SCANNING...",
+            conflict: "CONFLICT",
+            words: "words",
+            minutes: "min",
+            dailyGoal: "Daily Goal",
+            goalMet: "Goal Met!",
+            dailyTarget: "Daily Target",
+            resetProgress: "Reset Progress",
+            resetSuccess: "Daily progress reset",
+            tooltipPro: "PRO KEY: Using your personal API Key (No limits)",
+            tooltipDemo: "DEMO MODE: Using system quota (Shared limits)",
+            tooltipArgosScan: "Scanning canon",
+            tooltipArgosConflict: "Conflict detected",
+            tooltipArgosClean: "Guardian Status: Clean",
+            tooltipReset: "Reset word count for today",
+            tooltipSettings: "Reading settings"
         }
     },
     jp: {
@@ -429,6 +471,27 @@ export const TRANSLATIONS: Record<Language, any> = {
             errorConnection: "建築家との接続エラー。",
             errorSession: "セッションエラー：トークンを更新できませんでした。",
             errorMaterialize: "具現化エラー："
+        },
+        statusBar: {
+            demoMode: "デモモード",
+            proKey: "PRO KEY",
+            argos: "アルゴス",
+            scanning: "スキャン中...",
+            conflict: "競合",
+            words: "単語",
+            minutes: "分",
+            dailyGoal: "一日の目標",
+            goalMet: "目標達成！",
+            dailyTarget: "目標設定",
+            resetProgress: "進捗をリセット",
+            resetSuccess: "一日の進捗をリセットしました",
+            tooltipPro: "PRO KEY: 個人APIキーを使用中（制限なし）",
+            tooltipDemo: "デモモード: システムクォータを使用中（制限あり）",
+            tooltipArgosScan: "カノンをスキャン中",
+            tooltipArgosConflict: "競合が検出されました",
+            tooltipArgosClean: "ガーディアンの状態: 正常",
+            tooltipReset: "今日の単語数をリセット",
+            tooltipSettings: "読書設定"
         }
     },
     ko: {
@@ -567,6 +630,27 @@ export const TRANSLATIONS: Record<Language, any> = {
             errorConnection: "건축가 연결 오류.",
             errorSession: "세션 오류: 토큰을 갱신할 수 없습니다.",
             errorMaterialize: "구현 오류: "
+        },
+        statusBar: {
+            demoMode: "데모 모드",
+            proKey: "PRO KEY",
+            argos: "아르고스",
+            scanning: "스캔 중...",
+            conflict: "충돌",
+            words: "단어",
+            minutes: "분",
+            dailyGoal: "일일 목표",
+            goalMet: "목표 달성!",
+            dailyTarget: "목표 설정",
+            resetProgress: "진행 상황 초기화",
+            resetSuccess: "일일 진행 상황이 초기화되었습니다",
+            tooltipPro: "PRO KEY: 개인 API 키 사용 중 (제한 없음)",
+            tooltipDemo: "데모 모드: 시스템 쿼터 사용 중 (공유 제한)",
+            tooltipArgosScan: "캐논 스캔 중",
+            tooltipArgosConflict: "충돌 감지됨",
+            tooltipArgosClean: "가디언 상태: 정상",
+            tooltipReset: "오늘 단어 수 초기화",
+            tooltipSettings: "읽기 설정"
         }
     },
     zh: {
@@ -705,6 +789,27 @@ export const TRANSLATIONS: Record<Language, any> = {
             errorConnection: "连接架构师时出错。",
             errorSession: "会话错误：无法刷新令牌。",
             errorMaterialize: "具象化错误："
+        },
+        statusBar: {
+            demoMode: "演示模式",
+            proKey: "PRO KEY",
+            argos: "阿尔戈斯",
+            scanning: "扫描中...",
+            conflict: "冲突",
+            words: "字",
+            minutes: "分钟",
+            dailyGoal: "每日目标",
+            goalMet: "目标达成！",
+            dailyTarget: "每日指标",
+            resetProgress: "重置进度",
+            resetSuccess: "每日进度已重置",
+            tooltipPro: "PRO KEY: 正在使用您的个人 API 密钥（无限制）",
+            tooltipDemo: "演示模式: 使用系统配额（共享限制）",
+            tooltipArgosScan: "正在扫描正典",
+            tooltipArgosConflict: "检测到冲突",
+            tooltipArgosClean: "守护者状态：干净",
+            tooltipReset: "重置今日字数统计",
+            tooltipSettings: "阅读设置"
         }
     }
 };
