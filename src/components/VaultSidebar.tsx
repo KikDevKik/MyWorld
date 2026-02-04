@@ -21,7 +21,7 @@ import { getLocalizedFolderName } from '../utils/folderLocalization';
 interface VaultSidebarProps {
     folderId: string;
     onFolderIdChange: (id: string) => void;
-    onFileSelect: (id: string, content: string, name?: string) => void;
+    onFileSelect: (id: string, content: string, name?: string, isBackgroundUpdate?: boolean) => void;
     onOpenConnectModal: () => void;
     onLogout: () => void;
     onIndexRequest: () => void;
