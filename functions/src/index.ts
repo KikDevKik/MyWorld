@@ -985,6 +985,7 @@ export const getDriveFiles = onCall(
     enforceAppCheck: true,
     timeoutSeconds: 540, // Increased for Deep Extraction
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
 

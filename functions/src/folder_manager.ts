@@ -161,6 +161,7 @@ export const createTitaniumStructure = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "1GiB",
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -408,6 +409,7 @@ export const renameDriveFolder = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
+        memory: "1GiB",
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
