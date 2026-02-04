@@ -110,33 +110,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
         setIsLoading(true);
         try {
-            // Extract top-level IDs
-            const fileIds = fileTree.map(node => node.id);
-            const BATCH_SIZE = 5; // Conservative batch size to prevent OOM
-            const totalBatches = Math.ceil(fileIds.length / BATCH_SIZE);
+            toast.loading("💥 Iniciando destrucción total...", { id: 'nuke-toast' });
 
-            for (let i = 0; i < fileIds.length; i += BATCH_SIZE) {
-                const batch = fileIds.slice(i, i + BATCH_SIZE);
-                const currentBatch = Math.floor(i / BATCH_SIZE) + 1;
-
-                toast.loading(`Eliminando lote ${currentBatch}/${totalBatches}...`, { id: 'nuke-toast' });
-
-                await callFunction('trashDriveItems', {
-                    accessToken: accessToken,
-                    fileIds: batch
-                });
-            }
+            // 🟢 ATOMIC NUKE: Call single cloud function
+            await callFunction('nukeProject', {
+                accessToken: accessToken,
+                rootFolderId: config?.folderId // Pass root ID to trash parent folder
+            });
 
             toast.dismiss('nuke-toast');
 
-            // 🟢 Reset Project Identity (Name & Style)
+            // 🟢 Reset Project Identity (Client Side Mirror)
             if (config) {
                  await updateConfig({
                     ...config,
                     projectName: '',
                     styleIdentity: '',
-                    canonPaths: [],      // 🟢 CLEAR CANON
-                    resourcePaths: [],   // 🟢 CLEAR RESOURCES
+                    canonPaths: [],
+                    resourcePaths: [],
                     primaryCanonPathId: null,
                     characterVaultId: null,
                     bestiaryVaultId: null,
@@ -148,7 +139,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             toast.success(t.nukeSuccess);
 
             // 🟢 Force Reload to Reset State
-            setTimeout(() => window.location.reload(), 1500);
+            setTimeout(() => window.location.reload(), 2000);
 
         } catch (error: any) {
             toast.dismiss('nuke-toast');
