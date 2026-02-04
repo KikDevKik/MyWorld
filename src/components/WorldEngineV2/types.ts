@@ -48,6 +48,8 @@ export interface AnalysisCandidate {
     foundInFiles: Array<{
         fileName: string;
         contextSnippet: string;
+        fileId?: string; // 🟢 NEW: Back-mapped from Scan
+        fileLastModified?: string; // 🟢 NEW: Back-mapped from Scan
     }>;
 
     // 🟢 NEW: Relation Extraction (Phase 2.4 - The Web)

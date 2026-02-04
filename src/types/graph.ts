@@ -30,7 +30,8 @@ export interface GraphNode {
   foundInFiles?: Array<{
     fileId: string;
     fileName: string;
-    lastSeen: string; // ISO Timestamp
+    lastSeen: string; // ISO Timestamp (Scan Date)
+    fileLastModified?: string; // ISO Timestamp (File Modification Date from Drive)
   }>;
 
   // Metadatos ligeros para visualización rápida en el Grafo
