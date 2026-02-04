@@ -326,19 +326,15 @@ export const createTitaniumStructure = onCall(
         // 🟢 2.5. AUTO-INDEX (HYPER-SPEED REFRESH)
         // Instead of calling heavy scan, we construct the tree from what we just built.
         try {
-            const treePayload = [{
-                id: targetRootId,
-                name: rootFolderName,
+            // Fix: Flatten the tree so top-level folders (Universe, Characters) are roots of the tree,
+            // matching how getDriveFiles scans specific IDs (Canon/Resources paths).
+            const treePayload = createdFolders.map(f => ({
+                id: f.id,
+                name: f.name,
                 type: 'folder',
                 mimeType: 'application/vnd.google-apps.folder',
-                children: createdFolders.map(f => ({
-                    id: f.id,
-                    name: f.name,
-                    type: 'folder',
-                    mimeType: 'application/vnd.google-apps.folder',
-                    children: f.children || []
-                }))
-            }];
+                children: f.children || []
+            }));
 
             await db.collection("TDB_Index").doc(userId).collection("structure").doc("tree").set({
                 tree: treePayload,
