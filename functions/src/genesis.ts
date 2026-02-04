@@ -4,13 +4,15 @@ import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey } from "./utils/security";
 import { generateAnchorContent, generateDraftContent } from "./templates/forge";
 import { FolderRole, ProjectConfig } from "./types/project";
 import { updateFirestoreTree } from "./utils/tree_utils";
+import { ingestFile } from "./ingestion";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -57,6 +59,7 @@ export const genesisManifest = onCall(
     if (!accessToken) throw new HttpsError("unauthenticated", "Access Token required.");
 
     const userId = request.auth.uid;
+    const db = getFirestore();
     const config = await getProjectConfigLocal(userId);
 
     // 1. SETUP FOLDERS
@@ -76,7 +79,8 @@ export const genesisManifest = onCall(
         // 2. AI EXTRACTION (The Architect)
         const historyText = chatHistory.map((h: any) => `${h.role}: ${h.message}`).join("\n");
 
-        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+        const finalApiKey = getAIKey(request.data, googleApiKey.value());
+        const genAI = new GoogleGenerativeAI(finalApiKey);
         const model = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
             safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -84,6 +88,13 @@ export const genesisManifest = onCall(
                 temperature: TEMP_PRECISION,
                 responseMimeType: "application/json"
             } as any
+        });
+
+        // 🟢 INITIALIZE EMBEDDINGS MODEL
+        const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+            apiKey: finalApiKey,
+            model: "text-embedding-004",
+            taskType: TaskType.RETRIEVAL_DOCUMENT,
         });
 
         const prompt = `
@@ -225,6 +236,27 @@ export const genesisManifest = onCall(
                             children: []
                         }
                     });
+
+                    // 🟢 AUTO-INDEX (RAG)
+                    // Use config.folderId as project anchor or fallback
+                    const projectAnchorId = (config as any).folderId || "unknown_genesis";
+
+                    await ingestFile(
+                        db,
+                        userId,
+                        projectAnchorId,
+                        {
+                            id: fileId,
+                            name: fileName,
+                            path: fileName, // Simplified path for immediate access
+                            saga: 'Genesis',
+                            parentId: folderId,
+                            category: 'canon'
+                        },
+                        content,
+                        embeddingsModel
+                    );
+                    logger.info(`🧠 [GENESIS] Auto-indexed ${fileName}`);
                 }
             } catch (err: any) {
                 logger.error(`❌ Genesis: Failed to create ${fileName}:`, err);

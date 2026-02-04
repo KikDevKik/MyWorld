@@ -125,9 +125,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         setIsSaving(true);
         try {
             // 🟢 SIGNIFICANT EDIT DETECTION
-            // If the user writes a paragraph (>50 chars) in one go (2s debounce), we flag it.
-            const diff = Math.abs(contentToSave.length - lastSavedContent.length);
-            const isSignificant = diff > 50;
+            // Trigger re-indexing only on massive changes (> 1000 words / 5000 chars) or major deletions.
+            const diff = contentToSave.length - lastSavedContent.length;
+            const absDiff = Math.abs(diff);
+
+            const isMajorAdd = absDiff > 5000;
+            const isMajorDelete = (diff < 0 && contentToSave.length < lastSavedContent.length * 0.5 && lastSavedContent.length > 1000);
+
+            const isSignificant = isMajorAdd || isMajorDelete;
 
             await callFunction('saveDriveFile', {
                 fileId: fileIdToSave,

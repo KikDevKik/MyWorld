@@ -167,3 +167,70 @@ export async function ingestFile(
         return { status: 'error', hash: '', chunksCreated: 0, chunksDeleted: 0 };
     }
 }
+
+/**
+ * DELETE VECTORS (The Eraser)
+ * Removes all trace of a file from the vector index and metadata.
+ */
+export async function deleteFileVectors(
+    db: FirebaseFirestore.Firestore,
+    userId: string,
+    fileId: string
+): Promise<number> {
+    try {
+        // 1. Delete Chunks (Vector Data)
+        // We use Collection Group to find chunks regardless of where they are nested (though usually under TDB_Index/files)
+        const chunksQuery = db.collectionGroup("chunks")
+            .where("userId", "==", userId)
+            .where("driveId", "==", fileId);
+
+        const snapshot = await chunksQuery.get();
+        let deletedCount = 0;
+
+        if (!snapshot.empty) {
+            let batch = db.batch();
+            let count = 0;
+
+            for (const doc of snapshot.docs) {
+                batch.delete(doc.ref);
+                count++;
+                deletedCount++;
+
+                if (count >= 400) {
+                    await batch.commit();
+                    batch = db.batch();
+                    count = 0;
+                }
+            }
+
+            if (count > 0) {
+                await batch.commit();
+            }
+        }
+
+        // 2. Delete File Metadata (TDB_Index Entry)
+        // We find the parent file doc by driveId
+        const filesQuery = db.collection("TDB_Index").doc(userId).collection("files").where("driveId", "==", fileId);
+        const filesSnap = await filesQuery.get();
+
+        if (!filesSnap.empty) {
+            let batch = db.batch();
+            for (const doc of filesSnap.docs) {
+                // Also recursively delete subcollections?
+                // We just deleted chunks via collectionGroup, but there might be stragglers or other subcols?
+                // Ideally recursive delete, but batch delete is safer/faster for simple structure.
+                // Since we deleted chunks already, deleting the parent doc is fine.
+                // But Firestore recommends deleting subcollections first. We did that (chunks).
+                batch.delete(doc.ref);
+            }
+            await batch.commit();
+        }
+
+        logger.info(`🗑️ [DELETE VECTORS] Cleared ${deletedCount} chunks and metadata for file ${fileId}`);
+        return deletedCount;
+
+    } catch (error) {
+        logger.error(`💥 [DELETE VECTORS ERROR] Failed to delete vectors for ${fileId}:`, error);
+        return 0;
+    }
+}

@@ -9,6 +9,7 @@ import { FolderRole, ProjectConfig } from "./types/project";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { updateFirestoreTree, updateFirestoreTreeBatch } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
+import { deleteFileVectors } from "./ingestion";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -480,6 +481,7 @@ export const trashDriveItems = onCall(
         }
 
         const userId = request.auth.uid;
+        const db = getFirestore();
 
         try {
             const auth = new google.auth.OAuth2();
@@ -514,6 +516,11 @@ export const trashDriveItems = onCall(
             // 🟢 PERSISTENCE: Batch Update Firestore Tree (Sync Memory)
             if (deletedIds.length > 0) {
                 await updateFirestoreTreeBatch(userId, 'delete', deletedIds);
+
+                // 🟢 CLEANUP VECTORS (RAG)
+                // Process cleanups in parallel without blocking response too much
+                // (Though strictly we should await to ensure consistency)
+                await Promise.all(deletedIds.map(fid => deleteFileVectors(db, userId, fid)));
             }
 
             if (successCount === 0 && errors.length > 0) {
