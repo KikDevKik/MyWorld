@@ -10,6 +10,8 @@ import ForgeCard from './ForgeCard';
 import { Character, DriveFile } from '../../types';
 import { ForgePayload, SoulEntity } from '../../types/forge';
 import { callFunction } from '../../services/api';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ForgeDashboardProps {
     folderId: string; // Project Root ID (for global context)
@@ -64,6 +66,9 @@ function DroppableColumn({ id, children, className }: { id: string, children: Re
 }
 
 const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, characterSaga, bestiarySaga, onOpenSettings }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage].forge;
+
     // 🟢 MODE SWITCH
     const [activeMode, setActiveMode] = useState<'PERSON' | 'CREATURE'>('PERSON');
     const [bestiaryFilter, setBestiaryFilter] = useState<'ALL' | 'CREATURE' | 'FLORA'>('ALL'); // 🟢 Sub-filter
@@ -190,13 +195,13 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const handleForceAnalysis = async () => {
         if (!activeSaga) return;
         setIsSorting(true);
-        const toastId = toast.loading("Ejecutando Soul Sorter...");
+        const toastId = toast.loading(t.runningSorter);
         try {
             await callFunction<ForgePayload>('classifyEntities', { projectId: folderId, sagaId: activeSaga.id });
-            toast.success("Análisis completado.", { id: toastId });
+            toast.success(t.analysisComplete, { id: toastId });
         } catch (error) {
             console.error(error);
-            toast.error("Error al analizar la saga.", { id: toastId });
+            toast.error(t.analysisError, { id: toastId });
         } finally {
             setIsSorting(false);
         }
@@ -205,13 +210,13 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const handlePurgeDatabase = async () => {
         setIsSorting(true);
         setShowPurgeModal(false);
-        const toastId = toast.loading("Purgando base de datos...");
+        const toastId = toast.loading(t.purging);
         try {
             const data = await callFunction<any>('purgeForgeEntities');
-            toast.success(`Base de datos purgada. (${data.count || 0} entidades eliminadas)`, { id: toastId });
+            toast.success(`${t.purgeSuccess} (${data.count || 0})`, { id: toastId });
         } catch (error) {
             console.error(error);
-            toast.error("Error al purgar la base de datos.", { id: toastId });
+            toast.error(t.purgeError, { id: toastId });
         } finally {
             setIsSorting(false);
         }
@@ -228,7 +233,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         const targetColumn = over.id as string;
         if (sourceColumn === 'GHOST' && targetColumn === 'LIMBO') {
             setSelectedEntity(entity);
-            toast.success(`Invocando a ${entity.name}...`);
+            toast.success(`${t.summoning} ${entity.name}...`);
         }
     };
 
@@ -253,7 +258,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         name: c.name,
         tier: 'ANCHOR',
         category: c.category || 'PERSON',
-        sourceSnippet: c.role || "Personaje Registrado",
+        sourceSnippet: c.role || t.registeredCharacter,
         occurrences: 0,
         role: c.role,
         avatar: c.avatar
@@ -284,7 +289,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 <header className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-titanium-800 bg-titanium-900/80 backdrop-blur z-20">
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                         <h1 className="text-xl font-bold text-titanium-100 uppercase tracking-widest flex items-center gap-2">
-                            Tríptico <span className="text-accent-DEFAULT">Titanium</span>
+                            {t.title}
                         </h1>
 
                         {/* 🟢 SWITCH MODE */}
@@ -299,7 +304,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                     }`}
                                 >
                                     <User size={14} />
-                                    Personajes
+                                    {t.people}
                                 </button>
                                 <button
                                     onClick={() => setActiveMode('CREATURE')}
@@ -310,7 +315,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                     }`}
                                 >
                                     <PawPrint size={14} />
-                                    Bestiario
+                                    {t.bestiary}
                                 </button>
                             </div>
 
@@ -322,19 +327,19 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                         onClick={() => setBestiaryFilter('ALL')}
                                         className={`hover:text-emerald-400 transition-colors ${bestiaryFilter === 'ALL' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
                                     >
-                                        Todo
+                                        {t.all}
                                     </button>
                                     <button
                                         onClick={() => setBestiaryFilter('CREATURE')}
                                         className={`hover:text-emerald-400 transition-colors ${bestiaryFilter === 'CREATURE' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
                                     >
-                                        Fauna
+                                        {t.fauna}
                                     </button>
                                     <button
                                         onClick={() => setBestiaryFilter('FLORA')}
                                         className={`hover:text-emerald-400 transition-colors ${bestiaryFilter === 'FLORA' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
                                     >
-                                        Flora
+                                        {t.flora}
                                     </button>
                                 </div>
                             )}
@@ -347,7 +352,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                 onClick={handleForceAnalysis}
                                 disabled={isSorting}
                                 className="group p-2.5 rounded-xl bg-titanium-800/50 border border-titanium-700 hover:border-accent-DEFAULT/50 hover:bg-titanium-800 text-titanium-400 hover:text-accent-DEFAULT transition-all shadow-sm"
-                                title="Re-escanear Saga"
+                                title={t.rescan}
                             >
                                 <RefreshCw size={18} className={`transition-transform duration-700 ${isSorting ? "animate-spin" : "group-hover:rotate-180"}`} />
                             </button>
@@ -357,7 +362,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         <button
                             onClick={onOpenSettings}
                             className="group p-2.5 rounded-xl bg-titanium-800/50 border border-titanium-700 hover:border-white/50 hover:bg-titanium-800 text-titanium-400 hover:text-white transition-all shadow-sm"
-                            title="Configurar Bóvedas"
+                            title={t.configure}
                         >
                             <Settings size={18} className="group-hover:rotate-90 transition-transform duration-500" />
                         </button>
@@ -371,17 +376,17 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                             {activeMode === 'PERSON' ? <User size={40} /> : <PawPrint size={40} />}
                         </div>
                         <h2 className="text-xl font-bold text-white mb-2">
-                            {activeMode === 'PERSON' ? 'Bóveda de Personajes no conectada' : 'Bestiario no conectado'}
+                            {activeMode === 'PERSON' ? t.missingVaultPerson : t.missingVaultBestiary}
                         </h2>
                         <p className="max-w-md mb-8">
-                            Para gestionar {activeMode === 'PERSON' ? 'tus personajes' : 'tus criaturas'}, necesitas vincular una carpeta de Google Drive.
+                             {t.missingVaultDesc.replace('{type}', activeMode === 'PERSON' ? t.yourCharacters : t.yourCreatures)}
                         </p>
                         <button
                             onClick={onOpenSettings}
                             className="flex items-center gap-2 px-6 py-3 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 font-bold rounded-xl transition-all"
                         >
                             <Settings size={18} />
-                            <span>Configurar Ahora</span>
+                            <span>{t.configureNow}</span>
                         </button>
                     </div>
                 ) : (
@@ -392,14 +397,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         <DroppableColumn id="ECO" className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
                             <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
                                 <Ghost size={16} className="text-cyan-500" />
-                                <h2 className="text-sm font-bold text-cyan-500 uppercase tracking-wider">Ecos (Radar)</h2>
+                                <h2 className="text-sm font-bold text-cyan-500 uppercase tracking-wider">{t.echoes}</h2>
                                 <span className="ml-auto text-xs font-mono text-titanium-600">{ghosts.length}</span>
                             </div>
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                                 {ghosts.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                                         <Ghost size={32} className="mb-2" />
-                                        <p className="text-sm">El radar está en silencio.</p>
+                                        <p className="text-sm">{t.radarSilent}</p>
                                     </div>
                                 ) : (
                                     ghosts.map(e => (
@@ -413,14 +418,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         <DroppableColumn id="LIMBO" className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
                             <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
                                 <FileEdit size={16} className="text-amber-500" />
-                                <h2 className="text-sm font-bold text-amber-500 uppercase tracking-wider">Limbos (Taller)</h2>
+                                <h2 className="text-sm font-bold text-amber-500 uppercase tracking-wider">{t.limbos}</h2>
                                 <span className="ml-auto text-xs font-mono text-titanium-600">{limbos.length}</span>
                             </div>
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                                 {limbos.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                                         <FileEdit size={32} className="mb-2" />
-                                        <p className="text-sm">La mesa de trabajo está limpia.</p>
+                                        <p className="text-sm">{t.workbenchClean}</p>
                                     </div>
                                 ) : (
                                     limbos.map(e => (
@@ -434,14 +439,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         <DroppableColumn id="ANCHOR" className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
                             <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
                                 <Anchor size={16} className="text-emerald-500" />
-                                <h2 className="text-sm font-bold text-emerald-500 uppercase tracking-wider">Anclas (Bóveda)</h2>
+                                <h2 className="text-sm font-bold text-emerald-500 uppercase tracking-wider">{t.anchors}</h2>
                                 <span className="ml-auto text-xs font-mono text-titanium-600">{anchors.length}</span>
                             </div>
                             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                                 {anchors.length === 0 ? (
                                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                                         <Anchor size={32} className="mb-2" />
-                                        <p className="text-sm">La bóveda está vacía.</p>
+                                        <p className="text-sm">{t.vaultEmpty}</p>
                                     </div>
                                 ) : (
                                     anchors.map(e => (
@@ -469,7 +474,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         <div className="relative w-full max-w-5xl h-[90vh] bg-titanium-950 rounded-2xl shadow-2xl border border-titanium-800 flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
                             <div className="absolute top-4 right-4 z-[60]">
                                 <button onClick={() => setSelectedEntity(null)} className="p-2 rounded-full bg-titanium-900/80 hover:bg-red-900/50 text-titanium-400 hover:text-white transition-colors backdrop-blur border border-titanium-700/50 hover:border-red-500/50">
-                                    <span className="sr-only">Cerrar Chat</span>
+                                    <span className="sr-only">{t.closeChat}</span>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                                 </button>
                             </div>
