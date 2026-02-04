@@ -72,8 +72,14 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
 
     // Internal State
     const lastHashRef = useRef<string>("");
+    const lastAuditedWordCountRef = useRef<number>(0);
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const hasAutoAuditedRef = useRef<boolean>(false); // 🟢 ONCE PER SESSION FLAG
+
+    const countWords = (text: string) => {
+        if (!text) return 0;
+        return text.trim().split(/\s+/).length;
+    };
 
     // 🟢 RESET STATE ON FILE CHANGE
     useEffect(() => {
@@ -88,6 +94,8 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         setResonanceMatches([]);
         setStructureAnalysis(null);
         lastHashRef.current = "";
+        lastAuditedWordCountRef.current = 0;
+        hasAutoAuditedRef.current = false; // Reset session flag on file change
     }, [fileId]);
 
     // 🟢 SHA-256 HASHING
@@ -184,8 +192,16 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         }
 
         timerRef.current = setTimeout(async () => {
-            // 🟢 CHECK ONCE PER SESSION
-            if (hasAutoAuditedRef.current) {
+            const currentWordCount = countWords(content);
+            const wordCountDiff = Math.abs(currentWordCount - lastAuditedWordCountRef.current);
+
+            // 🟢 AUDIT IF:
+            // 1. First time for this file (!hasAutoAuditedRef)
+            // 2. Word count changed significantly (> 50 words)
+            const isFirstAudit = !hasAutoAuditedRef.current;
+            const isSignificantChange = wordCountDiff > 50;
+
+            if (!isFirstAudit && !isSignificantChange) {
                 return;
             }
 
@@ -199,8 +215,9 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             lastHashRef.current = currentHash;
             await executeAudit(content);
 
-            // 🟢 MARK AS DONE AFTER SUCCESSFUL AUTO-AUDIT
+            // 🟢 UPDATE BASELINES AFTER SUCCESSFUL AUDIT
             hasAutoAuditedRef.current = true;
+            lastAuditedWordCountRef.current = currentWordCount;
 
         }, 3000);
 
@@ -219,6 +236,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         }
 
         executeAudit(content, true);
+        lastAuditedWordCountRef.current = countWords(content); // Reset baseline for next auto-audit
     };
 
     return {
