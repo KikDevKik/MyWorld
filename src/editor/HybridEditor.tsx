@@ -34,6 +34,11 @@ interface HybridEditorProps {
     className?: string;
     readOnly?: boolean;
     onReadSelection?: (text: string) => void; // 🟢 NEW PROP
+    narratorState?: {
+        isPlaying: boolean;
+        isLoading: boolean;
+        stop: () => void;
+    };
 }
 
 // 🟢 HOST COMPONENT TO PREVENT RE-RENDERS
@@ -86,7 +91,8 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
     activeSegment = null,
     className = "",
     readOnly = false,
-    onReadSelection
+    onReadSelection,
+    narratorState
 }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
@@ -325,6 +331,7 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                     position={bubbleMenu}
                     view={viewRef.current}
                     onReadSelection={onReadSelection}
+                    narratorState={narratorState}
                 />
             )}
 

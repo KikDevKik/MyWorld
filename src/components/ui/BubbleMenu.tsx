@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Sparkles, Maximize2, CheckCircle, Bold, Italic, Heading1, Heading2, Mic } from 'lucide-react';
+import { Sparkles, Maximize2, CheckCircle, Bold, Italic, Heading1, Heading2, Mic, Square } from 'lucide-react';
 import { EditorView } from '@codemirror/view';
 import { EditorSelection, Text } from '@codemirror/state';
 
@@ -9,9 +9,14 @@ interface BubbleMenuProps {
     position: { x: number; y: number } | null;
     view: EditorView | null;
     onReadSelection: (text: string) => void;
+    narratorState?: {
+        isPlaying: boolean;
+        isLoading: boolean;
+        stop: () => void;
+    };
 }
 
-const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onReadSelection }) => {
+const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onReadSelection, narratorState }) => {
     // console.log("Rendering BubbleMenu", { visible, position, view: !!view });
     if (!visible || !position || !view) return null;
 
@@ -151,11 +156,29 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
             {/* TTS READ */}
             <button
                 onClick={handleRead}
-                className="p-2 text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/30 rounded-md transition-colors flex items-center gap-2"
+                className={`p-2 rounded-md transition-colors flex items-center gap-2 ${
+                    narratorState?.isPlaying
+                    ? 'text-cyan-400 bg-cyan-900/20 hover:text-cyan-200'
+                    : 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/30'
+                }`}
                 title="Leer selección"
             >
                 <Mic size={16} />
             </button>
+
+            {/* TTS STOP (CONDITIONAL) */}
+            {narratorState?.isPlaying && (
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        narratorState.stop();
+                    }}
+                    className="p-2 text-red-400 hover:text-red-200 hover:bg-red-900/30 rounded-md transition-colors flex items-center gap-2"
+                    title="Detener Narración"
+                >
+                    <Square size={16} fill="currentColor" />
+                </button>
+            )}
 
             {/* DECORATION */}
             <div
