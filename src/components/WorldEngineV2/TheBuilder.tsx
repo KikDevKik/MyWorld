@@ -357,6 +357,8 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
             let targetFolderId = folder.id;
             let subfolderName = undefined;
 
+            let autoMapRole: string | undefined = undefined;
+
             if (folder.id === 'DEFAULT_INBOX') {
                 targetFolderId = config?.folderId || ""; // Root Project Folder
                 subfolderName = "Inbox";
@@ -376,10 +378,39 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                     const smartFolder = findBestFolderForType(bestType, fileTree);
                     if (smartFolder) {
                         targetFolderId = smartFolder.id;
-                        subfolderName = smartFolder.name;
-                        toast.success(`📂 Auto-archivado en carpeta: '${smartFolder.name}'`);
+                        subfolderName = undefined; // 🟢 FIX: Use existing folder directly, do NOT make subfolder
+                        toast.success(`📂 Auto-archivado en carpeta existente: '${smartFolder.name}'`);
                     } else {
-                        console.log("[TheBuilder] No smart folder match found.");
+                        // 🟢 AUTO-PROVISIONING PROTOCOL
+                        // If no folder exists, we setup defaults and request auto-mapping
+                        const TYPE_TO_ROLE: Record<string, string> = {
+                            'faction': 'ROLE_ENTITY_FACTIONS',
+                            'group': 'ROLE_ENTITY_FACTIONS',
+                            'character': 'ROLE_ENTITY_PEOPLE',
+                            'person': 'ROLE_ENTITY_PEOPLE',
+                            'creature': 'ROLE_ENTITY_BESTIARY',
+                            'location': 'ROLE_WORLD_CORE', // Usually World Core or Universe
+                            'object': 'ROLE_ENTITY_OBJECTS',
+                            'item': 'ROLE_ENTITY_OBJECTS'
+                        };
+
+                        const TYPE_TO_NAME: Record<string, string> = {
+                            'faction': 'Facciones',
+                            'group': 'Facciones',
+                            'character': 'Personajes',
+                            'creature': 'Bestiario',
+                            'location': 'Universo',
+                            'object': 'Objetos'
+                        };
+
+                        if (TYPE_TO_ROLE[bestType]) {
+                            autoMapRole = TYPE_TO_ROLE[bestType];
+                            subfolderName = TYPE_TO_NAME[bestType] || "Nuevos Archivos";
+                            // targetFolderId remains Root
+                            console.log(`[TheBuilder] Auto-Provisioning Folder: ${subfolderName} for role ${autoMapRole}`);
+                        } else {
+                            console.log("[TheBuilder] No smart folder match found, defaulting to Inbox.");
+                        }
                     }
                 }
             }
@@ -391,6 +422,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 edges: ghostEdges, // 🟢 PASS EDGES
                 folderId: targetFolderId,
                 subfolderName,
+                autoMapRole, // 🟢 PASS AUTO-MAP FLAG
                 accessToken: token,
                 chatContext,
                 projectId,
