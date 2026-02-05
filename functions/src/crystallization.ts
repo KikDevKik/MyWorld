@@ -268,12 +268,7 @@ export const crystallizeGraph = onCall(
                         await updateFirestoreTree(userId, 'add', fileId, {
                             parentId: targetFolderId,
                             newNode: {
-                                id: nexusId, // Use nexusId as ID in tree usually, or verify usage. TDB uses nexusId often.
-                                // Actually TDB_Index often keys by nexusId. The tree utils might assume ID is the key.
-                                // Let's check updateFirestoreTree usage. It pushes `newNode` to children.
-                                // VaultSidebar expects `id` to be unique. Usually nexusId or driveId.
-                                // Let's use nexusId as ID to match TDB_Index docs.
-                                id: nexusId,
+                                id: nexusId, // Use nexusId as ID in tree usually.
                                 name: fileName,
                                 mimeType: 'text/markdown',
                                 driveId: fileId,
