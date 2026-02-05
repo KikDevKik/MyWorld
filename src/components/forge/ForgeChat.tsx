@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAuth } from 'firebase/auth';
 import { getApp } from 'firebase/app';
-import { Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield, Sparkles } from 'lucide-react';
+import { Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield, Sparkles, FileText, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 
 import MarkdownRenderer from '../ui/MarkdownRenderer';
@@ -58,6 +58,11 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     const [isLoading, setIsLoading] = useState(false); // Initial load
     const [isSending, setIsSending] = useState(false);
     const [isCrystallizing, setIsCrystallizing] = useState(false);
+
+    // 🟢 PREVIEW MODE (Anchors)
+    const [isPreviewMode, setIsPreviewMode] = useState(false);
+    const [previewContent, setPreviewContent] = useState<string | null>(null);
+    const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
     // 🟢 STREAMING STATE
     const [thinkingState, setThinkingState] = useState<ThinkingState>('IDLE');
@@ -276,49 +281,38 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
         }
     };
 
-    // --- 3. HOT-SWAPPING LOGIC (The "Vitamin") ---
-    useEffect(() => {
-        if (!activeEntity) return;
-        if (activeEntity.id === activeEntityRef.current) return;
-
-        console.log(`[FORGE_CHAT] Hot-Swapping to: ${activeEntity.name} (${activeEntity.tier})`);
-
-        // A. RESET
-        activeEntityRef.current = activeEntity.id;
-        setMessages([]); // Wipe Amnesia
-        setIsLoading(false); // Stop loading spinner if history was fetching
-
+    const triggerAnalysis = (entity: SoulEntity) => {
         // B. CONSTRUCT PROMPT (THE BRAIN)
         const commonFooter = `
 IMPORTANT: You are acting as an expert narrative analyst.
-MANDATORY: You MUST use the 'consult_archives' tool with the query "${activeEntity.name}" to retrieve the full context from the TDB Index before answering. Do not rely solely on the provided snippet.
+MANDATORY: You MUST use the 'consult_archives' tool with the query "${entity.name}" to retrieve the full context from the TDB Index before answering. Do not rely solely on the provided snippet.
         `;
 
         let systemPrompt = "";
 
-        if (activeEntity.tier === 'GHOST') {
+        if (entity.tier === 'GHOST') {
             systemPrompt = `
 [MODO: DETECTIVE NARRATIVO]
 OBJETIVO: Extrapolar la identidad de una entidad detectada.
 
 DATOS:
-- Nombre: ${activeEntity.name}
-- Contexto Detectado: "${activeEntity.sourceSnippet}"
-- Ocurrencias: ${activeEntity.occurrences}
+- Nombre: ${entity.name}
+- Contexto Detectado: "${entity.sourceSnippet}"
+- Ocurrencias: ${entity.occurrences}
 
 INSTRUCCIÓN:
 Analiza el snippet y lo que encuentres en los archivos. ¿Quién es este personaje? ¿Qué papel juega?
-Empieza con: "He rastreado a ${activeEntity.name}..." y termina con una pregunta clave sobre su futuro.
+Empieza con: "He rastreado a ${entity.name}..." y termina con una pregunta clave sobre su futuro.
             `;
-        } else if (activeEntity.tier === 'LIMBO') {
+        } else if (entity.tier === 'LIMBO') {
             systemPrompt = `
 [MODO: EDITOR / CO-AUTOR]
 OBJETIVO: Convertir un borrador en un personaje sólido.
 
 DATOS:
-- Nombre: ${activeEntity.name}
-- Notas Crudas: "${activeEntity.sourceSnippet}"
-- Rasgos: ${activeEntity.tags?.join(', ') || "No definidos"}
+- Nombre: ${entity.name}
+- Notas Crudas: "${entity.sourceSnippet}"
+- Rasgos: ${entity.tags?.join(', ') || "No definidos"}
 
 INSTRUCCIÓN:
 Estas son mis notas desordenadas. Organízalas mentalmente (usando los archivos) y preséntame un resumen profesional.
@@ -331,12 +325,12 @@ Propón 3 arquetipos posibles para este personaje.
 OBJETIVO: Profundizar en la psique de un personaje existente.
 
 DATOS:
-- Nombre: ${activeEntity.name}
-- Rol: ${activeEntity.role || "No definido"}
-- Descripción/Snippet: "${activeEntity.sourceSnippet}"
+- Nombre: ${entity.name}
+- Rol: ${entity.role || "No definido"}
+- Descripción/Snippet: "${entity.sourceSnippet}"
 
 INSTRUCCIÓN:
-Ya conocemos a ${activeEntity.name}. No me des un resumen básico.
+Ya conocemos a ${entity.name}. No me des un resumen básico.
 Busca en los archivos sus interacciones más recientes o traumas.
 Hazme una pregunta provocadora sobre su motivación oculta.
             `;
@@ -344,8 +338,59 @@ Hazme una pregunta provocadora sobre su motivación oculta.
 
         // C. INJECT
         executeStreamConnection(`${systemPrompt}\n${commonFooter}`, { hidden: true });
+    };
+
+    // --- 3. HOT-SWAPPING LOGIC (The "Vitamin") ---
+    useEffect(() => {
+        if (!activeEntity) return;
+        if (activeEntity.id === activeEntityRef.current) return;
+
+        console.log(`[FORGE_CHAT] Hot-Swapping to: ${activeEntity.name} (${activeEntity.tier})`);
+
+        // A. RESET
+        activeEntityRef.current = activeEntity.id;
+        setMessages([]); // Wipe Amnesia
+        setIsLoading(false); // Stop loading spinner if history was fetching
+        setIsPreviewMode(false);
+        setPreviewContent(null);
+
+        // B. DECIDE MODE
+        if (activeEntity.tier === 'ANCHOR') {
+            // 🟢 PREVIEW MODE
+            setIsPreviewMode(true);
+            const fetchPreview = async () => {
+                setIsPreviewLoading(true);
+                try {
+                    if (activeEntity.driveId && accessToken) {
+                         const data = await callFunction<{ content: string }>('getDriveFileContent', {
+                             fileId: activeEntity.driveId,
+                             accessToken
+                         });
+                         setPreviewContent(data.content);
+                    } else {
+                        setPreviewContent("⚠️ No se pudo cargar la vista previa (Falta ID o Acceso).");
+                    }
+                } catch (error) {
+                    console.error("Preview fetch failed:", error);
+                    setPreviewContent("⚠️ Error al cargar el expediente.");
+                } finally {
+                    setIsPreviewLoading(false);
+                }
+            };
+            fetchPreview();
+        } else {
+            // 🟢 DIRECT CHAT MODE (Ghost/Limbo)
+            triggerAnalysis(activeEntity);
+        }
 
     }, [activeEntity]); // Dependency on activeEntity object
+
+    const handleStartAnchorAnalysis = () => {
+        setIsPreviewMode(false);
+        if (activeEntity) {
+            triggerAnalysis(activeEntity);
+        }
+    };
 
 
     // --- HANDLERS ---
@@ -443,95 +488,131 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                 </div>
             </div>
 
-            {/* MESSAGES */}
+            {/* 🟢 PREVIEW OR MESSAGES */}
             <div className="flex-1 overflow-y-auto p-4 space-y-6">
-                {isLoading && messages.length === 0 ? (
-                    <div className="flex justify-center py-8 text-titanium-500">
-                        <Loader2 size={24} className="animate-spin" />
-                    </div>
-                ) : messages.filter(m => !m.hidden).length === 0 && thinkingState === 'IDLE' ? (
-                    <div className="text-center py-20 text-titanium-600">
-                        <Bot size={48} className="mx-auto mb-4 opacity-20" />
-                        <p className="text-sm font-medium">Esperando órdenes...</p>
+                {isPreviewMode ? (
+                    <div className="h-full flex flex-col max-w-4xl mx-auto">
+                        <div className="flex items-center gap-3 text-titanium-400 mb-6 px-4">
+                             <FileText size={18} className="text-emerald-500" />
+                             <h3 className="text-sm font-bold uppercase tracking-wider">Vista Previa del Expediente</h3>
+                        </div>
+
+                        {isPreviewLoading ? (
+                             <div className="flex-1 flex flex-col items-center justify-center text-titanium-500">
+                                <Loader2 size={32} className="animate-spin mb-4 text-emerald-500" />
+                                <p className="text-sm animate-pulse">Desencriptando archivo...</p>
+                             </div>
+                        ) : (
+                            <div className="flex-1 bg-titanium-900/50 rounded-2xl border border-titanium-800 p-6 md:p-8 overflow-y-auto shadow-inner relative">
+                                <div className="prose prose-invert prose-emerald max-w-none">
+                                    <MarkdownRenderer content={previewContent || "_Documento vacío_"} mode="full" />
+                                </div>
+                                {/* 🟢 FLOATING ACTION BUTTON */}
+                                <div className="sticky bottom-0 flex justify-center pt-8 pb-2 bg-gradient-to-t from-titanium-900/90 via-titanium-900/80 to-transparent">
+                                     <button
+                                         onClick={handleStartAnchorAnalysis}
+                                         className="group flex items-center gap-3 px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-full shadow-lg shadow-emerald-900/20 transition-all hover:scale-105 active:scale-95"
+                                     >
+                                         <Sparkles size={18} className="group-hover:rotate-12 transition-transform" />
+                                         <span>Mejorar o Actualizar</span>
+                                         <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                                     </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 ) : (
-                    messages.filter(m => !m.hidden).map((msg, idx) => (
-                        <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start max-w-3xl'}`}>
-                            {msg.role === 'model' && (
+                    /* NORMAL CHAT MESSAGES */
+                    <>
+                        {isLoading && messages.length === 0 ? (
+                            <div className="flex justify-center py-8 text-titanium-500">
+                                <Loader2 size={24} className="animate-spin" />
+                            </div>
+                        ) : messages.filter(m => !m.hidden).length === 0 && thinkingState === 'IDLE' ? (
+                            <div className="text-center py-20 text-titanium-600">
+                                <Bot size={48} className="mx-auto mb-4 opacity-20" />
+                                <p className="text-sm font-medium">Esperando órdenes...</p>
+                            </div>
+                        ) : (
+                            messages.filter(m => !m.hidden).map((msg, idx) => (
+                                <div key={idx} className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start max-w-3xl'}`}>
+                                    {msg.role === 'model' && (
+                                        <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
+                                            <Bot size={16} className="text-accent-DEFAULT" />
+                                        </div>
+                                    )}
+
+                                    <div className={`flex-1 flex flex-col gap-2 max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                        {/* 🟢 ATTACHMENT PREVIEW */}
+                                        {msg.attachmentPreview && (
+                                            <div className="mb-1 rounded-lg overflow-hidden border border-white/10 max-w-sm">
+                                                {msg.attachmentType === 'audio' ? (
+                                                    <audio controls src={msg.attachmentPreview} className="w-full" />
+                                                ) : (
+                                                    <img src={msg.attachmentPreview} alt="Attachment" className="max-w-full h-auto object-cover" />
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div className={`p-4 rounded-xl text-sm leading-relaxed shadow-sm overflow-hidden break-words whitespace-pre-wrap ${msg.role === 'user'
+                                                ? 'bg-titanium-800 text-titanium-100 border border-titanium-700'
+                                                : 'bg-transparent text-titanium-300 w-full'
+                                                }`}>
+                                            <MarkdownRenderer content={msg.text} mode="full" />
+                                        </div>
+
+                                        {msg.role === 'model' && msg.sources && msg.sources.length > 0 && (
+                                            <div className="flex flex-wrap gap-2 px-1">
+                                                {msg.sources.map((src, i) => (
+                                                    <div key={i} className="text-[10px] font-mono text-titanium-500 bg-titanium-900 border border-titanium-800 px-2 py-0.5 rounded flex items-center gap-1 opacity-70">
+                                                        <span>📄</span>
+                                                        <span className="truncate max-w-[200px]">{src}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))
+                        )}
+
+                        {/* THINKING INDICATOR */}
+                        {thinkingState !== 'IDLE' && (
+                            <div className="flex gap-4 justify-start max-w-3xl">
                                 <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
                                     <Bot size={16} className="text-accent-DEFAULT" />
                                 </div>
-                            )}
-
-                            <div className={`flex-1 flex flex-col gap-2 max-w-[85%] ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-                                {/* 🟢 ATTACHMENT PREVIEW */}
-                                {msg.attachmentPreview && (
-                                    <div className="mb-1 rounded-lg overflow-hidden border border-white/10 max-w-sm">
-                                        {msg.attachmentType === 'audio' ? (
-                                            <audio controls src={msg.attachmentPreview} className="w-full" />
-                                        ) : (
-                                            <img src={msg.attachmentPreview} alt="Attachment" className="max-w-full h-auto object-cover" />
-                                        )}
-                                    </div>
-                                )}
-
-                                <div className={`p-4 rounded-xl text-sm leading-relaxed shadow-sm overflow-hidden break-words whitespace-pre-wrap ${msg.role === 'user'
-                                        ? 'bg-titanium-800 text-titanium-100 border border-titanium-700'
-                                        : 'bg-transparent text-titanium-300 w-full'
-                                        }`}>
-                                    <MarkdownRenderer content={msg.text} mode="full" />
+                                <div className={`p-4 rounded-xl border text-xs font-mono flex items-center gap-3 animate-pulse ${
+                                    thinkingState === 'ANALYZING'
+                                        ? 'bg-accent-900/10 border-accent-500/20 text-accent-300'
+                                        : 'bg-titanium-900/50 border-cyan-500/20 text-cyan-300'
+                                }`}>
+                                    {thinkingState === 'CONSULTING_ARCHIVES' ? (
+                                        <>
+                                            <Sparkles size={14} className="animate-spin-slow" />
+                                            <span>{streamStatus}</span>
+                                        </>
+                                    ) : thinkingState === 'ANALYZING' ? (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" />
+                                            <span>{streamStatus}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Loader2 size={14} className="animate-spin" />
+                                            <span>THINKING...</span>
+                                        </>
+                                    )}
                                 </div>
-
-                                {msg.role === 'model' && msg.sources && msg.sources.length > 0 && (
-                                    <div className="flex flex-wrap gap-2 px-1">
-                                        {msg.sources.map((src, i) => (
-                                            <div key={i} className="text-[10px] font-mono text-titanium-500 bg-titanium-900 border border-titanium-800 px-2 py-0.5 rounded flex items-center gap-1 opacity-70">
-                                                <span>📄</span>
-                                                <span className="truncate max-w-[200px]">{src}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
                             </div>
-                        </div>
-                    ))
+                        )}
+                        <div ref={messagesEndRef} />
+                    </>
                 )}
-
-                {/* THINKING INDICATOR */}
-                {thinkingState !== 'IDLE' && (
-                    <div className="flex gap-4 justify-start max-w-3xl">
-                        <div className="w-8 h-8 rounded-lg bg-titanium-800 border border-titanium-700 flex items-center justify-center shrink-0 mt-1">
-                            <Bot size={16} className="text-accent-DEFAULT" />
-                        </div>
-                        <div className={`p-4 rounded-xl border text-xs font-mono flex items-center gap-3 animate-pulse ${
-                            thinkingState === 'ANALYZING'
-                                ? 'bg-accent-900/10 border-accent-500/20 text-accent-300'
-                                : 'bg-titanium-900/50 border-cyan-500/20 text-cyan-300'
-                        }`}>
-                            {thinkingState === 'CONSULTING_ARCHIVES' ? (
-                                <>
-                                    <Sparkles size={14} className="animate-spin-slow" />
-                                    <span>{streamStatus}</span>
-                                </>
-                            ) : thinkingState === 'ANALYZING' ? (
-                                <>
-                                    <Loader2 size={14} className="animate-spin" />
-                                    <span>{streamStatus}</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Loader2 size={14} className="animate-spin" />
-                                    <span>THINKING...</span>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                )}
-                <div ref={messagesEndRef} />
             </div>
 
             {/* INPUT AREA */}
-            <div className="p-4 md:p-6 border-t border-titanium-800 bg-titanium-900/90 backdrop-blur shrink-0 z-50">
+            <div className={`p-4 md:p-6 border-t border-titanium-800 bg-titanium-900/90 backdrop-blur shrink-0 z-50 ${isPreviewMode ? 'hidden' : ''}`}>
                 <div className="max-w-4xl mx-auto flex flex-col gap-3">
 
                     {/* META CONTROLS */}
