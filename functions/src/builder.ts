@@ -145,8 +145,9 @@ export const builderStream = onRequest(
                     - Avoid generic labels like "RELATED_TO" or "LINK". Use the context to define the specific nature of the bond.
 
                     **CONSTRAINT: STRICT TYPE ENFORCEMENT**
-                    - 'type' MUST be one of: [CHARACTER, LOCATION, FACTION, OBJECT, EVENT, CONCEPT].
-                    - Do NOT default to 'CONCEPT' unless it is truly abstract.
+                    - 'type' MUST be strictly LOWERCASE and one of: [character, location, faction, object, event, concept].
+                    - Do NOT use capitalized types (e.g., use 'faction', NOT 'Faction').
+                    - Do NOT default to 'concept' unless it is truly abstract.
                     - 'description' MUST be populated (2-3 sentences) for every new node. Empty descriptions are forbidden.
 
                     USER REQUEST: ${req.body.prompt || "Analyze the visual attachment."}

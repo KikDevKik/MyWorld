@@ -134,6 +134,10 @@ export const crystallizeGraph = onCall(
 
             await Promise.all(batch.map(async (node) => {
                 try {
+                    // 🟢 NORMALIZE TYPE
+                    const safeType = (node.type || 'concept').toLowerCase();
+                    node.type = safeType;
+
                     // 1. GENERATE CONTENT (AI) WITH MODE LOGIC
                     const prompt = `
                         ACT AS: Expert Lore Writer & Archivist.
