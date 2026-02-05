@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import type { ChatMessage, GemId, Gem, DriveFile } from '../types';
 import { callFunction } from '../services/api';
 import { GEMS } from '../constants';
@@ -12,6 +12,8 @@ import { TRANSLATIONS } from '../i18n/translations';
 import ContextSelectorModal from './ContextSelectorModal';
 import ChatInput from './ui/ChatInput';
 import { fileToGenerativePart } from '../services/geminiService';
+
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
 
 interface ChatPanelProps {
   activeGemId: GemId | null;
@@ -40,6 +42,66 @@ interface ExtendedChatMessage extends ChatMessage {
   attachmentPreview?: string;
   attachmentType?: 'image' | 'audio';
 }
+
+interface ChatMessageItemProps {
+    msg: ExtendedChatMessage;
+    onCrystallize: (msg: ExtendedChatMessage) => void;
+}
+
+// ⚡ Bolt Optimization: Memoized component to prevent re-rendering all messages
+// when parent state changes (e.g. typing in input). REMARK_PLUGINS is also constant.
+const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
+    return (
+        <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+            {/* 🟢 ATTACHMENT PREVIEW */}
+            {msg.attachmentPreview && (
+                <div className={`mb-1 rounded-lg overflow-hidden border border-white/10 max-w-[85%] ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
+                    {msg.attachmentType === 'audio' ? (
+                        <audio controls src={msg.attachmentPreview} className="w-full" />
+                    ) : (
+                        <img src={msg.attachmentPreview} alt="Attachment" className="max-w-full h-auto max-h-60 object-cover" />
+                    )}
+                </div>
+            )}
+
+            <div
+                className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${msg.role === 'user'
+                    ? 'bg-titanium-800 text-titanium-100 rounded-br-none border border-titanium-700'
+                    : 'bg-titanium-900 text-titanium-200 rounded-bl-none border border-titanium-800'
+                    }`}
+            >
+                <div className="prose prose-invert prose-sm max-w-none">
+                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
+                        {msg.text}
+                    </ReactMarkdown>
+                </div>
+
+                {/* 🟢 CRYSTAL BUTTON */}
+                {msg.role === 'model' && (
+                    <button
+                        onClick={() => onCrystallize(msg)}
+                        className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10"
+                        title="Cristalizar esta idea"
+                        aria-label="Cristalizar esta idea"
+                    >
+                        <GemIcon size={14} />
+                    </button>
+                )}
+            </div>
+
+            {msg.sources && msg.sources.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2 max-w-[85%]">
+                    {msg.sources.map((source, i) => (
+                        <div key={i} className="text-[10px] bg-titanium-900 border border-titanium-800 text-titanium-400 px-2 py-1 rounded flex items-center gap-1 hover:bg-titanium-800 transition-colors cursor-help" title={source.text}>
+                            <span>📄</span>
+                            <span className="truncate max-w-[150px]">{source.fileName}</span>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+});
 
 const ChatPanel: React.FC<ChatPanelProps> = ({
   activeGemId,
@@ -122,7 +184,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       setAttachedFiles(prev => prev.filter(f => f.id !== id));
   };
 
-  const handleCrystallize = async (msg: ExtendedChatMessage) => {
+  // ⚡ Bolt Optimization: Stable callback reference for memoized children
+  const handleCrystallize = useCallback(async (msg: ExtendedChatMessage) => {
       if (!accessToken || !folderId) {
           toast.error("No hay acceso a Drive configurado.");
           return;
@@ -172,7 +235,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                }
           }
       }
-  };
+  }, [accessToken, folderId, t]);
 
   const handleSendMessage = async (text: string, attachment: File | null = null) => {
     if ((!text.trim() && !attachment) || !activeGem) return;
@@ -307,54 +370,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
       {/* CHAT AREA */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-titanium-700 scrollbar-track-transparent">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
-            {/* 🟢 ATTACHMENT PREVIEW */}
-            {msg.attachmentPreview && (
-                <div className={`mb-1 rounded-lg overflow-hidden border border-white/10 max-w-[85%] ${msg.role === 'user' ? 'self-end' : 'self-start'}`}>
-                    {msg.attachmentType === 'audio' ? (
-                        <audio controls src={msg.attachmentPreview} className="w-full" />
-                    ) : (
-                        <img src={msg.attachmentPreview} alt="Attachment" className="max-w-full h-auto max-h-60 object-cover" />
-                    )}
-                </div>
-            )}
-
-            <div
-              className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${msg.role === 'user'
-                ? 'bg-titanium-800 text-titanium-100 rounded-br-none border border-titanium-700'
-                : 'bg-titanium-900 text-titanium-200 rounded-bl-none border border-titanium-800'
-                }`}
-            >
-              <div className="prose prose-invert prose-sm max-w-none">
-                <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
-                  {msg.text}
-                </ReactMarkdown>
-              </div>
-
-              {/* 🟢 CRYSTAL BUTTON */}
-              {msg.role === 'model' && (
-                  <button
-                      onClick={() => handleCrystallize(msg)}
-                      className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10"
-                      title="Cristalizar esta idea"
-                      aria-label="Cristalizar esta idea"
-                  >
-                      <GemIcon size={14} />
-                  </button>
-              )}
-            </div>
-
-            {msg.sources && msg.sources.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-2 max-w-[85%]">
-                {msg.sources.map((source, i) => (
-                  <div key={i} className="text-[10px] bg-titanium-900 border border-titanium-800 text-titanium-400 px-2 py-1 rounded flex items-center gap-1 hover:bg-titanium-800 transition-colors cursor-help" title={source.text}>
-                    <span>📄</span>
-                    <span className="truncate max-w-[150px]">{source.fileName}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          <ChatMessageItem key={idx} msg={msg} onCrystallize={handleCrystallize} />
         ))}
         {isLoading && (
           <div className="flex justify-start">
