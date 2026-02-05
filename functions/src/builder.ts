@@ -138,7 +138,11 @@ export const builderStream = onRequest(
                        - Use an Anchor Node: { "id": "THE_ID_IN_BRACKETS", "name": "Name", "isAnchor": true, ... }
                     5. **FINAL OUTPUT (HIDDEN):**
                        - At the very end, output a JSON block wrapped in \`\`\`json\`\`\`.
-                       - Structure: { "nodes": [{ "id": "...", "name": "...", "type": "TYPE", "description": "..." }], "edges": [{ "source": "id", "target": "id", "label": "RELATION" }] }
+                       - Structure: { "nodes": [{ "id": "...", "name": "...", "type": "TYPE", "description": "..." }], "edges": [{ "source": "id", "target": "id", "label": "DESCRIPTIVE_RELATION" }] }
+
+                    **CONSTRAINT: RICH RELATIONSHIPS**
+                    - The 'label' for edges MUST be descriptive (e.g., "Childhood Enemy", "Secret Base of", "Created by").
+                    - Avoid generic labels like "RELATED_TO" or "LINK". Use the context to define the specific nature of the bond.
 
                     **CONSTRAINT: STRICT TYPE ENFORCEMENT**
                     - 'type' MUST be one of: [CHARACTER, LOCATION, FACTION, OBJECT, EVENT, CONCEPT].
