@@ -39,8 +39,37 @@ const MODES: { id: RealityMode; label: string }[] = [
     { id: 'ENTROPIA', label: 'ENTROPÍA' },
 ];
 
+// 🟢 SMART SORT HELPER
+const findBestFolderForType = (type: string, tree: any[]): { id: string, name: string } | null => {
+    const TERMS: Record<string, string[]> = {
+        'character': ['characters', 'personajes', 'cast', 'npc', 'roster', 'gente', 'people'],
+        'location': ['locations', 'lugares', 'ubicaciones', 'places', 'world', 'mundo', 'geography', 'geografia'],
+        'object': ['objects', 'objetos', 'items', 'artifacts', 'artefactos', 'tech', 'tecnologia'],
+        'faction': ['factions', 'facciones', 'groups', 'grupos', 'organizations', 'sociedad'],
+        'lore': ['lore', 'history', 'historia', 'myths', 'mitos', 'timeline', 'cronologia']
+    };
+
+    const targetTerms = TERMS[type.toLowerCase()] || [];
+
+    // Recursive Search
+    for (const node of tree) {
+        if (node.mimeType === 'application/vnd.google-apps.folder') {
+            const lowerName = node.name.toLowerCase();
+            // Exact or Partial match
+            if (targetTerms.some(t => lowerName === t || lowerName.includes(t))) {
+                return { id: node.id, name: node.name };
+            }
+            if (node.children) {
+                const found = findBestFolderForType(type, node.children);
+                if (found) return found;
+            }
+        }
+    }
+    return null;
+};
+
 const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode, accessToken, onRefreshTokens, existingNodes = [] }) => {
-    const { config, refreshConfig } = useProjectConfig();
+    const { config, refreshConfig, fileTree } = useProjectConfig();
     const projectId = config?.folderId || "unknown_project";
 
     const [mode, setMode] = useState<RealityMode>(initialMode);
@@ -331,6 +360,28 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
             if (folder.id === 'DEFAULT_INBOX') {
                 targetFolderId = config?.folderId || ""; // Root Project Folder
                 subfolderName = "Inbox";
+
+                // 🟢 SMART SORT PROTOCOL
+                if (ghostNodes.length > 0 && fileTree) {
+                    // Determine Dominant Type (Voting)
+                    const typeCounts: Record<string, number> = {};
+                    ghostNodes.forEach(n => {
+                        const t = n.type || 'unknown';
+                        typeCounts[t] = (typeCounts[t] || 0) + 1;
+                    });
+
+                    const bestType = Object.keys(typeCounts).reduce((a, b) => typeCounts[a] > typeCounts[b] ? a : b);
+                    console.log(`[TheBuilder] Smart Sort analyzing for type: ${bestType}`);
+
+                    const smartFolder = findBestFolderForType(bestType, fileTree);
+                    if (smartFolder) {
+                        targetFolderId = smartFolder.id;
+                        subfolderName = smartFolder.name;
+                        toast.success(`📂 Auto-archivado en carpeta: '${smartFolder.name}'`);
+                    } else {
+                        console.log("[TheBuilder] No smart folder match found.");
+                    }
+                }
             }
 
             if (!targetFolderId) throw new Error("Target folder not determined.");
