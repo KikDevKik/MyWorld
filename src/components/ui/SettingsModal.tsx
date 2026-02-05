@@ -475,8 +475,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Project Name */}
                                 <div className="flex flex-col gap-2">
-                                    <label className="text-sm font-medium text-titanium-100">{t.projectName}</label>
+                                    <label htmlFor="project-name-input" className="text-sm font-medium text-titanium-100">{t.projectName}</label>
                                     <input
+                                        id="project-name-input"
                                         type="text"
                                         value={localProjectName}
                                         onChange={(e) => setLocalProjectName(e.target.value)}
@@ -490,12 +491,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                                 {/* 🟢 LANGUAGE SELECTOR */}
                                 <div className="flex flex-col gap-2">
-                                    <label className="text-sm font-medium text-titanium-100 flex items-center gap-2">
+                                    <label htmlFor="language-select" className="text-sm font-medium text-titanium-100 flex items-center gap-2">
                                         <Globe2 size={16} />
                                         {t.language}
                                     </label>
                                     <div className="relative">
                                         <select
+                                            id="language-select"
                                             value={currentLanguage}
                                             onChange={(e) => setLanguage(e.target.value as Language)}
                                             className="w-full appearance-none bg-slate-800 text-white border border-slate-700 p-3 rounded-xl focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT outline-none cursor-pointer"
@@ -597,9 +599,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             </div>
 
                             <div className="flex flex-col gap-2">
-                                <label className="text-sm font-medium text-titanium-100">{t.googleKey}</label>
+                                <label htmlFor="api-key-input" className="text-sm font-medium text-titanium-100">{t.googleKey}</label>
                                 <div className="relative">
                                     <input
+                                        id="api-key-input"
                                         type={showKey ? "text" : "password"}
                                         value={localGeminiKey}
                                         onChange={(e) => setLocalGeminiKey(e.target.value)}
@@ -610,6 +613,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         type="button"
                                         onClick={() => setShowKey(!showKey)}
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-titanium-400 hover:text-white transition-colors"
+                                        aria-label={showKey ? "Ocultar clave" : "Mostrar clave"}
                                     >
                                         {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
                                     </button>
