@@ -11,6 +11,7 @@ import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai
 import { parseSecureJSON } from "./utils/json";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
+import { updateFirestoreTree } from "./utils/tree_utils";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -116,7 +117,7 @@ export const crystallizeGraph = onCall(
                      targetName: targetNode?.name || "Unknown Entity",
                      targetType: targetNode?.type || "concept",
                      relation: edge.label || "NEUTRAL",
-                     context: "Created by Builder"
+                     context: edge.label || "Created by Builder" // 🟢 USE EDGE LABEL AS CONTEXT
                  });
              });
         }
@@ -180,26 +181,75 @@ export const crystallizeGraph = onCall(
                          finalDescription = firstPara.substring(0, 200) + (firstPara.length > 200 ? "..." : "");
                     }
 
+                    // 🟢 CHECK EXISTING ENTITY
+                    const entityRef = db.collection("users").doc(userId)
+                        .collection("projects").doc(projectId)
+                        .collection("entities").doc(node.id);
+
+                    const entitySnap = await entityRef.get();
+                    let isUpdate = false;
+                    let existingData: any = null;
+
+                    if (entitySnap.exists) {
+                        isUpdate = true;
+                        existingData = entitySnap.data();
+                    }
+
                     // 2. NEXUS IDENTITY
                     const cleanName = node.name.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim();
                     const fileName = `${cleanName}.md`;
                     const fullVirtualPath = `${virtualPathRoot}/${fileName}`;
-                    const nexusId = crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
+                    const nexusId = isUpdate && existingData?.nexusId ? existingData.nexusId : crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
 
-                    // 3. CONSTRUCT CONTENT (Unified Template)
-                    const finalContent = generateAnchorContent({
-                        id: nexusId, // Deterministic ID
-                        name: node.name,
-                        type: (node.type as any) || 'concept',
-                        role: node.type === 'character' ? (node.description || 'Character') : node.type,
-                        project_id: projectId,
-                        tags: [node.type || 'concept'], // 🟢 Fix Undefined Tag
-                        rawBodyContent: bodyContent // 🟢 Injected Body
-                    });
+                    let fileId = "";
 
-                    // 4. SAVE TO DRIVE
-                    const file = await drive.files.create({
-                        requestBody: {
+                    if (isUpdate && existingData && existingData.masterFileId) {
+                         // 🟢 UPDATE EXISTING FILE (APPEND STRATEGY)
+                         fileId = existingData.masterFileId;
+
+                         // Fetch current content
+                         try {
+                            const currentFile = await drive.files.get({ fileId: fileId, alt: 'media' });
+                            let currentContent = currentFile.data as string;
+
+                            // Check if valid content
+                            if (typeof currentContent !== 'string') currentContent = "";
+
+                            const appendContent = `\n\n## 🏗️ The Builder Notes (${new Date().toLocaleDateString()})\n> ${mode} Protocol Expansion\n\n${bodyContent}`;
+                            const newFullContent = currentContent + appendContent;
+
+                            await drive.files.update({
+                                fileId: fileId,
+                                media: {
+                                    mimeType: 'text/markdown',
+                                    body: newFullContent
+                                }
+                            });
+                            logger.info(`✅ Appended content to existing file: ${fileName}`);
+                         } catch (updateErr) {
+                             logger.warn(`⚠️ Failed to append to existing file ${fileName}, trying to create new version but keeping ID if possible? No, falling back to overwrite if critical.`, updateErr);
+                             // If fetch fails, we might not be able to append.
+                             // However, usually we should respect the existing file.
+                             // Let's assume if this fails, we treat it as an error or just proceed updating metadata.
+                             throw new Error("Failed to update existing file content in Drive.");
+                         }
+
+                    } else {
+                        // 🟢 CREATE NEW FILE
+                        // 3. CONSTRUCT CONTENT (Unified Template)
+                        const finalContent = generateAnchorContent({
+                            id: nexusId, // Deterministic ID
+                            name: node.name,
+                            type: (node.type as any) || 'concept',
+                            role: node.type === 'character' ? (node.description || 'Character') : node.type,
+                            project_id: projectId,
+                            tags: [node.type || 'concept'], // 🟢 Fix Undefined Tag
+                            rawBodyContent: bodyContent // 🟢 Injected Body
+                        });
+
+                        // 4. SAVE TO DRIVE
+                        const file = await drive.files.create({
+                            requestBody: {
                             name: fileName,
                             parents: [targetFolderId],
                             mimeType: 'text/markdown'
@@ -209,40 +259,70 @@ export const crystallizeGraph = onCall(
                             body: finalContent
                         },
                         fields: 'id, name, webViewLink'
-                    });
+                        });
 
-                    if (file.data.id) {
-                        const fileId = file.data.id;
+                        if (!file.data.id) throw new Error("Drive File Creation Failed");
+                        fileId = file.data.id;
 
+                        // 🟢 UPDATE TREE INDEX (Only for new files)
+                        await updateFirestoreTree(userId, 'add', fileId, {
+                            parentId: targetFolderId,
+                            newNode: {
+                                id: nexusId, // Use nexusId as ID in tree usually, or verify usage. TDB uses nexusId often.
+                                // Actually TDB_Index often keys by nexusId. The tree utils might assume ID is the key.
+                                // Let's check updateFirestoreTree usage. It pushes `newNode` to children.
+                                // VaultSidebar expects `id` to be unique. Usually nexusId or driveId.
+                                // Let's use nexusId as ID to match TDB_Index docs.
+                                id: nexusId,
+                                name: fileName,
+                                mimeType: 'text/markdown',
+                                driveId: fileId,
+                                type: 'file'
+                            }
+                        });
+                    }
+
+                    if (fileId) {
                         // 5. PRE-INJECT TDB_INDEX (Prevent Phantom Nodes)
+                        // Always update TDB Index for safety
                         await db.collection("TDB_Index").doc(userId).collection("files").doc(nexusId).set({
                             name: fileName,
                             path: fullVirtualPath,
                             driveId: fileId,
                             lastIndexed: new Date().toISOString(),
-                            contentHash: crypto.createHash('sha256').update(finalContent).digest('hex'),
+                            contentHash: crypto.createHash('sha256').update(nexusId).digest('hex'), // Simplify hash update
                             category: 'canon',
                             isGhost: false,
                             smartTags: ['CREATED_BY_BUILDER']
-                        });
+                        }, { merge: true });
 
-                        // 6. UPDATE ENTITIES GRAPH (Promote from Ghost)
-                        const entityRef = db.collection("users").doc(userId)
-                            .collection("projects").doc(projectId)
-                            .collection("entities").doc(node.id);
+                        // 6. UPDATE ENTITIES GRAPH (Promote from Ghost or Merge)
 
                         const nodeRelations = relationsMap.get(node.id) || [];
+
+                        // Merge Relations Strategy
+                        let finalRelations = nodeRelations;
+                        if (isUpdate && existingData && Array.isArray(existingData.relations)) {
+                             const existingRels = existingData.relations;
+                             // Filter out new ones that already exist (by targetId)
+                             const newUnique = nodeRelations.filter(nr => !existingRels.some((er: any) => er.targetId === nr.targetId));
+                             finalRelations = [...existingRels, ...newUnique];
+                        }
+
+                        // PRESERVE TYPE if Existing
+                        const finalType = (isUpdate && existingData?.type) ? existingData.type : (node.type || 'concept');
+                        const finalDesc = (isUpdate && existingData?.description && existingData.description.length > 0) ? existingData.description : finalDescription;
 
                         await entityRef.set({
                             id: node.id,
                             name: node.name,
-                            type: node.type || 'concept',
-                            description: finalDescription, // 🟢 USE ENHANCED DESCRIPTION
+                            type: finalType, // 🟢 PRESERVE TYPE
+                            description: finalDesc,
                             isGhost: false,
                             isAnchor: true,
                             masterFileId: fileId,
                             nexusId: nexusId, // Link to Deterministic ID
-                            relations: nodeRelations, // 🟢 SAVE RELATIONS
+                            relations: finalRelations, // 🟢 MERGED RELATIONS
                             lastUpdated: new Date().toISOString()
                         }, { merge: true });
 
