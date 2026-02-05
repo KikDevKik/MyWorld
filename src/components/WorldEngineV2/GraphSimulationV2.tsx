@@ -41,8 +41,14 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
         simNodes.forEach(node => {
             if (node.relations) {
                 node.relations.forEach(r => {
-                    if (simNodes.find(n => n.id === r.targetId)) {
-                        l.push({ source: node.id, target: r.targetId, label: r.context || r.relation, ...r });
+                    // Check validity with Fallback (Healing Protocol)
+                    let targetNode = simNodes.find(n => n.id === r.targetId);
+                    if (!targetNode && r.targetName) {
+                         targetNode = simNodes.find(n => n.name.toLowerCase().trim() === r.targetName.toLowerCase().trim());
+                    }
+
+                    if (targetNode) {
+                        l.push({ source: node.id, target: targetNode.id, label: r.context || r.relation, ...r });
                     }
                 });
             }
