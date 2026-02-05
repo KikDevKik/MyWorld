@@ -470,11 +470,19 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
                 {nodes.map((node) => {
                     if (!node.relations) return null;
                     return node.relations.map((rel, idx) => {
-                        // Check validity
-                        if (!nodes.find(n => n.id === rel.targetId)) return null;
+                        // 🟢 ROBUST TARGET RESOLUTION
+                        let targetNode = nodes.find(n => n.id === rel.targetId);
 
-                        const lineId = `${node.id}-${rel.targetId}-${idx}`;
-                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === rel.targetId || hoveredLineId === lineId;
+                        // Fallback: Name Match (Case Insensitive)
+                        if (!targetNode && rel.target) {
+                            const normTarget = rel.target.toLowerCase().trim();
+                            targetNode = nodes.find(n => n.name.toLowerCase().trim() === normTarget);
+                        }
+
+                        if (!targetNode) return null;
+
+                        const lineId = `${node.id}-${targetNode.id}-${idx}`;
+                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === targetNode.id || hoveredLineId === lineId;
                         const relColor = getRelationColor(rel.relation);
                         const labelText = rel.context
                             ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
@@ -484,7 +492,7 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
                             <Xarrow
                                 key={lineId}
                                 start={node.id}
-                                end={rel.targetId}
+                                end={targetNode.id}
                                 startAnchor="middle"
                                 endAnchor="middle"
                                 color={relColor}
