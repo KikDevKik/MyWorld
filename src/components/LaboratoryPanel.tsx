@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { FlaskConical, Search, FileText, Image as ImageIcon, Music, Book, MoreHorizontal, Tag, Filter, Loader2, Sparkles } from 'lucide-react';
+import { FlaskConical, Search, FileText, Image as ImageIcon, Music, Book, MoreHorizontal, Tag, Filter, Loader2, Sparkles, FilePlus } from 'lucide-react';
 import { DriveFile, Gem } from '../types';
 import { toast } from 'sonner';
 import ChatPanel from './ChatPanel';
@@ -18,7 +18,7 @@ interface LaboratoryPanelProps {
 const SMART_TAGS = ['LORE', 'CIENCIA', 'INSPIRACIÓN', 'VISUAL', 'AUDIO', 'OTROS'];
 
 const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, accessToken }) => {
-    const { fileTree, isFileTreeLoading, user } = useProjectConfig();
+    const { fileTree, isFileTreeLoading, user, config } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
 
@@ -138,6 +138,32 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
         if (mime.includes('audio')) return <Music size={16} className="text-pink-400" />;
         if (mime.includes('pdf')) return <Book size={16} className="text-red-400" />;
         return <FileText size={16} className="text-blue-400" />;
+    };
+
+    // 🟢 HANDLE CREATE RESOURCE
+    const handleCreateResource = async () => {
+        if (!config?.resourcePaths?.[0]?.id) {
+            toast.error("No se encontró la carpeta de Recursos.");
+            return;
+        }
+
+        const name = window.prompt(t.editor.enterFileName);
+        if (!name) return;
+
+        const toastId = toast.loading(t.common.creating);
+        try {
+            await callFunction('scribeCreateFile', {
+                entityId: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                entityData: { name: name, type: 'concept', tags: ['idea'] },
+                chatContent: "",
+                folderId: config.resourcePaths[0].id,
+                accessToken: accessToken
+            });
+            toast.success(t.editor.fileCreated, { id: toastId });
+        } catch (e: any) {
+            console.error(e);
+            toast.error("Error: " + (e.message || "Desconocido"), { id: toastId });
+        }
     };
 
     // 🟢 VIRTUAL GEM: THE LIBRARIAN
@@ -270,6 +296,35 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                     categoryFilter="reference"
                     folderId={folderId}
                     accessToken={accessToken}
+                    emptyStateComponent={resourceFiles.length === 0 ? (
+                        <div className="flex flex-col items-center gap-6 p-8 text-center animate-in fade-in zoom-in duration-500">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-emerald-500/20 blur-xl rounded-full"></div>
+                                <div className="relative p-6 bg-titanium-900/80 backdrop-blur-sm rounded-full border border-titanium-700 shadow-2xl">
+                                    <Sparkles size={48} className="text-emerald-400" />
+                                </div>
+                            </div>
+
+                            <div className="space-y-2 max-w-xs">
+                                <h3 className="text-xl font-bold text-titanium-100 tracking-wide">
+                                    {t.tools.laboratorio}
+                                </h3>
+                                <p className="text-sm text-titanium-400 leading-relaxed">
+                                    {t.common.noResources}
+                                    <br/>
+                                    <span className="opacity-70 text-xs">Añade una chispa de inspiración.</span>
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={handleCreateResource}
+                                className="group relative flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white rounded-xl font-semibold shadow-lg shadow-emerald-900/20 transition-all hover:scale-105 active:scale-95"
+                            >
+                                <FilePlus size={18} className="text-emerald-100" />
+                                <span>{t.common.create} Idea</span>
+                            </button>
+                        </div>
+                    ) : null}
                 />
             </div>
         </div>

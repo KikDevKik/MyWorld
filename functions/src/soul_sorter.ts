@@ -2,7 +2,7 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
@@ -12,32 +12,46 @@ import { enrichEntitiesParallel } from "./services/enrichment";
 
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
-const GENERIC_NAMES = ['nota', 'idea', 'fecha', 'todo', 'importante', 'ojo', 'personajes', 'saga', 'lista', 'introducción', 'capítulo', 'resumen', 'nombre', 'name', 'character', 'rol', 'role', 'descripción', 'description', 'titulo', 'title', 'anotaciones'];
-const CHARACTER_KEYS = ['rol', 'role', 'edad', 'age', 'raza', 'race', 'clase', 'class', 'genero', 'gender', 'alias', 'apodo', 'level', 'nivel', 'species', 'especie', 'ocupación', 'occupation', 'faction', 'facción', 'group', 'grupo', 'appears in', 'aparece en', 'birthday', 'cumpleaños'];
+const GENERIC_NAMES = ['nota', 'idea', 'fecha', 'todo', 'importante', 'ojo', 'personajes', 'saga', 'lista', 'introducción', 'capítulo', 'resumen', 'nombre', 'name', 'character', 'rol', 'role', 'descripción', 'description', 'titulo', 'title', 'anotaciones', 'lugar', 'lugares', 'objeto', 'objetos'];
 
-function isContainerFile(filename: string): boolean {
+// 🟢 EXPANDED KEYS FOR CLASSIFICATION
+const CHARACTER_KEYS = ['rol', 'role', 'edad', 'age', 'raza', 'race', 'clase', 'class', 'genero', 'gender', 'alias', 'apodo', 'level', 'nivel', 'species', 'especie', 'ocupación', 'occupation', 'faction', 'facción', 'group', 'grupo', 'appears in', 'aparece en', 'birthday', 'cumpleaños'];
+const CREATURE_KEYS = ['habitat', 'dieta', 'diet', 'comportamiento', 'behavior', 'loot', 'drop', 'tameable', 'domable', 'species', 'especie', 'type', 'tipo', 'danger', 'peligro'];
+const LOCATION_KEYS = ['población', 'population', 'clima', 'climate', 'ubicación', 'location', 'región', 'region', 'habitantes', 'inhabitants', 'capital', 'gobierno', 'government', 'terrain', 'terreno'];
+const OBJECT_KEYS = ['peso', 'weight', 'valor', 'value', 'daño', 'damage', 'rareza', 'rarity', 'material', 'efecto', 'effect', 'tipo', 'type'];
+
+export function isContainerFile(filename: string): boolean {
     const lower = filename.toLowerCase();
     return CONTAINER_KEYWORDS.some(k => lower.includes(k));
 }
 
-function isGenericName(name: string): boolean {
+export function isGenericName(name: string): boolean {
     const lower = name.toLowerCase();
     // Exact match or very generic phrase
     return GENERIC_NAMES.some(g => lower === g) || name.length < 3 || name.length > 50;
 }
 
-function hasCharacterMetadata(content: string): boolean {
+// 🟢 IMPROVED: Detect Category by Keys
+export function detectCategoryByMetadata(content: string): EntityCategory | null {
     const lines = content.split('\n').slice(0, 30);
-    return CHARACTER_KEYS.some(key => {
-        // Match "Key:" or "**Key**:" pattern at start of line (ignoring bullets)
-        const regex = new RegExp(`^[\\s\\-\\*]*(\\*\\*)?${key}(\\*\\*)?:`, 'i');
-        return lines.some(line => regex.test(line));
-    });
+
+    // Helper to check regex against lines
+    const checkKeys = (keys: string[]) => {
+        return keys.some(key => {
+            const regex = new RegExp(`^[\\s\\-\\*]*(\\*\\*)?${key}(\\*\\*)?:`, 'i');
+            return lines.some(line => regex.test(line));
+        });
+    };
+
+    if (checkKeys(CHARACTER_KEYS)) return 'PERSON';
+    if (checkKeys(CREATURE_KEYS)) return 'CREATURE';
+    if (checkKeys(LOCATION_KEYS)) return 'LOCATION';
+    if (checkKeys(OBJECT_KEYS)) return 'OBJECT';
+
+    return null;
 }
 
 function splitContentIntoBlocks(content: string): string[] {
-    // Split by newline followed by bullet (- or *), or header (##)
-    // Using Lookahead to keep the delimiter at the start of the next block
     return content.split(/\n(?=[\-\*]\s|##\s)/);
 }
 
@@ -45,21 +59,14 @@ function extractNameFromBlock(text: string): string | null {
     const lines = text.split('\n').slice(0, 5);
     for (const line of lines) {
         const clean = line.trim();
-        // H2 Header: "## Name"
         if (clean.startsWith('## ') && !clean.startsWith('###')) {
             return clean.replace(/^##\s*/, '').trim();
         }
-        // Bullet with Bold: "- **Name**:" or "- **Name**"
-        // Match "- **Name**" or "* **Name**"
         const boldMatch = clean.match(/^[\-\*]\s*\*\*(.+?)\*\*/);
         if (boldMatch && boldMatch[1]) {
-             // Check if it ends with colon inside or outside
              let name = boldMatch[1].replace(/:$/, '').trim();
              return name;
         }
-
-        // Simple Key-Value: "- Name: Desc"
-        // Must start with Capital Letter
         const kvMatch = clean.match(/^[\-\*]\s*([A-ZÁÉÍÓÚÑ][a-zA-Z0-9\s\.]+?):/);
         if (kvMatch && kvMatch[1]) {
             return kvMatch[1].trim();
@@ -69,11 +76,280 @@ function extractNameFromBlock(text: string): string | null {
 }
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
-const MAX_BATCH_CHARS = 100000; // 100k chars per AI call
+const MAX_BATCH_CHARS = 100000;
+
+export interface FileContent {
+    id: string;
+    name: string;
+    content: string;
+    saga: string;
+}
 
 interface SorterRequest {
     projectId: string;
-    sagaId?: string; // Optional Scope (Used for Output Tagging)
+    sagaId?: string;
+}
+
+// 🟢 EXPORTED LOGIC FOR TESTING
+export async function identifyEntities(
+    files: FileContent[],
+    aiModel: GenerativeModel,
+    sagaId?: string
+): Promise<Map<string, DetectedEntity>> {
+
+    const entitiesMap = new Map<string, DetectedEntity>();
+    const narrativeBuffer: string[] = [];
+    const knownNames = new Set<string>();
+
+    for (const file of files) {
+        let classified = false;
+
+        // --- 0. MULTI-SCAN CHECK (CONTAINER FILES) ---
+        if (isContainerFile(file.name)) {
+             const blocks = splitContentIntoBlocks(file.content);
+             for (const block of blocks) {
+                 const rawName = extractNameFromBlock(block);
+                 if (rawName) {
+                     const name = rawName.replace(/[:\*\-\_]+$/, '').trim();
+                     if (!isGenericName(name)) {
+                         let cleanContent = block;
+                         const cutOffs = ['Le gusta:', 'Odia:', 'Gustos:', 'Disgustos:', '\n\n\n'];
+                         for (const cut of cutOffs) {
+                             if (cleanContent.includes(cut)) cleanContent = cleanContent.split(cut)[0];
+                         }
+
+                         entitiesMap.set(name.toLowerCase(), {
+                            name: name,
+                            tier: 'LIMBO',
+                            confidence: 85,
+                            reasoning: "Detección Multi-Scan (Lista)",
+                            sourceFileId: file.id,
+                            sourceFileName: file.name,
+                            saga: file.saga,
+                            foundIn: [file.name],
+                            rawContent: cleanContent.substring(0, 500)
+                        });
+                        knownNames.add(name);
+                     }
+                 }
+             }
+        }
+
+        // A. FRONTMATTER CHECK (Strong Anchor)
+        try {
+            if (file.content.trim().startsWith('---')) {
+                const parsed = matter(file.content);
+                // Check name
+                const name = (parsed.data.name || parsed.data.Nombre || "").trim();
+
+                // Check category from frontmatter 'type' or 'category'
+                let category: EntityCategory = 'PERSON'; // Default
+                const typeRaw = (parsed.data.type || parsed.data.category || "").toLowerCase();
+
+                if (typeRaw.includes('creature') || typeRaw.includes('bestiary') || typeRaw.includes('beast')) category = 'CREATURE';
+                else if (typeRaw.includes('flora') || typeRaw.includes('plant')) category = 'FLORA';
+                else if (typeRaw.includes('location') || typeRaw.includes('place') || typeRaw.includes('lugar')) category = 'LOCATION';
+                else if (typeRaw.includes('object') || typeRaw.includes('item')) category = 'OBJECT';
+
+                if (name) {
+                    entitiesMap.set(name.toLowerCase(), {
+                        name: name,
+                        tier: 'ANCHOR',
+                        category: category,
+                        confidence: 100,
+                        reasoning: "Metadatos Detectados (Frontmatter)",
+                        sourceFileId: file.id,
+                        sourceFileName: file.name,
+                        saga: file.saga,
+                        foundIn: [file.name],
+                        role: parsed.data.role || parsed.data.Role || parsed.data.cargo,
+                        avatar: parsed.data.avatar || parsed.data.Avatar
+                    });
+                    knownNames.add(name);
+                    classified = true;
+                }
+            }
+        } catch (e) { /* Ignore */ }
+
+        // B. HEADER CHECK (Markdown Anchor)
+        if (!classified) {
+            const lines = file.content.split('\n').slice(0, 10);
+            for (const line of lines) {
+                const clean = line.trim();
+                // H1 Header
+                if (clean.startsWith('# ') && !clean.includes('Capítulo') && !clean.includes('Chapter')) {
+                    const name = clean.replace(/^#+\s*/, '').trim();
+                    const detectedCat = detectCategoryByMetadata(file.content);
+
+                    // 🟢 STRICT: Must have Metadata keys to be an Anchor
+                    if (name.length > 2 && name.length < 50 && detectedCat) {
+                        entitiesMap.set(name.toLowerCase(), {
+                            name: name,
+                            tier: 'ANCHOR',
+                            category: detectedCat, // 🟢 Use detected category
+                            confidence: 90,
+                            reasoning: `Encabezado + Metadatos (${detectedCat})`,
+                            sourceFileId: file.id,
+                            sourceFileName: file.name,
+                            saga: file.saga,
+                            foundIn: [file.name]
+                        });
+                        knownNames.add(name);
+                        classified = true;
+                        break;
+                    }
+                }
+
+                // Key-Value "Name: X"
+                const keyMatch = clean.match(/^[\-\*\s]*(\*\*|)(Nombre|Name|Personaje|Character|Nombre Completo|Full Name)(\*\*|)[\*\s]*:\s*(.+)/i);
+                if (keyMatch && keyMatch[4]) {
+                    let name = keyMatch[4].trim();
+                    name = name.replace(/^[:\*\-\_]+/, '').replace(/[:\*\-\_]+$/, '').trim();
+
+                    if (name.length > 2 && name.length < 50) {
+                        entitiesMap.set(name.toLowerCase(), {
+                            name: name,
+                            tier: 'ANCHOR',
+                            category: 'PERSON', // Key "Nombre/Name" usually implies Person
+                            confidence: 90,
+                            reasoning: "Definición Clave-Valor Detectada",
+                            sourceFileId: file.id,
+                            sourceFileName: file.name,
+                            saga: file.saga,
+                            foundIn: [file.name]
+                        });
+                        knownNames.add(name);
+                        classified = true;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // C. LIMBO CHECK
+        if (!classified) {
+            const lowerName = file.name.toLowerCase();
+            if (lowerName.includes('idea') || lowerName.includes('nota') || lowerName.includes('apunte') || lowerName.includes('draft')) {
+                 const lines = file.content.split('\n').slice(0, 30);
+                 let matchedName = null;
+                 for (const line of lines) {
+                     const match = line.match(/^[\-\s]*([A-ZÁÉÍÓÚÑ][a-zA-Z0-9\s]+):/);
+                     if (match && match[1]) {
+                         const name = match[1].trim();
+                         const forbidden = ['nota', 'idea', 'fecha', 'todo', 'importante', 'ojo'];
+                         if (name.length > 2 && name.length < 30 && !forbidden.includes(name.toLowerCase())) {
+                             matchedName = name;
+                             break;
+                         }
+                     }
+                 }
+                 if (matchedName) {
+                    entitiesMap.set(matchedName.toLowerCase(), {
+                        name: matchedName,
+                        tier: 'LIMBO',
+                        category: 'PERSON', // Limbos default to Person usually
+                        confidence: 80,
+                        reasoning: "Definición en Notas (Limbo)",
+                        sourceFileId: file.id,
+                        sourceFileName: file.name,
+                        saga: file.saga,
+                        foundIn: [file.name],
+                        rawContent: file.content.substring(0, 500)
+                    });
+                    knownNames.add(matchedName);
+                 }
+            }
+        }
+
+        // D. NARRATIVE ACCUMULATION
+        let cleanContent = file.content;
+        try {
+            const parsed = matter(file.content);
+            cleanContent = parsed.content;
+        } catch (e) { /* Fallback */ }
+        narrativeBuffer.push(`--- FILE: ${file.name} (Saga: ${file.saga}) ---\n${cleanContent}\n--- END ---\n`);
+    }
+
+    // --- 3. AI EXTRACTION (GHOST SWEEP) ---
+    const fullText = narrativeBuffer.join('\n');
+    const batches: string[] = [];
+    const knownEntitiesList = Array.from(knownNames).join(", ");
+
+    let currentBatch = "";
+    fullText.split('\n').forEach(line => {
+        if ((currentBatch.length + line.length) > MAX_BATCH_CHARS) {
+            batches.push(currentBatch);
+            currentBatch = "";
+        }
+        currentBatch += line + "\n";
+    });
+    if (currentBatch) batches.push(currentBatch);
+
+    const extractionPrompt = `
+    ACT AS: The Soul Sorter.
+    TASK: Extract all ENTITY NAMES (Characters, Creatures, Flora, Locations, Important Objects) from the narrative text.
+
+    KNOWN ENTITIES: [${knownEntitiesList}]
+
+    RULES:
+    1. Extract Proper Names of People/Beings (e.g. "Thomas", "Megu") -> Category: 'PERSON'.
+    2. Extract Names of MYTHICAL CREATURES or SPECIAL FAUNA (e.g. "Baku-fante", "Shadow Wolf") -> Category: 'CREATURE'.
+    3. Extract Names of SPECIAL FLORA (e.g. "Moon Flower") -> Category: 'FLORA'.
+    4. Extract Names of IMPORTANT LOCATIONS (Cities, Kingdoms, Planets) -> Category: 'LOCATION'.
+    5. Extract Names of LEGENDARY/MAGIC OBJECTS (Swords, Artifacts) -> Category: 'OBJECT'.
+
+    6. DEDUPLICATION: Use known names if possible.
+    7. STRICT CLASSIFICATION: Do not label a Place as a Person.
+
+    OUTPUT JSON (Array):
+    [
+      {
+        "name": "Name",
+        "category": "PERSON" | "CREATURE" | "FLORA" | "LOCATION" | "OBJECT",
+        "context": "Brief context snippet (max 10 words)"
+      }
+    ]
+    `;
+
+    for (const batchText of batches) {
+        try {
+            const result = await aiModel.generateContent([extractionPrompt, batchText]);
+            const extracted = parseSecureJSON(result.response.text(), "SoulSorterExtraction");
+
+            if (Array.isArray(extracted)) {
+                for (const item of extracted) {
+                    if (!item.name) continue;
+                    const key = item.name.toLowerCase().trim();
+                    const existing = entitiesMap.get(key);
+
+                    if (existing) {
+                        if (!existing.foundIn) existing.foundIn = [];
+                        if (existing.foundIn.length < 5) existing.foundIn.push(item.context || "Mentioned");
+
+                        // 🟢 CATEGORY CORRECTION: If AI sees it's a Location, and we had it undefined, update.
+                        // But trust Anchor data (Tier: ANCHOR) over Ghost guess.
+                        if (!existing.category && item.category) {
+                            existing.category = item.category as EntityCategory;
+                        }
+                    } else {
+                        entitiesMap.set(key, {
+                            name: item.name,
+                            tier: 'GHOST',
+                            category: (item.category as EntityCategory) || 'PERSON',
+                            confidence: 50,
+                            reasoning: "Mención en Narrativa",
+                            saga: sagaId || 'Global',
+                            foundIn: [item.context || "Mentioned"]
+                        });
+                    }
+                }
+            }
+        } catch (err) {
+            logger.error("Soul Sorter Batch Error:", err);
+        }
+    }
+
+    return entitiesMap;
 }
 
 /**
@@ -102,55 +378,27 @@ export const classifyEntities = onCall(
 
         try {
             // --- 0. INCREMENTAL SCAN CHECK ---
-            // Fetch Project Config to get 'lastForgeScan'
             const configRef = db.collection("users").doc(uid).collection("profile").doc("project_config");
             const configSnap = await configRef.get();
             const configData = configSnap.exists ? configSnap.data() : {};
             const lastScanTime = configData?.lastForgeScan ? new Date(configData.lastForgeScan).getTime() : 0;
 
-            // --- 1. FETCH CONTENT (SPECTRAL SWEEP) ---
+            // --- 1. FETCH CONTENT ---
             const filesRef = db.collection("TDB_Index").doc(uid).collection("files");
-            // 🟢 OMNISCIENT INPUT: Scan ALL canon files, ignore folder boundaries.
             const q = filesRef.where("category", "==", "canon");
-
             const filesSnap = await q.get();
-            if (filesSnap.empty) {
-                return {
-                    entities: [],
-                    stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
-                } as ForgePayload;
-            }
 
-            // Fetch Chunk 0s
-            const fileContents: { id: string, name: string, content: string, saga: string }[] = [];
+            const fileContents: FileContent[] = [];
             let skippedCount = 0;
 
-            // Optimization: Parallel Fetch
             const fetchPromises = filesSnap.docs.map(async (doc) => {
                 const fData = doc.data();
-
-                // 🕵️ DEBUG: Trace Source Data
-                if (fData.name) {
-                     console.log(`[DEBUG_SCAN] File Found: ${fData.name} | DriveID: ${fData.driveId} | DocID: ${doc.id}`);
-                }
-
-                // 🟢 RESOURCE EXCLUSION (Safety Net)
-                // If saga/path indicates Resources, skip it even if flagged as canon
                 const sagaName = (fData.saga || "").toUpperCase();
                 if (sagaName.includes("RECURSOS") || sagaName.includes("RESOURCES") || sagaName.includes("REFERENCE")) {
                     return null;
                 }
 
-                // 🟢 INCREMENTAL FILTER: Skip if file hasn't changed since last scan
-                // Use 'lastIndexed' or 'updatedAt' from TDB_Index
-                const fileTimeStr = fData.lastIndexed || fData.updatedAt;
-                const fileTime = fileTimeStr ? new Date(fileTimeStr).getTime() : 0;
-
-                // 🕵️ DEBUG: BYPASS INCREMENTAL SCAN (FORCE ALL)
-                // if (lastScanTime > 0 && fileTime <= lastScanTime) {
-                //    skippedCount++;
-                //    return null; // Skip this file
-                // }
+                // Incremental Logic could go here
 
                 const chunkRef = doc.ref.collection("chunks").doc("chunk_0");
                 const chunkSnap = await chunkRef.get();
@@ -172,232 +420,17 @@ export const classifyEntities = onCall(
             const results = await Promise.all(fetchPromises);
             results.forEach(r => { if (r) fileContents.push(r); });
 
-            logger.info(`   -> Scanned ${fileContents.length} new/modified files. (Skipped ${skippedCount} unchanged).`);
+            logger.info(`   -> Scanned ${fileContents.length} new/modified files.`);
 
             if (fileContents.length === 0) {
-                 logger.info("   -> No new content to analyze. Updating timestamp and exiting.");
-                 // Update timestamp anyway to show we checked
                  await configRef.set({ lastForgeScan: new Date().toISOString() }, { merge: true });
-
                  return {
-                    entities: [], // Frontend will keep showing existing snapshot
+                    entities: [],
                     stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
                  } as ForgePayload;
             }
 
-            // --- 2. DENSITY ANALYSIS (HEURISTIC) ---
-            const entitiesMap = new Map<string, DetectedEntity>();
-            const narrativeBuffer: string[] = [];
-            const knownNames = new Set<string>(); // 🟢 TRACK KNOWN ENTITIES FOR AI
-
-            for (const file of fileContents) {
-                let classified = false;
-
-                // 🕵️ DEBUG ANCHOR
-                console.log(`[DEBUG_ANCHOR_CHECK] Checking file: ${file.name} (Len: ${file.content.length})`);
-
-                // --- 0. MULTI-SCAN CHECK (CONTAINER FILES) ---
-                if (isContainerFile(file.name)) {
-                     console.log(`[SOUL_SORTER] Multi-Scan triggered for: ${file.name}`);
-                     const blocks = splitContentIntoBlocks(file.content);
-
-                     for (const block of blocks) {
-                         const rawName = extractNameFromBlock(block);
-                         if (rawName) {
-                             // Sanitize
-                             const name = rawName.replace(/[:\*\-\_]+$/, '').trim();
-
-                             if (!isGenericName(name)) {
-                                 // 🟢 CLEANUP: Cut content before "Le gusta:", "Odia:", or next big section
-                                 // to avoid bleeding into other descriptions if splitting was imperfect
-                                 let cleanContent = block;
-                                 const cutOffs = ['Le gusta:', 'Odia:', 'Gustos:', 'Disgustos:', '\n\n\n'];
-                                 for (const cut of cutOffs) {
-                                     if (cleanContent.includes(cut)) {
-                                         cleanContent = cleanContent.split(cut)[0];
-                                     }
-                                 }
-
-                                 // Add as LIMBO (Lists are Limbos, not full Anchors)
-                                 entitiesMap.set(name.toLowerCase(), {
-                                    name: name,
-                                    tier: 'LIMBO',
-                                    confidence: 85,
-                                    reasoning: "Detección Multi-Scan (Lista)",
-                                    sourceFileId: file.id,
-                                    sourceFileName: file.name,
-                                    saga: file.saga,
-                                    foundIn: [file.name],
-                                    rawContent: cleanContent.substring(0, 500) // Context for enrichment
-                                });
-                                knownNames.add(name); // Track for AI
-                                // We don't mark 'classified = true' because we still want to scan
-                                // the rest of the file for Ghosts or check if the file ITSELF is an Anchor (unlikely but possible)
-                             }
-                         }
-                     }
-                }
-
-                // A. FRONTMATTER CHECK (Strong Anchor)
-                try {
-                    // Simple check for "---" at start
-                    if (file.content.trim().startsWith('---')) {
-                        console.log(`[DEBUG_ANCHOR_CHECK] Frontmatter detected in ${file.name}`);
-                        const parsed = matter(file.content);
-                        if (parsed.data.name || parsed.data.Nombre) {
-                            const name = (parsed.data.name || parsed.data.Nombre).trim();
-                            entitiesMap.set(name.toLowerCase(), {
-                                name: name,
-                                tier: 'ANCHOR',
-                                confidence: 100,
-                                reasoning: "Metadatos Detectados (Frontmatter)",
-                                sourceFileId: file.id,
-                                sourceFileName: file.name,
-                                saga: file.saga,
-                                foundIn: [file.name],
-                                role: parsed.data.role || parsed.data.Role || parsed.data.cargo,
-                                avatar: parsed.data.avatar || parsed.data.Avatar
-                            });
-                            knownNames.add(name); // Track for AI
-                            classified = true;
-                            console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via Frontmatter: ${file.name}`);
-                        }
-                    }
-                } catch (e) { /* Ignore matter errors */ }
-
-                // B. HEADER CHECK (Markdown Anchor)
-                if (!classified) {
-                    // Look for "# Name" or "Nombre: Name"
-                    const lines = file.content.split('\n').slice(0, 10); // First 10 lines
-                    for (const line of lines) {
-                        const clean = line.trim();
-                        // H1 Header that looks like a name (not "Intro", "Chapter 1")
-                        if (clean.startsWith('# ') && !clean.includes('Capítulo') && !clean.includes('Chapter')) {
-                            const name = clean.replace(/^#+\s*/, '').trim(); // Remove one or more #
-                            console.log(`[DEBUG_ANCHOR_CHECK] Header Candidate: ${name} in ${file.name}`);
-
-                            // 🟢 STRICT VALIDATION: A simple header is NOT enough. "The Capital" has a header.
-                            // We require at least ONE character trait (Role, Age, etc.) to upgrade to ANCHOR.
-                            if (name.length > 2 && name.length < 50 && hasCharacterMetadata(file.content)) {
-                                entitiesMap.set(name.toLowerCase(), {
-                                    name: name,
-                                    tier: 'ANCHOR',
-                                    confidence: 90,
-                                    reasoning: "Encabezado + Metadatos",
-                                    sourceFileId: file.id,
-                                    sourceFileName: file.name,
-                                    saga: file.saga,
-                                    foundIn: [file.name]
-                                });
-                                knownNames.add(name); // Track for AI
-                                classified = true;
-                                console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via H1+Metadata: ${file.name}`);
-                                break;
-                            } else {
-                                console.log(`[DEBUG_ANCHOR_CHECK] REJECTED Candidate ${name} - No character metadata found.`);
-                            }
-                        }
-
-                        // Key-Value "Name: X" (Enhanced Regex for **Bold**, Lists -, and "Nombre Completo")
-                        const keyMatch = clean.match(/^[\-\*\s]*(\*\*|)(Nombre|Name|Personaje|Character|Nombre Completo|Full Name)(\*\*|)[\*\s]*:\s*(.+)/i);
-
-                        if (keyMatch && keyMatch[4]) {
-                            let name = keyMatch[4].trim();
-                            // Sanitize: Remove trailing and LEADING punctuation or markdown artifacts (like leftover **)
-                            name = name.replace(/^[:\*\-\_]+/, '').replace(/[:\*\-\_]+$/, '').trim();
-
-                            console.log(`[DEBUG_ANCHOR_CHECK] Key-Value Candidate: ${name} in ${file.name}`);
-                            if (name.length > 2 && name.length < 50) {
-                                entitiesMap.set(name.toLowerCase(), {
-                                    name: name,
-                                    tier: 'ANCHOR',
-                                    confidence: 90,
-                                    reasoning: "Definición Clave-Valor Detectada",
-                                    sourceFileId: file.id,
-                                    sourceFileName: file.name,
-                                    saga: file.saga,
-                                    foundIn: [file.name]
-                                });
-                                knownNames.add(name); // Track for AI
-                                classified = true;
-                                console.log(`[DEBUG_ANCHOR_CHECK] Classified as ANCHOR via Key-Value: ${file.name}`);
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                // C. LIMBO CHECK (Filename + Content Heuristic)
-                if (!classified) {
-                    const lowerName = file.name.toLowerCase();
-                    if (lowerName.includes('idea') || lowerName.includes('nota') || lowerName.includes('apunte') || lowerName.includes('draft')) {
-                         // HEURISTIC: Try to find "Name:" pattern in this Limbo file
-                         // Only check start of lines to avoid false positives in prose
-                         const lines = file.content.split('\n').slice(0, 30);
-                         let matchedName = null;
-
-                         for (const line of lines) {
-                             // Match "Name:" or "- Name:"
-                             const match = line.match(/^[\-\s]*([A-ZÁÉÍÓÚÑ][a-zA-Z0-9\s]+):/);
-                             if (match && match[1]) {
-                                 const name = match[1].trim();
-                                 // Filter out common false positives like "Nota:", "Idea:", "Fecha:"
-                                 const forbidden = ['nota', 'idea', 'fecha', 'todo', 'importante', 'ojo'];
-                                 if (name.length > 2 && name.length < 30 && !forbidden.includes(name.toLowerCase())) {
-                                     matchedName = name;
-                                     break; // Take the first strong match
-                                 }
-                             }
-                         }
-
-                         // If no inner name found, use filename stem if it looks like a person name
-                         // (This is weak, but better than missing it. Let's stick to inner name for high precision)
-                         if (matchedName) {
-                            entitiesMap.set(matchedName.toLowerCase(), {
-                                name: matchedName,
-                                tier: 'LIMBO',
-                                confidence: 80,
-                                reasoning: "Definición en Notas (Limbo)",
-                                sourceFileId: file.id,
-                                sourceFileName: file.name,
-                                saga: file.saga,
-                                foundIn: [file.name],
-                                rawContent: file.content.substring(0, 500) // Keep snippet for AI enrichment
-                            });
-                            knownNames.add(matchedName); // Track for AI
-                         }
-                    }
-                }
-
-                // D. NARRATIVE ACCUMULATION
-                // We send EVERYTHING to AI to find Ghosts (names mentioned in narrative)
-                // even if it's an Anchor file (it might mention OTHER characters).
-                // 🟢 CLEANUP: Strip frontmatter to avoid leaking metadata into descriptions
-                let cleanContent = file.content;
-                try {
-                    const parsed = matter(file.content);
-                    cleanContent = parsed.content;
-                } catch (e) { /* Fallback to raw */ }
-
-                narrativeBuffer.push(`--- FILE: ${file.name} (Saga: ${file.saga}) ---\n${cleanContent}\n--- END ---\n`);
-            }
-
-            // --- 3. AI EXTRACTION (GHOST SWEEP) ---
-            const fullText = narrativeBuffer.join('\n');
-            const batches: string[] = [];
-            const knownEntitiesList = Array.from(knownNames).join(", "); // Prepare list for AI
-
-            // Chunking for AI Limit
-            let currentBatch = "";
-            fullText.split('\n').forEach(line => {
-                if ((currentBatch.length + line.length) > MAX_BATCH_CHARS) {
-                    batches.push(currentBatch);
-                    currentBatch = "";
-                }
-                currentBatch += line + "\n";
-            });
-            if (currentBatch) batches.push(currentBatch);
-
+            // --- 2. IDENTIFY ENTITIES (Logic) ---
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
             const model = genAI.getGenerativeModel({
                 model: MODEL_LOW_COST,
@@ -408,118 +441,35 @@ export const classifyEntities = onCall(
                 } as any
             });
 
-            const extractionPrompt = `
-            ACT AS: The Soul Sorter.
-            TASK: Extract all ENTITY NAMES (Characters, Creatures, Flora) from the narrative text.
+            const entitiesMap = await identifyEntities(fileContents, model, sagaId);
 
-            KNOWN ENTITIES: [${knownEntitiesList}]
-
-            RULES:
-            1. Extract Proper Names of People/Beings (e.g. "Thomas", "Megu").
-            2. Extract Names of MYTHICAL CREATURES or SPECIAL FAUNA (e.g. "Baku-fante", "Shadow Wolf").
-            3. Extract Names of SPECIAL FLORA (e.g. "Moon Flower").
-            4. CLASSIFY each entity as: 'PERSON', 'CREATURE', or 'FLORA'.
-            5. IGNORE Locations (Cities, Planets) and Generic Objects (Swords).
-            6. DEDUPLICATION: Use known names if possible.
-
-            OUTPUT JSON (Array):
-            [
-              {
-                "name": "Name",
-                "category": "PERSON" | "CREATURE" | "FLORA",
-                "context": "Brief context snippet (max 10 words)"
-              }
-            ]
-            `;
-
-            for (const batchText of batches) {
-                try {
-                    const result = await model.generateContent([extractionPrompt, batchText]);
-                    const extracted = parseSecureJSON(result.response.text(), "SoulSorterExtraction");
-
-                    if (Array.isArray(extracted)) {
-                        for (const item of extracted) {
-                            if (!item.name) continue;
-                            const key = item.name.toLowerCase().trim();
-                            const existing = entitiesMap.get(key);
-
-                            if (existing) {
-                                // Already exists (Anchor or previous Ghost). Merge context.
-                                if (!existing.foundIn) existing.foundIn = [];
-                                // Avoid spamming foundIn
-                                if (existing.foundIn.length < 5) existing.foundIn.push(item.context || "Mentioned");
-
-                                // Update Category if not set (or if we trust AI more?)
-                                // Let's trust existing category if set, otherwise adopt AI's suggestion
-                                if (!existing.category && item.category) {
-                                    existing.category = item.category as EntityCategory;
-                                }
-
-                            } else {
-                                // New GHOST
-                                entitiesMap.set(key, {
-                                    name: item.name,
-                                    tier: 'GHOST',
-                                    category: (item.category as EntityCategory) || 'PERSON',
-                                    confidence: 50,
-                                    reasoning: "Mención en Narrativa",
-                                    saga: sagaId || 'Global', // Default to current scope
-                                    foundIn: [item.context || "Mentioned"]
-                                });
-                            }
-                        }
-                    }
-                } catch (err) {
-                    logger.error("Soul Sorter Batch Error:", err);
-                }
-            }
-
-            // --- 4. ENRICHMENT PHASE (The Transformer) ---
-            // Prepare the Embeddings Model (Native SDK)
-            // const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" }); // Moved to Service
-
-            // Iterate and Enrich
-            // We convert Map to Array for processing
+            // --- 3. ENRICHMENT PHASE ---
             const entityList = Array.from(entitiesMap.values());
-
-            // 🚀 PARALLEL OPTIMIZATION (with Retry & Concurrency Limit)
-            // Reuse existing Client instance
             const enrichedEntities = await enrichEntitiesParallel(
                 entityList,
                 uid,
                 genAI,
                 db,
                 sagaId,
-                5 // Concurrency Limit
+                5
             );
 
-            // --- 5. PERSISTENCE (WRITE TO FIRESTORE CACHE) ---
+            // --- 4. PERSISTENCE ---
             const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
-
-            // 🟢 INCREMENTAL UPDATE STRATEGY: NO DELETES
-            // We blindly upsert/merge found entities. Old entities remain (as requested).
-
             const BATCH_SIZE = 400;
             const setOperations: Promise<any>[] = [];
-
             let currentSetBatch = db.batch();
             let setCount = 0;
 
             enrichedEntities.forEach(e => {
                 const ref = detectionRef.doc(e.id);
 
-                // 🕵️ RASTREADOR KIKIMIGI
-                console.log(`[DEBUG] Procesando: ${e.name}`);
-                console.log(`[DEBUG] Raw driveId: ${e.driveId}`); // ¿Aquí dice undefined?
-                console.log(`[DEBUG] Entity Dump:`, JSON.stringify(e));
-
-                // 🟢 SANITIZE PAYLOAD (Fix for 'undefined' error)
                 const safePayload: any = {
                     ...e,
                     role: e.role || null,
                     avatar: e.avatar || null,
-                    driveId: e.driveId || null, // 🟢 Fix: Ensure driveId is never undefined
-                    category: e.category || 'PERSON', // 🟢 Persist Category
+                    driveId: e.driveId || null,
+                    category: e.category || 'PERSON',
                     sourceSnippet: e.sourceSnippet || "No preview available",
                     mergeSuggestion: e.mergeSuggestion || null,
                     tags: e.tags || [],
@@ -529,7 +479,6 @@ export const classifyEntities = onCall(
                 };
 
                 currentSetBatch.set(ref, safePayload, { merge: true });
-
                 setCount++;
                 if (setCount >= BATCH_SIZE) {
                     setOperations.push(currentSetBatch.commit());
@@ -538,30 +487,23 @@ export const classifyEntities = onCall(
                 }
             });
             if (setCount > 0) setOperations.push(currentSetBatch.commit());
-
             await Promise.all(setOperations);
 
-            // --- 6. UPDATE CONFIG TIMESTAMP ---
+            // --- 5. FINALIZE ---
             await configRef.set({ lastForgeScan: new Date().toISOString() }, { merge: true });
-
-            // --- 7. RETURN PAYLOAD ---
-            // Sort by occurrences desc
             enrichedEntities.sort((a, b) => b.occurrences - a.occurrences);
 
-            const payload: ForgePayload = {
+            return {
                 entities: enrichedEntities,
                 stats: {
                     totalGhosts: enrichedEntities.filter(e => e.tier === 'GHOST').length,
                     totalLimbos: enrichedEntities.filter(e => e.tier === 'LIMBO').length,
                     totalAnchors: enrichedEntities.filter(e => e.tier === 'ANCHOR').length,
                 }
-            };
-
-            return payload;
+            } as ForgePayload;
 
         } catch (error: any) {
             logger.error("Soul Sorter Failed:", error);
-            // Robust Error Handling: Return Empty instead of 500
             return {
                 entities: [],
                 stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
