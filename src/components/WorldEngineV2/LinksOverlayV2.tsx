@@ -53,11 +53,18 @@ const LinksOverlayV2 = forwardRef<LinksOverlayHandle, {
                 {nodes.map((node) => {
                     if (!node.relations) return null;
                     return node.relations.map((rel, idx) => {
-                        // Check validity
-                        if (!nodes.find(n => n.id === rel.targetId)) return null;
+                        // Check validity with Fallback (Healing Protocol)
+                        let targetNode = nodes.find(n => n.id === rel.targetId);
+                        if (!targetNode && rel.targetName) {
+                             targetNode = nodes.find(n => n.name.toLowerCase().trim() === rel.targetName.toLowerCase().trim());
+                        }
 
-                        const lineId = `${node.id}-${rel.targetId}-${idx}`;
-                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === rel.targetId || hoveredLineId === lineId;
+                        if (!targetNode) return null;
+
+                        const actualTargetId = targetNode.id;
+                        const lineId = `${node.id}-${actualTargetId}-${idx}`;
+
+                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === actualTargetId || hoveredLineId === lineId;
                         const relColor = getRelationColor(rel.relation);
                         const labelText = rel.context
                             ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
@@ -67,7 +74,7 @@ const LinksOverlayV2 = forwardRef<LinksOverlayHandle, {
                             <Xarrow
                                 key={lineId}
                                 start={node.id}
-                                end={rel.targetId}
+                                end={actualTargetId}
                                 startAnchor="middle"
                                 endAnchor="middle"
                                 color={relColor}
