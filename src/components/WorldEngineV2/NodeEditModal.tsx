@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, AlertTriangle, Loader2 } from 'lucide-react';
+import { X, Save, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { VisualNode } from './types';
 import { EntityType } from '../../types/graph';
 
@@ -9,16 +9,18 @@ interface NodeEditModalProps {
     onClose: () => void;
     node: VisualNode | null;
     onSave: (nodeId: string, updates: { name: string, type: string, subtype: string, description: string }) => Promise<void>;
+    onDelete?: (nodeId: string) => Promise<void>;
 }
 
 const ENTITY_TYPES: EntityType[] = ['character', 'location', 'object', 'event', 'faction', 'concept', 'creature', 'race'];
 
-export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, node, onSave }) => {
+export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, node, onSave, onDelete }) => {
     const [name, setName] = useState('');
     const [type, setType] = useState<EntityType>('character');
     const [subtype, setSubtype] = useState('');
     const [description, setDescription] = useState('');
     const [isSaving, setIsSaving] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
 
     useEffect(() => {
         if (node) {
@@ -46,6 +48,21 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
             console.error("Save failed:", error);
         } finally {
             setIsSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!node || !onDelete) return;
+        if (!confirm("¿Estás seguro de que quieres eliminar este nodo permanentemente?")) return;
+
+        setIsDeleting(true);
+        try {
+            await onDelete(node.id);
+            onClose();
+        } catch (error) {
+            console.error("Delete failed:", error);
+        } finally {
+            setIsDeleting(false);
         }
     };
 
@@ -137,22 +154,38 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                              </div>
 
                              {/* ACTIONS */}
-                             <div className="pt-4 flex justify-end gap-3">
-                                 <button
-                                     type="button"
-                                     onClick={onClose}
-                                     className="px-4 py-2 rounded text-slate-400 hover:text-white text-xs font-bold transition-colors"
-                                 >
-                                     CANCELAR
-                                 </button>
-                                 <button
-                                     type="submit"
-                                     disabled={isSaving}
-                                     className="flex items-center gap-2 px-6 py-2 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                 >
-                                     {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                     {isSaving ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
-                                 </button>
+                             <div className="pt-4 flex justify-between items-center">
+                                 <div>
+                                     {onDelete && (
+                                         <button
+                                             type="button"
+                                             onClick={handleDelete}
+                                             disabled={isDeleting || isSaving}
+                                             className="flex items-center gap-2 px-4 py-2 rounded text-red-500 hover:text-red-400 hover:bg-red-950/20 text-xs font-bold transition-colors disabled:opacity-50"
+                                         >
+                                             {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                                             {isDeleting ? 'ELIMINANDO...' : 'ELIMINAR'}
+                                         </button>
+                                     )}
+                                 </div>
+
+                                 <div className="flex gap-3">
+                                     <button
+                                         type="button"
+                                         onClick={onClose}
+                                         className="px-4 py-2 rounded text-slate-400 hover:text-white text-xs font-bold transition-colors"
+                                     >
+                                         CANCELAR
+                                     </button>
+                                     <button
+                                         type="submit"
+                                         disabled={isSaving || isDeleting}
+                                         className="flex items-center gap-2 px-6 py-2 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                     >
+                                         {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                         {isSaving ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+                                     </button>
+                                 </div>
                              </div>
                          </form>
                      </motion.div>

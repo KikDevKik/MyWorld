@@ -423,14 +423,15 @@ export const scanProjectFiles = async (
         for (const node of existingNodes) {
             const normNode = normalizeName(node.name);
             const sim = calculateSimilarity(normCandidate, normNode);
+            console.log(`[NexusScanner] Fuzzy Check: '${normCandidate}' vs '${normNode}' = ${sim}`);
             if (sim > maxSim) {
                 maxSim = sim;
                 bestMatch = node;
             }
         }
 
-        // Threshold Logic: 85% Similarity
-        if (bestMatch && maxSim > 0.85) {
+        // Threshold Logic: 75% Similarity (Aggressive)
+        if (bestMatch && maxSim > 0.75) {
             const pct = Math.round(maxSim * 100);
             return {
                 ...candidate,

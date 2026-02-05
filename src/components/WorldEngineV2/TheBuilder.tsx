@@ -8,6 +8,7 @@ import { getAuth } from "firebase/auth";
 import { toast } from 'sonner';
 import GhostGraph from './GhostGraph';
 import { VisualNode, VisualEdge, RealityMode } from './types';
+import { GraphNode } from '../../types/graph';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { generateId } from "../../utils/sha256";
 import InternalFolderSelector from '../InternalFolderSelector';
@@ -22,6 +23,7 @@ interface TheBuilderProps {
     initialMode: RealityMode;
     accessToken?: string | null;
     onRefreshTokens?: () => Promise<string | null>;
+    existingNodes?: GraphNode[];
 }
 
 interface BuilderMessage {
@@ -37,7 +39,7 @@ const MODES: { id: RealityMode; label: string }[] = [
     { id: 'ENTROPIA', label: 'ENTROPÍA' },
 ];
 
-const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode, accessToken, onRefreshTokens }) => {
+const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode, accessToken, onRefreshTokens, existingNodes = [] }) => {
     const { config, refreshConfig } = useProjectConfig();
     const projectId = config?.folderId || "unknown_project";
 
@@ -208,6 +210,22 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                         x: n.fx, // Use fixed pos if provided (Anchor)
                                         y: n.fy
                                     };
+                                });
+
+                                // 🟢 CONTRADICTION CHECK
+                                processedNodes.forEach(newNode => {
+                                    // Check DB + Current Draft
+                                    const existing = existingNodes.find(en => en.id === newNode.id) || ghostNodes.find(gn => gn.id === newNode.id);
+
+                                    if (existing) {
+                                        // Simple length/content heuristic
+                                        const descA = existing.description || "";
+                                        const descB = newNode.description || "";
+                                        // If description changed by > 20% length or is completely different
+                                        if (descB && descA && descB !== descA && Math.abs(descA.length - descB.length) > 5) {
+                                             toast.warning(`⚠️ Possible Contradiction: '${newNode.name}' differs from Reality.`);
+                                        }
+                                    }
                                 });
 
                                 // Merge with existing ghost nodes

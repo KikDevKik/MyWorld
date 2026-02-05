@@ -56,3 +56,13 @@ Este archivo documenta los roles activos de la IA y los protocolos de mantenimie
 *   **Motivo:** Problemas técnicos pendientes de resolución (Fase de presentación).
 *   **Componentes:** `TimelinePanel`, `cronograma` (GemId).
 *   **Instrucción:** La lógica y los componentes existen (`src/components/TimelinePanel.tsx`) pero se han eliminado los puntos de acceso en `ArsenalDock` y `FieldManualModal`. Si se requiere reactivar, revertir los cambios en UI.
+
+## 🔴 5. PROTOCOLOS DE AUDITORÍA (GHOST MODE)
+
+### GHOST PROTOCOL (VITE_JULES_MODE=true)
+*   **Misión:** Pruebas de estrés y coherencia sin afectar datos de producción ni requerir autenticación real.
+*   **Guía Maestra:** Ver `GHOST_PROTOCOL_PHASE_2.md` para instrucciones detalladas de auditoría profunda.
+*   **Limitaciones:**
+    *   Nexus no contacta a Drive real (usa Mocks).
+    *   The Builder usa Mocks de Streaming.
+    *   La persistencia es volátil (localStorage simulado).
