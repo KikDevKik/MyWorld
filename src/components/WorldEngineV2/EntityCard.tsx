@@ -37,6 +37,11 @@ const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: s
         shadow: 'shadow-[0_0_15px_rgba(220,38,38,0.6)]', // Red-600
         iconColor: 'text-red-500'
     },
+    faction: {
+        border: 'border-orange-500',
+        shadow: 'shadow-[0_0_25px_rgba(249,115,22,0.6)]', // Orange-500 (Bigger Shadow)
+        iconColor: 'text-orange-500'
+    },
     creature: {
         border: 'border-emerald-500',
         shadow: 'shadow-[0_0_15px_rgba(16,185,129,0.5)]', // Emerald-500
@@ -76,7 +81,8 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     else if (node.type === 'idea' || node.isGhost) nodeStyleKey = 'idea';
     else if (node.type === 'creature') nodeStyleKey = 'creature';
     else if (node.type === 'race') nodeStyleKey = 'race';
-    else if (['faction', 'event', 'object'].includes(node.type)) nodeStyleKey = 'default';
+    else if (node.type === 'faction') nodeStyleKey = 'faction';
+    else if (['event', 'object'].includes(node.type)) nodeStyleKey = 'default';
 
     const style = NODE_STYLES[nodeStyleKey] || NODE_STYLES.default;
 
