@@ -5,6 +5,7 @@ import { google } from "googleapis";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { handleSecureError } from "./utils/security";
+import { ProjectConfig } from "./types/project";
 
 // --- JANITOR PROTOCOL (Phase 5) ---
 
@@ -28,12 +29,36 @@ export const scanVaultHealth = onCall(
     }
 
     const { folderId } = request.data;
+    const userId = request.auth.uid;
+    const db = getFirestore();
+
     // Note: accessToken is no longer required as we use the Robot (Service Account)
 
     // If no folderId provided, we can't scan effectively without scanning root?
     // We will assume the user wants to scan the Project Root (folderId).
     // If not provided, we might fail or scan 'root' (which is huge).
     if (!folderId) throw new HttpsError("invalid-argument", "Falta folderId (Project Root).");
+
+    // 🛡️ SENTINEL: IDOR PREVENTION
+    // Verify that the requested folderId belongs to the authenticated user's project configuration.
+    // This prevents users from using the Janitor Robot to scan folders they don't own.
+    const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+
+    if (!configDoc.exists) {
+        throw new HttpsError("permission-denied", "Configuración de proyecto no encontrada. No puedes auditar una bóveda sin configurar el proyecto.");
+    }
+
+    const config = configDoc.data() as ProjectConfig;
+    const allowedIds = new Set<string>();
+
+    if (config.folderId) allowedIds.add(config.folderId);
+    if (config.canonPaths) config.canonPaths.forEach(p => allowedIds.add(p.id));
+    if (config.resourcePaths) config.resourcePaths.forEach(p => allowedIds.add(p.id));
+
+    if (!allowedIds.has(folderId)) {
+        logger.warn(`🛡️ [SENTINEL] IDOR Blocked. User ${userId} tried to scan unauthorized folder: ${folderId}`);
+        throw new HttpsError("permission-denied", "Acceso denegado. Esta carpeta no está registrada en tu configuración de proyecto.");
+    }
 
     logger.info(`🧹 [JANITOR] Iniciando escaneo de salud para: ${folderId}`);
 

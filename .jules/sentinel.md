@@ -105,3 +105,11 @@
 **Vulnerability:** Public Exposure of Refresh Tokens in Ghost Mode.
 **Learning:** Recursive wildcards (`{document=**}`) grant access to ALL subcollections, including sensitive ones like `system_secrets` created by backend processes.
 **Prevention:** Use explicit subcollection matching for public/exception rules.
+
+## 2025-06-01 - [CRITICAL] IDOR in Service Account Cloud Functions
+**Vulnerability:** Insecure Direct Object Reference (IDOR) via Service Account
+**Learning:** The `scanVaultHealth` function accepted a `folderId` from the client and used a privileged Service Account (Robot) to scan it. Because Service Accounts have global access to shared folders, this allowed any authenticated user to potentially scan any folder the Service Account had access to (including other users' vaults), bypassing user-level permissions.
+**Prevention:**
+1. Do not assume client-provided IDs are safe or authorized just because the user is authenticated.
+2. When using privileged credentials (like Service Accounts), explicitly validate that the requested resource belongs to the authenticated user (e.g., by checking against the User Profile in Firestore).
+3. Fail closed if ownership cannot be verified.
