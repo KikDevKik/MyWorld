@@ -1,5 +1,5 @@
 export type EntityTier = 'GHOST' | 'LIMBO' | 'ANCHOR';
-export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA';
+export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT';
 
 // Estructura unificada para facilitar el renderizado
 export interface SoulEntity {
