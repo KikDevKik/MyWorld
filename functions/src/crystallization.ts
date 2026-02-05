@@ -12,8 +12,27 @@ import { parseSecureJSON } from "./utils/json";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { updateFirestoreTree } from "./utils/tree_utils";
+import { ProjectConfig } from "./types/project";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+
+// Internal helper to get config
+async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
+  const db = getFirestore();
+  const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+
+  const defaultConfig: ProjectConfig = {
+    canonPaths: [],
+    primaryCanonPathId: null,
+    resourcePaths: [],
+    activeBookContext: ""
+  };
+
+  if (!doc.exists) {
+    return defaultConfig;
+  }
+  return { ...defaultConfig, ...doc.data() };
+}
 
 interface CrystallizeGraphRequest {
     nodes: Array<{
@@ -26,6 +45,7 @@ interface CrystallizeGraphRequest {
     edges?: Array<{ source: string; target: string; label: string }>; // 🟢 NEW: Edges Support
     folderId: string;
     subfolderName?: string; // Optional subfolder creation
+    autoMapRole?: string; // 🟢 NEW: Auto-Wiring Request
     accessToken: string;
     chatContext?: string; // The conversation history
     projectId: string;
@@ -45,7 +65,7 @@ export const crystallizeGraph = onCall(
         const db = getFirestore();
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
 
-        const { nodes, edges, folderId, subfolderName, accessToken, chatContext, projectId, mode = 'FUSION' } = request.data as CrystallizeGraphRequest;
+        const { nodes, edges, folderId, subfolderName, autoMapRole, accessToken, chatContext, projectId, mode = 'FUSION' } = request.data as CrystallizeGraphRequest;
 
         if (!nodes || !Array.isArray(nodes) || nodes.length === 0) {
             throw new HttpsError("invalid-argument", "No nodes provided to crystallize.");
@@ -87,6 +107,34 @@ export const crystallizeGraph = onCall(
                     });
                     if (newFolder.data.id) {
                         targetFolderId = newFolder.data.id;
+
+                        // 🟢 AUTO-WIRING: If requested and new folder created, update Project Config
+                        if (autoMapRole) {
+                            try {
+                                const config = await getProjectConfigLocal(userId);
+                                const folderMapping = config.folderMapping || {};
+
+                                // Only update if not already mapped
+                                if (!folderMapping[autoMapRole as any]) {
+                                    folderMapping[autoMapRole as any] = targetFolderId;
+
+                                    const canonPaths = config.canonPaths || [];
+                                    if (!canonPaths.some(p => p.id === targetFolderId)) {
+                                        canonPaths.push({ id: targetFolderId, name: subfolderName });
+                                    }
+
+                                    await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+                                        folderMapping,
+                                        canonPaths,
+                                        updatedAt: new Date().toISOString()
+                                    }, { merge: true });
+
+                                    logger.info(`🔗 Auto-Wired folder ${subfolderName} to role ${autoMapRole}`);
+                                }
+                            } catch (configErr) {
+                                logger.error("Failed to auto-wire folder to project config:", configErr);
+                            }
+                        }
                     }
                 }
             } catch (folderErr) {
@@ -197,6 +245,22 @@ export const crystallizeGraph = onCall(
                     if (entitySnap.exists) {
                         isUpdate = true;
                         existingData = entitySnap.data();
+                    } else {
+                        // 🟢 ADOPTION PROTOCOL: Fallback search by Name (Prevent Duplicates)
+                        const fallbackQuery = await db.collection("users").doc(userId)
+                            .collection("projects").doc(projectId)
+                            .collection("entities")
+                            .where("name", "==", node.name)
+                            .limit(1)
+                            .get();
+
+                        if (!fallbackQuery.empty) {
+                            const adoptedSnap = fallbackQuery.docs[0];
+                            isUpdate = true;
+                            existingData = adoptedSnap.data();
+                            node.id = adoptedSnap.id; // Correct the ID
+                            logger.info(`🤝 Adopted existing entity by name: ${node.name} (${node.id})`);
+                        }
                     }
 
                     // 2. NEXUS IDENTITY
@@ -206,10 +270,29 @@ export const crystallizeGraph = onCall(
                     const nexusId = isUpdate && existingData?.nexusId ? existingData.nexusId : crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
 
                     let fileId = "";
+                    let adoptedFileId: string | null = null;
 
-                    if (isUpdate && existingData && existingData.masterFileId) {
+                    // 🟢 PRE-CHECK: Duplicate File Name in Target Folder (Safety Net)
+                    // If we are NOT updating (New Entity), check if file exists in target to avoid duplicates
+                    if (!isUpdate) {
+                         try {
+                            const duplicateCheck = await drive.files.list({
+                                q: `'${targetFolderId}' in parents and name = '${fileName}' and trashed = false`,
+                                fields: 'files(id)'
+                            });
+                            if (duplicateCheck.data.files && duplicateCheck.data.files.length > 0) {
+                                adoptedFileId = duplicateCheck.data.files[0].id!;
+                                logger.info(`⚠️ Found existing file '${fileName}' in target folder. Adopting it instead of creating duplicate.`);
+                            }
+                         } catch (e) {
+                             // Ignore check failure, proceed to create
+                         }
+                    }
+
+                    if ((isUpdate && existingData && existingData.masterFileId) || adoptedFileId) {
                          // 🟢 UPDATE EXISTING FILE (APPEND STRATEGY)
-                         fileId = existingData.masterFileId;
+                         // Use masterFileId if available, otherwise adoptedFileId from Drive
+                         fileId = (isUpdate && existingData?.masterFileId) ? existingData.masterFileId : adoptedFileId!;
 
                          // Fetch current content
                          try {
