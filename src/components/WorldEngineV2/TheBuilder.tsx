@@ -109,7 +109,13 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
         try {
             // 2. Prepare Auth & URL
             const auth = getAuth();
-            const token = await auth.currentUser?.getIdToken();
+            let token = await auth.currentUser?.getIdToken();
+
+            // 🟢 GHOST MODE FALLBACK (Use prop if available)
+            if (!token && accessToken) {
+                token = accessToken;
+            }
+
             if (!token) throw new Error("No auth token");
 
             const app = getApp();
@@ -470,9 +476,11 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                                 ? 'bg-cyan-950/30 border-cyan-500/30 text-cyan-100 rounded-br-none'
                                                 : 'bg-zinc-900/50 border-white/10 text-slate-300 rounded-bl-none'}
                                         `}>
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none break-words">
-                                                {msg.content}
-                                            </ReactMarkdown>
+                                            <div className="prose prose-invert prose-sm max-w-none break-words">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {msg.content}
+                                                </ReactMarkdown>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}

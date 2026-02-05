@@ -970,6 +970,7 @@ function App() {
         // 👻 GHOST ACCESS: BYPASS AUTH IN DEV
         if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
             console.warn("👻 GHOST ACCESS ENABLED: Skipping Google Auth");
+            localStorage.setItem('google_drive_token', 'mock-token'); // 🟢 SET MOCK TOKEN FOR NEXUS
             setUser({
                 uid: 'jules-dev',
                 email: 'jules@internal.test',
