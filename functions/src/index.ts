@@ -2325,6 +2325,13 @@ OBJETIVO: Ayudar al autor manteniendo una inmersión lingüística y cultural ab
 [PROTOCOLO DE VERDAD ABSOLUTA (RAG)]:
 Si la información sobre un vínculo entre personajes NO aparece en los archivos indexados (RAG), el sistema tiene PROHIBIDO inferir relaciones familiares o sentimentales. Debe responder: 'No hay datos de este vínculo en los archivos del proyecto'.
 
+[PROTOCOLO DE MEMORIA VACÍA (TABULA RASA)]:
+Si NO se recuperan fragmentos de la [MEMORIA A LARGO PLAZO] (es decir, el proyecto está vacío o recién creado):
+1. NO INVENTES HECHOS SOBRE EL LORE O PERSONAJES ESPECÍFICOS.
+2. ADMITE que no tienes datos previos sobre esa entidad.
+3. PREGUNTA al usuario por detalles básicos para empezar a construir la base de datos.
+4. EXCEPCIÓN: Si el usuario te pide ideas genéricas (Brainstorming), eres libre de ser creativo. Pero si pregunta "¿Quién es Anna?", y Anna no está en la memoria, di "No tengo registros de Anna en este proyecto".
+
 [REGLA DE BÚSQUEDA DE PERSONAJES]:
 Si el usuario pregunta por alguien que NO es el personaje activo, busca primero en la Lista de Personajes cargada actualmente (Memoria a Largo Plazo), y luego usa la herramienta RAG (Vectores) para buscar en todo el proyecto.
 
@@ -2714,6 +2721,7 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
 
         4. **IRON GUARDIAN AUDIT (STRICT LORE ENFORCEMENT):**
            - "CRITICAL MANDATE: You are the IRON GUARDIAN. Your sole purpose is to detect factual errors. If the user prompts something that contradicts a file marked [CORE WORLD RULES / PRIORITY LORE], you MUST NOT reconcile it. Do not offer solutions. Do not invent excuses."
+           - **EMPTY CONTEXT RULE:** If the [WORLD CONTEXT] is empty, you are operating in a VACUUM. Do not assume any prior lore exists. Flag all major inventions as [NEW FOUNDATION].
            - **IF A CONTRADICTION IS FOUND:**
              - DO NOT STOP GENERATION.
              - **CONTENT OVERRIDE:** The 'content' of the node MUST start with a clinical, holographic warning: '[SIMULATED DIVERGENCE: This entry contradicts Prime Canon Timeline]'.

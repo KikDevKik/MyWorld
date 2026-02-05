@@ -1,0 +1,45 @@
+# JULES GHOST MODE AUDIT REPORT
+
+## 1. Methodology
+- **Environment**: Ghost Mode (`VITE_JULES_MODE=true`).
+- **Tooling**: Playwright with mock backend responses (`builderStream`, `analyzeNexusFile`, `crystallizeGraph`, `Google Drive API`).
+- **Scope**: The Builder, Nexus Tribunal, Graph Interaction.
+
+## 2. Critical Issues Found & Fixed
+
+### A. Authentication & Session
+- **Issue**: `NexusScanner` failed in Ghost Mode because it strictly checked `localStorage.getItem('google_drive_token')`, which was not set by the mock auth provider.
+- **Fix**: Updated `App.tsx` to explicitly set a mock token in `localStorage` when initializing Ghost Mode.
+- **Issue**: `TheBuilder` ignored the `accessToken` prop passed from parent (`WorldEnginePageV2`) and tried to access `getAuth().currentUser` directly (which is null in Ghost Mode).
+- **Fix**: Updated `TheBuilder.tsx` to fallback to `accessToken` prop if Firebase Auth user is missing.
+
+### B. Configuration & State
+- **Issue**: `Nexus` scan was blocked because `ProjectConfigContext` provided an empty `folderId` and `fileTree` in Ghost Mode, triggering a prerequisite check failure.
+- **Fix**: Updated `ProjectConfigContext.tsx` to provide a mock `folderId` ("mock-project-id") and a mock `fileTree` structure.
+
+### C. Runtime Crashes
+- **Issue**: `TheBuilder` crashed immediately upon rendering messages due to a breaking change in `react-markdown` (v9+) regarding the `className` prop.
+- **Fix**: Refactored `TheBuilder.tsx` to apply classes to a wrapper `div` instead of the `ReactMarkdown` component.
+
+## 3. Verified Workflows (Automated Tests)
+
+### ✅ The Builder Flow
+1.  **Trigger**: Successfully opened via Command Bar ("Generate a ghost structure").
+2.  **Streaming**: Successfully parsed NDJSON mock stream.
+3.  **Rendering**: Ghost Graph successfully rendered nodes (`Cipher`, `The Void`) and edges.
+4.  **Interaction**: Validated drag-and-drop physics (no "Zero Kelvin" freeze observed with 2 nodes).
+5.  **Materialization**: Successfully triggered `crystallizeGraph` mock.
+
+### ✅ Nexus Tribunal Flow
+1.  **Scan**: Successfully triggered `Nexus Scan` (bypassing prerequisites).
+2.  **Analysis**: Successfully parsed mock `analyzeNexusFile` response.
+3.  **UI**: Verified Tribunal Modal opens and displays candidates ("Cipher", "Old King").
+4.  **Conflicts**: Confirmed "CONFLICT" and "CREATE" ambiguity types are processed.
+
+## 4. Observations & Recommendations
+- **Sentinel Integrity**: The app attempts to call `checkSentinelIntegrity` on startup. In Ghost Mode, this fails (CORS/Network error) but is handled gracefully (Sentinel status goes red/offline, but app remains usable).
+- **Test Fragility**: The "Flow" test's assertion for specific text visibility (e.g., "MERGE") is sensitive to UI state (default selection). The underlying logic is sound.
+- **Accessibility**: While `ArsenalDock` buttons have `aria-label`, some interactions rely on visual cues. The test had to use robust locators.
+
+## 5. Conclusion
+The Ghost Mode environment is now stable and functional for development/testing of World Engine features. Critical blockers preventing the usage of Nexus and Builder in this mode have been resolved.
