@@ -386,6 +386,37 @@ export const scanProjectFiles = async (
     // 🟢 NEW: INTERNAL CONSOLIDATION (Fix for duplicates)
     allCandidates = consolidateIntraScanCandidates(allCandidates);
 
+    // 🟢 HARDENING PROTOCOL: SAFETY FILTER (Blocklist)
+    const BLOCKLIST_TERMS = [
+        'tag', 'tier', 'subtype', 'faction', 'group', 'unknown', 'object', 'location',
+        'character', 'undefined', 'null', 'nombre', 'name', 'titulo', 'title',
+        'descripcion', 'description', 'rol', 'role', 'clase', 'class'
+    ];
+
+    allCandidates = allCandidates.filter(c => {
+        const lowerName = c.name.toLowerCase().trim();
+
+        // 1. Generic Term Check
+        if (BLOCKLIST_TERMS.includes(lowerName)) {
+            console.warn(`[NexusScanner] Blocked generic term: '${c.name}'`);
+            return false;
+        }
+
+        // 2. File Extension Check
+        if (lowerName.endsWith('.md') || lowerName.endsWith('.txt') || lowerName.endsWith('.json')) {
+            console.warn(`[NexusScanner] Blocked file artifact: '${c.name}'`);
+            return false;
+        }
+
+        // 3. Length Check
+        if (lowerName.length < 2) {
+            console.warn(`[NexusScanner] Blocked too short: '${c.name}'`);
+            return false;
+        }
+
+        return true;
+    });
+
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
     onProgress("Integrando conocimientos...", batchKeys.length, batchKeys.length);
 
