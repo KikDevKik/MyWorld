@@ -29,6 +29,7 @@ interface ChatPanelProps {
   activeFileContent?: string;
   activeFileName?: string;
   isFallbackContext?: boolean;
+  emptyStateComponent?: React.ReactNode;
 }
 
 interface Source {
@@ -116,7 +117,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
   accessToken,
   activeFileContent,
   activeFileName,
-  isFallbackContext
+  isFallbackContext,
+  emptyStateComponent
 }) => {
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -369,15 +371,23 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* CHAT AREA */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-titanium-700 scrollbar-track-transparent">
-        {messages.map((msg, idx) => (
-          <ChatMessageItem key={idx} msg={msg} onCrystallize={handleCrystallize} />
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-titanium-900 rounded-2xl px-4 py-3 border border-titanium-800">
-                <Loader2 size={16} className="animate-spin text-titanium-500" />
+        {messages.length === 0 && !isLoading && emptyStateComponent ? (
+            <div className="h-full flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+                {emptyStateComponent}
             </div>
-          </div>
+        ) : (
+            <>
+                {messages.map((msg, idx) => (
+                  <ChatMessageItem key={idx} msg={msg} onCrystallize={handleCrystallize} />
+                ))}
+                {isLoading && (
+                  <div className="flex justify-start">
+                    <div className="bg-titanium-900 rounded-2xl px-4 py-3 border border-titanium-800">
+                        <Loader2 size={16} className="animate-spin text-titanium-500" />
+                    </div>
+                  </div>
+                )}
+            </>
         )}
         <div ref={messagesEndRef} />
       </div>
