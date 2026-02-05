@@ -417,6 +417,46 @@ export const scanProjectFiles = async (
         return true;
     });
 
+    // 🟢 RESOLUTION & SANITATION PROTOCOL: Fix Edges
+    // Map valid candidate names to IDs for internal linking
+    const candidateIdMap = new Map<string, string>();
+    allCandidates.forEach(c => {
+        candidateIdMap.set(normalizeName(c.name), c.id);
+    });
+
+    // Map existing nodes for linking
+    existingNodes.forEach(n => {
+        candidateIdMap.set(normalizeName(n.name), n.id);
+    });
+
+    allCandidates = allCandidates.map(c => {
+        if (!c.relations) return c;
+
+        const validRelations = c.relations.map(rel => {
+            // 1. Try to resolve Target ID if missing
+            if (!rel.targetId && rel.target) {
+                const targetId = candidateIdMap.get(normalizeName(rel.target));
+                if (targetId) {
+                    return { ...rel, targetId };
+                }
+            }
+            // 2. Keep if it has a valid targetId (pre-existing or resolved)
+            if (rel.targetId && candidateIdMap.values()) {
+                 // Optimization: We could check if ID exists, but map values iteration is slow.
+                 // Trusting resolution above.
+                 return rel;
+            }
+            return rel; // Keep original for now, filter below
+        }).filter(rel => {
+            // 3. SANITATION: Only keep relations where we confirmed a Target ID
+            // or if it looks like a valid external reference (optional, but for Graph it needs ID)
+            // Strict Mode: Require targetId for visualization
+            return !!rel.targetId;
+        });
+
+        return { ...c, relations: validRelations };
+    });
+
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
     onProgress("Integrando conocimientos...", batchKeys.length, batchKeys.length);
 
