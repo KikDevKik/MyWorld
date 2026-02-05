@@ -144,6 +144,20 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         if (import.meta.env.VITE_JULES_MODE === 'true') {
             setState('KANBAN');
             setIsLoading(false);
+            setCharacters([
+                {
+                    id: 'mock-anchor-1',
+                    name: 'Mock Anchor Verify',
+                    tier: 'MAIN',
+                    category: 'PERSON',
+                    sourceType: 'MASTER',
+                    sourceContext: 'GLOBAL',
+                    masterFileId: 'mock_file_verify',
+                    role: 'Protagonista de Prueba',
+                    appearances: [],
+                    snippets: []
+                }
+            ]);
             setDetectedEntities([
                 { id: 'g1', name: 'Sombra del Pasillo', tier: 'GHOST', category: 'PERSON', sourceSnippet: '...una figura alta se desvaneció...', occurrences: 3 },
                 { id: 'l1', name: 'Borrador Capitán', tier: 'LIMBO', category: 'PERSON', sourceSnippet: 'Idea: Capitán retirado, cinico.', occurrences: 1, tags: ['Militar', 'Cínico'] },
