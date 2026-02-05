@@ -266,7 +266,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         sourceSnippet: c.role || t.registeredCharacter,
         occurrences: 0,
         role: c.role,
-        avatar: c.avatar
+        avatar: c.avatar,
+        driveId: c.masterFileId
     })).filter(filterByMode);
 
     const registeredNames = new Set(registeredAnchors.map(a => a.name.toLowerCase().trim()));
