@@ -172,6 +172,14 @@ export const crystallizeGraph = onCall(
                     const aiRes = await model.generateContent(prompt);
                     const bodyContent = aiRes.response.text();
 
+                    // 🟢 SAFETY NET: Infer description if missing
+                    let finalDescription = node.description;
+                    if (!finalDescription || finalDescription.trim() === "") {
+                         // Extract first paragraph or summary from generated body
+                         const firstPara = bodyContent.split('\n').find(l => l.length > 50 && !l.startsWith('#')) || "Entity forged by The Builder.";
+                         finalDescription = firstPara.substring(0, 200) + (firstPara.length > 200 ? "..." : "");
+                    }
+
                     // 2. NEXUS IDENTITY
                     const cleanName = node.name.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim();
                     const fileName = `${cleanName}.md`;
@@ -229,7 +237,7 @@ export const crystallizeGraph = onCall(
                             id: node.id,
                             name: node.name,
                             type: node.type || 'concept',
-                            description: node.description || "",
+                            description: finalDescription, // 🟢 USE ENHANCED DESCRIPTION
                             isGhost: false,
                             isAnchor: true,
                             masterFileId: fileId,

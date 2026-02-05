@@ -138,7 +138,12 @@ export const builderStream = onRequest(
                        - Use an Anchor Node: { "id": "THE_ID_IN_BRACKETS", "name": "Name", "isAnchor": true, ... }
                     5. **FINAL OUTPUT (HIDDEN):**
                        - At the very end, output a JSON block wrapped in \`\`\`json\`\`\`.
-                       - Structure: { "nodes": [...], "edges": [{ "source": "id", "target": "id", "label": "RELATION" }] }
+                       - Structure: { "nodes": [{ "id": "...", "name": "...", "type": "TYPE", "description": "..." }], "edges": [{ "source": "id", "target": "id", "label": "RELATION" }] }
+
+                    **CONSTRAINT: STRICT TYPE ENFORCEMENT**
+                    - 'type' MUST be one of: [CHARACTER, LOCATION, FACTION, OBJECT, EVENT, CONCEPT].
+                    - Do NOT default to 'CONCEPT' unless it is truly abstract.
+                    - 'description' MUST be populated (2-3 sentences) for every new node. Empty descriptions are forbidden.
 
                     USER REQUEST: ${req.body.prompt || "Analyze the visual attachment."}
                 `;
