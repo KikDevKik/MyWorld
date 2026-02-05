@@ -205,6 +205,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                     return {
                                         ...n,
                                         id: id,
+                                        type: (n.type || 'concept').toLowerCase(), // 🟢 STRICT LOWERCASE
                                         isGhost: true,
                                         isAnchor: !!n.isAnchor,
                                         x: n.fx, // Use fixed pos if provided (Anchor)
