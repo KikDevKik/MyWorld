@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TransformWrapper, TransformComponent } from "react-zoom-pan-pinch";
+import { TransformWrapper, TransformComponent, ReactZoomPanPinchRef } from "react-zoom-pan-pinch";
 import {
     Plus,
     Loader2,
@@ -68,6 +68,7 @@ const WorldEnginePageV2: React.FC<{
     // REFS
     const graphRef = useRef<GraphSimulationHandle>(null);
     const linksOverlayRef = useRef<LinksOverlayHandle>(null);
+    const transformRef = useRef<ReactZoomPanPinchRef>(null); // 🟢 ZOOM REF
 
     // CONTEXT
     const { config, user, fileTree } = useProjectConfig();
@@ -89,6 +90,9 @@ const WorldEnginePageV2: React.FC<{
     const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
     const [crystallizeModal, setCrystallizeModal] = useState<{ isOpen: boolean, node: VisualNode | null }>({ isOpen: false, node: null });
     const [isCrystallizing, setIsCrystallizing] = useState(false);
+
+    // STATE: CAMERA FOCUS
+    const [lastApprovedIds, setLastApprovedIds] = useState<string[]>([]);
 
     // STATE: CONFIRMATION MODALS
     const [isClearAllOpen, setIsClearAllOpen] = useState(false);
@@ -160,6 +164,43 @@ const WorldEnginePageV2: React.FC<{
         ghostNodes.forEach(g => combined.push({ ...g }));
         return combined;
     }, [dbNodes, ghostNodes]);
+
+    // 🟢 CAMERA FOCUS EFFECT
+    useEffect(() => {
+        if (lastApprovedIds.length > 0 && unifiedNodes.length > 0 && transformRef.current) {
+            // Find the nodes
+            const targets = unifiedNodes.filter(n => lastApprovedIds.includes(n.id) && typeof n.x === 'number' && typeof n.y === 'number');
+
+            if (targets.length > 0) {
+                // Calculate Centroid
+                const sumX = targets.reduce((acc, n) => acc + (n.x || 0), 0);
+                const sumY = targets.reduce((acc, n) => acc + (n.y || 0), 0);
+                const cx = sumX / targets.length;
+                const cy = sumY / targets.length;
+
+                // Center View (Inverse Transform)
+                // Viewport Center (Assume 1920/1080 approx or retrieve from container?)
+                // Ideally we use centerView(scale, duration) but we need to pass x,y
+                // zoomToElement is for DOM elements. setTransform is raw.
+                // We want: ViewX = ScreenW/2 - NodeX * Scale
+
+                // Let's assume viewport center is roughly window/2 or use a safe constant offset since container is 100%
+                const viewportW = window.innerWidth;
+                const viewportH = window.innerHeight;
+
+                const targetScale = 1.2; // Zoom in a bit on the new cluster
+                const tx = (viewportW / 2) - (cx * targetScale);
+                const ty = (viewportH / 2) - (cy * targetScale);
+
+                console.log(`🎥 [Camera] Focusing on ${targets.length} new nodes at (${cx.toFixed(0)}, ${cy.toFixed(0)})`);
+
+                transformRef.current.setTransform(tx, ty, targetScale, 1000, "easeOut");
+
+                // Clear trigger
+                setLastApprovedIds([]);
+            }
+        }
+    }, [lastApprovedIds, unifiedNodes]);
 
     // 🟢 PERSISTENCE LOGIC (Lifeboat & Drafts)
     useEffect(() => {
@@ -480,6 +521,8 @@ const WorldEnginePageV2: React.FC<{
             console.log(`[Tribunal] Approving Candidate: ${candidate.name} (Action: ${candidate.suggestedAction})`);
 
             try {
+                let targetId = ""; // 🟢 TRACKING TARGET ID
+
                 // CASE A: MERGE
                 if (candidate.suggestedAction === 'MERGE') {
                      if (!candidate.mergeWithId) {
@@ -511,6 +554,8 @@ const WorldEnginePageV2: React.FC<{
                              return;
                          }
                      }
+
+                     targetId = realTargetId;
 
                      // Prepare Updates (Aliases + Description if edited + Relations)
                      // 🟢 Relations Merging
@@ -589,6 +634,7 @@ const WorldEnginePageV2: React.FC<{
 
                      // Generate Deterministic ID
                      const newNodeId = generateId(projectId, candidate.name, type);
+                     targetId = newNodeId;
                      const nodeRef = doc(db, collectionPath, newNodeId);
 
                      // 🟢 MAP RELATIONS
@@ -635,6 +681,11 @@ const WorldEnginePageV2: React.FC<{
 
                 // Update UI: Remove processed candidate
                 setCandidates(prev => prev.filter(c => c.id !== candidate.id));
+
+                // 🟢 TRIGGER CAMERA FOCUS
+                if (targetId) {
+                    setLastApprovedIds(prev => [...prev, targetId]);
+                }
 
             } catch (e: any) {
                 console.error(`[Tribunal Action] Failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -761,6 +812,9 @@ const WorldEnginePageV2: React.FC<{
              // 4. Remove Original
              setCandidates(prev => prev.filter(c => c.id !== originalCandidate.id));
 
+             // 🟢 TRIGGER FOCUS
+             setLastApprovedIds(prev => [...prev, newNodeId]);
+
          } catch (e: any) {
              toast.error(`Error al editar: ${e.message}`);
          }
@@ -799,6 +853,7 @@ const WorldEnginePageV2: React.FC<{
 
              {/* CANVAS WRAPPER */}
              <TransformWrapper
+                ref={transformRef}
                 initialScale={0.4}
                 minScale={0.1}
                 maxScale={3}
