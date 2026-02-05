@@ -29,19 +29,27 @@ export const nukeProject = onCall(
         const userId = request.auth.uid;
         const db = getFirestore();
 
+        // 🟢 BACKUP: Fetch Config to find rootFolderId if missing
+        let targetFolderId = rootFolderId;
+        if (!targetFolderId) {
+             const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+             targetFolderId = configDoc.data()?.folderId;
+             if (targetFolderId) logger.info(`   🔎 Found rootFolderId in config: ${targetFolderId}`);
+        }
+
         logger.info(`☢️ [NUKE] INITIATING TOTAL DESTRUCTION FOR USER: ${userId}`);
 
         try {
             // 1. DRIVE DESTRUCTION (The Physical World)
-            if (rootFolderId && accessToken) {
+            if (targetFolderId && accessToken) {
                 try {
                     const auth = new google.auth.OAuth2();
                     auth.setCredentials({ access_token: accessToken });
                     const drive = google.drive({ version: "v3", auth });
 
-                    logger.info(`   🗑️ Trashing Drive Root: ${rootFolderId}`);
+                    logger.info(`   🗑️ Trashing Drive Root: ${targetFolderId}`);
                     await drive.files.update({
-                        fileId: rootFolderId,
+                        fileId: targetFolderId,
                         requestBody: { trashed: true }
                     });
                 } catch (driveErr: any) {
@@ -60,6 +68,7 @@ export const nukeProject = onCall(
                 db.collection("users").doc(userId).collection("characters"), // Characters
                 db.collection("users").doc(userId).collection("projects"), // Entities/Graph
                 db.collection("users").doc(userId).collection("forge_detected_entities"), // Ghosts
+                db.collection("users").doc(userId).collection("audit_cache"), // Guardian Cache
                 db.collection("TDB_Timeline").doc(userId) // Timeline
             ];
 
