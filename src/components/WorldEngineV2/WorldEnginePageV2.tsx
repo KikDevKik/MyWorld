@@ -542,12 +542,16 @@ const WorldEnginePageV2: React.FC<{
 
                      // 🟢 MERGE EVIDENCE (With Timestamps)
                      const existingEvidence = docSnap.data()?.foundInFiles || [];
-                     const newEvidence = candidate.foundInFiles?.map(f => ({
-                         fileId: f.fileId || 'nexus-scan',
-                         fileName: f.fileName,
-                         lastSeen: new Date().toISOString(),
-                         fileLastModified: f.fileLastModified
-                     })) || [];
+                     const newEvidence = candidate.foundInFiles?.map(f => {
+                         const ev: any = {
+                             fileId: f.fileId || 'nexus-scan',
+                             fileName: f.fileName,
+                             lastSeen: new Date().toISOString()
+                         };
+                         // Prevent undefined
+                         if (f.fileLastModified) ev.fileLastModified = f.fileLastModified;
+                         return ev;
+                     }) || [];
 
                      const mergedEvidence = [...existingEvidence];
                      newEvidence.forEach(ne => {
@@ -593,7 +597,7 @@ const WorldEnginePageV2: React.FC<{
                          targetName: r.target,
                          targetType: 'concept' as EntityType, // We assume concept if unknown
                          relation: r.type as any,
-                         context: r.context,
+                         context: r.context || "", // Prevent undefined
                          sourceFileId: 'nexus-scan'
                      }));
 
@@ -603,19 +607,27 @@ const WorldEnginePageV2: React.FC<{
                          type: type as EntityType,
                          projectId: projectId,
                          description: candidate.description || candidate.reasoning || "Imported via Nexus Tribunal",
-                         subtype: (candidate as any).subtype, // 🟢 Phase 2.4
                          aliases: candidate.aliases || [],
                          relations: mappedRelations, // 🟢 INJECTED
                          // Map evidence
-                         foundInFiles: candidate.foundInFiles?.map(f => ({
-                             fileId: f.fileId || 'nexus-scan',
-                             fileName: f.fileName,
-                             lastSeen: new Date().toISOString(),
-                             fileLastModified: f.fileLastModified
-                         })) || [],
+                         foundInFiles: candidate.foundInFiles?.map(f => {
+                             const ev: any = {
+                                 fileId: f.fileId || 'nexus-scan',
+                                 fileName: f.fileName,
+                                 lastSeen: new Date().toISOString()
+                             };
+                             // Prevent undefined
+                             if (f.fileLastModified) ev.fileLastModified = f.fileLastModified;
+                             return ev;
+                         }) || [],
                          meta: {},
                          // STRICT: No Coordinates (Let Physics decide)
                      };
+
+                     // 🟢 CONDITIONAL FIELDS (Prevent Undefined)
+                     if ((candidate as any).subtype) {
+                         newNode.subtype = (candidate as any).subtype;
+                     }
 
                      await setDoc(nodeRef, newNode);
                      toast.success(`Nodo Creado: ${candidate.name}`);
@@ -718,24 +730,30 @@ const WorldEnginePageV2: React.FC<{
                  type: type as EntityType,
                  projectId: projectId,
                  description: newValues.description || originalCandidate.description || originalCandidate.reasoning || "Edited & Approved via Nexus Tribunal",
-                 subtype: newValues.subtype,
                  aliases: originalCandidate.aliases || [],
                  relations: originalCandidate.relations?.map(r => ({
                      targetId: generateId(projectId, r.target, 'concept'),
                      targetName: r.target,
                             targetType: 'concept' as EntityType,
                      relation: r.type as any,
-                     context: r.context,
+                     context: r.context || "",
                      sourceFileId: 'nexus-scan'
                  })) || [],
-                 foundInFiles: originalCandidate.foundInFiles?.map(f => ({
-                     fileId: f.fileId || 'nexus-scan',
-                     fileName: f.fileName,
-                     lastSeen: new Date().toISOString(),
-                     fileLastModified: f.fileLastModified
-                 })) || [],
+                 foundInFiles: originalCandidate.foundInFiles?.map(f => {
+                     const ev: any = {
+                         fileId: f.fileId || 'nexus-scan',
+                         fileName: f.fileName,
+                         lastSeen: new Date().toISOString()
+                     };
+                     if (f.fileLastModified) ev.fileLastModified = f.fileLastModified;
+                     return ev;
+                 }) || [],
                  meta: {},
              };
+
+             if (newValues.subtype) {
+                 newNode.subtype = newValues.subtype;
+             }
 
              await setDoc(nodeRef, newNode);
              toast.success(`Nodo Corregido y Creado: ${newValues.name}`);
