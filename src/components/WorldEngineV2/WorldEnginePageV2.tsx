@@ -8,7 +8,7 @@ import {
     Eye,
     EyeOff
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove, query, where, limit } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove, query, where, limit, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
@@ -213,7 +213,7 @@ const WorldEnginePageV2: React.FC<{
                 config.folderId, // 🟢 NEW: Project Context
                 fileTree,
                 config.canonPaths,
-                dbNodes,
+                unifiedNodes, // 🟢 FIX: Check against ALL nodes (including Ghosts)
                 (status, progress, total) => {
                     // Update UI with granular progress
                     const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
@@ -266,6 +266,34 @@ const WorldEnginePageV2: React.FC<{
         } catch (e: any) {
              console.error(`[Save Node] Failed: ${e instanceof Error ? e.message : String(e)}`);
              toast.error("Error guardando cambios: " + (e instanceof Error ? e.message : String(e)));
+        }
+    };
+
+    const handleDeleteNode = async (nodeId: string) => {
+        // 1. Check if Ghost
+        const isGhost = ghostNodes.some(g => g.id === nodeId);
+        if (isGhost) {
+            setGhostNodes(prev => prev.filter(g => g.id !== nodeId));
+            setSelectedNode(null);
+            toast.success("Borrador eliminado.");
+            return;
+        }
+
+        // 2. Delete DB
+        if (!user || !config?.folderId) return;
+        const db = getFirestore();
+        const nodeRef = doc(db, `users/${user.uid}/projects/${config.folderId}/entities`, nodeId);
+
+        try {
+             // Optimistic Update
+             setDbNodes(prev => prev.filter(n => n.id !== nodeId));
+
+             await deleteDoc(nodeRef);
+             toast.success("Nodo eliminado permanentemente.");
+             setSelectedNode(null);
+        } catch (e: any) {
+             console.error(`[Delete Node] Failed: ${e instanceof Error ? e.message : String(e)}`);
+             toast.error("Error eliminando: " + (e instanceof Error ? e.message : String(e)));
         }
     };
 
@@ -873,6 +901,7 @@ const WorldEnginePageV2: React.FC<{
                 initialMode={realityMode}
                 accessToken={accessToken}
                 onRefreshTokens={onRefreshTokens}
+                existingNodes={dbNodes}
              />
 
              {/* MODAL */}
@@ -923,6 +952,7 @@ const WorldEnginePageV2: React.FC<{
                 onClose={() => setIsEditModalOpen(false)}
                 node={selectedNode}
                 onSave={handleSaveNode}
+                onDelete={handleDeleteNode}
              />
 
              {/* CONFIRMATION MODAL (NUCLEAR) */}
