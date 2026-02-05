@@ -38,7 +38,7 @@ const MODES: { id: RealityMode; label: string }[] = [
 ];
 
 const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode, accessToken, onRefreshTokens }) => {
-    const { config } = useProjectConfig();
+    const { config, refreshConfig } = useProjectConfig();
     const projectId = config?.folderId || "unknown_project";
 
     const [mode, setMode] = useState<RealityMode>(initialMode);
@@ -336,6 +336,11 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                     if (failedCount > 0) msg += `\n⚠️ ${failedCount} files failed to forge.`;
 
                     setMessages(prev => [...prev, { role: 'system', content: msg }]);
+
+                    // 🟢 FORCE FILE TREE REFRESH
+                    setTimeout(() => {
+                        refreshConfig(); // Trigger context update to fetch new files immediately
+                    }, 1500);
                 }
 
                 // SHOW FAILURES
