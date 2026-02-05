@@ -112,9 +112,17 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
             canonPaths: [{ id: "mock-canon-id", name: "Mock Canon Root" }], // 🟢 MOCK CANON PATH
             resourcePaths: [],
             activeBookContext: "",
-            folderId: "", // Empty to trigger "Connect Drive" button for testing
+            folderId: "mock-project-id", // 🟢 FIXED: Non-empty ID for Nexus Scan
             characterVaultId: "mock-vault-id", // 🟢 MOCK VAULT ID (REQUIRED FOR CONNECT LOGIC)
         });
+
+        // 🟢 MOCK FILE TREE
+        setFileTree([
+            { id: "mock-canon-id", name: "Mock Canon Root", mimeType: "application/vnd.google-apps.folder", children: [
+                 { id: "mock-file-1", name: "Mock File.md", mimeType: "text/markdown" }
+            ]}
+        ]);
+
         setLoading(false);
         setIsFileTreeLoading(false); // Also stop tree loading
         return;
