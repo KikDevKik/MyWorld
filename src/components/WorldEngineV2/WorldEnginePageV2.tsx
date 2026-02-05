@@ -558,15 +558,18 @@ const WorldEnginePageV2: React.FC<{
                      targetId = realTargetId;
 
                      // Prepare Updates (Aliases + Description if edited + Relations)
-                     // 🟢 Relations Merging
-                     const newRelations = candidate.relations?.map(r => ({
-                         targetId: generateId(projectId, r.target, 'concept'), // Predict ID
-                         targetName: r.target,
-                            targetType: 'concept' as EntityType,
-                         relation: r.type as any,
-                         context: r.context,
-                         sourceFileId: 'nexus-scan-merge'
-                     })) || [];
+                     // 🟢 Relations Merging (With Smart ID Resolution)
+                     const newRelations = await Promise.all((candidate.relations || []).map(async r => {
+                         const resolvedId = await resolveNodeId(r.target, projectId, collectionPath);
+                         return {
+                             targetId: resolvedId || generateId(projectId, r.target, 'concept'), // Fallback to prediction
+                             targetName: r.target,
+                             targetType: 'concept' as EntityType,
+                             relation: r.type as any,
+                             context: r.context,
+                             sourceFileId: 'nexus-scan-merge'
+                         };
+                     }));
 
                      // We use arrayUnion for primitives, but relations are objects.
                      // We need to fetch, merge, update.
@@ -637,14 +640,17 @@ const WorldEnginePageV2: React.FC<{
                      targetId = newNodeId;
                      const nodeRef = doc(db, collectionPath, newNodeId);
 
-                     // 🟢 MAP RELATIONS
-                     const mappedRelations = (candidate.relations || []).map(r => ({
-                         targetId: generateId(projectId, r.target, 'concept'), // Predict ID (Deterministic)
-                         targetName: r.target,
-                         targetType: 'concept' as EntityType, // We assume concept if unknown
-                         relation: r.type as any,
-                         context: r.context || "", // Prevent undefined
-                         sourceFileId: 'nexus-scan'
+                     // 🟢 MAP RELATIONS (With Smart ID Resolution)
+                     const mappedRelations = await Promise.all((candidate.relations || []).map(async r => {
+                         const resolvedId = await resolveNodeId(r.target, projectId, collectionPath);
+                         return {
+                             targetId: resolvedId || generateId(projectId, r.target, 'concept'),
+                             targetName: r.target,
+                             targetType: 'concept' as EntityType,
+                             relation: r.type as any,
+                             context: r.context || "",
+                             sourceFileId: 'nexus-scan'
+                         };
                      }));
 
                      const newNode: GraphNode = {
@@ -775,6 +781,19 @@ const WorldEnginePageV2: React.FC<{
              }
 
              // 3. Save
+             // 🟢 Relations Mapping (Smart)
+             const mappedRelations = await Promise.all((originalCandidate.relations || []).map(async r => {
+                 const resolvedId = await resolveNodeId(r.target, projectId, collectionPath);
+                 return {
+                     targetId: resolvedId || generateId(projectId, r.target, 'concept'),
+                     targetName: r.target,
+                     targetType: 'concept' as EntityType,
+                     relation: r.type as any,
+                     context: r.context || "",
+                     sourceFileId: 'nexus-scan'
+                 };
+             }));
+
              const newNode: GraphNode = {
                  id: newNodeId,
                  name: newValues.name,
@@ -782,14 +801,7 @@ const WorldEnginePageV2: React.FC<{
                  projectId: projectId,
                  description: newValues.description || originalCandidate.description || originalCandidate.reasoning || "Edited & Approved via Nexus Tribunal",
                  aliases: originalCandidate.aliases || [],
-                 relations: originalCandidate.relations?.map(r => ({
-                     targetId: generateId(projectId, r.target, 'concept'),
-                     targetName: r.target,
-                            targetType: 'concept' as EntityType,
-                     relation: r.type as any,
-                     context: r.context || "",
-                     sourceFileId: 'nexus-scan'
-                 })) || [],
+                 relations: mappedRelations,
                  foundInFiles: originalCandidate.foundInFiles?.map(f => {
                      const ev: any = {
                          fileId: f.fileId || 'nexus-scan',
