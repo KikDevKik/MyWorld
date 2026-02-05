@@ -148,7 +148,9 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 { id: 'g1', name: 'Sombra del Pasillo', tier: 'GHOST', category: 'PERSON', sourceSnippet: '...una figura alta se desvaneció...', occurrences: 3 },
                 { id: 'l1', name: 'Borrador Capitán', tier: 'LIMBO', category: 'PERSON', sourceSnippet: 'Idea: Capitán retirado, cinico.', occurrences: 1, tags: ['Militar', 'Cínico'] },
                 { id: 'g2', name: 'Lobo de Sombras', tier: 'GHOST', category: 'CREATURE', sourceSnippet: '...un aullido gutural resonó en la oscuridad...', occurrences: 2 },
-                { id: 'l2', name: 'Flor Lunar', tier: 'LIMBO', category: 'FLORA', sourceSnippet: 'Florece solo con la luna llena.', occurrences: 1, tags: ['Rara', 'Magica'] }
+                { id: 'l2', name: 'Flor Lunar', tier: 'LIMBO', category: 'FLORA', sourceSnippet: 'Florece solo con la luna llena.', occurrences: 1, tags: ['Rara', 'Magica'] },
+                { id: 'l3', name: 'Castillo de Cristal', tier: 'LIMBO', category: 'LOCATION', sourceSnippet: 'Ubicación clave para el final.', occurrences: 1, tags: ['Estructura', 'Magia'] },
+                { id: 'g3', name: 'Espada de Luz', tier: 'GHOST', category: 'OBJECT', sourceSnippet: '...brillaba con una luz cegadora...', occurrences: 1 }
             ]);
             return;
         }
