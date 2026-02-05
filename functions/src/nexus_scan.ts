@@ -240,21 +240,22 @@ export const analyzeNexusBatch = onCall(
             INPUT 2: RAW ENTITY LIST (From Harvester):
             ${JSON.stringify(rawEntities.slice(0, 500))}
 
-            === THE 8 UNBREAKABLE LAWS OF THE TRIBUNAL ===
-            SYSTEM INSTRUCTION: "Al analizar la lista bruta, aplica estrictamente las siguientes leyes. Tu objetivo es limpiar, deduplicar y conectar."
+            === THE 10 UNBREAKABLE LAWS OF THE TRIBUNAL ===
+            SYSTEM INSTRUCTION: "Al analizar la lista bruta, aplica estrictamente las siguientes leyes. Tu objetivo es limpiar, deduplicar, conectar y expandir."
 
             *** LANGUAGE MIRRORING PROTOCOL ***
             Detect the dominant language of the input. GENERATE ALL OUTPUT IN THAT LANGUAGE.
 
-            1. LEY DE MATERIALIDAD: Distingue Objetos de Lugares.
-            2. LEY DE IDENTIDAD (Alias): Si "Madre" es "Elsa", FUSIÓNALOS (MERGE).
-            3. LEY DEL ALCANCE: Ignora eventos personales menores.
-            4. LEY DE LA NATURALEZA: Habilidades son CONCEPTOS.
-            5. LEY DE NECROMANCIA: Ignora muertos irrelevantes.
-            6. LEY DEL ENJAMBRE: Ignora grupos sin nombre.
+            1. LEY DE MATERIALIDAD: Distingue Objetos de Lugares con precisión quirúrgica.
+            2. LEY DE IDENTIDAD (Alias): Si "Madre", "Mamá" y "Elsa" son la misma entidad, FUSIÓNALOS (MERGE). Busca activamente alias ocultos.
+            3. LEY DEL ALCANCE: Ignora eventos personales menores, pero captura eventos que cambian el mundo.
+            4. LEY DE LA NATURALEZA: Habilidades, Magias o Tecnologías son CONCEPTOS.
+            5. LEY DE NECROMANCIA: Ignora muertos irrelevantes, pero registra fantasmas o leyendas activas.
+            6. LEY DEL ENJAMBRE: Ignora grupos sin nombre ("soldados"), pero registra "La Guardia Real".
             7. LEY DE BIOLOGÍA: CREATURE (Animal) vs RACE (Especie) vs FACTION (Política).
             8. LEY DE DETALLE: Subtype obligatorio de 1 palabra.
-            9. LEY DE DESCRIPCIÓN: Genera SIEMPRE una 'description' rica y detallada (2-3 oraciones) separada del 'reasoning'.
+            9. LEY DE DESCRIPCIÓN: Genera SIEMPRE una 'description' rica, narrativa y detallada (3-4 oraciones) separada del 'reasoning'. No seas escueto.
+            10. LEY DE CONECTIVIDAD (CRITICAL): Si hay una interacción, hay una conexión. Busca relaciones ocultas, sutiles o implícitas. Nadie existe en el vacío.
 
             *** SOURCE PROVENANCE DIRECTIVE ***
             - When merging or identifying an entity, you MUST preserve the source filenames from the input list.
@@ -265,9 +266,10 @@ export const analyzeNexusBatch = onCall(
             - If there is ANY suspicion that a new entity matches an existing VIP entity (even with low confidence), you MUST return 'mergeWithId' (Target Name).
             - Do not hide potential matches.
 
-            === RELATIONSHIP EXTRACTION ===
-            You must extract explicit relationships between entities based on the context snippets.
-            Types: 'ENEMY', 'ALLY', 'FAMILY', 'MENTOR', 'NEUTRAL', 'OWNED_BY', 'LOCATED_IN'.
+            === RELATIONSHIP EXTRACTION (HYPER-AGGRESSIVE) ===
+            You must extract ALL relationships (explicit and implicit) between entities based on the context snippets.
+            Don't be shy. If they talk, they have a relation. If they are in the same place, they are connected.
+            Types: 'ENEMY', 'ALLY', 'FAMILY', 'MENTOR', 'NEUTRAL', 'OWNED_BY', 'LOCATED_IN', 'KNOWS', 'FEARS', 'LOVES'.
 
             OUTPUT JSON FORMAT (Array):
             [
