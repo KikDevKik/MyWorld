@@ -3,12 +3,12 @@ import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai"; // 🟢 Import LangChain
 import { TaskType } from "@google/generative-ai"; // Import TaskType enum
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, TEMP_CREATIVE, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { getAIKey } from "./utils/security";
+import { GeminiEmbedder } from "./utils/vector_utils";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -192,10 +192,10 @@ ${activeContextSection}
                      const searchQuery = (call.args as any).query;
 
                      // 1. EMBEDDING (LangChain Compatibility)
-                     // 🟢 FIX: Use 'gemini-embedding-001' via LangChain to match Ingestion Vectors.
+                     // 🟢 FIX: Use 'gemini-embedding-001' via GeminiEmbedder to match Ingestion Vectors.
                      // The Native SDK might default to v1beta/models which lacks legacy models,
                      // but LangChain wrapper handles it correctly for RAG consistency.
-                     const embeddings = new GoogleGenerativeAIEmbeddings({
+                     const embeddings = new GeminiEmbedder({
                         apiKey: finalKey,
                         model: "gemini-embedding-001",
                         taskType: TaskType.RETRIEVAL_QUERY,
