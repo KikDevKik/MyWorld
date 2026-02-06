@@ -91,21 +91,62 @@ export const builderStream = onRequest(
           return `- ${d.name} (${d.type}) [ID: ${doc.id}]`;
       }).join("\n");
 
-      // B. Canon Narrative Context (Top Priority Chunks)
-      // User requested "chunks from files with category='canon'"
-      const chunksSnapshot = await db.collectionGroup("chunks")
-          .where("userId", "==", uid)
-          .where("projectId", "==", projectId) // Strict scope
-          .where("category", "==", "canon")
-          .limit(20) // Fetch top 20 chunks (approx 10-15k chars)
-          .get();
-
-      const canonContext = chunksSnapshot.docs.map(doc => {
-          const d = doc.data();
-          return `[FILE: ${d.fileName}]: ${d.text.substring(0, 500)}...`; // Truncate per chunk to save space
-      }).join("\n\n");
-
+      // B. Canon Narrative Context (Semantic Vector Search)
+      // We use the user's prompt to find the most relevant "Canon" chunks, preventing hallucinations.
       const finalKey = getAIKey(req.body, googleApiKey.value());
+      const userPrompt = req.body.prompt || "General analysis";
+      let canonContext = "";
+
+      try {
+          // 1. Generate Query Vector
+          const embeddings = new GoogleGenerativeAIEmbeddings({
+             apiKey: finalKey,
+             model: "text-embedding-004",
+             taskType: TaskType.RETRIEVAL_QUERY,
+          });
+
+          const queryVector = await embeddings.embedQuery(userPrompt);
+
+          // 2. Perform Vector Search on 'canon' chunks
+          const vectorQuery = db.collectionGroup("chunks")
+              .where("userId", "==", uid)
+              .where("projectId", "==", projectId)
+              .where("category", "==", "canon")
+              .findNearest({
+                  queryVector: queryVector,
+                  limit: 15, // Optimize context window with 15 highly relevant chunks
+                  distanceMeasure: 'COSINE',
+                  vectorField: 'embedding'
+              });
+
+          const vectorSnap = await vectorQuery.get();
+
+          canonContext = vectorSnap.docs.map(doc => {
+              const d = doc.data();
+              return `[FILE: ${d.fileName}]: ${d.text.substring(0, 500)}...`;
+          }).join("\n\n");
+
+          if (!canonContext) {
+             logger.info("Builder: No relevant canon vectors found.");
+          }
+
+      } catch (vecError) {
+          logger.warn("Builder: Vector Search failed (likely missing index). Falling back to random.", vecError);
+
+          // Fallback: Fetch random recent canon chunks if vector search fails
+          const fallbackSnapshot = await db.collectionGroup("chunks")
+              .where("userId", "==", uid)
+              .where("projectId", "==", projectId)
+              .where("category", "==", "canon")
+              .limit(10)
+              .get();
+
+          canonContext = fallbackSnapshot.docs.map(doc => {
+              const d = doc.data();
+              return `[FILE: ${d.fileName}]: ${d.text.substring(0, 500)}...`;
+          }).join("\n\n");
+      }
+
       const genAI = new GoogleGenerativeAI(finalKey);
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
