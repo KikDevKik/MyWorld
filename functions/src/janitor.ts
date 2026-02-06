@@ -439,10 +439,10 @@ export const relinkAnchor = onCall(
             logger.info(`   ✅ Archivo encontrado: ${bestMatch.name} (${bestMatch.id})`);
 
             // 3. UPDATE FIRESTORE
-            await db.collection("users").doc(userId).collection("characters").doc(characterId).update({
+            await db.collection("users").doc(userId).collection("characters").doc(characterId).set({
                 masterFileId: bestMatch.id,
                 lastRelinked: new Date().toISOString()
-            });
+            }, { merge: true });
 
             return {
                 success: true,
