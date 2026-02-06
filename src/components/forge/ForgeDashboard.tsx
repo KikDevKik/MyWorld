@@ -127,7 +127,29 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             const chars: Character[] = [];
             snapshot.forEach(doc => {
                 const d = doc.data();
-                chars.push({ id: doc.id, ...d, status: 'EXISTING' } as Character);
+
+                // 🟢 ROBUST MAPPING: Infer category from legacy fields if missing
+                let derivedCategory = d.category;
+                if (!derivedCategory) {
+                    const rawType = (d.type || d.subtype || '').toLowerCase();
+                    if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna')) derivedCategory = 'CREATURE';
+                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
+                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
+                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
+                    else derivedCategory = 'PERSON';
+                }
+
+                // 🟢 DEBUG: Log if masterFileId is missing for an Anchor
+                if (!d.masterFileId) {
+                    console.warn(`[ANCHOR_DEBUG] Character ${d.name} (${doc.id}) missing masterFileId.`);
+                }
+
+                chars.push({
+                    id: doc.id,
+                    ...d,
+                    category: derivedCategory,
+                    status: 'EXISTING'
+                } as Character);
             });
             setCharacters(chars);
         }, (error) => {

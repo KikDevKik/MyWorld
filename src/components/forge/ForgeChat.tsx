@@ -368,7 +368,10 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                          });
                          setPreviewContent(data.content);
                     } else {
-                        setPreviewContent("⚠️ No se pudo cargar la vista previa (Falta ID o Acceso).");
+                        let errorMsg = "⚠️ No se pudo cargar la vista previa.";
+                        if (!activeEntity.driveId) errorMsg += " (Expediente no vinculado: ID nulo)";
+                        else if (!accessToken) errorMsg += " (Sin Acceso a Drive: Token nulo)";
+                        setPreviewContent(errorMsg);
                     }
                 } catch (error) {
                     console.error("Preview fetch failed:", error);
