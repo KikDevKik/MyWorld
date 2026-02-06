@@ -3194,6 +3194,7 @@ export const addForgeMessage = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "2GiB",
   },
   async (request) => {
     const db = getFirestore();
