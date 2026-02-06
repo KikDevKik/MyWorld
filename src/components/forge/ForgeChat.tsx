@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getAuth } from 'firebase/auth';
 import { getApp } from 'firebase/app';
-import { Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield, Sparkles, FileText, ArrowRight } from 'lucide-react';
+import { Send, Loader2, Bot, User, Hammer, RefreshCcw, Shield, Sparkles, FileText, ArrowRight, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 import MarkdownRenderer from '../ui/MarkdownRenderer';
@@ -111,7 +111,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     }, [sessionId]);
 
     // --- 2. CORE SEND LOGIC ---
-    const executeStreamConnection = async (text: string, options: { hidden: boolean, attachment?: File | null }) => {
+    const executeStreamConnection = async (text: string, options: { hidden: boolean, attachment?: File | null, activeContent?: string | null }) => {
         if (isSending) return;
 
         // 🟢 PREPARE ATTACHMENT
@@ -204,6 +204,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
                     folderId: folderId,
                     filterScopePath: selectedScope.path,
                     activeFileName: activeContextFile?.name,
+                    activeFileContent: options.activeContent, // 🟢 INJECT CONTENT
                     mediaAttachment: mediaAttachment
                 })
             });
@@ -281,7 +282,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
         }
     };
 
-    const triggerAnalysis = (entity: SoulEntity) => {
+    const triggerAnalysis = (entity: SoulEntity, contentOverride?: string | null) => {
         // B. CONSTRUCT PROMPT (THE BRAIN)
         const commonFooter = `
 IMPORTANT: You are acting as an expert narrative analyst.
@@ -337,7 +338,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
         }
 
         // C. INJECT
-        executeStreamConnection(`${systemPrompt}\n${commonFooter}`, { hidden: true });
+        executeStreamConnection(`${systemPrompt}\n${commonFooter}`, { hidden: true, activeContent: contentOverride });
     };
 
     // --- 3. HOT-SWAPPING LOGIC (The "Vitamin") ---
@@ -391,7 +392,37 @@ Hazme una pregunta provocadora sobre su motivación oculta.
     const handleStartAnchorAnalysis = () => {
         setIsPreviewMode(false);
         if (activeEntity) {
-            triggerAnalysis(activeEntity);
+            // 🟢 PASS PREVIEW CONTENT AS CONTEXT
+            triggerAnalysis(activeEntity, previewContent);
+        }
+    };
+
+    // 🟢 AUTO-HEALING HANDLER
+    const handleRelink = async () => {
+        if (!activeEntity) return;
+        const toastId = toast.loading(`Buscando archivo '${activeEntity.name}.md'...`);
+
+        try {
+            const result = await callFunction<any>('relinkAnchor', {
+                characterId: activeEntity.id,
+                characterName: activeEntity.name,
+                folderId: folderId // Optional scope
+            });
+
+            if (result.success) {
+                toast.success(`¡Encontrado! Vinculado a: ${result.fileName}`, { id: toastId });
+                // Force reload of preview (simple way: toggle entity ref to trigger effect, but unsafe)
+                // Better: Just update local previewContent to "Reloading..." and call fetchPreview logic again?
+                // Actually, the easiest is to update activeEntity state in parent, but that's hard.
+                // We can manually trigger the fetch again.
+                // Let's just update the previewContent message for now.
+                setPreviewContent("✅ Vínculo reparado. Por favor, cierra y abre esta ficha para ver el contenido.");
+            } else {
+                toast.error(result.message || "No se encontró el archivo.", { id: toastId });
+            }
+        } catch (error: any) {
+            console.error("Relink failed:", error);
+            toast.error(`Error: ${error.message}`, { id: toastId });
         }
     };
 
@@ -509,6 +540,25 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                             <div className="flex-1 bg-titanium-900/50 rounded-2xl border border-titanium-800 p-6 md:p-8 overflow-y-auto shadow-inner relative">
                                 <div className="prose prose-invert prose-emerald max-w-none">
                                     <MarkdownRenderer content={previewContent || "_Documento vacío_"} mode="full" />
+
+                                    {/* 🟢 RELINK BUTTON (AUTO-HEALING) */}
+                                    {activeEntity && !activeEntity.driveId && activeEntity.tier === 'ANCHOR' && (
+                                        <div className="mt-8 p-6 bg-red-950/30 border border-red-900/50 rounded-xl flex flex-col items-center text-center gap-3 animate-in slide-in-from-bottom-2">
+                                            <div className="p-3 rounded-full bg-red-900/20 text-red-400">
+                                                <AlertTriangle size={24} />
+                                            </div>
+                                            <h4 className="text-red-400 font-bold">Vínculo Roto detectado</h4>
+                                            <p className="text-red-300/70 text-sm max-w-md">
+                                                Este expediente existe en la base de datos pero ha perdido su conexión con el archivo físico en Google Drive.
+                                            </p>
+                                            <button
+                                                onClick={handleRelink}
+                                                className="px-6 py-2 bg-red-900/50 hover:bg-red-800 text-white rounded-lg font-bold text-sm transition-all border border-red-700 hover:border-red-500 shadow-lg shadow-red-900/20"
+                                            >
+                                                Intentar Reparación Automática
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                                 {/* 🟢 FLOATING ACTION BUTTON */}
                                 <div className="sticky bottom-0 flex justify-center pt-8 pb-2 bg-gradient-to-t from-titanium-900/90 via-titanium-900/80 to-transparent">

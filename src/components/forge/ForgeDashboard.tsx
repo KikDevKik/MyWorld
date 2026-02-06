@@ -204,11 +204,23 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             const entities: SoulEntity[] = [];
             snapshot.forEach(doc => {
                 const d = doc.data();
+
+                // 🟢 ROBUST MAPPING: Infer category for Ghosts/Limbos too
+                let derivedCategory = d.category;
+                if (!derivedCategory) {
+                    const rawType = (d.type || d.tier || d.reasoning || '').toLowerCase();
+                    if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna')) derivedCategory = 'CREATURE';
+                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
+                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
+                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
+                    else derivedCategory = 'PERSON';
+                }
+
                 entities.push({
                     id: doc.id,
                     name: d.name,
                     tier: d.tier as 'GHOST' | 'LIMBO' | 'ANCHOR',
-                    category: d.category || 'PERSON', // Default to Person if missing
+                    category: derivedCategory || 'PERSON',
                     sourceSnippet: d.sourceSnippet || (d.foundIn || []).join('\n'),
                     occurrences: d.occurrences || d.confidence || 0,
                     tags: d.tags,
