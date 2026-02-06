@@ -1,4 +1,4 @@
-import React, { forwardRef, useImperativeHandle } from 'react';
+import React, { forwardRef, useImperativeHandle, useMemo } from 'react';
 import Xarrow, { Xwrapper, useXarrow } from 'react-xarrows';
 import { VisualNode } from './types';
 
@@ -45,6 +45,17 @@ const LinksOverlayV2 = forwardRef<LinksOverlayHandle, {
         forceUpdate: () => updateXarrow()
     }));
 
+    // ⚡ Bolt Optimization: Pre-compute lookups to avoid O(N^2) in render loop
+    const { nodeMap, nameMap } = useMemo(() => {
+        const nMap = new Map<string, VisualNode>();
+        const nmMap = new Map<string, VisualNode>();
+        nodes.forEach(n => {
+            nMap.set(n.id, n);
+            if (n.name) nmMap.set(n.name.toLowerCase().trim(), n);
+        });
+        return { nodeMap: nMap, nameMap: nmMap };
+    }, [nodes]);
+
     if (lodTier === 'MACRO') return null;
 
     return (
@@ -54,9 +65,9 @@ const LinksOverlayV2 = forwardRef<LinksOverlayHandle, {
                     if (!node.relations) return null;
                     return node.relations.map((rel, idx) => {
                         // Check validity with Fallback (Healing Protocol)
-                        let targetNode = nodes.find(n => n.id === rel.targetId);
+                        let targetNode = nodeMap.get(rel.targetId);
                         if (!targetNode && rel.targetName) {
-                             targetNode = nodes.find(n => n.name.toLowerCase().trim() === rel.targetName.toLowerCase().trim());
+                             targetNode = nameMap.get(rel.targetName.toLowerCase().trim());
                         }
 
                         if (!targetNode) return null;
