@@ -136,7 +136,7 @@ export const genesisManifest = onCall(
         // 🟢 INITIALIZE EMBEDDINGS MODEL
         const embeddingsModel = new GoogleGenerativeAIEmbeddings({
             apiKey: finalApiKey,
-            model: "text-embedding-004",
+            model: "gemini-embedding-001",
             taskType: TaskType.RETRIEVAL_DOCUMENT,
         });
 

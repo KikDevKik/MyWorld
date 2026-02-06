@@ -101,7 +101,7 @@ export const builderStream = onRequest(
           // 1. Generate Query Vector
           const embeddings = new GoogleGenerativeAIEmbeddings({
              apiKey: finalKey,
-             model: "text-embedding-004",
+             model: "gemini-embedding-001",
              taskType: TaskType.RETRIEVAL_QUERY,
           });
 
@@ -343,7 +343,7 @@ export const builderStream = onRequest(
                          try {
                              const embeddings = new GoogleGenerativeAIEmbeddings({
                                 apiKey: finalKey,
-                                model: "text-embedding-004",
+                                model: "gemini-embedding-001",
                                 taskType: TaskType.RETRIEVAL_QUERY,
                              });
 

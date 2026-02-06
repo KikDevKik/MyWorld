@@ -192,12 +192,12 @@ ${activeContextSection}
                      const searchQuery = (call.args as any).query;
 
                      // 1. EMBEDDING (LangChain Compatibility)
-                     // 🟢 FIX: Use 'text-embedding-004' via LangChain to match Ingestion Vectors.
+                     // 🟢 FIX: Use 'gemini-embedding-001' via LangChain to match Ingestion Vectors.
                      // The Native SDK might default to v1beta/models which lacks legacy models,
                      // but LangChain wrapper handles it correctly for RAG consistency.
                      const embeddings = new GoogleGenerativeAIEmbeddings({
                         apiKey: finalKey,
-                        model: "text-embedding-004",
+                        model: "gemini-embedding-001",
                         taskType: TaskType.RETRIEVAL_QUERY,
                      });
                      const queryVector = await embeddings.embedQuery(searchQuery);
