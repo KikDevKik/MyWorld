@@ -1421,6 +1421,7 @@ export const getProjectConfig = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "4GiB",
   },
   async (request) => {
     const db = getFirestore();
