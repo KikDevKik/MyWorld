@@ -364,18 +364,26 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 subfolderName = "Inbox";
 
                 // 🟢 SMART SORT PROTOCOL
-                if (ghostNodes.length > 0 && fileTree) {
-                    // Determine Dominant Type (Voting)
+                if (ghostNodes.length > 0) {
+                    // Determine Dominant Type (Voting) - Prioritize Anchors
                     const typeCounts: Record<string, number> = {};
                     ghostNodes.forEach(n => {
-                        const t = n.type || 'unknown';
-                        typeCounts[t] = (typeCounts[t] || 0) + 1;
+                        let t = (n.type || 'unknown').toLowerCase();
+                        // Normalization
+                        if (t === 'person') t = 'character';
+                        if (t === 'group') t = 'faction';
+
+                        // Weight Anchors higher
+                        const weight = n.isAnchor ? 5 : 1;
+                        typeCounts[t] = (typeCounts[t] || 0) + weight;
                     });
 
                     const bestType = Object.keys(typeCounts).reduce((a, b) => typeCounts[a] > typeCounts[b] ? a : b);
-                    console.log(`[TheBuilder] Smart Sort analyzing for type: ${bestType}`);
+                    console.log(`[TheBuilder] Smart Sort analyzing for type: ${bestType} (Candidates: ${Object.keys(typeCounts).length})`);
 
-                    const smartFolder = findBestFolderForType(bestType, fileTree);
+                    // Try to find folder in existing tree
+                    const smartFolder = fileTree ? findBestFolderForType(bestType, fileTree) : null;
+
                     if (smartFolder) {
                         targetFolderId = smartFolder.id;
                         subfolderName = undefined; // 🟢 FIX: Use existing folder directly, do NOT make subfolder
@@ -406,7 +414,8 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                         if (TYPE_TO_ROLE[bestType]) {
                             autoMapRole = TYPE_TO_ROLE[bestType];
                             subfolderName = TYPE_TO_NAME[bestType] || "Nuevos Archivos";
-                            // targetFolderId remains Root
+                            // targetFolderId remains Root (or config.folderId)
+                            toast.info(`📂 Auto-Wiring: Creating '${subfolderName}' for ${bestType}s.`);
                             console.log(`[TheBuilder] Auto-Provisioning Folder: ${subfolderName} for role ${autoMapRole}`);
                         } else {
                             console.log("[TheBuilder] No smart folder match found, defaulting to Inbox.");
