@@ -1,5 +1,6 @@
 import { JSDOM } from "jsdom";
 import * as logger from "firebase-functions/logger";
+import { isSafeUrl } from "./security";
 
 /**
  * Extracts all URLs from a given text string.
@@ -67,16 +68,51 @@ export async function fetchWebPageContent(url: string): Promise<{ url: string, t
     try {
         logger.info(`🌐 Scraping URL: ${url}`);
 
-        // 1. Fetch with Timeout (8s)
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; MyWorldBot/1.0; +http://www.google.com/bot.html)'
-            },
-            signal: AbortSignal.timeout(8000)
-        });
+        let currentUrl = url;
+        let response: Response | null = null;
+        let redirectCount = 0;
+        const MAX_REDIRECTS = 5;
 
-        if (!response.ok) {
-            logger.warn(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+        while (redirectCount <= MAX_REDIRECTS) {
+            // 🛡️ SECURITY: SSRF PREVENTION (Check every hop)
+            if (!isSafeUrl(currentUrl)) {
+                logger.warn(`🛡️ [SENTINEL] Blocked unsafe URL: ${currentUrl}`);
+                return null;
+            }
+
+            // 1. Fetch with Manual Redirect handling
+            response = await fetch(currentUrl, {
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (compatible; MyWorldBot/1.0; +http://www.google.com/bot.html)'
+                },
+                signal: AbortSignal.timeout(8000),
+                redirect: 'manual'
+            });
+
+            if (response.status >= 300 && response.status < 400) {
+                const location = response.headers.get('location');
+                if (!location) {
+                    return null;
+                }
+
+                try {
+                    // Resolve relative URLs
+                    currentUrl = new URL(location, currentUrl).toString();
+                } catch (e) {
+                    logger.warn(`Invalid redirect location: ${location}`);
+                    return null;
+                }
+
+                redirectCount++;
+                logger.info(`   -> Redirecting to: ${currentUrl}`);
+                continue;
+            }
+
+            break; // Not a redirect, break loop
+        }
+
+        if (!response || !response.ok) {
+            logger.warn(`Failed to fetch ${currentUrl}: ${response?.status} ${response?.statusText}`);
             return null;
         }
 

@@ -113,3 +113,8 @@
 1. Do not assume client-provided IDs are safe or authorized just because the user is authenticated.
 2. When using privileged credentials (like Service Accounts), explicitly validate that the requested resource belongs to the authenticated user (e.g., by checking against the User Profile in Firestore).
 3. Fail closed if ownership cannot be verified.
+
+## 2025-06-03 - [SSRF Prevention: URL Validation]
+**Vulnerability:** Unrestricted URL fetching allowing access to internal metadata/services.
+**Learning:** `fetchWebPageContent` accepted any URL matching `https?://`, exposing the server to SSRF attacks targeting the cloud metadata service (`169.254.169.254`).
+**Prevention:** Implemented `isSafeUrl` validator to block private IPs, localhost, and metadata hostnames.
