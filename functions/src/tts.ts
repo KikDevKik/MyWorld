@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
-const TTS_MODEL = 'gemini-2.5-flash-preview-tts';
+const TTS_MODEL = 'gemini-2.5-pro-preview-tts';
 
 // Local Interface Definitions
 interface VoiceProfile {

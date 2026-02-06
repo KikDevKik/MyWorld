@@ -6,7 +6,7 @@ export const GEMS: Record<GemId, Gem> = {
     id: 'director',
     name: 'Director de Escena',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuCef-sQAH-wakIJNlFn6pi3xPpbWga4FwgP34-6i9U9L4JogpIE3bdTgqPStiIUX5yI-rzF143jTxfbjB6dms59hP4PHpsK0CxKTW6zQO4XyKIQ2oLtPGEJobJq4l_9m2PkA4SRYv75dagBNJvpa_qG9a2b-Lo9VCjaOlCGhvn2oQGgFG5CTuQOsMej9QyFR4LXi0p39cJdeLPwoPhGxAJebDjNzrRZQI7-zyHLF8CI4YuMCe2pVvT6vhErqM4DEIkwunhyeXp_c9Y')",
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     color: 'blue',
     systemInstruction: `## ROL Y OBJETIVO
 Actúas como un Co-Escritor creativo y un "Director de Escena" para el autor. Tu objetivo principal NO es editar o corregir; tu objetivo es GENERAR y DESARROLLAR borradores de escenas desde cero, basándote en los prompts del autor.
@@ -28,7 +28,7 @@ Cuando el autor pida desarrollar una escena:
     id: 'perforador',
     name: 'Perforador de Mundos',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuByzk3-MGvCOUEkY6aAXMiujTDAT_MF9C6OK4ujze5KsL1iIijhHXPdWX0O9Lwko53OZgKzfyCgUP6SED4yd3ywPJy3PI56Z1X_jmcgm4lD3CPzR5Ax8bzJZM1QvsrlReLLCuuWViHzlNJtTUawBstVBN0bLPGhgv9v2l4WosaIM6gP6zUZDein9Gj7chn0t6WGORJGVI79FjyVI1hYjCOpPWHnGNa_nQicZdgCXhodKbQE7P_8t8-WjMTeZtHinHHmbq8xD41IyDE')",
-    model: 'gemini-2.5-pro',
+    model: 'gemini-3-pro-preview',
     thinkingBudget: 32768,
     color: 'purple',
     systemInstruction: `Eres un especialista en Arqueología y Arquitectura Narrativa.
@@ -45,7 +45,7 @@ Tono: ¡Pura energía y cero miedo a destrozar y reconstruir!`
     id: 'forja',
     name: 'Forja de Almas',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuDtbNW0OvIy3tC8sZPYaZAPJvq6s-yOallI-o-D_lmjk9Pj0ICCLP2PxbHE6C0Cb79-te6T1b74NurScTEUsnp39ZkhYWaIgCtEgm5UtoXuAVO-HIAXrRDOwNOZdnSZowjzviv6bayGTmWEdlkQFAXP0ySw3B7x5SWe2EwdcB3GjrP1ud05zrH26H_2fqzdo1roupxP_FtjmNkrHrQiEvRRDgdVwu0-XTVO9Pf_05bZBwljWw99Lih6dA7cbjscau3xfMJcqzJbOmc')",
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     color: 'purple',
     systemInstruction: `Eres el "Maestro de la Forja", un asistente experto en dirección de arte, worldbuilding y prompt-engineering para IAs de imagen.
 Tu misión principal es ayudar al autor a desarrollar su proyecto.
@@ -61,7 +61,7 @@ Tus tareas clave son:
     id: 'guardian',
     name: 'Guardián del Canon',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuA2MMmNqoDLLup_x2Hi_jHktd1_0T_yVbtEMerFWsRCjnKVNcYtwJ0KasisH_8AvbkM30jInzaWcc9td6W2TKFp674gGByynz_vJMaHSxF3XnXPym1lvd6-Xit6rp4DCIcgUS77tfxEUdk61eHAag_JRjOJOrBJNLAQkUYiq-G7qnZmgIyzwaPd1rGOUGsicpGTDrHX-gIcVgfXOhhyLdIsH807Ob_a1OklnBOnz3msw6RO-RFjZhlEDzsr8GdhCjJoIsVjAlD8aXQ')",
-    model: 'gemini-2.5-pro',
+    model: 'gemini-3-pro-preview',
     color: 'green',
     systemInstruction: `Tu misión es revisar un borrador de texto proporcionado por el usuario y compararlo con un contexto canónico de su mundo de escritura. Tu única tarea es identificar y señalar cualquier contradicción, inconsistencia o "hueco de guion" entre el borrador y el canon. Sé preciso y directo. Si no encuentras inconsistencias, indícalo claramente.`
   },
@@ -69,7 +69,7 @@ Tus tareas clave son:
     id: 'tribunal',
     name: 'El Tribunal Literario',
     backgroundImage: '', // No needed as per instructions
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     color: 'red',
     systemInstruction: 'El Tribunal te juzgará.' // Minimal instruction as logic is in backend
   },
@@ -77,7 +77,7 @@ Tus tareas clave son:
     id: 'laboratorio',
     name: 'Laboratorio de Ideas',
     backgroundImage: '',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     color: 'emerald',
     systemInstruction: 'Eres el asistente del laboratorio.'
   },
@@ -85,7 +85,7 @@ Tus tareas clave son:
     id: 'cronograma',
     name: 'Línea de Tiempo',
     backgroundImage: '',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     color: 'orange',
     systemInstruction: 'Eres el cronista de la historia.'
   },
@@ -93,7 +93,7 @@ Tus tareas clave son:
     id: 'imprenta',
     name: 'La Imprenta',
     backgroundImage: '',
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     color: 'orange',
     systemInstruction: 'Eres el maestro impresor y editor de manuscritos.'
   }
