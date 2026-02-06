@@ -13,8 +13,8 @@ interface FileNode {
 
 export async function updateFirestoreTree(
     userId: string,
-    operation: 'add' | 'rename' | 'delete',
-    targetId: string, // For rename: fileId. For add: unused (or new fileId)
+    operation: 'add' | 'rename' | 'delete' | 'move',
+    targetId: string, // For rename/move/delete: fileId. For add: unused (or new fileId)
     payload: { name?: string; parentId?: string; newNode?: FileNode }
 ) {
     const db = getFirestore();
@@ -88,6 +88,57 @@ export async function updateFirestoreTree(
                     return false;
                 };
                 deleteNode(tree);
+            } else if (operation === 'move') {
+                const { parentId } = payload; // New Parent
+                if (!parentId) return;
+
+                // 1. Find and Detach
+                let movedNode: FileNode | null = null;
+
+                const detachNode = (nodes: FileNode[]): boolean => {
+                     for (let i = 0; i < nodes.length; i++) {
+                         if (nodes[i].id === targetId || nodes[i].driveId === targetId) {
+                             movedNode = nodes[i];
+                             nodes.splice(i, 1);
+                             return true;
+                         }
+                         if (nodes[i].children) {
+                             if (detachNode(nodes[i].children!)) return true;
+                         }
+                     }
+                     return false;
+                };
+
+                detachNode(tree);
+
+                if (movedNode) {
+                     // 2. Attach to New Parent
+                     const attachNode = (nodes: FileNode[]): boolean => {
+                         for (const node of nodes) {
+                             if (node.id === parentId || node.driveId === parentId) {
+                                 if (!node.children) node.children = [];
+                                 // Prevent duplicate if already exists (sanity check)
+                                 // @ts-ignore
+                                 if (!node.children.some(c => c.id === movedNode.id)) {
+                                     // @ts-ignore
+                                     node.children.push(movedNode);
+                                 }
+                                 return true;
+                             }
+                             if (node.children) {
+                                 if (attachNode(node.children)) return true;
+                             }
+                         }
+                         return false;
+                     };
+
+                     const attached = attachNode(tree);
+                     if (!attached) {
+                         logger.warn(`⚠️ updateFirestoreTree: Target parent ${parentId} not found for move.`);
+                     }
+                } else {
+                    logger.warn(`⚠️ updateFirestoreTree: Node to move ${targetId} not found.`);
+                }
             }
 
             t.set(treeRef, { tree, updatedAt: new Date().toISOString() }, { merge: true });

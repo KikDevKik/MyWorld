@@ -12,7 +12,7 @@ import { parseSecureJSON } from "./utils/json";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { updateFirestoreTree } from "./utils/tree_utils";
-import { ProjectConfig } from "./types/project";
+import { ProjectConfig, FolderRole } from "./types/project";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -33,6 +33,53 @@ async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
   }
   return { ...defaultConfig, ...doc.data() };
 }
+
+// 🟢 NEW: HELPER TO FIND IDEAL FOLDER
+const findIdealFolder = (type: string, config: ProjectConfig): string | null => {
+    const safeType = type.toLowerCase();
+
+    // 1. Role Mapping (Precision)
+    const TYPE_ROLE_MAP: Record<string, FolderRole> = {
+        'character': FolderRole.ENTITY_PEOPLE,
+        'person': FolderRole.ENTITY_PEOPLE,
+        'creature': FolderRole.ENTITY_BESTIARY,
+        'beast': FolderRole.ENTITY_BESTIARY,
+        'faction': FolderRole.ENTITY_FACTIONS,
+        'group': FolderRole.ENTITY_FACTIONS,
+        'organization': FolderRole.ENTITY_FACTIONS,
+        'object': FolderRole.ENTITY_OBJECTS,
+        'item': FolderRole.ENTITY_OBJECTS,
+        'location': FolderRole.WORLD_CORE,
+        'place': FolderRole.WORLD_CORE,
+        'lore': FolderRole.LORE_HISTORY
+    };
+
+    // Check if role is mapped in config
+    if (TYPE_ROLE_MAP[safeType] && config.folderMapping?.[TYPE_ROLE_MAP[safeType]]) {
+        return config.folderMapping[TYPE_ROLE_MAP[safeType]]!;
+    }
+
+    // 2. Name Matching (Heuristic Fallback)
+    const TERMS: Record<string, string[]> = {
+        'character': ['personajes', 'characters', 'gente', 'npcs', 'roster'],
+        'faction': ['facciones', 'factions', 'grupos', 'groups', 'organizations'],
+        'creature': ['bestiario', 'bestiary', 'criaturas', 'monstruos'],
+        'location': ['universo', 'universe', 'lugares', 'mundo', 'world', 'geography'],
+        'object': ['objetos', 'objects', 'items', 'artefactos', 'artifacts'],
+        'lore': ['manuscrito', 'manuscripts', 'lore', 'historia', 'history']
+    };
+
+    const targetTerms = TERMS[safeType] || [];
+    if (config.canonPaths && targetTerms.length > 0) {
+        const found = config.canonPaths.find(p => {
+            const lowerName = p.name.toLowerCase();
+            return targetTerms.some(t => lowerName === t || lowerName.includes(t));
+        });
+        if (found) return found.id;
+    }
+
+    return null;
+};
 
 interface CrystallizeGraphRequest {
     nodes: Array<{
@@ -74,6 +121,10 @@ export const crystallizeGraph = onCall(
         if (!accessToken) throw new HttpsError("unauthenticated", "Google Access Token is required.");
 
         const userId = request.auth.uid;
+
+        // 🟢 LOAD CONFIG (Mutable)
+        let projectConfig = await getProjectConfigLocal(userId);
+
         const genAI = new GoogleGenerativeAI(googleApiKey.value());
         const model = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
@@ -111,14 +162,13 @@ export const crystallizeGraph = onCall(
                         // 🟢 AUTO-WIRING: If requested and new folder created, update Project Config
                         if (autoMapRole) {
                             try {
-                                const config = await getProjectConfigLocal(userId);
-                                const folderMapping = config.folderMapping || {};
+                                const folderMapping = projectConfig.folderMapping || {};
 
                                 // Only update if not already mapped
                                 if (!folderMapping[autoMapRole as any]) {
                                     folderMapping[autoMapRole as any] = targetFolderId;
 
-                                    const canonPaths = config.canonPaths || [];
+                                    const canonPaths = projectConfig.canonPaths || [];
                                     if (!canonPaths.some(p => p.id === targetFolderId)) {
                                         canonPaths.push({ id: targetFolderId, name: subfolderName });
                                     }
@@ -128,6 +178,10 @@ export const crystallizeGraph = onCall(
                                         canonPaths,
                                         updatedAt: new Date().toISOString()
                                     }, { merge: true });
+
+                                    // 🟢 UPDATE LOCAL CONFIG STATE
+                                    projectConfig.folderMapping = folderMapping;
+                                    projectConfig.canonPaths = canonPaths;
 
                                     logger.info(`🔗 Auto-Wired folder ${subfolderName} to role ${autoMapRole}`);
                                 }
@@ -142,7 +196,7 @@ export const crystallizeGraph = onCall(
             }
         }
 
-        // 🟢 1. TRACE PATH ONCE (For Nexus Protocol)
+        // 🟢 1. TRACE PATH ONCE (For Nexus Protocol - Default)
         let virtualPathRoot = "";
         try {
             virtualPathRoot = await resolveVirtualPath(drive, targetFolderId);
@@ -185,6 +239,17 @@ export const crystallizeGraph = onCall(
                     // 🟢 NORMALIZE TYPE
                     const safeType = (node.type || 'concept').toLowerCase();
                     node.type = safeType;
+
+                    // 🟢 INTELLIGENT ROUTING
+                    // Determine where THIS specific node belongs.
+                    // Fallback to targetFolderId (which might be the Auto-Provisioned one)
+                    const specificFolderId = findIdealFolder(safeType, projectConfig) || targetFolderId;
+
+                    // Resolve Virtual Path for specific folder if different (Optional for pure tracing but good for DB)
+                    let specificVirtualPath = virtualPathRoot;
+                    if (specificFolderId !== targetFolderId) {
+                         try { specificVirtualPath = await resolveVirtualPath(drive, specificFolderId); } catch(e) {}
+                    }
 
                     // 1. GENERATE CONTENT (AI) WITH MODE LOGIC
                     const prompt = `
@@ -266,7 +331,7 @@ export const crystallizeGraph = onCall(
                     // 2. NEXUS IDENTITY
                     const cleanName = node.name.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim();
                     const fileName = `${cleanName}.md`;
-                    const fullVirtualPath = `${virtualPathRoot}/${fileName}`;
+                    const fullVirtualPath = `${specificVirtualPath}/${fileName}`;
                     const nexusId = isUpdate && existingData?.nexusId ? existingData.nexusId : crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
 
                     let fileId = "";
@@ -277,7 +342,7 @@ export const crystallizeGraph = onCall(
                     if (!isUpdate) {
                          try {
                             const duplicateCheck = await drive.files.list({
-                                q: `'${targetFolderId}' in parents and name = '${fileName}' and trashed = false`,
+                                q: `'${specificFolderId}' in parents and name = '${fileName}' and trashed = false`,
                                 fields: 'files(id)'
                             });
                             if (duplicateCheck.data.files && duplicateCheck.data.files.length > 0) {
@@ -293,6 +358,45 @@ export const crystallizeGraph = onCall(
                          // 🟢 UPDATE EXISTING FILE (APPEND STRATEGY)
                          // Use masterFileId if available, otherwise adoptedFileId from Drive
                          fileId = (isUpdate && existingData?.masterFileId) ? existingData.masterFileId : adoptedFileId!;
+
+                         // 🟢 MOVEMENT PROTOCOL (EVOLUTION)
+                         if (isUpdate && fileId) {
+                             try {
+                                const fileMeta = await drive.files.get({ fileId: fileId, fields: 'parents' });
+                                const currentParents = fileMeta.data.parents || [];
+
+                                // If not in the ideal folder, MOVE IT.
+                                if (!currentParents.includes(specificFolderId)) {
+                                     await drive.files.update({
+                                         fileId: fileId,
+                                         addParents: specificFolderId,
+                                         removeParents: currentParents.join(',')
+                                     });
+                                     logger.info(`🚚 EVOLUTION: Moved entity ${node.name} from ${currentParents} to ${specificFolderId}`);
+
+                                     // 🟢 SYNC TREE (Fix UI Desync)
+                                     await updateFirestoreTree(userId, 'move', fileId, {
+                                         parentId: specificFolderId
+                                     });
+                                }
+                             } catch (moveErr) {
+                                 logger.warn(`Failed to move entity ${node.name} during update`, moveErr);
+                             }
+                         }
+
+                         // 🟢 GHOST FILE RECOVERY (Fix Visibility)
+                         if (adoptedFileId && !isUpdate) {
+                             await updateFirestoreTree(userId, 'add', adoptedFileId, {
+                                parentId: specificFolderId,
+                                newNode: {
+                                    id: nexusId,
+                                    name: fileName,
+                                    mimeType: 'text/markdown',
+                                    driveId: adoptedFileId,
+                                    type: 'file'
+                                }
+                             });
+                         }
 
                          // Fetch current content
                          try {
@@ -338,7 +442,7 @@ export const crystallizeGraph = onCall(
                         const file = await drive.files.create({
                             requestBody: {
                             name: fileName,
-                            parents: [targetFolderId],
+                            parents: [specificFolderId],
                             mimeType: 'text/markdown'
                         },
                         media: {
@@ -353,7 +457,7 @@ export const crystallizeGraph = onCall(
 
                         // 🟢 UPDATE TREE INDEX (Only for new files)
                         await updateFirestoreTree(userId, 'add', fileId, {
-                            parentId: targetFolderId,
+                            parentId: specificFolderId,
                             newNode: {
                                 id: nexusId, // Use nexusId as ID in tree usually.
                                 name: fileName,
