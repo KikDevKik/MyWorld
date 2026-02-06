@@ -3,12 +3,12 @@ import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, SchemaType, TaskType } from "@google/generative-ai";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey } from "./utils/security";
+import { GeminiEmbedder } from "./utils/vector_utils";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -99,7 +99,7 @@ export const builderStream = onRequest(
 
       try {
           // 1. Generate Query Vector
-          const embeddings = new GoogleGenerativeAIEmbeddings({
+          const embeddings = new GeminiEmbedder({
              apiKey: finalKey,
              model: "gemini-embedding-001",
              taskType: TaskType.RETRIEVAL_QUERY,
@@ -341,7 +341,7 @@ export const builderStream = onRequest(
                          // 2. VECTOR SEARCH (Narrative Memory)
                          let narrativeSummary = "No narrative memory found.";
                          try {
-                             const embeddings = new GoogleGenerativeAIEmbeddings({
+                             const embeddings = new GeminiEmbedder({
                                 apiKey: finalKey,
                                 model: "gemini-embedding-001",
                                 taskType: TaskType.RETRIEVAL_QUERY,

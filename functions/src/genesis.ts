@@ -5,10 +5,10 @@ import { google } from "googleapis";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
-import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey } from "./utils/security";
+import { GeminiEmbedder } from "./utils/vector_utils";
 import { generateAnchorContent, generateDraftContent } from "./templates/forge";
 import { FolderRole, ProjectConfig } from "./types/project";
 import { updateFirestoreTree } from "./utils/tree_utils";
@@ -134,7 +134,7 @@ export const genesisManifest = onCall(
         });
 
         // 🟢 INITIALIZE EMBEDDINGS MODEL
-        const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+        const embeddingsModel = new GeminiEmbedder({
             apiKey: finalApiKey,
             model: "gemini-embedding-001",
             taskType: TaskType.RETRIEVAL_DOCUMENT,

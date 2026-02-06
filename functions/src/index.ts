@@ -7,8 +7,7 @@ import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import {
-  ChatGoogleGenerativeAI,
-  GoogleGenerativeAIEmbeddings
+  ChatGoogleGenerativeAI
 } from "@langchain/google-genai";
 import {
   TaskType,
@@ -18,6 +17,7 @@ import {
   FinishReason
 } from "@google/generative-ai";
 import { Chunk, addVectors, divideVector } from "./similarity";
+import { GeminiEmbedder } from "./utils/vector_utils";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile, deleteFileVectors } from "./ingestion";
@@ -1144,7 +1144,7 @@ export const enrichCharacterContext = onCall(
       const finalKey = getAIKey(request.data, googleApiKey.value());
 
       // 1. SETUP VECTORS
-      const embeddings = new GoogleGenerativeAIEmbeddings({
+      const embeddings = new GeminiEmbedder({
         apiKey: finalKey,
         model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_QUERY,
@@ -1655,7 +1655,7 @@ export const indexTDB = onCall(
 
     try {
       // A. Configurar Embeddings
-      const embeddings = new GoogleGenerativeAIEmbeddings({
+      const embeddings = new GeminiEmbedder({
         apiKey: getAIKey(request.data, googleApiKey.value()),
         model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
@@ -2115,7 +2115,7 @@ ${analysis}
       const finalKey = getAIKey(request.data, googleApiKey.value());
 
       // 2. Vectorizar Pregunta
-      const embeddings = new GoogleGenerativeAIEmbeddings({
+      const embeddings = new GeminiEmbedder({
         apiKey: finalKey,
         model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_QUERY,
@@ -2905,7 +2905,7 @@ export const saveDriveFile = onCall(
              const projectAnchorId = config.folderId || "unknown_project";
 
              const finalApiKey = getAIKey(request.data, googleApiKey.value());
-             const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+             const embeddingsModel = new GeminiEmbedder({
                 apiKey: finalApiKey,
                 model: "gemini-embedding-001",
                 taskType: TaskType.RETRIEVAL_DOCUMENT,
@@ -4282,7 +4282,7 @@ export const syncCharacterManifest = onCall(
     }
 
     // Initialize Embeddings for Ingestion
-    const embeddings = new GoogleGenerativeAIEmbeddings({
+    const embeddings = new GeminiEmbedder({
         apiKey: getAIKey(request.data, googleApiKey.value()),
         model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
@@ -4608,7 +4608,7 @@ export const forgeToolExecution = onCall(
           // 🟢 AUTO-INDEX (RAG)
           try {
              const finalApiKey = getAIKey(request.data, googleApiKey.value());
-             const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+             const embeddingsModel = new GeminiEmbedder({
                 apiKey: finalApiKey,
                 model: "gemini-embedding-001",
                 taskType: TaskType.RETRIEVAL_DOCUMENT,
@@ -5272,7 +5272,7 @@ export const syncSmart = onCall(
          // B. Ingest New Files
          if (toAdd.length > 0) {
              const finalApiKey = getAIKey(request.data, googleApiKey.value());
-             const embeddingsModel = new GoogleGenerativeAIEmbeddings({
+             const embeddingsModel = new GeminiEmbedder({
                 apiKey: finalApiKey,
                 model: "gemini-embedding-001",
                 taskType: TaskType.RETRIEVAL_DOCUMENT,
