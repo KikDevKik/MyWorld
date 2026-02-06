@@ -1,0 +1,64 @@
+REPORTE DE DIAGNÓSTICO: INCIDENCIAS FORJA DE ALMAS
+FECHA: 2026-02-05
+AUTOR: Jules (Agent)
+
+---
+
+1. INCIDENCIA: BESTIARIO INCOMPLETO
+-----------------------------------
+SÍNTOMA: Las entidades catalogadas como criaturas (Ghosts/Limbos) no aparecen en la vista de Bestiario.
+
+CAUSA RAÍZ IDENTIFICADA:
+En el archivo `src/components/forge/ForgeDashboard.tsx`, existen dos "listeners" (escuchas) de base de datos separados:
+A. `characters` (Anclas/Expedientes): ESTE SÍ TIENE EL PARCHE. Aplica lógica de inferencia (si category falta, mira el type).
+B. `forge_detected_entities` (Ecos/Limbos): ESTE NO TIENE EL PARCHE.
+
+Actualmente, el código para Ecos/Limbos hace esto:
+`category: d.category || 'PERSON'`
+
+Si una entidad detectada por la IA tiene `type: 'creature'` pero le falta el campo explícito `category`, el sistema la fuerza a ser 'PERSON', ocultándola del filtro de Bestiario.
+
+SOLUCIÓN REQUERIDA (Próximo Jules):
+Debes replicar la lógica de "Inferencia Robusta" que ya existe en el listener de `characters` dentro del listener de `forge_detected_entities`.
+Código a insertar:
+```typescript
+let derivedCategory = d.category;
+if (!derivedCategory) {
+    const rawType = (d.type || d.tier || '').toLowerCase(); // Note: detected entities might use 'tier' or 'type' inside 'reasoning'
+    if (rawType.includes('creature') || ...) derivedCategory = 'CREATURE';
+    else ...
+}
+```
+
+---
+
+2. INCIDENCIA: ERROR VISTA PREVIA (FALTA ID/TOKEN)
+--------------------------------------------------
+SÍNTOMA: Al editar ficha (Ancla), aparece error solicitando Token o ID.
+
+DIAGNÓSTICO:
+El error que ve el usuario ("Expediente no vinculado: ID nulo") indica que el objeto `Character` en Firestore tiene el campo `masterFileId` vacío o indefinido.
+Esto sucede cuando una ficha se crea en base de datos pero no se vinculó exitosamente con un archivo real en Google Drive, o es data legacy.
+
+La vista previa (`ForgeChat.tsx`) intenta leer `activeEntity.driveId`.
+En `ForgeDashboard.tsx`, este campo se mapea así: `driveId: c.masterFileId`.
+
+Si `masterFileId` no existe, la vista previa es imposible porque no hay archivo que leer.
+
+SOLUCIÓN REQUERIDA (Próximo Jules):
+1. No es un bug de código, es integridad de datos.
+2. Sin embargo, para mejorar la UX, si `driveId` es nulo, el botón "Mejorar o Actualizar" debería quizás:
+   a) Estar deshabilitado.
+   b) O desencadenar una "Re-vinculación" (búsqueda de archivo por nombre).
+   c) O permitir generar un archivo nuevo.
+
+INSTRUCCIÓN TÉCNICA:
+Validar si vale la pena implementar una búsqueda de "Auto-Healing": si `driveId` falta, buscar en Drive un archivo con el mismo `name` y actualizar el `masterFileId` en Firestore.
+
+---
+
+RESUMEN DE TAREAS PARA EL SIGUIENTE AGENTE:
+1. [PRIORIDAD ALTA] Aplicar parche de inferencia de categoría en `forge_detected_entities` (ForgeDashboard.tsx).
+2. [PRIORIDAD MEDIA] Investigar estrategia de "Auto-Healing" para Anclas sin `masterFileId`.
+
+FIN DEL REPORTE.
