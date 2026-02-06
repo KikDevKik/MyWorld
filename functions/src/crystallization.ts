@@ -298,7 +298,11 @@ export const crystallizeGraph = onCall(
                          finalDescription = firstPara.substring(0, 200) + (firstPara.length > 200 ? "..." : "");
                     }
 
-                    // 🟢 CHECK EXISTING ENTITY
+                    // 2. NEXUS IDENTITY & FILE NAME
+                    const cleanName = node.name.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim();
+                    const fileName = `${cleanName}.md`;
+
+                    // 🟢 CHECK EXISTING ENTITY (Firestore)
                     const entityRef = db.collection("users").doc(userId)
                         .collection("projects").doc(projectId)
                         .collection("entities").doc(node.id);
@@ -328,18 +332,37 @@ export const crystallizeGraph = onCall(
                         }
                     }
 
-                    // 2. NEXUS IDENTITY
-                    const cleanName = node.name.replace(/[^a-zA-Z0-9_\-\s]/g, '').trim();
-                    const fileName = `${cleanName}.md`;
-                    const fullVirtualPath = `${specificVirtualPath}/${fileName}`;
-                    const nexusId = isUpdate && existingData?.nexusId ? existingData.nexusId : crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
-
                     let fileId = "";
                     let adoptedFileId: string | null = null;
 
-                    // 🟢 PRE-CHECK: Duplicate File Name in Target Folder (Safety Net)
-                    // If we are NOT updating (New Entity), check if file exists in target to avoid duplicates
+                    // 🟢 GLOBAL DUPLICATE CHECK (TDB_Index)
+                    // If not found in Entities, check if the FILE exists anywhere in the project to prevent duplicates.
                     if (!isUpdate) {
+                        try {
+                            const globalQuery = await db.collection("TDB_Index").doc(userId)
+                                .collection("files")
+                                .where("name", "==", fileName)
+                                .limit(1)
+                                .get();
+
+                            if (!globalQuery.empty) {
+                                const globalData = globalQuery.docs[0].data();
+                                // Verify it's not a ghost? Or adopt ghosts too? Adopt ghosts.
+                                if (globalData.driveId) {
+                                    adoptedFileId = globalData.driveId;
+                                    logger.info(`🌍 Global Check: Found existing file for '${node.name}' at ${adoptedFileId}. Adopting.`);
+                                }
+                            }
+                        } catch (e) {
+                             logger.warn("Global TDB_Index check failed", e);
+                        }
+                    }
+
+                    const fullVirtualPath = `${specificVirtualPath}/${fileName}`;
+                    const nexusId = isUpdate && existingData?.nexusId ? existingData.nexusId : crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
+
+                    // 🟢 PRE-CHECK: Duplicate File Name in Target Folder (Safety Net - Last Resort)
+                    if (!isUpdate && !adoptedFileId) {
                          try {
                             const duplicateCheck = await drive.files.list({
                                 q: `'${specificFolderId}' in parents and name = '${fileName}' and trashed = false`,
@@ -360,7 +383,8 @@ export const crystallizeGraph = onCall(
                          fileId = (isUpdate && existingData?.masterFileId) ? existingData.masterFileId : adoptedFileId!;
 
                          // 🟢 MOVEMENT PROTOCOL (EVOLUTION)
-                         if (isUpdate && fileId) {
+                         // Run this for BOTH Updates AND Adoptions
+                         if (fileId) {
                              try {
                                 const fileMeta = await drive.files.get({ fileId: fileId, fields: 'parents' });
                                 const currentParents = fileMeta.data.parents || [];
