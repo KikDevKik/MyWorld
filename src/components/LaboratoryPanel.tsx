@@ -8,16 +8,18 @@ import { getFirestore, collection, onSnapshot, query, where } from 'firebase/fir
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
+import IdeaWizardModal from './laboratory/IdeaWizardModal';
 
 interface LaboratoryPanelProps {
     onClose: () => void;
     folderId: string;
     accessToken: string | null;
+    onRefreshTokens: () => Promise<string | null>;
 }
 
 const SMART_TAGS = ['LORE', 'CIENCIA', 'INSPIRACIÓN', 'VISUAL', 'AUDIO', 'OTROS'];
 
-const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, accessToken }) => {
+const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, accessToken, onRefreshTokens }) => {
     const { fileTree, isFileTreeLoading, user, config } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
@@ -26,6 +28,9 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
     const [activeTag, setActiveTag] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
     const [isClassifying, setIsClassifying] = useState(false);
+
+    // 🟢 IDEA WIZARD STATE
+    const [isIdeaWizardOpen, setIsIdeaWizardOpen] = useState(false);
 
     // 🟢 1. FETCH TAGS (Realtime)
     useEffect(() => {
@@ -142,28 +147,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
 
     // 🟢 HANDLE CREATE RESOURCE
     const handleCreateResource = async () => {
-        if (!config?.resourcePaths?.[0]?.id) {
-            toast.error("No se encontró la carpeta de Recursos.");
-            return;
-        }
-
-        const name = window.prompt(t.editor.enterFileName);
-        if (!name) return;
-
-        const toastId = toast.loading(t.common.creating);
-        try {
-            await callFunction('scribeCreateFile', {
-                entityId: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-                entityData: { name: name, type: 'concept', tags: ['idea'] },
-                chatContent: "",
-                folderId: config.resourcePaths[0].id,
-                accessToken: accessToken
-            });
-            toast.success(t.editor.fileCreated, { id: toastId });
-        } catch (e: any) {
-            console.error(e);
-            toast.error("Error: " + (e.message || "Desconocido"), { id: toastId });
-        }
+        setIsIdeaWizardOpen(true);
     };
 
     // 🟢 VIRTUAL GEM: THE LIBRARIAN
@@ -327,6 +311,15 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                     ) : null}
                 />
             </div>
+
+            {/* 🟢 IDEA WIZARD MODAL */}
+            <IdeaWizardModal
+                isOpen={isIdeaWizardOpen}
+                onClose={() => setIsIdeaWizardOpen(false)}
+                folderId={config?.resourcePaths?.[0]?.id || folderId} // Prefer Resources folder, fallback to root
+                accessToken={accessToken}
+                onRefreshTokens={onRefreshTokens}
+            />
         </div>
     );
 };
