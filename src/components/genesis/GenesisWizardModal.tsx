@@ -165,6 +165,12 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                     setIsReadyToMaterialize(true);
                 }
 
+                // 🟢 AUDIT: TRACK AI GENERATION
+                const projectId = config?.folderId || "genesis_session";
+                if (user && projectId) {
+                     CreativeAuditService.updateAuditStats(projectId, user.uid, 0, responseText.length);
+                }
+
                 setMessages(prev => [...prev, { role: 'model', message: responseText }]);
             }
 

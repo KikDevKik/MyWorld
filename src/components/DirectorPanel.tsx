@@ -78,7 +78,9 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
         activeFileName,
         isFallbackContext,
         driftAlerts,
-        accessToken
+        accessToken,
+        folderId,
+        userId: user?.uid
     });
 
     const messagesEndRef = useRef<HTMLDivElement>(null);

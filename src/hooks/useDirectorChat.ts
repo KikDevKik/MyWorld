@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 import { ChatMessageData } from '../components/director/chat/ChatMessage';
 import { fileToGenerativePart } from '../services/geminiService';
+import { CreativeAuditService } from '../services/CreativeAuditService';
 
 interface UseDirectorChatProps {
     activeSessionId: string | null;
@@ -12,6 +13,8 @@ interface UseDirectorChatProps {
     isFallbackContext?: boolean;
     driftAlerts?: any;
     accessToken?: string | null; // 🟢 Added accessToken
+    folderId?: string;
+    userId?: string;
 }
 
 export const useDirectorChat = ({
@@ -21,7 +24,9 @@ export const useDirectorChat = ({
     activeFileName,
     isFallbackContext,
     driftAlerts,
-    accessToken
+    accessToken,
+    folderId,
+    userId
 }: UseDirectorChatProps) => {
 
     const [messages, setMessages] = useState<ChatMessageData[]>([]);
@@ -264,6 +269,11 @@ export const useDirectorChat = ({
                 history: historyPayload, // 🟢 INJECT HISTORY
                 systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable. If you see a Drift Alert in history, address it professionally."
             });
+
+            // 🟢 AUDIT: TRACK AI GENERATION
+            if (folderId && userId) {
+                CreativeAuditService.updateAuditStats(folderId, userId, 0, data.response.length);
+            }
 
             await callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'ia', text: data.response });
 
