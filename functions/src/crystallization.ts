@@ -34,26 +34,36 @@ async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
   return { ...defaultConfig, ...doc.data() };
 }
 
+// 🟢 TYPE MAPPING CONSTANTS
+const TYPE_ROLE_MAP: Record<string, FolderRole> = {
+    'character': FolderRole.ENTITY_PEOPLE,
+    'person': FolderRole.ENTITY_PEOPLE,
+    'creature': FolderRole.ENTITY_BESTIARY,
+    'beast': FolderRole.ENTITY_BESTIARY,
+    'faction': FolderRole.ENTITY_FACTIONS,
+    'group': FolderRole.ENTITY_FACTIONS,
+    'organization': FolderRole.ENTITY_FACTIONS,
+    'object': FolderRole.ENTITY_OBJECTS,
+    'item': FolderRole.ENTITY_OBJECTS,
+    'location': FolderRole.WORLD_CORE,
+    'place': FolderRole.WORLD_CORE,
+    'lore': FolderRole.LORE_HISTORY
+};
+
+const TYPE_DEFAULT_NAMES: Record<string, string> = {
+    'character': 'Personajes',
+    'faction': 'Facciones',
+    'creature': 'Bestiario',
+    'object': 'Objetos',
+    'location': 'Universo',
+    'lore': 'Manuscrito'
+};
+
 // 🟢 NEW: HELPER TO FIND IDEAL FOLDER
 const findIdealFolder = (type: string, config: ProjectConfig): string | null => {
     const safeType = type.toLowerCase();
 
     // 1. Role Mapping (Precision)
-    const TYPE_ROLE_MAP: Record<string, FolderRole> = {
-        'character': FolderRole.ENTITY_PEOPLE,
-        'person': FolderRole.ENTITY_PEOPLE,
-        'creature': FolderRole.ENTITY_BESTIARY,
-        'beast': FolderRole.ENTITY_BESTIARY,
-        'faction': FolderRole.ENTITY_FACTIONS,
-        'group': FolderRole.ENTITY_FACTIONS,
-        'organization': FolderRole.ENTITY_FACTIONS,
-        'object': FolderRole.ENTITY_OBJECTS,
-        'item': FolderRole.ENTITY_OBJECTS,
-        'location': FolderRole.WORLD_CORE,
-        'place': FolderRole.WORLD_CORE,
-        'lore': FolderRole.LORE_HISTORY
-    };
-
     // Check if role is mapped in config
     if (TYPE_ROLE_MAP[safeType] && config.folderMapping?.[TYPE_ROLE_MAP[safeType]]) {
         return config.folderMapping[TYPE_ROLE_MAP[safeType]]!;
@@ -79,6 +89,102 @@ const findIdealFolder = (type: string, config: ProjectConfig): string | null => 
     }
 
     return null;
+};
+
+// 🟢 JIT TAXONOMY PROVISIONER
+const ensureProjectTaxonomy = async (
+    nodes: any[],
+    config: ProjectConfig,
+    userId: string,
+    projectId: string, // Actually folderId usually
+    drive: any,
+    db: any
+): Promise<ProjectConfig> => {
+    let configUpdated = false;
+    const folderMapping = config.folderMapping || {};
+    const canonPaths = config.canonPaths || [];
+
+    // Identify needed roles
+    const neededRoles = new Set<FolderRole>();
+    const neededTypes = new Set<string>();
+
+    nodes.forEach(n => {
+        const t = (n.type || 'concept').toLowerCase();
+        if (TYPE_ROLE_MAP[t]) {
+            neededRoles.add(TYPE_ROLE_MAP[t]);
+            neededTypes.add(t);
+        }
+    });
+
+    for (const type of Array.from(neededTypes)) {
+        const role = TYPE_ROLE_MAP[type];
+        if (!role) continue;
+
+        // If NOT mapped in config
+        if (!folderMapping[role]) {
+            logger.info(`🛠️ JIT Provisioning: Missing folder for ${type} (${role}). Hunting...`);
+
+            let foundId: string | null = null;
+            const defaultName = TYPE_DEFAULT_NAMES[type] || "Nuevos Archivos";
+
+            // 1. Check existing Canon Paths (maybe mapped by name but not role?)
+            const existingCanon = canonPaths.find(p =>
+                p.name.toLowerCase() === defaultName.toLowerCase() ||
+                p.name.toLowerCase().includes(type)
+            );
+
+            if (existingCanon) {
+                foundId = existingCanon.id;
+                logger.info(`   -> Found existing Canon Path: ${existingCanon.name}`);
+            } else {
+                // 2. Check Drive (Root Level)
+                try {
+                    const q = `'${projectId}' in parents and name = '${defaultName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+                    const list = await drive.files.list({ q, fields: 'files(id, name)' });
+                    if (list.data.files && list.data.files.length > 0) {
+                        foundId = list.data.files[0].id!;
+                        logger.info(`   -> Found existing Drive Folder: ${defaultName}`);
+                    } else {
+                        // 3. CREATE IT
+                        const newFolder = await drive.files.create({
+                            requestBody: {
+                                name: defaultName,
+                                parents: [projectId],
+                                mimeType: 'application/vnd.google-apps.folder'
+                            },
+                            fields: 'id, name'
+                        });
+                        foundId = newFolder.data.id!;
+                        logger.info(`   -> CREATED Drive Folder: ${defaultName}`);
+                    }
+                } catch (e) {
+                    logger.error(`   -> Failed to check/create folder for ${type}`, e);
+                }
+            }
+
+            // 4. Update Mapping & Config
+            if (foundId) {
+                folderMapping[role] = foundId;
+                if (!canonPaths.some(p => p.id === foundId)) {
+                    canonPaths.push({ id: foundId!, name: defaultName });
+                }
+                configUpdated = true;
+            }
+        }
+    }
+
+    if (configUpdated) {
+        await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+            folderMapping,
+            canonPaths,
+            updatedAt: new Date().toISOString()
+        }, { merge: true });
+
+        logger.info("✅ Project Config & Taxonomy updated via JIT Provisioning.");
+        return { ...config, folderMapping, canonPaths };
+    }
+
+    return config;
 };
 
 interface CrystallizeGraphRequest {
@@ -203,6 +309,19 @@ export const crystallizeGraph = onCall(
         } catch (e) {
             logger.warn("Failed to resolve virtual path for graph crystallization.", e);
             virtualPathRoot = "Unknown_Graph_Path";
+        }
+
+        // 🟢 JIT TAXONOMY PROVISIONING (The Missing Link)
+        // Ensure folders exist for all requested node types
+        if (nodes.length > 0) {
+            try {
+                // Determine Root Folder (Usually config.folderId or passed folderId if it is root)
+                // Use config.folderId if available as true root
+                const rootId = projectConfig.folderId || folderId;
+                projectConfig = await ensureProjectTaxonomy(nodes, projectConfig, userId, rootId, drive, db);
+            } catch (jitErr) {
+                logger.error("JIT Taxonomy Provisioning failed", jitErr);
+            }
         }
 
         // 🟢 PRE-PROCESS RELATIONS (Edges)
