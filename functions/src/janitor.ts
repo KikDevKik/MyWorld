@@ -308,7 +308,7 @@ export const purgeForgeEntities = onCall(
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
         timeoutSeconds: 540,
-        memory: "512MiB",
+        memory: "1GiB",
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -372,6 +372,7 @@ export const relinkAnchor = onCall(
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
         timeoutSeconds: 60,
+        memory: "1GiB",
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
