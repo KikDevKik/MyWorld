@@ -45,6 +45,7 @@ export const discoverFolderRoles = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     secrets: [googleApiKey],
+    memory: "4GiB",
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
