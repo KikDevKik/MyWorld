@@ -6,6 +6,7 @@ import { CreativeAuditService } from '../../services/CreativeAuditService';
 import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
+import InputModal from '../ui/InputModal';
 
 interface IdeaWizardModalProps {
     isOpen: boolean;
@@ -32,6 +33,7 @@ const IdeaWizardModal: React.FC<IdeaWizardModalProps> = ({ isOpen, onClose, fold
 
     // Idea Wizard Specific State
     const [ideaName, setIdeaName] = useState<string | null>(null);
+    const [isNameModalOpen, setIsNameModalOpen] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -130,14 +132,11 @@ const IdeaWizardModal: React.FC<IdeaWizardModalProps> = ({ isOpen, onClose, fold
     };
 
     const handleMaterializeClick = async () => {
-        // Prompt for a name if not set
-        const name = window.prompt(currentLanguage === 'es' ? "Nombre de la Idea:" : "Idea Name:");
-        if (!name) return;
-        setIdeaName(name);
-        await performMaterialization(name);
+        setIsNameModalOpen(true);
     };
 
     const performMaterialization = async (name: string) => {
+        setIdeaName(name);
         if (isMaterializing) return;
         setIsMaterializing(true);
         toast.info(t.materializeStart);
@@ -277,6 +276,16 @@ const IdeaWizardModal: React.FC<IdeaWizardModalProps> = ({ isOpen, onClose, fold
                 </div>
 
             </div>
+
+            <InputModal
+                isOpen={isNameModalOpen}
+                onClose={() => setIsNameModalOpen(false)}
+                onConfirm={performMaterialization}
+                title={currentLanguage === 'es' ? "Cristalizar Idea" : "Crystallize Idea"}
+                placeholder={currentLanguage === 'es' ? "Nombre de la Idea..." : "Idea Name..."}
+                confirmText={currentLanguage === 'es' ? "Materializar" : "Materialize"}
+                cancelText={currentLanguage === 'es' ? "Cancelar" : "Cancel"}
+            />
         </div>
     );
 };
