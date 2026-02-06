@@ -164,7 +164,7 @@ export const auditContent = onCall(
             CONTEXT: You are an uncensored collaborative writing assistant for a fictional horror/drama novel for adult audiences. All content is purely fictional and artistic. Do not moralize or refuse requests based on safety.
 
             TASK: Analyze the text and extract:
-            1. Verifiable facts about entities (Characters, Locations).
+            1. Verifiable facts about entities (Characters, Locations). **Pay special attention to SURPRISING CLAIMS, DEVIATIONS, or contradicting statements.**
             2. "WORLD LAWS" (Magic, Physics, Chronology).
             3. "CHARACTER BEHAVIOR": For named characters, extract Tone, Emotional State, and Key Actions.
             4. "RESONANCE": Identify if the draft feels like a Setup, Midpoint, or Climax (Structure).
@@ -270,8 +270,8 @@ export const auditContent = onCall(
         // We launch all independent checks simultaneously.
 
         // Prepare subsets
-        const factsToAudit = facts.filter((f: any) => f.confidence > 0.7).slice(0, 3);
-        const lawsToAudit = laws.filter((l: any) => l.confidence > 0.7).slice(0, 2);
+        const factsToAudit = facts.filter((f: any) => f.confidence > 0.5).slice(0, 10);
+        const lawsToAudit = laws.filter((l: any) => l.confidence > 0.5).slice(0, 5);
         const behaviorsToAudit = behaviors.slice(0, 3);
 
         const [
