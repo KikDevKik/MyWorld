@@ -377,7 +377,7 @@ export const relinkAnchor = onCall(
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-        const { characterId, characterName, accessToken, folderId, sourceContext } = request.data;
+        const { characterId, characterName, accessToken, folderId, sourceContext, category, tier } = request.data;
         const userId = request.auth.uid;
         const db = getFirestore();
 
@@ -444,6 +444,8 @@ export const relinkAnchor = onCall(
                 lastRelinked: new Date().toISOString(),
                 ...(sourceContext ? { sourceContext } : {}),
                 name: characterName,
+                category: category || 'PERSON',
+                tier: tier || 'ANCHOR',
                 sourceType: 'MASTER',
                 status: 'EXISTING'
             }, { merge: true });

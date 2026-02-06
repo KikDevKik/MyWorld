@@ -469,12 +469,15 @@ export const classifyEntities = onCall(
 
             // --- 4. PERSISTENCE ---
             const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
-            const BATCH_SIZE = 400;
+            const charactersRef = db.collection("users").doc(uid).collection("characters"); // 🟢 REFERENCE FOR HEALING
+
+            const BATCH_SIZE = 200; // Reduced to prevent exceeding 500 ops limit (2 ops per entity)
             const setOperations: Promise<any>[] = [];
             let currentSetBatch = db.batch();
             let setCount = 0;
 
             enrichedEntities.forEach(e => {
+                // A. SAVE TO DETECTED ENTITIES (Radar)
                 const ref = detectionRef.doc(e.id);
 
                 const safePayload: any = {
@@ -492,6 +495,25 @@ export const classifyEntities = onCall(
                 };
 
                 currentSetBatch.set(ref, safePayload, { merge: true });
+
+                // 🟢 B. AUTO-HEALING (Sync Anchors to Roster)
+                // If the entity is a confirmed ANCHOR (found in file), ensure it is registered/healed in 'characters'.
+                // This prevents "Broken Link" errors by proactively setting the masterFileId.
+                if (e.tier === 'ANCHOR' && e.driveId) {
+                    const charRef = charactersRef.doc(e.id);
+                    currentSetBatch.set(charRef, {
+                        masterFileId: e.driveId,
+                        lastRelinked: new Date().toISOString(), // Mark as recently validated
+                        sourceContext: sagaId || 'Global',
+                        status: 'EXISTING',
+                        sourceType: 'MASTER',
+                        name: e.name, // Ensure name is sync
+                        category: e.category || 'PERSON',
+                        tier: 'ANCHOR', // Explicitly set tier
+                        isAIEnriched: true
+                    }, { merge: true });
+                }
+
                 setCount++;
                 if (setCount >= BATCH_SIZE) {
                     setOperations.push(currentSetBatch.commit());
