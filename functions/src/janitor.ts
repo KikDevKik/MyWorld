@@ -377,7 +377,7 @@ export const relinkAnchor = onCall(
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-        const { characterId, characterName, accessToken, folderId } = request.data;
+        const { characterId, characterName, accessToken, folderId, sourceContext } = request.data;
         const userId = request.auth.uid;
         const db = getFirestore();
 
@@ -441,7 +441,11 @@ export const relinkAnchor = onCall(
             // 3. UPDATE FIRESTORE
             await db.collection("users").doc(userId).collection("characters").doc(characterId).set({
                 masterFileId: bestMatch.id,
-                lastRelinked: new Date().toISOString()
+                lastRelinked: new Date().toISOString(),
+                ...(sourceContext ? { sourceContext } : {}),
+                name: characterName,
+                sourceType: 'MASTER',
+                status: 'EXISTING'
             }, { merge: true });
 
             return {
