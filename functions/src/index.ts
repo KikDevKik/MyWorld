@@ -2588,7 +2588,7 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
       logger.error("Error General en Chat RAG (Setup):", error);
       // Catch-all for errors before the invoke (e.g. Vector Search failure)
       return {
-          response: "⚠️ Error del Sistema: Fallo en la memoria a largo plazo.",
+          response: `⚠️ Error del Sistema: Fallo en la memoria a largo plazo. (${error.message || 'Unknown Error'})`,
           sources: []
       };
     }

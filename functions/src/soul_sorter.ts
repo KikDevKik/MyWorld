@@ -76,7 +76,20 @@ function extractNameFromBlock(text: string): string | null {
 }
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
-const MAX_BATCH_CHARS = 100000;
+const MAX_BATCH_CHARS = 75000;
+
+// 🟢 RETRY HELPER
+async function generateWithRetry(model: GenerativeModel, prompt: any[], retries = 3) {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await model.generateContent(prompt);
+        } catch (e: any) {
+            if (i === retries - 1) throw e;
+            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
+        }
+    }
+    throw new Error("Retry failed");
+}
 
 export interface FileContent {
     id: string;
@@ -313,7 +326,7 @@ export async function identifyEntities(
 
     for (const batchText of batches) {
         try {
-            const result = await aiModel.generateContent([extractionPrompt, batchText]);
+            const result = await generateWithRetry(aiModel, [extractionPrompt, batchText]);
             const extracted = parseSecureJSON(result.response.text(), "SoulSorterExtraction");
 
             if (Array.isArray(extracted)) {
@@ -362,7 +375,7 @@ export const classifyEntities = onCall(
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
         timeoutSeconds: 3600, // 60 minutes
-        memory: "2GiB",
+        memory: "4GiB",
         secrets: [googleApiKey],
     },
     async (request) => {
