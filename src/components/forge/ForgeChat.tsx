@@ -408,7 +408,9 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                 characterName: activeEntity.name,
                 folderId: folderId, // Optional scope
                 accessToken: accessToken,
-                sourceContext: selectedScope.id
+                sourceContext: selectedScope?.id || null,
+                category: activeEntity.category,
+                tier: activeEntity.tier
             });
 
             if (result.success) {
