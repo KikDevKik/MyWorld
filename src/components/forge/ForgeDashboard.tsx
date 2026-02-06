@@ -71,7 +71,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // 🟢 MODE SWITCH
     const [activeMode, setActiveMode] = useState<'PERSON' | 'CREATURE'>('PERSON');
-    const [bestiaryFilter, setBestiaryFilter] = useState<'ALL' | 'CREATURE' | 'FLORA'>('ALL'); // 🟢 Sub-filter
+    const [bestiaryFilter, setBestiaryFilter] = useState<'ALL' | 'CREATURE' | 'BESTIA' | 'FLORA'>('ALL'); // 🟢 Sub-filter (Added BESTIA)
     const [personFilter, setPersonFilter] = useState<'ALL' | 'PERSON' | 'LOCATION' | 'OBJECT'>('ALL'); // 🟢 Sub-filter
     const activeSaga = activeMode === 'PERSON' ? characterSaga : bestiarySaga;
 
@@ -195,9 +195,17 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         if (!auth.currentUser) return;
         const db = getFirestore();
 
+        // 🟢 SHARED SCOPE: Fetch ghosts for BOTH sagas (Person & Beast) to allow cross-mode visibility
+        const sagaIds = [];
+        if (characterSaga?.id) sagaIds.push(characterSaga.id);
+        if (bestiarySaga?.id) sagaIds.push(bestiarySaga.id);
+
+        // Fallback to active only if both missing (shouldn't happen if loaded)
+        if (sagaIds.length === 0 && activeSaga?.id) sagaIds.push(activeSaga.id);
+
         const q = query(
             collection(db, "users", auth.currentUser.uid, "forge_detected_entities"),
-            where("saga", "==", activeSaga.id)
+            where("saga", "in", sagaIds.length > 0 ? sagaIds : ['Global'])
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -209,7 +217,11 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 let derivedCategory = d.category;
                 if (!derivedCategory) {
                     const rawType = (d.type || d.tier || d.reasoning || '').toLowerCase();
-                    if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna')) derivedCategory = 'CREATURE';
+                    // 🛡️ EVENT GUARD: Prevent "Year/Event" from becoming "Creature"
+                    if (rawType.includes('event') || rawType.includes('evento') || rawType.includes('año') || rawType.includes('year') || rawType.includes('timeline')) {
+                        derivedCategory = 'OBJECT'; // Map events to Objects/Concepts
+                    }
+                    else if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna') || rawType.includes('bestia') || rawType.includes('monster') || rawType.includes('monstruo')) derivedCategory = 'CREATURE';
                     else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
                     else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
                     else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
@@ -299,6 +311,26 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         } else {
             // Bestiary Mode
             if (bestiaryFilter === 'ALL') return entity.category === 'CREATURE' || entity.category === 'FLORA';
+
+            // 🟢 BESTIA vs FAUNA Split
+            if (bestiaryFilter === 'BESTIA') {
+                // Must be CREATURE category AND contain beast/monster keywords
+                if (entity.category !== 'CREATURE') return false;
+                const raw = (entity.sourceSnippet + (entity.role || "") + (entity.tags?.join(" ") || "") + entity.name).toLowerCase();
+                return raw.includes('bestia') || raw.includes('monster') || raw.includes('monstruo') || raw.includes('boss') || raw.includes('hostile');
+            }
+
+            if (bestiaryFilter === 'CREATURE') {
+                // Fauna Mode: Show CREATUREs that are NOT Bestias (if we want strict separation)
+                // Or just show all? User said "solo hay fauna y flora agrega el de bestia".
+                // If I click Fauna, I expect animals. If I click Bestia, I expect monsters.
+                // Let's exclude monsters from Fauna for clarity.
+                if (entity.category !== 'CREATURE') return false;
+                const raw = (entity.sourceSnippet + (entity.role || "") + (entity.tags?.join(" ") || "") + entity.name).toLowerCase();
+                const isMonster = raw.includes('bestia') || raw.includes('monster') || raw.includes('monstruo') || raw.includes('boss') || raw.includes('hostile');
+                return !isMonster;
+            }
+
             return entity.category === bestiaryFilter;
         }
     };
@@ -413,6 +445,12 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                         className={`hover:text-emerald-400 transition-colors ${bestiaryFilter === 'ALL' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
                                     >
                                         {t.all}
+                                    </button>
+                                    <button
+                                        onClick={() => setBestiaryFilter('BESTIA')}
+                                        className={`hover:text-emerald-400 transition-colors ${bestiaryFilter === 'BESTIA' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
+                                    >
+                                        Bestias
                                     </button>
                                     <button
                                         onClick={() => setBestiaryFilter('CREATURE')}
