@@ -361,3 +361,97 @@ export const purgeForgeEntities = onCall(
         }
     }
 );
+
+/**
+ * RELINK ANCHOR (The Medic)
+ * Searches for a lost file in Drive by name and repairs the Firestore link.
+ */
+export const relinkAnchor = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        timeoutSeconds: 60,
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { characterId, characterName, accessToken, folderId } = request.data;
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        if (!characterId || !characterName) {
+            throw new HttpsError("invalid-argument", "Falta ID o Nombre del personaje.");
+        }
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+
+        logger.info(`🚑 [RELINK] Intentando reparar vínculo para: ${characterName} (${characterId})`);
+
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            // 1. SEARCH DRIVE
+            // We search for exact name match (with .md extension or without)
+            // Ideally we check both or just 'name contains'.
+            // Let's try exact match first with .md, as Anchors are usually markdown.
+            let q = `name = '${characterName}.md' and trashed = false`;
+
+            // If folderId (Vault) is provided, scope it for safety/speed
+            if (folderId) {
+                // Note: 'in parents' is not recursive. But characters are usually at root of vault.
+                // If deep, we skip scoping or use 'ancestors' (expensive).
+                // Let's rely on name uniqueness for now globally in Drive (or at least prioritized).
+                // Actually, duplicate names are possible.
+                // Let's try simple name match first.
+            }
+
+            let res = await drive.files.list({
+                q: q,
+                fields: "files(id, name, modifiedTime, parents)",
+                orderBy: "modifiedTime desc", // Get most recent
+                pageSize: 5
+            });
+
+            // Fallback: Try without extension if 0 results
+            if (!res.data.files || res.data.files.length === 0) {
+                 q = `name = '${characterName}' and trashed = false`;
+                 res = await drive.files.list({
+                    q: q,
+                    fields: "files(id, name, modifiedTime, parents)",
+                    orderBy: "modifiedTime desc",
+                    pageSize: 5
+                });
+            }
+
+            const candidates = res.data.files || [];
+
+            if (candidates.length === 0) {
+                logger.warn(`   ⚠️ No se encontró ningún archivo para '${characterName}'.`);
+                return { success: false, message: "No se encontró ningún archivo con ese nombre." };
+            }
+
+            // 2. SELECT BEST CANDIDATE
+            // We take the most recent one (index 0 due to sort).
+            const bestMatch = candidates[0];
+            logger.info(`   ✅ Archivo encontrado: ${bestMatch.name} (${bestMatch.id})`);
+
+            // 3. UPDATE FIRESTORE
+            await db.collection("users").doc(userId).collection("characters").doc(characterId).update({
+                masterFileId: bestMatch.id,
+                lastRelinked: new Date().toISOString()
+            });
+
+            return {
+                success: true,
+                fileId: bestMatch.id,
+                fileName: bestMatch.name,
+                message: "Vínculo reparado exitosamente."
+            };
+
+        } catch (error: any) {
+            throw handleSecureError(error, "relinkAnchor");
+        }
+    }
+);

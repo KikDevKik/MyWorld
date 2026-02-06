@@ -76,11 +76,21 @@ export const forgeChatStream = onRequest(
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Transfer-Encoding', 'chunked');
 
-    const { query, history, filterScopePath, mediaAttachment } = req.body;
+    const { query, history, filterScopePath, mediaAttachment, activeFileContent } = req.body;
     const db = getFirestore();
 
     try {
       // --- SYSTEM PROMPT CONSTRUCTION ---
+      let activeContextSection = "";
+      if (activeFileContent) {
+          activeContextSection = `
+[CONTEXTO VISUAL ACTIVO - PRIORIDAD MÁXIMA]:
+(El usuario está viendo este documento ahora mismo. Úsalo como verdad absoluta para el análisis).
+${activeFileContent.substring(0, 50000)}
+--------------------------------------------------
+`;
+      }
+
       const CONTINUITY_PROTOCOL = `
 === ORACLE PROTOCOL (FORGE CHAT) ===
 ROLE: You are the 'Spirit of the Forge', an omniscient narrative assistant (Oracle) for the author.
@@ -104,6 +114,8 @@ OBJECTIVE: Answer questions about the story, suggest ideas, and maintain deep co
 [SCOPE]:
 - Current Project ID: ${requestProjectId}
 - Active Scope Path: ${filterScopePath || "Global"}
+
+${activeContextSection}
 `;
 
       const historyFormatted = (history || []).map((h: any) => ({

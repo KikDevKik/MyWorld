@@ -5171,7 +5171,7 @@ export { classifyEntities } from "./soul_sorter";
  * 34. JANITOR - FORGE PURGE
  * Cleans up the Detected Entities collection.
  */
-export { purgeForgeEntities } from "./janitor";
+export { purgeForgeEntities, relinkAnchor } from "./janitor";
 export { crystallizeForgeEntity } from "./crystallization";
 export { scribeCreateFile, integrateNarrative, transformToGuide } from "./scribe";
 
