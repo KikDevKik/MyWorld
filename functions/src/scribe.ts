@@ -10,6 +10,7 @@ import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
+import { updateFirestoreTree } from "./utils/tree_utils";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -27,6 +28,7 @@ interface ScribeRequest {
     folderId: string;
     accessToken: string;
     sagaId?: string;
+    synthesize?: boolean; // 🟢 If true, convert chatContent into rich MD body
 }
 
 interface ScribePatchRequest {
@@ -67,6 +69,8 @@ export const scribeCreateFile = onCall(
         logger.info(`✍️ SCRIBE: Forging file for ${safeName} (${entityId})`);
 
         try {
+            let finalBodyContent: string | undefined = undefined;
+
             // 🟢 INTELLIGENT INFERENCE (If type is generic/missing)
             if ((!entityData.type || entityData.type === 'concept') && chatContent) {
                 try {
@@ -117,6 +121,56 @@ export const scribeCreateFile = onCall(
                 }
             }
 
+            // 🟢 SYNTHESIS MODE (The "Idea Laboratory" Request)
+            if (request.data.synthesize && chatContent) {
+                try {
+                    logger.info(`🧪 SCRIBE SYNTHESIS: Converting chat to Markdown for ${entityData.name}`);
+                    const genAI = new GoogleGenerativeAI(googleApiKey.value());
+                    const model = genAI.getGenerativeModel({
+                        model: MODEL_LOW_COST,
+                        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+                        generationConfig: { temperature: 0.5 }
+                    });
+
+                    const synthesisPrompt = `
+                    TASK: Create a rich Markdown document based on the following BRAINSTORMING SESSION.
+                    SUBJECT: "${entityData.name}"
+                    TYPE: "${entityData.type || 'Concept'}"
+
+                    INSTRUCTIONS:
+                    1. Analyze the conversation history (CHAT CONTENT).
+                    2. Extract all key ideas, details, sensory descriptions, and emotional beats discussed.
+                    3. Organize them into a beautiful, structured Markdown body (Use H2 ##, H3 ###, Lists, Blockquotes).
+                    4. SECTIONS TO INCLUDE (Adjust based on type):
+                       - Core Concept / Hook
+                       - Sensory Details / Atmosphere
+                       - Narrative Potential / Use Cases
+                       - Key Questions Raised
+                    5. TONE: Professional, evocative, inspiring (like a high-quality wiki entry or design document).
+                    6. DO NOT include the raw chat log. Synthesize it.
+                    7. DO NOT include Frontmatter (it is added automatically).
+
+                    CHAT CONTENT:
+                    "${chatContent.substring(0, 10000)}"
+
+                    OUTPUT:
+                    `;
+
+                    const result = await model.generateContent(synthesisPrompt);
+                    let synthesis = result.response.text();
+
+                    // Cleanup fences
+                    if (synthesis.startsWith('```markdown')) synthesis = synthesis.replace(/^```markdown\n/, '').replace(/\n```$/, '');
+                    if (synthesis.startsWith('```')) synthesis = synthesis.replace(/^```\n/, '').replace(/\n```$/, '');
+
+                    finalBodyContent = synthesis;
+
+                } catch (e) {
+                    logger.warn("⚠️ Scribe Synthesis Failed:", e);
+                    // Fallback to default
+                }
+            }
+
             const auth = new google.auth.OAuth2();
             auth.setCredentials({ access_token: accessToken });
             const drive = google.drive({ version: "v3", auth });
@@ -142,7 +196,8 @@ export const scribeCreateFile = onCall(
                 aliases: entityData.aliases || [],
                 tags: entityData.tags || ['tdb/entity'],
                 project_id: sagaId, // Optional context
-                status: 'active'
+                status: 'active',
+                rawBodyContent: finalBodyContent // 🟢 Inject Synthesized Body if available
             };
 
             const fullContent = generateAnchorContent(templateData);
@@ -209,6 +264,19 @@ export const scribeCreateFile = onCall(
                 aliases: entityData.aliases || [],
                 nexusId: nexusId // 🟢 Link to TDB Index
             }, { merge: true });
+
+            // 🟢 6. SYNC TDB INDEX (Fixes "Need to Save Config" issue)
+            // We explicitly tell the Global Tree that a new file exists.
+            await updateFirestoreTree(userId, 'add', newFileId, {
+                parentId: folderId,
+                newNode: {
+                    id: newFileId,
+                    name: fileName,
+                    mimeType: 'text/markdown',
+                    type: 'file',
+                    driveId: newFileId
+                }
+            });
 
             return {
                 success: true,
