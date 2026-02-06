@@ -170,6 +170,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                         onClick={narratorControls.pause}
                                         className="hover:text-cyan-400 hover:bg-cyan-900/50 rounded p-0.5 transition-colors"
                                         title="Pausar"
+                                        aria-label="Pausar"
                                     >
                                         <Pause size={10} fill="currentColor" />
                                     </button>
@@ -177,6 +178,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                         onClick={narratorControls.stop}
                                         className="hover:text-red-400 hover:bg-red-900/50 rounded p-0.5 transition-colors"
                                         title="Detener"
+                                        aria-label="Detener"
                                     >
                                         <Square size={10} fill="currentColor" />
                                     </button>

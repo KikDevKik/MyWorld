@@ -215,6 +215,7 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         onClick={() => setIsSessionManagerOpen(true)}
                         className="p-1.5 text-titanium-300 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
                         title={t.sessionFiles}
+                        aria-label={t.sessionFiles}
                     >
                         <Archive size={16} />
                     </button>
@@ -222,6 +223,8 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         onClick={toggleArsenalWidth}
                         className={`p-1.5 transition-colors rounded hover:bg-titanium-800 ${isArsenalWide ? 'text-cyan-400' : 'text-titanium-400 hover:text-white'}`}
                         title={t.strategistMode}
+                        aria-label={t.strategistMode}
+                        aria-pressed={isArsenalWide}
                     >
                         <LayoutTemplate size={16} />
                     </button>
