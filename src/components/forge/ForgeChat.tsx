@@ -262,6 +262,11 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
 
             // 5. Persist AI Response (Always)
             if (accumulatedText) {
+                // 🟢 AUDIT: TRACK AI GENERATION
+                if (folderId && user) {
+                    CreativeAuditService.updateAuditStats(folderId, user.uid, 0, accumulatedText.length);
+                }
+
                 await callFunction('addForgeMessage', {
                     sessionId,
                     role: 'model',
