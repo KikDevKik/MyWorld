@@ -245,7 +245,7 @@ export const auditContent = onCall(
         let resonanceMatches: any[] = []; // 🟢 RESONANCE ARRAY
 
         // 4. SETUP MODELS
-        const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+        const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
         const verifierModel = genAI.getGenerativeModel({
              model: MODEL_HIGH_REASONING,
              safetySettings: SAFETY_SETTINGS_PERMISSIVE,

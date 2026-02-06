@@ -1146,7 +1146,7 @@ export const enrichCharacterContext = onCall(
       // 1. SETUP VECTORS
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: finalKey,
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_QUERY,
       });
 
@@ -1657,7 +1657,7 @@ export const indexTDB = onCall(
       // A. Configurar Embeddings
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: getAIKey(request.data, googleApiKey.value()),
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
       });
 
@@ -2117,7 +2117,7 @@ ${analysis}
       // 2. Vectorizar Pregunta
       const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: finalKey,
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_QUERY,
       });
       const queryVector = await embeddings.embedQuery(searchQuery);
@@ -2907,7 +2907,7 @@ export const saveDriveFile = onCall(
              const finalApiKey = getAIKey(request.data, googleApiKey.value());
              const embeddingsModel = new GoogleGenerativeAIEmbeddings({
                 apiKey: finalApiKey,
-                model: "text-embedding-004",
+                model: "gemini-embedding-001",
                 taskType: TaskType.RETRIEVAL_DOCUMENT,
              });
 
@@ -4284,7 +4284,7 @@ export const syncCharacterManifest = onCall(
     // Initialize Embeddings for Ingestion
     const embeddings = new GoogleGenerativeAIEmbeddings({
         apiKey: getAIKey(request.data, googleApiKey.value()),
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_DOCUMENT,
     });
 
@@ -4610,7 +4610,7 @@ export const forgeToolExecution = onCall(
              const finalApiKey = getAIKey(request.data, googleApiKey.value());
              const embeddingsModel = new GoogleGenerativeAIEmbeddings({
                 apiKey: finalApiKey,
-                model: "text-embedding-004",
+                model: "gemini-embedding-001",
                 taskType: TaskType.RETRIEVAL_DOCUMENT,
              });
 
@@ -5274,7 +5274,7 @@ export const syncSmart = onCall(
              const finalApiKey = getAIKey(request.data, googleApiKey.value());
              const embeddingsModel = new GoogleGenerativeAIEmbeddings({
                 apiKey: finalApiKey,
-                model: "text-embedding-004",
+                model: "gemini-embedding-001",
                 taskType: TaskType.RETRIEVAL_DOCUMENT,
              });
 

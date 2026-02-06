@@ -43,7 +43,7 @@ export async function enrichEntity(
     // A. ENRICH GHOSTS (Vector Search)
     if (entity.tier === 'GHOST') {
         try {
-            const embeddingModel = genAI.getGenerativeModel({ model: "text-embedding-004" });
+            const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 
             // Wrap in Retry
             const embeddingResult = await withRetry(() => embeddingModel.embedContent({
