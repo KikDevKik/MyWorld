@@ -458,6 +458,7 @@ export const checkSentinelIntegrity = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "1GiB",
   },
   async (request) => {
     // 1. VERIFICAR AUTH (Opcional, pero recomendado para evitar spam)
