@@ -406,7 +406,8 @@ Hazme una pregunta provocadora sobre su motivación oculta.
             const result = await callFunction<any>('relinkAnchor', {
                 characterId: activeEntity.id,
                 characterName: activeEntity.name,
-                folderId: folderId // Optional scope
+                folderId: folderId, // Optional scope
+                accessToken: accessToken
             });
 
             if (result.success) {
