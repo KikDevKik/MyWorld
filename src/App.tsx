@@ -675,6 +675,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onClose={() => setActiveView('editor')}
                     folderId={folderId}
                     accessToken={oauthToken}
+                    onRefreshTokens={handleTokenRefresh}
                 />
             );
         }
