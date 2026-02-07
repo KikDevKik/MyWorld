@@ -1140,8 +1140,8 @@ function App() {
     // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
     const isDev = import.meta.env.DEV;
 
-    if (securityError === 'PERIMETER_BREACH' && !isDev) {
-        return <SecurityLockScreen />;
+    if ((securityError === 'PERIMETER_BREACH' || securityError === 'SECURITY_THROTTLED') && !isDev) {
+        return <SecurityLockScreen errorType={securityError} />;
     }
 
     if (securityError && !isDev) {
