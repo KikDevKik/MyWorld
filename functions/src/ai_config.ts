@@ -21,30 +21,29 @@ export const TEMP_CHAOS = 1.0;
 
 export const SAFETY_SETTINGS_PERMISSIVE = [
     {
-        // GEMINI NATIVE: Harassment
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows narrative conflict
+        threshold: HarmBlockThreshold.BLOCK_NONE,
     },
     {
-        // GEMINI NATIVE: Hate Speech
         category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows villains/aggressive dialogue
+        threshold: HarmBlockThreshold.BLOCK_NONE,
     },
     {
-        // GEMINI NATIVE: Sexually Explicit
         category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows mature themes/romance
+        threshold: HarmBlockThreshold.BLOCK_NONE,
     },
     {
-        // GEMINI NATIVE: Dangerous Content
         category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows combat scenes/weapons
+        threshold: HarmBlockThreshold.BLOCK_NONE,
     },
     {
-        // GEMINI NATIVE: Civic Integrity (Required for Political/Historical Themes)
-        // Even if marked deprecated in some docs, omitting it triggers default blocks on election/legal content.
         category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
         threshold: HarmBlockThreshold.BLOCK_NONE,
     },
-    // NOTE: HARM_CATEGORY_VIOLENCE, MEDICAL, TOXICITY are PaLM specific. Excluded to prevent API errors.
+    {
+        // CATCH-ALL: Unspecified
+        // Sometimes the model blocks content without a clear category.
+        category: HarmCategory.HARM_CATEGORY_UNSPECIFIED,
+        threshold: HarmBlockThreshold.BLOCK_NONE,
+    }
 ];
