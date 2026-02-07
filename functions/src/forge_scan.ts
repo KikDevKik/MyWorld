@@ -5,10 +5,10 @@ import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey } from "./utils/security";
+import { smartGenerateContent } from "./utils/smart_generate";
 
 const MAX_BATCH_SIZE = 50;
 const MAX_TOTAL_CONTENT_CHARS = 500000; // 500k chars limit
@@ -81,14 +81,6 @@ export const analyzeForgeBatch = onCall(
             if (combinedContent.length < 50) return { candidates: [] };
 
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            const model = genAI.getGenerativeModel({
-                model: MODEL_HIGH_REASONING, // Use Pro for quality
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: {
-                    temperature: 0.2, // Low temp for precision
-                    responseMimeType: "application/json"
-                } as any
-            });
 
             // 2. FORGE PROMPT (Character Centric)
             const forgePrompt = `
@@ -123,8 +115,20 @@ export const analyzeForgeBatch = onCall(
             ${combinedContent}
             `;
 
-            const result = await model.generateContent(forgePrompt);
-            const candidates = parseSecureJSON(result.response.text(), "ForgeScanner");
+            // 🟢 SMART FALLBACK: Try Flash First, Then Pro (The Judge)
+            const result = await smartGenerateContent(genAI, forgePrompt, {
+                useFlash: true, // Try Flash for speed
+                jsonMode: true,
+                temperature: 0.2,
+                contextLabel: "ForgeScanner"
+            });
+
+            if (result.error || !result.text) {
+                logger.warn(`🔥 Forge Scan Generation Failed: ${result.error}`);
+                return { candidates: [] }; // Fail gracefully
+            }
+
+            const candidates = parseSecureJSON(result.text, "ForgeScanner");
 
             // 3. CLEANUP & BLACKLIST
              // 🟢 BLACKLIST FILTER (Combined Client & Server)
