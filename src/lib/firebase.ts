@@ -7,23 +7,23 @@ import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-
 // (Ahora cargado desde variables de entorno para seguridad)
 export const fallbackConfig = {
     // 🛡️ SENTINEL: API KEY REMOVED (See .env.example)
-    authDomain: "myword-67b03.firebaseapp.com",
-    projectId: "myword-67b03",
-    storageBucket: "myword-67b03.firebasestorage.app",
-    messagingSenderId: "479346922706",
-    appId: "1:479346922706:web:af7d76f5f6f707d75f090b",
-    measurementId: "G-3PEQ1BGFZF",
-    siteKey: "6LeBFk0sAAAAAGHkzwAi71U7RLIjJazekWzjUEdL"
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
+    siteKey: import.meta.env.VITE_RECAPTCHA_SITE_KEY
 };
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || fallbackConfig.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || fallbackConfig.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || fallbackConfig.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || fallbackConfig.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || fallbackConfig.appId,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || fallbackConfig.measurementId
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // 🛡️ SENTINEL CHECK: Env Var Enforcement
@@ -47,7 +47,7 @@ export interface SecurityStatus {
 
 // 🛡️ SECURITY CENTRALIZATION (Mission 4)
 export const initSecurity = async (): Promise<SecurityStatus> => {
-    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY || fallbackConfig.siteKey;
+    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
     // 🟢 FAIL FAST PROTOCOL
     if (!siteKey || siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
