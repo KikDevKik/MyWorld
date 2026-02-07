@@ -538,3 +538,70 @@ export const trashDriveItems = onCall(
         }
     }
 );
+
+/**
+ * 2.5. OBTENER METADATA EN LOTE (The Label Reader)
+ * Obtiene nombres y metadatos básicos para una lista de IDs.
+ * Útil para la UI de configuración.
+ */
+export const getBatchDriveMetadata = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        memory: "512MiB",
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { accessToken, fileIds } = request.data;
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+        if (!fileIds || !Array.isArray(fileIds)) {
+            throw new HttpsError("invalid-argument", "Falta lista de IDs (fileIds).");
+        }
+
+        // Limit batch size
+        if (fileIds.length > 50) {
+             throw new HttpsError("invalid-argument", "Too many IDs.");
+        }
+
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            const results: Record<string, { name: string, mimeType: string }> = {};
+
+            // Promise.all for parallel fetch
+            await Promise.all(fileIds.map(async (id) => {
+                if (!id) return;
+                try {
+                    const res = await drive.files.get({
+                        fileId: id,
+                        fields: "id, name, mimeType",
+                        supportsAllDrives: true
+                    });
+                    if (res.data.id && res.data.name) {
+                        results[res.data.id] = {
+                            name: res.data.name,
+                            mimeType: res.data.mimeType || 'unknown'
+                        };
+                    }
+                } catch (e: any) {
+                    logger.warn(`Failed to fetch metadata for ${id}:`, e.message);
+                    // Return placeholder
+                     results[id] = {
+                            name: "Inaccesible / Borrado",
+                            mimeType: "error"
+                        };
+                }
+            }));
+
+            return { metadata: results };
+
+        } catch (error: any) {
+            logger.error("Error in getBatchDriveMetadata:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);
