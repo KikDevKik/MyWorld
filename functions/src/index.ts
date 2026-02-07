@@ -1129,7 +1129,7 @@ export { auditContent, scanProjectDrift, rescueEcho } from "./guardian";
  * 24. BAPTISM PROTOCOL (La Migración)
  * Resuelve datos huérfanos y asegura integridad Nivel 1.
  */
-export { executeBaptismProtocol } from "./migration";
+export { executeBaptismProtocol, migrateDatabaseV1toV2 } from "./migration";
 
 /**
  * 25. JANITOR PROTOCOL (Operación Limpieza)
@@ -5250,7 +5250,7 @@ export { classifyResource } from "./laboratory";
  * 36. FOLDER MANAGER (The Brain)
  * Semantic folder discovery and creation.
  */
-export { discoverFolderRoles, createTitaniumStructure, renameDriveFolder, trashDriveItems, getBatchDriveMetadata } from "./folder_manager";
+export { discoverFolderRoles, createTitaniumStructure, renameDriveFolder, trashDriveItems, getBatchDriveMetadata, getFileSystemNodes } from "./folder_manager";
 export { generateAuditPDF, generateCertificate } from "./audit";
 
 /**

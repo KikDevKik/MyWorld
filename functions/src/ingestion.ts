@@ -3,9 +3,9 @@ import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
 export interface IngestionFile {
-  id: string; // Drive ID (Kept for metadata linking)
+  id: string; // Drive ID (The Primary Key)
   name: string;
-  path: string; // 👈 SHA-256(path) is the new Primary Key
+  path: string;
   saga?: string;
   parentId?: string;
   category?: 'canon' | 'reference';
@@ -25,7 +25,7 @@ export interface IngestionResult {
 export async function ingestFile(
     db: FirebaseFirestore.Firestore,
     userId: string,
-    projectId: string, // 👈 New: Project Anchor
+    projectId: string, // Project Anchor
     file: IngestionFile,
     content: string,
     embeddingsModel: any
@@ -37,36 +37,46 @@ export async function ingestFile(
             return { status: 'skipped', hash: '', chunksCreated: 0, chunksDeleted: 0 };
         }
 
-        // 🟢 ID GENERATION: HASH(PATH) -> The New Primary Key
-        if (!file.path) {
-            logger.error(`💥 [INGEST ERROR] File missing path: ${file.name}`);
+        // 🟢 ID STRATEGY: DRIVE ID IS KING 👑 (Titanium Spec)
+        if (!file.id) {
+            logger.error(`💥 [INGEST ERROR] File missing Drive ID: ${file.name}`);
             return { status: 'error', hash: '', chunksCreated: 0, chunksDeleted: 0 };
         }
 
-        const docId = crypto.createHash('sha256').update(file.path).digest('hex');
+        const docId = file.id; // Use Drive ID directly
         const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(docId);
 
         // 2. HASH CHECK (Upsert Logic)
+        // We hash the content to detect changes.
         const currentHash = crypto.createHash('sha256').update(content).digest('hex');
+
         const fileDoc = await fileRef.get();
         const storedHash = fileDoc.exists ? fileDoc.data()?.contentHash : null;
 
-        if (storedHash === currentHash) {
-            logger.info(`⏩ [INGEST] Hash Match for ${file.path}. Updating metadata only.`);
-            // Ensure path and saga are updated even on skip (in case they changed for same content?? Unlikely but good practice)
+        // 🟢 DIRTY CHECK: Compare Hash AND Ensure Metadata is fresh
+        if (storedHash === currentHash && fileDoc.exists) {
+            logger.info(`⏩ [INGEST] Hash Match for ${file.name} (${file.id}). Updating metadata only.`);
+
+            // Sync metadata (Name, Path, Parent) even if content is same
             await fileRef.set({
-                lastIndexed: new Date().toISOString(),
+                name: file.name,
                 path: file.path,
                 saga: file.saga || 'Global',
-                driveId: file.id // Keep legacy link
+                parentId: file.parentId || null,
+                category: file.category || 'canon',
+                lastIndexed: new Date().toISOString(), // Touch timestamp
+                updatedAt: new Date().toISOString(),   // 🟢 CRITICAL: Enforce Timestamp Contract
+                driveId: file.id, // Redundant but safe
+                contentHash: currentHash // 🟢 Explicit persistence just in case
             }, { merge: true });
 
             return { status: 'skipped', hash: currentHash, chunksCreated: 0, chunksDeleted: 0 };
         }
 
-        logger.info(`⚡ [INGEST] Content Change for ${file.path} (Saga: ${file.saga}). Processing...`);
+        logger.info(`⚡ [INGEST] Content Change for ${file.name} (Saga: ${file.saga}). Processing...`);
 
         // 3. CLEANUP OLD CHUNKS
+        // Since we are reusing the docId (DriveId), we wipe existing chunks under it.
         const chunksRef = fileRef.collection("chunks");
         let deletedCount = 0;
         const snapshot = await chunksRef.get();
@@ -93,31 +103,32 @@ export async function ingestFile(
         }
 
         // 4. VECTORIZE & SAVE
-        // Note: Currently we treat the whole file as one chunk (up to a limit),
-        // mimicking the logic from the original indexTDB.
-        // In the future, a proper splitter should be used here.
+        // Note: Currently we treat the whole file as one chunk (up to a limit).
+        // Future: Splitter logic goes here.
         const chunkText = content.substring(0, 8000);
         const now = new Date().toISOString();
 
         // 🟢 NARRATIVE INTENT LOGIC (AUTO-CLASSIFIER)
         let narrativeIntent: string | null = null;
-        if (file.path.endsWith('Ideas.md')) {
+        if (file.path && file.path.endsWith('Ideas.md')) {
             narrativeIntent = 'TRAMA_PROBABLE';
-        } else if (file.path.endsWith('Que he Aprendido.md')) {
+        } else if (file.path && file.path.endsWith('Que he Aprendido.md')) {
             narrativeIntent = 'REGLA_ESTILISTICA';
         }
 
         // Update File Metadata (UPSERT)
         const fileMetadata: any = {
             name: file.name,
-            path: file.path,
+            path: file.path || file.name,
             saga: file.saga || 'Global',
-            driveId: file.id, // Legacy link
+            driveId: file.id, // Explicit field
+            parentId: file.parentId || null, // 🟢 STORE PARENT ID for Hierarchy
             lastIndexed: now,
+            updatedAt: now, // 🟢 CRITICAL: Timestamp Contract
             chunkCount: 1,
             category: file.category || 'canon',
             timelineDate: null,
-            contentHash: currentHash
+            contentHash: currentHash // 🟢 CRITICAL: Hash Persistence
         };
 
         if (narrativeIntent) {
@@ -130,17 +141,16 @@ export async function ingestFile(
         const vector = await embeddingsModel.embedQuery(chunkText);
 
         // Save Chunk
-        // Note: chunks now live under the Hashed Path ID, not the Drive ID.
         const chunkPayload: any = {
             userId: userId,
-            projectId: projectId, // 👈 New: Strict Project Scoping
+            projectId: projectId,
             fileName: file.name,
             text: chunkText,
-            docId: docId, // Hashed Path ID
-            driveId: file.id, // Original Drive ID reference
+            docId: docId, // Drive ID
+            driveId: file.id, // Drive ID
             folderId: file.parentId || 'unknown',
-            path: file.path, // 👈 New: Full Path for Filtering
-            saga: file.saga || 'Global', // 👈 New: Saga Context
+            path: file.path || file.name,
+            saga: file.saga || 'Global',
             timestamp: now,
             type: 'file',
             category: file.category || 'canon',
@@ -179,7 +189,7 @@ export async function deleteFileVectors(
 ): Promise<number> {
     try {
         // 1. Delete Chunks (Vector Data)
-        // We use Collection Group to find chunks regardless of where they are nested (though usually under TDB_Index/files)
+        // We use Collection Group to find chunks regardless of where they are nested
         const chunksQuery = db.collectionGroup("chunks")
             .where("userId", "==", userId)
             .where("driveId", "==", fileId);
@@ -209,22 +219,18 @@ export async function deleteFileVectors(
         }
 
         // 2. Delete File Metadata (TDB_Index Entry)
-        // We find the parent file doc by driveId
-        const filesQuery = db.collection("TDB_Index").doc(userId).collection("files").where("driveId", "==", fileId);
-        const filesSnap = await filesQuery.get();
+        // 🟢 DIRECT ID ACCESS (Titanium Spec)
+        // Since docId IS the fileId (Drive ID), we can delete directly.
+        const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(fileId);
 
-        if (!filesSnap.empty) {
-            let batch = db.batch();
-            for (const doc of filesSnap.docs) {
-                // Also recursively delete subcollections?
-                // We just deleted chunks via collectionGroup, but there might be stragglers or other subcols?
-                // Ideally recursive delete, but batch delete is safer/faster for simple structure.
-                // Since we deleted chunks already, deleting the parent doc is fine.
-                // But Firestore recommends deleting subcollections first. We did that (chunks).
-                batch.delete(doc.ref);
-            }
-            await batch.commit();
-        }
+        // Check if exists first to log properly? Or just delete.
+        await fileRef.delete();
+        // Also ensure subcollections are gone? 'chunks' were deleted via collectionGroup,
+        // but if we used subcollection on this doc, recursive delete is safer.
+        // But collectionGroup query + direct doc delete covers 99%.
+        // For absolute safety regarding potential leftover subcollections (like stats?):
+        // await db.recursiveDelete(fileRef); // Requires Cloud Functions permission usually.
+        // Stick to simple delete for speed, as we manually cleared chunks.
 
         logger.info(`🗑️ [DELETE VECTORS] Cleared ${deletedCount} chunks and metadata for file ${fileId}`);
         return deletedCount;

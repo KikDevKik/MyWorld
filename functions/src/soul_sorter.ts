@@ -31,7 +31,7 @@ export function isGenericName(name: string): boolean {
     return GENERIC_NAMES.some(g => lower === g) || name.length < 3 || name.length > 50;
 }
 
-// 🟢 IMPROVED: Detect Category by Keys
+// 🟢 IMPROVED: Detect Category by Metadata
 export function detectCategoryByMetadata(content: string): EntityCategory | null {
     const lines = content.split('\n').slice(0, 30);
 
@@ -368,6 +368,7 @@ export async function identifyEntities(
 /**
  * THE SOUL SORTER
  * Triages entities into Ghosts, Limbos, and Anchors using Firestore Chunks + Heuristics + Gemini.
+ * 🟢 OPTIMIZED: INCREMENTAL PROCESSING (Dirty Check)
  */
 export const classifyEntities = onCall(
     {
@@ -394,15 +395,37 @@ export const classifyEntities = onCall(
             const configRef = db.collection("users").doc(uid).collection("profile").doc("project_config");
             const configSnap = await configRef.get();
             const configData = configSnap.exists ? configSnap.data() : {};
-            const lastScanTime = configData?.lastForgeScan ? new Date(configData.lastForgeScan).getTime() : 0;
+            const lastScanStr = configData?.lastForgeScan; // ISO Timestamp
 
-            // --- 1. FETCH CONTENT ---
+            // --- 1. FETCH CONTENT (DIRTY CHECK) ---
             const filesRef = db.collection("TDB_Index").doc(uid).collection("files");
-            const q = filesRef.where("category", "==", "canon");
+            let q = filesRef.where("category", "==", "canon");
+
+            // 🟢 INCREMENTAL LOGIC
+            if (lastScanStr) {
+                logger.info(`🔍 Incremental Scan: Looking for files updated since ${lastScanStr}`);
+                // Note: This requires a Composite Index (category ASC, updatedAt ASC)
+                q = q.where("updatedAt", ">", lastScanStr).orderBy("updatedAt");
+            } else {
+                logger.info("🔍 Full Scan: Initializing Soul Sorter...");
+            }
+
             const filesSnap = await q.get();
+
+            // 🟢 SLEEP LOGIC
+            if (filesSnap.empty) {
+                 logger.info("✅ No new files to process. Soul Sorter sleeping.");
+                 // Touch timestamp to acknowledge check
+                 await configRef.set({ lastForgeScan: new Date().toISOString() }, { merge: true });
+                 return {
+                    entities: [],
+                    stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
+                 } as ForgePayload;
+            }
 
             const fileContents: FileContent[] = [];
             let skippedCount = 0;
+            const processedDocs: { ref: FirebaseFirestore.DocumentReference, hash: string }[] = []; // 🟢 Track for Hash Update
 
             const fetchPromises = filesSnap.docs.map(async (doc) => {
                 const fData = doc.data();
@@ -411,14 +434,25 @@ export const classifyEntities = onCall(
                     return null;
                 }
 
-                // Incremental Logic could go here
+                // 🟢 HASH CHECK OPTIMIZATION
+                // Even if updatedAt changed, if contentHash is same as lastSoulSortedHash, SKIP.
+                if (fData.contentHash && fData.contentHash === fData.lastSoulSortedHash) {
+                    skippedCount++;
+                    return null;
+                }
 
+                // Fetch content from chunk_0
                 const chunkRef = doc.ref.collection("chunks").doc("chunk_0");
                 const chunkSnap = await chunkRef.get();
 
                 if (chunkSnap.exists) {
                     const text = chunkSnap.data()?.text || "";
                     if (text) {
+                        // Mark for Hash Update
+                        if (fData.contentHash) {
+                            processedDocs.push({ ref: doc.ref, hash: fData.contentHash });
+                        }
+
                         return {
                             id: fData.driveId || doc.id,
                             name: fData.name,
@@ -433,7 +467,7 @@ export const classifyEntities = onCall(
             const results = await Promise.all(fetchPromises);
             results.forEach(r => { if (r) fileContents.push(r); });
 
-            logger.info(`   -> Scanned ${fileContents.length} new/modified files.`);
+            logger.info(`   -> Scanned ${fileContents.length} new/modified files. (Skipped ${skippedCount} by Hash Check)`);
 
             if (fileContents.length === 0) {
                  await configRef.set({ lastForgeScan: new Date().toISOString() }, { merge: true });
@@ -469,9 +503,9 @@ export const classifyEntities = onCall(
 
             // --- 4. PERSISTENCE ---
             const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
-            const charactersRef = db.collection("users").doc(uid).collection("characters"); // 🟢 REFERENCE FOR HEALING
+            const charactersRef = db.collection("users").doc(uid).collection("characters");
 
-            const BATCH_SIZE = 200; // Reduced to prevent exceeding 500 ops limit (2 ops per entity)
+            const BATCH_SIZE = 200; // Reduced to prevent exceeding 500 ops limit
             const setOperations: Promise<any>[] = [];
             let currentSetBatch = db.batch();
             let setCount = 0;
@@ -497,19 +531,17 @@ export const classifyEntities = onCall(
                 currentSetBatch.set(ref, safePayload, { merge: true });
 
                 // 🟢 B. AUTO-HEALING (Sync Anchors to Roster)
-                // If the entity is a confirmed ANCHOR (found in file), ensure it is registered/healed in 'characters'.
-                // This prevents "Broken Link" errors by proactively setting the masterFileId.
                 if (e.tier === 'ANCHOR' && e.driveId) {
                     const charRef = charactersRef.doc(e.id);
                     currentSetBatch.set(charRef, {
                         masterFileId: e.driveId,
-                        lastRelinked: new Date().toISOString(), // Mark as recently validated
+                        lastRelinked: new Date().toISOString(),
                         sourceContext: sagaId || 'Global',
                         status: 'EXISTING',
                         sourceType: 'MASTER',
-                        name: e.name, // Ensure name is sync
+                        name: e.name,
                         category: e.category || 'PERSON',
-                        tier: 'ANCHOR', // Explicitly set tier
+                        tier: 'ANCHOR',
                         isAIEnriched: true
                     }, { merge: true });
                 }
@@ -522,6 +554,34 @@ export const classifyEntities = onCall(
                 }
             });
             if (setCount > 0) setOperations.push(currentSetBatch.commit());
+
+            // --- 6. UPDATE SOUL HASHES (OPTIMIZATION) ---
+            // Update lastSoulSortedHash for processed files
+            if (processedDocs.length > 0) {
+                // We reuse currentSetBatch if it has room? No, simpler to use new batches.
+                // We already committed 'currentSetBatch' via Promise.all(setOperations) above?
+                // Wait, I pushed the commit PROMISE to setOperations.
+                // I need to add these hash updates to setOperations too.
+
+                let hashBatch = db.batch();
+                let hashCount = 0;
+
+                for (const item of processedDocs) {
+                    if (item.hash) {
+                        hashBatch.update(item.ref, { lastSoulSortedHash: item.hash });
+                        hashCount++;
+                        if (hashCount >= 400) {
+                            setOperations.push(hashBatch.commit());
+                            hashBatch = db.batch();
+                            hashCount = 0;
+                        }
+                    }
+                }
+                if (hashCount > 0) {
+                    setOperations.push(hashBatch.commit());
+                }
+            }
+
             await Promise.all(setOperations);
 
             // --- 5. FINALIZE ---
@@ -539,6 +599,10 @@ export const classifyEntities = onCall(
 
         } catch (error: any) {
             logger.error("Soul Sorter Failed:", error);
+            // 🟢 ERROR HANDLING: If Index Missing, log specialized alert
+            if (error.message && error.message.includes("indexes")) {
+                logger.error("🚨 SOUL SORTER INDEX MISSING: Create Composite Index on TDB_Index/files (category ASC, updatedAt ASC).");
+            }
             return {
                 entities: [],
                 stats: { totalGhosts: 0, totalLimbos: 0, totalAnchors: 0 }
