@@ -1,7 +1,7 @@
 import { EntityCategory } from './core';
 
 export type EntityTier = 'GHOST' | 'LIMBO' | 'ANCHOR';
-export { EntityCategory }; // Re-export for convenience
+export type { EntityCategory }; // Re-export for convenience
 
 // Estructura unificada para facilitar el renderizado
 export interface SoulEntity {

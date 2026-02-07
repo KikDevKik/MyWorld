@@ -227,14 +227,18 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                 </div>
                                 <div className="relative z-10">
                                     <div className="font-bold text-titanium-100 mb-2 italic">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none">
-                                            {`"${result.architect.verdict}"`}
-                                        </ReactMarkdown>
+                                        <div className="prose prose-invert prose-sm max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {`"${result.architect.verdict}"`}
+                                            </ReactMarkdown>
+                                        </div>
                                     </div>
                                     <div className="text-titanium-300 text-sm leading-relaxed">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none">
-                                            {result.architect.critique}
-                                        </ReactMarkdown>
+                                        <div className="prose prose-invert prose-sm max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {result.architect.critique}
+                                            </ReactMarkdown>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -260,14 +264,18 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                 </div>
                                 <div className="relative z-10">
                                     <div className="font-bold text-titanium-100 mb-2 italic">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none">
-                                            {`"${result.bard.verdict}"`}
-                                        </ReactMarkdown>
+                                        <div className="prose prose-invert prose-sm max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {`"${result.bard.verdict}"`}
+                                            </ReactMarkdown>
+                                        </div>
                                     </div>
                                     <div className="text-titanium-300 text-sm leading-relaxed">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none">
-                                            {result.bard.critique}
-                                        </ReactMarkdown>
+                                        <div className="prose prose-invert prose-sm max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {result.bard.critique}
+                                            </ReactMarkdown>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -293,14 +301,18 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                                 </div>
                                 <div className="relative z-10">
                                     <div className="font-bold text-titanium-100 mb-2 italic">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none">
-                                            {`"${result.hater.verdict}"`}
-                                        </ReactMarkdown>
+                                        <div className="prose prose-invert prose-sm max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {`"${result.hater.verdict}"`}
+                                            </ReactMarkdown>
+                                        </div>
                                     </div>
                                     <div className="text-titanium-300 text-sm leading-relaxed">
-                                        <ReactMarkdown remarkPlugins={[remarkGfm]} className="prose prose-invert prose-sm max-w-none">
-                                            {result.hater.critique}
-                                        </ReactMarkdown>
+                                        <div className="prose prose-invert prose-sm max-w-none">
+                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                {result.hater.critique}
+                                            </ReactMarkdown>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

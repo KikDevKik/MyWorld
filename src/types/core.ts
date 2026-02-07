@@ -6,7 +6,7 @@ export interface Gem {
   name: string;
   backgroundImage: string;
   systemInstruction: string;
-  model: 'gemini-2.5-pro' | 'gemini-2.5-flash';
+  model: 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'gemini-3-pro-preview' | 'gemini-3-flash-preview' | 'gemini-2.5-pro-preview-tts';
   thinkingBudget?: number;
   color?: string;
 }
@@ -99,7 +99,7 @@ export interface CharacterSnippet {
   text: string;
 }
 
-export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA';
+export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'LORE' | 'CONCEPT';
 
 export interface Character {
   id: string; // Slug
