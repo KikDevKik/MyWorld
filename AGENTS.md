@@ -46,3 +46,25 @@ The Scribe is the primary generative agent for content creation. It assists the 
 **Location:** `functions/src/janitor.ts`
 **Description:**
 The Janitor ensures data integrity during collaborative or multi-tab sessions. It manages file locks (`acquireLock`, `releaseLock`) to prevent race conditions where two processes might try to edit the same file simultaneously.
+
+## 🌌 Genesis (The Architect)
+**Role:** World Builder & RAG Oracle
+**Location:** `functions/src/genesis.ts`
+**Description:**
+Genesis is the RAG (Retrieval-Augmented Generation) engine of MyWorld. It answers user questions by querying the vector database (`TDB_Index`) and synthesizing the results into coherent, canon-aware responses. It powers the "Chat with World" feature and the "Ask Genesis" tool.
+
+## 🧪 The Idea Laboratory (Muse)
+**Role:** Asset Management & Research Assistant
+**Location:** `functions/src/laboratory.ts`
+**Description:**
+The Laboratory is where "Reference" material (images, PDFs, links) is processed and converted into "Canon". It features a dedicated chat persona ("Muse") that helps the user research topics, analyze uploaded documents, and brainstorm ideas before they are crystallized into the main project.
+
+## 🔨 The Forge of Souls
+**Role:** Entity Generator & Character Architect
+**Location:** `src/components/forge/ForgeDashboard.tsx`, `functions/src/forge_chat.ts`
+**Description:**
+The Forge is a specialized environment for creating and developing entities. It allows the user to:
+*   **Generate Ideas:** Spawn new characters, locations, or factions from scratch.
+*   **Detect Ghosts:** Identify mentioned entities in the text that don't have a file yet.
+*   **Evolve Entities:** Upgrade a "Ghost" (Idea) to a "Limbo" (Draft) and finally to an "Anchor" (Master File).
+*   **Bestiary Mode:** Specialized support for creating creatures and flora with unique metadata.
