@@ -1,5 +1,10 @@
 import { HttpsError } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
+import * as dns from 'dns';
+import { promisify } from 'util';
+import * as net from 'net';
+
+const lookup = promisify(dns.lookup);
 
 /**
  * 🛡️ SENTINEL: Secure Error Handler
@@ -100,6 +105,54 @@ export function isSafeUrl(url: string): boolean {
 
         return true;
     } catch (e) {
+        return false;
+    }
+}
+
+/**
+ * Checks if an IP address is private (IPv4/IPv6).
+ */
+export function isPrivateIp(ip: string): boolean {
+    const family = net.isIP(ip);
+    if (family === 0) return false;
+
+    if (family === 6 && ip.toLowerCase().startsWith('::ffff:')) {
+        return isPrivateIp(ip.substring(7));
+    }
+
+    if (family === 4) {
+        return /^(0|10|127)\./.test(ip) ||
+               ip.startsWith('169.254.') ||
+               ip.startsWith('192.168.') ||
+               /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip);
+    }
+
+    if (family === 6) {
+        return ip === '::1' || /^(fc|fd)/i.test(ip) || /^fe80:/i.test(ip);
+    }
+    return false;
+}
+
+/**
+ * 🛡️ SENTINEL: DNS-Validated URL Check
+ * Resolves hostname to IP to prevent DNS rebinding/obfuscation.
+ */
+export async function validateUrlDns(url: string): Promise<boolean> {
+    if (!isSafeUrl(url)) return false;
+    try {
+        const { hostname } = new URL(url);
+        // If hostname is IP, check it directly
+        if (net.isIP(hostname)) return !isPrivateIp(hostname);
+
+        // Resolve DNS
+        const { address } = await lookup(hostname);
+        if (!address || isPrivateIp(address)) {
+            logger.warn(`🛡️ [SENTINEL] Blocked private IP: ${address} for ${hostname}`);
+            return false;
+        }
+        return true;
+    } catch (e) {
+        logger.warn(`🛡️ [SENTINEL] DNS Resolution failed for ${url}:`, e);
         return false;
     }
 }
