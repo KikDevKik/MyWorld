@@ -2,13 +2,14 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey } from "./utils/security";
+import { smartGenerateContent } from "./utils/smart_generate";
 
 // 🛡️ SENTINEL CONSTANTS
 const MAX_BATCH_SIZE = 50;
@@ -170,17 +171,8 @@ export const analyzeNexusBatch = onCall(
 
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
-            // 🟢 STAGE 1: THE HARVESTER (MODEL LOW COST)
-            logger.info("🤖 STAGE 1: HARVESTER (Flash) Initiated...");
-
-            const harvesterModel = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST, // Flash
-                generationConfig: {
-                    temperature: 0.2, // Low temp for extraction
-                    responseMimeType: "application/json"
-                } as any,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE
-            });
+            // 🟢 STAGE 1: THE HARVESTER (FLASH + SMART FALLBACK)
+            logger.info("🤖 STAGE 1: HARVESTER (Flash -> Pro Fallback) Initiated...");
 
             const harvesterPrompt = `
             ACT AS: The Harvester (Hive Mind Mode).
@@ -204,8 +196,19 @@ export const analyzeNexusBatch = onCall(
             `;
             // Increased to 300k chars for Flash
 
-            const harvesterResult = await harvesterModel.generateContent(harvesterPrompt);
-            const harvesterText = harvesterResult.response.text();
+            const harvesterResult = await smartGenerateContent(genAI, harvesterPrompt, {
+                useFlash: true, // Try Flash first for massive text
+                jsonMode: true,
+                temperature: 0.2,
+                contextLabel: "NexusHarvester"
+            });
+
+            if (harvesterResult.error || !harvesterResult.text) {
+                logger.warn("⚠️ Harvester failed or blocked (even after fallback).");
+                return { candidates: [] };
+            }
+
+            const harvesterText = harvesterResult.text;
             const rawEntities = parseSecureJSON(harvesterText, "NexusHarvester");
 
             if (!Array.isArray(rawEntities) || rawEntities.length === 0) {
@@ -213,22 +216,13 @@ export const analyzeNexusBatch = onCall(
                 return { candidates: [] };
             }
 
-            logger.info(`🤖 STAGE 1 COMPLETE. Extracted ${rawEntities.length} raw entities.`);
+            logger.info(`🤖 STAGE 1 COMPLETE. Extracted ${rawEntities.length} raw entities using ${harvesterResult.modelUsed}.`);
 
             // 2. VIP CONTEXT (Fetch while Stage 1 runs? No, depend on it for flow clarity, but ideally parallel)
             const vipContext = await getVipContext(request.auth.uid, projectId);
 
-            // 🟢 STAGE 2: THE JUDGE (MODEL HIGH REASONING)
+            // 🟢 STAGE 2: THE JUDGE (PRO + GOD MODE)
             logger.info("⚖️ STAGE 2: JUDGE (Pro) Initiated...");
-
-            const judgeModel = genAI.getGenerativeModel({
-                model: MODEL_HIGH_REASONING, // Pro
-                generationConfig: {
-                    temperature: TEMP_PRECISION,
-                    responseMimeType: "application/json"
-                } as any,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE
-            });
 
             const judgePrompt = `
             ACT AS: The Royal Librarian & Taxonomist (Hive Mind Mode).
@@ -301,8 +295,19 @@ export const analyzeNexusBatch = onCall(
             ]
             `;
 
-            const judgeResult = await judgeModel.generateContent(judgePrompt);
-            const judgeText = judgeResult.response.text();
+            const judgeResult = await smartGenerateContent(genAI, judgePrompt, {
+                useFlash: false, // Strict Pro for Reasoning
+                jsonMode: true,
+                temperature: TEMP_PRECISION,
+                contextLabel: "NexusJudge"
+            });
+
+            if (judgeResult.error || !judgeResult.text) {
+                logger.warn(`⚠️ Nexus Judge failed: ${judgeResult.error}`);
+                return { candidates: [] };
+            }
+
+            const judgeText = judgeResult.text;
             const candidates = parseSecureJSON(judgeText, "NexusJudge");
 
             if (candidates.error || !Array.isArray(candidates)) {

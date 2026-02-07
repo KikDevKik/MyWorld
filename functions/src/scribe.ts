@@ -6,13 +6,14 @@ import { google } from "googleapis";
 import * as logger from "firebase-functions/logger";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { TEMP_PRECISION } from "./ai_config";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { updateFirestoreTree } from "./utils/tree_utils";
 import { ingestFile } from "./ingestion";
 import { GeminiEmbedder } from "./utils/vector_utils";
+import { smartGenerateContent } from "./utils/smart_generate";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -78,11 +79,6 @@ export const scribeCreateFile = onCall(
                 try {
                     logger.info(`🧠 SCRIBE INFERENCE: Detecting type for ${entityData.name}`);
                     const genAI = new GoogleGenerativeAI(googleApiKey.value());
-                    const model = genAI.getGenerativeModel({
-                        model: MODEL_LOW_COST,
-                        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                        generationConfig: { responseMimeType: "application/json", temperature: 0.2 }
-                    });
 
                     const inferencePrompt = `
                     TASK: Classify the Entity described in the text.
@@ -105,16 +101,23 @@ export const scribeCreateFile = onCall(
                     }
                     `;
 
-                    const result = await model.generateContent(inferencePrompt);
-                    const inference = parseSecureJSON(result.response.text(), "ScribeInference");
+                    const result = await smartGenerateContent(genAI, inferencePrompt, {
+                        useFlash: true, // Inference is simple
+                        jsonMode: true,
+                        temperature: 0.2,
+                        contextLabel: "ScribeInference"
+                    });
 
-                    if (inference.type) {
-                        entityData.type = inference.type;
-                        logger.info(`   -> Inferred Type: ${inference.type}`);
-                    }
-                    if (inference.role && (!entityData.role || entityData.role === 'Unknown')) {
-                        entityData.role = inference.role;
-                        logger.info(`   -> Inferred Role: ${inference.role}`);
+                    if (result.text) {
+                        const inference = parseSecureJSON(result.text, "ScribeInference");
+                        if (inference.type) {
+                            entityData.type = inference.type;
+                            logger.info(`   -> Inferred Type: ${inference.type}`);
+                        }
+                        if (inference.role && (!entityData.role || entityData.role === 'Unknown')) {
+                            entityData.role = inference.role;
+                            logger.info(`   -> Inferred Role: ${inference.role}`);
+                        }
                     }
 
                 } catch (e) {
@@ -128,11 +131,6 @@ export const scribeCreateFile = onCall(
                 try {
                     logger.info(`🧪 SCRIBE SYNTHESIS: Converting chat to Markdown for ${entityData.name}`);
                     const genAI = new GoogleGenerativeAI(googleApiKey.value());
-                    const model = genAI.getGenerativeModel({
-                        model: MODEL_LOW_COST,
-                        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                        generationConfig: { temperature: 0.5 }
-                    });
 
                     const synthesisPrompt = `
                     TASK: Create a rich Markdown document based on the following BRAINSTORMING SESSION.
@@ -158,14 +156,19 @@ export const scribeCreateFile = onCall(
                     OUTPUT:
                     `;
 
-                    const result = await model.generateContent(synthesisPrompt);
-                    let synthesis = result.response.text();
+                    const result = await smartGenerateContent(genAI, synthesisPrompt, {
+                        useFlash: true, // Synthesis is fine with Flash, fallback to Pro if blocked
+                        temperature: 0.5,
+                        contextLabel: "ScribeSynthesis"
+                    });
+
+                    let synthesis = result.text || "";
 
                     // Cleanup fences
                     if (synthesis.startsWith('```markdown')) synthesis = synthesis.replace(/^```markdown\n/, '').replace(/\n```$/, '');
                     if (synthesis.startsWith('```')) synthesis = synthesis.replace(/^```\n/, '').replace(/\n```$/, '');
 
-                    finalBodyContent = synthesis;
+                    if (synthesis) finalBodyContent = synthesis;
 
                 } catch (e) {
                     logger.warn("⚠️ Scribe Synthesis Failed:", e);
@@ -333,11 +336,6 @@ export const integrateNarrative = onCall(
 
         try {
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
-            const model = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST, // Flash is fast and sufficient for rewriting
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: { temperature: 0.7 } // Creative but grounded
-            });
 
             // 🟢 CONSTRUCT PROMPT
             const prompt = `
@@ -361,8 +359,13 @@ export const integrateNarrative = onCall(
             OUTPUT:
             `;
 
-            const result = await model.generateContent(prompt);
-            let integratedText = result.response.text().trim();
+            const result = await smartGenerateContent(genAI, prompt, {
+                useFlash: true, // Flash is great for rewriting
+                temperature: 0.7,
+                contextLabel: "IntegrateNarrative"
+            });
+
+            let integratedText = (result.text || "").trim();
 
             // Cleanup fences if any
             if (integratedText.startsWith('```')) {
@@ -430,11 +433,6 @@ export const scribePatchFile = onCall(
 
             // 2. AI MERGE
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
-            const model = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST, // Flash is fine for merging
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: { temperature: TEMP_PRECISION }
-            });
 
             const prompt = `
             ACT AS: Expert Markdown Editor & Archivist.
@@ -456,8 +454,15 @@ export const scribePatchFile = onCall(
             ${patchContent}
             `;
 
-            const result = await model.generateContent(prompt);
-            let newContent = result.response.text();
+            const result = await smartGenerateContent(genAI, prompt, {
+                useFlash: true,
+                temperature: TEMP_PRECISION,
+                contextLabel: "ScribePatch"
+            });
+
+            let newContent = result.text || "";
+
+            if (!newContent) throw new Error(result.error || "Empty Patch Result");
 
             // Cleanup potential markdown fences if model ignores rule 4
             if (newContent.startsWith('```markdown')) newContent = newContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
@@ -538,11 +543,6 @@ export const transformToGuide = onCall(
 
         try {
             const genAI = new GoogleGenerativeAI(googleApiKey.value());
-            const model = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: { temperature: 0.7 }
-            });
 
             const prompt = `
             ACT AS: Expert Writing Coach & Outliner.
@@ -569,8 +569,13 @@ export const transformToGuide = onCall(
             STRICT OUTPUT: Return ONLY the list of instructions. No intro/outro.
             `;
 
-            const result = await model.generateContent(prompt);
-            let guideText = result.response.text().trim();
+            const result = await smartGenerateContent(genAI, prompt, {
+                useFlash: true,
+                temperature: 0.7,
+                contextLabel: "TransformGuide"
+            });
+
+            let guideText = (result.text || "").trim();
 
             return { success: true, text: guideText };
 

@@ -1,12 +1,17 @@
 import { HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-// 🟢 MODEL UPGRADE: Switching to Gemini 3.0 Pro (High Reasoning)
-// The Flash model (gemini-3-flash-preview) was flagging creative writing content (narrative conflict,
-// fantasy violence) as harmful due to overly sensitive safety filters.
-// We are now using the Pro model for BOTH high-reasoning and standard tasks to ensure nuanced understanding
-// and respect for the BLOCK_NONE settings in a creative context.
-export const MODEL_HIGH_REASONING = "gemini-3-pro-preview";
-export const MODEL_LOW_COST = "gemini-3-pro-preview"; // 🟢 UPGRADED FROM FLASH TO PRO
+// 🟢 MODEL CONFIGURATION
+// We now define FLASH and PRO explicitly.
+// FLASH (El Soldado): Fast, cheap, but sensitive.
+// PRO (El Juez): Deep reasoning, robust, understands context.
+export const MODEL_FLASH = "gemini-3-flash-preview";
+export const MODEL_PRO = "gemini-3-pro-preview";
+
+// 🟢 LEGACY POINTERS (For backwards compatibility if needed, though we will refactor)
+// MODEL_LOW_COST is now explicitly FLASH, but wrapped in Smart Fallback logic.
+export const MODEL_LOW_COST = MODEL_FLASH;
+// MODEL_HIGH_REASONING is PRO.
+export const MODEL_HIGH_REASONING = MODEL_PRO;
 
 export const TEMP_PRECISION = 0.3;
 export const TEMP_CREATIVE = 0.7;
