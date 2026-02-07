@@ -435,6 +435,34 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
     };
 
+    // 🟢 HANDLE UPDATE MEMORY (GOD MODE)
+    const handleUpdateMemory = async () => {
+        if (!folderId) {
+            toast.warning(t.connectFolderFirst);
+            return;
+        }
+
+        try {
+            const promise = callFunction<any>('updateLongTermMemory', {
+                accessToken: oauthToken,
+                folderId: folderId
+            });
+
+            toast.promise(promise, {
+                loading: 'Generando Memoria Profunda (Omnisciencia)...',
+                success: (result: any) => {
+                    refreshConfig();
+                    return `¡Memoria Activada! ${result.fileCount} archivos cargados.`;
+                },
+                error: 'Error al cargar memoria. Revisa que tus archivos Canon sean texto.',
+            });
+
+            await promise;
+        } catch (error) {
+            console.error("Memory Update Error:", error);
+        }
+    };
+
     const handleIndex = () => {
         const displayDate = config?.lastIndexed || indexStatus.lastIndexedAt;
 
@@ -917,6 +945,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onOpenConnectModal={() => setIsConnectModalOpen(true)}
                         onLogout={handleLogout}
                         onIndexRequest={handleIndex}
+                        onUpdateMemory={handleUpdateMemory}
                         onOpenSettings={() => setIsSettingsModalOpen(true)}
                         onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
                         accessToken={oauthToken}
