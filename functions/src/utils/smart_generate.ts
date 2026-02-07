@@ -88,6 +88,7 @@ export async function smartGenerateContent(
     }
 }
 
+// 🛡️ BLINDAJE DE EXTRACCIÓN (El Escudo)
 // Internal Helper: Executes a single generation attempt with "God Mode" extraction
 async function _executeGeneration(
     genAI: GoogleGenerativeAI,
@@ -108,38 +109,51 @@ async function _executeGeneration(
         });
 
         const result = await model.generateContent(prompt);
+        const response = result.response;
 
-        // 🟢 GOD MODE: PRIORITY EXTRACTION (Code Pattern: Content > Safety)
-        // Check candidates FIRST. If text exists, take it, ignoring finishReason.
-        if (result.response.candidates && result.response.candidates.length > 0) {
-            const firstCandidate = result.response.candidates[0];
-            if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
-                 const manualText = firstCandidate.content.parts.map((p: any) => p.text).join('');
-                 if (manualText) {
-                     // Log warning if flagged but text exists
-                     if (result.response.promptFeedback?.blockReason) {
-                        logger.warn(`🛡️ [SMART_GENERATE] Safety Warning in ${config.contextLabel} (Bypassed per God Mode):`, result.response.promptFeedback);
-                     }
-                     return { success: true, text: manualText };
+        // A. Verificación de Seguridad (Safety Check)
+        // Check for explicit Block Reason FIRST
+        if (response.promptFeedback?.blockReason) {
+             // 🟢 GOD MODE: Even if blocked, we check for candidates.
+             // Sometimes Gemini flags content but still returns it in parts.
+             if (response.candidates && response.candidates.length > 0) {
+                 const firstCandidate = response.candidates[0];
+                 if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
+                      const manualText = firstCandidate.content.parts.map((p: any) => p.text).join('');
+                      if (manualText) {
+                          logger.warn(`🛡️ [SMART_GENERATE] Safety Warning in ${config.contextLabel} (Bypassed per God Mode):`, response.promptFeedback);
+                          return { success: true, text: manualText };
+                      }
                  }
-            }
+             }
+
+             // If no manual text found, respect the block
+             logger.warn(`🛡️ [GUARDIAN] Bloqueo detectado: ${response.promptFeedback.blockReason}`);
+             return { success: false, error: 'CONTENT_BLOCKED', reason: response.promptFeedback.blockReason };
         }
 
-        // Standard text retrieval (Fallback)
+        // B. Verificación de Candidatos (Candidate Check)
+        // Detect "Silent Block" or Network Error (No Manual Candidates Found)
+        if (!response.candidates || response.candidates.length === 0) {
+             logger.warn(`🛡️ [GUARDIAN] Respuesta vacía (Silent Block) en ${config.contextLabel}.`);
+             return { success: false, error: 'SILENT_BLOCK', reason: 'Empty Response/No Candidates' };
+        }
+
+        // C. Extracción Segura
+        // Now it is safe to call .text() because we verified candidates exist.
         try {
-            const text = result.response.text();
+            const text = response.text();
             if (text) return { success: true, text };
         } catch (textError) {
-             // Expected if blocked
+             // Fallback: If .text() throws despite candidates existing (rare, usually finishReason mismatch)
+             // We try manual extraction again
+             const firstCandidate = response.candidates[0];
+             const manualText = firstCandidate.content?.parts?.map((p: any) => p.text).join('') || "";
+             if (manualText) return { success: true, text: manualText };
         }
 
-        // If we are here, we have no text.
-        if (result.response.promptFeedback?.blockReason) {
-             return { success: false, error: 'CONTENT_BLOCKED', reason: result.response.promptFeedback.blockReason };
-        }
-
-        // SILENT BLOCK DETECTION (Empty response, no error)
-        return { success: false, error: 'SILENT_BLOCK', reason: 'Empty Response' };
+        // Final catch-all if text is empty but candidates existed (e.g., pure tool call? unlikely here)
+        return { success: false, error: 'GENERATION_FAILED', reason: 'Text extraction returned empty string.' };
 
     } catch (e: any) {
         // Handle Specific API Errors
@@ -150,6 +164,7 @@ async function _executeGeneration(
              return { success: false, error: 'CONTENT_BLOCKED', reason: 'PROHIBITED_CONTENT' };
         }
 
+        logger.error(`🔥 [FATAL] Error crítico en _executeGeneration (${config.contextLabel}):`, e);
         return { success: false, error: 'GENERATION_FAILED', details: e.message };
     }
 }

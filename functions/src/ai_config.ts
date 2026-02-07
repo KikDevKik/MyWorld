@@ -7,46 +7,39 @@ import { HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 export const MODEL_FLASH = "gemini-3-flash-preview";
 export const MODEL_PRO = "gemini-3-pro-preview";
 
-// 🟢 LEGACY POINTERS (For backwards compatibility if needed, though we will refactor)
-// MODEL_LOW_COST is now explicitly FLASH, but wrapped in Smart Fallback logic.
+// 🟢 LEGACY POINTERS
 export const MODEL_LOW_COST = MODEL_FLASH;
-// MODEL_HIGH_REASONING is PRO.
 export const MODEL_HIGH_REASONING = MODEL_PRO;
 
 export const TEMP_PRECISION = 0.3;
 export const TEMP_CREATIVE = 0.7;
 export const TEMP_CHAOS = 1.0;
 
-// 🟢 GLOBAL PERMISSIVE SETTINGS (MYWORLD CREATIVE FREEDOM - GOD MODE)
-// We disable all safety blocks because MyWorld is a creative writing tool for ANY story.
-// Filters hinder creativity and narrative freedom.
+// 🟢 GEMINI NATIVE SAFETY PROTOCOL (PROTOCOL SIN FILTROS)
+// Objective: Eliminate "Standard text() access failed" by disabling CORRECT Gemini safety filters.
+// We strictly use GEMINI categories and IGNORE PaLM categories (Medical, Violence, etc) to prevent API errors.
 
-// Define STRICTLY SUPPORTED categories for Gemini 3 Preview models.
-// This prevents 400 Bad Request errors caused by unsupported categories (Medical, Violence, Unspecified).
 export const SAFETY_SETTINGS_PERMISSIVE = [
-    // 1. Harassment
     {
+        // GEMINI NATIVE: Harassment
         category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
+        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows narrative conflict
     },
-    // 2. Hate Speech
     {
+        // GEMINI NATIVE: Hate Speech
         category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
+        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows villains/aggressive dialogue
     },
-    // 3. Sexually Explicit
     {
+        // GEMINI NATIVE: Sexually Explicit
         category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
+        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows mature themes/romance
     },
-    // 4. Dangerous Content
     {
+        // GEMINI NATIVE: Dangerous Content
         category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
+        threshold: HarmBlockThreshold.BLOCK_NONE, // OFF: Allows combat scenes/weapons
     },
-    // 5. Civic Integrity (Politics/Elections) - EXPLICITLY SUPPORTED
-    {
-        category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
+    // NOTE: HARM_CATEGORY_CIVIC_INTEGRITY is DEPRECATED. Excluded.
+    // NOTE: HARM_CATEGORY_VIOLENCE, MEDICAL, TOXICITY are PaLM specific. Excluded to prevent API errors.
 ];
