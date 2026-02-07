@@ -83,8 +83,15 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
             await getToken(appCheck);
             console.log("✅ [SECURITY] Handshake Validated (Token Received).");
             return { isReady: true, error: null };
-        } catch (tokenError) {
+        } catch (tokenError: any) {
             console.error("⚠️ [SECURITY] Handshake Failed (Token Error):", tokenError);
+
+            // 🕵️ DETECT SPECIFIC FAILURES (EDGE / PRIVACY BLOCKERS)
+            const msg = tokenError?.message || "";
+            if (msg.includes("throttled") || msg.includes("403")) {
+                return { isReady: false, error: "SECURITY_THROTTLED" };
+            }
+
             return { isReady: false, error: "PERIMETER_BREACH" };
         }
 
