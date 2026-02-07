@@ -30,4 +30,10 @@ export interface ProjectConfig {
   lastForgeScan?: string;
   styleIdentity?: string;
   lastSignificantUpdate?: string;
+  longTermMemory?: {
+      cacheName: string;
+      expirationTime: string;
+      fileCount: number;
+      updatedAt: string;
+  };
 }
