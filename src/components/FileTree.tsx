@@ -12,6 +12,8 @@ interface FileNode {
     mimeType: string;
     children?: FileNode[];
     driveId?: string; // Optional if we need to map back to original ID
+    type?: string;
+    parentId?: string;
 }
 
 interface FileTreeProps {
@@ -57,7 +59,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     const [isOpen, setIsOpen] = useState(false);
     const [children, setChildren] = useState<FileNode[]>(node.children || []);
     const [isLoading, setIsLoading] = useState(false);
-    const [isLoaded, setIsLoaded] = useState(!!node.children);
+    const [isLoaded, setIsLoaded] = useState(!!node.children && node.children.length > 0);
 
     // 🟢 RENAME STATE
     const [isEditing, setIsEditing] = useState(false);
@@ -73,7 +75,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     useEffect(() => {
         if (node.children) {
             setChildren(node.children);
-            setIsLoaded(true);
+            if (node.children.length > 0) setIsLoaded(true);
         }
     }, [node.children]);
 
@@ -104,9 +106,6 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
         if (e) e.stopPropagation(); // Stop propagation
 
         // 🟢 DELETE MODE: FILE CLICK -> SELECT
-        // If it's a file, we select it. If it's a folder icon click, we still expand it (below).
-        // But if this is called from the row wrapper?
-
         if (!isFolder) {
             if (isDeleteMode && onToggleDeleteSelect) {
                 onToggleDeleteSelect(node.id);
@@ -129,7 +128,8 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
 
             setIsLoading(true);
             try {
-                const result = await callFunction<any>('getDriveFiles', { folderId: node.id, accessToken });
+                // 🟢 LAZY LOAD: Fetch from Firestore 'files' collection
+                const result = await callFunction<any>('getFileSystemNodes', { folderId: node.id, accessToken });
 
                 // 🟢 FIX: Usamos el extractor seguro
                 const files = extractFiles(result);
@@ -380,12 +380,14 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
             return;
         }
 
-        // 2. LEGACY DRIVE MODE (Fetching from API)
+        // 2. LAZY LOADING MODE (Fetching from Firestore V2)
         const loadRoot = async () => {
             if (!folderId || !accessToken) return; // 🛡️ Si no hay token, no intentamos
             setIsLoading(true);
             try {
-                const result = await callFunction<any>('getDriveFiles', { folderId, accessToken });
+                // 🟢 SWAPPED: getDriveFiles -> getFileSystemNodes
+                // Fetch root level children
+                const result = await callFunction<any>('getFileSystemNodes', { folderId, accessToken });
 
                 // 🟢 FIX: Usamos el extractor seguro
                 const files = extractFiles(result);

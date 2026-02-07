@@ -327,24 +327,41 @@ export const createTitaniumStructure = onCall(
              }
         }
 
-        // 🟢 2.5. AUTO-INDEX (HYPER-SPEED REFRESH)
-        // Instead of calling heavy scan, we construct the tree from what we just built.
+        // 🟢 2.5. AUTO-INDEX (TITANIUM V2)
         try {
-            // Fix: Flatten the tree so top-level folders (Universe, Characters) are roots of the tree,
-            // matching how getDriveFiles scans specific IDs (Canon/Resources paths).
-            const treePayload = createdFolders.map(f => ({
-                id: f.id,
-                name: f.name,
-                type: 'folder',
-                mimeType: 'application/vnd.google-apps.folder',
-                children: f.children || []
-            }));
+            const filesCollection = db.collection("TDB_Index").doc(userId).collection("files");
+            const batch = db.batch();
+            const now = new Date().toISOString();
 
-            await db.collection("TDB_Index").doc(userId).collection("structure").doc("tree").set({
-                tree: treePayload,
-                updatedAt: new Date().toISOString()
-            });
-            logger.info("🌳 Auto-indexed fresh Titanium structure.");
+            const addToBatch = (node: any, parentId: string | null) => {
+                const ref = filesCollection.doc(node.id);
+                batch.set(ref, {
+                    id: node.id,
+                    name: node.name,
+                    type: node.type || 'folder',
+                    mimeType: node.mimeType || 'application/vnd.google-apps.folder',
+                    parentId: parentId,
+                    driveId: node.id,
+                    updatedAt: now,
+                    lastIndexed: now,
+                    category: 'canon', // Default for struct
+                    isGhost: false
+                }, { merge: true });
+
+                if (node.children) {
+                    node.children.forEach((child: any) => addToBatch(child, node.id));
+                }
+            };
+
+            // createdFolders has { id, name, children... }
+            for (const folder of createdFolders) {
+                // Top level folders have parent = targetRootId
+                addToBatch(folder, targetRootId);
+            }
+
+            await batch.commit();
+            logger.info("🌳 Auto-indexed fresh Titanium structure (V2 Collection).");
+
         } catch (idxErr) {
             logger.warn("⚠️ Failed to auto-index structure:", idxErr);
         }
@@ -601,6 +618,87 @@ export const getBatchDriveMetadata = onCall(
 
         } catch (error: any) {
             logger.error("Error in getBatchDriveMetadata:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);
+
+/**
+ * 2.6. GET FILE SYSTEM NODES (Lazy Loader)
+ * Queries the 'files' collection by parentId.
+ */
+export const getFileSystemNodes = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        memory: "256MiB", // Lightweight
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { folderId, rootId } = request.data;
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        try {
+            // Determine Target Parent
+            // If folderId is provided, use it.
+            // If not, we might be at root.
+            // The frontend should pass the Project Root ID as folderId for top level.
+            // If folderId is missing, we can try to look up project config.
+
+            let targetParentId = folderId;
+
+            if (!targetParentId && rootId) {
+                targetParentId = rootId;
+            }
+
+            if (!targetParentId) {
+                 const configRef = db.collection("users").doc(userId).collection("profile").doc("project_config");
+                 const configSnap = await configRef.get();
+                 if (configSnap.exists) {
+                     targetParentId = configSnap.data()?.folderId;
+                 }
+            }
+
+            if (!targetParentId) {
+                // If still no parent, return empty
+                return { files: [] };
+            }
+
+            // Query Files Collection
+            const q = db.collection("TDB_Index").doc(userId).collection("files")
+                        .where("parentId", "==", targetParentId)
+                        .orderBy("name", "asc"); // Can sort by type in memory if needed, or composite index
+
+            const snapshot = await q.get();
+
+            const files = snapshot.docs.map(doc => {
+                const d = doc.data();
+                return {
+                    id: doc.id,
+                    name: d.name,
+                    mimeType: d.mimeType || (d.type === 'folder' ? 'application/vnd.google-apps.folder' : 'text/markdown'),
+                    children: [], // Lazy load
+                    driveId: d.driveId || doc.id,
+                    parentId: d.parentId
+                };
+            });
+
+            // Sort folders first manually to avoid composite index requirement for now
+            files.sort((a, b) => {
+                const aIsFolder = a.mimeType === 'application/vnd.google-apps.folder';
+                const bIsFolder = b.mimeType === 'application/vnd.google-apps.folder';
+                if (aIsFolder && !bIsFolder) return -1;
+                if (!aIsFolder && bIsFolder) return 1;
+                return 0; // Already sorted by name via query
+            });
+
+            return { files };
+
+        } catch (error: any) {
+            logger.error("Error fetching file system nodes:", error);
             throw new HttpsError("internal", error.message);
         }
     }

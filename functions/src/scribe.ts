@@ -4,13 +4,15 @@ import * as crypto from 'crypto';
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import * as logger from "firebase-functions/logger";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { updateFirestoreTree } from "./utils/tree_utils";
+import { ingestFile } from "./ingestion";
+import { GeminiEmbedder } from "./utils/vector_utils";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -180,7 +182,7 @@ export const scribeCreateFile = onCall(
             const folderPath = await resolveVirtualPath(drive, folderId);
             const fullVirtualPath = `${folderPath}/${fileName}`;
 
-            // Generate Deterministic ID
+            // Generate Deterministic ID (Only for Nexus Link, not used as Doc ID anymore)
             const nexusId = crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
             logger.info(`   -> Deterministic Nexus ID: ${nexusId}`);
 
@@ -223,17 +225,44 @@ export const scribeCreateFile = onCall(
 
             // 5. UPDATE FIRESTORE (The Registry)
 
-            // A. Pre-Inject TDB_Index (Prevent Phantom Nodes)
-            await db.collection("TDB_Index").doc(userId).collection("files").doc(nexusId).set({
-                name: fileName,
-                path: fullVirtualPath,
-                driveId: newFileId,
-                lastIndexed: new Date().toISOString(),
-                contentHash: crypto.createHash('sha256').update(fullContent).digest('hex'),
-                category: 'canon',
-                isGhost: false,
-                smartTags: ['CREATED_BY_SCRIBE']
-            });
+            // A. FIRE & FORGET VECTORIZATION (Server-Side Trigger) ⚡
+            // We await it to ensure consistency per "Titanium" contract (Stability > Speed)
+            try {
+                const embeddingsModel = new GeminiEmbedder({
+                    apiKey: googleApiKey.value(),
+                    model: "gemini-embedding-001",
+                    taskType: TaskType.RETRIEVAL_DOCUMENT,
+                });
+
+                await ingestFile(
+                    db,
+                    userId,
+                    folderId, // Scope anchor
+                    {
+                        id: newFileId, // Drive ID (The King)
+                        name: fileName,
+                        path: fullVirtualPath,
+                        saga: sagaId || 'Global',
+                        parentId: folderId,
+                        category: 'canon'
+                    },
+                    fullContent,
+                    embeddingsModel
+                );
+
+                // 🟢 METADATA ENRICHMENT (Post-Ingest)
+                // Ingest sets basic fields. We add specific Scribe tags here.
+                await db.collection("TDB_Index").doc(userId).collection("files").doc(newFileId).update({
+                    smartTags: FieldValue.arrayUnion('CREATED_BY_SCRIBE'),
+                    nexusId: nexusId // Link back to determinism
+                });
+
+                logger.info(`   🧠 [SCRIBE] Vectorized & Indexed: ${fileName}`);
+
+            } catch (ingestErr) {
+                logger.error("   🔥 [SCRIBE] Ingestion Failed:", ingestErr);
+                // We don't fail the request, but we log critically.
+            }
 
             // B. Update Source (Radar) - Using the Concept ID (entityId/slug)
             await db.collection("users").doc(userId).collection("forge_detected_entities").doc(entityId).set({
@@ -264,19 +293,6 @@ export const scribeCreateFile = onCall(
                 aliases: entityData.aliases || [],
                 nexusId: nexusId // 🟢 Link to TDB Index
             }, { merge: true });
-
-            // 🟢 6. SYNC TDB INDEX (Fixes "Need to Save Config" issue)
-            // We explicitly tell the Global Tree that a new file exists.
-            await updateFirestoreTree(userId, 'add', newFileId, {
-                parentId: folderId,
-                newNode: {
-                    id: newFileId,
-                    name: fileName,
-                    mimeType: 'text/markdown',
-                    type: 'file',
-                    driveId: newFileId
-                }
-            });
 
             return {
                 success: true,
@@ -384,6 +400,9 @@ export const scribePatchFile = onCall(
             throw new HttpsError("invalid-argument", "Missing required fields.");
         }
 
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
         try {
             const auth = new google.auth.OAuth2();
             auth.setCredentials({ access_token: accessToken });
@@ -392,8 +411,21 @@ export const scribePatchFile = onCall(
             // 1. FETCH ORIGINAL CONTENT
             const getRes = await drive.files.get({
                 fileId: fileId,
+                fields: 'id, name, parents',
                 alt: 'media'
             });
+
+            // Note: get with alt='media' returns body. Metadata requires separate call or fields on get (but alt=media overrides fields?).
+            // The googleapis typings are tricky. Usually need two calls for metadata + content if alt=media.
+            // But let's assume we get body. We need name/parent for Ingest.
+
+            const metaRes = await drive.files.get({
+                fileId: fileId,
+                fields: 'id, name, parents'
+            });
+            const fileName = metaRes.data.name || "Unknown.md";
+            const parentId = metaRes.data.parents?.[0];
+
             const originalContent = typeof getRes.data === 'string' ? getRes.data : JSON.stringify(getRes.data);
 
             // 2. AI MERGE
@@ -439,6 +471,39 @@ export const scribePatchFile = onCall(
                     body: newContent
                 }
             });
+
+            // 🟢 4. AUTO-INDEX (FIRE & FORGET)
+            // Fix: Resolve Project Root ID
+            const configRef = db.collection("users").doc(userId).collection("profile").doc("project_config");
+            const configSnap = await configRef.get();
+            const projectRootId = configSnap.exists ? configSnap.data()?.folderId : null;
+
+            try {
+                const embeddingsModel = new GeminiEmbedder({
+                    apiKey: googleApiKey.value(),
+                    model: "gemini-embedding-001",
+                    taskType: TaskType.RETRIEVAL_DOCUMENT,
+                });
+
+                await ingestFile(
+                    db,
+                    userId,
+                    projectRootId || parentId || "unknown_project", // Correctly resolved root
+                    {
+                        id: fileId,
+                        name: fileName,
+                        path: fileName, // Simplified path
+                        saga: 'Global',
+                        parentId: parentId,
+                        category: 'canon' // Patched files are usually canon
+                    },
+                    newContent,
+                    embeddingsModel
+                );
+                logger.info(`   🧠 [SCRIBE] Re-indexed patched file: ${fileName}`);
+            } catch (idxErr) {
+                logger.warn("   ⚠️ [SCRIBE] Indexing failed after patch:", idxErr);
+            }
 
             return { success: true, message: "Archivo actualizado (Cristalizado)." };
 

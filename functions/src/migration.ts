@@ -127,7 +127,7 @@ ${orphans.length > 0 ? `  - IDs: ${orphans.slice(0, 10).join(', ')}${orphans.len
         } else {
             // Create
             await drive.files.create({
-                resource: {
+                requestBody: {
                     name: filename,
                     parents: [targetRootId],
                     mimeType: 'text/markdown'
@@ -334,5 +334,125 @@ export const executeBaptismProtocol = onCall(
             lastDocPath,
             message: `Batch complete: ${baptized} baptized, ${errors} orphans/skipped.`
         };
+    }
+);
+
+// --- TITANIUM MIGRATION (V1 -> V2) ---
+
+interface FileNode {
+    id: string; // Drive ID
+    name: string;
+    mimeType: string;
+    children?: FileNode[];
+    type?: string;
+    [key: string]: any;
+}
+
+function flattenTreeForMigration(nodes: FileNode[], parentId: string | null = null): any[] {
+    let flat: any[] = [];
+    for (const node of nodes) {
+        // Map to new schema
+        const docId = node.id; // Old tree uses DriveID as ID
+
+        flat.push({
+            docId: docId,
+            data: {
+                name: node.name,
+                mimeType: node.mimeType || 'unknown',
+                type: node.mimeType === 'application/vnd.google-apps.folder' ? 'folder' : 'file',
+                parentId: parentId,
+                driveId: docId, // Explicit
+                lastIndexed: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                category: 'canon', // Default
+                isGhost: false
+            }
+        });
+
+        if (node.children && node.children.length > 0) {
+            flat = flat.concat(flattenTreeForMigration(node.children, docId));
+        }
+    }
+    return flat;
+}
+
+/**
+ * 24.1 MIGRATE DATABASE V1->V2 (The Bridge)
+ * Explodes the monolithic JSON tree into the new scalable 'files' collection.
+ */
+export const migrateDatabaseV1toV2 = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: true,
+        timeoutSeconds: 540,
+        memory: "2GiB",
+    },
+    async (request) => {
+        const db = getFirestore();
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const userId = request.auth.uid;
+        logger.info(`🏗️ Starting Titanium Migration (V1->V2) for ${userId}`);
+
+        try {
+            // 1. READ LEGACY TREE
+            const treeRef = db.collection("TDB_Index").doc(userId).collection("structure").doc("tree");
+            const treeDoc = await treeRef.get();
+
+            if (!treeDoc.exists) {
+                return { success: true, message: "No legacy tree found. System ready for V2." };
+            }
+
+            const treeData = treeDoc.data();
+            if (!treeData || !Array.isArray(treeData.tree)) {
+                return { success: true, message: "Legacy tree is empty or invalid." };
+            }
+
+            // 2. FLATTEN
+            logger.info("   -> Flattening JSON Tree...");
+            const flatNodes = flattenTreeForMigration(treeData.tree);
+            logger.info(`   -> Found ${flatNodes.length} nodes to migrate.`);
+
+            // 3. BATCH WRITE (Titanium Schema)
+            const filesCollection = db.collection("TDB_Index").doc(userId).collection("files");
+            let batch = db.batch();
+            let count = 0;
+            let totalMigrated = 0;
+
+            for (const node of flatNodes) {
+                const docRef = filesCollection.doc(node.docId);
+
+                // Use 'set' with merge to avoid overwriting existing V2 data if partial migration happened
+                batch.set(docRef, node.data, { merge: true });
+                count++;
+                totalMigrated++;
+
+                if (count >= 400) {
+                    await batch.commit();
+                    batch = db.batch();
+                    count = 0;
+                }
+            }
+
+            if (count > 0) {
+                await batch.commit();
+            }
+
+            // 4. ARCHIVE LEGACY (Rename, don't delete yet for safety)
+            const backupRef = db.collection("TDB_Index").doc(userId).collection("structure").doc("tree_v1_backup");
+            await backupRef.set({ ...treeData, archivedAt: new Date().toISOString() });
+
+            // Delete original to force Frontend to switch (or we handle in UI)
+            await treeRef.delete();
+
+            logger.info(`✅ Migration Complete. ${totalMigrated} files moved to Collection.`);
+
+            return { success: true, count: totalMigrated };
+
+        } catch (error: any) {
+             logger.error("💥 Migration Failed:", error);
+             throw new HttpsError("internal", error.message);
+        }
     }
 );
