@@ -413,7 +413,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
                                     >
                                         <Sparkles size={14} className="text-purple-400" />
-                                        <span>Cargar Memoria (God Mode)</span>
+                                        <span>Cargar Memoria</span>
                                     </button>
                                 </div>
                             )}

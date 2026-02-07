@@ -287,7 +287,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 console.log("✅ Folder ID recuperado de Cloud Config:", config.folderId);
                 setFolderId(config.folderId);
             } else {
-                 console.warn("⚠️ No Cloud Config found. Waiting for user input (Drive Connect).");
+                console.warn("⚠️ No Cloud Config found. Waiting for user input (Drive Connect).");
             }
 
             // 3. CHECK INDEX STATUS
@@ -360,9 +360,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         // It doesn't explicitly say clicking the icon toggles it, but standard dock behavior implies it.
         // Let's implement toggle logic for convenience.
         if (activeView === id) {
-             setActiveView('editor');
+            setActiveView('editor');
         } else {
-             setActiveView(id);
+            setActiveView(id);
         }
     };
 
@@ -420,7 +420,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             });
 
             toast.promise(promise, {
-                loading: 'Indexando base de conocimiento (Incremental)...',
+                loading: 'Indexando base de conocimiento...',
                 success: (result: any) => {
                     setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
                     refreshConfig();
@@ -467,7 +467,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const displayDate = config?.lastIndexed || indexStatus.lastIndexedAt;
 
         if (indexStatus.isIndexed) {
-             toast(t.memorySynced, {
+            toast(t.memorySynced, {
                 description: `${t.lastUpdate}${displayDate ? new Date(displayDate).toLocaleDateString() : t.unknown}`,
                 action: {
                     label: t.relearn,
@@ -619,7 +619,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         let expandedContent: React.ReactNode = null;
 
         if (activeView === 'sentinel') {
-             expandedContent = (
+            expandedContent = (
                 <SentinelStatus
                     onClose={() => setActiveView('editor')}
                     isSecurityReady={isSecurityReady}
@@ -768,7 +768,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             <div className="flex flex-col h-full overflow-hidden relative group/editor-area">
                 {/* 🟢 READING TOOLBAR (Floating) */}
                 <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover/editor-area:opacity-100 transition-opacity duration-300 pointer-events-none hover:!opacity-100 focus-within:!opacity-100">
-                     <div className="pointer-events-auto">
+                    <div className="pointer-events-auto">
                         <ReadingToolbar
                             fontFamily={fontFamily}
                             setFontFamily={setFontFamily}
@@ -777,7 +777,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             isZenMode={isZenMode}
                             setIsZenMode={setIsZenMode}
                         />
-                     </div>
+                    </div>
                 </div>
 
                 <div
@@ -925,14 +925,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                                 // 3. Check for unsaved changes (Dirty State)
                                 const isDirtyRef = selectedFileContentRef.current !== lastSavedContentRef.current;
                                 if (isDirtyRef) {
-                                     // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
-                                     toast.warning(t.versionConflict, {
+                                    // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
+                                    toast.warning(t.versionConflict, {
                                         description: t.versionConflictDesc
                                     });
                                 } else {
-                                     // ✅ SAFE: Upgrade content
-                                     setSelectedFileContent(content);
-                                     setLastSavedContent(content);
+                                    // ✅ SAFE: Upgrade content
+                                    setSelectedFileContent(content);
+                                    setLastSavedContent(content);
                                 }
                             } else {
                                 // 🔴 STANDARD USER SWITCH
@@ -1012,10 +1012,10 @@ function App() {
                 providerData: [],
                 refreshToken: '',
                 tenantId: null,
-                delete: async () => {},
+                delete: async () => { },
                 getIdToken: async () => 'mock-token',
                 getIdTokenResult: async () => ({} as any),
-                reload: async () => {},
+                reload: async () => { },
                 toJSON: () => ({})
             } as unknown as User);
             setOauthToken('mock-token');
@@ -1119,8 +1119,8 @@ function App() {
         const FIFTY_MINUTES = 50 * 60 * 1000;
         console.log("⏰ Iniciando ciclo de auto-refresh (50 min)");
         const intervalId = setInterval(async () => {
-             console.log("⏰ Ejecutando auto-refresh programado...");
-             await handleTokenRefresh();
+            console.log("⏰ Ejecutando auto-refresh programado...");
+            await handleTokenRefresh();
         }, FIFTY_MINUTES);
 
         return () => clearInterval(intervalId);
@@ -1148,7 +1148,7 @@ function App() {
         return (
             <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
                 <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
-                     <AlertTriangle className="w-12 h-12" />
+                    <AlertTriangle className="w-12 h-12" />
                 </div>
                 <div className="text-center max-w-md space-y-2">
                     <h1 className="text-xl font-bold tracking-widest uppercase">Protocolo de Seguridad Fallido</h1>
