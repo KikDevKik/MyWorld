@@ -128,7 +128,9 @@ async function _executeGeneration(
              }
 
              // If no manual text found, respect the block
-             logger.warn(`🛡️ [GUARDIAN] Bloqueo detectado: ${response.promptFeedback.blockReason}`);
+             logger.warn(`🛡️ [GUARDIAN] Bloqueo detectado: ${response.promptFeedback.blockReason}`, {
+                 safetyRatings: response.promptFeedback.safetyRatings
+             });
              return { success: false, error: 'CONTENT_BLOCKED', reason: response.promptFeedback.blockReason };
         }
 
@@ -161,6 +163,10 @@ async function _executeGeneration(
              return { success: false, error: 'RECITATION_DETECTED', reason: 'COPYRIGHT' };
         }
         if (e.message?.includes('PROHIBITED_CONTENT') || e.message?.includes('Text not available')) {
+             logger.warn(`🛡️ [GUARDIAN] Bloqueo PROHIBITED_CONTENT en ${config.contextLabel}.`, {
+                 details: e.message,
+                 response: e.response // Often contains safety details in API error
+             });
              return { success: false, error: 'CONTENT_BLOCKED', reason: 'PROHIBITED_CONTENT' };
         }
 
