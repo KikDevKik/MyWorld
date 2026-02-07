@@ -1,7 +1,12 @@
 import { HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
+// 🟢 MODEL UPGRADE: Switching to Gemini 3.0 Pro (High Reasoning)
+// The Flash model (gemini-3-flash-preview) was flagging creative writing content (narrative conflict,
+// fantasy violence) as harmful due to overly sensitive safety filters.
+// We are now using the Pro model for BOTH high-reasoning and standard tasks to ensure nuanced understanding
+// and respect for the BLOCK_NONE settings in a creative context.
 export const MODEL_HIGH_REASONING = "gemini-3-pro-preview";
-export const MODEL_LOW_COST = "gemini-3-flash-preview";
+export const MODEL_LOW_COST = "gemini-3-pro-preview"; // 🟢 UPGRADED FROM FLASH TO PRO
 
 export const TEMP_PRECISION = 0.3;
 export const TEMP_CREATIVE = 0.7;
@@ -11,7 +16,7 @@ export const TEMP_CHAOS = 1.0;
 // We disable all safety blocks because MyWorld is a creative writing tool for ANY story.
 // Filters hinder creativity and narrative freedom.
 
-// Define STRICTLY SUPPORTED categories for Gemini 3 Flash Preview.
+// Define STRICTLY SUPPORTED categories for Gemini 3 Preview models.
 // This prevents 400 Bad Request errors caused by unsupported categories (Medical, Violence, Unspecified).
 export const SAFETY_SETTINGS_PERMISSIVE = [
     // 1. Harassment
