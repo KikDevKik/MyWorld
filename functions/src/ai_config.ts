@@ -39,11 +39,5 @@ export const SAFETY_SETTINGS_PERMISSIVE = [
     {
         category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
         threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    {
-        // CATCH-ALL: Unspecified
-        // Sometimes the model blocks content without a clear category.
-        category: HarmCategory.HARM_CATEGORY_UNSPECIFIED,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
     }
 ];
