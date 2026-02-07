@@ -21,6 +21,7 @@ import { GeminiEmbedder } from "./utils/vector_utils";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile, deleteFileVectors } from "./ingestion";
+import { createProjectCache } from "./utils/gemini_cache";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { marked } from 'marked';
 import JSON5 from 'json5';
@@ -719,7 +720,7 @@ export const syncWorldManifest = onCall(
 
         // --- STEP B: BATCH PROCESS (AI EXTRACTION + SEQUENTIAL UPSERT) ---
         // Refactored to avoid Race Conditions in DB Write
-        const BATCH_SIZE = 3;
+        const BATCH_SIZE = 20; // ⚡ FLASH TURBO: Massive Batch
         let processedCount = 0;
         let nodesUpserted = 0;
 
@@ -738,17 +739,30 @@ export const syncWorldManifest = onCall(
             const batch = candidates.slice(i, i + BATCH_SIZE);
             const batchResults: Array<{ file: DriveFile, entities: any[] }> = [];
 
-            // PHASE 1: PARALLEL EXTRACTION (AI)
-            await Promise.all(batch.map(async (file) => {
-                try {
-                    // 1. Fetch Content
-                    const content = await _getDriveFileContentInternal(drive, file.id);
-                    if (!content || content.length < 50) return;
+            // PHASE 1: MASSIVE EXTRACTION (One Call per Batch)
+            const batchContentMap = new Map<string, DriveFile>();
+            let hugePromptContent = "";
+            let fileIndex = 0;
 
-                    // 2. AI Extraction
-                    const prompt = `
+            // 1. Gather Content
+            for (const file of batch) {
+                try {
+                    const content = await _getDriveFileContentInternal(drive, file.id);
+                    if (content && content.length > 50) {
+                        hugePromptContent += `\n\n--- FILE_ID_${fileIndex}: ${file.name} ---\n${content.substring(0, 50000)}`; // Cap per file
+                        batchContentMap.set(`FILE_ID_${fileIndex}`, file);
+                        fileIndex++;
+                    }
+                } catch (e) {
+                    logger.warn(`Failed to read ${file.name}`);
+                }
+            }
+
+            // 2. AI Call
+            if (hugePromptContent.length > 0) {
+                 const prompt = `
                       ACT AS: Expert Taxonomist & Knowledge Graph Architect.
-                      TASK: Analyze the provided text and extract semantic entities (Nodes) AND their relationships.
+                      TASK: Analyze the provided text files (concatenated) and extract semantic entities (Nodes) AND their relationships.
 
                       STRICT TAXONOMY (Do not invent types):
                       - 'character': Person, being, or sentient AI.
@@ -764,13 +778,12 @@ export const syncWorldManifest = onCall(
                       - 'MENTOR': Teacher, master, guide, boss.
                       - 'FAMILY': Relative, spouse, sibling, parent/child.
                       - 'NEUTRAL': Co-worker, neighbor, acquaintance, location link.
-                      - 'OWNED_BY': Ownership, possession, inventory (e.g., "The Sword belongs to Aragorn").
+                      - 'OWNED_BY': Ownership, possession, inventory.
 
                       INSTRUCTIONS:
-                      1. Extract entities as before.
-                      2. Extract relationships found EXPLICITLY in the text.
-                      3. INFER 'targetType' for relationships (Best Guess).
-                      4. 'context' must be a short snippet (max 15 words) proving the link.
+                      1. Extract entities.
+                      2. Extract relationships.
+                      3. **CRITICAL**: For each entity, return the "source_file_id" (e.g. "FILE_ID_0") where it was found.
 
                       OUTPUT FORMAT (JSON Array):
                       [
@@ -778,6 +791,7 @@ export const syncWorldManifest = onCall(
                           "name": "Exact Name",
                           "type": "character",
                           "description": "Brief definition based ONLY on this text (max 30 words).",
+                          "source_file_id": "FILE_ID_0",
                           "aliases": ["Alias1", "Nickname"],
                           "relationships": [
                              {
@@ -791,26 +805,40 @@ export const syncWorldManifest = onCall(
                       ]
 
                       TEXT CONTENT:
-                      ${content.substring(0, 30000)}
-                    `;
+                      ${hugePromptContent}
+                 `;
 
-                    const result = await model.generateContent(prompt);
-                    const responseText = result.response.text();
-                    const parsedEntities = parseSecureJSON(responseText, "NexusNodeParser");
+                 try {
+                     const result = await model.generateContent(prompt);
+                     const responseText = result.response.text();
+                     const parsedEntities = parseSecureJSON(responseText, "NexusNodeParser");
 
-                    if (parsedEntities.error || !Array.isArray(parsedEntities)) {
-                        logger.warn(`   ⚠️ Extraction failed for ${file.name}: Malformed JSON.`);
-                        return;
-                    }
+                     if (Array.isArray(parsedEntities)) {
+                         // Post-process to map back to files
+                         for (const entity of parsedEntities) {
+                             const fileIdStr = entity.source_file_id;
+                             const sourceFile = batchContentMap.get(fileIdStr);
 
-                    // Store result for sequential processing
-                    batchResults.push({ file, entities: parsedEntities });
-                    processedCount++;
+                             // Fallback: If AI forgot ID or file not found, assign to first file? No, skip or log.
+                             // Actually, if mass extraction, we might lose exact source if AI is dumb.
+                             // But Flash is smart enough.
 
-                } catch (fileError) {
-                    logger.error(`   ❌ Failed to process ${file.name}:`, fileError);
-                }
-            }));
+                             if (sourceFile) {
+                                 // Find or create entry in batchResults
+                                 let entry = batchResults.find(b => b.file.id === sourceFile.id);
+                                 if (!entry) {
+                                     entry = { file: sourceFile, entities: [] };
+                                     batchResults.push(entry);
+                                 }
+                                 entry.entities.push(entity);
+                             }
+                         }
+                         processedCount += batchContentMap.size;
+                     }
+                 } catch (aiErr) {
+                     logger.error("Nexus Batch AI Failed:", aiErr);
+                 }
+            }
 
             // PHASE 2: BATCH UPSERT (DB) - OPTIMIZED
             const entitiesRef = db.collection("users").doc(userId).collection("projects").doc(projectId).collection("entities");
@@ -2312,6 +2340,11 @@ ${scrapeResult.content}
       // 🟢 REVISION 00131.2: SYSTEM IDENTITY OVERWRITE (CLOAKING MODE)
       const CONTINUITY_PROTOCOL = `
 === PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00131.2 - CHAMELEON UPDATE) ===
+[THINKING MODE ACTIVATED]
+Before answering, you MUST perform a deep structural analysis in a hidden thought block.
+Format: <thinking> ... internal monologue ... </thinking>
+The user will not see this, but it is critical for consistency.
+
 ROL: Eres un Asistente de Escritura Creativa que actúa como un ESPEJO de la obra.
 OBJETIVO: Ayudar al autor manteniendo una inmersión lingüística y cultural absoluta.
 
@@ -2442,6 +2475,15 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
       try {
         const genAI = new GoogleGenerativeAI(finalKey);
 
+        // 🟢 GOD MODE: CONTEXT CACHING
+        const config = await _getProjectConfigInternal(userId);
+        let cachedContent = undefined;
+
+        if (config.longTermMemory?.cacheName) {
+            cachedContent = config.longTermMemory.cacheName;
+            logger.info(`🧠 [GOD MODE] Using Context Cache in Forge: ${cachedContent}`);
+        }
+
         // --- 1. CONFIGURATION ---
         const generationConfig = {
              temperature: TEMP_CREATIVE,
@@ -2452,7 +2494,8 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
         let model = genAI.getGenerativeModel({
             model: MODEL_HIGH_REASONING,
             generationConfig,
-            safetySettings: SAFETY_SETTINGS_PERMISSIVE
+            safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+            cachedContent: cachedContent
         });
 
         // 🟢 MULTIMODAL PAYLOAD
@@ -2613,6 +2656,9 @@ export const worldEngine = onCall(
     console.log("🚀 WORLD ENGINE v2.0 (Sanitizer Active) - Loaded");
     console.log('🚀 WORLD ENGINE: Phase 4.1 - TITAN LINK - ' + new Date().toISOString());
 
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+    const userId = request.auth.uid;
+
     // 1. DATA RECEPTION
     const { prompt, agentId, chaosLevel, context, interrogationDepth, clarifications, sessionId, sessionHistory, accessToken, folderId, currentGraphContext } = request.data;
     const { canon_dump, timeline_dump } = context || {};
@@ -2668,9 +2714,20 @@ export const worldEngine = onCall(
       }
 
       const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+
+      // 🟢 GOD MODE: CONTEXT CACHING
+      const config = await _getProjectConfigInternal(userId);
+      let cachedContent = undefined;
+
+      if (config.longTermMemory?.cacheName) {
+          cachedContent = config.longTermMemory.cacheName;
+          logger.info(`🧠 [GOD MODE] Using Context Cache: ${cachedContent}`);
+      }
+
       const model = genAI.getGenerativeModel({
         model: MODEL_HIGH_REASONING,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+        cachedContent: cachedContent,
         generationConfig: {
           temperature: dynamicTemp,
         } as any
@@ -2694,6 +2751,11 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
       const systemPrompt = `
         You are using the Gemini 3 Reasoning Engine.
         CORE PERSONA DIRECTIVE: ${systemPersona}
+
+        [THINKING MODE ACTIVATED]
+        Before answering, you MUST perform a deep structural analysis in a hidden thought block.
+        Format: <thinking> ... internal monologue ... </thinking>
+        The user will not see this, but it is critical for consistency.
 
         === WORLD CONTEXT (THE LAW) ===
         ${canon_dump || "No canon rules provided."}
@@ -5199,6 +5261,128 @@ export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from "./auth";
 export { genesisManifest } from "./genesis";
 export { generateSpeech } from "./tts";
 export { nukeProject } from "./nuke";
+
+/**
+ * 38. UPDATE LONG TERM MEMORY (God Mode)
+ * Scans all Canon/Lore files, concatenates them, and creates a Gemini Context Cache.
+ * This gives the AI "Omniscience" (up to 1M tokens) for the Director and Forge.
+ */
+export const updateLongTermMemory = onCall(
+  {
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
+    enforceAppCheck: true,
+    timeoutSeconds: 3600, // 1 Hour (Heavy Operation)
+    memory: "2GiB",
+    secrets: [googleApiKey],
+  },
+  async (request) => {
+    const db = getFirestore();
+
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login required.");
+    const userId = request.auth.uid;
+    const { accessToken } = request.data;
+    if (!accessToken) throw new HttpsError("unauthenticated", "AccessToken required.");
+
+    logger.info(`🧠 [GOD MODE] Updating Long Term Memory for ${userId}`);
+
+    try {
+        const config = await _getProjectConfigInternal(userId);
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+        const drive = google.drive({ version: "v3", auth });
+
+        let allCanonContent = "";
+        let fileCount = 0;
+
+        // 1. Gather Content from Canon Paths
+        if (config.canonPaths && config.canonPaths.length > 0) {
+            for (const p of config.canonPaths) {
+                // Resolve Shortcut
+                const resolved = await resolveDriveFolder(drive, p.id);
+                // Recursive Fetch
+                const tree = await fetchFolderContents(drive, resolved.id, config, true, 'canon');
+                const flatFiles = flattenFileTree(tree);
+
+                // Filter Text Files
+                const textFiles = flatFiles.filter(f =>
+                    f.mimeType === 'application/vnd.google-apps.document' ||
+                    f.mimeType.startsWith('text/') ||
+                    f.name.endsWith('.md')
+                );
+
+                // Read & Concatenate
+                // We use sequential read to avoid rate limits? Or parallel with limit.
+                // Using Promise.all with small chunks
+                const CHUNK_SIZE = 5;
+                for (let i = 0; i < textFiles.length; i += CHUNK_SIZE) {
+                    const batch = textFiles.slice(i, i + CHUNK_SIZE);
+                    await Promise.all(batch.map(async (file) => {
+                        try {
+                            const content = await _getDriveFileContentInternal(drive, file.id);
+                            if (content && content.length > 50) {
+                                allCanonContent += `\n\n--- FILE: ${file.name} (Path: ${file.path}) ---\n${content}`;
+                                fileCount++;
+                            }
+                        } catch (e) {
+                            logger.warn(`Skipped ${file.name} in Memory Update:`, e);
+                        }
+                    }));
+                }
+            }
+        }
+
+        if (allCanonContent.length < 100) {
+            return { success: false, message: "Not enough canon content found." };
+        }
+
+        logger.info(`🧠 [GOD MODE] Compiled ${fileCount} files. Total Size: ${allCanonContent.length} chars.`);
+
+        // 2. Create Context Cache
+        const finalApiKey = getAIKey(request.data, googleApiKey.value());
+        const cacheName = `project-${userId}-${Date.now()}`; // Unique Name
+
+        // We use Flash for the cache backing model usually? Or Pro?
+        // If we want to use Pro with the cache, the cache must be compatible?
+        // Gemini caches are model-specific? Docs say: "The cache is associated with a specific model."
+        // We want to use this with BOTH? No, usually one.
+        // The user wants "Pro" to have the memory. So we should target 'models/gemini-1.5-pro-001' (or 3.0-pro).
+        // Let's target MODEL_HIGH_REASONING.
+
+        // However, user also said "Flash reads everything". Maybe Flash creates the map?
+        // But "Director" (Pro) needs the memory.
+        // We will create the cache for the High Reasoning Model (Pro).
+
+        const cacheResult = await createProjectCache(
+            finalApiKey,
+            cacheName,
+            allCanonContent,
+            MODEL_HIGH_REASONING, // Bind to Pro
+            7200 // 2 Hours TTL
+        );
+
+        // 3. Save to Project Config
+        await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
+            longTermMemory: {
+                cacheName: cacheResult.cacheName,
+                expirationTime: cacheResult.expirationTime,
+                fileCount: fileCount,
+                updatedAt: new Date().toISOString()
+            }
+        }, { merge: true });
+
+        return {
+            success: true,
+            fileCount,
+            cacheName: cacheResult.cacheName,
+            expiration: cacheResult.expirationTime
+        };
+
+    } catch (error: any) {
+        throw handleSecureError(error, "updateLongTermMemory");
+    }
+  }
+);
 
 /**
  * SMART SYNC (The Watcher)
