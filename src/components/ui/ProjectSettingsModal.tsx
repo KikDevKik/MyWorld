@@ -24,6 +24,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'paths' | 'taxonomy'>('paths');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [folderNames, setFolderNames] = useState<Record<string, string>>({}); // 🟢 Cache for names
 
     // Google Drive Picker Hook
     const [openPicker] = useDrivePicker();
@@ -36,6 +37,41 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             setFolderMapping(config.folderMapping || {});
         }
     }, [config]);
+
+    // 🟢 FETCH FOLDER NAMES (Metadata)
+    useEffect(() => {
+        const fetchNames = async () => {
+            if (activeTab !== 'taxonomy') return;
+
+            // Collect IDs that we don't have names for yet
+            const idsToFetch = Object.values(folderMapping).filter(id => id && typeof id === 'string' && !folderNames[id]);
+
+            if (idsToFetch.length === 0) return;
+
+            const token = localStorage.getItem('google_drive_token');
+            if (!token) return;
+
+            try {
+                // Batch fetch
+                const result = await callFunction<{ metadata: Record<string, { name: string }> }>('getBatchDriveMetadata', {
+                    accessToken: token,
+                    fileIds: idsToFetch
+                });
+
+                if (result.metadata) {
+                    const newNames: Record<string, string> = {};
+                    Object.entries(result.metadata).forEach(([id, meta]) => {
+                        newNames[id] = meta.name;
+                    });
+                    setFolderNames(prev => ({ ...prev, ...newNames }));
+                }
+            } catch (e) {
+                console.error("Failed to fetch folder names:", e);
+            }
+        };
+
+        fetchNames();
+    }, [activeTab, folderMapping]);
 
     const handleSave = async () => {
         if (!config) return;
@@ -280,6 +316,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     // 🟢 ROLE MAPPER COMPONENT
     const RoleRow = ({ role, label, desc }: { role: FolderRole, label: string, desc: string }) => {
         const currentId = folderMapping[role];
+        const displayName = currentId ? (folderNames[currentId] || currentId) : null;
+
         return (
             <div className="flex items-center justify-between py-3 border-b border-titanium-800 last:border-0">
                 <div className="flex-1 pr-4">
@@ -291,8 +329,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                 </div>
                 <div className="flex items-center gap-2">
                     {currentId && (
-                        <span className="text-[10px] font-mono text-titanium-600 max-w-[80px] truncate" title={currentId}>
-                            {currentId}
+                        <span className="text-[10px] font-mono text-titanium-600 max-w-[200px] truncate" title={currentId}>
+                            {displayName}
                         </span>
                     )}
                     <button
