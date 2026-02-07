@@ -49,6 +49,7 @@ export const generateSpeech = onCall(
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: true,
         secrets: [googleApiKey],
+        memory: "2GiB",
     },
     async (request) => {
         if (!request.auth) {
