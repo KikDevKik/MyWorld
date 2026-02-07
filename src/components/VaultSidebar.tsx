@@ -25,6 +25,7 @@ interface VaultSidebarProps {
     onOpenConnectModal: () => void;
     onLogout: () => void;
     onIndexRequest: () => void;
+    onUpdateMemory: () => void; // 👈 New prop for God Mode
     onOpenSettings: () => void;
     onOpenProjectSettings: () => void; // 👈 New prop for Project Settings Modal
     accessToken: string | null;
@@ -53,6 +54,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     onOpenConnectModal,
     onLogout,
     onIndexRequest,
+    onUpdateMemory, // 👈 Destructure
     onOpenSettings,
     onOpenProjectSettings,
     accessToken,
@@ -128,6 +130,23 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<string>>(new Set());
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+
+    // 🟢 INDEX MENU STATE
+    const [isIndexMenuOpen, setIsIndexMenuOpen] = useState(false);
+    const indexMenuRef = useRef<HTMLDivElement>(null);
+
+    // Close menu when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (indexMenuRef.current && !indexMenuRef.current.contains(event.target as Node)) {
+                setIsIndexMenuOpen(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [indexMenuRef]);
 
     // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
     useEffect(() => {
@@ -361,15 +380,44 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             </button>
                         )}
 
-                        {/* BOTÓN DE INDEXAR */}
-                        <button
-                            onClick={onIndexRequest}
-                            className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
-                            title={isIndexed ? t.index : t.index}
-                            aria-label={t.index}
-                        >
-                            <BrainCircuit size={16} />
-                        </button>
+                        {/* BOTÓN DE INDEXAR (MENU) */}
+                        <div className="relative" ref={indexMenuRef}>
+                            <button
+                                onClick={() => setIsIndexMenuOpen(!isIndexMenuOpen)}
+                                className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
+                                title={t.index}
+                                aria-label={t.index}
+                                aria-expanded={isIndexMenuOpen}
+                            >
+                                <BrainCircuit size={16} />
+                            </button>
+
+                            {/* DROPDOWN MENU */}
+                            {isIndexMenuOpen && (
+                                <div className="absolute right-0 top-full mt-2 w-48 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                    <button
+                                        onClick={() => {
+                                            onIndexRequest();
+                                            setIsIndexMenuOpen(false);
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
+                                    >
+                                        <BrainCircuit size={14} className="text-cyan-400" />
+                                        <span>Escanear Archivos</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            onUpdateMemory();
+                                            setIsIndexMenuOpen(false);
+                                        }}
+                                        className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
+                                    >
+                                        <Sparkles size={14} className="text-purple-400" />
+                                        <span>Cargar Memoria (God Mode)</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
 
