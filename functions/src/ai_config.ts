@@ -8,35 +8,14 @@ export const TEMP_CREATIVE = 0.7;
 export const TEMP_CHAOS = 1.0;
 
 // 🟢 GLOBAL PERMISSIVE SETTINGS (MYWORLD CREATIVE FREEDOM - GOD MODE)
-// We disable all safety blocks because MyWorld is a creative writing tool for ANY story.
+// We disable ALL safety blocks because MyWorld is a creative writing tool for ANY story.
 // Filters hinder creativity and narrative freedom.
-
-// Define STRICTLY SUPPORTED categories for Gemini 3 Flash Preview.
-// This prevents 400 Bad Request errors caused by unsupported categories (Medical, Violence, Unspecified).
-export const SAFETY_SETTINGS_PERMISSIVE = [
-    // 1. Harassment
-    {
-        category: HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    // 2. Hate Speech
-    {
-        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    // 3. Sexually Explicit
-    {
-        category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    // 4. Dangerous Content
-    {
-        category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-    // 5. Civic Integrity (Politics/Elections) - EXPLICITLY SUPPORTED
-    {
-        category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
-        threshold: HarmBlockThreshold.BLOCK_NONE,
-    },
-];
+//
+// DYNAMIC INJECTION:
+// We now iterate over ALL available HarmCategory enums in the SDK to catch
+// new or undocumented categories (like Medical, Violence, Unspecified) that
+// might be causing silent blocks on Gemini 3.0.
+export const SAFETY_SETTINGS_PERMISSIVE = Object.values(HarmCategory).map((category) => ({
+    category: category,
+    threshold: HarmBlockThreshold.BLOCK_NONE,
+}));
