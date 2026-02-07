@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2, Sparkles, BrainCircuit, Flag } from 'lucide-react';
 import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict, GuardianPersonalityDrift, ResonanceMatch, StructureAnalysis } from '../hooks/useGuardian';
+import { LucideProps } from 'lucide-react';
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';

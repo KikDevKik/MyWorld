@@ -39,6 +39,7 @@ interface VisualNode extends GraphNode {
     // UI Flags
     isGhost?: boolean; // True = Local Draft (Idea)
     isRescue?: boolean; // True = Failed Save (Lifeboat)
+    meta?: any; // 🟢 Fallback for meta
 }
 
 interface PendingCrystallization {
@@ -139,24 +140,28 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
 
     // Detect Style
     let nodeStyleKey = 'default';
-    if (node.type === 'character') nodeStyleKey = 'character';
-    else if (node.type === 'location') nodeStyleKey = 'location';
-    else if (node.meta?.node_type === 'conflict' || node.type === 'enemy') nodeStyleKey = 'conflict';
-    else if (node.type === 'idea' || node.isGhost) nodeStyleKey = 'idea';
-    else if (['faction', 'event', 'object'].includes(node.type)) nodeStyleKey = 'default';
+    const type = (node.type || '').toUpperCase();
+
+    if (type === 'CHARACTER' || type === 'PERSON') nodeStyleKey = 'character';
+    else if (type === 'LOCATION') nodeStyleKey = 'location';
+    else if (node.meta?.node_type === 'conflict' || type === 'ENEMY') nodeStyleKey = 'conflict';
+    else if (type === 'IDEA' || node.isGhost) nodeStyleKey = 'idea';
+    else if (['FACTION', 'EVENT', 'OBJECT'].includes(type)) nodeStyleKey = 'default';
 
     const style = NODE_STYLES[nodeStyleKey] || NODE_STYLES.default;
 
     // Icon Mapping
     const getIcon = () => {
         if (node.isRescue) return <AlertTriangle size={12} className="text-red-500 animate-pulse" />;
-        switch (node.type) {
-            case 'character': return <User size={12} />;
-            case 'location': return <MapPin size={12} />;
-            case 'object': return <Box size={12} />;
-            case 'event': return <Zap size={12} />;
-            case 'faction': return <Swords size={12} />;
-            case 'idea': return <BrainCircuit size={12} />;
+        const type = (node.type || '').toUpperCase();
+        switch (type) {
+            case 'CHARACTER':
+            case 'PERSON': return <User size={12} />;
+            case 'LOCATION': return <MapPin size={12} />;
+            case 'OBJECT': return <Box size={12} />;
+            case 'EVENT': return <Zap size={12} />;
+            case 'FACTION': return <Swords size={12} />;
+            case 'IDEA': return <BrainCircuit size={12} />;
             default: return <Diamond size={12} className="rotate-45" />;
         }
     };
@@ -345,11 +350,11 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
             .force("collide", d3Force.forceCollide().radius(100).strength(0.7))
             .force("radial", d3Force.forceRadial(
                 (d: any) => {
-                    const type = (d.type || 'concept').toLowerCase();
+                    const type = (d.type || 'concept').toUpperCase();
                     if (d.isGhost) return 900;
-                    if (type === 'character') return 100;
-                    if (type === 'location') return 500;
-                    if (type === 'faction') return 300;
+                    if (type === 'CHARACTER' || type === 'PERSON') return 100;
+                    if (type === 'LOCATION') return 500;
+                    if (type === 'FACTION') return 300;
                     return 800;
                 }, cx, cy).strength(0.6))
             .force("link", d3Force.forceLink(links).id((d: any) => d.id).distance(200));
@@ -672,7 +677,8 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
          for (let i = 0; i < count; i++) {
             const id = `debug-${Date.now()}-${i}`;
             const r = Math.random();
-            let type: EntityType = r < 0.5 ? 'character' : (r < 0.8 ? 'enemy' as any : 'location');
+            // Cast to any to bypass strict enum check for debug
+            let type: any = r < 0.5 ? 'PERSON' : (r < 0.8 ? 'ENEMY' : 'LOCATION');
             const relations: any[] = [];
             if (i > 0) {
                 // Link to previous for chain
@@ -765,10 +771,11 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                  const newG = data.newNodes.map((n: any) => ({
                      id: n.id || `ai-${Date.now()}`,
                      name: n.title,
-                     type: n.metadata?.node_type || 'idea',
+                     type: (n.metadata?.node_type || 'IDEA').toUpperCase(),
                      description: n.content,
                      isGhost: true,
-                     x: 2000, y: 2000
+                     x: 2000, y: 2000,
+                     meta: n.metadata
                  }));
                  setGhostNodes(p => [...p, ...newG]);
                  toast.success("✨ Ideas generadas.");
@@ -777,7 +784,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         } catch(e: any) {
             toast.error("Error: " + e.message);
             // Fallback
-             setGhostNodes(p => [...p, { id: `manual-${Date.now()}`, name: inputValue, type: 'idea', isGhost: true, projectId: 'temp', x: 2000, y: 2000 }]);
+             setGhostNodes(p => [...p, { id: `manual-${Date.now()}`, name: inputValue, type: 'IDEA' as any, isGhost: true, projectId: 'temp', x: 2000, y: 2000, meta: {} }]);
         } finally {
             setIsGenerating(false);
         }
