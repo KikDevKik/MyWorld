@@ -105,3 +105,57 @@ export const nukeProject = onCall(
         }
     }
 );
+
+/**
+ * PURGE FORGE DATABASE (Soft Nuke)
+ * Deletes derived data (Characters, Entities, Vectors, Timeline) but PRESERVES:
+ * - Drive Files (The Truth)
+ * - Forge Sessions (Chats)
+ * - Project Config
+ * - Writer Profile
+ */
+export const purgeForgeDatabase = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        timeoutSeconds: 300,
+        memory: "1GiB",
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        logger.info(`🧹 [PURGE DATABASE] Initiating Soft Wipe for User: ${userId}`);
+
+        try {
+            // Collections to wipe (Derived Data Only)
+            const collectionsToWipe = [
+                db.collection("TDB_Index").doc(userId), // Vector Index (Derived from Files)
+                db.collection("users").doc(userId).collection("characters"), // Roster (Derived/ synced)
+                db.collection("users").doc(userId).collection("forge_detected_entities"), // Ghosts (Derived)
+                db.collection("users").doc(userId).collection("audit_cache"), // Guardian Cache (Derived)
+                db.collection("TDB_Timeline").doc(userId), // Timeline (Derived)
+
+                // Graph Nodes (Project Specific)
+                // Since user has 'projects' collection, let's wipe it all or just 'entities'.
+                // 'projects' contains 'entities' subcollection.
+                // We should wipe the whole 'projects' collection for this user as it's derived graph data.
+                db.collection("users").doc(userId).collection("projects")
+            ];
+
+            logger.info(`   🔥 Wiping ${collectionsToWipe.length} derived collections...`);
+
+            // Execute parallel delete
+            await Promise.all(collectionsToWipe.map(ref => db.recursiveDelete(ref)));
+
+            logger.info(`✅ [PURGE DATABASE] COMPLETE. Chats and Files preserved.`);
+            return { success: true };
+
+        } catch (error: any) {
+            throw handleSecureError(error, "purgeForgeDatabase");
+        }
+    }
+);

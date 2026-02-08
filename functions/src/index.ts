@@ -5267,7 +5267,7 @@ export { generateAuditPDF, generateCertificate } from "./audit";
 export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from "./auth";
 export { genesisManifest } from "./genesis";
 export { generateSpeech } from "./tts";
-export { nukeProject } from "./nuke";
+export { nukeProject, purgeForgeDatabase } from "./nuke";
 
 /**
  * 38. UPDATE LONG TERM MEMORY (God Mode)
