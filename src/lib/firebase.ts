@@ -67,9 +67,21 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         if (debugToken === 'true') debugToken = true;
     }
 
+    // 🟢 MISSION CRITICAL: INJECT OFFICIAL DEBUG TOKEN FOR LOCALHOST
+    // This bypasses the 403 Throttling immediately.
+    if (typeof window !== 'undefined' && window.location.hostname === "localhost") {
+        console.log("💉 [SECURITY] Injecting Master Debug Token for Localhost...");
+        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = "C2E1F3B5-CB81-43C4-B0F0-D5AE210621C8";
+        debugToken = "C2E1F3B5-CB81-43C4-B0F0-D5AE210621C8";
+    }
+
     if (import.meta.env.DEV || debugToken) {
         // Activate Debug Provider
-        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true;
+        // Note: If we injected above, this line is redundant but harmless as it sets the same value.
+        // We prioritize the explicit injection.
+        if (!((self as any).FIREBASE_APPCHECK_DEBUG_TOKEN)) {
+             (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true;
+        }
         console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - APP CHECK BYPASS ENABLED");
 
         if (debugToken === true) {
