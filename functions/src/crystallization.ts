@@ -13,6 +13,7 @@ import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { updateFirestoreTree } from "./utils/tree_utils";
 import { ProjectConfig, FolderRole } from "./types/project";
+import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -231,7 +232,7 @@ export const crystallizeGraph = onCall(
         // 🟢 LOAD CONFIG (Mutable)
         let projectConfig = await getProjectConfigLocal(userId);
 
-        const genAI = new GoogleGenerativeAI(googleApiKey.value());
+        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
         const model = genAI.getGenerativeModel({
             model: MODEL_LOW_COST,
             safetySettings: SAFETY_SETTINGS_PERMISSIVE,

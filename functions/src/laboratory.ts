@@ -6,6 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
+import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -37,7 +38,7 @@ export const classifyResource = onCall(
             // We'll proceed to classify/re-classify.
 
             // 2. Prepare AI
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const model = genAI.getGenerativeModel({
                 model: MODEL_LOW_COST,
                 safetySettings: SAFETY_SETTINGS_PERMISSIVE,
