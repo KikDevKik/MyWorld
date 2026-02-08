@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw, AlertTriangle, Search, Unlink, Settings, User, PawPrint } from 'lucide-react';
+import { Hammer, FolderInput, Book, FolderPlus, ArrowLeft, RefreshCw, AlertTriangle, Search, Unlink, Settings, User, PawPrint, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
@@ -8,6 +8,7 @@ import { TRANSLATIONS } from '../../i18n/translations';
 import ForgeDashboard from './ForgeDashboard';
 import InternalFolderSelector from '../InternalFolderSelector';
 import { ProjectConfig, DriveFile } from '../../types';
+import { callFunction } from '../../services/api';
 
 interface ForgePanelProps {
     onClose: () => void;
@@ -34,6 +35,10 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
     const [targetVault, setTargetVault] = useState<'CHARACTER' | 'BESTIARY'>('CHARACTER');
     const [pendingFolder, setPendingFolder] = useState<{ id: string, name: string } | null>(null);
     const [showConfirmation, setShowConfirmation] = useState(false);
+
+    // 🟢 DANGER ZONE STATE
+    const [showDangerConfirm, setShowDangerConfirm] = useState(false);
+    const [isPurging, setIsPurging] = useState(false);
 
     // --- 1. RESOLVER ---
     useEffect(() => {
@@ -161,6 +166,21 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
         toast.info("Desvinculado.");
     };
 
+    const handlePurgeDatabase = async () => {
+        setIsPurging(true);
+        const toastId = toast.loading("Eliminando base de datos...");
+        try {
+            await callFunction('purgeForgeDatabase');
+            toast.success("Base de datos eliminada correctamente.", { id: toastId });
+            setShowDangerConfirm(false);
+        } catch (e) {
+            console.error(e);
+            toast.error("Error al eliminar base de datos.", { id: toastId });
+        } finally {
+            setIsPurging(false);
+        }
+    };
+
     // --- 3. RENDER ---
 
     if (loading || isResolving) {
@@ -265,6 +285,32 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                             </div>
 
                         </div>
+
+                         {/* DANGER ZONE */}
+                         <div className="mt-8 border-t border-red-900/30 pt-8">
+                            <h3 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <AlertTriangle size={14} />
+                                Zona de Peligro
+                            </h3>
+
+                            <div className="p-6 bg-red-950/10 border border-red-900/30 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <h4 className="font-bold text-red-400 text-lg">Eliminar Base de Datos</h4>
+                                    <p className="text-sm text-red-300/60 max-w-md mt-1">
+                                        Elimina todos los personajes, entidades y vectores derivados para reiniciar la Forja.
+                                        <br/>
+                                        <span className="font-bold text-red-400">Tus archivos de Drive y Chats NO se eliminarán.</span>
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={() => setShowDangerConfirm(true)}
+                                    className="px-6 py-3 bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 font-bold rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
+                                >
+                                    <Trash2 size={18} />
+                                    Eliminar Datos
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -288,6 +334,56 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                             <div className="flex gap-3">
                                 <button onClick={() => setShowConfirmation(false)} className="flex-1 py-3 bg-titanium-800 rounded-lg text-titanium-300">{t.common.cancel}</button>
                                 <button onClick={confirmSelection} className="flex-1 py-3 bg-accent-DEFAULT text-titanium-950 font-bold rounded-lg">{t.common.confirm}</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* MODAL: DANGER CONFIRMATION */}
+                {showDangerConfirm && (
+                    <div className="fixed inset-0 z-[250] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4">
+                        <div className="w-full max-w-md bg-titanium-950 border border-red-500/50 rounded-2xl p-6 shadow-2xl shadow-red-900/20">
+                            <div className="flex items-center gap-3 mb-4 text-red-500">
+                                <AlertTriangle size={32} />
+                                <h3 className="text-xl font-bold">¿Estás absolutamente seguro?</h3>
+                            </div>
+
+                            <p className="text-titanium-300 mb-4 leading-relaxed">
+                                Esta acción eliminará permanentemente la base de datos de la Forja (Personajes, Entidades, Relaciones).
+                            </p>
+                            <ul className="text-sm text-red-300 mb-6 space-y-2 list-disc list-inside bg-red-950/20 p-4 rounded-lg border border-red-900/30">
+                                <li>Se borrarán los índices vectoriales.</li>
+                                <li>Se borrará la lista de personajes detectados.</li>
+                                <li>Tendrás que volver a escanear tus carpetas.</li>
+                                <li className="font-bold text-white">Tus archivos en Drive NO se tocarán.</li>
+                                <li className="font-bold text-white">Tus chats NO se borrarán.</li>
+                            </ul>
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={() => setShowDangerConfirm(false)}
+                                    disabled={isPurging}
+                                    className="flex-1 py-3 bg-titanium-800 hover:bg-titanium-700 rounded-lg text-titanium-200 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handlePurgeDatabase}
+                                    disabled={isPurging}
+                                    className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow-lg hover:shadow-red-500/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {isPurging ? (
+                                        <>
+                                            <RefreshCw size={18} className="animate-spin" />
+                                            Eliminando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Trash2 size={18} />
+                                            Confirmar Eliminación
+                                        </>
+                                    )}
+                                </button>
                             </div>
                         </div>
                     </div>
