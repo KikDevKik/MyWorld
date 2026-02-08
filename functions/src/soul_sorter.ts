@@ -9,6 +9,7 @@ import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
 import { EntityTier, EntityCategory, ForgePayload, SoulEntity, DetectedEntity } from "./types/forge";
 import { enrichEntitiesParallel } from "./services/enrichment";
+import { getAIKey } from "./utils/security";
 
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
@@ -478,7 +479,7 @@ export const classifyEntities = onCall(
             }
 
             // --- 2. IDENTIFY ENTITIES (Logic) ---
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const model = genAI.getGenerativeModel({
                 model: MODEL_LOW_COST,
                 safetySettings: SAFETY_SETTINGS_PERMISSIVE,

@@ -10,6 +10,7 @@ import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai
 import { parseSecureJSON } from "./utils/json";
 import { updateFirestoreTree, updateFirestoreTreeBatch } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
 import { deleteFileVectors } from "./ingestion";
+import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -82,7 +83,7 @@ export const discoverFolderRoles = onCall(
       const folderNames = folders.map(f => f.name);
 
       // 2. AI Mapping (Gemini Flash)
-      const genAI = new GoogleGenerativeAI(googleApiKey.value());
+      const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
       const model = genAI.getGenerativeModel({
         model: MODEL_LOW_COST,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,

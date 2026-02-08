@@ -14,6 +14,7 @@ import { updateFirestoreTree } from "./utils/tree_utils";
 import { ingestFile } from "./ingestion";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { smartGenerateContent } from "./utils/smart_generate";
+import { getAIKey } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -78,7 +79,7 @@ export const scribeCreateFile = onCall(
             if ((!entityData.type || entityData.type === 'concept') && chatContent) {
                 try {
                     logger.info(`🧠 SCRIBE INFERENCE: Detecting type for ${entityData.name}`);
-                    const genAI = new GoogleGenerativeAI(googleApiKey.value());
+                    const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
                     const inferencePrompt = `
                     TASK: Classify the Entity described in the text.
@@ -130,7 +131,7 @@ export const scribeCreateFile = onCall(
             if (request.data.synthesize && chatContent) {
                 try {
                     logger.info(`🧪 SCRIBE SYNTHESIS: Converting chat to Markdown for ${entityData.name}`);
-                    const genAI = new GoogleGenerativeAI(googleApiKey.value());
+                    const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
                     const synthesisPrompt = `
                     TASK: Create a rich Markdown document based on the following BRAINSTORMING SESSION.
@@ -335,7 +336,7 @@ export const integrateNarrative = onCall(
         }
 
         try {
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
             // 🟢 CONSTRUCT PROMPT
             const prompt = `
@@ -432,7 +433,7 @@ export const scribePatchFile = onCall(
             const originalContent = typeof getRes.data === 'string' ? getRes.data : JSON.stringify(getRes.data);
 
             // 2. AI MERGE
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
             const prompt = `
             ACT AS: Expert Markdown Editor & Archivist.
@@ -542,7 +543,7 @@ export const transformToGuide = onCall(
         }
 
         try {
-            const genAI = new GoogleGenerativeAI(googleApiKey.value());
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
             const prompt = `
             ACT AS: Expert Writing Coach & Outliner.
