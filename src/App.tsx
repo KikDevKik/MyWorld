@@ -297,12 +297,18 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     console.log("👻 GHOST MODE: Bypassing Index Check");
                     setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
                 } else {
-                    const status = await callFunction<{ isIndexed: boolean, lastIndexedAt: string | null }>('checkIndexStatus');
-                    console.log("🧠 Estado de Memoria:", status);
-                    setIndexStatus(status);
+                    if (user) {
+                        const status = await callFunction<{ isIndexed: boolean, lastIndexedAt: string | null }>('checkIndexStatus');
+                        console.log("🧠 Estado de Memoria:", status);
+                        setIndexStatus(status);
+                    }
                 }
-            } catch (error) {
-                console.error("Error checking index status:", error);
+            } catch (error: any) {
+                if (error.code === 'functions/unauthenticated' || error.message?.includes('unauthenticated')) {
+                    console.warn("⚠️ User unauthenticated during index check. Ignoring to prevent crash.");
+                } else {
+                    console.error("Error checking index status:", error);
+                }
             }
 
             // 4. DONE
