@@ -97,6 +97,11 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         }
     }
 
+    // 💀 KILL SWITCH ACTIVADO (PROTOCOLO 403 LOOP)
+    console.warn("💀 KILL SWITCH ACTIVADO: App Check desactivado para prevenir bucle infinito.");
+    return { isReady: true, error: null };
+
+    /*
     try {
         // 🟢 FAIL-OPEN WRAPPER (App Check Throttling Defense)
         // Wraps the provider to catch 403 Forbidden errors and return a dummy token/null
@@ -146,6 +151,7 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         console.error("💥 [SECURITY] App Check Initialization Failed:", error);
         return { isReady: false, error: "INIT_FAILED" };
     }
+    */
 };
 
 export default app;
