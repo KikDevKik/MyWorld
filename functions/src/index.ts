@@ -1542,6 +1542,7 @@ export const saveProjectConfig = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "2GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -1587,6 +1588,7 @@ export const getDriveFileContent = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "2GiB",
   },
   async (request) => {
 
@@ -1619,6 +1621,7 @@ export const checkIndexStatus = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "2GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -2902,6 +2905,7 @@ export const saveDriveFile = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
     secrets: [googleApiKey],
+    memory: "2GiB",
   },
   async (request) => {
 
@@ -3043,6 +3047,7 @@ export const saveUserProfile = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "2GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -3090,6 +3095,7 @@ export const getUserProfile = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: true,
+    memory: "2GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -4323,6 +4329,7 @@ export const syncCharacterManifest = onCall(
     enforceAppCheck: true,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
+    memory: "2GiB",
   },
   async (request) => {
     const db = getFirestore();
