@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
-import { ChatMessageData } from '../components/director/chat/ChatMessage';
+import { ChatMessageData } from '../types/director';
 import { fileToGenerativePart } from '../services/geminiService';
 import { CreativeAuditService } from '../services/CreativeAuditService';
 
