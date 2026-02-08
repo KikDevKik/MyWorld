@@ -32,7 +32,7 @@ interface DirectorPanelProps {
     onInsertContent?: (text: string) => void;
 }
 
-const DirectorPanel: React.FC<DirectorPanelProps> = ({
+export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     isOpen,
     onClose,
     activeSessionId,
@@ -356,4 +356,3 @@ const DirectorPanel: React.FC<DirectorPanelProps> = ({
     );
 };
 
-export default DirectorPanel;
