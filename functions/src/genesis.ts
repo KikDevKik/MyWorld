@@ -44,7 +44,7 @@ export const genesisManifest = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540, // 9 minutes for batch operations
     memory: "1GiB",
     secrets: [googleApiKey],

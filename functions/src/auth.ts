@@ -26,7 +26,7 @@ export const exchangeAuthCode = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     secrets: [googleClientId, googleClientSecret],
   },
   async (request) => {
@@ -81,7 +81,7 @@ export const refreshDriveToken = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     secrets: [googleClientId, googleClientSecret],
   },
   async (request) => {
@@ -142,7 +142,7 @@ export const revokeDriveAccess = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");

@@ -374,7 +374,7 @@ export const classifyEntities = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         timeoutSeconds: 3600, // 60 minutes
         memory: "4GiB",
         secrets: [googleApiKey],

@@ -20,7 +20,7 @@ export const acquireLock = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
@@ -85,7 +85,7 @@ export const releaseLock = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");

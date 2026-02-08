@@ -22,7 +22,7 @@ export const generateAuditPDF = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "1GiB",
     },
@@ -300,7 +300,7 @@ export const generateCertificate = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
     },
     async (request) => {
         const db = getFirestore();
