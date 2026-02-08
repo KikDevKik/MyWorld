@@ -29,12 +29,24 @@ export const nukeProject = onCall(
         const userId = request.auth.uid;
         const db = getFirestore();
 
-        // 🟢 BACKUP: Fetch Config to find rootFolderId if missing
-        let targetFolderId = rootFolderId;
+        // 🟢 SECURITY: Enforce Source of Truth
+        // We strictly use the database config to determine the folder to delete.
+        const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+        const dbFolderId = configDoc.data()?.folderId;
+
+        // IDOR Prevention: Client ID must match DB ID if both exist.
+        if (rootFolderId && dbFolderId && rootFolderId !== dbFolderId) {
+             logger.warn(`🛡️ [SENTINEL] Blocked Nuke Request with Mismatched ID. Client: ${rootFolderId}, DB: ${dbFolderId}`);
+             throw new HttpsError('permission-denied', 'Security mismatch: The provided folder ID does not match the active project.');
+        }
+
+        // Prefer DB ID. If DB is empty, we DO NOT allow arbitrary deletion via API.
+        const targetFolderId = dbFolderId;
+
         if (!targetFolderId) {
-             const configDoc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
-             targetFolderId = configDoc.data()?.folderId;
-             if (targetFolderId) logger.info(`   🔎 Found rootFolderId in config: ${targetFolderId}`);
+             logger.warn("⚠️ No linked folder found in project config. Skipping Drive deletion to prevent data loss/IDOR.");
+        } else {
+             logger.info(`   🔎 Target Folder for Destruction: ${targetFolderId}`);
         }
 
         logger.info(`☢️ [NUKE] INITIATING TOTAL DESTRUCTION FOR USER: ${userId}`);
