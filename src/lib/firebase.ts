@@ -58,12 +58,27 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
     console.log("🛡️ [SECURITY] Initializing ReCaptcha V3...");
     console.log("🛡️ [SECURITY] Confirming Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
 
-    // 🟢 DEBUG TOKEN (THROTTLING BYPASS)
-    if (import.meta.env.DEV) {
-        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
-        console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - DO NOT LEAVE IN PRODUCTION");
+    // 🟢 DEBUG TOKEN (THROTTLING BYPASS & PRODUCTION OVERRIDE)
+    // Check for URL param 'debug_token' or localStorage key
+    let debugToken: string | boolean | null = null;
+    if (typeof window !== 'undefined') {
+        const urlParams = new URLSearchParams(window.location.search);
+        debugToken = urlParams.get('debug_token') || window.localStorage.getItem('FIREBASE_APPCHECK_DEBUG_TOKEN');
+        if (debugToken === 'true') debugToken = true;
+    }
 
-        // 👻 GHOST BYPASS
+    if (import.meta.env.DEV || debugToken) {
+        // Activate Debug Provider
+        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true;
+        console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - APP CHECK BYPASS ENABLED");
+
+        if (debugToken === true) {
+             console.log("ℹ️ [SECURITY] Generating NEW Debug Token. Check console logs.");
+        } else {
+             console.log("ℹ️ [SECURITY] Using Custom Debug Token.");
+        }
+
+        // 👻 GHOST BYPASS (Legacy flag, kept for backward compat)
         if (import.meta.env.VITE_JULES_MODE === 'true') {
              console.log("👻 [GHOST PROTOCOL] Skipping AppCheck validation.");
              return { isReady: true, error: null };
@@ -89,6 +104,10 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
             // 🕵️ DETECT SPECIFIC FAILURES (EDGE / PRIVACY BLOCKERS)
             const msg = tokenError?.message || "";
             if (msg.includes("throttled") || msg.includes("403")) {
+                // If we are in debug mode but still failed, it means the token is invalid or not registered.
+                if (debugToken) {
+                    console.error("❌ [SECURITY] Debug Token Rejected. Is it registered in Firebase Console?");
+                }
                 return { isReady: false, error: "SECURITY_THROTTLED" };
             }
 
