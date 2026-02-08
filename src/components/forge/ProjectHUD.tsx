@@ -1,6 +1,5 @@
 import React from 'react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
-// import { ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react'; // Removing unused icons
 // import { toast } from 'sonner';
 // import { callFunction } from '../../services/api';
 
@@ -88,10 +87,10 @@ const ProjectHUD: React.FC = () => {
         {/*
         {isCritical ? (
              <button
-                onClick={() => window.open(criticalActionUrl, '_blank')}
+                // onClick={() => window.open(criticalActionUrl, '_blank')}
                 className="text-xs font-bold bg-orange-600 hover:bg-orange-500 text-white px-2 py-1 rounded mt-1 flex items-center gap-1 shadow-lg transition-all hover:scale-105"
              >
-                <ShieldAlert size={12} /> REPARAR FORJA
+                REPARAR FORJA
              </button>
         ) : (
         */}
@@ -101,34 +100,7 @@ const ProjectHUD: React.FC = () => {
         {/* )} */}
       </div>
 
-      {/* RIGHT: Sentinel Pulse - HIDDEN */}
-      {/*
-      <div className="flex items-center gap-3 shrink-0">
-
-        <div
-            className={`relative flex items-center justify-center w-6 h-6 rounded-full bg-titanium-950 border ${isCritical ? 'border-orange-500' : 'border-titanium-800'}`}
-            title={isCritical ? "ERROR DE INDICE VECTORIAL" : (sentinel.status === 'SECURE' ? "Sentinel: SECURE (Secret Manager Linked)" : `Sentinel: ${sentinel.errorCode || 'UNKNOWN ERROR'}`)}
-        >
-            {isCritical ? (
-                <ShieldAlert size={12} className="text-orange-500 animate-pulse" />
-            ) : sentinel.status === 'LOADING' ? (
-                <Loader2 size={12} className="text-titanium-500 animate-spin" />
-            ) : sentinel.status === 'SECURE' ? (
-                <ShieldCheck size={12} className="text-emerald-500" />
-            ) : (
-                <ShieldAlert size={12} className="text-red-500" />
-            )}
-        </div>
-
-        <div className="relative flex h-2 w-2">
-            {sentinel.status !== 'LOADING' && (
-                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${statusColor}`}></span>
-            )}
-            <span className={`relative inline-flex rounded-full h-2 w-2 ${statusColor} ${glowColor}`}></span>
-        </div>
-
-      </div>
-      */}
+      {/* RIGHT: Sentinel Pulse - REMOVED */}
     </div>
   );
 };
