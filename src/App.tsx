@@ -23,7 +23,7 @@ import ConnectDriveModal from './components/ui/ConnectDriveModal';
 import SettingsModal from './components/ui/SettingsModal';
 import FieldManualModal from './components/ui/FieldManualModal';
 import ProjectSettingsModal from './components/ui/ProjectSettingsModal';
-import DirectorPanel from './components/DirectorPanel'; // 👈 IMPORT
+import { DirectorPanel } from './components/DirectorPanel'; // 👈 IMPORT
 import NexusCanvas from './components/NexusCanvas'; // 👈 IMPORT NEXUS (V2)
 import WorldEnginePageV2 from './components/WorldEngineV2/WorldEnginePageV2'; // 👈 IMPORT WORLD ENGINE V2 (NEW)
 import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
