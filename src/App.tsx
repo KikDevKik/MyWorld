@@ -1111,8 +1111,12 @@ function App() {
                 setDriveStatus('disconnected');
                 return null;
             }
-        } catch (error) {
-            console.error("Error refreshing token:", error);
+        } catch (error: any) {
+            if (error.code === 'functions/unauthenticated' || error.message?.includes('unauthenticated')) {
+                console.warn("⚠️ Token refresh skipped (User Unauthenticated).");
+            } else {
+                console.error("Error refreshing token:", error);
+            }
             setDriveStatus('disconnected');
             return null;
         }
