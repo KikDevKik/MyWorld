@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Send, Loader2, Archive, LayoutTemplate, RefreshCcw, AlertCircle } from 'lucide-react';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { SessionManagerModal } from './SessionManagerModal';
-import { DirectorTools } from './DirectorTools';
+// 🟢 LAZY LOAD: Break Circular Dependency
+const DirectorTools = React.lazy(() => import('./DirectorTools').then(module => ({ default: module.DirectorTools })));
 import { SessionList } from './ui/SessionList';
 import { useDirectorChat } from '../hooks/useDirectorChat';
 import { ChatMessage } from './director/chat/ChatMessage';
@@ -58,6 +59,9 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const isStrategistMode = directorWidth >= 500 && directorWidth < 900;
     const isWarRoomMode = directorWidth >= 900;
 
+    // 🟢 MOVED UP: USER CONTEXT (Prevents ReferenceError)
+    const { user, config } = useProjectConfig();
+
     // 🟢 HOOK REFACTOR: USE DIRECTOR CHAT
     const {
         messages,
@@ -89,7 +93,6 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     // 🟢 LOAD WAR ROOM SESSIONS
     const [embeddedSessions, setEmbeddedSessions] = useState<any[]>([]);
     const [isSessionsLoading, setIsSessionsLoading] = useState(false);
-    const { user, config } = useProjectConfig();
 
     // 🟢 CONTEXT STATUS CHECK
     const { needsReindex } = useContextStatus();
@@ -340,13 +343,15 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                             )}
 
                             <div className={`${isWarRoomMode ? 'p-2' : ''}`}>
-                                <DirectorTools
-                                    mode={isWarRoomMode ? 'war-room' : 'strategist'}
-                                    onInspector={() => handleInspector(activeFileId)}
-                                    onTribunal={() => handleTribunal(null)} // Pass null to rely on fallback for now (No selection state yet)
-                                    onContext={handleContextSync}
-                                    isThinking={isThinking}
-                                />
+                                <React.Suspense fallback={<div className="p-4 flex justify-center"><Loader2 className="animate-spin text-titanium-600" size={20} /></div>}>
+                                    <DirectorTools
+                                        mode={isWarRoomMode ? 'war-room' : 'strategist'}
+                                        onInspector={() => handleInspector(activeFileId)}
+                                        onTribunal={() => handleTribunal(null)} // Pass null to rely on fallback for now (No selection state yet)
+                                        onContext={handleContextSync}
+                                        isThinking={isThinking}
+                                    />
+                                </React.Suspense>
                             </div>
                         </div>
                     </div>
