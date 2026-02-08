@@ -1156,7 +1156,7 @@ function App() {
     useEffect(() => {
         if (securityError && !isDev) {
             console.warn("⚠️ Security Handshake Failed (Bypassed for User Access):", securityError);
-            toast.error(t.securityWarning || "Advertencia de Seguridad: Conexión no verificada.", {
+            toast.error("Advertencia de Seguridad: Conexión no verificada.", {
                 description: "La validación de integridad falló (posible bloqueo de navegador). El sistema puede ser inestable.",
                 duration: 8000,
             });
