@@ -46,6 +46,10 @@ const narratorPlugin = ViewPlugin.fromClass(
         }
 
         computeDecorations(view: EditorView): DecorationSet {
+            // 🛑 DISABLED BY USER REQUEST (Feb 2026): "desactiva lo de que se ponga de color"
+            return Decoration.none;
+
+            /*
             const activeSegment = view.state.field(activeSegmentField);
 
             if (!activeSegment) return Decoration.none;
@@ -82,6 +86,7 @@ const narratorPlugin = ViewPlugin.fromClass(
             }
 
             return Decoration.set(widgets);
+            */
         }
     },
     {
