@@ -1095,6 +1095,12 @@ function App() {
     };
 
     const handleTokenRefresh = async (): Promise<string | null> => {
+        // 🟢 AUTH GUARD (Race Condition Fix)
+        if (!user) {
+             console.warn("⚠️ Token Refresh Blocked: User not authenticated.");
+             return null;
+        }
+
         setDriveStatus('refreshing');
         try {
             // 🟢 BACKEND REFRESH (SILENT)
