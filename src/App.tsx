@@ -1140,11 +1140,30 @@ function App() {
     // 🔴 CRITICAL ERROR SCREEN (FAIL FAST)
     const isDev = import.meta.env.DEV;
 
+    /*
+       🟢 FAIL-OPEN PROTOCOL (DEMO MODE):
+       Disabled blocking screen for delivery.
+       Users with AdBlockers/Privacy settings will simply see a degraded security state (Red Shield)
+       instead of being locked out.
+    */
+    /*
     if ((securityError === 'PERIMETER_BREACH' || securityError === 'SECURITY_THROTTLED') && !isDev) {
         return <SecurityLockScreen errorType={securityError} />;
     }
+    */
 
-    if (securityError && !isDev) {
+    // 🟢 NON-BLOCKING ALERT
+    useEffect(() => {
+        if (securityError && !isDev) {
+            console.warn("⚠️ Security Handshake Failed (Bypassed for User Access):", securityError);
+            toast.error(t.securityWarning || "Advertencia de Seguridad: Conexión no verificada.", {
+                description: "La validación de integridad falló (posible bloqueo de navegador). El sistema puede ser inestable.",
+                duration: 8000,
+            });
+        }
+    }, [securityError, isDev]);
+
+    if (securityError && !isDev && securityError === 'MISSING_SITE_KEY') {
         return (
             <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
                 <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
