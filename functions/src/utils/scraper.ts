@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
 import * as logger from "firebase-functions/logger";
-import { isSafeUrl } from "./security";
+import { validateUrlDns } from "./security";
 
 /**
  * Extracts all URLs from a given text string.
@@ -74,9 +74,10 @@ export async function fetchWebPageContent(url: string): Promise<{ url: string, t
         const MAX_REDIRECTS = 5;
 
         while (redirectCount <= MAX_REDIRECTS) {
-            // 🛡️ SECURITY: SSRF PREVENTION (Check every hop)
-            if (!isSafeUrl(currentUrl)) {
-                logger.warn(`🛡️ [SENTINEL] Blocked unsafe URL: ${currentUrl}`);
+            // 🛡️ SECURITY: SSRF PREVENTION (Check every hop with DNS Resolution)
+            const isSafe = await validateUrlDns(currentUrl);
+            if (!isSafe) {
+                logger.warn(`🛡️ [SENTINEL] Blocked unsafe URL (DNS check): ${currentUrl}`);
                 return null;
             }
 
