@@ -33,19 +33,48 @@ export const NarratorService = {
 
         // 🟢 GHOST MODE MOCK
         if (import.meta.env.VITE_JULES_MODE === 'true') {
-             console.log("👻 Narrator Mock Mode Active");
-             await new Promise(r => setTimeout(r, 1000)); // Fake latency
-             return [
+            console.log("👻 Narrator Mock Mode Active");
+            await new Promise(r => setTimeout(r, 1000)); // Fake latency
+
+            // Adaptive Mock: Check for dialogue markers
+            const dialogueIndex = text.indexOf('—');
+
+            if (dialogueIndex > 5) {
+                // Return Split: Narration + Dialogue
+                return [
+                    {
+                        text: text.substring(0, dialogueIndex),
+                        type: "NARRATION",
+                        speakerId: null,
+                        speakerName: "Narrator",
+                        voiceProfile: { gender: "MALE", age: "ADULT", tone: "Neutral", emotion: "Neutral" },
+                        from: 0,
+                        to: dialogueIndex
+                    },
+                    {
+                        text: text.substring(dialogueIndex),
+                        type: "DIALOGUE",
+                        speakerId: "mock-char-1",
+                        speakerName: "Unknown Character",
+                        voiceProfile: { gender: "FEMALE", age: "ADULT", tone: "Fearful", emotion: "Fear" },
+                        from: dialogueIndex,
+                        to: text.length
+                    }
+                ];
+            }
+
+            // Default Mock
+            return [
                 {
                     text: text.substring(0, Math.min(text.length, 50)),
                     type: "NARRATION",
                     speakerId: null,
-                    speakerName: "Narrador",
+                    speakerName: "Narrator",
                     voiceProfile: { gender: "MALE", age: "ADULT", tone: "Neutral", emotion: "Neutral" },
                     from: 0,
                     to: Math.min(text.length, 50)
                 }
-             ];
+            ];
         }
 
         // 1. Prepare API Key
@@ -76,7 +105,7 @@ ${characterList}
 3. **SEQUENCE**: Return segments in the exact order they appear in the text.
 4. **SEGMENTATION**: Break the text into logical audio chunks.
     - **NARRATION**: Use this for descriptive text, actions, and unquoted thoughts.
-    - **DIALOGUE**: Use this for spoken text (usually in quotes).
+    - **DIALOGUE**: Use this for spoken text (usually in quotes or starting with dashes '—' for Spanish).
     - **INTERNAL_MONOLOGUE**: Use this for thoughts (often in italics or specific markers).
 5. **ATTRIBUTION**:
     - For DIALOGUE/MONOLOGUE: Identify the 'speakerName' and 'speakerId'.
