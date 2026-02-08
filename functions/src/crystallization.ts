@@ -209,7 +209,7 @@ export const crystallizeGraph = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         timeoutSeconds: 540, // 9 minutes for batch processing
         secrets: [googleApiKey],
         memory: "1GiB",
@@ -702,7 +702,7 @@ export const crystallizeForgeEntity = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         secrets: [googleApiKey],
         memory: "1GiB",
     },

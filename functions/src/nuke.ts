@@ -15,7 +15,7 @@ export const nukeProject = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         timeoutSeconds: 540, // 9 Minutes (Long running op)
         memory: "1GiB",
     },

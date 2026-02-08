@@ -47,7 +47,7 @@ export const generateSpeech = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         secrets: [googleApiKey],
         memory: "2GiB",
     },

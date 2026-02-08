@@ -21,7 +21,7 @@ export const scanVaultHealth = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     if (!request.auth) {
@@ -177,7 +177,7 @@ export const purgeArtifacts = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Debes iniciar sesión.");
@@ -222,7 +222,7 @@ export const purgeEmptySessions = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 300,
     memory: "512MiB",
   },
@@ -306,7 +306,7 @@ export const purgeForgeEntities = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         timeoutSeconds: 540,
         memory: "1GiB",
     },
@@ -370,7 +370,7 @@ export const relinkAnchor = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         timeoutSeconds: 60,
         memory: "1GiB",
     },

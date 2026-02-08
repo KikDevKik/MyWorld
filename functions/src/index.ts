@@ -458,14 +458,14 @@ export const checkSentinelIntegrity = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "1GiB",
   },
   async (request) => {
     // 1. VERIFICAR AUTH (Opcional, pero recomendado para evitar spam)
     // El frontend llama a esto al inicio, así que puede que el usuario aún no esté logueado si es público.
     // Pero MyWorld es privado. Asumimos que el usuario debe estar autenticado o al menos App Check debe pasar.
-    // enforceAppCheck: true arriba se encarga de la integridad de la app.
+    // enforceAppCheck: false arriba se encarga de la integridad de la app.
 
     try {
       logger.info("🛡️ [SENTINEL] Iniciando comprobación de integridad...");
@@ -546,7 +546,7 @@ export const analyzeConnection = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 30, // Fast response
     secrets: [googleApiKey],
   },
@@ -631,7 +631,7 @@ export const syncWorldManifest = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
     memory: "2GiB",
@@ -1011,7 +1011,7 @@ export const getDriveFiles = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540, // Increased for Deep Extraction
     secrets: [googleApiKey],
     memory: "1GiB",
@@ -1151,7 +1151,7 @@ export const enrichCharacterContext = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 300,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -1343,7 +1343,7 @@ export const crystallizeNode = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -1448,7 +1448,7 @@ export const getProjectConfig = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "4GiB",
   },
   async (request) => {
@@ -1541,7 +1541,7 @@ export const saveProjectConfig = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "2GiB",
   },
   async (request) => {
@@ -1587,7 +1587,7 @@ export const getDriveFileContent = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "2GiB",
   },
   async (request) => {
@@ -1620,7 +1620,7 @@ export const checkIndexStatus = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "2GiB",
   },
   async (request) => {
@@ -1662,7 +1662,7 @@ export const indexTDB = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 3600, // 60 Minutes (Confirmed)
     memory: "1GiB",
     secrets: [googleApiKey],
@@ -1968,7 +1968,7 @@ export const chatWithGem = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
     memory: "2GiB",
@@ -2650,7 +2650,7 @@ export const worldEngine = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 1800, // 30 Minutes
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -2903,7 +2903,7 @@ export const saveDriveFile = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     secrets: [googleApiKey],
     memory: "2GiB",
   },
@@ -3046,7 +3046,7 @@ export const saveUserProfile = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "2GiB",
   },
   async (request) => {
@@ -3094,7 +3094,7 @@ export const getUserProfile = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "2GiB",
   },
   async (request) => {
@@ -3131,7 +3131,7 @@ export const createForgeSession = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const db = getFirestore();
@@ -3180,7 +3180,7 @@ export const getForgeSessions = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "512MiB",
   },
   async (request) => {
@@ -3225,7 +3225,7 @@ export const deleteForgeSession = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const db = getFirestore();
@@ -3262,7 +3262,7 @@ export const addForgeMessage = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "2GiB",
   },
   async (request) => {
@@ -3407,7 +3407,7 @@ export const getForgeHistory = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const db = getFirestore();
@@ -3451,7 +3451,7 @@ export const forgeToDrive = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
@@ -3603,7 +3603,7 @@ export const summonTheTribunal = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -3753,7 +3753,7 @@ export const extractTimelineEvents = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
@@ -3951,7 +3951,7 @@ export const compileManuscript = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -4258,7 +4258,7 @@ export const debugGetIndexStats = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const db = getFirestore();
@@ -4326,7 +4326,7 @@ export const syncCharacterManifest = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540,
     secrets: [googleApiKey],
     memory: "2GiB",
@@ -4608,7 +4608,7 @@ export const forgeToolExecution = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -4727,7 +4727,7 @@ export const forgeAnalyzer = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540,
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -4954,7 +4954,7 @@ export const clearSessionMessages = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
   },
   async (request) => {
     const db = getFirestore();
@@ -4999,7 +4999,7 @@ export const updateForgeCharacter = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
   },
@@ -5127,7 +5127,7 @@ export const restoreTimelineFromMaster = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -5278,7 +5278,7 @@ export const updateLongTermMemory = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 3600, // 1 Hour (Heavy Operation)
     memory: "2GiB",
     secrets: [googleApiKey],
@@ -5399,7 +5399,7 @@ export const syncSmart = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540,
     memory: "1GiB",
     secrets: [googleApiKey],

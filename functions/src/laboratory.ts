@@ -20,7 +20,7 @@ export const classifyResource = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         secrets: [googleApiKey],
     },
     async (request) => {

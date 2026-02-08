@@ -49,7 +49,7 @@ export const scribeCreateFile = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "1GiB",
         timeoutSeconds: 120, // Drive IO + Firestore
     },
@@ -320,7 +320,7 @@ export const integrateNarrative = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "1GiB",
         timeoutSeconds: 60,
         secrets: [googleApiKey],
@@ -389,7 +389,7 @@ export const scribePatchFile = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "1GiB",
         timeoutSeconds: 60, // Drive IO + AI + Drive IO
         secrets: [googleApiKey],
@@ -527,7 +527,7 @@ export const transformToGuide = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "1GiB",
         timeoutSeconds: 60,
         secrets: [googleApiKey],

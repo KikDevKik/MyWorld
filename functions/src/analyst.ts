@@ -96,7 +96,7 @@ export const analyzeStyleDNA = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "2GiB",
         secrets: [googleApiKey],

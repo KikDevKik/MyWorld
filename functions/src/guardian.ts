@@ -578,7 +578,7 @@ export const purgeEcho = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
     },
     async (request) => {
         const db = getFirestore();
@@ -630,7 +630,7 @@ export const scanProjectDrift = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS, // 🛡️ SENTINEL: Enforce strict CORS
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     timeoutSeconds: 540, // Long running
     memory: "1GiB",
   },
@@ -769,7 +769,7 @@ export const rescueEcho = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
     },
     async (request) => {
         const db = getFirestore();

@@ -43,7 +43,7 @@ export const discoverFolderRoles = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     secrets: [googleApiKey],
     memory: "4GiB",
   },
@@ -162,7 +162,7 @@ export const createTitaniumStructure = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
-    enforceAppCheck: true,
+    enforceAppCheck: false,
     memory: "1GiB",
   },
   async (request) => {
@@ -428,7 +428,7 @@ export const renameDriveFolder = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "1GiB",
     },
     async (request) => {
@@ -482,7 +482,7 @@ export const trashDriveItems = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "1GiB", // 🟢 INCREASE MEMORY
     },
     async (request) => {
@@ -565,7 +565,7 @@ export const getBatchDriveMetadata = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "512MiB",
     },
     async (request) => {
@@ -631,7 +631,7 @@ export const getFileSystemNodes = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
-        enforceAppCheck: true,
+        enforceAppCheck: false,
         memory: "256MiB", // Lightweight
     },
     async (request) => {
