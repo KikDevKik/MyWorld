@@ -1,8 +1,8 @@
 import * as logger from "firebase-functions/logger";
 import JSON5 from 'json5';
 
-// 🟢 JSON SANITIZER (ANTI-CRASH) - REVISION 2.0 (IRON JSON)
-export function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
+// 🟢 JSON SANITIZER (ANTI-CRASH) - REVISION 2.1 (IRON JSON + SEARCH)
+export function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown", expectedType?: 'object' | 'array'): any {
   try {
     // 1. Basic Clean: Trim whitespace
     let clean = jsonString.trim();
@@ -27,54 +27,55 @@ export function parseSecureJSON(jsonString: string, contextLabel: string = "Unkn
 
     clean = clean.trim();
 
-    // 4. Extract JSON Block (Find first '{' or '[' and last '}' or ']')
-    // We determine if it's an object or array candidate
-    const firstBrace = clean.indexOf('{');
-    const firstBracket = clean.indexOf('[');
-    let startIndex = -1;
-    let endIndex = -1;
-
-    // Determine start
-    if (firstBrace !== -1 && firstBracket !== -1) {
-       startIndex = Math.min(firstBrace, firstBracket);
-    } else if (firstBrace !== -1) {
-       startIndex = firstBrace;
-    } else if (firstBracket !== -1) {
-       startIndex = firstBracket;
-    }
-
-    if (startIndex !== -1) {
-        // Look for end based on start type (naive but better than nothing)
-        const lastBrace = clean.lastIndexOf('}');
-        const lastBracket = clean.lastIndexOf(']');
-        endIndex = Math.max(lastBrace, lastBracket);
-
-        if (endIndex !== -1 && endIndex > startIndex) {
-             clean = clean.substring(startIndex, endIndex + 1);
-        }
-    }
-
-    // 5. Control Characters (ASCII 0-31 excl \t \n \r)
+    // 4. Control Characters (ASCII 0-31 excl \t \n \r) - MOVED UP
     clean = clean.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '');
 
-    // 6. IRON PARSING STRATEGY
-    try {
-      // Plan A: Speed (Standard JSON)
-      return JSON.parse(clean);
-    } catch (standardError) {
-      try {
-        // Plan B: Robustness (JSON5 - handles trailing commas, comments, unquoted keys)
-        // Note: JSON5 is heavier but much more forgiving for LLM output
-        return JSON5.parse(clean);
-      } catch (json5Error: any) {
-        // Plan C: Hail Mary (Escaping Newlines)
-        try {
-           const rescued = clean.replace(/\n/g, '\\n');
-           return JSON5.parse(rescued);
-        } catch (finalError) {
-           throw json5Error; // Throw the JSON5 error as it's usually more descriptive
+    // 5. FIND CANDIDATE BLOCKS (Iterative Search Strategy)
+    const candidates: { start: number, char: string }[] = [];
+
+    for (let i = 0; i < clean.length; i++) {
+        const char = clean[i];
+        if (char === '{' || char === '[') {
+            // Filter by expectedType
+            if (expectedType === 'object' && char !== '{') continue;
+            if (expectedType === 'array' && char !== '[') continue;
+            candidates.push({ start: i, char });
         }
-      }
+    }
+
+    if (candidates.length === 0) {
+        // Fallback: Try parsing the whole string (maybe a primitive?)
+        return tryParse(clean);
+    }
+
+    // 6. IRON PARSING LOOP (Try each candidate until success)
+    let lastError: any = null;
+
+    for (const { start, char } of candidates) {
+        // Find matching end based on type
+        // We look for the LAST occurrence of the matching brace
+        // This favors the largest possible block starting at 'start'
+        const endChar = char === '{' ? '}' : ']';
+        const end = clean.lastIndexOf(endChar);
+
+        if (end === -1 || end <= start) continue;
+
+        const candidateSnippet = clean.substring(start, end + 1);
+
+        try {
+            return tryParse(candidateSnippet);
+        } catch (e) {
+            lastError = e;
+            // Continue to next candidate (maybe nested or sequential blocks)
+        }
+    }
+
+    // If loop finished without success, throw the last error
+    if (lastError) {
+        throw lastError;
+    } else {
+        // Should not happen if candidates existed but loop logic failed?
+        return tryParse(clean);
     }
 
   } catch (error: any) {
@@ -88,4 +89,24 @@ export function parseSecureJSON(jsonString: string, contextLabel: string = "Unkn
       partial_content: jsonString.substring(0, 500)
     };
   }
+}
+
+function tryParse(text: string): any {
+    try {
+      // Plan A: Speed (Standard JSON)
+      return JSON.parse(text);
+    } catch (standardError) {
+      try {
+        // Plan B: Robustness (JSON5 - handles trailing commas, comments, unquoted keys)
+        return JSON5.parse(text);
+      } catch (json5Error: any) {
+        // Plan C: Hail Mary (Escaping Newlines)
+        try {
+           const rescued = text.replace(/\n/g, '\\n');
+           return JSON5.parse(rescued);
+        } catch (finalError) {
+           throw json5Error; // Throw the JSON5 error as it's usually more descriptive
+        }
+      }
+    }
 }

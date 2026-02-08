@@ -3723,7 +3723,7 @@ export const summonTheTribunal = onCall(
 
       const content = response.content.toString();
 
-      const tribunalVerdict = parseSecureJSON(content, "SummonTheTribunal");
+      const tribunalVerdict = parseSecureJSON(content, "SummonTheTribunal", "object");
 
       if (tribunalVerdict.error === "JSON_PARSE_FAILED") {
           throw new HttpsError('internal', `Tribunal JSON Malformed: ${tribunalVerdict.details}`);
