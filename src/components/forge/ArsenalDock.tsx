@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clapperboard, Globe2, Hammer, ShieldCheck, Image as ImageIcon, Scale, FlaskConical, CalendarClock, Printer } from 'lucide-react';
+import { Clapperboard, Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer } from 'lucide-react';
 import { GEMS } from '../../constants';
 import { GemId } from '../../types';
 import { useLanguageStore } from '../../stores/useLanguageStore';
@@ -13,7 +13,7 @@ interface ArsenalDockProps {
     onToggleSentinel?: () => void; // 🟢 NEW PROP
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, isSecurityReady, onToggleSentinel }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift }) => {
     const { currentLanguage } = useLanguageStore();
     const tTools = TRANSLATIONS[currentLanguage].tools;
 
@@ -43,7 +43,8 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     return (
         <div className="w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0 pointer-events-auto">
 
-            {/* 🛡️ SENTINEL STATUS SHIELD */}
+            {/* 🛡️ SENTINEL STATUS SHIELD - HIDDEN BY ORDER */}
+            {/*
             <button
                 onClick={onToggleSentinel}
                 className={`
@@ -58,6 +59,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
             >
                 <ShieldCheck size={20} className={isSecurityReady ? "" : "animate-pulse"} />
             </button>
+            */}
 
             {/* GEMS (Las Herramientas Principales) */}
             <div className="flex flex-col gap-4 w-full px-2">

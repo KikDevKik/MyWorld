@@ -1,21 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
-import { ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react';
-import { toast } from 'sonner';
-import { callFunction } from '../../services/api';
+// import { ShieldCheck, ShieldAlert, Loader2 } from 'lucide-react'; // Removing unused icons
+// import { toast } from 'sonner';
+// import { callFunction } from '../../services/api';
 
-interface SentinelStatus {
-  status: 'SECURE' | 'FAILED' | 'LOADING';
-  connection: boolean;
-  project?: string;
-  errorCode?: string;
-  details?: string;
-}
+// interface SentinelStatus {
+//   status: 'SECURE' | 'FAILED' | 'LOADING';
+//   connection: boolean;
+//   project?: string;
+//   errorCode?: string;
+//   details?: string;
+// }
 
 const ProjectHUD: React.FC = () => {
   const { config, technicalError } = useProjectConfig();
-  const [sentinel, setSentinel] = useState<SentinelStatus>({ status: 'LOADING', connection: false });
+  // const [sentinel, setSentinel] = useState<SentinelStatus>({ status: 'LOADING', connection: false });
 
+  // 🟢 SENTINEL DISABLED BY ORDER
+  /*
   useEffect(() => {
     const pulse = async () => {
       try {
@@ -54,22 +56,23 @@ const ProjectHUD: React.FC = () => {
     return () => clearInterval(interval);
 
   }, []);
+  */
 
   // Visual Logic
   const projectName = config?.projectName || config?.activeBookContext || "...";
 
   // 🟢 SENTINEL OVERRIDE LOGIC
   const isCritical = technicalError.isError;
-  const criticalActionUrl = technicalError.details?.metadata?.action_url;
+  // const criticalActionUrl = technicalError.details?.metadata?.action_url;
 
   // Status Colors (Override if Critical)
-  const statusColor = isCritical
-      ? 'bg-orange-500'
-      : (sentinel.status === 'SECURE' ? 'bg-emerald-500' : (sentinel.status === 'LOADING' ? 'bg-titanium-500' : 'bg-red-500'));
+  // const statusColor = isCritical
+  //     ? 'bg-orange-500'
+  //     : (sentinel.status === 'SECURE' ? 'bg-emerald-500' : (sentinel.status === 'LOADING' ? 'bg-titanium-500' : 'bg-red-500'));
 
-  const glowColor = isCritical
-      ? 'shadow-[0_0_12px_rgba(249,115,22,0.8)]'
-      : (sentinel.status === 'SECURE' ? 'shadow-[0_0_8px_rgba(16,185,129,0.5)]' : (sentinel.status === 'FAILED' ? 'shadow-[0_0_8px_rgba(239,68,68,0.5)]' : ''));
+  // const glowColor = isCritical
+  //     ? 'shadow-[0_0_12px_rgba(249,115,22,0.8)]'
+  //     : (sentinel.status === 'SECURE' ? 'shadow-[0_0_8px_rgba(16,185,129,0.5)]' : (sentinel.status === 'FAILED' ? 'shadow-[0_0_8px_rgba(239,68,68,0.5)]' : ''));
 
   const containerBorder = isCritical ? 'border-orange-500/50 animate-pulse bg-orange-950/20' : 'border-titanium-700/30 bg-titanium-900/50';
 
@@ -77,11 +80,12 @@ const ProjectHUD: React.FC = () => {
     <div className={`mx-4 mb-6 mt-2 p-3 rounded-lg border flex items-center justify-between group transition-all ${containerBorder}`}>
 
       {/* LEFT: Project Identity */}
-      <div className="flex flex-col min-w-0">
+      <div className="flex flex-col min-w-0 w-full">
         <span className={`text-[10px] font-mono tracking-widest uppercase mb-0.5 ${isCritical ? 'text-orange-400 font-bold' : 'text-titanium-500'}`}>
           {isCritical ? "⚠️ FALLO CRÍTICO" : "PROYECTO"}
         </span>
 
+        {/*
         {isCritical ? (
              <button
                 onClick={() => window.open(criticalActionUrl, '_blank')}
@@ -90,16 +94,17 @@ const ProjectHUD: React.FC = () => {
                 <ShieldAlert size={12} /> REPARAR FORJA
              </button>
         ) : (
-            <h3 className="text-sm font-bold text-titanium-200 truncate pr-2 group-hover:text-cyan-400 transition-colors">
+        */}
+            <h3 className="text-sm font-bold text-titanium-200 truncate pr-2 group-hover:text-cyan-400 transition-colors w-full">
               {projectName}
             </h3>
-        )}
+        {/* )} */}
       </div>
 
-      {/* RIGHT: Sentinel Pulse */}
+      {/* RIGHT: Sentinel Pulse - HIDDEN */}
+      {/*
       <div className="flex items-center gap-3 shrink-0">
 
-        {/* Connection Status Icon (Hover Tooltip) */}
         <div
             className={`relative flex items-center justify-center w-6 h-6 rounded-full bg-titanium-950 border ${isCritical ? 'border-orange-500' : 'border-titanium-800'}`}
             title={isCritical ? "ERROR DE INDICE VECTORIAL" : (sentinel.status === 'SECURE' ? "Sentinel: SECURE (Secret Manager Linked)" : `Sentinel: ${sentinel.errorCode || 'UNKNOWN ERROR'}`)}
@@ -115,7 +120,6 @@ const ProjectHUD: React.FC = () => {
             )}
         </div>
 
-        {/* 1px Pulse Indicator */}
         <div className="relative flex h-2 w-2">
             {sentinel.status !== 'LOADING' && (
                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${statusColor}`}></span>
@@ -124,6 +128,7 @@ const ProjectHUD: React.FC = () => {
         </div>
 
       </div>
+      */}
     </div>
   );
 };
