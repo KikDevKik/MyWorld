@@ -460,12 +460,21 @@ export const scanProjectFiles = async (
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
     onProgress("Integrando conocimientos...", batchKeys.length, batchKeys.length);
 
+    // ⚡ Bolt Optimization: Pre-compute normalized names (O(N) vs O(C*N))
+    const precomputedNodes = existingNodes.map(node => ({
+        node,
+        normName: normalizeName(node.name)
+    }));
+
     const finalizedCandidates = allCandidates.map(candidate => {
         // 🟢 CRITICAL FIX: Resolve ID if AI Suggested Merge
         if (candidate.suggestedAction === 'MERGE' && candidate.mergeWithId) {
             // Try explicit ID match first, then Name match
             const targetName = normalizeName(candidate.mergeWithId);
-            const match = existingNodes.find(n => n.id === candidate.mergeWithId || normalizeName(n.name) === targetName);
+            // Use precomputed lookup for name match optimization? Or simpler .find is fine for this specific case (rare)
+            // We can reuse precomputedNodes for name lookup if we want, but ID check is primary.
+            const match = existingNodes.find(n => n.id === candidate.mergeWithId) ||
+                          precomputedNodes.find(pn => pn.normName === targetName)?.node;
 
             if (match) {
                 // Resolved to Real ID
@@ -491,13 +500,27 @@ export const scanProjectFiles = async (
         let bestMatch: GraphNode | null = null;
         let maxSim = 0;
 
-        for (const node of existingNodes) {
-            const normNode = normalizeName(node.name);
-            const sim = calculateSimilarity(normCandidate, normNode);
-            console.log(`[NexusScanner] Fuzzy Check: '${normCandidate}' vs '${normNode}' = ${sim}`);
+        for (const { node, normName } of precomputedNodes) {
+            // ⚡ Optimization: Length heuristic check
+            // If length diff is > 30% of candidate length, similarity cannot exceed 70% (approx)
+            // Actually, Levenshtein distance >= |lenA - lenB|
+            // So sim = 1 - dist/maxLen <= 1 - |lenA - lenB|/maxLen
+            // If we need > 0.75, then |lenA - lenB|/maxLen < 0.25
+            const lenA = normCandidate.length;
+            const lenB = normName.length;
+            const maxLen = Math.max(lenA, lenB);
+
+            // Skip expensive Levenshtein if lengths are too different
+            if (maxLen > 0 && Math.abs(lenA - lenB) / maxLen > 0.3) {
+                continue;
+            }
+
+            const sim = calculateSimilarity(normCandidate, normName);
+
             if (sim > maxSim) {
                 maxSim = sim;
                 bestMatch = node;
+                if (maxSim === 1.0) break; // ⚡ Perfect match found, stop searching
             }
         }
 
