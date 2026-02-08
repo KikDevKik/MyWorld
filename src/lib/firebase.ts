@@ -98,9 +98,31 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
     }
 
     try {
+        // 🟢 FAIL-OPEN WRAPPER (App Check Throttling Defense)
+        // Wraps the provider to catch 403 Forbidden errors and return a dummy token/null
+        // allowing the request to proceed "naked" to the backend (Unenforced Mode).
+        const appCheckProvider = new ReCaptchaV3Provider(siteKey);
+        const originalGetToken = appCheckProvider.getToken.bind(appCheckProvider);
+
+        appCheckProvider.getToken = async () => {
+            try {
+                return await originalGetToken();
+            } catch (error: any) {
+                // ⚠️ DETECT THROTTLING (403) OR NETWORK ERROR
+                console.warn("⚠️ App Check Throttled/Failed - Bypassing...", error);
+
+                // Return a dummy object so the SDK doesn't crash, but the token is invalid.
+                // The backend (Unenforced) will see an invalid/empty token and allow the request.
+                return {
+                    token: "",
+                    expireTimeMillis: Date.now() + 3600 * 1000 // Fake 1h expiry
+                };
+            }
+        };
+
         // Initialize App Check with ReCAPTCHA V3
         const appCheck = initializeAppCheck(app, {
-            provider: new ReCaptchaV3Provider(siteKey),
+            provider: appCheckProvider,
             isTokenAutoRefreshEnabled: true
         });
         console.log("✅ [SECURITY] App Check Instance Created.");
