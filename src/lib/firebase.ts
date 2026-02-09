@@ -2,6 +2,7 @@
 // ¡¡¡NUESTRA IGNICIÓN!!!
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check";
+import { getAnalytics } from "firebase/analytics";
 
 // ¡¡¡TU "TESORO" VA AQUÍ!!!
 // (Ahora cargado desde variables de entorno para seguridad)
@@ -17,13 +18,14 @@ export const fallbackConfig = {
 };
 
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+    apiKey: import.meta.env.VITE_GOOGLE_API_KEY,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID,
+    measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
+
 };
 
 // 🛡️ SENTINEL CHECK: Env Var Enforcement
@@ -80,22 +82,24 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         // Note: If we injected above, this line is redundant but harmless as it sets the same value.
         // We prioritize the explicit injection.
         if (!((self as any).FIREBASE_APPCHECK_DEBUG_TOKEN)) {
-             (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true;
+            (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true;
         }
         console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - APP CHECK BYPASS ENABLED");
 
         if (debugToken === true) {
-             console.log("ℹ️ [SECURITY] Generating NEW Debug Token. Check console logs.");
+            console.log("ℹ️ [SECURITY] Generating NEW Debug Token. Check console logs.");
         } else {
-             console.log("ℹ️ [SECURITY] Using Custom Debug Token.");
+            console.log("ℹ️ [SECURITY] Using Custom Debug Token.");
         }
 
         // 👻 GHOST BYPASS (Legacy flag, kept for backward compat)
         if (import.meta.env.VITE_JULES_MODE === 'true') {
-             console.log("👻 [GHOST PROTOCOL] Skipping AppCheck validation.");
-             return { isReady: true, error: null };
+            console.log("👻 [GHOST PROTOCOL] Skipping AppCheck validation.");
+            return { isReady: true, error: null };
         }
     }
+
+
 
     // 💀 KILL SWITCH ACTIVADO (PROTOCOLO 403 LOOP)
     console.warn("💀 KILL SWITCH ACTIVADO: App Check desactivado para prevenir bucle infinito.");
@@ -152,6 +156,7 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         return { isReady: false, error: "INIT_FAILED" };
     }
     */
+    const analytics = getAnalytics(app);
 };
 
 export default app;
