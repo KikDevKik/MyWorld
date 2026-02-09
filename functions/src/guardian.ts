@@ -579,6 +579,7 @@ export const purgeEcho = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
+        memory: "1GiB",
     },
     async (request) => {
         const db = getFirestore();
@@ -770,6 +771,7 @@ export const rescueEcho = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
+        memory: "1GiB",
     },
     async (request) => {
         const db = getFirestore();

@@ -567,7 +567,7 @@ export const getBatchDriveMetadata = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        memory: "512MiB",
+        memory: "1GiB",
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -633,7 +633,7 @@ export const getFileSystemNodes = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        memory: "256MiB", // Lightweight
+        memory: "1GiB",
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");

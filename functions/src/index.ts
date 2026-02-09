@@ -549,6 +549,7 @@ export const analyzeConnection = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 30, // Fast response
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -1345,6 +1346,7 @@ export const crystallizeNode = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -3132,6 +3134,7 @@ export const createForgeSession = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -3181,7 +3184,7 @@ export const getForgeSessions = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
-    memory: "512MiB",
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -3226,6 +3229,7 @@ export const deleteForgeSession = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -3408,6 +3412,7 @@ export const getForgeHistory = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -3454,6 +3459,7 @@ export const forgeToDrive = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -3756,6 +3762,7 @@ export const extractTimelineEvents = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -4259,6 +4266,7 @@ export const debugGetIndexStats = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -4610,6 +4618,7 @@ export const forgeToolExecution = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
 
@@ -4955,6 +4964,7 @@ export const clearSessionMessages = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -5002,6 +5012,7 @@ export const updateForgeCharacter = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 120,
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
@@ -5129,6 +5140,7 @@ export const restoreTimelineFromMaster = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     secrets: [googleApiKey],
+    memory: "1GiB",
   },
   async (request) => {
     const db = getFirestore();
