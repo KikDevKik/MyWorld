@@ -6,6 +6,7 @@ interface ChatInputProps {
     onSend: (text: string, attachment: File | null) => void;
     placeholder?: string;
     disabled?: boolean;
+    isLoading?: boolean;
     autoFocus?: boolean;
     className?: string;
     textAreaClassName?: string;
@@ -15,6 +16,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     onSend,
     placeholder = "Escribe un mensaje...",
     disabled = false,
+    isLoading = false,
     autoFocus = false,
     className = "",
     textAreaClassName = ""
@@ -74,7 +76,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const handleDrop = (e: DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDragging(false);
-        if (disabled) return;
+        if (disabled || isLoading) return;
 
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             handleFileSelect(e.dataTransfer.files[0]);
@@ -83,7 +85,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
         e.preventDefault();
-        if (!disabled) setIsDragging(true);
+        if (!disabled && !isLoading) setIsDragging(true);
     };
 
     const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
@@ -124,6 +126,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
             handleSubmit();
         }
     };
+
+    const effectiveDisabled = disabled || isLoading;
 
     return (
         <div
@@ -175,12 +179,12 @@ const ChatInput: React.FC<ChatInputProps> = ({
             )}
 
             {/* Input Bar */}
-            <div className={`flex items-end gap-2 bg-titanium-950 border border-titanium-800 rounded-xl px-2 py-2 focus-within:border-emerald-500/50 transition-colors ${disabled ? 'opacity-50 pointer-events-none' : ''}`}>
+            <div className={`flex items-end gap-2 bg-titanium-950 border border-titanium-800 rounded-xl px-2 py-2 focus-within:border-emerald-500/50 transition-colors ${disabled ? 'opacity-50 pointer-events-none' : (isLoading ? 'opacity-80 pointer-events-none' : '')}`}>
 
                 {/* File Button */}
                 <button
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={!!attachment || disabled}
+                    disabled={!!attachment || effectiveDisabled}
                     className={`p-2 rounded-lg transition-colors mb-0.5 shrink-0 ${
                         attachment
                         ? 'text-emerald-500 bg-emerald-500/10'
@@ -205,7 +209,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
-                    disabled={disabled}
+                    disabled={effectiveDisabled}
                     autoFocus={autoFocus}
                     rows={1}
                     className={`flex-1 bg-transparent text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none py-2.5 max-h-[150px] resize-none scrollbar-hide ${textAreaClassName}`}
@@ -213,11 +217,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                 <button
                     onClick={() => handleSubmit()}
-                    disabled={(!text.trim() && !attachment) || disabled}
-                    className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0"
-                    aria-label="Enviar mensaje"
+                    disabled={(!text.trim() && !attachment) || effectiveDisabled}
+                    className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0 min-w-[38px] flex justify-center items-center"
+                    aria-label={isLoading ? "Enviando..." : "Enviar mensaje"}
                 >
-                    <Send size={20} />
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
                 </button>
             </div>
         </div>

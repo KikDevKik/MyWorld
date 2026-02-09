@@ -612,7 +612,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                 <ChatInput
                                     onSend={handleSend}
                                     placeholder="Describe your architecture..."
-                                    disabled={isTyping}
+                                    isLoading={isTyping}
                                     textAreaClassName="bg-transparent text-sm text-white focus:outline-none"
                                     className="border border-white/10 rounded-lg bg-transparent"
                                 />
