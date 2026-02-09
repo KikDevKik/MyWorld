@@ -172,7 +172,7 @@ export const useDirectorChat = ({
     }, [driftAlerts]);
 
     // 🟢 SEND MESSAGE
-    const handleSendMessage = async (text: string, attachment: File | null = null) => {
+    const handleSendMessage = useCallback(async (text: string, attachment: File | null = null) => {
         if (!text.trim() && !attachment) return;
 
         const tempId = Date.now().toString();
@@ -303,10 +303,10 @@ export const useDirectorChat = ({
             // 🟢 CLEANUP: Remove from pending now that flow is complete
             pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }
-    };
+    }, [messages, activeFileContent, activeFileName, isFallbackContext, folderId, userId, ensureSession]);
 
     // 🟢 INSPECTOR (READ ONLY)
-    const handleInspector = async (fileId?: string) => {
+    const handleInspector = useCallback(async (fileId?: string) => {
         if (!fileId && import.meta.env.VITE_JULES_MODE !== 'true') {
              toast.error("Guarda el archivo en Drive para usar el Inspector.");
              return;
@@ -397,10 +397,10 @@ export const useDirectorChat = ({
             // 🟢 CLEANUP
             pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }
-    };
+    }, [accessToken, ensureSession]);
 
     // 🟢 TRIBUNAL (FALLBACK INTELLIGENCE)
-    const handleTribunal = async (selectedText?: string | null) => {
+    const handleTribunal = useCallback(async (selectedText?: string | null) => {
         const textToAnalyze = selectedText || activeFileContent;
 
         if (!textToAnalyze) {
@@ -494,10 +494,10 @@ export const useDirectorChat = ({
             // 🟢 CLEANUP
             pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }
-    };
+    }, [activeFileContent, ensureSession]);
 
     // 🟢 CONTEXT SYNC (CLIENT SIDE)
-    const handleContextSync = async () => {
+    const handleContextSync = useCallback(async () => {
         if (!activeFileContent) {
             toast.warning("No hay contenido para sincronizar.");
             return;
@@ -537,10 +537,10 @@ export const useDirectorChat = ({
         setTimeout(() => {
              pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }, 5000);
-    };
+    }, [activeFileContent, ensureSession]);
 
     // 🟢 RESCUE & PURGE HANDLERS
-    const handleRescue = async (drift: any, msgId: string, category: string) => {
+    const handleRescue = useCallback(async (drift: any, msgId: string, category: string) => {
         if (!drift?.chunkPath) {
             toast.error("Error: No se puede rescatar (Falta Path).");
             return;
@@ -576,9 +576,9 @@ export const useDirectorChat = ({
                 return next;
             });
         }
-    };
+    }, []);
 
-    const handlePurge = async (drift: any, msgId: string) => {
+    const handlePurge = useCallback(async (drift: any, msgId: string) => {
         if (!drift?.chunkPath) return;
 
         if(!confirm("¿CONFIRMAS LA PURGA?")) return;
@@ -606,7 +606,7 @@ export const useDirectorChat = ({
                  return next;
              });
         }
-    };
+    }, []);
 
     return {
         messages,

@@ -16,7 +16,7 @@ interface ChatMessageProps {
     purgingIds: Set<string>;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({
+export const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
     message,
     onRescue,
     onPurge,
@@ -216,4 +216,4 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
         </div>
     );
-};
+});

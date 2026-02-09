@@ -2,7 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
@@ -542,8 +542,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
-    const handleInsertContent = async (text: string) => {
-        if (!selectedFileContent && !currentFileId) {
+    // ⚡ Bolt Optimization: useCallback with Refs to prevent re-renders on typing
+    const handleInsertContent = useCallback(async (text: string) => {
+        const currentContent = selectedFileContentRef.current;
+        const currentId = currentFileIdRef.current;
+
+        if (!currentContent && !currentId) {
             toast.error(t.noFileOpen);
             return;
         }
@@ -598,11 +602,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
         } else {
             // Fallback if ref is missing
-            const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
+            const newContent = currentContent ? (currentContent + "\n\n" + text) : text;
             setSelectedFileContent(newContent);
             toast.warning(t.editorDisconnected);
         }
-    };
+    }, [folderId, user, t]); // Stable dependencies
 
     // 🟢 LOADING GATE
     if (isAppLoading) {
