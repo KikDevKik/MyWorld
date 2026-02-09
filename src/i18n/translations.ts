@@ -390,6 +390,23 @@ export const TRANSLATIONS: Record<Language, any> = {
             relearn: "Re-aprender todo",
             versionConflict: "Versión más reciente disponible en Drive",
             versionConflictDesc: "No se actualizó para proteger tus cambios recientes."
+        },
+        tutorial: {
+            welcome: "¡Bienvenido a MyWorld!",
+            welcomeDesc: "Para comenzar, puedes crear una estructura de proyecto estándar desde cero. Esto organizará tus carpetas automáticamente.",
+            connect: "O conecta tu Nube",
+            connectDesc: "Si ya tienes una carpeta en Google Drive, úsala para sincronizar todo tu trabajo existente.",
+            settings: "Configuración del Proyecto",
+            settingsDesc: "Aquí definirás las reglas de tu mundo. Vamos a echar un vistazo rápido.",
+            paths: "Mapeo de Rutas",
+            pathsDesc: "En esta sección (Rutas) es vital que definas qué carpetas son 'Canon' (La Verdad) y cuáles son 'Recursos'. Esto ayuda a la IA a entender tu contexto.",
+            brain: "Tu Segundo Cerebro",
+            brainDesc: "¡Atención aquí! Este es el núcleo de MyWorld.",
+            sync: "Mantenlo Sincronizado",
+            syncDesc: "Recuerda: Si escribes mucho o cambias archivos en Drive, usa 'Escanear Archivos' para actualizar la IA. Usa 'Cargar Memoria' para análisis profundos (God Mode).",
+            done: "¡Entendido!",
+            next: "Siguiente",
+            prev: "Anterior"
         }
     },
     en: {
@@ -781,6 +798,23 @@ export const TRANSLATIONS: Record<Language, any> = {
             relearn: "Re-learn all",
             versionConflict: "Newer version available on Drive",
             versionConflictDesc: "Not updated to protect your recent changes."
+        },
+        tutorial: {
+            welcome: "Welcome to MyWorld!",
+            welcomeDesc: "To start, you can create a standard project structure from scratch. This will organize your folders automatically.",
+            connect: "Or Connect your Cloud",
+            connectDesc: "If you already have a folder in Google Drive, use it to sync all your existing work.",
+            settings: "Project Settings",
+            settingsDesc: "Here you will define the rules of your world. Let's take a quick look.",
+            paths: "Path Mapping",
+            pathsDesc: "In this section (Paths), it is vital that you define which folders are 'Canon' (The Truth) and which are 'Resources'. This helps the AI understand your context.",
+            brain: "Your Second Brain",
+            brainDesc: "Pay attention here! This is the core of MyWorld.",
+            sync: "Keep it Synced",
+            syncDesc: "Remember: If you write a lot or change files in Drive, use 'Scan Files' to update the AI. Use 'Load Memory' for deep analysis (God Mode).",
+            done: "Got it!",
+            next: "Next",
+            prev: "Previous"
         }
     },
     jp: {

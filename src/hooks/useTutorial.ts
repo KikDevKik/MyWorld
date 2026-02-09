@@ -1,72 +1,72 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface UseTutorialProps {
     setIsProjectSettingsOpen: (isOpen: boolean) => void;
     user: any;
     isAppLoading: boolean;
+    isEmptyProject: boolean; // 🟢 NEW PROP
 }
 
-export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading }: UseTutorialProps) => {
+export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading, isEmptyProject }: UseTutorialProps) => {
     const driverObj = useRef<any>(null);
+    const { currentLanguage } = useLanguageStore();
 
-    useEffect(() => {
-        // 1. Check Preconditions
+    // 🟢 START FUNCTION (EXPOSED)
+    const startTutorial = useCallback(() => {
         if (!user || isAppLoading) return;
 
-        // 2. Check Persistence
-        const hasSeenTutorial = localStorage.getItem('has_seen_intro_tutorial_v1');
-        if (hasSeenTutorial) return;
+        const t = TRANSLATIONS[currentLanguage].tutorial;
 
-        // 3. Define Steps
-        const steps = [
-            // STEP 0: Welcome
+        // 1. Define Steps based on Context (Empty vs Existing)
+        const welcomeSteps = [
             {
                 element: '#empty-state-create-project-btn',
                 popover: {
-                    title: '¡Bienvenido a MyWorld!',
-                    description: 'Para comenzar, puedes crear una estructura de proyecto estándar desde cero. Esto organizará tus carpetas automáticamente.',
+                    title: t.welcome,
+                    description: t.welcomeDesc,
                     side: "right",
                     align: 'center'
                 }
             },
-            // STEP 1: Connect Drive
             {
                 element: '#empty-state-connect-drive-btn',
                 popover: {
-                    title: 'O conecta tu Nube',
-                    description: 'Si ya tienes una carpeta en Google Drive, úsala para sincronizar tu trabajo existente.',
+                    title: t.connect,
+                    description: t.connectDesc,
                     side: "right",
                     align: 'center'
                 }
-            },
-            // STEP 2: Settings Trigger
-            {
+            }
+        ];
+
+        const coreSteps = [
+             {
                 element: '#sidebar-project-settings',
                 popover: {
-                    title: 'Configuración del Proyecto',
-                    description: 'Aquí definirás las reglas de tu mundo. Vamos a echar un vistazo rápido.',
+                    title: t.settings,
+                    description: t.settingsDesc,
                     side: "left",
                     align: 'center'
                 }
             },
-            // STEP 3: Settings Modal (Paths)
             {
                 element: '#project-settings-modal',
                 popover: {
-                    title: 'Mapeo de Rutas',
-                    description: 'En esta sección (Rutas) es vital que definas qué carpetas son "Canon" (La Verdad) y cuáles son "Recursos". Esto ayuda a la IA a entender tu contexto.',
+                    title: t.paths,
+                    description: t.pathsDesc,
                     side: "left",
                     align: 'center'
                 }
             },
-            // STEP 4: Brain Button (The Index)
             {
                 element: '#sidebar-brain-button',
                 popover: {
-                    title: 'Tu Segundo Cerebro',
-                    description: '¡Atención aquí! Este es el núcleo de MyWorld.',
+                    title: t.brain,
+                    description: t.brainDesc,
                     side: "bottom",
                     align: 'end'
                 },
@@ -77,54 +77,63 @@ export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading }: Us
                     // Simulate click to open menu
                     setTimeout(() => {
                         const btn = document.getElementById('sidebar-brain-button');
-                        if (btn) {
-                             btn.click();
-                        }
+                        if (btn) btn.click();
                     }, 300);
                 }
             },
-            // STEP 5: Indexing Instructions
             {
                 element: '#sidebar-brain-button',
                 popover: {
-                    title: 'Mantenlo Sincronizado',
-                    description: 'Recuerda: Si escribes mucho o cambias archivos en Drive, usa "Escanear Archivos" para actualizar la IA. Usa "Cargar Memoria" para análisis profundos (God Mode).',
+                    title: t.sync,
+                    description: t.syncDesc,
                     side: "bottom",
                     align: 'end'
                 },
                 onDeselected: () => {
-                    // Cleanup: Try to close menu if open
                      const btn = document.getElementById('sidebar-brain-button');
                      if (btn) btn.click();
                 }
             }
         ];
 
-        // 4. Initialize Driver
+        // 🟢 COMBINE STEPS
+        // If project is empty, show full tutorial. If not, only show core features.
+        // We need to be careful with step indices for navigation logic.
+        const steps = isEmptyProject ? [...welcomeSteps, ...coreSteps] : coreSteps;
+
+        // 2. Initialize Driver
         driverObj.current = driver({
             showProgress: true,
             animate: true,
-            allowClose: false,
-            steps: steps, // Steps config
-            doneBtnText: '¡Entendido!',
-            nextBtnText: 'Siguiente',
-            prevBtnText: 'Anterior',
-            progressText: '{{current}} de {{total}}',
+            allowClose: true,
+            steps: steps,
+            doneBtnText: t.done,
+            nextBtnText: t.next,
+            prevBtnText: t.prev,
+            progressText: '{{current}} / {{total}}',
 
             // GLOBAL NAVIGATION HANDLERS
             onNextClick: (element, step, opts) => {
-                if (step.element === '#sidebar-project-settings') {
-                    // Opening Modal
-                    setIsProjectSettingsOpen(true);
-                    setTimeout(() => {
-                        driverObj.current.moveNext();
-                    }, 800);
+                // Determine target step index
+                const currentStepIndex = steps.findIndex(s => s.element === step.element);
+                const nextStep = steps[currentStepIndex + 1];
+
+                if (nextStep && nextStep.element === '#project-settings-modal') {
+                     // Opening Modal
+                     setIsProjectSettingsOpen(true);
+                     // Wait for animation
+                     setTimeout(() => {
+                         driverObj.current.moveNext();
+                     }, 800);
                 } else {
                     driverObj.current.moveNext();
                 }
             },
             onPrevClick: (element, step, opts) => {
-                if (step.element === '#sidebar-brain-button') {
+                const currentStepIndex = steps.findIndex(s => s.element === step.element);
+                const prevStep = steps[currentStepIndex - 1];
+
+                if (prevStep && prevStep.element === '#project-settings-modal') {
                     // Going back to Modal from Brain
                     setIsProjectSettingsOpen(true);
                     setTimeout(() => {
@@ -139,18 +148,29 @@ export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading }: Us
                 }
             },
             onDestroyStarted: () => {
-                // If the user finishes or explicitly skips
                 localStorage.setItem('has_seen_intro_tutorial_v1', 'true');
                 driverObj.current.destroy();
             }
         });
 
-        // 5. Start Tour
-        const startTimer = setTimeout(() => {
-            driverObj.current.drive();
+        driverObj.current.drive();
+
+    }, [user, isAppLoading, isEmptyProject, currentLanguage]);
+
+    // 🟢 AUTO-START EFFECT
+    useEffect(() => {
+        if (!user || isAppLoading) return;
+
+        const hasSeenTutorial = localStorage.getItem('has_seen_intro_tutorial_v1');
+        if (hasSeenTutorial) return;
+
+        // Auto-start with delay
+        const timer = setTimeout(() => {
+            startTutorial();
         }, 2000);
 
-        return () => clearTimeout(startTimer);
+        return () => clearTimeout(timer);
+    }, [user, isAppLoading]); // Only run once on mount/auth
 
-    }, [user, isAppLoading]);
+    return { startTutorial };
 };
