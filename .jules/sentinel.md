@@ -118,3 +118,8 @@
 **Vulnerability:** Unrestricted URL fetching allowing access to internal metadata/services.
 **Learning:** `fetchWebPageContent` accepted any URL matching `https?://`, exposing the server to SSRF attacks targeting the cloud metadata service (`169.254.169.254`).
 **Prevention:** Implemented `isSafeUrl` validator to block private IPs, localhost, and metadata hostnames.
+
+## 2025-06-04 - [DoS Prevention: Unbounded History Input]
+**Vulnerability:** Resource Exhaustion / Denial of Service (DoS) via Genesis Protocol
+**Learning:** The `genesisManifest` function accepted an unbounded `chatHistory` array. A malicious user could send a massive payload (e.g., 1 million messages), causing memory exhaustion (OOM), function timeouts, or excessive AI costs (token flooding).
+**Prevention:** Implemented strict limits: `MAX_HISTORY_ITEMS` (100) and `MAX_HISTORY_CHARS` (100,000). Added validation logic to ensure the payload structure is correct and within safe bounds before processing.

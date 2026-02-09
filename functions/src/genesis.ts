@@ -16,6 +16,10 @@ import { ingestFile } from "./ingestion";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
+// 🛡️ SENTINEL SECURITY CONSTANTS
+const MAX_HISTORY_ITEMS = 100;
+const MAX_HISTORY_CHARS = 100000;
+
 // Helper to get config
 async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
   const db = getFirestore();
@@ -57,6 +61,23 @@ export const genesisManifest = onCall(
         throw new HttpsError("invalid-argument", "History is required.");
     }
     if (!accessToken) throw new HttpsError("unauthenticated", "Access Token required.");
+
+    // 🛡️ SENTINEL CHECK: Input Validation (DoS Prevention)
+    if (chatHistory.length > MAX_HISTORY_ITEMS) {
+        throw new HttpsError("invalid-argument", `History too long. Max ${MAX_HISTORY_ITEMS} messages.`);
+    }
+
+    let totalChars = 0;
+    for (const h of chatHistory) {
+        if (!h.role || !h.message || typeof h.role !== 'string' || typeof h.message !== 'string') {
+             throw new HttpsError("invalid-argument", "Invalid history format. Expected {role: string, message: string}.");
+        }
+        totalChars += h.message.length;
+    }
+
+    if (totalChars > MAX_HISTORY_CHARS) {
+        throw new HttpsError("invalid-argument", `Total history size exceeds limit (${MAX_HISTORY_CHARS} chars).`);
+    }
 
     const userId = request.auth.uid;
     const db = getFirestore();
