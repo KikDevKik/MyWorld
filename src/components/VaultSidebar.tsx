@@ -37,6 +37,7 @@ interface VaultSidebarProps {
     activeFileId?: string | null; // 👈 New prop
     onCreateFile?: () => void; // 👈 New prop for File Creation
     onGenesis?: () => void; // 👈 New prop for Genesis
+    onStartTutorial?: () => void; // 🟢 NEW PROP FOR GUIDE
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -66,6 +67,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     activeFileId, // 👈 Destructure
     onCreateFile, // 👈 Destructure
     onGenesis, // 👈 Destructure
+    onStartTutorial, // 🟢 Destructure
 }) => {
     // STATE
     const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
@@ -616,7 +618,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             <div className="p-3 border-t border-titanium-800 bg-titanium-900 mt-auto">
                 <div className="flex flex-col gap-1">
                     <button
-                        onClick={onOpenManual}
+                        onClick={() => {
+                            if (onStartTutorial) {
+                                onStartTutorial();
+                            } else {
+                                onOpenManual();
+                            }
+                        }}
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <HelpCircle size={16} className="group-hover:text-accent-DEFAULT transition-colors" />

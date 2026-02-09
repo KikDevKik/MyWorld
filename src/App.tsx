@@ -262,10 +262,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const isReadOnly = isLocked && !isSelfLocked;
 
     // 🟢 TUTORIAL HOOK
-    useTutorial({
+    const isEmptyProject = !fileTree || fileTree.length === 0;
+    const { startTutorial } = useTutorial({
         setIsProjectSettingsOpen,
         user,
-        isAppLoading
+        isAppLoading,
+        isEmptyProject
     });
 
     // 🟢 INITIALIZATION & HYDRATION
@@ -971,6 +973,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         activeFileId={currentFileId}
                         onCreateFile={() => setIsCreateFileModalOpen(true)}
                         onGenesis={() => setIsGenesisOpen(true)}
+                        onStartTutorial={startTutorial} // 🟢 PASS TUTORIAL TRIGGER
                     />
                 }
                 editor={renderZoneBContent()}
