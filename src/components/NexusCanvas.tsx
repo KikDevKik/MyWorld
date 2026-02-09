@@ -315,11 +315,12 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
 
     // 🧠 MEMOIZED LINKS (For Dependency Tracking)
     const links = useMemo(() => {
+        const nodeMap = new Map(simNodes.map(n => [n.id, n])); // ⚡ O(N) Lookup Table
         const l: any[] = [];
         simNodes.forEach(node => {
             if (node.relations) {
                 node.relations.forEach(r => {
-                    if (simNodes.find(n => n.id === r.targetId)) {
+                    if (nodeMap.has(r.targetId)) { // ⚡ O(1) Check
                         l.push({ source: node.id, target: r.targetId, label: r.context || r.relation, ...r });
                     }
                 });
@@ -467,6 +468,17 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
         forceUpdate: () => updateXarrow()
     }));
 
+    // ⚡ O(N) Maps for O(1) Lookups
+    const { nodeMap, nodeNameMap } = useMemo(() => {
+        const nMap = new Map<string, VisualNode>();
+        const nameMap = new Map<string, VisualNode>();
+        nodes.forEach(n => {
+            nMap.set(n.id, n);
+            if (n.name) nameMap.set(n.name.toLowerCase().trim(), n);
+        });
+        return { nodeMap: nMap, nodeNameMap: nameMap };
+    }, [nodes]);
+
     if (lodTier === 'MACRO') return null;
 
     return (
@@ -476,12 +488,12 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
                     if (!node.relations) return null;
                     return node.relations.map((rel, idx) => {
                         // 🟢 ROBUST TARGET RESOLUTION
-                        let targetNode = nodes.find(n => n.id === rel.targetId);
+                        let targetNode = nodeMap.get(rel.targetId); // ⚡ O(1) Lookup
 
                         // Fallback: Name Match (Case Insensitive)
                         if (!targetNode && rel.target) {
                             const normTarget = rel.target.toLowerCase().trim();
-                            targetNode = nodes.find(n => n.name.toLowerCase().trim() === normTarget);
+                            targetNode = nodeNameMap.get(normTarget); // ⚡ O(1) Lookup
                         }
 
                         if (!targetNode) return null;
