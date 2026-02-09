@@ -301,6 +301,7 @@ export const generateCertificate = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
+        memory: "1GiB",
     },
     async (request) => {
         const db = getFirestore();
