@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLayoutStore } from '../stores/useLayoutStore';
+import SkipToContent from '../components/ui/SkipToContent'; // 🎨 PALETTE: Accessibility Skip Link
 import { GemId } from '../types';
 
 interface SentinelShellProps {
@@ -150,6 +151,8 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             data-active-view={activeView}
             data-show-sidebar={showSidebar.toString()}
         >
+            <SkipToContent />
+
             {/* ZONA A: MEMORIA (SIDEBAR) */}
             <aside
                 className={`
@@ -161,7 +164,11 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             </aside>
 
             {/* ZONA B: ACCIÓN (EDITOR / HEAVY TOOLS) */}
-            <main className="flex-1 relative flex flex-col min-w-0 bg-titanium-950 transition-all duration-300">
+            <main
+                id="main-content" // 🎨 PALETTE: Target for SkipToContent
+                className="flex-1 relative flex flex-col min-w-0 bg-titanium-950 transition-all duration-300 outline-none"
+                tabIndex={-1} // Allow programmatic focus
+            >
                 {editor}
             </main>
 
