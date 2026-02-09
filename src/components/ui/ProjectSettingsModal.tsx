@@ -5,7 +5,7 @@ import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import useDrivePicker from 'react-google-drive-picker';
-import { ProjectPath, FolderRole } from '../../types/core';
+import { ProjectPath, FolderRole, ProjectConfig } from '../../types/core';
 import { callFunction } from '../../services/api';
 
 interface ProjectSettingsModalProps {
@@ -74,16 +74,23 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     }, [activeTab, folderMapping]);
 
     const handleSave = async () => {
-        if (!config) return;
         setIsSaving(true);
         try {
-            await updateConfig({
+            const newConfig: ProjectConfig = config ? {
                 ...config,
                 canonPaths,
                 resourcePaths,
-                folderMapping, // 👈 Save new mapping
-                // chronologyPath: null // Removed
-            });
+                folderMapping,
+            } : {
+                // 🟢 CREATE NEW CONFIG IF MISSING
+                canonPaths,
+                resourcePaths,
+                folderMapping,
+                activeBookContext: "",
+                folderId: "" // Empty root initially
+            };
+
+            await updateConfig(newConfig);
 
             // 🟢 TRIGGER INDEX REFRESH (Lightweight & Strict)
             const token = localStorage.getItem('google_drive_token');

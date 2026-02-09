@@ -765,7 +765,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onGenesis={() => setIsGenesisOpen(true)}
                     isEmptyProject={isEmptyProject}
                     onCreateProject={() => setIsCreateProjectModalOpen(true)}
-                    onConnectDrive={() => setIsConnectModalOpen(true)}
+                    onConnectDrive={() => setIsProjectSettingsOpen(true)}
                 />
             );
         }
