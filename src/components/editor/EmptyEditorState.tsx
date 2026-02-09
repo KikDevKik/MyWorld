@@ -34,6 +34,7 @@ const EmptyEditorState: React.FC<EmptyEditorStateProps> = ({ onCreate, onGenesis
                     {/* Create Project */}
                     {onCreateProject && (
                         <button
+                            id="empty-state-create-project-btn"
                             onClick={onCreateProject}
                             className="group w-full flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-titanium-800 to-titanium-700 hover:from-titanium-700 hover:to-titanium-600 border border-titanium-600 rounded-lg text-titanium-100 font-medium transition-all shadow-lg hover:shadow-cyan-900/20 active:scale-95"
                         >
@@ -45,6 +46,7 @@ const EmptyEditorState: React.FC<EmptyEditorStateProps> = ({ onCreate, onGenesis
                     {/* Connect Drive */}
                     {onConnectDrive && (
                         <button
+                            id="empty-state-connect-drive-btn"
                             onClick={onConnectDrive}
                             className="group w-full flex items-center justify-center gap-3 px-6 py-3 bg-gradient-to-r from-titanium-800/50 to-titanium-700/50 hover:bg-titanium-700/50 border border-titanium-700 rounded-lg text-titanium-300 hover:text-white font-medium transition-all shadow-lg active:scale-95"
                         >

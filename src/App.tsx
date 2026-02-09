@@ -31,6 +31,7 @@ import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { useNarrator } from './hooks/useNarrator'; // 🟢 IMPORT NARRATOR HOOK
+import { useTutorial } from './hooks/useTutorial'; // 🟢 IMPORT TUTORIAL HOOK
 import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfigContext";
 import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
@@ -259,6 +260,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 FILE LOCKING
     const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);
     const isReadOnly = isLocked && !isSelfLocked;
+
+    // 🟢 TUTORIAL HOOK
+    useTutorial({
+        setIsProjectSettingsOpen,
+        user,
+        isAppLoading
+    });
 
     // 🟢 INITIALIZATION & HYDRATION
     useEffect(() => {

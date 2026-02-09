@@ -86,6 +86,9 @@ importers:
       d3-selection:
         specifier: ^3.0.0
         version: 3.0.0
+      driver.js:
+        specifier: ^1.4.0
+        version: 1.4.0
       firebase:
         specifier: ^10.12.3
         version: 10.14.1
@@ -1230,6 +1233,9 @@ packages:
 
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
+
+  driver.js@1.4.0:
+    resolution: {integrity: sha512-Gm64jm6PmcU+si21sQhBrTAM1JvUrR0QhNmjkprNLxohOBzul9+pNHXgQaT9lW84gwg9GMLB3NZGuGolsz5uew==}
 
   electron-to-chromium@1.5.277:
     resolution: {integrity: sha512-wKXFZw4erWmmOz5N/grBoJ2XrNJGDFMu2+W5ACHza5rHtvsqrK4gb6rnLC7XxKB9WlJ+RmyQatuEXmtm86xbnw==}
@@ -3117,6 +3123,8 @@ snapshots:
   devlop@1.1.0:
     dependencies:
       dequal: 2.0.3
+
+  driver.js@1.4.0: {}
 
   electron-to-chromium@1.5.277: {}
 

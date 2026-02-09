@@ -383,6 +383,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         {/* BOTÓN DE INDEXAR (MENU) */}
                         <div className="relative" ref={indexMenuRef}>
                             <button
+                                id="sidebar-brain-button"
                                 onClick={() => setIsIndexMenuOpen(!isIndexMenuOpen)}
                                 className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
                                 title={t.index}
@@ -623,6 +624,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </button>
 
                     <button
+                        id="sidebar-project-settings"
                         onClick={onOpenProjectSettings}
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
