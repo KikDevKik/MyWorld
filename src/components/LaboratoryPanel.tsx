@@ -173,6 +173,13 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                             <FlaskConical size={20} />
                             <h2 className="font-bold tracking-wider text-sm">{t.folderNames.resources}</h2>
                         </div>
+                        <button
+                            onClick={handleCreateResource}
+                            className="p-1.5 rounded-md hover:bg-titanium-800 text-titanium-400 hover:text-emerald-400 transition-colors"
+                            title={t.common.create + " Idea"}
+                        >
+                            <FilePlus size={16} />
+                        </button>
                     </div>
 
                     {/* SEARCH */}
