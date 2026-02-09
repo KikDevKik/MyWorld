@@ -23,6 +23,7 @@ export const classifyResource = onCall(
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
         secrets: [googleApiKey],
+        memory: "1GiB",
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
