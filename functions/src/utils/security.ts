@@ -82,26 +82,10 @@ export function isSafeUrl(url: string): boolean {
         // 1. Block Localhost & Metadata
         if (hostname === 'localhost' || hostname === 'metadata.google.internal') return false;
 
-        // 2. Block numeric private IPs (IPv4)
-        // 0.0.0.0/8
-        if (hostname.startsWith('0.')) return false;
-        // 127.0.0.0/8
-        if (hostname.startsWith('127.')) return false;
-        // 169.254.0.0/16
-        if (hostname.startsWith('169.254.')) return false;
-        // 10.0.0.0/8
-        if (hostname.startsWith('10.')) return false;
-        // 192.168.0.0/16
-        if (hostname.startsWith('192.168.')) return false;
-        // 172.16.0.0/12 (172.16 - 172.31)
-        if (hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./)) return false;
-
-        // 3. Block IPv6 localhost/private
-        if (hostname === '::1') return false;
-        // Unique Local (fc00::/7)
-        if (hostname.startsWith('fc') || hostname.startsWith('fd')) return false;
-        // Link Local (fe80::/10)
-        if (hostname.startsWith('fe80:')) return false;
+        // 2. If it is an IP, check if it is private
+        if (net.isIP(hostname)) {
+            return !isPrivateIp(hostname);
+        }
 
         return true;
     } catch (e) {
@@ -116,8 +100,9 @@ export function isPrivateIp(ip: string): boolean {
     const family = net.isIP(ip);
     if (family === 0) return false;
 
+    // Block IPv4-mapped IPv6 addresses (::ffff:...) to prevent obfuscation bypass
     if (family === 6 && ip.toLowerCase().startsWith('::ffff:')) {
-        return isPrivateIp(ip.substring(7));
+        return true;
     }
 
     if (family === 4) {
