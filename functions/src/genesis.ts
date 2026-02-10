@@ -58,6 +58,29 @@ export const genesisManifest = onCall(
     }
     if (!accessToken) throw new HttpsError("unauthenticated", "Access Token required.");
 
+    // 🛡️ SECURITY: DoS Protection & Input Validation
+    const MAX_HISTORY_ITEMS = 100;
+    const MAX_TOTAL_CHARS = 100000;
+
+    if (chatHistory.length > MAX_HISTORY_ITEMS) {
+        throw new HttpsError("invalid-argument", `Chat history exceeds maximum limit of ${MAX_HISTORY_ITEMS} messages.`);
+    }
+
+    let totalChars = 0;
+    for (const item of chatHistory) {
+        if (!item || typeof item !== 'object') {
+             throw new HttpsError("invalid-argument", "Invalid chat history item.");
+        }
+        if (!item.role || typeof item.role !== 'string' || !item.message || typeof item.message !== 'string') {
+             throw new HttpsError("invalid-argument", "Invalid chat history format. Each item must have 'role' and 'message' strings.");
+        }
+        totalChars += item.role.length + item.message.length;
+    }
+
+    if (totalChars > MAX_TOTAL_CHARS) {
+        throw new HttpsError("invalid-argument", `Chat history exceeds maximum character limit of ${MAX_TOTAL_CHARS}.`);
+    }
+
     const userId = request.auth.uid;
     const db = getFirestore();
     const config = await getProjectConfigLocal(userId);
