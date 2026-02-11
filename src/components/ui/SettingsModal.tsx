@@ -24,6 +24,22 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const t = TRANSLATIONS[currentLanguage].settings; // 🟢 LOCALIZED TEXTS
 
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config' | 'info'>('general');
+    const modalRef = React.useRef<HTMLDivElement>(null);
+
+    // 🎨 PALETTE: Focus Trap & Escape Key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.addEventListener('keydown', handleEscape);
+
+        // Focus modal on open
+        if (modalRef.current) {
+            modalRef.current.focus();
+        }
+
+        return () => document.removeEventListener('keydown', handleEscape);
+    }, [onClose]);
 
     // 🟢 STYLE IDENTITY STATE
     const [styleIdentity, setStyleIdentity] = useState('');
@@ -392,9 +408,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     };
 
     return (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+        <div
+            className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+        >
             {/* 🟢 INCREASED MAX WIDTH: max-w-2xl -> max-w-5xl */}
-            <div className="bg-titanium-950 rounded-xl border border-titanium-800 shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in">
+            <div
+                ref={modalRef}
+                tabIndex={-1}
+                className="bg-titanium-950 rounded-xl border border-titanium-800 shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col animate-fade-in outline-none"
+            >
 
                 {/* HEADER */}
                 <div className="flex items-center gap-3 border-b border-titanium-800 p-6 pb-4 bg-titanium-900/50">
@@ -402,16 +427,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <User size={24} className="text-accent-DEFAULT" />
                     </div>
                     <div>
-                        <h3 className="text-lg font-bold text-titanium-100">{t.title}</h3>
+                        <h3 id="settings-title" className="text-lg font-bold text-titanium-100">{t.title}</h3>
                         <p className="text-xs text-titanium-400">{t.subtitle}</p>
                     </div>
                 </div>
 
                 {/* TABS */}
-                <div className="flex border-b border-titanium-800 bg-titanium-900/30 px-6">
+                <div role="tablist" aria-label="Settings Tabs" className="flex border-b border-titanium-800 bg-titanium-900/30 px-6">
                     <button
+                        role="tab"
+                        aria-selected={activeTab === 'general'}
+                        aria-controls="panel-general"
+                        id="tab-general"
                         onClick={() => setActiveTab('general')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'general'
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'general'
                                 ? 'border-accent-DEFAULT text-accent-DEFAULT'
                                 : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
@@ -420,8 +449,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         {t.tabGeneral}
                     </button>
                     <button
+                        role="tab"
+                        aria-selected={activeTab === 'profile'}
+                        aria-controls="panel-profile"
+                        id="tab-profile"
                         onClick={() => setActiveTab('profile')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'profile'
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'profile'
                                 ? 'border-accent-DEFAULT text-accent-DEFAULT'
                                 : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
@@ -430,8 +463,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         {t.tabProfile}
                     </button>
                     <button
+                        role="tab"
+                        aria-selected={activeTab === 'ai_config'}
+                        aria-controls="panel-ai_config"
+                        id="tab-ai_config"
                         onClick={() => setActiveTab('ai_config')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'ai_config'
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'ai_config'
                                 ? 'border-purple-400 text-purple-400'
                                 : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
@@ -440,8 +477,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         {t.tabAi}
                     </button>
                     <button
+                        role="tab"
+                        aria-selected={activeTab === 'memory'}
+                        aria-controls="panel-memory"
+                        id="tab-memory"
                         onClick={() => setActiveTab('memory')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'memory'
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'memory'
                                 ? 'border-red-400 text-red-400'
                                 : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
@@ -450,8 +491,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         {t.tabMemory}
                     </button>
                     <button
+                        role="tab"
+                        aria-selected={activeTab === 'info'}
+                        aria-controls="panel-info"
+                        id="tab-info"
                         onClick={() => setActiveTab('info')}
-                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'info'
+                        className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'info'
                                 ? 'border-cyan-400 text-cyan-400'
                                 : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
@@ -466,7 +511,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                     {/* TAB: GENERAL */}
                     {activeTab === 'general' && (
-                        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div role="tabpanel" id="panel-general" aria-labelledby="tab-general" className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Brain size={18} className="text-accent-DEFAULT" />
                                 <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">{t.genConfig}</h4>
@@ -543,7 +588,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                     {/* TAB: PROFILE */}
                     {activeTab === 'profile' && (
-                        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div role="tabpanel" id="panel-profile" aria-labelledby="tab-profile" className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Sparkles size={18} className="text-accent-DEFAULT" />
                                 <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">{t.narrativeIdentity}</h4>
@@ -592,7 +637,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                     {/* TAB: AI CONFIG (BYOK) */}
                     {activeTab === 'ai_config' && (
-                        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div role="tabpanel" id="panel-ai_config" aria-labelledby="tab-ai_config" className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Key size={18} className="text-purple-400" />
                                 <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wider">{t.byok}</h4>
@@ -647,7 +692,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                     {/* TAB: MEMORY (DEBUG) */}
                     {activeTab === 'memory' && (
-                        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div role="tabpanel" id="panel-memory" aria-labelledby="tab-memory" className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <AlertTriangle size={18} className="text-red-400" />
                                 <h4 className="text-sm font-bold text-red-400 uppercase tracking-wider">{t.dangerZone}</h4>
@@ -723,7 +768,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                     {/* TAB: INFO (ABOUT) */}
                     {activeTab === 'info' && (
-                        <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                        <div role="tabpanel" id="panel-info" aria-labelledby="tab-info" className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
                                 <Info size={18} className="text-cyan-400" />
                                 <h4 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">{t.about}</h4>
