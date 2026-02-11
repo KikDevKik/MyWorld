@@ -2,7 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
@@ -604,6 +604,44 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
     };
 
+    const handleFileSelect = useCallback((id: string, content: string, name?: string, isBackgroundUpdate?: boolean) => {
+        // 🟢 LOGIC:
+        // If isBackgroundUpdate is true, we verify against LIVE state (Refs).
+        // If false (User Click), we switch unconditionally.
+
+        if (isBackgroundUpdate) {
+            // 1. Verify we are still on the same file
+            if (id !== currentFileIdRef.current) {
+                // User switched to another file while this one was loading. Ignore.
+                return;
+            }
+
+            // 2. Verify content is actually different
+            if (content === selectedFileContentRef.current) {
+                return;
+            }
+
+            // 3. Check for unsaved changes (Dirty State)
+            const isDirtyRef = selectedFileContentRef.current !== lastSavedContentRef.current;
+            if (isDirtyRef) {
+                // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
+                toast.warning(t.versionConflict, {
+                    description: t.versionConflictDesc
+                });
+            } else {
+                // ✅ SAFE: Upgrade content
+                setSelectedFileContent(content);
+                setLastSavedContent(content);
+            }
+        } else {
+            // 🔴 STANDARD USER SWITCH
+            setCurrentFileId(id);
+            setSelectedFileContent(content);
+            setLastSavedContent(content);
+            setCurrentFileName(name || 'Documento');
+        }
+    }, [t]);
+
     // 🟢 LOADING GATE
     if (isAppLoading) {
         return (
@@ -921,43 +959,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     <VaultSidebar
                         folderId={folderId}
                         onFolderIdChange={setFolderId}
-                        onFileSelect={(id, content, name, isBackgroundUpdate) => {
-                            // 🟢 LOGIC:
-                            // If isBackgroundUpdate is true, we verify against LIVE state (Refs).
-                            // If false (User Click), we switch unconditionally.
-
-                            if (isBackgroundUpdate) {
-                                // 1. Verify we are still on the same file
-                                if (id !== currentFileIdRef.current) {
-                                    // User switched to another file while this one was loading. Ignore.
-                                    return;
-                                }
-
-                                // 2. Verify content is actually different
-                                if (content === selectedFileContentRef.current) {
-                                    return;
-                                }
-
-                                // 3. Check for unsaved changes (Dirty State)
-                                const isDirtyRef = selectedFileContentRef.current !== lastSavedContentRef.current;
-                                if (isDirtyRef) {
-                                    // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
-                                    toast.warning(t.versionConflict, {
-                                        description: t.versionConflictDesc
-                                    });
-                                } else {
-                                    // ✅ SAFE: Upgrade content
-                                    setSelectedFileContent(content);
-                                    setLastSavedContent(content);
-                                }
-                            } else {
-                                // 🔴 STANDARD USER SWITCH
-                                setCurrentFileId(id);
-                                setSelectedFileContent(content);
-                                setLastSavedContent(content);
-                                setCurrentFileName(name || 'Documento');
-                            }
-                        }}
+                        onFileSelect={handleFileSelect}
                         onOpenConnectModal={() => setIsConnectModalOpen(true)}
                         onLogout={handleLogout}
                         onIndexRequest={handleIndex}
