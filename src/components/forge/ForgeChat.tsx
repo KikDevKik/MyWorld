@@ -699,6 +699,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                             onSend={(text, attachment) => executeStreamConnection(text, { hidden: false, attachment: attachment })}
                             placeholder={activeEntity ? `Interrogar a ${activeEntity.name}...` : "Escribe a la Forja..."}
                             disabled={isSending || thinkingState === 'ANALYZING'}
+                            isLoading={isSending}
                             autoFocus
                             className="w-full"
                             textAreaClassName="bg-transparent text-sm text-zinc-200 placeholder-titanium-500"

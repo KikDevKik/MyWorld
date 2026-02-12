@@ -6,6 +6,7 @@ interface ChatInputProps {
     onSend: (text: string, attachment: File | null) => void;
     placeholder?: string;
     disabled?: boolean;
+    isLoading?: boolean;
     autoFocus?: boolean;
     className?: string;
     textAreaClassName?: string;
@@ -15,6 +16,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     onSend,
     placeholder = "Escribe un mensaje...",
     disabled = false,
+    isLoading = false,
     autoFocus = false,
     className = "",
     textAreaClassName = ""
@@ -213,11 +215,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                 <button
                     onClick={() => handleSubmit()}
-                    disabled={(!text.trim() && !attachment) || disabled}
+                    disabled={(!text.trim() && !attachment) || disabled || isLoading}
                     className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0"
-                    aria-label="Enviar mensaje"
+                    aria-label={isLoading ? "Enviando mensaje..." : "Enviar mensaje"}
                 >
-                    <Send size={20} />
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
                 </button>
             </div>
         </div>
