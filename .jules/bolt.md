@@ -9,3 +9,7 @@
 ## 2026-02-07 - [O(N^2) Bottleneck in NexusCanvas]
 **Learning:** Found nested loops using `.find()` inside `useMemo` for link generation in `GraphSimulation` and rendering in `LinksOverlay`. This caused O(N^2) complexity. Replacing with O(N) `Map` lookups yielded significant performance improvement for graph rendering.
 **Action:** Always inspect `useMemo` blocks and render loops iterating over arrays for potential O(N²) complexity, especially in visual components handling large datasets.
+
+## 2026-02-07 - [Render Loop Optimization in LinksOverlayV2]
+**Learning:** Even if lookups are memoized (O(1)), iterating over all nodes and relations in the `render` function (O(N*M)) to generate JSX causes performance hits on high-frequency updates (e.g., hover/tick). Pre-calculating the flat list of renderable links in `useMemo` moves this complexity out of the render cycle.
+**Action:** For list rendering where the source data is stable but UI state (hover) changes frequently, memoize the *list of items* with static properties, and only apply dynamic styles in the render map.
