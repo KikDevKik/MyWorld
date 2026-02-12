@@ -6,7 +6,7 @@ Este documento detalla la arquitectura técnica y las innovaciones clave de MyWo
 
 *   **Frontend:** React 18, Vite, Tailwind CSS (Typography), Framer Motion, React Flow / Force Graph 2D.
 *   **Backend:** Firebase Cloud Functions (Node.js 22), Firestore (NoSQL), Google Drive API v3.
-*   **AI Core:** Google Gemini 1.5 Pro (Reasoning) & Flash (Speed), LangChain (Orchestration).
+*   **AI Core:** Google Gemini 3.0 Pro (Reasoning) & Flash (Speed) [Preview], LangChain (Orchestration).
 *   **Vector Database:** Firestore Native Vector Search (Cosine Distance).
 
 ## Key Features Explained
@@ -63,11 +63,11 @@ Este documento detalla la arquitectura técnica y las innovaciones clave de MyWo
 
 | Función | Modelo | Razón Técnica |
 | :--- | :--- | :--- |
-| **Guardian (Initial Scan)** | **Gemini 1.5 Flash** | Alta velocidad y bajo coste para escanear miles de caracteres en tiempo real. |
-| **Soul Sorter (Extraction)** | **Gemini 1.5 Flash** | Capacidad de contexto larga (1M tokens) para leer novelas enteras rápido. |
-| **Director (Logic)** | **Gemini 1.5 Pro** | Requiere razonamiento complejo y seguimiento de instrucciones estrictas (System 2 Thinking). |
-| **Chat (RAG)** | **Gemini 1.5 Pro** | Necesita matices estilísticos y comprensión profunda del subtexto ("The Chameleon"). |
-| **Scribe (Synthesis)** | **Gemini 1.5 Flash** | Tareas de reescritura y formateo son mecánicas; Flash es suficiente y más barato. |
+| **Guardian (Initial Scan)** | **Gemini 3.0 Flash (Preview)** | Alta velocidad y bajo coste para escanear miles de caracteres en tiempo real. |
+| **Soul Sorter (Extraction)** | **Gemini 3.0 Flash (Preview)** | Capacidad de contexto larga (1M tokens) para leer novelas enteras rápido. |
+| **Director (Logic)** | **Gemini 3.0 Pro (Preview)** | Requiere razonamiento complejo y seguimiento de instrucciones estrictas (System 2 Thinking). |
+| **Chat (RAG)** | **Gemini 3.0 Pro (Preview)** | Necesita matices estilísticos y comprensión profunda del subtexto ("The Chameleon"). |
+| **Scribe (Synthesis)** | **Gemini 3.0 Flash (Preview)** | Tareas de reescritura y formateo son mecánicas; Flash es suficiente y más barato. |
 
 ## Innovation: Unique Selling Points
 
