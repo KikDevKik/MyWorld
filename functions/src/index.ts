@@ -131,6 +131,8 @@ const MAX_CHAT_MESSAGE_LIMIT = 30000; // 30k chars limit for chat messages/queri
 const MAX_ENTITY_NAME_CHARS = 100; // 100 chars limit for entity names
 const MAX_CONNECTION_CONTEXT_CHARS = 5000; // 5k chars limit for connection context
 const MAX_SESSION_NAME_CHARS = 200; // 200 chars limit for session names
+const MAX_PROJECT_PATHS = 50; // Limit number of canon/resource folders
+const MAX_PATH_NAME_CHARS = 255; // Limit folder name length
 
 // --- HERRAMIENTAS INTERNAS (HELPERS) ---
 
@@ -1553,21 +1555,78 @@ export const saveProjectConfig = onCall(
       throw new HttpsError("unauthenticated", "Debes iniciar sesión para guardar la configuración.");
     }
 
-    const config = request.data as ProjectConfig;
+    const raw = request.data;
     const userId = request.auth.uid;
 
     logger.info(`💾 Guardando configuración del proyecto para usuario: ${userId}`);
 
-    // 🟢 SYNC LEGACY FIELDS
+    // 🛡️ SECURITY: INPUT VALIDATION & SANITIZATION
+    // We strictly extract only allowed fields to prevent pollution or DoS.
+    const sanitizedConfig: Partial<ProjectConfig> = {};
+
+    // 1. Validate Simple Strings (IDs & Names)
+    const validString = (val: any, max: number) => typeof val === 'string' && val.length <= max;
+    const validStringOrNull = (val: any, max: number) => val === null || (typeof val === 'string' && val.length <= max);
+
+    if (validString(raw.projectName, 100)) sanitizedConfig.projectName = raw.projectName;
+    if (validStringOrNull(raw.primaryCanonPathId, 255)) sanitizedConfig.primaryCanonPathId = raw.primaryCanonPathId;
+    if (validString(raw.folderId, 255)) sanitizedConfig.folderId = raw.folderId;
+    if (validStringOrNull(raw.characterVaultId, 255)) sanitizedConfig.characterVaultId = raw.characterVaultId;
+    if (validString(raw.activeBookContext, 1000)) sanitizedConfig.activeBookContext = raw.activeBookContext;
+    if (validString(raw.styleIdentity, MAX_PROFILE_FIELD_LIMIT)) sanitizedConfig.styleIdentity = raw.styleIdentity;
+
+    // 2. Validate Paths (Canon & Resource)
+    const validatePaths = (paths: any, label: string) => {
+        if (!paths) return undefined;
+        if (!Array.isArray(paths)) throw new HttpsError('invalid-argument', `${label} must be an array.`);
+        if (paths.length > MAX_PROJECT_PATHS) throw new HttpsError('resource-exhausted', `${label} exceeds limit of ${MAX_PROJECT_PATHS}.`);
+
+        return paths.map((p: any, idx: number) => {
+            if (!p || typeof p !== 'object') throw new HttpsError('invalid-argument', `Invalid item at index ${idx} in ${label}.`);
+            if (!p.id || typeof p.id !== 'string') throw new HttpsError('invalid-argument', `Missing/Invalid ID at index ${idx} in ${label}.`);
+            if (!p.name || typeof p.name !== 'string') throw new HttpsError('invalid-argument', `Missing/Invalid Name at index ${idx} in ${label}.`);
+            if (p.name.length > MAX_PATH_NAME_CHARS) throw new HttpsError('invalid-argument', `Name too long at index ${idx} in ${label}.`);
+            return { id: p.id, name: p.name }; // Strip extra fields
+        });
+    };
+
+    if (raw.canonPaths) sanitizedConfig.canonPaths = validatePaths(raw.canonPaths, 'canonPaths');
+    if (raw.resourcePaths) sanitizedConfig.resourcePaths = validatePaths(raw.resourcePaths, 'resourcePaths');
+
+    // 3. Validate Chronology Path
+    if (raw.chronologyPath) {
+        if (typeof raw.chronologyPath === 'object' && raw.chronologyPath.id && raw.chronologyPath.name) {
+             if (typeof raw.chronologyPath.name === 'string' && raw.chronologyPath.name.length <= MAX_PATH_NAME_CHARS) {
+                 sanitizedConfig.chronologyPath = { id: raw.chronologyPath.id, name: raw.chronologyPath.name };
+             }
+        } else if (raw.chronologyPath === null) {
+             sanitizedConfig.chronologyPath = null;
+        }
+    }
+
+    // 4. Validate Folder Mapping
+    if (raw.folderMapping && typeof raw.folderMapping === 'object') {
+        const cleanMapping: any = {};
+        for (const [key, value] of Object.entries(raw.folderMapping)) {
+            // We allow keys that look like roles, but values must be strings (IDs)
+            if (typeof value === 'string' && value.length <= 255) {
+                cleanMapping[key] = value;
+            }
+        }
+        sanitizedConfig.folderMapping = cleanMapping;
+    }
+
+    // 🟢 SYNC LEGACY FIELDS (Applied to sanitized object)
     // If folderMapping.ENTITY_PEOPLE is set, update characterVaultId
-    if (config.folderMapping && config.folderMapping[FolderRole.ENTITY_PEOPLE]) {
-        config.characterVaultId = config.folderMapping[FolderRole.ENTITY_PEOPLE];
+    if (sanitizedConfig.folderMapping && sanitizedConfig.folderMapping[FolderRole.ENTITY_PEOPLE]) {
+        sanitizedConfig.characterVaultId = sanitizedConfig.folderMapping[FolderRole.ENTITY_PEOPLE];
         logger.info(`   🔄 Synced characterVaultId from ROLE_ENTITY_PEOPLE`);
     }
 
     try {
+      // 🛡️ WRITE ONLY SANITIZED CONFIG
       await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
-        ...config,
+        ...sanitizedConfig,
         updatedAt: new Date().toISOString()
       }, { merge: true });
 

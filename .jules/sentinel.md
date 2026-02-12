@@ -118,3 +118,11 @@
 **Vulnerability:** Unrestricted URL fetching allowing access to internal metadata/services.
 **Learning:** `fetchWebPageContent` accepted any URL matching `https?://`, exposing the server to SSRF attacks targeting the cloud metadata service (`169.254.169.254`).
 **Prevention:** Implemented `isSafeUrl` validator to block private IPs, localhost, and metadata hostnames.
+
+## 2025-02-19 - [Input Validation: Mass Assignment Prevention]
+**Vulnerability:** The `saveProjectConfig` function blindly spread `request.data` into the Firestore document (`...config`). This allowed authenticated users to inject arbitrary fields (polluting the DB) or oversized payloads (DoS/Storage Exhaustion).
+**Learning:** TypeScript interfaces (`as ProjectConfig`) provide compile-time safety but NO runtime validation. Trusting client input structure is dangerous.
+**Prevention:**
+1. **Whitelist:** Explicitly extract only allowed fields from the request.
+2. **Validate:** Enforce strict type and length checks (e.g., `MAX_PROJECT_PATHS = 50`).
+3. **Sanitize:** Reject or strip unknown properties before database operations.
