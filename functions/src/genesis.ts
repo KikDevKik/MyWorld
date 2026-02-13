@@ -7,7 +7,7 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
-import { getAIKey } from "./utils/security";
+import { getAIKey, validateChatHistory } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { generateAnchorContent, generateDraftContent } from "./templates/forge";
 import { FolderRole, ProjectConfig } from "./types/project";
@@ -57,6 +57,9 @@ export const genesisManifest = onCall(
         throw new HttpsError("invalid-argument", "History is required.");
     }
     if (!accessToken) throw new HttpsError("unauthenticated", "Access Token required.");
+
+    // 🛡️ SECURITY: DoS Protection
+    validateChatHistory(chatHistory);
 
     const userId = request.auth.uid;
     const db = getFirestore();

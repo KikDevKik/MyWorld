@@ -141,3 +141,35 @@ export async function validateUrlDns(url: string): Promise<boolean> {
         return false;
     }
 }
+
+/**
+ * 🛡️ SENTINEL: Chat History Validator
+ * Protects against DoS attacks via massive chat payloads.
+ * Enforces limits: Max 100 items, Max 100k chars total.
+ */
+export function validateChatHistory(chatHistory: any[]): void {
+    if (!Array.isArray(chatHistory)) {
+        throw new HttpsError("invalid-argument", "Chat history must be an array.");
+    }
+
+    if (chatHistory.length > 100) {
+        throw new HttpsError("invalid-argument", "Chat history exceeds maximum limit (100 items).");
+    }
+
+    let totalChars = 0;
+    for (const item of chatHistory) {
+        if (typeof item !== 'object' || item === null) {
+            throw new HttpsError("invalid-argument", "Invalid chat item format.");
+        }
+
+        if (typeof item.role !== 'string' || typeof item.message !== 'string') {
+            throw new HttpsError("invalid-argument", "Chat items must have string role and message.");
+        }
+
+        totalChars += item.role.length + item.message.length;
+    }
+
+    if (totalChars > 100000) {
+        throw new HttpsError("invalid-argument", "Chat history exceeds maximum size limit (100k chars).");
+    }
+}
