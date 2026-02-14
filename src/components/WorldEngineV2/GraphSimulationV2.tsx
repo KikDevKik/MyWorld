@@ -29,10 +29,28 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
     // 1. IMPERATIVE HANDLE (Sync from Parent)
     useImperativeHandle(ref, () => ({}));
 
+    // ⚡ Bolt Optimization: Persistent Physics State
     // Sync React State with Props (Initialization)
     useEffect(() => {
-        const nextNodes = nodes.map(n => ({...n, x: n.x || undefined, y: n.y || undefined }));
-        setSimNodes(nextNodes);
+        setSimNodes(prev => {
+            const prevMap = new Map<string, VisualNode>(prev.map(n => [n.id, n]));
+            return nodes.map(n => {
+                const existing = prevMap.get(n.id);
+                // Preserve d3 state if node exists
+                if (existing) {
+                    return {
+                        ...n,
+                        x: existing.x,
+                        y: existing.y,
+                        vx: existing.vx,
+                        vy: existing.vy,
+                        fx: existing.fx,
+                        fy: existing.fy
+                    };
+                }
+                return { ...n, x: n.x || undefined, y: n.y || undefined };
+            });
+        });
     }, [nodes]);
 
     // 🧠 MEMOIZED LINKS (For Dependency Tracking)
@@ -75,17 +93,15 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
         onTick();
     }, [links.length]);
 
-    // ⚡ D3 PHYSICS & DRAG
+    // ⚡ Bolt Optimization: Persistent Simulation Instance
+    // Initialize Simulation ONCE (Mount Only)
     useEffect(() => {
-        if (simNodes.length === 0) return;
-
         const width = 4000;
         const height = 4000;
         const cx = width / 2;
         const cy = height / 2;
 
-        // Simulation Setup (ZERO KELVIN PROTOCOL)
-        const simulation = d3Force.forceSimulation(simNodes as any)
+        const simulation = d3Force.forceSimulation()
             .alphaDecay(0.05) // ❄️ Faster freeze (default ~0.0228)
             .force("charge", d3Force.forceManyBody().strength(-2000))
             .force("center", d3Force.forceCenter(cx, cy).strength(0.05))
@@ -98,21 +114,12 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                     if (type === 'location') return 500;
                     if (type === 'faction') return 300;
                     return 800;
-                }, cx, cy).strength(0.1))
-            .force("link", d3Force.forceLink(links).id((d: any) => d.id).distance((d: any) => {
-                const rel = (d.relation || '').toUpperCase();
-                // 1. Intima (Gravedad del Hogar) - 50px
-                if (['FAMILY', 'LOVER', 'MARRIED', 'SPOUSE'].some(k => rel.includes(k))) return 50;
-                // 2. Conflicto (El Abismo) - 800px
-                if (['ENEMY', 'HATES', 'RIVAL', 'WAR', 'KILL'].some(k => rel.includes(k))) return 800;
-                // 3. Estándar (Orbitas) - 300px
-                return 300;
-            }));
+                }, cx, cy).strength(0.1));
 
         // 🔄 TICK: DIRECT DOM MANIPULATION
         simulation.on("tick", () => {
-            // 1. Move Nodes
-            simNodes.forEach((node: any) => {
+            // 1. Move Nodes (Use internal nodes array to avoid stale closure)
+            simulation.nodes().forEach((node: any) => {
                 const el = nodeRefs.current[node.id];
                 if (el) {
                     el.style.transform = `translate(${node.x}px, ${node.y}px)`;
@@ -129,25 +136,49 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
             factionOverlayRef.current?.forceUpdate();
         });
 
-        // ✋ DRAG BEHAVIOR (SLEEP & WAKE)
+        simulationRef.current = simulation;
+
+        return () => {
+            simulation.stop();
+        };
+    }, []);
+
+    // ⚡ Bolt Optimization: Update Simulation Data (No Restart)
+    useEffect(() => {
+        const simulation = simulationRef.current;
+        if (!simulation) return;
+
+        // Update Nodes & Links
+        simulation.nodes(simNodes);
+        simulation.force("link", d3Force.forceLink(links).id((d: any) => d.id).distance((d: any) => {
+            const rel = (d.relation || '').toUpperCase();
+            // 1. Intima (Gravedad del Hogar) - 50px
+            if (['FAMILY', 'LOVER', 'MARRIED', 'SPOUSE'].some(k => rel.includes(k))) return 50;
+            // 2. Conflicto (El Abismo) - 800px
+            if (['ENEMY', 'HATES', 'RIVAL', 'WAR', 'KILL'].some(k => rel.includes(k))) return 800;
+            // 3. Estándar (Orbitas) - 300px
+            return 300;
+        }));
+
+        // Re-heat simulation slightly to settle new nodes
+        simulation.alpha(0.3).restart();
+
+        // ✋ DRAG BEHAVIOR (Re-attach to new DOM elements)
         const dragBehavior = d3Drag<HTMLDivElement, any>()
             .on("start", (event, d) => {
                 if (!event.active) simulation.alphaTarget(0.3).restart(); // Wake up!
                 d.fx = d.x;
                 d.fy = d.y;
-                // 🟢 LOGIC GATE: Start Tracking
                 d._dragStartX = event.x;
                 d._dragStartY = event.y;
-
                 if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grabbing';
             })
             .on("drag", (event, d) => {
                 d.fx = event.x;
                 d.fy = event.y;
-                // Force immediate update of this node for smoothness (though tick handles it)
                 const el = nodeRefs.current[d.id];
                 if (el) el.style.transform = `translate(${event.x}px, ${event.y}px)`;
-                onTick(); // ⚡ SURGICAL PRECISION
+                onTick();
                 factionOverlayRef.current?.forceUpdate();
             })
             .on("end", (event, d) => {
@@ -155,20 +186,14 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                 d.fx = null;
                 d.fy = null;
                 if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grab';
-
-                // 🟢 LOGIC GATE: Click Detection (< 5px movement)
                 const dist = Math.sqrt(
                     Math.pow(event.x - (d._dragStartX || 0), 2) +
                     Math.pow(event.y - (d._dragStartY || 0), 2)
                 );
-
-                if (dist < 5) {
-                    onNodeClick(d);
-                }
+                if (dist < 5) onNodeClick(d);
             });
 
         // Attach Drag to Refs
-        // We use a timeout to ensure refs are populated after render
         setTimeout(() => {
              simNodes.forEach((node: any) => {
                  const el = nodeRefs.current[node.id];
@@ -178,12 +203,7 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
              });
         }, 0);
 
-        simulationRef.current = simulation;
-
-        return () => {
-            simulation.stop();
-        };
-    }, [simNodes]); // Re-run if node list changes
+    }, [simNodes, links]); // Update when data changes
 
     // 🟢 RENDER
     return (
