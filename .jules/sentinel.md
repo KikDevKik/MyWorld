@@ -118,3 +118,8 @@
 **Vulnerability:** Unrestricted URL fetching allowing access to internal metadata/services.
 **Learning:** `fetchWebPageContent` accepted any URL matching `https?://`, exposing the server to SSRF attacks targeting the cloud metadata service (`169.254.169.254`).
 **Prevention:** Implemented `isSafeUrl` validator to block private IPs, localhost, and metadata hostnames.
+
+## 2025-06-04 - [Sanitization Bypass: Style Attributes]
+**Vulnerability:** CSS Injection / SSRF via `style` attributes
+**Learning:** A previous journal entry (2025-05-26) claimed that `sanitizeHtml` stripped all `style` attributes to prevent SSRF via `background-image`. However, upon inspection, the code only stripped `on*` attributes, leaving `style` vulnerable. Documentation without verification is a security hole.
+**Prevention:** Implemented explicit removal of `style` attributes in `sanitizeHtml` to align code with security policy. Always verify that security controls described in documentation are actually implemented in code.

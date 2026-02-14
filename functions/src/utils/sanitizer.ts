@@ -31,6 +31,10 @@ export function sanitizeHtml(html: string): string {
       if (name.startsWith('on')) {
          el.removeAttribute(name);
       }
+      // 🛡️ SENTINEL FIX: Strip style attributes to prevent CSS injection / LFI via background-image
+      if (name === 'style') {
+         el.removeAttribute(name);
+      }
     }
 
     // Sanitize Hrefs and Srcs
