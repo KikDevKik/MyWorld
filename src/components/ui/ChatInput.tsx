@@ -6,6 +6,7 @@ interface ChatInputProps {
     onSend: (text: string, attachment: File | null) => void;
     placeholder?: string;
     disabled?: boolean;
+    isLoading?: boolean;
     autoFocus?: boolean;
     className?: string;
     textAreaClassName?: string;
@@ -15,6 +16,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     onSend,
     placeholder = "Escribe un mensaje...",
     disabled = false,
+    isLoading = false,
     autoFocus = false,
     className = "",
     textAreaClassName = ""
@@ -104,6 +106,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();
+        if (isLoading) return;
         if (!text.trim() && !attachment) return;
 
         onSend(text, attachment);
@@ -121,7 +124,9 @@ const ChatInput: React.FC<ChatInputProps> = ({
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             e.stopPropagation();
-            handleSubmit();
+            if (!isLoading) {
+                handleSubmit();
+            }
         }
     };
 
@@ -180,7 +185,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 {/* File Button */}
                 <button
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={!!attachment || disabled}
+                    disabled={!!attachment || disabled || isLoading}
                     className={`p-2 rounded-lg transition-colors mb-0.5 shrink-0 ${
                         attachment
                         ? 'text-emerald-500 bg-emerald-500/10'
@@ -205,7 +210,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
-                    disabled={disabled}
+                    disabled={disabled || isLoading}
                     autoFocus={autoFocus}
                     rows={1}
                     className={`flex-1 bg-transparent text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none py-2.5 max-h-[150px] resize-none scrollbar-hide ${textAreaClassName}`}
@@ -213,11 +218,11 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
                 <button
                     onClick={() => handleSubmit()}
-                    disabled={(!text.trim() && !attachment) || disabled}
-                    className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0"
+                    disabled={(!text.trim() && !attachment) || disabled || isLoading}
+                    className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0 min-w-[38px] flex justify-center"
                     aria-label="Enviar mensaje"
                 >
-                    <Send size={20} />
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
                 </button>
             </div>
         </div>

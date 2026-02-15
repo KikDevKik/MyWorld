@@ -698,7 +698,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                         <ChatInput
                             onSend={(text, attachment) => executeStreamConnection(text, { hidden: false, attachment: attachment })}
                             placeholder={activeEntity ? `Interrogar a ${activeEntity.name}...` : "Escribe a la Forja..."}
-                            disabled={isSending || thinkingState === 'ANALYZING'}
+                            isLoading={isSending || thinkingState === 'ANALYZING'}
                             autoFocus
                             className="w-full"
                             textAreaClassName="bg-transparent text-sm text-zinc-200 placeholder-titanium-500"
