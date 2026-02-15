@@ -540,7 +540,7 @@ export const useDirectorChat = ({
     };
 
     // 🟢 RESCUE & PURGE HANDLERS
-    const handleRescue = async (drift: any, msgId: string, category: string) => {
+    const handleRescue = useCallback(async (drift: any, msgId: string, category: string) => {
         if (!drift?.chunkPath) {
             toast.error("Error: No se puede rescatar (Falta Path).");
             return;
@@ -576,9 +576,9 @@ export const useDirectorChat = ({
                 return next;
             });
         }
-    };
+    }, []);
 
-    const handlePurge = async (drift: any, msgId: string) => {
+    const handlePurge = useCallback(async (drift: any, msgId: string) => {
         if (!drift?.chunkPath) return;
 
         if(!confirm("¿CONFIRMAS LA PURGA?")) return;
@@ -606,7 +606,7 @@ export const useDirectorChat = ({
                  return next;
              });
         }
-    };
+    }, []);
 
     return {
         messages,

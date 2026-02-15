@@ -2,7 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
@@ -542,8 +542,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
-    const handleInsertContent = async (text: string) => {
-        if (!selectedFileContent && !currentFileId) {
+    const handleInsertContent = useCallback(async (text: string) => {
+        // Use refs to avoid re-creation on typing
+        const content = selectedFileContentRef.current;
+        const fileId = currentFileIdRef.current;
+
+        if (!content && !fileId) {
             toast.error(t.noFileOpen);
             return;
         }
@@ -598,11 +602,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
         } else {
             // Fallback if ref is missing
-            const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
+            const newContent = content ? (content + "\n\n" + text) : text;
             setSelectedFileContent(newContent);
             toast.warning(t.editorDisconnected);
         }
-    };
+    }, [t, folderId, user]);
 
     // 🟢 LOADING GATE
     if (isAppLoading) {
