@@ -15,6 +15,8 @@ import { ingestFile } from "./ingestion";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { getAIKey } from "./utils/security";
+import { TitaniumFactory, TitaniumEntity } from "./services/factory";
+import matter from 'gray-matter';
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -469,12 +471,76 @@ export const scribePatchFile = onCall(
             if (newContent.startsWith('```markdown')) newContent = newContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
             if (newContent.startsWith('```')) newContent = newContent.replace(/^```\n/, '').replace(/\n```$/, '');
 
+            // 🟢 SMART-SYNC MIDDLEWARE (Integridad Bidireccional)
+            let finalContent = newContent;
+            try {
+                const parsed = matter(newContent);
+                const currentFm = parsed.data;
+                const body = parsed.content;
+
+                // A. DEBOUNCE CHECK (Anti-Loop)
+                const lastSync = currentFm.last_titanium_sync ? new Date(currentFm.last_titanium_sync).getTime() : 0;
+                const now = Date.now();
+                const timeDiff = now - lastSync;
+
+                if (timeDiff < 5000) {
+                    logger.info(`⏳ [SMART-SYNC] Skipping reconciliation (Debounce: ${timeDiff}ms)`);
+                } else {
+                    // B. EXTRACTION
+                    let extractedName = currentFm.name;
+                    let extractedRole = currentFm.role;
+
+                    // Extract H1 (# Name)
+                    const h1Match = body.match(/^#\s+(.+)$/m);
+                    if (h1Match && h1Match[1]) extractedName = h1Match[1].trim();
+
+                    // Extract Role (> *Role*)
+                    const roleMatch = body.match(/^>\s*\*(.+)\*$/m);
+                    if (roleMatch && roleMatch[1]) extractedRole = roleMatch[1].trim();
+
+                    // C. RECONCILIATION & PRUNING
+                    const attributes = { ...currentFm };
+
+                    // Prune Ghost Data
+                    if (attributes.age === 'unknown' || attributes.age === 'Desconocida') delete attributes.age;
+                    if (attributes.status === 'active') delete attributes.status;
+
+                    // Update if changed
+                    let hasChanges = false;
+                    if (extractedName !== currentFm.name) {
+                        attributes.name = extractedName;
+                        hasChanges = true;
+                    }
+                    if (extractedRole !== currentFm.role) {
+                        attributes.role = extractedRole;
+                        hasChanges = true;
+                    }
+
+                    if (hasChanges || !currentFm.last_titanium_sync) {
+                        logger.info(`🔄 [METADATA RECONCILIATION] Syncing Body -> YAML for ${fileId}`);
+
+                        const entity: TitaniumEntity = {
+                            id: attributes.id || fileId,
+                            name: extractedName,
+                            traits: attributes.traits || [],
+                            attributes: attributes,
+                            bodyContent: body
+                        };
+
+                        finalContent = TitaniumFactory.forge(entity);
+                    }
+                }
+            } catch (syncErr) {
+                logger.warn(`⚠️ [SMART-SYNC] Failed to reconcile:`, syncErr);
+                // Fallback to AI content if sync fails
+            }
+
             // 3. UPDATE FILE
             await drive.files.update({
                 fileId: fileId,
                 media: {
                     mimeType: 'text/markdown',
-                    body: newContent
+                    body: finalContent
                 }
             });
 
