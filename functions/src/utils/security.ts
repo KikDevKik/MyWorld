@@ -155,8 +155,21 @@ export function safeFetch(url: string, options: any = {}): Promise<any> {
 
         const req = lib.request(parsedUrl, requestOptions, (res) => {
             const chunks: Buffer[] = [];
+            let receivedLength = 0;
+            const maxSizeBytes = options.maxSizeBytes || 10 * 1024 * 1024; // Default 10MB
 
-            res.on('data', (chunk) => chunks.push(chunk));
+            res.on('data', (chunk) => {
+                receivedLength += chunk.length;
+                if (receivedLength > maxSizeBytes) {
+                    req.destroy(); // Kill connection
+                    // Log warning only if it's a significant size
+                    if (maxSizeBytes >= 1024 * 1024) {
+                        logger.warn(`🛡️ [SENTINEL] Response too large (${receivedLength} > ${maxSizeBytes}). Aborting ${url}`);
+                    }
+                    return reject(new Error(`Response too large (exceeded ${maxSizeBytes} bytes)`));
+                }
+                chunks.push(chunk);
+            });
 
             res.on('end', () => {
                 const buffer = Buffer.concat(chunks);

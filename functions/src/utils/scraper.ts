@@ -82,6 +82,7 @@ export async function fetchWebPageContent(url: string): Promise<{ url: string, t
                         'User-Agent': 'Mozilla/5.0 (compatible; MyWorldBot/1.0; +http://www.google.com/bot.html)'
                     },
                     signal: AbortSignal.timeout(8000),
+                    maxSizeBytes: 5 * 1024 * 1024, // Limit to 5MB to prevent DoS
                 });
             } catch (e: any) {
                 if (e.message && e.message.includes('DNS Blocked')) {
