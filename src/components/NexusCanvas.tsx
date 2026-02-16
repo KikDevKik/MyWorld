@@ -468,15 +468,53 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
         forceUpdate: () => updateXarrow()
     }));
 
-    // ⚡ O(N) Maps for O(1) Lookups
-    const { nodeMap, nodeNameMap } = useMemo(() => {
+    // ⚡ PRE-CALCULATE LINKS (Avoid O(N*M) in Render Loop)
+    const renderableLinks = useMemo(() => {
         const nMap = new Map<string, VisualNode>();
         const nameMap = new Map<string, VisualNode>();
+
+        // 1. Build Index O(N)
         nodes.forEach(n => {
             nMap.set(n.id, n);
             if (n.name) nameMap.set(n.name.toLowerCase().trim(), n);
         });
-        return { nodeMap: nMap, nodeNameMap: nameMap };
+
+        const links: any[] = [];
+
+        // 2. Resolve Links O(N*M) - Executed only when nodes change, not on every tick
+        nodes.forEach((node) => {
+            if (!node.relations) return;
+            node.relations.forEach((rel, idx) => {
+                // 🟢 ROBUST TARGET RESOLUTION
+                let targetNode = nMap.get(rel.targetId); // ⚡ O(1) Lookup
+
+                // Fallback: Name Match (Case Insensitive)
+                if (!targetNode && rel.targetName) {
+                    const normTarget = rel.targetName.toLowerCase().trim();
+                    targetNode = nameMap.get(normTarget); // ⚡ O(1) Lookup
+                }
+
+                if (!targetNode) return;
+
+                const lineId = `${node.id}-${targetNode.id}-${idx}`;
+                const relColor = getRelationColor(rel.relation);
+                const labelText = rel.context
+                    ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
+                    : rel.relation;
+
+                links.push({
+                    key: lineId,
+                    start: node.id,
+                    end: targetNode.id,
+                    color: relColor,
+                    relation: rel.relation,
+                    context: rel.context,
+                    labelText
+                });
+            });
+        });
+
+        return links;
     }, [nodes]);
 
     if (lodTier === 'MACRO') return null;
@@ -484,68 +522,49 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
     return (
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
             <Xwrapper>
-                {nodes.map((node) => {
-                    if (!node.relations) return null;
-                    return node.relations.map((rel, idx) => {
-                        // 🟢 ROBUST TARGET RESOLUTION
-                        let targetNode = nodeMap.get(rel.targetId); // ⚡ O(1) Lookup
+                {renderableLinks.map((link) => {
+                    const isFocused = hoveredNodeId === link.start || hoveredNodeId === link.end || hoveredLineId === link.key;
 
-                        // Fallback: Name Match (Case Insensitive)
-                        if (!targetNode && rel.target) {
-                            const normTarget = rel.target.toLowerCase().trim();
-                            targetNode = nodeNameMap.get(normTarget); // ⚡ O(1) Lookup
-                        }
-
-                        if (!targetNode) return null;
-
-                        const lineId = `${node.id}-${targetNode.id}-${idx}`;
-                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === targetNode.id || hoveredLineId === lineId;
-                        const relColor = getRelationColor(rel.relation);
-                        const labelText = rel.context
-                            ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
-                            : rel.relation;
-
-                        return (
-                            <Xarrow
-                                key={lineId}
-                                start={node.id}
-                                end={targetNode.id}
-                                startAnchor="middle"
-                                endAnchor="middle"
-                                color={relColor}
-                                strokeWidth={1.5}
-                                headSize={3}
-                                curveness={0.3}
-                                path="smooth"
-                                zIndex={0}
-                                animateDrawing={false}
-                                passProps={{
-                                    onMouseEnter: () => setHoveredLineId(lineId),
-                                    onMouseLeave: () => setHoveredLineId(null),
-                                    style: { cursor: 'pointer', pointerEvents: 'auto' }
-                                }}
-                                labels={{
-                                    middle: (
-                                        <div
-                                            className={`
-                                                bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
-                                                ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
-                                            `}
-                                            style={{
-                                                borderColor: relColor,
-                                                color: relColor,
-                                                boxShadow: `0 0 5px ${relColor}20`,
-                                                pointerEvents: 'auto'
-                                            }}
-                                            title={`${rel.relation}: ${rel.context || 'Sin contexto'}`}
-                                        >
-                                            {labelText}
-                                        </div>
-                                    )
-                                }}
-                            />
-                        );
-                    });
+                    return (
+                        <Xarrow
+                            key={link.key}
+                            start={link.start}
+                            end={link.end}
+                            startAnchor="middle"
+                            endAnchor="middle"
+                            color={link.color}
+                            strokeWidth={1.5}
+                            headSize={3}
+                            curveness={0.3}
+                            path="smooth"
+                            zIndex={0}
+                            animateDrawing={false}
+                            passProps={{
+                                onMouseEnter: () => setHoveredLineId(link.key),
+                                onMouseLeave: () => setHoveredLineId(null),
+                                style: { cursor: 'pointer', pointerEvents: 'auto' }
+                            }}
+                            labels={{
+                                middle: (
+                                    <div
+                                        className={`
+                                            bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
+                                            ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
+                                        `}
+                                        style={{
+                                            borderColor: link.color,
+                                            color: link.color,
+                                            boxShadow: `0 0 5px ${link.color}20`,
+                                            pointerEvents: 'auto'
+                                        }}
+                                        title={`${link.relation}: ${link.context || 'Sin contexto'}`}
+                                    >
+                                        {link.labelText}
+                                    </div>
+                                )
+                            }}
+                        />
+                    );
                 })}
             </Xwrapper>
         </div>

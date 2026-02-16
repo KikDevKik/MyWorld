@@ -45,15 +45,48 @@ const LinksOverlayV2 = forwardRef<LinksOverlayHandle, {
         forceUpdate: () => updateXarrow()
     }));
 
-    // ⚡ Bolt Optimization: Pre-compute lookups to avoid O(N^2) in render loop
-    const { nodeMap, nameMap } = useMemo(() => {
+    // ⚡ Bolt Optimization: Pre-compute renderable links to avoid O(N*M) in render loop
+    const renderableLinks = useMemo(() => {
         const nMap = new Map<string, VisualNode>();
         const nmMap = new Map<string, VisualNode>();
         nodes.forEach(n => {
             nMap.set(n.id, n);
             if (n.name) nmMap.set(n.name.toLowerCase().trim(), n);
         });
-        return { nodeMap: nMap, nameMap: nmMap };
+
+        const links: any[] = [];
+
+        nodes.forEach((node) => {
+            if (!node.relations) return;
+            node.relations.forEach((rel, idx) => {
+                // Check validity with Fallback (Healing Protocol)
+                let targetNode = nMap.get(rel.targetId);
+                if (!targetNode && rel.targetName) {
+                     targetNode = nmMap.get(rel.targetName.toLowerCase().trim());
+                }
+
+                if (!targetNode) return;
+
+                const actualTargetId = targetNode.id;
+                const lineId = `${node.id}-${actualTargetId}-${idx}`;
+                const relColor = getRelationColor(rel.relation);
+                const labelText = rel.context
+                    ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
+                    : rel.relation;
+
+                links.push({
+                    key: lineId,
+                    start: node.id,
+                    end: actualTargetId,
+                    color: relColor,
+                    relation: rel.relation,
+                    context: rel.context,
+                    labelText
+                });
+            });
+        });
+
+        return links;
     }, [nodes]);
 
     if (lodTier === 'MACRO') return null;
@@ -61,67 +94,49 @@ const LinksOverlayV2 = forwardRef<LinksOverlayHandle, {
     return (
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
             <Xwrapper>
-                {nodes.map((node) => {
-                    if (!node.relations) return null;
-                    return node.relations.map((rel, idx) => {
-                        // Check validity with Fallback (Healing Protocol)
-                        let targetNode = nodeMap.get(rel.targetId);
-                        if (!targetNode && rel.targetName) {
-                             targetNode = nameMap.get(rel.targetName.toLowerCase().trim());
-                        }
+                {renderableLinks.map((link) => {
+                    const isFocused = hoveredNodeId === link.start || hoveredNodeId === link.end || hoveredLineId === link.key;
 
-                        if (!targetNode) return null;
-
-                        const actualTargetId = targetNode.id;
-                        const lineId = `${node.id}-${actualTargetId}-${idx}`;
-
-                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === actualTargetId || hoveredLineId === lineId;
-                        const relColor = getRelationColor(rel.relation);
-                        const labelText = rel.context
-                            ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
-                            : rel.relation;
-
-                        return (
-                            <Xarrow
-                                key={lineId}
-                                start={node.id}
-                                end={actualTargetId}
-                                startAnchor="middle"
-                                endAnchor="middle"
-                                color={relColor}
-                                strokeWidth={1.5}
-                                headSize={3}
-                                curveness={0.3}
-                                path="smooth"
-                                zIndex={0}
-                                animateDrawing={false}
-                                passProps={{
-                                    onMouseEnter: () => setHoveredLineId(lineId),
-                                    onMouseLeave: () => setHoveredLineId(null),
-                                    style: { cursor: 'pointer', pointerEvents: 'auto' }
-                                }}
-                                labels={{
-                                    middle: (
-                                        <div
-                                            className={`
-                                                bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
-                                                ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
-                                            `}
-                                            style={{
-                                                borderColor: relColor,
-                                                color: relColor,
-                                                boxShadow: `0 0 5px ${relColor}20`,
-                                                pointerEvents: 'auto'
-                                            }}
-                                            title={`${rel.relation}: ${rel.context || 'Sin contexto'}`}
-                                        >
-                                            {labelText}
-                                        </div>
-                                    )
-                                }}
-                            />
-                        );
-                    });
+                    return (
+                        <Xarrow
+                            key={link.key}
+                            start={link.start}
+                            end={link.end}
+                            startAnchor="middle"
+                            endAnchor="middle"
+                            color={link.color}
+                            strokeWidth={1.5}
+                            headSize={3}
+                            curveness={0.3}
+                            path="smooth"
+                            zIndex={0}
+                            animateDrawing={false}
+                            passProps={{
+                                onMouseEnter: () => setHoveredLineId(link.key),
+                                onMouseLeave: () => setHoveredLineId(null),
+                                style: { cursor: 'pointer', pointerEvents: 'auto' }
+                            }}
+                            labels={{
+                                middle: (
+                                    <div
+                                        className={`
+                                            bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
+                                            ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
+                                        `}
+                                        style={{
+                                            borderColor: link.color,
+                                            color: link.color,
+                                            boxShadow: `0 0 5px ${link.color}20`,
+                                            pointerEvents: 'auto'
+                                        }}
+                                        title={`${link.relation}: ${link.context || 'Sin contexto'}`}
+                                    >
+                                        {link.labelText}
+                                    </div>
+                                )
+                            }}
+                        />
+                    );
                 })}
             </Xwrapper>
         </div>
