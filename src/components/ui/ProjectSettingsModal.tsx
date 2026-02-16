@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { X, Plus, Trash2, Save, Folder, Book, Star, Brain, Cpu, LayoutTemplate } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
@@ -26,8 +26,25 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [folderNames, setFolderNames] = useState<Record<string, string>>({}); // 🟢 Cache for names
 
+    const modalRef = useRef<HTMLDivElement>(null);
+
     // Google Drive Picker Hook
     const [openPicker] = useDrivePicker();
+
+    // 🎨 PALETTE: Focus trap & Escape key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        // Focus modal for accessibility
+        if (modalRef.current) {
+            modalRef.current.focus();
+        }
+
+        document.addEventListener('keydown', handleEscape);
+        return () => document.removeEventListener('keydown', handleEscape);
+    }, [onClose]);
 
     // Load initial values from context
     useEffect(() => {
@@ -359,16 +376,28 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div id="project-settings-modal" className="bg-titanium-900 border border-titanium-700 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div
+                id="project-settings-modal"
+                ref={modalRef}
+                tabIndex={-1}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="project-settings-title"
+                className="bg-titanium-900 border border-titanium-700 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] focus:outline-none"
+            >
 
                 {/* Header */}
                 <div className="p-6 border-b border-titanium-700/50 bg-titanium-800/30">
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <h2 className="text-xl font-bold text-titanium-100">Configuración del Proyecto</h2>
+                            <h2 id="project-settings-title" className="text-xl font-bold text-titanium-100">Configuración del Proyecto</h2>
                             <p className="text-sm text-titanium-400 mt-1">Define la estructura semántica de tu mundo.</p>
                         </div>
-                        <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors">
+                        <button
+                            onClick={onClose}
+                            className="text-titanium-400 hover:text-white transition-colors"
+                            aria-label="Cerrar configuración"
+                        >
                             <X size={24} />
                         </button>
                     </div>
