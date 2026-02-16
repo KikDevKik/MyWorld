@@ -1,0 +1,191 @@
+functions/src/ai_config.ts(1,50): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/analyst.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/analyst.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/analyst.ts(4,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/analyst.ts(5,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/analyst.ts(6,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/audit.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/audit.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/audit.ts(4,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/auth.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/auth.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/auth.ts(4,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/auth.ts(5,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/auth.ts(6,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/builder.ts(1,27): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/builder.ts(2,24): error TS2307: Cannot find module 'firebase-admin' or its corresponding type declarations.
+functions/src/builder.ts(3,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/builder.ts(4,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/builder.ts(5,58): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/builder.ts(6,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/crystallization.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/crystallization.ts(2,24): error TS2307: Cannot find module 'firebase-admin' or its corresponding type declarations.
+functions/src/crystallization.ts(3,42): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/crystallization.ts(4,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/crystallization.ts(5,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/crystallization.ts(7,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/crystallization.ts(8,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/folder_manager.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/folder_manager.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/folder_manager.ts(4,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/folder_manager.ts(5,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/folder_manager.ts(6,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/folder_manager.ts(7,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/forge_chat.ts(1,27): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/forge_chat.ts(2,24): error TS2307: Cannot find module 'firebase-admin' or its corresponding type declarations.
+functions/src/forge_chat.ts(3,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/forge_chat.ts(4,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/forge_chat.ts(5,48): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/forge_chat.ts(6,26): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/forge_chat.ts(7,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/forge_scan.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/forge_scan.ts(2,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/forge_scan.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/forge_scan.ts(4,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/forge_scan.ts(5,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/forge_scan.ts(6,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/genesis.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/genesis.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/genesis.ts(4,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/genesis.ts(5,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/genesis.ts(6,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/genesis.ts(7,46): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/guardian.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/guardian.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/guardian.ts(4,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/guardian.ts(5,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/guardian.ts(6,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/index.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/index.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/index.ts(4,44): error TS2307: Cannot find module '@google-cloud/secret-manager' or its corresponding type declarations.
+functions/src/index.ts(5,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/index.ts(6,24): error TS2307: Cannot find module 'firebase-admin' or its corresponding type declarations.
+functions/src/index.ts(7,42): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/index.ts(8,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/index.ts(11,8): error TS2307: Cannot find module '@langchain/google-genai' or its corresponding type declarations.
+functions/src/index.ts(18,8): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/index.ts(22,20): error TS2307: Cannot find module 'gray-matter' or its corresponding type declarations.
+functions/src/index.ts(27,19): error TS2307: Cannot find module 'json5' or its corresponding type declarations.
+functions/src/index.ts(870,49): error TS2503: Cannot find namespace 'FirebaseFirestore'.
+functions/src/index.ts(1789,74): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'string'.
+functions/src/ingestion.ts(2,28): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/ingestion.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/ingestion.ts(26,9): error TS2503: Cannot find namespace 'FirebaseFirestore'.
+functions/src/ingestion.ts(186,9): error TS2503: Cannot find namespace 'FirebaseFirestore'.
+functions/src/janitor.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/janitor.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/janitor.ts(4,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/janitor.ts(5,24): error TS2307: Cannot find module 'firebase-admin' or its corresponding type declarations.
+functions/src/janitor.ts(6,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/laboratory.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/laboratory.ts(2,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/laboratory.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/laboratory.ts(4,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/laboratory.ts(5,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/librarian.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/librarian.ts(2,42): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/librarian.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/migration.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/migration.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/migration.ts(4,41): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/migration.ts(5,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/migration.ts(6,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/nexus_scan.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/nexus_scan.ts(2,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/nexus_scan.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/nexus_scan.ts(4,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/nexus_scan.ts(5,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/nexus_scan.ts(6,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/nexus_scan.ts(71,36): error TS2503: Cannot find namespace 'FirebaseFirestore'.
+functions/src/nuke.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/nuke.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/nuke.ts(4,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/nuke.ts(5,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/scribe.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/scribe.ts(2,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/scribe.ts(4,42): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/scribe.ts(5,24): error TS2307: Cannot find module 'googleapis' or its corresponding type declarations.
+functions/src/scribe.ts(6,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/scribe.ts(7,46): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/scripts/dev/benchmark_enrichment.ts(1,20): error TS2307: Cannot find module 'p-limit' or its corresponding type declarations.
+functions/src/scripts/set_mock_rules.ts(1,24): error TS2307: Cannot find module 'firebase-admin' or its corresponding type declarations.
+functions/src/scripts/test_parsing.ts(3,20): error TS2307: Cannot find module 'gray-matter' or its corresponding type declarations.
+functions/src/scripts/test_parsing.ts(4,48): error TS2307: Cannot find module '@langchain/textsplitters' or its corresponding type declarations.
+functions/src/services/enrichment.ts(1,46): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/services/enrichment.ts(2,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/services/enrichment.ts(3,27): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/services/enrichment.ts(7,1): error TS1202: Import assignment cannot be used when targeting ECMAScript modules. Consider using 'import * as ns from "mod"', 'import {a} from "mod"', 'import d from "mod"', or another module format instead.
+functions/src/services/enrichment.ts(7,25): error TS2307: Cannot find module 'p-limit' or its corresponding type declarations.
+functions/src/services/enrichment.ts(54,49): error TS2339: Property 'embedding' does not exist on type 'unknown'.
+functions/src/services/enrichment.ts(106,46): error TS2339: Property 'response' does not exist on type 'unknown'.
+functions/src/soul_sorter.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/soul_sorter.ts(2,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/soul_sorter.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/soul_sorter.ts(4,42): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/soul_sorter.ts(5,53): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/soul_sorter.ts(9,20): error TS2307: Cannot find module 'gray-matter' or its corresponding type declarations.
+functions/src/soul_sorter.ts(429,41): error TS2503: Cannot find namespace 'FirebaseFirestore'.
+functions/src/tts.ts(1,36): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/tts.ts(3,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/tts.ts(4,30): error TS2307: Cannot find module 'firebase-functions/params' or its corresponding type declarations.
+functions/src/tts.ts(5,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/utils/drive.ts(1,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/utils/gemini_cache.ts(1,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/utils/gemini_cache.ts(2,59): error TS2307: Cannot find module '@google/generative-ai/server' or its corresponding type declarations.
+functions/src/utils/json.ts(1,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/utils/json.ts(2,19): error TS2307: Cannot find module 'json5' or its corresponding type declarations.
+functions/src/utils/sanitizer.ts(1,23): error TS2307: Cannot find module 'jsdom' or its corresponding type declarations.
+functions/src/utils/scraper.ts(1,23): error TS2307: Cannot find module 'jsdom' or its corresponding type declarations.
+functions/src/utils/scraper.ts(2,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/utils/security.ts(1,28): error TS2307: Cannot find module 'firebase-functions/v2/https' or its corresponding type declarations.
+functions/src/utils/security.ts(2,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/utils/smart_generate.ts(1,36): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/utils/smart_generate.ts(2,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/utils/tree_utils.ts(1,30): error TS2307: Cannot find module 'firebase-admin/firestore' or its corresponding type declarations.
+functions/src/utils/tree_utils.ts(2,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+functions/src/utils/vector_utils.ts(1,46): error TS2307: Cannot find module '@google/generative-ai' or its corresponding type declarations.
+functions/src/utils/vector_utils.ts(2,25): error TS2307: Cannot find module 'firebase-functions/logger' or its corresponding type declarations.
+scripts/trigger_index_error.ts(1,24): error TS2307: Cannot find module 'firebase-admin' or its corresponding type declarations.
+src/components/CanonRadar.tsx(195,46): error TS2322: Type '{ size: number; title: any; "aria-label": any; }' is not assignable to type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/components/CanonRadar.tsx(224,104): error TS2322: Type '{ size: number; className: string; title: any; "aria-label": any; }' is not assignable to type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/components/CanonRadar.tsx(265,74): error TS2322: Type '{ size: number; className: string; title: any; "aria-label": any; }' is not assignable to type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/components/CanonRadar.tsx(289,113): error TS2322: Type '{ size: number; className: string; title: any; "aria-label": any; }' is not assignable to type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/components/CanonRadar.tsx(320,52): error TS2322: Type '{ size: number; title: any; "aria-label": any; }' is not assignable to type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/components/CanonRadar.tsx(355,52): error TS2322: Type '{ size: number; title: any; "aria-label": any; }' is not assignable to type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+  Property 'title' does not exist on type 'Omit<LucideProps, "ref"> & RefAttributes<SVGSVGElement>'.
+src/components/LaboratoryPanel.tsx(74,65): error TS2339: Property 'path' does not exist on type 'DriveFile'.
+src/components/LaboratoryPanel.tsx(74,75): error TS2339: Property 'path' does not exist on type 'DriveFile'.
+src/components/LaboratoryPanel.tsx(74,110): error TS2339: Property 'path' does not exist on type 'DriveFile'.
+src/components/LaboratoryPanel.tsx(74,120): error TS2339: Property 'path' does not exist on type 'DriveFile'.
+src/components/NexusCanvas.tsx(34,11): error TS2430: Interface 'VisualNode' incorrectly extends interface 'GraphNode'.
+  Property 'meta' is optional in type 'VisualNode' but required in type 'GraphNode'.
+src/components/NexusCanvas.tsx(530,29): error TS2322: Type '{ key: any; start: any; end: any; startAnchor: "middle"; endAnchor: "middle"; color: any; strokeWidth: number; headSize: number; curveness: number; path: "smooth"; zIndex: number; animateDrawing: false; passProps: { ...; }; labels: { ...; }; }' is not assignable to type 'xarrowPropsType'.
+  Property 'key' does not exist on type 'xarrowPropsType'.
+src/components/NexusCanvas.tsx(845,17): error TS2322: Type '{ children: ({ zoomIn, zoomOut }: ReactZoomPanPinchContentRef) => any; initialScale: number; minScale: number; maxScale: number; centerOnInit: true; limitToBounds: false; ... 4 more ...; onTransformed: (ref: ReactZoomPanPinchRef) => void; }' is not assignable to type 'Omit<ReactZoomPanPinchProps, "ref"> & RefAttributes<ReactZoomPanPinchContentRef>'.
+  Property 'onZooming' does not exist on type 'Omit<ReactZoomPanPinchProps, "ref"> & RefAttributes<ReactZoomPanPinchContentRef>'. Did you mean 'onZoom'?
+src/components/WorldEngineV2/GhostGraph.tsx(77,47): error TS2352: Conversion of type 'HTMLElement' to type 'SVGLineElement' may be a mistake because neither type sufficiently overlaps with the other. If this was intentional, convert the expression to 'unknown' first.
+  Type 'HTMLElement' is missing the following properties from type 'SVGLineElement': x1, x2, y1, y2, and 13 more.
+src/components/WorldEngineV2/LinksOverlayV2.tsx(102,29): error TS2322: Type '{ key: any; start: any; end: any; startAnchor: "middle"; endAnchor: "middle"; color: any; strokeWidth: number; headSize: number; curveness: number; path: "smooth"; zIndex: number; animateDrawing: false; passProps: { ...; }; labels: { ...; }; }' is not assignable to type 'xarrowPropsType'.
+  Property 'key' does not exist on type 'xarrowPropsType'.
+src/components/WorldEngineV2/utils/NexusScanner.ts(437,22): error TS2551: Property 'targetId' does not exist on type '{ target: string; type: string; context: string; }'. Did you mean 'target'?
+src/components/WorldEngineV2/utils/NexusScanner.ts(444,21): error TS2551: Property 'targetId' does not exist on type '{ target: string; type: string; context: string; }'. Did you mean 'target'?
+src/components/WorldEngineV2/utils/NexusScanner.ts(454,26): error TS2551: Property 'targetId' does not exist on type '{ target: string; type: string; context: string; } | { targetId: string; target: string; type: string; context: string; }'. Did you mean 'target'?
+  Property 'targetId' does not exist on type '{ target: string; type: string; context: string; }'.
+src/components/editor/Editor.tsx(14,62): error TS2307: Cannot find module './extensions/driftPlugin' or its corresponding type declarations.
+src/components/editor/Editor.tsx(15,29): error TS2307: Cannot find module './extensions/livePreviewPlugin' or its corresponding type declarations.
+src/components/editor/Editor.tsx(16,75): error TS2307: Cannot find module './extensions/narratorHighlighter' or its corresponding type declarations.
+src/components/forge/ForgeDashboard.tsx(534,61): error TS2322: Type '{ key: any; entity: any; onAction: (entity: SoulEntity) => void; }' is not assignable to type '{ entity: SoulEntity; onAction: any; }'.
+  Property 'key' does not exist on type '{ entity: SoulEntity; onAction: any; }'.
+src/components/forge/ForgeDashboard.tsx(555,61): error TS2322: Type '{ key: any; entity: any; onAction: (entity: SoulEntity) => void; }' is not assignable to type '{ entity: SoulEntity; onAction: any; }'.
+  Property 'key' does not exist on type '{ entity: SoulEntity; onAction: any; }'.
+src/components/forge/ForgeDashboard.tsx(576,61): error TS2322: Type '{ key: any; entity: any; onAction: (entity: SoulEntity) => void; }' is not assignable to type '{ entity: SoulEntity; onAction: any; }'.
+  Property 'key' does not exist on type '{ entity: SoulEntity; onAction: any; }'.
+src/hooks/useTutorial.ts(109,13): error TS2322: Type '{ element: string; popover: { title: any; description: any; side: string; align: string; }; }[]' is not assignable to type 'DriveStep[]'.
+  Type '{ element: string; popover: { title: any; description: any; side: string; align: string; }; }' is not assignable to type 'DriveStep'.
+    The types of 'popover.side' are incompatible between these types.
+      Type 'string' is not assignable to type 'Side'.

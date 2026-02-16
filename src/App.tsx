@@ -225,7 +225,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     console.log("📡 [SENTINEL] Triggering Deep Drift Scan...");
                     const data = await callFunction<any>('scanProjectDrift', { projectId: folderId });
 
-                    if (data.success && data.alerts) {
+                    if (data && data.success && data.alerts) {
                         console.log("📡 [SENTINEL] Scan Results:", data.alerts);
                         setDriftAlerts(data.alerts);
                     }
@@ -310,7 +310,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     if (user) {
                         const status = await callFunction<{ isIndexed: boolean, lastIndexedAt: string | null }>('checkIndexStatus');
                         console.log("🧠 Estado de Memoria:", status);
-                        setIndexStatus(status);
+                        if (status) setIndexStatus(status);
                     }
                 }
             } catch (error: any) {
@@ -1091,7 +1091,7 @@ function App() {
                     try {
                         const data = await callFunction<any>('exchangeAuthCode', { code: response.code });
 
-                        if (data.success && data.accessToken) {
+                        if (data && data.success && data.accessToken) {
                             setOauthToken(data.accessToken);
                             localStorage.setItem('google_drive_token', data.accessToken);
                             setDriveStatus('connected');
@@ -1123,14 +1123,14 @@ function App() {
             // 🟢 BACKEND REFRESH (SILENT)
             const data = await callFunction<any>('refreshDriveToken');
 
-            if (data.success && data.accessToken) {
+            if (data && data.success && data.accessToken) {
                 console.log("✅ Token refrescado silenciosamente (Backend).");
                 setOauthToken(data.accessToken);
                 localStorage.setItem('google_drive_token', data.accessToken);
                 setDriveStatus('connected');
                 return data.accessToken;
             } else {
-                console.warn("⚠️ Fallo refresh silencioso:", data.reason);
+                console.warn("⚠️ Fallo refresh silencioso:", data ? data.reason : "No Response / Network Error");
                 setDriveStatus('disconnected');
                 return null;
             }
