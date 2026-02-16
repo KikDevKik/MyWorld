@@ -6,6 +6,7 @@ interface ChatInputProps {
     onSend: (text: string, attachment: File | null) => void;
     placeholder?: string;
     disabled?: boolean;
+    isLoading?: boolean;
     autoFocus?: boolean;
     className?: string;
     textAreaClassName?: string;
@@ -15,6 +16,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     onSend,
     placeholder = "Escribe un mensaje...",
     disabled = false,
+    isLoading = false,
     autoFocus = false,
     className = "",
     textAreaClassName = ""
@@ -74,7 +76,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
     const handleDrop = (e: DragEvent<HTMLDivElement>) => {
         e.preventDefault();
         setIsDragging(false);
-        if (disabled) return;
+        if (disabled || isLoading) return;
 
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
             handleFileSelect(e.dataTransfer.files[0]);
@@ -83,7 +85,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
         e.preventDefault();
-        if (!disabled) setIsDragging(true);
+        if (!disabled && !isLoading) setIsDragging(true);
     };
 
     const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
@@ -104,7 +106,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
 
     const handleSubmit = (e?: React.FormEvent) => {
         e?.preventDefault();
-        if (!text.trim() && !attachment) return;
+        if ((!text.trim() && !attachment) || isLoading) return;
 
         onSend(text, attachment);
         setText("");
@@ -180,7 +182,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
                 {/* File Button */}
                 <button
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={!!attachment || disabled}
+                    disabled={!!attachment || disabled || isLoading}
                     className={`p-2 rounded-lg transition-colors mb-0.5 shrink-0 ${
                         attachment
                         ? 'text-emerald-500 bg-emerald-500/10'
@@ -205,19 +207,19 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     onChange={(e) => setText(e.target.value)}
                     onKeyDown={handleKeyDown}
                     placeholder={placeholder}
-                    disabled={disabled}
+                    disabled={disabled || isLoading}
                     autoFocus={autoFocus}
                     rows={1}
-                    className={`flex-1 bg-transparent text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none py-2.5 max-h-[150px] resize-none scrollbar-hide ${textAreaClassName}`}
+                    className={`flex-1 bg-transparent text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none py-2.5 max-h-[150px] resize-none scrollbar-hide ${isLoading ? 'opacity-70' : ''} ${textAreaClassName}`}
                 />
 
                 <button
                     onClick={() => handleSubmit()}
-                    disabled={(!text.trim() && !attachment) || disabled}
+                    disabled={(!text.trim() && !attachment) || disabled || isLoading}
                     className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0"
-                    aria-label="Enviar mensaje"
+                    aria-label={isLoading ? "Enviando mensaje..." : "Enviar mensaje"}
                 >
-                    <Send size={20} />
+                    {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
                 </button>
             </div>
         </div>
