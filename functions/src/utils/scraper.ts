@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
 import * as logger from "firebase-functions/logger";
-import { validateUrlDns } from "./security";
+import { safeFetch } from "./security";
 
 /**
  * Extracts all URLs from a given text string.
@@ -69,29 +69,30 @@ export async function fetchWebPageContent(url: string): Promise<{ url: string, t
         logger.info(`🌐 Scraping URL: ${url}`);
 
         let currentUrl = url;
-        let response: Response | null = null;
+        let response: any = null;
         let redirectCount = 0;
         const MAX_REDIRECTS = 5;
 
         while (redirectCount <= MAX_REDIRECTS) {
-            // 🛡️ SECURITY: SSRF PREVENTION (Check every hop with DNS Resolution)
-            const isSafe = await validateUrlDns(currentUrl);
-            if (!isSafe) {
-                logger.warn(`🛡️ [SENTINEL] Blocked unsafe URL (DNS check): ${currentUrl}`);
-                return null;
+            // 1. Safe Fetch with Atomic DNS Check (replaces validateUrlDns + fetch)
+            // This prevents TOCTOU attacks by pinning the DNS resolution to the connection.
+            try {
+                response = await safeFetch(currentUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (compatible; MyWorldBot/1.0; +http://www.google.com/bot.html)'
+                    },
+                    signal: AbortSignal.timeout(8000),
+                });
+            } catch (e: any) {
+                if (e.message && e.message.includes('DNS Blocked')) {
+                    logger.warn(`🛡️ [SENTINEL] Blocked unsafe URL (DNS Atomic check): ${currentUrl}`);
+                    return null;
+                }
+                throw e; // Propagate other errors
             }
 
-            // 1. Fetch with Manual Redirect handling
-            response = await fetch(currentUrl, {
-                headers: {
-                    'User-Agent': 'Mozilla/5.0 (compatible; MyWorldBot/1.0; +http://www.google.com/bot.html)'
-                },
-                signal: AbortSignal.timeout(8000),
-                redirect: 'manual'
-            });
-
             if (response.status >= 300 && response.status < 400) {
-                const location = response.headers.get('location');
+                const location = response.headers['location'];
                 if (!location) {
                     return null;
                 }
