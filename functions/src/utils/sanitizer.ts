@@ -31,13 +31,21 @@ export function sanitizeHtml(html: string): string {
       if (name.startsWith('on')) {
          el.removeAttribute(name);
       }
+      // 🛡️ SECURITY FIX: Strip style attributes to prevent CSS attacks/SSRF
+      if (name === 'style') {
+         el.removeAttribute(name);
+      }
     }
 
     // Sanitize Hrefs and Srcs
     if (el.tagName === 'A') {
         const href = el.getAttribute('href');
-        if (href && href.trim().toLowerCase().startsWith('javascript:')) {
-            el.setAttribute('href', '#');
+        if (href) {
+            const lowerHref = href.trim().toLowerCase();
+            // 🛡️ SECURITY FIX: Block data: and vbscript: in addition to javascript:
+            if (lowerHref.startsWith('javascript:') || lowerHref.startsWith('data:') || lowerHref.startsWith('vbscript:')) {
+                el.setAttribute('href', '#');
+            }
         }
     }
 
