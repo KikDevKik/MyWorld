@@ -5,7 +5,8 @@
 const defaultOrigins = [
   "https://myword-67b03.web.app",
   "http://localhost:5173",
-  "http://localhost:4173"
+  "http://localhost:4173",
+  "http://localhost:3000"
 ];
 
 export const ALLOWED_ORIGINS = process.env.ALLOWED_CORS_ORIGINS
