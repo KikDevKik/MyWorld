@@ -2,7 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles, Trash2 } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -261,15 +261,17 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     };
 
-    const handleToggleDeleteSelect = (id: string) => {
-        const newSet = new Set(selectedDeleteIds);
-        if (newSet.has(id)) {
-            newSet.delete(id);
-        } else {
-            newSet.add(id);
-        }
-        setSelectedDeleteIds(newSet);
-    };
+    const handleToggleDeleteSelect = useCallback((id: string) => {
+        setSelectedDeleteIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    }, []);
 
     const handleDeleteClick = () => {
         if (selectedDeleteIds.size === 0) return;
