@@ -1,0 +1,42 @@
+MANUAL: EL LABORATORIO DE IDEAS (LABORATORY PANEL)
+## INTRODUCCIÓN
+El Laboratorio de Ideas es el santuario donde la inspiración cruda se refina antes de ser forjada en canon. Aquí, bajo la supervisión de "El Bibliotecario" (The Librarian AI), tus referencias dispersas se organizan y conectan para revelar verdades ocultas en tu narrativa. Es el dominio del caos creativo, contenido y analizado.
+
+## ACCESO
+Para ingresar al Laboratorio, activa el icono del Matraz (FlaskConical Icon) situado en el Arsenal Dock (Right Sidebar).
+
+## INTERFAZ Y HERRAMIENTAS
+
+### 1. El Estante (Resource Sidebar)
+El panel izquierdo actúa como tu estantería digital. Muestra exclusivamente aquellos archivos designados como material de referencia.
+
+* **Ingesta Automática (Resource Filter):** El sistema escanea tu árbol de archivos y muestra automáticamente todo documento ubicado en carpetas nombradas `_RESOURCES` o `_RECURSOS`, así como aquellos marcados explícitamente como referencias.
+* *(Nota Técnica: Implementa un filtrado recursivo sobre `fileTree` basado en `path.includes('_RESOURCES')` o `category === 'reference'`).*
+
+* **El Ojo del Buscador (Search Bar):** Permite localizar documentos específicos por nombre entre la multitud de referencias.
+
+* **Etiquetas Arcanas (Smart Tags):** El sistema analiza el contenido de tus referencias y les asigna sellos de poder (etiquetas) como LORE, VISUAL, o CIENCIA. Haz clic en un sello para invocar solo los documentos que portan esa esencia.
+* *(Nota Técnica: Las etiquetas se generan asíncronamente mediante la Cloud Function `classifyResource` y se sincronizan en tiempo real desde `TDB_Index`).*
+
+### 2. La Mesa de Trabajo (Chat Panel)
+El panel derecho es el espacio de comunión con El Bibliotecario.
+
+* **Diálogo con el Guardián (Chat Interface):** Puedes conversar libremente con la IA. A diferencia del Oráculo general, El Bibliotecario está especializado en conectar puntos entre tus referencias y ofrecer sugerencias creativas.
+* *(Nota Técnica: Utiliza un System Prompt especializado (`gemini-2.5-flash`) enfocado en análisis y síntesis de información no canónica).*
+
+* **Portal de Contexto (Context Injection):** Para que El Bibliotecario analice un documento específico, arrástralo desde el Estante y suéltalo sobre la Mesa de Trabajo. El documento se iluminará, indicando que su esencia ha sido capturada para el análisis.
+* *(Nota Técnica: El Drag & Drop inyecta el `fileId` y contenido en el contexto de la llamada a la API (`chatWithGem`), permitiendo RAG (Retrieval-Augmented Generation) sobre el archivo específico).*
+
+* **Cristalización (Crystallization):** Cuando el diálogo revela una idea digna de ser preservada, aparecerá una Gema junto al mensaje. Actívala para transcribir esa idea en un nuevo documento permanente o integrarla en uno existente.
+* *(Nota Técnica: Invoca `scribeCreateFile` para generar archivos Markdown con Frontmatter estandarizado o `scribePatchFile` para actualizaciones inteligentes).*
+
+## RITUAL DE USO (WORKFLOW)
+1. **Recolección:** Deposita tus bocetos, notas de investigación e imágenes en la carpeta `_RESOURCES` de tu unidad.
+2. **Invocación:** Abre el Laboratorio y observa cómo tus archivos son detectados y etiquetados por los espíritus máquina.
+3. **Consulta:** Filtra por "VISUAL" para ver tus referencias artísticas.
+4. **Fusión:** Arrastra una imagen y un texto de "LORE" al chat. Pregunta al Bibliotecario: "¿Cómo influye este paisaje en las leyendas descritas en el texto?".
+5. **Revelación:** El Bibliotecario sintetizará una respuesta conectando ambos elementos.
+6. **Cristalización:** Si la respuesta expande tu mundo, usa la Gema para guardar el hallazgo como una nueva Nota de Lore en la Forja.
+
+---
+*Documento generado por Jules (Ghost Mode Active) tras verificación de sistemas.*
