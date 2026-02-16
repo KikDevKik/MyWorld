@@ -5,6 +5,7 @@ import { GEMS } from '../constants';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import { remarkThinking } from '../utils/remarkThinking';
 import { X, FileText, Paperclip, Loader2, Folder, Gem as GemIcon, ChevronDown, ChevronRight, BrainCircuit } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguageStore } from '../stores/useLanguageStore';
@@ -13,8 +14,9 @@ import ContextSelectorModal from './ContextSelectorModal';
 import ChatInput from './ui/ChatInput';
 import { fileToGenerativePart } from '../services/geminiService';
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkThinking];
 
+// Helper to remove thinking block for crystallization (saving to file)
 const stripThinking = (text: string) => {
     return text.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
 };
@@ -56,15 +58,6 @@ interface ChatMessageItemProps {
 // ⚡ Bolt Optimization: Memoized component to prevent re-rendering all messages
 // when parent state changes (e.g. typing in input). REMARK_PLUGINS is also constant.
 const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
-    const [isThinkingOpen, setIsThinkingOpen] = useState(false);
-
-    // 🟢 PARSE THINKING BLOCK
-    // Extract <thinking> content if present
-    const thinkingMatch = msg.text.match(/<thinking>([\s\S]*?)<\/thinking>/);
-    const thinkingContent = thinkingMatch ? thinkingMatch[1].trim() : null;
-    // Remove the thinking block from the main display text
-    const cleanText = thinkingMatch ? msg.text.replace(thinkingMatch[0], '').trim() : msg.text;
-
     return (
         <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
             {/* 🟢 ATTACHMENT PREVIEW */}
@@ -84,29 +77,17 @@ const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
                     : 'bg-titanium-900 text-titanium-200 rounded-bl-none border border-titanium-800'
                     }`}
             >
-                {/* 🟢 THINKING BLOCK (COLLAPSIBLE) */}
-                {thinkingContent && (
-                    <div className="mb-4 rounded-lg overflow-hidden border border-titanium-700/50 bg-titanium-950/30">
-                        <button
-                            onClick={() => setIsThinkingOpen(!isThinkingOpen)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-titanium-400 hover:text-emerald-400 hover:bg-titanium-800/50 transition-colors"
-                        >
-                            {isThinkingOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                            <BrainCircuit size={14} className={isThinkingOpen ? "text-emerald-500" : "text-titanium-500"} />
-                            <span>Proceso de Pensamiento</span>
-                        </button>
-
-                        {isThinkingOpen && (
-                            <div className="px-3 py-2 text-xs text-titanium-400 italic border-t border-titanium-800/50 bg-titanium-950/50 font-mono leading-relaxed whitespace-pre-wrap animate-in slide-in-from-top-2 duration-200">
-                                {thinkingContent}
-                            </div>
-                        )}
-                    </div>
-                )}
-
+                {/* 🟢 MARKDOWN CONTENT (With Collapsible Thinking) */}
                 <div className="prose prose-invert prose-sm max-w-none">
-                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
-                        {cleanText}
+                    <ReactMarkdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        components={{
+                            // Ensure details and summary are rendered correctly if not handled by default
+                            details: ({node, ...props}) => <details {...props} />,
+                            summary: ({node, ...props}) => <summary {...props} />
+                        }}
+                    >
+                        {msg.text}
                     </ReactMarkdown>
                 </div>
 
