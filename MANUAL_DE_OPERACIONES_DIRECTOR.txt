@@ -1,0 +1,83 @@
+MANUAL DE OPERACIONES: EL DIRECTOR DE ESCENA
+(Technical Ref: DirectorPanel.tsx & DirectorTools.tsx)
+CLASIFICACIÓN: SOLO PARA OJOS DEL AUTOR
+ESTADO: ACTIVO (GHOST MODE HABILITADO)
+---
+1. SINOPSIS (OVERVIEW)
+El "Director de Escena" no es una simple ventana de chat; es una entidad omnipresente diseñada para orquestar la narrativa en tiempo real. Reside en el panel derecho de la interfaz y su propósito es mantener la cohesión tonal, visual y estructural de la obra.
+
+(Técnicamente: Es un componente React `DirectorPanel` que gestiona una sesión de chat persistente con un LLM especializado, manteniendo el contexto del archivo activo.)
+
+---
+2. MODOS DE DESPLIEGUE (LAYOUT MODES)
+El Director se adapta al espacio de batalla disponible. Al expandir el panel lateral, el Director evoluciona, revelando nuevas capacidades tácticas.
+
+* **Modo Centinela** (Width < 500px):
+El Director opera en silencio. Solo el canal de comunicación (Chat) está abierto. Ideal para consultas rápidas sin distracciones.
+
+* **Modo Estratega** (Width 500px - 900px):
+Al ensanchar el campo de visión, se despliega la **Caja de Herramientas** (Sidebar). Iconos tácticos aparecen a la derecha, permitiendo intervenciones quirúrgicas sin necesidad de diálogo.
+
+* **Modo Sala de Guerra / War Room** (Width > 900px):
+La interfaz completa. A la izquierda, los Archivos de Sesiones anteriores. En el centro, el Director. A la derecha, la Caja de Herramientas expandida con descripciones detalladas. Aquí es donde se construye el canon.
+
+---
+3. HERRAMIENTAS TÁCTICAS (EXPANDED TOOLS)
+Cuando el Director está en Modo Estratega o Sala de Guerra, tienes acceso a tres protocolos de intervención directa:
+
+### A. EL INSPECTOR (Analizar Elenco)
+*(Icono: Lupa / Search)*
+**(Función: `handleInspector`)**
+El Inspector no juzga; observa. Al activar este protocolo, el sistema lee el guion actual y extrae un **Reporte de Casting**. Identifica quién está en escena, cuál es su arquetipo y cuál es el tono dominante. Úsalo para asegurarte de que todas las voces suenen distintas.
+* **Salida Esperada:** Una tarjeta visual con la lista de personajes detectados, el ritmo (Pacing) y el tono (Tone) de la escena.
+* *(En Ghost Mode: Simula un análisis devolviendo arquetipos como "Líder Cansado" o "Observador Pasivo").*
+
+### B. EL TRIBUNAL (Invocar Jueces)
+*(Icono: Mazo / Gavel)*
+**(Función: `handleTribunal`)**
+A veces, necesitas un veredicto duro. El Tribunal convoca a una IA crítica que evalúa la calidad literaria del fragmento seleccionado (o de todo el archivo). No tiene piedad. Te dará una puntuación (0-100) y una lista de crímenes estilísticos.
+* **Salida Esperada:** Una tarjeta de Veredicto con un Score, una Crítica mordaz y Sugerencias de mejora inmediata.
+* *(En Ghost Mode: Emite un juicio simulado, por ejemplo "Aprobado con Reservas", criticando la falta de subtexto).*
+
+### C. MEMORIA (Forzar Lectura / Contexto)
+*(Icono: Cerebro / BrainCircuit)*
+**(Función: `handleContextSync`)**
+El Director puede distraerse. Si sientes que sus consejos se han desconectado de lo que acabas de escribir, pulsa este botón. Fuerza una **Sinapsis**: una recarga manual del contenido actual en la memoria a corto plazo de la IA.
+* **Salida Esperada:** Un mensaje del sistema confirmando "Contexto Actualizado" y la longitud del fragmento sincronizado.
+
+### D. INTERFAZ SENSORIAL (Entrada Multi-modal)
+*(Ubicación: ChatInput)*
+**(Función: `handleSendMessage` con Attachment)**
+El Director posee ojos y oídos. Puedes adjuntar imágenes de referencia (concept art, diagramas) o archivos de audio (tonos de voz, música ambiental). El sistema analizará estos estímulos y los integrará en su consejo narrativo.
+* **Salida Esperada:** Análisis descriptivo de la imagen o del tono auditivo, aplicado a la escena actual.
+
+---
+4. PROTOCOLOS DE MANTENIMIENTO E INTEGRIDAD (NUEVO)
+Para garantizar la pureza del canon, el Director implementa protocolos autónomos de detección y corrección.
+
+### A. SINCRONIZACIÓN DE CANON (Re-Index)
+*(Trigger: `needsReindex` Banner)*
+**(Función: `handleQuickIndex`)**
+Cuando la estructura del proyecto cambia (archivos añadidos o eliminados), el Director detecta una desincronización en su base de conocimiento vectorial (TDB). Un banner ámbar aparecerá en la parte superior.
+* **Acción Requerida:** Ejecutar "Sincronizar" para actualizar los índices y evitar alucinaciones estructurales.
+
+### B. CONTENCIÓN DE DERIVA (Drift Control)
+*(Trigger: `driftAlerts`)*
+**(Funciones: `handleRescue` & `handlePurge`)**
+El sistema monitorea constantemente las respuestas y el contexto en busca de "Ecos Críticos" (información que contradice hechos establecidos o alucinaciones persistentes). Estos aparecen como alertas en el chat.
+* **Rescatar (Rescue):** Valida la información como canon nuevo. El sistema la integra.
+* **Purgar (Purge):** Elimina el eco de la existencia. El sistema olvida el dato erróneo permanentemente.
+
+---
+5. PROTOCOLO DE PRUEBA (VERIFICATION LOG)
+Se ha ejecutado una simulación de nivel Fantasma (Ghost Mode) con el guion "NAVE ESPACIAL - PUENTE DE MANDO".
+
+Resultados:
+* [x] **Inspector:** Identificó correctamente al "Capitán Vega" y "IA Madre".
+* [x] **Tribunal:** Emitió un veredicto de 85/100, sugiriendo mejoras en el ritmo.
+* [x] **Chat:** El Director ofreció consejos sobre la tensión visual de la escena.
+* [x] **Sensorial:** Imagen de "Puente de Mando Cyberpunk" analizada. El Director sugirió ajustar la iluminación a tonos neón.
+* [x] **Sincronización:** Banner de "Cambios Detectados" activado tras añadir archivo. Indexado completado.
+* [x] **Deriva:** 2 Ecos detectados. 1 Rescatado (nuevo detalle de uniforme), 1 Purgado (nombre incorrecto de planeta).
+
+El sistema está operativo y vigilante.
