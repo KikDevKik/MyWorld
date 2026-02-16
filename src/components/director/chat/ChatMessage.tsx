@@ -16,14 +16,14 @@ interface ChatMessageProps {
     purgingIds: Set<string>;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({
+export const ChatMessage = React.memo(({
     message,
     onRescue,
     onPurge,
     onInsert,
     rescuingIds,
     purgingIds
-}) => {
+}: ChatMessageProps) => {
     // 🟢 State for transformation
     const [isTransforming, setIsTransforming] = useState(false);
 
@@ -216,4 +216,28 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
         </div>
     );
-};
+}, (prev, next) => {
+    // ⚡ Bolt Optimization: Custom Comparator to skip unnecessary re-renders
+    if (prev.message !== next.message) return false;
+    if (prev.onInsert !== next.onInsert) return false;
+
+    // Logic for rescue/purge dependencies
+    // If it's a drift alert (or group), we must check the IDs.
+    const isDrift = next.message.isDriftAlert || next.message.driftData?.isGroup;
+
+    if (!isDrift) {
+        // Standard messages don't care about rescue/purge props
+        return true;
+    }
+
+    // For drift messages, check if relevant IDs changed
+    // Simple reference check on the Sets is sufficient as they are immutable-style updates
+    if (prev.rescuingIds !== next.rescuingIds) return false;
+    if (prev.purgingIds !== next.purgingIds) return false;
+
+    // Check handler stability (should be stable via useCallback, but good to check)
+    if (prev.onRescue !== next.onRescue) return false;
+    if (prev.onPurge !== next.onPurge) return false;
+
+    return true;
+});

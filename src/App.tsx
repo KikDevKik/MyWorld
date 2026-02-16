@@ -542,8 +542,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
-    const handleInsertContent = async (text: string) => {
-        if (!selectedFileContent && !currentFileId) {
+    const handleInsertContent = useCallback(async (text: string) => {
+        // Use refs to avoid re-creation on typing
+        const content = selectedFileContentRef.current;
+        const fileId = currentFileIdRef.current;
+
+        if (!content && !fileId) {
             toast.error(t.noFileOpen);
             return;
         }
@@ -598,11 +602,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
         } else {
             // Fallback if ref is missing
-            const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
+            const newContent = content ? (content + "\n\n" + text) : text;
             setSelectedFileContent(newContent);
             toast.warning(t.editorDisconnected);
         }
-    };
+    }, [t, folderId, user]);
 
     const handleFileSelect = useCallback((id: string, content: string, name?: string, isBackgroundUpdate?: boolean) => {
         // 🟢 LOGIC:
