@@ -456,7 +456,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             <ChatInput
                 onSend={handleSendMessage}
                 placeholder={activeGem ? `${t.common.writeTo} ${displayGemName}...` : t.common.selectTool}
-                disabled={!activeGem || isLoading}
+                disabled={!activeGem}
+                isLoading={isLoading}
                 className="flex-1"
                 textAreaClassName="bg-slate-800 text-white placeholder-gray-400"
             />
