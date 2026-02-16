@@ -72,7 +72,10 @@ const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
             )}
 
             <div
-                className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${msg.role === 'user'
+                tabIndex={0} // 🎨 PALETTE: Make message focusable for accessibility
+                role="article"
+                aria-label={msg.role === 'user' ? 'Your message' : 'AI response'}
+                className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${msg.role === 'user'
                     ? 'bg-titanium-800 text-titanium-100 rounded-br-none border border-titanium-700'
                     : 'bg-titanium-900 text-titanium-200 rounded-bl-none border border-titanium-800'
                     }`}
@@ -95,7 +98,8 @@ const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
                 {msg.role === 'model' && (
                     <button
                         onClick={() => onCrystallize(msg)}
-                        className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10"
+                        // 🎨 PALETTE: Improved visibility logic (focus-within)
+                        className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-focus:opacity-100 focus-visible:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 group-focus-within:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                         title="Cristalizar esta idea"
                         aria-label="Cristalizar esta idea"
                     >
