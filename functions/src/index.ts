@@ -2002,7 +2002,15 @@ export const chatWithGem = onCall(
       ? profileDoc.data() as WriterProfile
       : { style: '', inspirations: '', rules: '' };
 
-    await _getProjectConfigInternal(userId);
+    const projectConfig = await _getProjectConfigInternal(userId); // 🟢 Capture Result
+
+    // 🟢 WEAVER: Inject Project Identity for Genre Awareness
+    const projectIdentityContext = `
+=== PROJECT IDENTITY (GENRE & STYLE) ===
+PROJECT NAME: ${projectConfig.projectName || 'Untitled Project'}
+DETECTED STYLE DNA: ${projectConfig.styleIdentity || 'Not analyzed yet'}
+========================================
+`;
 
     let profileContext = '';
     if (profile.style || profile.inspirations || profile.rules) {
@@ -2455,6 +2463,7 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
       `;
 
       const promptFinal = `
+        ${projectIdentityContext}
         ${profileContext}
         ${perspectiveContext}
         ${finalSystemInstruction}
