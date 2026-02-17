@@ -17,6 +17,7 @@ import { smartGenerateContent } from "./utils/smart_generate";
 import { getAIKey } from "./utils/security";
 import { TitaniumFactory, TitaniumEntity } from "./services/factory";
 import matter from 'gray-matter';
+import { marked } from 'marked';
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -42,6 +43,68 @@ interface ScribePatchRequest {
     patchContent: string;
     accessToken: string;
     instructions?: string;
+}
+
+// 🟢 HELPER: AST Metadata Extraction
+function extractMetadataFromBody(body: string): { name?: string, role?: string } {
+    try {
+        const tokens = marked.lexer(body);
+        let name: string | undefined;
+        let role: string | undefined;
+
+        for (const token of tokens) {
+            // Extract Name (First H1)
+            if (token.type === 'heading' && token.depth === 1 && !name) {
+                name = token.text.trim();
+            }
+
+            // Extract Role (First Blockquote with Emphasis)
+            if (token.type === 'blockquote' && !role) {
+                if (token.tokens) {
+                    for (const subToken of token.tokens) {
+                        if (subToken.type === 'paragraph' && subToken.tokens) {
+                            for (const inline of subToken.tokens) {
+                                if (inline.type === 'em') {
+                                    role = inline.text.trim();
+                                    break;
+                                }
+                            }
+                        }
+                        if (role) break;
+                    }
+                }
+            }
+
+            if (name && role) break;
+        }
+        return { name, role };
+    } catch (e) {
+        logger.warn("⚠️ AST Extraction Failed:", e);
+        return {};
+    }
+}
+
+// 🟢 HELPER: Anti-Makeup Policy (Pruning)
+function pruneGhostMetadata(attributes: any) {
+    // Helper to normalize
+    const norm = (v: any) => String(v).toLowerCase().trim();
+
+    // 1. Prune Age
+    if (attributes.age && ['unknown', 'desconocida', 'desconocido'].includes(norm(attributes.age))) {
+        attributes.age = undefined; // TitaniumFactory will strip undefined
+    }
+
+    // 2. Prune Status (Default Active)
+    if (attributes.status && ['active'].includes(norm(attributes.status))) {
+        attributes.status = undefined;
+    }
+
+    // 3. Prune Role
+    if (attributes.role && ['unknown', 'desconocido'].includes(norm(attributes.role))) {
+        attributes.role = undefined;
+    }
+
+    return attributes;
 }
 
 /**
@@ -421,10 +484,6 @@ export const scribePatchFile = onCall(
                 alt: 'media'
             });
 
-            // Note: get with alt='media' returns body. Metadata requires separate call or fields on get (but alt=media overrides fields?).
-            // The googleapis typings are tricky. Usually need two calls for metadata + content if alt=media.
-            // But let's assume we get body. We need name/parent for Ingest.
-
             const metaRes = await drive.files.get({
                 fileId: fileId,
                 fields: 'id, name, parents'
@@ -471,7 +530,7 @@ export const scribePatchFile = onCall(
             if (newContent.startsWith('```markdown')) newContent = newContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
             if (newContent.startsWith('```')) newContent = newContent.replace(/^```\n/, '').replace(/\n```$/, '');
 
-            // 🟢 SMART-SYNC MIDDLEWARE (Integridad Bidireccional)
+            // 🟢 SMART-SYNC MIDDLEWARE 2.0 (AST-BASED)
             let finalContent = newContent;
             try {
                 const parsed = matter(newContent);
@@ -486,44 +545,46 @@ export const scribePatchFile = onCall(
                 if (timeDiff < 5000) {
                     logger.info(`⏳ [SMART-SYNC] Skipping reconciliation (Debounce: ${timeDiff}ms)`);
                 } else {
-                    // B. EXTRACTION
-                    let extractedName = currentFm.name;
-                    let extractedRole = currentFm.role;
+                    // B. AST EXTRACTION
+                    logger.info(`🔍 [SMART-SYNC] Extracting metadata via AST for ${fileId}...`);
+                    const { name: extractedName, role: extractedRole } = extractMetadataFromBody(body);
 
-                    // Extract H1 (# Name)
-                    const h1Match = body.match(/^#\s+(.+)$/m);
-                    if (h1Match && h1Match[1]) extractedName = h1Match[1].trim();
-
-                    // Extract Role (> *Role*)
-                    const roleMatch = body.match(/^>\s*\*(.+)\*$/m);
-                    if (roleMatch && roleMatch[1]) extractedRole = roleMatch[1].trim();
+                    if (extractedName) logger.info(`   -> AST Name: ${extractedName}`);
+                    if (extractedRole) logger.info(`   -> AST Role: ${extractedRole}`);
 
                     // C. RECONCILIATION & PRUNING
-                    const attributes = { ...currentFm };
+                    let attributes = { ...currentFm };
 
-                    // Prune Ghost Data
-                    if (attributes.age === 'unknown' || attributes.age === 'Desconocida') delete attributes.age;
-                    if (attributes.status === 'active') delete attributes.status;
+                    // 1. Apply Pruning (Anti-Makeup Policy)
+                    attributes = pruneGhostMetadata(attributes);
 
-                    // Update if changed
+                    // 2. Update from AST
                     let hasChanges = false;
-                    if (extractedName !== currentFm.name) {
+
+                    // Check Logic: Only update if extracted value exists and differs
+                    if (extractedName && extractedName !== currentFm.name) {
                         attributes.name = extractedName;
                         hasChanges = true;
+                        logger.info(`   -> Reconciling Name: ${currentFm.name} => ${extractedName}`);
                     }
-                    if (extractedRole !== currentFm.role) {
+                    if (extractedRole && extractedRole !== currentFm.role) {
                         attributes.role = extractedRole;
                         hasChanges = true;
+                        logger.info(`   -> Reconciling Role: ${currentFm.role} => ${extractedRole}`);
                     }
+
+                    // 3. Forge New Content (If changes or forced sync)
+                    // Note: We use TitaniumFactory to enforce schema, BUT we must ensure
+                    // it doesn't undo our pruning (via the undefined trick).
 
                     if (hasChanges || !currentFm.last_titanium_sync) {
                         logger.info(`🔄 [METADATA RECONCILIATION] Syncing Body -> YAML for ${fileId}`);
 
                         const entity: TitaniumEntity = {
                             id: attributes.id || fileId,
-                            name: extractedName,
+                            name: extractedName || attributes.name || "Unknown",
                             traits: attributes.traits || [],
-                            attributes: attributes,
+                            attributes: attributes, // Pruned attributes
                             bodyContent: body
                         };
 
