@@ -462,10 +462,11 @@ export const checkSentinelIntegrity = onCall(
     memory: "1GiB",
   },
   async (request) => {
-    // 1. VERIFICAR AUTH (Opcional, pero recomendado para evitar spam)
-    // El frontend llama a esto al inicio, así que puede que el usuario aún no esté logueado si es público.
-    // Pero MyWorld es privado. Asumimos que el usuario debe estar autenticado o al menos App Check debe pasar.
-    // enforceAppCheck: false arriba se encarga de la integridad de la app.
+    // 1. VERIFICAR AUTH (OBLIGATORIO)
+    // 🛡️ SECURITY PATCH: Endpoint protegido para evitar spam y abuso de Secret Manager.
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Sentinel Access Denied: Authentication required.");
+    }
 
     try {
       logger.info("🛡️ [SENTINEL] Iniciando comprobación de integridad...");
