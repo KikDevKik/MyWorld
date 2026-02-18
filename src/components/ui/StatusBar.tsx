@@ -190,12 +190,22 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
 
                 <div className="h-3 w-px bg-titanium-800 mx-1" />
 
-                <div className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors">
-                    <Type size={12} />
+                <div
+                    className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help"
+                    title={`${t.words}: ${wordCount.toLocaleString()}`}
+                    role="status"
+                    aria-label={`${wordCount.toLocaleString()} ${t.words}`}
+                >
+                    <Type size={12} aria-hidden="true" />
                     <span>{wordCount.toLocaleString()} {t.words}</span>
                 </div>
-                <div className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors">
-                    <Clock size={12} />
+                <div
+                    className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help"
+                    title={`${t.minutes}: ~${readingTime}`}
+                    role="status"
+                    aria-label={`${readingTime} ${t.minutes}`}
+                >
+                    <Clock size={12} aria-hidden="true" />
                     <span>~{readingTime} {t.minutes}</span>
                 </div>
             </div>
@@ -236,7 +246,15 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         </span>
                         <span className="text-titanium-400">{dailyProgress} / {dailyGoal}</span>
                     </div>
-                    <div className="h-1 w-full bg-titanium-800 rounded-full overflow-hidden">
+                    <div
+                        className="h-1 w-full bg-titanium-800 rounded-full overflow-hidden"
+                        role="progressbar"
+                        aria-valuenow={dailyProgress}
+                        aria-valuemin={0}
+                        aria-valuemax={dailyGoal}
+                        aria-label={`${t.dailyGoal}: ${Math.round(progressPercentage)}%`}
+                        title={`${t.dailyGoal}: ${Math.round(progressPercentage)}%`}
+                    >
                         <div
                             className={`h-full transition-all duration-500 ${dailyProgress >= dailyGoal ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-blue-500'}`}
                             style={{ width: `${progressPercentage}%` }}
