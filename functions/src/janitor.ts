@@ -4,7 +4,7 @@ import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
-import { handleSecureError } from "./utils/security";
+import { handleSecureError, escapeDriveQuery } from "./utils/security";
 import { ProjectConfig } from "./types/project";
 
 // --- JANITOR PROTOCOL (Phase 5) ---
@@ -98,7 +98,8 @@ export const scanVaultHealth = onCall(
         // Let's check direct children of the root folder.
 
         // 🟢 FASE 6.8 FIX: Simplify Query (Remove 'size' check to avoid API Error 400)
-        const query = `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
+        // 🛡️ SECURITY: Escape folderId to prevent query injection
+        const query = `'${escapeDriveQuery(folderId)}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
 
         const res = await drive.files.list({
             q: query,
@@ -399,7 +400,8 @@ export const relinkAnchor = onCall(
             // We search for exact name match (with .md extension or without)
             // Ideally we check both or just 'name contains'.
             // Let's try exact match first with .md, as Anchors are usually markdown.
-            let q = `name = '${characterName}.md' and trashed = false`;
+            // 🛡️ SECURITY: Escape characterName to prevent query injection
+            let q = `name = '${escapeDriveQuery(characterName)}.md' and trashed = false`;
 
             // If folderId (Vault) is provided, scope it for safety/speed
             if (folderId) {
@@ -419,7 +421,8 @@ export const relinkAnchor = onCall(
 
             // Fallback: Try without extension if 0 results
             if (!res.data.files || res.data.files.length === 0) {
-                 q = `name = '${characterName}' and trashed = false`;
+                 // 🛡️ SECURITY: Escape characterName to prevent query injection
+                 q = `name = '${escapeDriveQuery(characterName)}' and trashed = false`;
                  res = await drive.files.list({
                     q: q,
                     fields: "files(id, name, modifiedTime, parents)",

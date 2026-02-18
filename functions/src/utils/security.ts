@@ -58,6 +58,21 @@ export function getAIKey(requestData: any, systemKeyValue: string): string {
 }
 
 /**
+ * 🛡️ SENTINEL: Escape Google Drive Query String
+ * Escapes single quotes and backslashes to prevent query injection.
+ * Use this when interpolating user input into a Drive 'q' parameter.
+ * Example: `name = '${escapeDriveQuery(userInput)}'`
+ *
+ * @param input The raw string to escape
+ * @returns The escaped string safe for Drive API queries
+ */
+export function escapeDriveQuery(input: string): string {
+    if (!input) return "";
+    // Replace backslash first to avoid double escaping the single quote escape
+    return input.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/**
  * 🛡️ SENTINEL: URL Validator
  * Checks if a URL is safe to fetch (prevents SSRF).
  * Blocks private IPs, localhost, and metadata services.

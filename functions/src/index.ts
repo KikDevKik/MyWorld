@@ -32,7 +32,7 @@ import { _getDriveFileContentInternal, streamToString } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { maskLog } from "./utils/logger";
 import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
-import { getAIKey, handleSecureError } from "./utils/security";
+import { getAIKey, handleSecureError, escapeDriveQuery } from "./utils/security";
 import { extractUrls, fetchWebPageContent } from "./utils/scraper";
 
 const htmlToPdfmake = require('html-to-pdfmake');
@@ -164,7 +164,8 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
  * 🔒 SYSTEM LOGS HELPER: ENSURE FOLDER EXISTS
  */
 async function ensureSystemLogsFolder(drive: any, rootFolderId: string): Promise<string> {
-  const query = `'${rootFolderId}' in parents and name = '_SYSTEM_LOGS' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+  // 🛡️ SECURITY: Escape rootFolderId
+  const query = `'${escapeDriveQuery(rootFolderId)}' in parents and name = '_SYSTEM_LOGS' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
   try {
     const res = await drive.files.list({
       q: query,
@@ -205,7 +206,8 @@ async function appendToSessionLog(
     const logsFolderId = await ensureSystemLogsFolder(drive, rootFolderId);
 
     // 1. Search for existing session file by appProperties.sessionId
-    const query = `'${logsFolderId}' in parents and appProperties has { key='sessionId' and value='${sessionId}' } and trashed = false`;
+    // 🛡️ SECURITY: Escape folder ID and sessionId
+    const query = `'${escapeDriveQuery(logsFolderId)}' in parents and appProperties has { key='sessionId' and value='${escapeDriveQuery(sessionId)}' } and trashed = false`;
     const res = await drive.files.list({
       q: query,
       fields: "files(id, name)",
@@ -311,7 +313,8 @@ async function fetchFolderContents(
 ): Promise<DriveFile[]> {
   logger.info(`📂 Escaneando carpeta: ${folderId} | Modo Recursivo: ${recursive} | Cat: ${currentCategory} | Path: ${parentPath}`);
 
-  const query = `'${folderId}' in parents and trashed = false`;
+  // 🛡️ SECURITY: Escape folderId
+  const query = `'${escapeDriveQuery(folderId)}' in parents and trashed = false`;
 
   try {
     const res = await drive.files.list({
@@ -3888,7 +3891,8 @@ export const extractTimelineEvents = onCall(
                   const drive = google.drive({ version: "v3", auth });
 
                   // 1. Find timeline_master.json
-                  const q = `'${chronologyPathId}' in parents and name = 'timeline_master.json' and trashed = false`;
+                  // 🛡️ SECURITY: Escape chronologyPathId
+                  const q = `'${escapeDriveQuery(chronologyPathId)}' in parents and name = 'timeline_master.json' and trashed = false`;
                   const listRes = await drive.files.list({ q, fields: "files(id)" });
 
                   if (listRes.data.files && listRes.data.files.length > 0) {
@@ -5201,7 +5205,8 @@ export const restoreTimelineFromMaster = onCall(
       auth.setCredentials({ access_token: accessToken });
       const drive = google.drive({ version: "v3", auth });
 
-      const q = `'${chronologyPathId}' in parents and name = 'timeline_master.json' and trashed = false`;
+      // 🛡️ SECURITY: Escape chronologyPathId
+      const q = `'${escapeDriveQuery(chronologyPathId)}' in parents and name = 'timeline_master.json' and trashed = false`;
       const listRes = await drive.files.list({ q, fields: "files(id)" });
 
       if (!listRes.data.files || listRes.data.files.length === 0) {
