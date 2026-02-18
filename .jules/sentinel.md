@@ -123,3 +123,10 @@
 **Vulnerability:** Resource Exhaustion / Denial of Service (DoS) via Genesis Protocol
 **Learning:** The `genesisManifest` function accepted an unbounded `chatHistory` array. A malicious user could send a massive payload (e.g., 1 million messages), causing memory exhaustion (OOM), function timeouts, or excessive AI costs (token flooding).
 **Prevention:** Implemented strict limits: `MAX_HISTORY_ITEMS` (100) and `MAX_HISTORY_CHARS` (100,000). Added validation logic to ensure the payload structure is correct and within safe bounds before processing.
+
+## 2025-06-05 - [CRITICAL] Unauthenticated Privileged Endpoint (Ghost Endpoint)
+**Vulnerability:** The `checkSentinelIntegrity` function, designed for system health checks, was exposed publicly without authentication. Although the client-side code invoking it was commented out, the endpoint remained active, allowing unauthenticated attackers to trigger Google Cloud Secret Manager API calls, potentially leading to resource exhaustion (DoS) or quota limits.
+**Learning:** "Dead code" in the frontend does not equate to a secure backend. Endpoints created for debugging or internal checks must always have strict authentication or be removed if unused.
+**Prevention:**
+1. Secure all `onCall` functions with `if (!request.auth)` by default.
+2. Audit backend functions against frontend usage regularily to remove zombie endpoints.
