@@ -9,3 +9,7 @@
 ## 2026-02-07 - [O(N^2) Bottleneck in NexusCanvas]
 **Learning:** Found nested loops using `.find()` inside `useMemo` for link generation in `GraphSimulation` and rendering in `LinksOverlay`. This caused O(N^2) complexity. Replacing with O(N) `Map` lookups yielded significant performance improvement for graph rendering.
 **Action:** Always inspect `useMemo` blocks and render loops iterating over arrays for potential O(N²) complexity, especially in visual components handling large datasets.
+
+## 2026-02-07 - [O(N) Hover Re-renders in LinksOverlay]
+**Learning:** Found that hovering a single node in `LinksOverlayV2` triggered a re-render of ALL `Xarrow` components (O(N)) because the `map` loop created new object references (`labels`, `passProps`) for every child on every parent render.
+**Action:** Extracted `LinkItem` as a memoized component. Passed `isFocused` as a boolean prop. This ensures only the relevant links re-render when hover state changes, reducing complexity to O(K) (neighbors) or O(1).
