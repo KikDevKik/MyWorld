@@ -150,7 +150,14 @@ async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig>
   if (!doc.exists) {
     return defaultConfig;
   }
-  return { ...defaultConfig, ...doc.data() };
+
+  const data = doc.data() || {};
+  // 🟢 MIGRATION: Normalize 'narrative_style' to 'styleIdentity'
+  if (!data.styleIdentity && data.narrative_style) {
+      data.styleIdentity = data.narrative_style;
+  }
+
+  return { ...defaultConfig, ...data };
 }
 
 /**
@@ -2010,6 +2017,7 @@ export const chatWithGem = onCall(
 === PROJECT IDENTITY (GENRE & STYLE) ===
 PROJECT NAME: ${projectConfig.projectName || 'Untitled Project'}
 DETECTED STYLE DNA: ${projectConfig.styleIdentity || 'Not analyzed yet'}
+GENRE INSTRUCTION: Adopt the tone, vocabulary, and pacing associated with this style.
 ========================================
 `;
 
@@ -2027,6 +2035,8 @@ RULES: ${profile.rules || 'Not specified'}
 
     // 🟢 0.4. PERSPECTIVE DETECTION (Auto-Align)
     let perspectiveContext = "";
+    let detectedPerspective = "Neutral/Unknown";
+
     if (activeFileContent) {
         const sample = activeFileContent.substring(0, 3000).toLowerCase();
         // Simple heuristic: Count pronouns (English & Spanish)
@@ -2039,21 +2049,35 @@ RULES: ${profile.rules || 'Not specified'}
         // Note: We avoid 'el' (the) and strictly use 'él' (he).
         const thirdPersonMatches = (sample.match(/\b(he|him|his|she|her|hers|it|they|them|their|él|ella|su|sus|le|les|ellos|ellas)\b/g) || []).length;
 
-        let detectedPerspective = "Neutral/Unknown";
         if (firstPersonMatches > thirdPersonMatches && firstPersonMatches > 3) {
             detectedPerspective = "FIRST PERSON (I/Me/Yo)";
         } else if (thirdPersonMatches > firstPersonMatches && thirdPersonMatches > 3) {
              detectedPerspective = "THIRD PERSON (He/She/El/Ella)";
         }
+    }
+
+    // 🟢 FALLBACK: USE PROJECT STYLE IDENTITY (If local detection is weak)
+    if (detectedPerspective === "Neutral/Unknown" && projectConfig.styleIdentity) {
+        const style = projectConfig.styleIdentity.toUpperCase();
+        if (style.includes('FPS') || style.includes('FIRST PERSON')) detectedPerspective = "FIRST PERSON (Project Default)";
+        else if (style.includes('TPS') || style.includes('THIRD PERSON')) detectedPerspective = "THIRD PERSON (Project Default)";
+        else if (style.includes('CINEMATIC')) detectedPerspective = "CINEMATIC (Project Default)";
 
         if (detectedPerspective !== "Neutral/Unknown") {
-            perspectiveContext = `
+             logger.info(`👁️ Perspective Fallback to Project Style: ${detectedPerspective}`);
+        }
+    }
+
+    if (detectedPerspective !== "Neutral/Unknown") {
+        perspectiveContext = `
 [PERSPECTIVE PROTOCOL - CRITICAL]:
 The user is writing in ${detectedPerspective}.
 You MUST write all narrative examples, suggestions, and rewritten scenes in ${detectedPerspective}.
 DO NOT switch perspective. If the user writes "I walked", do not reply with "He walked".
 `;
-            logger.info(`👁️ Perspective Detected: ${detectedPerspective} (1st: ${firstPersonMatches}, 3rd: ${thirdPersonMatches})`);
+        if (activeFileContent) {
+             // Only log full stats if we did local detection
+             logger.info(`👁️ Perspective Detected/Enforced: ${detectedPerspective}`);
         }
     }
 

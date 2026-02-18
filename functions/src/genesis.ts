@@ -236,22 +236,13 @@ export const genesisManifest = onCall(
 
         const { narrative_style, entities } = parsedResult;
 
-        // 🟢 SAVE NARRATIVE STYLE
+        // 🟢 SAVE NARRATIVE STYLE (Normalized to styleIdentity)
         if (narrative_style) {
-            await db.collection("users").doc(userId).collection("profile").doc("project_config").update({
-                styleIdentity: narrative_style // Mapping 'narrative_style' to 'styleIdentity' field in config or adding new one?
-                // User asked for 'narrative_style' or 'project_narrative_voice'.
-                // Let's use 'styleIdentity' as it fits existing schema or add narrative_style.
-                // Plan said: Update 'project_config' with 'narrative_style'.
-            }).catch(async () => {
-                 // Fallback set if doc missing
-                 await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
-                     narrative_style: narrative_style
-                 }, { merge: true });
-            });
-            // Ensure field is saved exactly as requested
+            // We use set with merge to ensure we don't fail if doc missing, and we prioritize 'styleIdentity'
+            // as the canonical field for RAG/Context.
             await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
-                narrative_style: narrative_style
+                styleIdentity: narrative_style,
+                updatedAt: new Date().toISOString()
             }, { merge: true });
         }
 
