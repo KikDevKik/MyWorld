@@ -10,7 +10,7 @@ import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai
 import { parseSecureJSON } from "./utils/json";
 import { updateFirestoreTree, updateFirestoreTreeBatch } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
 import { deleteFileVectors } from "./ingestion";
-import { getAIKey } from "./utils/security";
+import { getAIKey, escapeDriveQuery } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -68,7 +68,8 @@ export const discoverFolderRoles = onCall(
       const drive = google.drive({ version: "v3", auth });
 
       // 1. Scan Top-Level Folders
-      const q = `'${targetRootId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+      // 🛡️ SECURITY: Escape targetRootId
+      const q = `'${escapeDriveQuery(targetRootId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
       const res = await drive.files.list({
         q,
         fields: "files(id, name)",
@@ -252,7 +253,8 @@ export const createTitaniumStructure = onCall(
             let folderName = item.name;
 
             // A. Check New Name First
-            const qNew = `'${targetRootId}' in parents and name = '${item.name}' and trashed = false`;
+            // 🛡️ SECURITY: Escape targetRootId and item.name (even if name is constant, good practice)
+            const qNew = `'${escapeDriveQuery(targetRootId)}' in parents and name = '${escapeDriveQuery(item.name)}' and trashed = false`;
             const checkNew = await drive.files.list({ q: qNew, fields: "files(id, name)" });
 
             if (checkNew.data.files && checkNew.data.files.length > 0) {
@@ -261,7 +263,7 @@ export const createTitaniumStructure = onCall(
                 logger.info(`   -> Folder exists (New Standard): ${folderName}`);
             } else if (item.legacyName) {
                 // B. Check Legacy Name
-                const qLegacy = `'${targetRootId}' in parents and name = '${item.legacyName}' and trashed = false`;
+                const qLegacy = `'${escapeDriveQuery(targetRootId)}' in parents and name = '${escapeDriveQuery(item.legacyName)}' and trashed = false`;
                 const checkLegacy = await drive.files.list({ q: qLegacy, fields: "files(id, name)" });
 
                 if (checkLegacy.data.files && checkLegacy.data.files.length > 0) {
@@ -303,14 +305,15 @@ export const createTitaniumStructure = onCall(
         if (newMapping[FolderRole.SAGA_MAIN]) {
              const sagaId = newMapping[FolderRole.SAGA_MAIN];
              // Optional: Create Libro 1
-             const q = `'${sagaId}' in parents and name = 'Libro_01' and trashed = false`;
+             // 🛡️ SECURITY: Escape sagaId (though it comes from internal logic, safety first)
+             const q = `'${escapeDriveQuery(sagaId || "")}' in parents and name = 'Libro_01' and trashed = false`;
              const check = await drive.files.list({ q, fields: "files(id, name)" });
              if (!check.data.files?.length) {
                  const subRes = await drive.files.create({
                      requestBody: {
                          name: "Libro_01",
                          mimeType: "application/vnd.google-apps.folder",
-                         parents: [sagaId]
+                         parents: [sagaId!]
                      },
                      fields: "id"
                  });

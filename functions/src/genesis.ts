@@ -7,7 +7,7 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
-import { getAIKey } from "./utils/security";
+import { getAIKey, escapeDriveQuery } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { generateDraftContent } from "./templates/forge";
 import { FolderRole, ProjectConfig } from "./types/project";
@@ -108,7 +108,8 @@ export const genesisManifest = onCall(
             const rootId = config.folderId;
             if (rootId) {
                 // Check if exists in Drive
-                const q = `'${rootId}' in parents and name = 'OBJETOS' and trashed = false`;
+                // 🛡️ SECURITY: Escape rootId
+                const q = `'${escapeDriveQuery(rootId)}' in parents and name = 'OBJETOS' and trashed = false`;
                 const res = await drive.files.list({ q, fields: "files(id)" });
 
                 if (res.data.files && res.data.files.length > 0) {
@@ -252,7 +253,8 @@ export const genesisManifest = onCall(
         // Helper to find subfolder in Manuscript (e.g., "Libro_01")
         let targetManuscriptFolder = manuscriptFolderId;
         try {
-            const q = `'${manuscriptFolderId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+            // 🛡️ SECURITY: Escape manuscriptFolderId
+            const q = `'${escapeDriveQuery(manuscriptFolderId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
             const res = await drive.files.list({ q, pageSize: 1, orderBy: 'name' });
             if (res.data.files && res.data.files.length > 0) {
                 targetManuscriptFolder = res.data.files[0].id!;

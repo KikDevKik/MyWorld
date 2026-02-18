@@ -13,7 +13,7 @@ import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { updateFirestoreTree } from "./utils/tree_utils";
 import { ProjectConfig, FolderRole } from "./types/project";
-import { getAIKey } from "./utils/security";
+import { getAIKey, escapeDriveQuery } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -140,7 +140,8 @@ const ensureProjectTaxonomy = async (
             } else {
                 // 2. Check Drive (Root Level)
                 try {
-                    const q = `'${projectId}' in parents and name = '${defaultName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+                    // 🛡️ SECURITY: Escape projectId and defaultName
+                    const q = `'${escapeDriveQuery(projectId)}' in parents and name = '${escapeDriveQuery(defaultName)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
                     const list = await drive.files.list({ q, fields: 'files(id, name)' });
                     if (list.data.files && list.data.files.length > 0) {
                         foundId = list.data.files[0].id!;
@@ -249,7 +250,8 @@ export const crystallizeGraph = onCall(
         let targetFolderId = folderId;
         if (subfolderName) {
             try {
-                const q = `'${folderId}' in parents and name = '${subfolderName}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+                // 🛡️ SECURITY: Escape query params
+                const q = `'${escapeDriveQuery(folderId)}' in parents and name = '${escapeDriveQuery(subfolderName)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
                 const list = await drive.files.list({ q, fields: 'files(id)' });
 
                 if (list.data.files && list.data.files.length > 0) {
@@ -485,7 +487,8 @@ export const crystallizeGraph = onCall(
                     if (!isUpdate && !adoptedFileId) {
                          try {
                             const duplicateCheck = await drive.files.list({
-                                q: `'${specificFolderId}' in parents and name = '${fileName}' and trashed = false`,
+                                // 🛡️ SECURITY: Escape specificFolderId and fileName
+                                q: `'${escapeDriveQuery(specificFolderId)}' in parents and name = '${escapeDriveQuery(fileName)}' and trashed = false`,
                                 fields: 'files(id)'
                             });
                             if (duplicateCheck.data.files && duplicateCheck.data.files.length > 0) {
