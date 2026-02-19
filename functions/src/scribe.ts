@@ -7,7 +7,6 @@ import * as logger from "firebase-functions/logger";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { TEMP_PRECISION } from "./ai_config";
-import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { updateFirestoreTree } from "./utils/tree_utils";
@@ -15,7 +14,9 @@ import { ingestFile } from "./ingestion";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { getAIKey } from "./utils/security";
-import { TitaniumFactory, TitaniumEntity } from "./services/factory";
+import { TitaniumFactory } from "./services/factory";
+import { TitaniumEntity, EntityTrait } from "./types/ontology";
+import { legacyTypeToTraits } from "./utils/legacy_adapter";
 import matter from 'gray-matter';
 import { marked } from 'marked';
 
@@ -82,29 +83,6 @@ function extractMetadataFromBody(body: string): { name?: string, role?: string }
         logger.warn("⚠️ AST Extraction Failed:", e);
         return {};
     }
-}
-
-// 🟢 HELPER: Anti-Makeup Policy (Pruning)
-function pruneGhostMetadata(attributes: any) {
-    // Helper to normalize
-    const norm = (v: any) => String(v).toLowerCase().trim();
-
-    // 1. Prune Age
-    if (attributes.age && ['unknown', 'desconocida', 'desconocido'].includes(norm(attributes.age))) {
-        attributes.age = undefined; // TitaniumFactory will strip undefined
-    }
-
-    // 2. Prune Status (Default Active)
-    if (attributes.status && ['active'].includes(norm(attributes.status))) {
-        attributes.status = undefined;
-    }
-
-    // 3. Prune Role
-    if (attributes.role && ['unknown', 'desconocido'].includes(norm(attributes.role))) {
-        attributes.role = undefined;
-    }
-
-    return attributes;
 }
 
 /**
@@ -255,23 +233,42 @@ export const scribeCreateFile = onCall(
             const nexusId = crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
             logger.info(`   -> Deterministic Nexus ID: ${nexusId}`);
 
-            // 3. GENERATE CONTENT (Unified Template Engine)
-            // Auto-link logic could go here if needed, but keeping it simple for now.
+            // 3. TITANIUM FORGE (Unified Factory)
+            // Map legacy type string to traits
+            const traits = legacyTypeToTraits(entityData.type || 'concept');
 
-            const templateData: AnchorTemplateData = {
-                id: nexusId, // 🟢 NEXUS COMPLIANT
+            // Default body content if synthesis failed or wasn't requested
+            const defaultBody = [
+                `# ${entityData.name}`,
+                "",
+                `> *${(entityData.role || "Entidad Registrada").replace(/\n/g, ' ')}*`,
+                "",
+                "## 📝 Descripción",
+                chatContent || entityData.summary || "Generado por El Escriba.",
+                "",
+                "## 🧠 Notas",
+                "",
+                "## 🔗 Relaciones",
+                "- ",
+                ""
+            ].join("\n");
+
+            const entity: TitaniumEntity = {
+                id: nexusId, // Nexus Link
                 name: entityData.name,
-                type: (entityData.type as any) || 'character',
-                role: entityData.role || 'Unknown',
-                description: chatContent || entityData.summary || "Generado por El Escriba.",
-                aliases: entityData.aliases || [],
-                tags: entityData.tags || ['tdb/entity'],
-                project_id: sagaId, // Optional context
-                status: 'active',
-                rawBodyContent: finalBodyContent // 🟢 Inject Synthesized Body if available
+                traits: traits,
+                attributes: {
+                    role: entityData.role,
+                    aliases: entityData.aliases,
+                    tags: entityData.tags || ['tdb/entity'],
+                    project_id: sagaId,
+                    status: 'active',
+                    tier: 'ANCHOR'
+                },
+                bodyContent: finalBodyContent || defaultBody
             };
 
-            const fullContent = generateAnchorContent(templateData);
+            const fullContent = TitaniumFactory.forge(entity);
 
             // 4. SAVE TO DRIVE
             const file = await drive.files.create({
@@ -295,7 +292,6 @@ export const scribeCreateFile = onCall(
             // 5. UPDATE FIRESTORE (The Registry)
 
             // A. FIRE & FORGET VECTORIZATION (Server-Side Trigger) ⚡
-            // We await it to ensure consistency per "Titanium" contract (Stability > Speed)
             try {
                 const embeddingsModel = new GeminiEmbedder({
                     apiKey: googleApiKey.value(),
@@ -320,20 +316,18 @@ export const scribeCreateFile = onCall(
                 );
 
                 // 🟢 METADATA ENRICHMENT (Post-Ingest)
-                // Ingest sets basic fields. We add specific Scribe tags here.
                 await db.collection("TDB_Index").doc(userId).collection("files").doc(newFileId).update({
                     smartTags: FieldValue.arrayUnion('CREATED_BY_SCRIBE'),
-                    nexusId: nexusId // Link back to determinism
+                    nexusId: nexusId
                 });
 
                 logger.info(`   🧠 [SCRIBE] Vectorized & Indexed: ${fileName}`);
 
             } catch (ingestErr) {
                 logger.error("   🔥 [SCRIBE] Ingestion Failed:", ingestErr);
-                // We don't fail the request, but we log critically.
             }
 
-            // B. Update Source (Radar) - Using the Concept ID (entityId/slug)
+            // B. Update Source (Radar)
             await db.collection("users").doc(userId).collection("forge_detected_entities").doc(entityId).set({
                 tier: 'ANCHOR',
                 status: 'ANCHOR',
@@ -343,7 +337,6 @@ export const scribeCreateFile = onCall(
             }, { merge: true });
 
             // C. Update/Create Roster (The Character Sheet)
-            // Slugify logic consistent with previous code
             const rosterId = safeName.toLowerCase().replace(/[^a-z0-9]/g, '-');
             const rosterRef = db.collection("users").doc(userId).collection("characters").doc(rosterId);
 
@@ -360,7 +353,7 @@ export const scribeCreateFile = onCall(
                 isAIEnriched: true,
                 tags: entityData.tags || [],
                 aliases: entityData.aliases || [],
-                nexusId: nexusId // 🟢 Link to TDB Index
+                nexusId: nexusId
             }, { merge: true });
 
             return {
@@ -433,7 +426,6 @@ export const integrateNarrative = onCall(
 
             let integratedText = (result.text || "").trim();
 
-            // Cleanup fences if any
             if (integratedText.startsWith('```')) {
                 integratedText = integratedText.replace(/^```[a-z]*\n?/, '').replace(/\n?```$/, '');
             }
@@ -526,74 +518,79 @@ export const scribePatchFile = onCall(
 
             if (!newContent) throw new Error(result.error || "Empty Patch Result");
 
-            // Cleanup potential markdown fences if model ignores rule 4
             if (newContent.startsWith('```markdown')) newContent = newContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
             if (newContent.startsWith('```')) newContent = newContent.replace(/^```\n/, '').replace(/\n```$/, '');
 
-            // 🟢 SMART-SYNC MIDDLEWARE 2.0 (AST-BASED)
+            // 🟢 SMART-SYNC DELTA VALIDATOR (Middleware 3.0)
+            // Logic: Compare Original vs New.
+            // If Frontmatter changed -> Trust AI/User.
+            // If Frontmatter UNCHANGED -> Check Body AST and sync to Frontmatter.
+
             let finalContent = newContent;
             try {
-                const parsed = matter(newContent);
-                const currentFm = parsed.data;
-                const body = parsed.content;
+                const parsedNew = matter(newContent);
+                const parsedOriginal = matter(originalContent);
 
-                // A. DEBOUNCE CHECK (Anti-Loop)
-                const lastSync = currentFm.last_titanium_sync ? new Date(currentFm.last_titanium_sync).getTime() : 0;
+                const newFm = parsedNew.data;
+                const oldFm = parsedOriginal.data;
+                const newBody = parsedNew.content;
+
+                // A. DEBOUNCE CHECK
+                const lastSync = newFm.last_titanium_sync ? new Date(newFm.last_titanium_sync).getTime() : 0;
                 const now = Date.now();
                 const timeDiff = now - lastSync;
 
                 if (timeDiff < 5000) {
-                    logger.info(`⏳ [SMART-SYNC] Skipping reconciliation (Debounce: ${timeDiff}ms)`);
+                     logger.info(`⏳ [SMART-SYNC] Skipping reconciliation (Debounce: ${timeDiff}ms)`);
                 } else {
                     // B. AST EXTRACTION
-                    logger.info(`🔍 [SMART-SYNC] Extracting metadata via AST for ${fileId}...`);
-                    const { name: extractedName, role: extractedRole } = extractMetadataFromBody(body);
-
-                    if (extractedName) logger.info(`   -> AST Name: ${extractedName}`);
-                    if (extractedRole) logger.info(`   -> AST Role: ${extractedRole}`);
-
-                    // C. RECONCILIATION & PRUNING
-                    let attributes = { ...currentFm };
-
-                    // 1. Apply Pruning (Anti-Makeup Policy)
-                    attributes = pruneGhostMetadata(attributes);
-
-                    // 2. Update from AST
+                    const { name: extractedName, role: extractedRole } = extractMetadataFromBody(newBody);
+                    let attributes = { ...newFm };
                     let hasChanges = false;
 
-                    // Check Logic: Only update if extracted value exists and differs
-                    if (extractedName && extractedName !== currentFm.name) {
-                        attributes.name = extractedName;
+                    // C. DELTA LOGIC
+                    // Check if AI modified FM explicitly (comparing critical fields)
+                    const fmNameChanged = newFm.name !== oldFm.name;
+                    const fmRoleChanged = newFm.role !== oldFm.role;
+
+                    if (fmNameChanged || fmRoleChanged) {
+                        logger.info("⚡ [SMART-SYNC] Explicit Frontmatter change detected. Respecting change.");
                         hasChanges = true;
-                        logger.info(`   -> Reconciling Name: ${currentFm.name} => ${extractedName}`);
-                    }
-                    if (extractedRole && extractedRole !== currentFm.role) {
-                        attributes.role = extractedRole;
-                        hasChanges = true;
-                        logger.info(`   -> Reconciling Role: ${currentFm.role} => ${extractedRole}`);
+                        // We use the NEW FM values as truth.
+                    } else {
+                        // AI preserved FM (as instructed). Check if Body changed significantly to warrant sync.
+                        if (extractedName && extractedName !== newFm.name) {
+                            attributes.name = extractedName;
+                            hasChanges = true;
+                            logger.info(`   -> Reconciling Name from Body: ${newFm.name} => ${extractedName}`);
+                        }
+                        if (extractedRole && extractedRole !== newFm.role) {
+                            attributes.role = extractedRole;
+                            hasChanges = true;
+                            logger.info(`   -> Reconciling Role from Body: ${newFm.role} => ${extractedRole}`);
+                        }
                     }
 
-                    // 3. Forge New Content (If changes or forced sync)
-                    // Note: We use TitaniumFactory to enforce schema, BUT we must ensure
-                    // it doesn't undo our pruning (via the undefined trick).
-
-                    if (hasChanges || !currentFm.last_titanium_sync) {
-                        logger.info(`🔄 [METADATA RECONCILIATION] Syncing Body -> YAML for ${fileId}`);
+                    // D. TITANIUM FACTORY FORGE
+                    // We always run it through factory to ensure schema & anti-makeup
+                    if (hasChanges || !newFm.last_titanium_sync) {
+                        logger.info(`🔄 [METADATA RECONCILIATION] Re-Forging via TitaniumFactory for ${fileId}`);
 
                         const entity: TitaniumEntity = {
                             id: attributes.id || fileId,
-                            name: extractedName || attributes.name || "Unknown",
-                            traits: attributes.traits || [],
-                            attributes: attributes, // Pruned attributes
-                            bodyContent: body
+                            name: attributes.name || "Unknown",
+                            traits: attributes.traits || legacyTypeToTraits(attributes.type || 'concept'),
+                            attributes: attributes, // Factory will prune ghost data
+                            bodyContent: newBody
                         };
 
                         finalContent = TitaniumFactory.forge(entity);
                     }
                 }
+
             } catch (syncErr) {
                 logger.warn(`⚠️ [SMART-SYNC] Failed to reconcile:`, syncErr);
-                // Fallback to AI content if sync fails
+                // Fallback to AI content
             }
 
             // 3. UPDATE FILE
@@ -605,8 +602,7 @@ export const scribePatchFile = onCall(
                 }
             });
 
-            // 🟢 4. AUTO-INDEX (FIRE & FORGET)
-            // Fix: Resolve Project Root ID
+            // 4. AUTO-INDEX (FIRE & FORGET)
             const configRef = db.collection("users").doc(userId).collection("profile").doc("project_config");
             const configSnap = await configRef.get();
             const projectRootId = configSnap.exists ? configSnap.data()?.folderId : null;
@@ -621,14 +617,14 @@ export const scribePatchFile = onCall(
                 await ingestFile(
                     db,
                     userId,
-                    projectRootId || parentId || "unknown_project", // Correctly resolved root
+                    projectRootId || parentId || "unknown_project",
                     {
                         id: fileId,
                         name: fileName,
-                        path: fileName, // Simplified path
+                        path: fileName,
                         saga: 'Global',
                         parentId: parentId,
-                        category: 'canon' // Patched files are usually canon
+                        category: 'canon'
                     },
                     newContent,
                     embeddingsModel
@@ -698,7 +694,7 @@ export const transformToGuide = onCall(
             `;
 
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: true,
+                useFlash: true, // Flash is great for rewriting
                 temperature: 0.7,
                 contextLabel: "TransformGuide"
             });

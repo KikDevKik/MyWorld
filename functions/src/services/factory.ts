@@ -1,15 +1,6 @@
 import * as yaml from 'js-yaml';
-
-export type TitaniumTrait = 'sentient' | 'location' | 'artifact' | 'concept' | 'event' | 'creature';
-
-export interface TitaniumEntity {
-    id: string;
-    name: string;
-    traits: TitaniumTrait[];
-    attributes: Record<string, any>;
-    bodyContent: string;
-    projectId?: string;
-}
+import { TitaniumEntity, EntityTrait } from '../types/ontology';
+import { traitsToLegacyType } from '../utils/legacy_adapter';
 
 /**
  * 🏭 TITANIUM FACTORY (La Fundición Única)
@@ -19,53 +10,75 @@ export interface TitaniumEntity {
 export class TitaniumFactory {
 
     /**
+     * ANTI-MAKEUP POLICY (Protocolo de Limpieza)
+     * Removes "Ghost Data" that consumes tokens without adding value.
+     */
+    private static pruneGhostMetadata(attributes: any): any {
+        const clean = { ...attributes };
+        const norm = (v: any) => typeof v === 'string' ? v.toLowerCase().trim() : String(v);
+
+        // 1. Prune Age (Ruido puro)
+        if (clean.age && ['unknown', 'desconocida', 'desconocido'].includes(norm(clean.age))) {
+            delete clean.age;
+        }
+
+        // 2. Prune Status (Default is always active)
+        if (clean.status && ['active'].includes(norm(clean.status))) {
+            delete clean.status;
+        }
+
+        // 3. Prune Role (If unknown)
+        if (clean.role && ['unknown', 'desconocido'].includes(norm(clean.role))) {
+            delete clean.role;
+        }
+
+        // 4. Prune Tier (Default is ANCHOR)
+        if (clean.tier && ['anchor'].includes(norm(clean.tier))) {
+            delete clean.tier;
+        }
+
+        return clean;
+    }
+
+    /**
      * Forges a Unified Titanium File (Markdown + YAML).
-     * Automatically applies the "Legacy Adapter" to ensure compatibility with Soul Sorter.
+     * Automatically applies the "Legacy Adapter" and "Anti-Makeup" policies.
      */
     static forge(entity: TitaniumEntity): string {
         const now = new Date().toISOString();
 
         // 1. LEGACY ADAPTER: Map Traits to Old 'Type'
-        // This ensures 'analyzeForgeBatch' and 'soul_sorter' still see what they expect.
-        let legacyType = 'concept';
-        if (entity.traits.includes('sentient')) legacyType = 'character';
-        else if (entity.traits.includes('creature')) legacyType = 'creature';
-        else if (entity.traits.includes('location')) legacyType = 'location';
-        else if (entity.traits.includes('artifact')) legacyType = 'object';
-        else if (entity.traits.includes('event')) legacyType = 'event';
+        const legacyType = traitsToLegacyType(entity.traits);
 
-        // 2. CONSTRUCT FRONTMATTER
-        // We flatten attributes into the root for compatibility, but also keep 'traits'.
-        // Priority: Explicit attributes override automatic defaults.
-        const frontmatter: any = {
-            id: entity.id,
-            name: entity.name,
-            type: legacyType, // 🛡️ COMPATIBILITY SHIELD
+        // 2. PREPARE ATTRIBUTES (Merge & Override)
+        // We start with the entity's dynamic attributes, then overlay the Sovereign Fields.
+        const rawAttributes = {
+            ...entity.attributes,
+            id: entity.id,         // Nexus ID (Critical for Linking)
+            name: entity.name,     // Canonical Name
+            type: legacyType,      // 🛡️ COMPATIBILITY SHIELD
             traits: entity.traits, // 🚀 TITANIUM NATIVE
-            tier: 'ANCHOR', // Default to Anchor for forged files
-            status: 'active', // Default
-            created_at: now,
+            // Timestamps
+            created_at: entity.attributes.created_at || now,
             last_updated: now,
-            last_titanium_sync: now, // 🛡️ SMART-SYNC DEBOUNCE
-            ...entity.attributes // 🛡️ FLATTENED ATTRIBUTES (e.g. role, age)
+            last_titanium_sync: now // 🛡️ SMART-SYNC DEBOUNCE
         };
 
-        // Ensure critical legacy fields exist if missing
-        if (!frontmatter.role && legacyType === 'character') frontmatter.role = "Unknown";
-        if (entity.projectId) frontmatter.project_id = entity.projectId;
+        // 3. APPLY ANTI-MAKEUP (Pruning)
+        const finalAttributes = TitaniumFactory.pruneGhostMetadata(rawAttributes);
 
-        // 3. CLEANUP UNDEFINED
-        Object.keys(frontmatter).forEach(key => {
-            if (frontmatter[key] === undefined || frontmatter[key] === null) {
-                delete frontmatter[key];
+        // 4. CLEANUP UNDEFINED/NULL (Final Sanity Check)
+        Object.keys(finalAttributes).forEach(key => {
+            if (finalAttributes[key] === undefined || finalAttributes[key] === null) {
+                delete finalAttributes[key];
             }
         });
 
-        // 4. GENERATE MARKDOWN
-        // Use js-yaml for safe dumping
-        const yamlBlock = yaml.dump(frontmatter, { lineWidth: -1 }).trim();
+        // 5. GENERATE YAML
+        // schema: JSON_SCHEMA ensures compatibility with most parsers
+        const yamlBlock = yaml.dump(finalAttributes, { lineWidth: -1, schema: yaml.JSON_SCHEMA }).trim();
 
-        // 5. ASSEMBLE
+        // 6. ASSEMBLE
         return `---\n${yamlBlock}\n---\n\n${entity.bodyContent}`;
     }
 }
