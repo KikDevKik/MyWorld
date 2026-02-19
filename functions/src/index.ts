@@ -3695,7 +3695,12 @@ export const summonTheTribunal = onCall(
     const userId = request.auth.uid;
 
     try {
-      const profileDoc = await db.collection("users").doc(userId).collection("profile").doc("writer_config").get();
+      // 🟢 WEAVER UPDATE: Fetch Project Config for Genre Awareness
+      const [profileDoc, projectConfig] = await Promise.all([
+          db.collection("users").doc(userId).collection("profile").doc("writer_config").get(),
+          _getProjectConfigInternal(userId)
+      ]);
+
       const profile: WriterProfile = profileDoc.exists
         ? profileDoc.data() as WriterProfile
         : { style: '', inspirations: '', rules: '' };
@@ -3705,6 +3710,14 @@ export const summonTheTribunal = onCall(
         - Style/Voice: ${profile.style || 'Not specified'}
         - Inspirations: ${profile.inspirations || 'Not specified'}
         - Personal Rules: ${profile.rules || 'Not specified'}
+      `;
+
+      const projectIdentityContext = `
+        PROJECT IDENTITY (GENRE & STYLE):
+        - Name: ${projectConfig.projectName || 'Untitled Project'}
+        - Style DNA: ${projectConfig.styleIdentity || 'Universal/Neutral'}
+        - GENRE AWARENESS INSTRUCTION: The Judges must adapt their critique criteria to this specific style.
+          (e.g. If "Cyberpunk", The Architect checks for tech-logic. If "Romance", The Hater checks for chemistry.)
       `;
 
       const chatModel = new ChatGoogleGenerativeAI({
@@ -3748,8 +3761,15 @@ export const summonTheTribunal = onCall(
         INPUT CONTEXT:
         "${context || 'No specific context provided.'}"
 
+        ${projectIdentityContext}
+
         USER PROFILE:
         ${profileContext}
+
+        CRITICAL SAFEGUARDS:
+        - Do not mention negated elements (Instruction Leakage).
+        - Do not explain your scoring criteria in the output, just give the critique.
+        - STAY IN CHARACTER.
 
         OUTPUT FORMAT (JSON STRICT):
         {
