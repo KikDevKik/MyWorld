@@ -215,28 +215,51 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
 
                 {/* SETTINGS POPOVER */}
                 {isSettingsOpen && (
-                    <div className="absolute bottom-10 right-0 bg-titanium-950 border border-titanium-700 p-3 rounded-lg shadow-2xl w-48 z-50 animate-in fade-in slide-in-from-bottom-2">
-                        <div className="mb-3">
-                            <label htmlFor="daily-goal-input" className="block text-xs font-bold text-titanium-100 mb-2">{t.dailyTarget}</label>
-                            <input
-                                id="daily-goal-input"
-                                type="number"
-                                value={dailyGoal}
-                                onChange={handleGoalChange}
-                                className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded px-2 py-1 text-xs focus:border-emerald-500 outline-none"
-                            />
-                        </div>
+                    <>
+                        {/* 🎨 PALETTE: Invisible Backdrop for Click-Outside */}
+                        <div
+                            className="fixed inset-0 z-40 bg-transparent cursor-default"
+                            onClick={() => setIsSettingsOpen(false)}
+                            aria-hidden="true"
+                        />
 
-                        <button
-                            onClick={handleResetProgress}
-                            className="w-full flex items-center justify-center gap-2 px-2 py-1.5 bg-titanium-800 hover:bg-red-900/30 text-titanium-300 hover:text-red-400 rounded transition-colors text-xs"
-                            aria-label={t.resetProgress}
-                            title={t.tooltipReset}
+                        <div
+                            className="absolute bottom-10 right-0 bg-titanium-950 border border-titanium-700 p-3 rounded-lg shadow-2xl w-48 z-50 animate-in fade-in slide-in-from-bottom-2 outline-none"
+                            role="dialog"
+                            aria-label={t.tooltipSettings}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Escape') {
+                                    e.stopPropagation();
+                                    setIsSettingsOpen(false);
+                                }
+                            }}
                         >
-                            <RefreshCw size={12} />
-                            {t.resetProgress}
-                        </button>
-                    </div>
+                            <div className="mb-3">
+                                <label htmlFor="daily-goal-input" className="block text-xs font-bold text-titanium-100 mb-2">{t.dailyTarget}</label>
+                                <input
+                                    id="daily-goal-input"
+                                    type="number"
+                                    value={dailyGoal}
+                                    onChange={handleGoalChange}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') setIsSettingsOpen(false);
+                                    }}
+                                    className="w-full bg-slate-800 text-white placeholder-gray-400 border border-slate-700 rounded px-2 py-1 text-xs focus:border-emerald-500 outline-none focus:ring-1 focus:ring-emerald-500"
+                                    autoFocus // 🎨 PALETTE: Auto-focus for accessibility
+                                />
+                            </div>
+
+                            <button
+                                onClick={handleResetProgress}
+                                className="w-full flex items-center justify-center gap-2 px-2 py-1.5 bg-titanium-800 hover:bg-red-900/30 text-titanium-300 hover:text-red-400 rounded transition-colors text-xs focus-visible:ring-2 focus-visible:ring-red-500/50 outline-none"
+                                aria-label={t.resetProgress}
+                                title={t.tooltipReset}
+                            >
+                                <RefreshCw size={12} />
+                                {t.resetProgress}
+                            </button>
+                        </div>
+                    </>
                 )}
 
                 <div className="flex flex-col w-32 gap-1">
