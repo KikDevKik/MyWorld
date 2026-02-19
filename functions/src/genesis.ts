@@ -13,7 +13,8 @@ import { generateDraftContent } from "./templates/forge";
 import { FolderRole, ProjectConfig } from "./types/project";
 import { updateFirestoreTree } from "./utils/tree_utils";
 import { ingestFile } from "./ingestion";
-import { TitaniumFactory, TitaniumEntity } from "./services/factory";
+import { TitaniumFactory } from "./services/factory";
+import { TitaniumEntity } from "./types/ontology";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -284,10 +285,10 @@ export const genesisManifest = onCall(
                         role: item.role || "NPC",
                         age: item.age || "Desconocida",
                         status: 'active',
-                        tier: 'ANCHOR'
+                        tier: 'ANCHOR',
+                        project_id: projectId
                     },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`,
-                    projectId
+                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`
                 };
                 content = TitaniumFactory.forge(entity);
 
@@ -302,10 +303,10 @@ export const genesisManifest = onCall(
                     attributes: {
                         role: 'Setting',
                         status: 'active',
-                        tier: 'ANCHOR'
+                        tier: 'ANCHOR',
+                        project_id: projectId
                     },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🌍 Geografía\nGenerado por el Protocolo Génesis.`,
-                    projectId
+                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🌍 Geografía\nGenerado por el Protocolo Génesis.`
                 };
                 content = TitaniumFactory.forge(entity);
 
@@ -320,10 +321,10 @@ export const genesisManifest = onCall(
                     attributes: {
                         role: 'Monster',
                         status: 'active',
-                        tier: 'ANCHOR'
+                        tier: 'ANCHOR',
+                        project_id: projectId
                     },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🐾 Comportamiento\nGenerado por el Protocolo Génesis.`,
-                    projectId
+                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🐾 Comportamiento\nGenerado por el Protocolo Génesis.`
                 };
                 content = TitaniumFactory.forge(entity);
 
@@ -338,10 +339,10 @@ export const genesisManifest = onCall(
                     attributes: {
                         role: 'Item',
                         status: 'active',
-                        tier: 'ANCHOR'
+                        tier: 'ANCHOR',
+                        project_id: projectId
                     },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 💎 Propiedades\nGenerado por el Protocolo Génesis.`,
-                    projectId
+                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 💎 Propiedades\nGenerado por el Protocolo Génesis.`
                 };
                 content = TitaniumFactory.forge(entity);
 

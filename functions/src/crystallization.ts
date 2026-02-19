@@ -9,11 +9,14 @@ import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
-import { generateAnchorContent, AnchorTemplateData } from "./templates/forge";
 import { resolveVirtualPath } from "./utils/drive";
 import { updateFirestoreTree } from "./utils/tree_utils";
 import { ProjectConfig, FolderRole } from "./types/project";
 import { getAIKey, escapeDriveQuery } from "./utils/security";
+import { TitaniumFactory } from "./services/factory";
+import { TitaniumEntity, EntityTrait } from "./types/ontology";
+import { legacyTypeToTraits } from "./utils/legacy_adapter";
+import matter from 'gray-matter';
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -65,7 +68,6 @@ const findIdealFolder = (type: string, config: ProjectConfig): string | null => 
     const safeType = type.toLowerCase();
 
     // 1. Role Mapping (Precision)
-    // Check if role is mapped in config
     if (TYPE_ROLE_MAP[safeType] && config.folderMapping?.[TYPE_ROLE_MAP[safeType]]) {
         return config.folderMapping[TYPE_ROLE_MAP[safeType]]!;
     }
@@ -128,7 +130,7 @@ const ensureProjectTaxonomy = async (
             let foundId: string | null = null;
             const defaultName = TYPE_DEFAULT_NAMES[type] || "Nuevos Archivos";
 
-            // 1. Check existing Canon Paths (maybe mapped by name but not role?)
+            // 1. Check existing Canon Paths
             const existingCanon = canonPaths.find(p =>
                 p.name.toLowerCase() === defaultName.toLowerCase() ||
                 p.name.toLowerCase().includes(type)
@@ -140,7 +142,6 @@ const ensureProjectTaxonomy = async (
             } else {
                 // 2. Check Drive (Root Level)
                 try {
-                    // 🛡️ SECURITY: Escape projectId and defaultName
                     const q = `'${escapeDriveQuery(projectId)}' in parents and name = '${escapeDriveQuery(defaultName)}' and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
                     const list = await drive.files.list({ q, fields: 'files(id, name)' });
                     if (list.data.files && list.data.files.length > 0) {
@@ -197,14 +198,14 @@ interface CrystallizeGraphRequest {
         description: string;
         [key: string]: any;
     }>;
-    edges?: Array<{ source: string; target: string; label: string }>; // 🟢 NEW: Edges Support
+    edges?: Array<{ source: string; target: string; label: string }>;
     folderId: string;
-    subfolderName?: string; // Optional subfolder creation
-    autoMapRole?: string; // 🟢 NEW: Auto-Wiring Request
+    subfolderName?: string;
+    autoMapRole?: string;
     accessToken: string;
-    chatContext?: string; // The conversation history
+    chatContext?: string;
     projectId: string;
-    mode?: 'RIGOR' | 'ENTROPIA' | 'FUSION'; // 🟢 NEW
+    mode?: 'RIGOR' | 'ENTROPIA' | 'FUSION';
 }
 
 export const crystallizeGraph = onCall(
@@ -268,31 +269,23 @@ export const crystallizeGraph = onCall(
                     if (newFolder.data.id) {
                         targetFolderId = newFolder.data.id;
 
-                        // 🟢 AUTO-WIRING: If requested and new folder created, update Project Config
+                        // 🟢 AUTO-WIRING
                         if (autoMapRole) {
                             try {
                                 const folderMapping = projectConfig.folderMapping || {};
-
-                                // Only update if not already mapped
                                 if (!folderMapping[autoMapRole as any]) {
                                     folderMapping[autoMapRole as any] = targetFolderId;
-
                                     const canonPaths = projectConfig.canonPaths || [];
                                     if (!canonPaths.some(p => p.id === targetFolderId)) {
                                         canonPaths.push({ id: targetFolderId, name: subfolderName });
                                     }
-
                                     await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
                                         folderMapping,
                                         canonPaths,
                                         updatedAt: new Date().toISOString()
                                     }, { merge: true });
-
-                                    // 🟢 UPDATE LOCAL CONFIG STATE
                                     projectConfig.folderMapping = folderMapping;
                                     projectConfig.canonPaths = canonPaths;
-
-                                    logger.info(`🔗 Auto-Wired folder ${subfolderName} to role ${autoMapRole}`);
                                 }
                             } catch (configErr) {
                                 logger.error("Failed to auto-wire folder to project config:", configErr);
@@ -305,7 +298,7 @@ export const crystallizeGraph = onCall(
             }
         }
 
-        // 🟢 1. TRACE PATH ONCE (For Nexus Protocol - Default)
+        // 🟢 1. TRACE PATH ONCE
         let virtualPathRoot = "";
         try {
             virtualPathRoot = await resolveVirtualPath(drive, targetFolderId);
@@ -314,12 +307,9 @@ export const crystallizeGraph = onCall(
             virtualPathRoot = "Unknown_Graph_Path";
         }
 
-        // 🟢 JIT TAXONOMY PROVISIONING (The Missing Link)
-        // Ensure folders exist for all requested node types
+        // 🟢 JIT TAXONOMY PROVISIONING
         if (nodes.length > 0) {
             try {
-                // Determine Root Folder (Usually config.folderId or passed folderId if it is root)
-                // Use config.folderId if available as true root
                 const rootId = projectConfig.folderId || folderId;
                 projectConfig = await ensureProjectTaxonomy(nodes, projectConfig, userId, rootId, drive, db);
             } catch (jitErr) {
@@ -327,21 +317,18 @@ export const crystallizeGraph = onCall(
             }
         }
 
-        // 🟢 PRE-PROCESS RELATIONS (Edges)
+        // 🟢 PRE-PROCESS RELATIONS
         const relationsMap = new Map<string, any[]>();
         if (edges && Array.isArray(edges)) {
              edges.forEach(edge => {
                  if (!relationsMap.has(edge.source)) relationsMap.set(edge.source, []);
-
-                 // Lookup target in 'nodes' (New) or pass through ID (Existing)
                  const targetNode = nodes.find(n => n.id === edge.target);
-
                  relationsMap.get(edge.source)?.push({
                      targetId: edge.target,
                      targetName: targetNode?.name || "Unknown Entity",
                      targetType: targetNode?.type || "concept",
                      relation: edge.label || "NEUTRAL",
-                     context: edge.label || "Created by Builder" // 🟢 USE EDGE LABEL AS CONTEXT
+                     context: edge.label || "Created by Builder"
                  });
              });
         }
@@ -349,9 +336,9 @@ export const crystallizeGraph = onCall(
         let successCount = 0;
         let failCount = 0;
         const createdFiles: Array<{ id: string; name: string }> = [];
-        const failedFiles: Array<{ name: string; error: string }> = []; // 🟢 NEW
+        const failedFiles: Array<{ name: string; error: string }> = [];
 
-        // BATCH PROCESSING (3 at a time)
+        // BATCH PROCESSING
         const BATCH_SIZE = 3;
         for (let i = 0; i < nodes.length; i += BATCH_SIZE) {
             const batch = nodes.slice(i, i + BATCH_SIZE);
@@ -363,17 +350,13 @@ export const crystallizeGraph = onCall(
                     node.type = safeType;
 
                     // 🟢 INTELLIGENT ROUTING
-                    // Determine where THIS specific node belongs.
-                    // Fallback to targetFolderId (which might be the Auto-Provisioned one)
                     const specificFolderId = findIdealFolder(safeType, projectConfig) || targetFolderId;
-
-                    // Resolve Virtual Path for specific folder if different (Optional for pure tracing but good for DB)
                     let specificVirtualPath = virtualPathRoot;
                     if (specificFolderId !== targetFolderId) {
                          try { specificVirtualPath = await resolveVirtualPath(drive, specificFolderId); } catch(e) {}
                     }
 
-                    // 1. GENERATE CONTENT (AI) WITH MODE LOGIC
+                    // 1. GENERATE BODY CONTENT (AI)
                     const prompt = `
                         ACT AS: Expert Lore Writer & Archivist.
                         TASK: Create a comprehensive Markdown file for the entity "${node.name}" (${node.type}).
@@ -415,7 +398,6 @@ export const crystallizeGraph = onCall(
                     // 🟢 SAFETY NET: Infer description if missing
                     let finalDescription = node.description;
                     if (!finalDescription || finalDescription.trim() === "") {
-                         // Extract first paragraph or summary from generated body
                          const firstPara = bodyContent.split('\n').find(l => l.length > 50 && !l.startsWith('#')) || "Entity forged by The Builder.";
                          finalDescription = firstPara.substring(0, 200) + (firstPara.length > 200 ? "..." : "");
                     }
@@ -437,7 +419,7 @@ export const crystallizeGraph = onCall(
                         isUpdate = true;
                         existingData = entitySnap.data();
                     } else {
-                        // 🟢 ADOPTION PROTOCOL: Fallback search by Name (Prevent Duplicates)
+                        // 🟢 ADOPTION PROTOCOL
                         const fallbackQuery = await db.collection("users").doc(userId)
                             .collection("projects").doc(projectId)
                             .collection("entities")
@@ -449,7 +431,7 @@ export const crystallizeGraph = onCall(
                             const adoptedSnap = fallbackQuery.docs[0];
                             isUpdate = true;
                             existingData = adoptedSnap.data();
-                            node.id = adoptedSnap.id; // Correct the ID
+                            node.id = adoptedSnap.id;
                             logger.info(`🤝 Adopted existing entity by name: ${node.name} (${node.id})`);
                         }
                     }
@@ -458,7 +440,6 @@ export const crystallizeGraph = onCall(
                     let adoptedFileId: string | null = null;
 
                     // 🟢 GLOBAL DUPLICATE CHECK (TDB_Index)
-                    // If not found in Entities, check if the FILE exists anywhere in the project to prevent duplicates.
                     if (!isUpdate) {
                         try {
                             const globalQuery = await db.collection("TDB_Index").doc(userId)
@@ -469,7 +450,6 @@ export const crystallizeGraph = onCall(
 
                             if (!globalQuery.empty) {
                                 const globalData = globalQuery.docs[0].data();
-                                // Verify it's not a ghost? Or adopt ghosts too? Adopt ghosts.
                                 if (globalData.driveId) {
                                     adoptedFileId = globalData.driveId;
                                     logger.info(`🌍 Global Check: Found existing file for '${node.name}' at ${adoptedFileId}. Adopting.`);
@@ -483,11 +463,10 @@ export const crystallizeGraph = onCall(
                     const fullVirtualPath = `${specificVirtualPath}/${fileName}`;
                     const nexusId = isUpdate && existingData?.nexusId ? existingData.nexusId : crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
 
-                    // 🟢 PRE-CHECK: Duplicate File Name in Target Folder (Safety Net - Last Resort)
+                    // 🟢 PRE-CHECK: Duplicate File Name
                     if (!isUpdate && !adoptedFileId) {
                          try {
                             const duplicateCheck = await drive.files.list({
-                                // 🛡️ SECURITY: Escape specificFolderId and fileName
                                 q: `'${escapeDriveQuery(specificFolderId)}' in parents and name = '${escapeDriveQuery(fileName)}' and trashed = false`,
                                 fields: 'files(id)'
                             });
@@ -495,24 +474,19 @@ export const crystallizeGraph = onCall(
                                 adoptedFileId = duplicateCheck.data.files[0].id!;
                                 logger.info(`⚠️ Found existing file '${fileName}' in target folder. Adopting it instead of creating duplicate.`);
                             }
-                         } catch (e) {
-                             // Ignore check failure, proceed to create
-                         }
+                         } catch (e) { }
                     }
 
                     if ((isUpdate && existingData && existingData.masterFileId) || adoptedFileId) {
                          // 🟢 UPDATE EXISTING FILE (APPEND STRATEGY)
-                         // Use masterFileId if available, otherwise adoptedFileId from Drive
                          fileId = (isUpdate && existingData?.masterFileId) ? existingData.masterFileId : adoptedFileId!;
 
                          // 🟢 MOVEMENT PROTOCOL (EVOLUTION)
-                         // Run this for BOTH Updates AND Adoptions
                          if (fileId) {
                              try {
                                 const fileMeta = await drive.files.get({ fileId: fileId, fields: 'parents' });
                                 const currentParents = fileMeta.data.parents || [];
 
-                                // If not in the ideal folder, MOVE IT.
                                 if (!currentParents.includes(specificFolderId)) {
                                      await drive.files.update({
                                          fileId: fileId,
@@ -520,18 +494,14 @@ export const crystallizeGraph = onCall(
                                          removeParents: currentParents.join(',')
                                      });
                                      logger.info(`🚚 EVOLUTION: Moved entity ${node.name} from ${currentParents} to ${specificFolderId}`);
-
-                                     // 🟢 SYNC TREE (Fix UI Desync)
-                                     await updateFirestoreTree(userId, 'move', fileId, {
-                                         parentId: specificFolderId
-                                     });
+                                     await updateFirestoreTree(userId, 'move', fileId, { parentId: specificFolderId });
                                 }
                              } catch (moveErr) {
                                  logger.warn(`Failed to move entity ${node.name} during update`, moveErr);
                              }
                          }
 
-                         // 🟢 GHOST FILE RECOVERY (Fix Visibility)
+                         // 🟢 GHOST FILE RECOVERY
                          if (adoptedFileId && !isUpdate) {
                              await updateFirestoreTree(userId, 'add', adoptedFileId, {
                                 parentId: specificFolderId,
@@ -545,16 +515,30 @@ export const crystallizeGraph = onCall(
                              });
                          }
 
-                         // Fetch current content
+                         // Fetch and Append (Titanium Compliant)
                          try {
                             const currentFile = await drive.files.get({ fileId: fileId, alt: 'media' });
                             let currentContent = currentFile.data as string;
-
-                            // Check if valid content
                             if (typeof currentContent !== 'string') currentContent = "";
 
+                            const parsed = matter(currentContent);
+                            const currentFm = parsed.data || {};
+
                             const appendContent = `\n\n## 🏗️ The Builder Notes (${new Date().toLocaleDateString()})\n> ${mode} Protocol Expansion\n\n${bodyContent}`;
-                            const newFullContent = currentContent + appendContent;
+
+                            // Re-Forge through Titanium to ensure Schema/Anti-Makeup
+                            const entity: TitaniumEntity = {
+                                id: nexusId, // Enforce Nexus ID
+                                name: currentFm.name || node.name,
+                                traits: currentFm.traits || legacyTypeToTraits(currentFm.type || node.type || 'concept'),
+                                attributes: {
+                                    ...currentFm,
+                                    status: currentFm.status || 'active'
+                                },
+                                bodyContent: parsed.content + appendContent
+                            };
+
+                            const newFullContent = TitaniumFactory.forge(entity);
 
                             await drive.files.update({
                                 fileId: fileId,
@@ -565,48 +549,53 @@ export const crystallizeGraph = onCall(
                             });
                             logger.info(`✅ Appended content to existing file: ${fileName}`);
                          } catch (updateErr) {
-                             logger.warn(`⚠️ Failed to append to existing file ${fileName}, trying to create new version but keeping ID if possible? No, falling back to overwrite if critical.`, updateErr);
-                             // If fetch fails, we might not be able to append.
-                             // However, usually we should respect the existing file.
-                             // Let's assume if this fails, we treat it as an error or just proceed updating metadata.
+                             logger.warn(`⚠️ Failed to append to existing file ${fileName}`, updateErr);
                              throw new Error("Failed to update existing file content in Drive.");
                          }
 
                     } else {
-                        // 🟢 CREATE NEW FILE
-                        // 3. CONSTRUCT CONTENT (Unified Template)
-                        const finalContent = generateAnchorContent({
-                            id: nexusId, // Deterministic ID
+                        // 🟢 CREATE NEW FILE VIA TITANIUM FACTORY (Refactored)
+                        // 3. CONSTRUCT CONTENT (Titanium Forge)
+                        const traits = legacyTypeToTraits(node.type || 'concept');
+
+                        const entity: TitaniumEntity = {
+                            id: nexusId,
                             name: node.name,
-                            type: (node.type as any) || 'concept',
-                            role: node.type === 'character' ? (node.description || 'Character') : node.type,
-                            project_id: projectId,
-                            tags: [node.type || 'concept'], // 🟢 Fix Undefined Tag
-                            rawBodyContent: bodyContent // 🟢 Injected Body
-                        });
+                            traits: traits,
+                            attributes: {
+                                role: node.type === 'character' ? (node.description || 'Character') : node.type,
+                                project_id: projectId,
+                                tags: [node.type || 'concept'],
+                                tier: 'ANCHOR',
+                                status: 'active'
+                            },
+                            bodyContent: bodyContent // Generated by AI above
+                        };
+
+                        const finalContent = TitaniumFactory.forge(entity);
 
                         // 4. SAVE TO DRIVE
                         const file = await drive.files.create({
                             requestBody: {
-                            name: fileName,
-                            parents: [specificFolderId],
-                            mimeType: 'text/markdown'
-                        },
-                        media: {
-                            mimeType: 'text/markdown',
-                            body: finalContent
-                        },
-                        fields: 'id, name, webViewLink'
+                                name: fileName,
+                                parents: [specificFolderId],
+                                mimeType: 'text/markdown'
+                            },
+                            media: {
+                                mimeType: 'text/markdown',
+                                body: finalContent
+                            },
+                            fields: 'id, name, webViewLink'
                         });
 
                         if (!file.data.id) throw new Error("Drive File Creation Failed");
                         fileId = file.data.id;
 
-                        // 🟢 UPDATE TREE INDEX (Only for new files)
+                        // 🟢 UPDATE TREE INDEX
                         await updateFirestoreTree(userId, 'add', fileId, {
                             parentId: specificFolderId,
                             newNode: {
-                                id: nexusId, // Use nexusId as ID in tree usually.
+                                id: nexusId,
                                 name: fileName,
                                 mimeType: 'text/markdown',
                                 driveId: fileId,
@@ -616,46 +605,40 @@ export const crystallizeGraph = onCall(
                     }
 
                     if (fileId) {
-                        // 5. PRE-INJECT TDB_INDEX (Prevent Phantom Nodes)
-                        // Always update TDB Index for safety
+                        // 5. PRE-INJECT TDB_INDEX
                         await db.collection("TDB_Index").doc(userId).collection("files").doc(nexusId).set({
                             name: fileName,
                             path: fullVirtualPath,
                             driveId: fileId,
                             lastIndexed: new Date().toISOString(),
-                            contentHash: crypto.createHash('sha256').update(nexusId).digest('hex'), // Simplify hash update
+                            contentHash: crypto.createHash('sha256').update(nexusId).digest('hex'),
                             category: 'canon',
                             isGhost: false,
                             smartTags: ['CREATED_BY_BUILDER']
                         }, { merge: true });
 
-                        // 6. UPDATE ENTITIES GRAPH (Promote from Ghost or Merge)
-
+                        // 6. UPDATE ENTITIES GRAPH
                         const nodeRelations = relationsMap.get(node.id) || [];
-
-                        // Merge Relations Strategy
                         let finalRelations = nodeRelations;
                         if (isUpdate && existingData && Array.isArray(existingData.relations)) {
                              const existingRels = existingData.relations;
-                             // Filter out new ones that already exist (by targetId)
                              const newUnique = nodeRelations.filter(nr => !existingRels.some((er: any) => er.targetId === nr.targetId));
                              finalRelations = [...existingRels, ...newUnique];
                         }
 
-                        // PRESERVE TYPE if Existing
                         const finalType = (isUpdate && existingData?.type) ? existingData.type : (node.type || 'concept');
                         const finalDesc = (isUpdate && existingData?.description && existingData.description.length > 0) ? existingData.description : finalDescription;
 
                         await entityRef.set({
                             id: node.id,
                             name: node.name,
-                            type: finalType, // 🟢 PRESERVE TYPE
+                            type: finalType,
                             description: finalDesc,
                             isGhost: false,
                             isAnchor: true,
                             masterFileId: fileId,
-                            nexusId: nexusId, // Link to Deterministic ID
-                            relations: finalRelations, // 🟢 MERGED RELATIONS
+                            nexusId: nexusId,
+                            relations: finalRelations,
                             lastUpdated: new Date().toISOString()
                         }, { merge: true });
 
@@ -666,7 +649,6 @@ export const crystallizeGraph = onCall(
                 } catch (err: any) {
                     logger.error(`❌ Failed to crystallize node ${node.name}:`, err);
                     failCount++;
-                    // 🟢 CAPTURE SPECIFIC ERROR
                     let errMsg = err.message || "Unknown Error";
                     if (err.code === 403 || (err.errors && err.errors[0]?.reason === 'insufficientPermissions')) {
                         errMsg = "Permiso Denegado (Google Drive). Revisa tus credenciales.";
@@ -681,7 +663,7 @@ export const crystallizeGraph = onCall(
             created: successCount,
             failed: failCount,
             files: createdFiles,
-            errors: failedFiles // 🟢 RETURN ERRORS
+            errors: failedFiles
         };
     }
 );
@@ -691,8 +673,8 @@ interface ForgeCrystallizeRequest {
     name: string;
     role?: string;
     summary?: string;
-    chatNotes?: string; // Optional raw notes
-    folderId: string; // Vault Root
+    chatNotes?: string;
+    folderId: string;
     accessToken: string;
     attributes?: Record<string, any>;
     sagaId?: string;
@@ -756,17 +738,27 @@ export const crystallizeForgeEntity = onCall(
             const fullVirtualPath = `${folderPath}/${fileName}`;
             const nexusId = crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
 
-            // 3. GENERATE CONTENT (Unified Template)
-            const finalContent = generateAnchorContent({
+            // 3. TITANIUM FORGE (Refactored)
+            // Forge entities are by definition sentient/characters usually, but we can default to 'sentient'
+            // and let attributes define more.
+
+            const entity: TitaniumEntity = {
                 id: nexusId,
                 name: safeName,
-                type: 'character', // Default for Forge
-                role: role || 'Unknown',
-                tags: attributes?.tags,
-                avatar: attributes?.avatar,
-                rawBodyContent: rawBody,
-                project_id: sagaId
-            });
+                traits: ['sentient'], // Default for Forge
+                attributes: {
+                    role: role || 'Unknown',
+                    tags: attributes?.tags,
+                    avatar: attributes?.avatar,
+                    project_id: sagaId,
+                    status: 'active',
+                    tier: 'ANCHOR',
+                    ...attributes // Spread other custom attributes
+                },
+                bodyContent: rawBody
+            };
+
+            const finalContent = TitaniumFactory.forge(entity);
 
             // 4. SAVE TO DRIVE
             const file = await drive.files.create({
@@ -799,7 +791,7 @@ export const crystallizeForgeEntity = onCall(
                 smartTags: ['CREATED_BY_FORGE']
             });
 
-            // 6. CREATE ROSTER ENTRY (The Promotion)
+            // 6. CREATE ROSTER ENTRY
             const rosterId = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '-');
             const charRef = db.collection("users").doc(userId).collection("characters").doc(rosterId);
 
@@ -818,13 +810,13 @@ export const crystallizeForgeEntity = onCall(
                 nexusId: nexusId
             }, { merge: true });
 
-            // 7. UPDATE FORGE RADAR (The Cleanup)
+            // 7. UPDATE FORGE RADAR
             const radarRef = db.collection("users").doc(userId).collection("forge_detected_entities").doc(entityId);
 
             await radarRef.set({
-                tier: 'ANCHOR', // 🟢 VISUAL SHIFT
+                tier: 'ANCHOR',
                 driveId: newFileId,
-                status: 'ANCHOR', // Consistency
+                status: 'ANCHOR',
                 lastUpdated: new Date().toISOString()
             }, { merge: true });
 
