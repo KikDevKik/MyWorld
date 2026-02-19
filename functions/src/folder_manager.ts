@@ -173,6 +173,11 @@ export const createTitaniumStructure = onCall(
     const { accessToken, rootFolderId, newProjectName } = request.data;
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
+    // 🛡️ SENTINEL CHECK: Input Length (DoS Prevention)
+    if (newProjectName && newProjectName.length > MAX_FILENAME_LENGTH) {
+        throw new HttpsError("invalid-argument", `El nombre del proyecto excede el límite de ${MAX_FILENAME_LENGTH} caracteres.`);
+    }
+
     // We need either a rootFolderId OR a newProjectName to create one
     if (!rootFolderId && !newProjectName) {
         throw new HttpsError("invalid-argument", "Se requiere rootFolderId o newProjectName.");
@@ -582,7 +587,7 @@ export const getBatchDriveMetadata = onCall(
         }
 
         // Limit batch size
-        if (fileIds.length > 50) {
+        if (fileIds.length > MAX_BATCH_SIZE) {
              throw new HttpsError("invalid-argument", "Too many IDs.");
         }
 
