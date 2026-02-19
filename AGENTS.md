@@ -1,70 +1,102 @@
-# 🤖 AGENTS & ELITE TOOLS
+# 🤖 AGENTS & ELITE TOOLS (TITANIUM EDITION)
 
-This document describes the core AI agents and background processes that power **MyWorld**. These components work autonomously or semi-autonomously to ensure narrative consistency, manage data, and assist the user.
+> **SOVEREIGN SOURCE OF TRUTH**: This document bridges the raw implementation logic with the high-level personas. All coding agents must adhere to these definitions.
 
 ## 🛡️ The Director (Guardian)
 **Role:** Canon Custodian & Consistency Auditor
 **Location:** `functions/src/guardian.ts`
+**Core Logic:** `auditContent`, `scanProjectDrift`, `rescueEcho`
 **Description:**
-The Director (also known as The Guardian or Sentinel) is responsible for maintaining the integrity of the user's "Canon". It performs real-time audits of new content against the existing knowledge base (Vector Store).
-*   **Capabilities:**
-    *   **Fact Extraction:** Extracts verifiable facts, world laws, and character behaviors.
-    *   **Drift Detection:** Compares new content against the project's "Centroid" to detect thematic or stylistic drift.
-    *   **Resonance Check:** Identifies if the current draft connects to existing memory seeds (plot, vibe, lore).
-    *   **Conflict Resolution:** Flags contradictions (e.g., a dead character appearing alive) and "World Law" violations.
-    *   **Profile Analysis:** Updates character profiles based on new behavioral data.
+The Director (Sentinel) enforces the integrity of the "Canon". It uses a multi-layered audit system to detect contradictions and drift.
 
-## 🔗 The Nexus
-**Role:** Digestion System & Central Nervous System
-**Location:** `functions/src/ingestion.ts`, `functions/src/migration.ts`
-**Description:**
-The Nexus handles the ingestion, processing, and retrieval of all textual data. It is the bridge between the raw files in Google Drive and the structured Vector Search index in Firestore.
-*   **Capabilities:**
-    *   **Ingestion:** Vectorizes file content using Gemini Embeddings and stores it in Firestore (`TDB_Index`).
-    *   **Migration (Titanium):** Manages the "Baptism" protocol and `migrateDatabaseV1toV2`, flattening legacy JSON trees into scalable collections.
-    *   **Synchronization:** Ensures that the `files` collection in Firestore is always in sync with Google Drive state (Drive ID is King).
+### Sub-Modules:
+1.  **The Resonator (Memory Seeds):**
+    *   Identifies thematic connections (Plot, Vibe, Lore) by scanning vector chunks.
+    *   Ensures new content "rhymes" with existing canon.
+2.  **The Logic Auditor:**
+    *   Detects factual contradictions (e.g., a dead character speaking).
+    *   Flags temporal paradoxes.
+3.  **The Reality Filter:**
+    *   Enforces "World Laws" (Magic, Physics, Tech levels).
+    *   Blocks content that violates the established rules of the universe.
+4.  **El Hater (Character Critic):**
+    *   Ruthless analysis of character behavior against their "Hard Canon" profile.
+    *   Flags "Out of Character" (OOC) actions or dialogue.
 
-## 🔮 The Soul Sorter
-**Role:** Taxonomist & Entity Classifier
-**Location:** `functions/src/soul_sorter.ts`
+### Mechanics:
+*   **Canon Radar:** Calculates a `drift_score` by comparing new content vectors against the Project Centroid.
+*   **Drift Control:** Files exceeding a drift threshold (0.6) are flagged as `CRITICAL_INCOHERENCE`.
+*   **Rescue Echo:** Allows users to "rescue" a drifting chunk, marking the parent file as `CONFLICTING` but preserving the idea.
+
+## ⚖️ The Tribunal
+**Role:** Literary High Court
+**Location:** `functions/src/index.ts` (`summonTheTribunal`)
 **Description:**
-The Soul Sorter is an intelligent classification engine that analyzes entities and sorts them into the correct semantic categories (Character, Location, Faction, Object, Event, Lore, Concept). It prevents data chaos by ensuring every "Soul" (Entity) has a proper home.
+A panel of three distinct AI judges that critique a text based on the project's specific "Genre Awareness".
+
+### The Judges:
+1.  **The Architect (Logic & Structure):**
+    *   Focus: Pacing, plot holes, causality.
+    *   Voice: Cold, analytical, precise.
+2.  **The Bard (Aesthetics & Emotion):**
+    *   Focus: Prose quality, sensory details, emotional resonance.
+    *   Voice: Poetic, dramatic, flowery.
+3.  **The Hater (Market & Cynicism):**
+    *   Focus: Clichés, boredom, marketability, "cringe" factor.
+    *   Voice: Sarcastic, brutal, internet-slang heavy.
+
+## 🧠 The World Engine (Titan Link)
+**Role:** The Creative Core & Simulation Engine
+**Location:** `functions/src/index.ts` (`worldEngine`)
+**Description:**
+The central creative intelligence that powers "Chat with World" and deep simulations. It adapts its persona based on the requested **Chaos Level**.
+
+### Chaos Personas:
+*   **The Engineer (Low Chaos < 0.39):** Prioritizes hard consistency, causal chains, and strict magic systems.
+*   **The Architect (Mid Chaos < 0.60):** Balances structure with creativity. The "Visionary" mode.
+*   **The Dreamer (High Chaos > 0.60):** Prioritizes aesthetics, symbolism, and surprise. Breaks patterns.
+
+### Thought Protocol:
+*   **Thinking Block:** All World Engine responses MUST be preceded by a `<thinking>...</thinking>` block (hidden from user) where the AI performs structural analysis before generating the final output.
 
 ## ✍️ The Scribe (El Escriba)
-**Role:** Creative Engine & Ghostwriter
+**Role:** Ghostwriter & Content Generator
 **Location:** `functions/src/scribe.ts`
 **Description:**
-The Scribe is the primary generative agent for content creation. It assists the user in writing, expanding, and refining their world.
-*   **Personas:**
-    *   **El Escriba:** Creates new files (`.md`) from chat brainstorming sessions, synthesizing raw ideas into structured documents.
-    *   **El Tejedor (The Weaver):** Integrates suggested narrative prose seamlessly into the user's existing text.
-    *   **El Restaurador (The Smart Patch):** Intelligently merges new information into existing files without destroying context.
-    *   **El Guionista (The Guide):** Transforms narrative text into a step-by-step writing guide/outline.
+Generates prose and narrative content. It adheres to strict "Anti-Makeup" policies to prevent metadata hallucination.
 
-## 🧹 The Janitor (El Candado)
-**Role:** Concurrency Manager
-**Location:** `functions/src/janitor.ts`
-**Description:**
-The Janitor ensures data integrity during collaborative or multi-tab sessions. It manages file locks (`acquireLock`, `releaseLock`) to prevent race conditions where two processes might try to edit the same file simultaneously.
+### Key Policies:
+*   **Anti-Makeup:** The Scribe must NEVER invent metadata fields (e.g., `age: unknown`, `status: active`) if they are not explicitly in the source. Ghost metadata is pruned.
+*   **Instruction Leakage Prevention:**
+    *   **Negative Constraints:** Prompts must explicitly forbid the inclusion of system instructions (e.g., "Do not mention you are an AI", "Do not output XML tags in final text").
+    *   **Ignorance Selectiva:** If the AI hallucinates technical markers (like `-[TIMELINE]`), the system strips them before presentation.
 
-## 🌌 Genesis (The Architect)
-**Role:** World Builder & RAG Oracle
-**Location:** `functions/src/genesis.ts`
-**Description:**
-Genesis is the RAG (Retrieval-Augmented Generation) engine of MyWorld. It answers user questions by querying the vector database (`TDB_Index`) and synthesizing the results into coherent, canon-aware responses. It powers the "Chat with World" feature and the "Ask Genesis" tool.
-
-## 🧪 The Idea Laboratory (Muse)
-**Role:** Asset Management & Research Assistant
+## 🕯️ The Librarian (Muse)
+**Role:** Reference Analyst & Dot Connector
 **Location:** `functions/src/laboratory.ts`
 **Description:**
-The Laboratory is where "Reference" material (images, PDFs, links) is processed and converted into "Canon". It features a dedicated chat persona ("Muse") that helps the user research topics, analyze uploaded documents, and brainstorm ideas before they are crystallized into the main project.
+Manages the "Idea Laboratory". Its mission is to analyze uploaded references (PDFs, Images, Links) and connect them to the existing graph.
+*   **Capabilities:** `classifyResource`, `enrichCharacterContext` (Deep Dive).
 
-## 🔨 The Forge of Souls
-**Role:** Entity Generator & Character Architect
-**Location:** `src/components/forge/ForgeDashboard.tsx`, `functions/src/forge_chat.ts`
+## 🔮 Genesis (Protocol Genesis)
+**Role:** The Socratic Architect
+**Location:** `functions/src/genesis.ts`
 **Description:**
-The Forge is a specialized environment for creating and developing entities. It allows the user to:
-*   **Generate Ideas:** Spawn new characters, locations, or factions from scratch.
-*   **Detect Ghosts:** Identify mentioned entities in the text that don't have a file yet.
-*   **Evolve Entities:** Upgrade a "Ghost" (Idea) to a "Limbo" (Draft) and finally to an "Anchor" (Master File).
-*   **Bestiary Mode:** Specialized support for creating creatures and flora with unique metadata.
+The "Big Bang" engine. It materializes a full project structure (Folders, Files, Config) from a simple user prompt or "Spark".
+
+## ⚙️ Core Mechanics (System Level)
+
+### 👻 Ghost Mode
+*   **Definition:** A simulated environment (`VITE_JULES_MODE=true`) that allows testing the UI and core logic without a live Firebase/Auth connection.
+*   **Constraint:** Agents must handle missing `currentUser` gracefully in this mode (using mock tokens).
+
+### 📡 Canon Radar (Drift Detection)
+*   **Centroid:** A vector average of all "Canon" files in the project.
+*   **Drift Score:** `1.0 - cosineSimilarity(contentVector, centroidVector)`.
+*   **Thresholds:**
+    *   > 0.4: Warning (Drifting)
+    *   > 0.6: Critical (Incoherent)
+
+### ⚓ Titanium Factory
+*   **Strategy:** A unified service for entity creation.
+*   **Constraint:** All file creation (Characters, Locations) must go through the Factory to ensure proper metadata tagging and ID generation.
