@@ -697,6 +697,11 @@ export const scanProjectDrift = onCall(
         let count = 0;
         const CRITICAL_THRESHOLD = 0.7;
 
+        // ⚡ Bolt Optimization: Pre-compile Regex for O(1) matching vs O(N*M) loop
+        const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const safeCharNames = charNames.map(escapeRegExp);
+        const identityRegex = safeCharNames.length > 0 ? new RegExp(safeCharNames.join('|'), 'i') : null;
+
         for (const doc of chunksSnapshot.docs) {
             const data = doc.data();
             const embedding = data.embedding;
@@ -711,12 +716,17 @@ export const scanProjectDrift = onCall(
 
             if (driftScore > CRITICAL_THRESHOLD) {
                 // CLASSIFY
-                const textLower = (data.text || "").toLowerCase();
                 const pathLower = (data.path || "").toLowerCase();
                 let category = "uncategorized";
 
                 // Heuristic 1: Identity (Match Names or Path)
-                if ((data.category === 'character') || pathLower.includes("characters") || pathLower.includes("personajes") || charNames.some(n => textLower.includes(n))) {
+                // ⚡ Bolt Optimization: Use Regex instead of .toLowerCase() allocation + .includes loop
+                const isIdentityMatch = (data.category === 'character') ||
+                                      pathLower.includes("characters") ||
+                                      pathLower.includes("personajes") ||
+                                      (identityRegex ? identityRegex.test(data.text || "") : false);
+
+                if (isIdentityMatch) {
                     category = "identity";
                 }
                 // Heuristic 2: Geography (Path or keywords)
@@ -724,7 +734,7 @@ export const scanProjectDrift = onCall(
                     category = "geography";
                 }
                 // Heuristic 3: Continuity (Timeline, Dates)
-                else if ((data.category === 'timeline') || pathLower.includes("timeline") || /\b(year|año|era)\s+\d+/.test(textLower)) {
+                else if ((data.category === 'timeline') || pathLower.includes("timeline") || /\b(year|año|era)\s+\d+/i.test(data.text || "")) {
                     category = "continuity";
                 }
 
