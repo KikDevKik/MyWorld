@@ -9,44 +9,11 @@ import { cosineSimilarity } from "./similarity";
 import { TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";
 import { getAIKey } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
+import { parseSecureJSON } from "./utils/json";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
 const MAX_SCAN_LIMIT = 10000; // 🛡️ SENTINEL: Optimized for Multigenerational Sagas (Node.js Gen2)
-
-// Helper: JSON Sanitizer (Simplified for Guardian)
-function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
-  try {
-    let clean = jsonString.trim();
-    // Remove Markdown code fences
-    clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
-
-    // Extract JSON Object/Array
-    const firstBrace = clean.indexOf('{');
-    const firstBracket = clean.indexOf('[');
-
-    let start = -1;
-    let end = -1;
-
-    // Auto-detect object vs array
-    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-        start = firstBrace;
-        end = clean.lastIndexOf('}');
-    } else if (firstBracket !== -1) {
-        start = firstBracket;
-        end = clean.lastIndexOf(']');
-    }
-
-    if (start !== -1 && end !== -1) {
-       clean = clean.substring(start, end + 1);
-    }
-
-    return JSON.parse(clean);
-  } catch (error: any) {
-    logger.error(`💥 [JSON PARSE ERROR] in ${contextLabel}:`, error);
-    return { error: "JSON_PARSE_FAILED", details: error.message };
-  }
-}
 
 export const auditContent = onCall(
   {
