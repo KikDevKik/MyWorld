@@ -3,6 +3,9 @@ import * as d3Force from 'd3-force';
 import { VisualNode, VisualEdge } from './types';
 import EntityCard from './EntityCard';
 
+// optimization: stable callback for memoized children
+const NO_OP = () => {};
+
 interface GhostGraphProps {
     nodes: VisualNode[];
     edges: VisualEdge[];
@@ -18,24 +21,25 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
     const nodeEls = useRef<Map<string, HTMLElement | null>>(new Map());
     const edgeEls = useRef<Map<string, SVGLineElement | null>>(new Map());
 
-    // 1. Sync Nodes & Edges & Initialize Positions
+    // 1. Sync Nodes & Edges & Initialize Positions (Optimized O(N))
     useEffect(() => {
-        // Simple merge strategy: If node exists in current simNodes, keep its x/y
-        // Otherwise initialize near center.
-        const mergedNodes = nodes.map(n => {
-            const existing = simNodes.find(sn => sn.id === n.id);
-            return {
-                ...n,
-                x: existing?.x || n.x || dimensions.width / 2 + (Math.random() - 0.5) * 50,
-                y: existing?.y || n.y || dimensions.height / 2 + (Math.random() - 0.5) * 50
-            };
+        // Use functional update to access latest simNodes without dependency cycle
+        setSimNodes(prevSimNodes => {
+            // Create O(1) lookup map for existing positions to avoid O(N^2) complexity
+            const existingMap = new Map(prevSimNodes.map(n => [n.id, n]));
+
+            return nodes.map(n => {
+                const existing = existingMap.get(n.id);
+                return {
+                    ...n,
+                    x: existing?.x || n.x || dimensions.width / 2 + (Math.random() - 0.5) * 50,
+                    y: existing?.y || n.y || dimensions.height / 2 + (Math.random() - 0.5) * 50
+                };
+            });
         });
 
-        const mergedEdges = edges.map(e => ({ ...e }));
-
-        setSimNodes(mergedNodes);
-        setSimEdges(mergedEdges);
-    }, [nodes, edges, dimensions.width, dimensions.height]); // Depend on width/height specifically to avoid loop if object ref changes
+        setSimEdges(edges.map(e => ({ ...e })));
+    }, [nodes, edges, dimensions.width, dimensions.height]);
 
     // 2. Measure Container
     useEffect(() => {
@@ -172,8 +176,8 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
                     <EntityCard
                         node={node}
                         lodTier="MICRO"
-                        setHoveredNodeId={() => {}}
-                        onClick={() => {}}
+                        setHoveredNodeId={NO_OP}
+                        onClick={NO_OP}
                         variant={node.isAnchor ? 'anchor' : 'performance'}
                     />
                 </div>

@@ -13,3 +13,7 @@
 ## 2026-02-07 - [O(N) Hover Re-renders in LinksOverlay]
 **Learning:** Found that hovering a single node in `LinksOverlayV2` triggered a re-render of ALL `Xarrow` components (O(N)) because the `map` loop created new object references (`labels`, `passProps`) for every child on every parent render.
 **Action:** Extracted `LinkItem` as a memoized component. Passed `isFocused` as a boolean prop. This ensures only the relevant links re-render when hover state changes, reducing complexity to O(K) (neighbors) or O(1).
+
+## 2026-02-07 - [O(N^2) Prop Merge in GhostGraph]
+**Learning:** Found O(N^2) complexity in `GhostGraph.tsx` where `useEffect` mapped new nodes against old state using `.find()`. This blocked the main thread during large graph updates. Replaced with `Map` for O(N) performance. Also found `React.memo` on `EntityCard` was broken by inline `onClick` handlers.
+**Action:** When merging props into local state (for physics/animation), always use a `Map` for ID lookups and ensure callbacks passed to memoized children are stable constants or `useCallback` hooks.
