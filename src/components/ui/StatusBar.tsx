@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle, Loader2, Pause, Square, Play } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
@@ -47,6 +47,19 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
     const [prevWordCount, setPrevWordCount] = useState(() => countWords(content));
 
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const settingsButtonRef = useRef<HTMLButtonElement>(null);
+    const isFirstRun = useRef(true);
+
+    // 🟢 PALETTE: Restore focus to settings button when popover closes
+    useEffect(() => {
+        if (isFirstRun.current) {
+            isFirstRun.current = false;
+            return;
+        }
+        if (!isSettingsOpen) {
+            settingsButtonRef.current?.focus();
+        }
+    }, [isSettingsOpen]);
 
     // 🟢 INITIALIZE & LOAD DATA
     useEffect(() => {
@@ -191,19 +204,21 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 <div className="h-3 w-px bg-titanium-800 mx-1" />
 
                 <div
-                    className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help"
+                    className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help focus-visible:ring-2 focus-visible:ring-emerald-500/50 outline-none rounded px-1"
                     title={`${t.words}: ${wordCount.toLocaleString()}`}
                     role="status"
                     aria-label={`${wordCount.toLocaleString()} ${t.words}`}
+                    tabIndex={0}
                 >
                     <Type size={12} aria-hidden="true" />
                     <span>{wordCount.toLocaleString()} {t.words}</span>
                 </div>
                 <div
-                    className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help"
+                    className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help focus-visible:ring-2 focus-visible:ring-emerald-500/50 outline-none rounded px-1"
                     title={`${t.minutes}: ~${readingTime}`}
                     role="status"
                     aria-label={`${readingTime} ${t.minutes}`}
+                    tabIndex={0}
                 >
                     <Clock size={12} aria-hidden="true" />
                     <span>~{readingTime} {t.minutes}</span>
@@ -286,8 +301,9 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 </div>
 
                 <button
+                    ref={settingsButtonRef}
                     onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-                    className="p-1 hover:bg-titanium-800 rounded text-titanium-500 hover:text-white transition-colors"
+                    className="p-1 hover:bg-titanium-800 rounded text-titanium-500 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500/50 outline-none"
                     title={t.tooltipSettings}
                     aria-label={t.tooltipSettings}
                     aria-expanded={isSettingsOpen}
