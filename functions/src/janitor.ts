@@ -64,13 +64,22 @@ export const scanVaultHealth = onCall(
     logger.info(`🧹 [JANITOR] Iniciando escaneo de salud para: ${folderId}`);
 
     try {
-        // 🟢 MODO ROBOT: SERVICE ACCOUNT AUTH (Application Default Credentials)
-        // This ensures the "Janitor" process works independently of the user session,
-        // provided the user has shared the folder with the Service Account email.
-        const auth = new google.auth.GoogleAuth({
-            scopes: ['https://www.googleapis.com/auth/drive']
-        });
-        const drive = google.drive({ version: "v3", auth });
+        // 🟢 IDOR FIX: STRICT USER AUTH (AccessToken)
+        // We enforce the user's accessToken to ensure the scan respects their Drive permissions.
+        // The Service Account (Robot Mode) is disabled here to prevent IDOR via project_config manipulation.
+
+        // Extract accessToken from request manually since it wasn't destructured initially
+        const accessToken = request.data.accessToken;
+
+        if (!accessToken) {
+            throw new HttpsError("unauthenticated", "Falta accessToken. El escaneo requiere credenciales de usuario para verificar permisos.");
+        }
+
+        const authClient = new google.auth.OAuth2();
+        authClient.setCredentials({ access_token: accessToken });
+        logger.info("🔑 [JANITOR] Using User Access Token for Drive Scan.");
+
+        const drive = google.drive({ version: "v3", auth: authClient });
 
         // 1. QUERY DRIVE
         // Criteria: Not Trashed, Not Folder, Size < 10 bytes.
