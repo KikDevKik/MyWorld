@@ -111,6 +111,20 @@ export function isSafeUrl(url: string): boolean {
 }
 
 /**
+ * 🛡️ SENTINEL: Escape Prompt Variable
+ * Escapes double quotes and backslashes in user input to prevent prompt injection
+ * when interpolating variables into AI prompts.
+ *
+ * @param input The user input string
+ * @returns The escaped string
+ */
+export function escapePromptVariable(input: string | undefined | null): string {
+    if (!input) return "";
+    // Replace backslash first, then double quotes
+    return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
  * 🛡️ SENTINEL: Safe DNS Lookup
  * Resolves hostname to IP and blocks private IPs immediately.
  * Used by safeFetch to prevent DNS Rebinding (TOCTOU).
