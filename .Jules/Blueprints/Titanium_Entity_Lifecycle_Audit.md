@@ -1,113 +1,143 @@
-# Auditoría del Ciclo de Vida de Entidades Titanium
+# 🏗️ PLANO MAESTRO: Refactorización del Ciclo de Vida de Entidades (Proyecto Titanium)
 
-**Estado:** Borrador
-**Arquitecto:** Jules
-**Fecha:** 2024-05-22
-
----
-
-## 🏗️ Fase 1: Auditoría Sistémica Profunda (Hallazgos)
-
-### 1. Puntos de Entrada de Creación (Fuente de Entropía)
-*   **`scribeCreateFile` (functions/src/scribe.ts):** Utiliza `TitaniumFactory.forge`, pero depende de `legacyTypeToTraits` para mapear tipos heredados (`character`, `location`) a rasgos. Por defecto asigna `role` como "Entidad Registrada" y `tier` como "ANCHOR". El prompt de "Inferencia" solicita explícitamente tipos heredados, reforzando el viejo esquema.
-*   **`crystallizeGraph` (functions/src/crystallization.ts):** Utiliza `TitaniumFactory.forge`, pero inyecta tipos estáticos basados en los nodos del grafo (que a menudo son heredados).
-*   **`genesisManifest` (functions/src/genesis.ts):** Utiliza `TitaniumFactory.forge`, estandarizando efectivamente la creación, pero hereda el `type` legado pasado desde el asistente (wizard).
-*   **`forgeToolExecution` (en `forge_chat.ts`):** Utiliza herramientas como `consult_archives` que dependen de búsquedas vectoriales sobre `chunks`. No crea archivos directamente, pero consume datos fragmentados que carecen de contexto ontológico si no está presente en el cuerpo del texto.
-
-### 2. La Lógica de Parcheo (Mutación)
-*   **`scribePatchFile` (functions/src/scribe.ts):** Respeta `TitaniumFactory.forge` para regenerar el archivo. Sin embargo, su lógica "Smart-Sync" depende de `extractMetadataFromBody`, que solo analiza `H1 (# Nombre)` y `Blockquote (> *Rol*)`. Ignora secciones funcionales como `### 🏛️ Lore` o `### 📍 Coordenadas`, lo que lleva a pérdida de datos si la IA actualiza el cuerpo pero no el Frontmatter.
-*   **Mecanismo de Debounce:** Utiliza `last_titanium_sync` (debounce de 5000ms) para prevenir bucles infinitos, lo cual es robusto.
-
-### 3. Consumo de Datos (Datos Fantasma)
-*   **`janitor.ts` (El Centinela):** La función `scanVaultHealth` ignora los metadatos (solo verifica el tamaño del archivo). Sin embargo, `scanProjectDrift` depende de `data.category === 'character'`.
-*   **`guardian.ts` (El Director):** La función `auditContent` extrae entidades usando tipos estáticos hardcodeados (`character`, `location`). Consume `chunks` de Firestore.
-*   **`ingestion.ts` (El Sistema Digestivo):** Este es el punto crítico de fallo. Establece `category: file.category || 'canon'`. *No* extrae el Tipo de Entidad del contenido o metadatos del archivo. Esto causa que `scanProjectDrift` (que busca `category: 'character'`) falle o dependa de coincidencias de ruta frágiles (`path.includes('personajes')`).
-*   **`forge_chat.ts` (RAG):** La herramienta `consult_archives` realiza una búsqueda vectorial en `chunks`. Ignora los metadatos del Frontmatter a menos que también estén presentes en el cuerpo del texto. Esto confirma que campos como `age`, `status`, `aka` en el Frontmatter son "Datos Fantasma" para la tubería RAG.
+**Estado:** BORRADOR DE ARQUITECTURA
+**Fecha:** 24 de Octubre, 2023
+**Autor:** The Chief Architect (Simulado)
+**Objetivo:** Transición de "Cabeceras Cosméticas" a "Ontología Funcional".
 
 ---
 
-## 🏛️ Fase 2: El Blueprint Unificado
+## 🔍 FASE 1: EL DIAGNÓSTICO PROFUNDO (Trace-to-Root)
 
-### 1. La Interfaz Universal de Entidad (Ontología Funcional)
-Nos movemos de **Tipos Estáticos** (`type: character`) a **Rasgos Dinámicos** (`traits: ['sentient', 'faction']`).
+Hemos auditado los vectores de entrada y consumo de datos en el sistema actual. La conclusión es que sufrimos de una **"Disonancia Estructural"**: El sistema *cree* que opera con tipos legados (`type: character`), pero *intenta* simular modernidad mediante adaptadores frágiles.
+
+### 1. Auditoría de Puntos de Creación (`scribe.ts`, `genesis.ts`)
+*   **La Ilusión de la Inferencia (`scribeCreateFile`):**
+    *   El sistema actual gasta tokens infiriendo un `type` legado (String) mediante `smartGenerateContent` (Líneas 124-173 de `scribe.ts`).
+    *   Luego, *inmediatamente* convierte ese String en Traits usando `legacyTypeToTraits` (Línea 217).
+    *   **Fallo:** Perdemos matices. Si la IA detecta "Barco Viviente", lo colapsa a "Vehículo" o "Personaje", perdiendo la dualidad `['vehicle', 'sentient']`.
+*   **Plantillas Rígidas (`genesisManifest`):**
+    *   El Protocolo Génesis inyecta metadatos "Fantasma" por defecto: `age: "Desconocida"`, `role: "NPC"`.
+    *   Esto viola el principio de "Señal sobre Ruido". Estos campos ocupan espacio en el Context Window del Director sin aportar valor narrativo.
+
+### 2. La Lógica de Parcheo (`scribePatchFile`)
+*   **Sincronización Ciega:**
+    *   El `scribePatchFile` actual (Líneas 433+) detecta cambios en el Body, pero su lógica de reconciliación es superficial (`name` y `role`).
+    *   No actualiza la Ontología. Si el usuario escribe en el texto "El personaje murió", el metadato `status: active` permanece inmutable porque el parser no entiende eventos, solo cadenas de texto.
+
+### 3. Consumo de Datos (RAG & Director)
+*   **Ceguera de Metadatos:**
+    *   `ingestFile` indexa el *texto completo*. Los metadatos YAML se indexan como texto plano.
+    *   La IA no distingue entre `role: Protagonista` (Meta) y "El rol del personaje..." (Texto).
+    *   **Bloat:** Estamos enviando `age: unknown` miles de veces en los vectores, diluyendo la relevancia semántica.
+
+---
+
+## 🏛️ FASE 2: LA NUEVA ARQUITECTURA (Functional Ontology)
+
+Proponemos un sistema unificado basado en **CAPACIDADES (Traits)** y no en **ETIQUETAS (Types)**.
+
+### 1. La Interfaz Universal de Entidad (TypeScript)
 
 ```typescript
-// Definición Propuesta
-export type EntityTrait =
-    | 'sentient'   // Tiene agencia, psicología, diálogo
-    | 'location'   // Tiene coordenadas, atmósfera, detalles sensoriales
-    | 'artifact'   // Tiene utilidad, origen, mecánicas
-    | 'event'      // Tiene línea temporal, participantes, consecuencias
-    | 'faction'    // Tiene ideología, miembros, influencia
-    | 'concept'    // Tiene definición, reglas, filosofía
-    | 'hub'        // Es un contenedor para otras entidades (ej. Carpeta/Mapa)
+// .Jules/Blueprints/schemas/UniversalEntity.ts
 
-export interface TitaniumEntity {
-    id: string;          // ID Nexus
-    name: string;        // Nombre Canónico
-    traits: EntityTrait[]; // ONTOLOGÍA FUNCIONAL
-    attributes: {
-        role: string;       // "Protagonista", "Capital" (Solo visualización)
-        aliases: string[];  // Para coincidencia RAG
-        tags: string[];     // Taxonomía definida por usuario
-        [key: string]: any; // Flexible para datos específicos de rasgos
-    };
-    bodyContent: string; // La Verdad Soberana
+export type EntityTrait =
+  | 'sentient'    // Tiene agencia, psicología, diálogo.
+  | 'mobile'      // Puede cambiar de coordenadas.
+  | 'locative'    // Puede contener otras entidades (es un lugar).
+  | 'item'        // Puede ser poseído/inventariado.
+  | 'temporal'    // Tiene fecha de inicio/fin (Eventos).
+  | 'conceptual'; // Leyes, Lore, Magia.
+
+export interface FunctionalAttributes {
+  // Solo almacenamos lo que AFECTA a la simulación o narrativa.
+  coordinates?: { x: number, y: number, mapId: string }; // Si tiene trait 'mobile' o 'locative'
+  inventory?: string[]; // Si tiene trait 'item' o 'sentient'
+  factions?: string[];  // Alineamiento político
+  aliases?: string[];   // Para reconocimiento de entidades (NER)
+}
+
+export interface TitaniumEntityV2 {
+  id: string;          // Nexus ID
+  name: string;        // Canonical Name
+  traits: EntityTrait[];
+  attributes: FunctionalAttributes;
+  // Nota: Eliminamos 'role', 'age', 'status' como campos de primer nivel.
+  // Se mueven a 'bodyContent' o se infieren del contexto.
+  bodyContent: string;
 }
 ```
 
-### 2. El Parser "Smart-Sync" (Middleware)
-Un motor de sincronización bidireccional que trata el Cuerpo Markdown como la Fuente de Verdad para datos *narrativos*, y el Frontmatter para datos del *sistema*.
+### 2. El Middleware "Smart-Sync" 3.0 (El Intérprete)
 
-*   **Lógica:**
-    1.  **Parsear AST del Cuerpo:** Extraer `H1` (Nombre), `> *Rol*`, `### 📍 Coordenadas`, `### 🏛️ Lore`.
-    2.  **Comparar:** Verificar contra el Frontmatter.
-    3.  **Sincronizar:** Si el Cuerpo cambió, actualizar Frontmatter. Si el Frontmatter cambió (vía UI), actualizar Cuerpo (reinyectar en plantilla).
-    4.  **Podar:** Eliminar cualquier campo del Frontmatter no presente en el Cuerpo o en la lista de "Campos de Sistema Permitidos".
+Un nuevo módulo en `functions/src/services/synapse.ts` que se ejecuta *antes* de `TitaniumFactory`.
 
-### 3. Poda de Metadatos (La Purga)
-Los siguientes campos proveen **Cero Señal** a la tubería actual de RAG/Director y deben ser purgados:
+*   **Input:** Texto Markdown Crudo (editado por humano o IA).
+*   **Proceso:**
+    1.  **Extracción AST:** Analiza headers funcionales.
+        *   `## 📍 Coordenadas` -> Detecta Trait `locative` + Atributo `coordinates`.
+        *   `## 🎒 Inventario` -> Detecta Atributo `inventory`.
+        *   `> *Muerto*` (Blockquote) -> Detecta Estado.
+    2.  **Inferencia de Traits:** Si el texto menciona "habló con...", infiere Trait `sentient`.
+    3.  **Normalización:** Elimina claves YAML prohibidas (`type`, `class`).
+*   **Output:** Objeto `TitaniumEntityV2` limpio para la Forja.
 
-*   `age` (a menos que sea parte de un rasgo 'timeline')
-*   `status` (el defecto siempre es 'active')
-*   `tier` (el defecto siempre es 'ANCHOR' o 'canon')
-*   `aka` (redundante con `aliases`)
-*   `appearance` (debe estar en el Cuerpo)
-*   `personality` (debe estar en el Cuerpo)
-*   `history` (debe estar en el Cuerpo)
+### 3. Política de Poda de Metadatos (Metadata Pruning)
 
-**Campos de Sistema Permitidos:**
-*   `id` (ID Nexus)
-*   `traits` (La Ontología)
-*   `tags` (Taxonomía de Usuario)
-*   `last_titanium_sync` (Sistema)
-*   `created_at` (Sistema)
+Lista negra definitiva para `TitaniumFactory`:
 
-### 4. Estandarización Cruzada de Herramientas
-*   **`TitaniumFactory.forge`** se convierte en el **único** método permitido para generar contenido de archivo.
-*   **`ingestion.ts`** debe ser refactorizado para extraer `traits` del contenido/metadatos del archivo y almacenarlos en los `chunks` (ej. `traits: ['sentient']`) en lugar de la ambigua `category`.
-*   **`scanProjectDrift`** debe consultar el array `traits` (ej. `traits array-contains 'sentient'`) en lugar de `category == 'character'`.
+*   ❌ `age`: Mover al cuerpo del texto (`## Biografía`).
+*   ❌ `gender`: Mover al cuerpo del texto.
+*   ❌ `status`: Inferir de tags o cuerpo. Solo guardar si es crítico (`DECEASED`).
+*   ❌ `role`: Reemplazar por `tags: ['protagonist']` o `tier: 'MAIN'`.
+*   ❌ `type`: **ELIMINADO TOTALMENTE**. Reemplazado por `traits`.
 
-### 5. Áreas Soberanas Humanas
-Se prohíbe a la IA auto-formatear o "corregir":
-*   **Bloques de Diálogo:** Texto entre "comillas".
-*   **Clases CSS Personalizadas:** Cualquier etiqueta HTML/JSX.
-*   **Bloques de Código:** Contenido dentro de \`\`\`.
+### 4. Estandarización de Herramientas
+
+*   **La Forja (Soul Sorter):** Dejará de buscar `type: character`. Buscará `traits` que incluyan `sentient`.
+*   **Génesis:** Usará el `Smart-Sync` para generar el archivo. En lugar de plantillas fijas, generará un borrador de texto y dejará que el `Smart-Sync` derive los traits.
+
+### 5. Áreas Soberanas Humanas (DO NOT TOUCH)
+
+La IA tendrá prohibido modificar bloques delimitados por:
+
+```markdown
+<!-- HUMAN_ONLY_START -->
+...contenido...
+<!-- HUMAN_ONLY_END -->
+```
+Y por defecto, el bloque `## 📝 Notas` será considerado sagrado/soberano salvo instrucción explícita.
 
 ---
 
-## 🧱 Fase 3: Mitigación de Deuda Técnica
+## 🛡️ FASE 3: ESCUDO DE COHESIÓN (Impacto Cruzado)
 
-### 1. Colisión de Esquema (La Crisis de "Category")
-*   **Problema:** `ingestion.ts` usa `category` para denotar **Nivel** (Canon/Referencia), mientras que `janitor.ts` lo usa para denotar **Tipo** (Personaje/Lugar).
-*   **Solución:** Dividir en dos campos distintos en los `chunks` de Firestore:
-    *   `tier`: 'CANON' | 'REFERENCE' | 'ARCHIVE'
-    *   `traits`: ['sentient', 'location', ...]
+### 🛑 Riesgos Detectados
 
-### 2. Condiciones de Carrera (Race Conditions)
-*   **`scribePatchFile` vs `ingestion`:** `scribePatchFile` actualiza Drive, lo que dispara una notificación push o sondeo (si está implementado). Actualmente, `scribePatchFile` también llama manualmente a `ingestFile` ("Fire & Forget"). Si el observador estándar de Drive también dispara la ingestión, tenemos una carrera de doble escritura.
-    *   **Mitigación:** `scribePatchFile` debería confiar en el disparador central de `ingestion` si es posible, o `ingestion` debería usar `contentHash` (lo cual ya hace) para saltar duplicados de manera idempotente.
+1.  **Ruptura de `classifyEntities` (`soul_sorter.ts`):**
+    *   *Riesgo Crítico:* La función actual depende fuertemente de `parsed.data.role` y `parsed.data.type` para clasificar entidades como ANCHOR.
+    *   *Solución:* Actualizar `identifyEntities` para leer `parsed.data.traits`. Si `traits` incluye `sentient`, clasificar como PERSONA.
+    *   *Migración:* Mantener un "Legacy Fallback" en lectura durante 30 días.
 
-### 3. Dependencia Circular
-*   **`TitaniumFactory` depende de `legacy_adapter`:** Esto nos impide deprecar completamente los tipos viejos.
-    *   **Mitigación:** En la Fase 4 (Migración), debemos ejecutar un script de migración "Big Bang" para convertir todos los archivos existentes a `traits`, y luego eliminar el adaptador.
+2.  **Índices de Firestore (`TDB_Index`):**
+    *   *Riesgo:* Las consultas actuales filtran por `category` (que viene de `type`).
+    *   *Solución:* Necesitamos una migración de base de datos para añadir el campo `traits` (Array) a los documentos de Firestore y crear índices `array-contains`.
+
+3.  **Race Conditions en `onSnapshot`:**
+    *   Si el `Smart-Sync` actualiza el YAML al mismo tiempo que el usuario edita el Markdown en el Frontend, el editor podría "saltar" o revertir cambios.
+    *   *Mitigación:* Implementar bloqueo optimista (`last_titanium_sync` timestamp) y asegurar que el Frontend ignore actualizaciones que vengan del backend si el usuario tiene el foco ("Local Authority wins").
+
+---
+
+## 🚀 SIGUIENTES PASOS (Ejecución)
+
+1.  Crear `functions/src/services/synapse.ts` (Smart-Sync Logic).
+2.  Refactorizar `TitaniumFactory` para implementar `TitaniumEntityV2`.
+3.  Actualizar `scribe.ts` para usar `synapse.ts`.
+4.  Actualizar `soul_sorter.ts` para leer `traits`.
+5.  Ejecutar script de migración masiva en lotes de 50 archivos.
+
+**Firma:**
+*The Chief Architect*
+*Project Titanium*
