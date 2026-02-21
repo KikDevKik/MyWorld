@@ -2,7 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles, Trash2 } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -70,13 +70,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     onStartTutorial, // 🟢 Destructure
 }) => {
     // STATE
-    const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
 
     // 🟢 NEW: SPLIT TREE STATE
-    const [canonNodes, setCanonNodes] = useState<FileNode[]>([]);
-    const [resourceNodes, setResourceNodes] = useState<FileNode[]>([]);
-    const [unassignedNodes, setUnassignedNodes] = useState<FileNode[]>([]);
     const [isCanonOpen, setIsCanonOpen] = useState(true);
     const [isResourcesOpen, setIsResourcesOpen] = useState(true);
 
@@ -180,49 +176,55 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     }, [isSecurityReady]);
 
 
-    // 🟢 UPDATE TREE SPLIT LOGIC
-    useEffect(() => {
-        if (!fileTree) {
-            setTopLevelFolders([]);
-            setCanonNodes([]);
-            setResourceNodes([]);
-            setUnassignedNodes([]);
-            return;
+    // 🟢 OPTIMIZED TREE SPLIT LOGIC (useMemo)
+    const { topLevelFolders, canonNodes, resourceNodes, unassignedNodes } = useMemo(() => {
+        if (!fileTree || !Array.isArray(fileTree)) {
+            return {
+                topLevelFolders: [],
+                canonNodes: [],
+                resourceNodes: [],
+                unassignedNodes: []
+            };
         }
 
-        if (Array.isArray(fileTree)) {
-            // 1. Saga Selector (Raw Folders)
-            const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
-            setTopLevelFolders(folders);
+        // 1. Saga Selector (Raw Folders)
+        const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
 
-            // 2. Split Logic (Canon vs Resources)
-            if (config) {
-                const canonIds = new Set(config.canonPaths?.map(p => p.id) || []);
-                const resourceIds = new Set(config.resourcePaths?.map(p => p.id) || []);
+        // 2. Split Logic (Canon vs Resources)
+        if (config) {
+            const canonIds = new Set(config.canonPaths?.map(p => p.id) || []);
+            const resourceIds = new Set(config.resourcePaths?.map(p => p.id) || []);
 
-                const cNodes: FileNode[] = [];
-                const rNodes: FileNode[] = [];
-                const uNodes: FileNode[] = [];
+            const cNodes: FileNode[] = [];
+            const rNodes: FileNode[] = [];
+            const uNodes: FileNode[] = [];
 
-                fileTree.forEach(node => {
-                    // Check ID (Shortcut ID from config)
-                    // Note: node.id is the Original ID (Shortcut ID) as per backend update.
-                    if (canonIds.has(node.id)) {
-                        cNodes.push(node);
-                    } else if (resourceIds.has(node.id)) {
-                        rNodes.push(node);
-                    } else {
-                        uNodes.push(node);
-                    }
-                });
+            fileTree.forEach(node => {
+                // Check ID (Shortcut ID from config)
+                // Note: node.id is the Original ID (Shortcut ID) as per backend update.
+                if (canonIds.has(node.id)) {
+                    cNodes.push(node);
+                } else if (resourceIds.has(node.id)) {
+                    rNodes.push(node);
+                } else {
+                    uNodes.push(node);
+                }
+            });
 
-                setCanonNodes(cNodes);
-                setResourceNodes(rNodes);
-                setUnassignedNodes(uNodes);
-            } else {
-                // Fallback if config not loaded yet
-                setUnassignedNodes(fileTree);
-            }
+            return {
+                topLevelFolders: folders,
+                canonNodes: cNodes,
+                resourceNodes: rNodes,
+                unassignedNodes: uNodes
+            };
+        } else {
+            // Fallback if config not loaded yet
+            return {
+                topLevelFolders: folders,
+                canonNodes: [],
+                resourceNodes: [],
+                unassignedNodes: fileTree
+            };
         }
     }, [fileTree, config]);
 
