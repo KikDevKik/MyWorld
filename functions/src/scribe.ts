@@ -16,11 +16,35 @@ import { smartGenerateContent } from "./utils/smart_generate";
 import { getAIKey } from "./utils/security";
 import { TitaniumFactory } from "./services/factory";
 import { TitaniumEntity, EntityTrait } from "./types/ontology";
+import { ProjectConfig } from "./types/project";
 import { legacyTypeToTraits } from "./utils/legacy_adapter";
 import matter from 'gray-matter';
 import { marked } from 'marked';
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const MAX_AI_INPUT_CHARS = 100000;
+
+async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig> {
+    const db = getFirestore();
+    const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+
+    const defaultConfig: ProjectConfig = {
+        canonPaths: [],
+        primaryCanonPathId: null,
+        resourcePaths: [],
+        activeBookContext: ""
+    };
+
+    if (!doc.exists) return defaultConfig;
+
+    const data = doc.data() || {};
+    // Normalize 'narrative_style' to 'styleIdentity'
+    if (!data.styleIdentity && data.narrative_style) {
+        data.styleIdentity = data.narrative_style;
+    }
+
+    return { ...defaultConfig, ...data };
+}
 
 interface ScribeRequest {
     entityId: string; // The Concept ID (Slug)
@@ -389,11 +413,28 @@ export const integrateNarrative = onCall(
 
         const { suggestion, precedingContext, followingContext, userStyle } = request.data;
 
+        // 🛡️ SECURITY: INPUT LIMITS
+        if (suggestion && suggestion.length > MAX_AI_INPUT_CHARS) {
+            throw new HttpsError("resource-exhausted", "Suggestion exceeds max input limit.");
+        }
+
         if (!suggestion) {
             throw new HttpsError("invalid-argument", "Missing suggestion text.");
         }
 
         try {
+            const userId = request.auth.uid;
+            // 🟢 GENRE AWARENESS (Project Config)
+            const projectConfig = await _getProjectConfigInternal(userId);
+
+            const projectIdentityContext = `
+=== PROJECT IDENTITY (GENRE & STYLE) ===
+PROJECT NAME: ${projectConfig.projectName || 'Untitled Project'}
+DETECTED STYLE DNA: ${projectConfig.styleIdentity || 'Standard Narrative'}
+GENRE INSTRUCTION: Adopt the vocabulary, pacing, and atmosphere of this style.
+========================================
+`;
+
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
             // 🟢 CONSTRUCT PROMPT
@@ -401,15 +442,17 @@ export const integrateNarrative = onCall(
             ACT AS: Expert Ghostwriter & Narrative Editor.
             TASK: Transform the "SUGGESTION" into seamless narrative prose that fits the "CONTEXT".
 
+            ${projectIdentityContext}
+
             INPUT DATA:
             - CONTEXT (Preceding): "...${(precedingContext || '').slice(-2000)}..."
             - CONTEXT (Following): "...${(followingContext || '').slice(0, 500)}..."
-            - USER STYLE: ${userStyle || 'Neutral/Standard'}
+            - USER STYLE PREFERENCE: ${userStyle || 'Neutral/Standard'}
             - SUGGESTION (Raw Idea): "${suggestion}"
 
             INSTRUCTIONS:
             1. **Rewrite** the SUGGESTION into high-quality prose.
-            2. **Match the Tone** of the Preceding Context (First/Third person, Tense, Vocabulary).
+            2. **Match the Tone** of the Preceding Context AND the Project Style (Style DNA).
             3. **Remove Meta-Talk**: Strip out phrases like "Option 1:", "Sure, here is...", "I suggest...", or quotes around the whole block unless it's dialogue.
             4. **Seamless Flow**: The output should start naturally where the Preceding Context ends.
             5. **Do not repeat** the Preceding Context. Only output the NEW text to be inserted.
