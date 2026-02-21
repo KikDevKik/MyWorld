@@ -13,7 +13,7 @@ import { updateFirestoreTree } from "./utils/tree_utils";
 import { ingestFile } from "./ingestion";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { smartGenerateContent } from "./utils/smart_generate";
-import { getAIKey } from "./utils/security";
+import { getAIKey, escapePromptVariable } from "./utils/security";
 import { TitaniumFactory } from "./services/factory";
 import { TitaniumEntity, EntityTrait } from "./types/ontology";
 import { ProjectConfig } from "./types/project";
@@ -150,8 +150,8 @@ export const scribeCreateFile = onCall(
 
                     const inferencePrompt = `
                     TASK: Classify the Entity described in the text.
-                    ENTITY NAME: "${entityData.name}"
-                    CONTEXT: "${chatContent.substring(0, 5000)}"
+                    ENTITY NAME: "${escapePromptVariable(entityData.name)}"
+                    CONTEXT: "${escapePromptVariable(chatContent.substring(0, 5000))}"
 
                     VALID TYPES:
                     - 'character': Person, AI, sentient being.
@@ -202,8 +202,8 @@ export const scribeCreateFile = onCall(
 
                     const synthesisPrompt = `
                     TASK: Create a rich Markdown document based on the following BRAINSTORMING SESSION.
-                    SUBJECT: "${entityData.name}"
-                    TYPE: "${entityData.type || 'Concept'}"
+                    SUBJECT: "${escapePromptVariable(entityData.name)}"
+                    TYPE: "${escapePromptVariable(entityData.type || 'Concept')}"
 
                     INSTRUCTIONS:
                     1. Analyze the conversation history (CHAT CONTENT).
@@ -219,7 +219,7 @@ export const scribeCreateFile = onCall(
                     7. DO NOT include Frontmatter (it is added automatically).
 
                     CHAT CONTENT:
-                    "${chatContent.substring(0, 10000)}"
+                    "${escapePromptVariable(chatContent.substring(0, 10000))}"
 
                     OUTPUT:
                     `;
@@ -429,8 +429,8 @@ export const integrateNarrative = onCall(
 
             const projectIdentityContext = `
 === PROJECT IDENTITY (GENRE & STYLE) ===
-PROJECT NAME: ${projectConfig.projectName || 'Untitled Project'}
-DETECTED STYLE DNA: ${projectConfig.styleIdentity || 'Standard Narrative'}
+PROJECT NAME: "${escapePromptVariable(projectConfig.projectName || 'Untitled Project')}"
+DETECTED STYLE DNA: "${escapePromptVariable(projectConfig.styleIdentity || 'Standard Narrative')}"
 GENRE INSTRUCTION: Adopt the vocabulary, pacing, and atmosphere of this style.
 ========================================
 `;
@@ -445,10 +445,10 @@ GENRE INSTRUCTION: Adopt the vocabulary, pacing, and atmosphere of this style.
             ${projectIdentityContext}
 
             INPUT DATA:
-            - CONTEXT (Preceding): "...${(precedingContext || '').slice(-2000)}..."
-            - CONTEXT (Following): "...${(followingContext || '').slice(0, 500)}..."
-            - USER STYLE PREFERENCE: ${userStyle || 'Neutral/Standard'}
-            - SUGGESTION (Raw Idea): "${suggestion}"
+            - CONTEXT (Preceding): "...${escapePromptVariable((precedingContext || '').slice(-2000))}..."
+            - CONTEXT (Following): "...${escapePromptVariable((followingContext || '').slice(0, 500))}..."
+            - USER STYLE PREFERENCE: "${escapePromptVariable(userStyle || 'Neutral/Standard')}"
+            - SUGGESTION (Raw Idea): "${escapePromptVariable(suggestion)}"
 
             INSTRUCTIONS:
             1. **Rewrite** the SUGGESTION into high-quality prose.
@@ -536,7 +536,7 @@ export const scribePatchFile = onCall(
             TASK: Integrate the "New Patch" into the "Existing File" intelligently.
 
             INSTRUCTIONS:
-            ${instructions || "Find the most relevant section for this new information and append it. If no relevant section exists, create a new H2 header."}
+            "${escapePromptVariable(instructions || "Find the most relevant section for this new information and append it. If no relevant section exists, create a new H2 header.")}"
 
             RULES:
             1. PRESERVE Frontmatter (--- ... ---) exactly as is.
@@ -545,10 +545,10 @@ export const scribePatchFile = onCall(
             4. Do NOT wrap output in \`\`\`markdown code blocks. Return RAW text.
 
             EXISTING FILE:
-            ${originalContent}
+            "${escapePromptVariable(originalContent)}"
 
             NEW PATCH:
-            ${patchContent}
+            "${escapePromptVariable(patchContent)}"
             `;
 
             const result = await smartGenerateContent(genAI, prompt, {
@@ -721,10 +721,10 @@ export const transformToGuide = onCall(
             - Summarize the key actions, dialogue ideas, and emotional beats from the text.
             - Format each point as a directive (e.g., "(Here describe X...)", "(Make the character feel Y...)").
 
-            PERSPECTIVE CONTEXT: ${perspective || 'Unknown'}
+            PERSPECTIVE CONTEXT: "${escapePromptVariable(perspective || 'Unknown')}"
 
             INPUT NARRATIVE:
-            "${text}"
+            "${escapePromptVariable(text)}"
 
             OUTPUT FORMAT:
             - A list of short, parenthetical instructions.
