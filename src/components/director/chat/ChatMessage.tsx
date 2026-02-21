@@ -79,6 +79,7 @@ export const ChatMessage = React.memo(({
                                         onClick={() => onRescue(item, `${message.id}-${subIdx}`, message.driftData.category)}
                                         disabled={rescuingIds.has(`${message.id}-${subIdx}`)}
                                         className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                        aria-label={`Rescatar ${item.fileName || 'eco'}`}
                                     >
                                         {rescuingIds.has(`${message.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Rescatar"}
                                     </button>
@@ -86,6 +87,7 @@ export const ChatMessage = React.memo(({
                                         onClick={() => onPurge(item, `${message.id}-${subIdx}`)}
                                         disabled={purgingIds.has(`${message.id}-${subIdx}`)}
                                         className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                        aria-label={`Purgar ${item.fileName || 'eco'}`}
                                     >
                                         {purgingIds.has(`${message.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Purgar"}
                                     </button>
@@ -126,6 +128,7 @@ export const ChatMessage = React.memo(({
                         onClick={() => onRescue(message.driftData, message.id, message.driftCategory || 'General')}
                         disabled={isRescuing}
                         className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                        aria-label={`Rescatar eco: ${message.driftCategory || 'General'}`}
                     >
                         {isRescuing ? <Loader2 size={10} className="animate-spin" /> : "Rescatar"}
                     </button>
@@ -133,6 +136,7 @@ export const ChatMessage = React.memo(({
                         onClick={() => onPurge(message.driftData, message.id)}
                         disabled={isPurging}
                         className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                        aria-label={`Purgar eco: ${message.driftCategory || 'General'}`}
                     >
                         {isPurging ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />}
                         Purgar Eco
@@ -207,6 +211,7 @@ export const ChatMessage = React.memo(({
                             disabled={isTransforming}
                             className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:text-emerald-300 bg-emerald-900/10 hover:bg-emerald-900/30 px-2 py-1.5 rounded transition-all uppercase tracking-wider"
                             title="Transformar en Guía e Insertar (Magia)"
+                            aria-label="Transformar respuesta en guía e insertar"
                         >
                             {isTransforming ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                             <span>{isTransforming ? 'Transformando...' : 'Insertar (Guía)'}</span>
