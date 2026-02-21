@@ -4,7 +4,7 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 
 ## 🛡️ THE DIRECTOR (EL CENTINELA / GUARDIAN)
 **Role:** Canon Custodian & Narrative Orchestrator
-**Location:** `functions/src/guardian.ts`, `src/components/DirectorPanel.tsx`
+**Location:** `functions/src/guardian.ts`, `src/components/DirectorPanel.tsx`, `src/hooks/useDirectorChat.ts`
 **Primary Directive:** Maintain the integrity of the user's "Canon" by detecting contradictions and narrative drift, acting as an omnipresent co-author.
 
 *   **Operational Modes (Layout Context):**
@@ -15,19 +15,36 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Tactical Capabilities:**
     *   **The Inspector (El Casting):** Analyzes the current scene to extract a "Casting Report" (Active Characters, Tone, Pacing). In Ghost Mode, simulates archetypes (e.g., "Weary Leader").
     *   **Canon Radar (Drift Detection):** Compares new content vectors against the **Project Centroid**. Returns `drift_score` and status (`STABLE`, `DRIFTING`, `CRITICAL_INCOHERENCE`).
+    *   **Canon Sync (Re-Index):** Triggered by `needsReindex` banner. Forces a "Quick Index" to prevent hallucinations when file structure changes.
+    *   **Drift Control (Echoes):** Detects "Echoes" (contradictions).
+        *   **Rescue:** Validates new information as Canon.
+        *   **Purge:** Deletes the echo from memory permanently.
     *   **Memory Sync (La Sinapsis):** Forces a manual refresh of the AI's short-term context from the active file.
     *   **Sensory Interface:** Accepts multi-modal input (Images, Audio) to influence narrative advice.
 
+## 🛠️ THE ARSENAL (ZONA C)
+**Role:** Tool Dock & Navigation Controller
+**Location:** `src/components/forge/ArsenalDock.tsx`
+**Primary Directive:** Manage access to heavy AI tools without cluttering the interface.
+
+*   **Mechanics:**
+    *   **Exclusivity:** Only ONE heavy tool (Director, Tribunal, Forge, etc.) can be active in Zone C at a time.
+    *   **Toggle Logic:** Clicking the active tool icon closes it (returns to `editor` view).
+    *   **Director Toggle:** The clapperboard icon (🎬) invokes `onToggleDirector` (or equivalent) to expand/collapse the Director Panel.
+
 ## ⚖️ THE TRIBUNAL (EL JUICIO)
 **Role:** Literary Critique Panel
-**Location:** `functions/src/index.ts` (`summonTheTribunal`)
+**Location:** `functions/src/index.ts` (`summonTheTribunal`), `src/components/TribunalPanel.tsx`
 **Primary Directive:** Provide multi-perspective feedback on prose quality, logic, and marketability.
+
+*   **Constraints:**
+    *   **Timeout:** The Cloud Function has an extended timeout of **540 seconds (9 minutes)** to allow deep reasoning.
+    *   **Language Mirroring:** Must detect input language and respond in the **EXACT SAME LANGUAGE**.
 
 *   **The Judges:**
     1.  **The Architect (Blue):** Logic, plot holes, pacing, causality, world-building consistency. Tone: Cold, analytical.
     2.  **The Bard (Purple):** Aesthetics, sensory details, metaphor, prose flow. Tone: Poetic, dramatic.
     3.  **The Hater (Red):** Market viability, clichés, boredom, "cringe" factor. Tone: Cynical, brutal, slang-heavy.
-*   **Constraint:** Must detect input language and respond in the **EXACT SAME LANGUAGE**.
 
 ## 🧹 THE SENTINEL (EL CONSERJE / JANITOR)
 **Role:** System Health & Hygiene
@@ -37,75 +54,56 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Capabilities:**
     *   **Vault Scan:** Calculates a "Health Score" based on valid vs. corrupt files.
     *   **The Purge:** Irreversibly deletes identified "Ghost Files" to heal the project tree.
+    *   **Visual Filter:** `toggleShowOnlyHealthy` hides problematic files in the UI without deleting them.
 
-## ✍️ THE SCRIBE (EL ESCRIBA - BACKEND)
-**Role:** Creative Engine & Ghostwriter
-**Location:** `functions/src/scribe.ts`
-**Primary Directive:** Assist user in generating and expanding content via AI.
+## 🔨 THE FORGE (SOUL SORTER / EL ARTÍFICE)
+**Role:** Entity Taxonomist & Character Manager
+**Location:** `functions/src/soul_sorter.ts`, `src/components/forge/ForgePanel.tsx`
+**Primary Directive:** Classify narrative entities into strict ontological tiers and manage their lifecycle.
 
-*   **Sub-Routines:**
-    *   **The Weaver (El Tejedor):** Integrates raw ideas/suggestions into seamless narrative prose.
-    *   **The Restorer (Smart Patch):** Merges new information into existing files without destroying context.
-    *   **The Guide (El Guionista):** Transforms narrative text into step-by-step writing instructions (Beats).
+*   **Lifecycle Workflow:**
+    1.  **ECHOES (The Radar):** "The Eye" scans narrative text for names without files (Ghosts). Ignores `Resources` folder.
+    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File. "The Oracle" (Chat) assists here with full project visibility.
+    3.  **ANCHORS (The Vault):** "Crystallized" entities with a physical Markdown file in Drive.
 
-## 💾 THE SILENT SCRIBE (AUTO-SAVE - FRONTEND)
-**Role:** Data Persistence
-**Location:** `src/App.tsx` (Auto-Save Mechanic)
-**Primary Directive:** Prevent data loss via "Neuronal Sync".
+*   **Metadata Seals (Anchor Detection):**
+    To be recognized as an ANCHOR, a file must contain specific metadata keys (YAML or Markdown) in the first 20 lines:
+    *   `Role` / `Rol` / `Cargo`
+    *   `Age` / `Edad`
+    *   `Class` / `Clase`
+    *   `Race` / `Raza` / `Especie`
+    *   `Alias` / `Apodo`
+    *   `Faction` / `Facción` / `Grupo`
 
-*   **Mechanics:**
-    *   **Heartbeat:** Triggers after 2 seconds of inactivity.
-    *   **Significant Update:** If `char_diff > 50`, flags the update as "Significant" to trigger a vector re-index (Learning).
+## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
+**Role:** Silent Protection & Persistence
+**Location:** `src/services/CreativeAuditService.ts`, `src/App.tsx`, `functions/src/index.ts`
 
-## 📚 THE LIBRARIAN (EL BIBLIOTECARIO)
-**Role:** Research Assistant & Asset Manager
-**Location:** `functions/src/laboratory.ts`
-**Primary Directive:** Analyze references ("Idea Laboratory") and connect disparate data points.
+### 1. CREATIVE AUDIT (LA AUDITORÍA)
+*   **Purpose:** Provenance & Forensics. Proves human authorship.
+*   **Mechanism:** `CreativeAuditService.ts` logs events ('INJECTION', 'CURATION', 'STRUCTURE') to an immutable Firestore collection (`audit_log`).
+*   **Security:** Uses `serverTimestamp()` to prevent client-side tampering.
+*   **Output:** Generates a "Certificate of Authorship" (PDF/TXT).
 
-*   **Capabilities:**
-    *   **Muse Persona:** Brainstorms ideas based on uploaded reference material.
-    *   **Smart Shelf:** Auto-tags and classifies uploaded assets (Images, PDFs).
+### 2. THE SILENT SCRIBE (AUTO-SAVE)
+*   **Trigger:** Debounce of **2000ms** (2 seconds) after last keystroke.
+*   **Significant Update:** If `char_diff > 50` (Manual) or massive change, flags update as `isSignificant: true` to trigger immediate Vector Indexing.
+*   **Conflict Resolution:** "Last Write Wins". If multiple tabs open, warns user of version conflict.
 
-## 👻 THE SOUL SORTER (EL CLASIFICADOR)
-**Role:** Entity Taxonomist
-**Location:** `functions/src/soul_sorter.ts`
-**Primary Directive:** Classify narrative entities into strict ontological tiers.
+### 3. NEURONAL SYNC (THE LEARNING LOOP)
+*   **Mechanism:** Backend (`indexTDB`) listens for Drive changes.
+*   **Incremental Indexing:** Only re-processes files where the **SHA-256 Hash** has changed.
+*   **Frontend Sync:** `ProjectConfigContext.tsx` subscribes to `TDB_Index/{uid}/structure/tree` for real-time file tree updates.
 
-*   **Tiers:**
-    *   **GHOST:** Detected in text, no file.
-    *   **LIMBO:** Draft phase, file exists but not Canon.
-    *   **ANCHOR:** Canon Entity (Master File).
-*   **Categories:** PERSON, CREATURE, FLORA, LOCATION, OBJECT, FACTION, CONCEPT, EVENT.
+## ⚙️ CORE MECHANICS & CONTROLS
 
-## 🔗 THE NEXUS (EL ENLACE)
-**Role:** Ingestion Engine & Vector Search
-**Location:** `functions/src/ingestion.ts`
-**Primary Directive:** Bridge raw files in Drive with the structured Vector Database.
-
-*   **Capabilities:**
-    *   **Smart Sync:** Detects external changes (Drive vs Index) and reconciles vectors.
-    *   **Baptism Protocol:** Resolves orphan data and ensures Level 1 integrity.
-
----
-
-## ⚙️ CORE MECHANICS & PROTOCOLS
-
-### 1. GHOST MODE (MODO FANTASMA)
-*   **Trigger:** `VITE_JULES_MODE=true` env variable.
-*   **Behavior:** Bypasses backend/Firestore dependencies for local testing. Uses mock data for graphs and chats.
-*   **Simulation:** In Ghost Mode, agents (Director, Tribunal) return *simulated* analysis (e.g., "Simulated Verdict: 85/100") to test UI flows without consuming tokens.
-
-### 2. CREATIVE AUDIT (LA AUDITORÍA)
-*   **Purpose:** Provenance & Forensics.
-*   **Mechanism:** `CreativeAuditService.ts` logs every user interaction (writing, editing, accepting AI suggestions) to a tamper-proof Firestore collection.
-*   **Goal:** Generate a "Certificate of Authorship" proving human effort vs. AI generation.
-
-### 3. CANON RADAR (DRIFT CONTROL)
+### 1. GUARDIAN (CANON RADAR)
+*   **Location:** `src/hooks/useGuardian.ts`, `functions/src/guardian.ts`
+*   **Hashing:** Calculates SHA-256 hash of content every 3 seconds to detect changes.
+*   **Resonance:** Detects "Plot Seeds" and thematic connections across files.
 *   **Drift Score:** Calculated via Cosine Similarity between Content Vector and Project Centroid.
-*   **Rescue Echo (La Advertencia):** A chunk marked as "Rescued" flags its parent file as "Conflicting" in the index.
-*   **Purge Echo (El Ejecutor):** Hard deletion of a chunk from the index.
 
-### 4. INSTRUCTION LEAKAGE & DOS PROTECTION
+### 2. INSTRUCTION LEAKAGE & DOS PROTECTION
 *   **Input Limits:**
     *   `MAX_AI_INPUT_CHARS`: **100,000** (approx 25k tokens).
     *   `MAX_CHAT_MESSAGE_LIMIT`: **30,000**.
@@ -113,6 +111,6 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Sanitization:** `parseSecureJSON` MUST strip Markdown code fences (```json) to prevent parsing errors.
 *   **Recursion Limit:** PDF Compilation uses **iterative** traversal (stack-based) instead of recursion to prevent Stack Overflow DoS.
 
-### 5. IDENTITY & PERSPECTIVE PROTOCOLS
+### 3. IDENTITY & PERSPECTIVE PROTOCOLS
 *   **The Chameleon (Cloaking Mode):** AI must detect the input language/dialect and **mirror it exactly**.
 *   **Perspective Lock:** AI detects First Person (I/Me) vs Third Person (He/She) and strictly adheres to it for all narrative generation.
