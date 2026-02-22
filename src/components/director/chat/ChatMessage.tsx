@@ -6,6 +6,8 @@ import { AnalysisCard } from './AnalysisCard';
 import { VerdictCard } from './VerdictCard';
 import { callFunction } from '../../../services/api';
 import { ChatMessageData } from '../../../types/director';
+import { parseThinking } from '../../../utils/thinking';
+import { ThinkingBubble } from './ThinkingBubble';
 
 interface ChatMessageProps {
     message: ChatMessageData;
@@ -147,6 +149,8 @@ export const ChatMessage = React.memo(({
     }
 
     // 5. STANDARD MESSAGE (Text with Markdown)
+    const { thinking, content } = React.useMemo(() => parseThinking(message.text), [message.text]);
+
     return (
         <div className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
             <div className={`
@@ -176,19 +180,24 @@ export const ChatMessage = React.memo(({
                 )}
 
                 <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words">
-                <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                        // Optional: Custom renderer overrides if needed for specific aesthetic
-                        code({node, inline, className, children, ...props}: any) {
-                             return inline
-                               ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
-                               : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>
-                        }
-                    }}
-                >
-                    {message.text}
-                </ReactMarkdown>
+                    {/* 🧠 THINKING BUBBLE (Weaver Protocol) */}
+                    {message.role === 'assistant' && thinking && (
+                        <ThinkingBubble thought={thinking} />
+                    )}
+
+                    <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                            // Optional: Custom renderer overrides if needed for specific aesthetic
+                            code({node, inline, className, children, ...props}: any) {
+                                return inline
+                                ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
+                                : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>
+                            }
+                        }}
+                    >
+                        {content}
+                    </ReactMarkdown>
                 </div>
 
                 {/* 🟢 INSERT BUTTON (Only for Assistant) */}
