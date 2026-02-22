@@ -109,6 +109,33 @@ function extractMetadataFromBody(body: string): { name?: string, role?: string }
     }
 }
 
+// 🛡️ SOVEREIGN AREAS PROTECTION
+function protectSovereignAreas(content: string): { protectedContent: string, map: Map<string, string> } {
+    const map = new Map<string, string>();
+    let counter = 0;
+
+    // Regex for <!-- SOVEREIGN START --> ... <!-- SOVEREIGN END -->
+    // Case insensitive, allowing multiline
+    const protectedContent = content.replace(
+        /<!--\s*SOVEREIGN START\s*-->([\s\S]*?)<!--\s*SOVEREIGN END\s*-->/gi,
+        (match) => {
+            const placeholder = `{{SOVEREIGN_BLOCK_${counter++}}}`;
+            map.set(placeholder, match);
+            return placeholder;
+        }
+    );
+
+    return { protectedContent, map };
+}
+
+function restoreSovereignAreas(content: string, map: Map<string, string>): string {
+    let restored = content;
+    map.forEach((originalBlock, placeholder) => {
+        restored = restored.replace(placeholder, originalBlock);
+    });
+    return restored;
+}
+
 /**
  * THE SCRIBE (El Escriba)
  * Tallas la piedra con el conocimiento extraído, generando archivos .md perfectos para Obsidian/Nexus.
@@ -286,8 +313,11 @@ export const scribeCreateFile = onCall(
                     aliases: entityData.aliases,
                     tags: entityData.tags || ['tdb/entity'],
                     project_id: sagaId,
-                    status: 'active',
-                    tier: 'ANCHOR'
+                    _sys: {
+                        status: 'active',
+                        tier: 'ANCHOR',
+                        last_sync: new Date().toISOString()
+                    }
                 },
                 bodyContent: finalBodyContent || defaultBody
             };
@@ -526,7 +556,12 @@ export const scribePatchFile = onCall(
             const fileName = metaRes.data.name || "Unknown.md";
             const parentId = metaRes.data.parents?.[0];
 
-            const originalContent = typeof getRes.data === 'string' ? getRes.data : JSON.stringify(getRes.data);
+            let originalContent = typeof getRes.data === 'string' ? getRes.data : JSON.stringify(getRes.data);
+
+            // 🛡️ SOVEREIGN AREAS PROTECTION
+            // Mask protected areas before AI touches it
+            const { protectedContent, map: sovereignMap } = protectSovereignAreas(originalContent);
+            originalContent = protectedContent; // Replace for AI context
 
             // 2. AI MERGE
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
@@ -541,8 +576,9 @@ export const scribePatchFile = onCall(
             RULES:
             1. PRESERVE Frontmatter (--- ... ---) exactly as is.
             2. PRESERVE existing content. Only append or insert. Do not delete.
-            3. OUTPUT the FULL, VALID Markdown file content.
-            4. Do NOT wrap output in \`\`\`markdown code blocks. Return RAW text.
+            3. PRESERVE Sovereign Blocks ({{SOVEREIGN_BLOCK_X}}) exactly as is.
+            4. OUTPUT the FULL, VALID Markdown file content.
+            5. Do NOT wrap output in \`\`\`markdown code blocks. Return RAW text.
 
             EXISTING FILE:
             "${escapePromptVariable(originalContent)}"
@@ -564,6 +600,9 @@ export const scribePatchFile = onCall(
             if (newContent.startsWith('```markdown')) newContent = newContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
             if (newContent.startsWith('```')) newContent = newContent.replace(/^```\n/, '').replace(/\n```$/, '');
 
+            // 🛡️ RESTORE SOVEREIGN AREAS
+            newContent = restoreSovereignAreas(newContent, sovereignMap);
+
             // 🟢 SMART-SYNC DELTA VALIDATOR (Middleware 3.0)
             // Logic: Compare Original vs New.
             // If Frontmatter changed -> Trust AI/User.
@@ -572,14 +611,16 @@ export const scribePatchFile = onCall(
             let finalContent = newContent;
             try {
                 const parsedNew = matter(newContent);
-                const parsedOriginal = matter(originalContent);
+                const parsedOriginal = matter(restoreSovereignAreas(originalContent, sovereignMap)); // Use original raw
 
                 const newFm = parsedNew.data;
                 const oldFm = parsedOriginal.data;
                 const newBody = parsedNew.content;
 
                 // A. DEBOUNCE CHECK
-                const lastSync = newFm.last_titanium_sync ? new Date(newFm.last_titanium_sync).getTime() : 0;
+                // 🟢 Check both Legacy and New _sys location
+                const lastSyncStr = newFm._sys?.last_sync || newFm.last_titanium_sync;
+                const lastSync = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
                 const now = Date.now();
                 const timeDiff = now - lastSync;
 
@@ -616,14 +657,14 @@ export const scribePatchFile = onCall(
 
                     // D. TITANIUM FACTORY FORGE
                     // We always run it through factory to ensure schema & anti-makeup
-                    if (hasChanges || !newFm.last_titanium_sync) {
+                    if (hasChanges || !newFm.last_titanium_sync || !newFm._sys?.last_sync) {
                         logger.info(`🔄 [METADATA RECONCILIATION] Re-Forging via TitaniumFactory for ${fileId}`);
 
                         const entity: TitaniumEntity = {
                             id: attributes.id || fileId,
                             name: attributes.name || "Unknown",
                             traits: attributes.traits || legacyTypeToTraits(attributes.type || 'concept'),
-                            attributes: attributes, // Factory will prune ghost data
+                            attributes: attributes, // Factory will prune ghost data and handle _sys
                             bodyContent: newBody
                         };
 
@@ -664,7 +705,7 @@ export const scribePatchFile = onCall(
                     {
                         id: fileId,
                         name: fileName,
-                        path: fileName,
+                        path: fileName, // Use simpler path for ingestion re-indexing
                         saga: 'Global',
                         parentId: parentId,
                         category: 'canon'

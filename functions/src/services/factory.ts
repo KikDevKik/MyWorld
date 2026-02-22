@@ -22,20 +22,21 @@ export class TitaniumFactory {
             delete clean.age;
         }
 
-        // 2. Prune Status (Default is always active)
-        if (clean.status && ['active'].includes(norm(clean.status))) {
-            delete clean.status;
-        }
+        // 2. Prune Status (Moved to _sys, delete from root if present)
+        if (clean.status) delete clean.status;
 
         // 3. Prune Role (If unknown)
-        if (clean.role && ['unknown', 'desconocido'].includes(norm(clean.role))) {
+        if (clean.role && ['unknown', 'desconocido', 'entidad registrada'].includes(norm(clean.role))) {
             delete clean.role;
         }
 
-        // 4. Prune Tier (Default is ANCHOR)
-        if (clean.tier && ['anchor'].includes(norm(clean.tier))) {
-            delete clean.tier;
-        }
+        // 4. Prune Tier (Moved to _sys, delete from root if present)
+        if (clean.tier) delete clean.tier;
+
+        // 5. Prune Legacy Timestamps (Moved to _sys)
+        if (clean.last_titanium_sync) delete clean.last_titanium_sync;
+        if (clean.last_updated) delete clean.last_updated;
+        if (clean.created_at) delete clean.created_at;
 
         return clean;
     }
@@ -52,16 +53,25 @@ export class TitaniumFactory {
 
         // 2. PREPARE ATTRIBUTES (Merge & Override)
         // We start with the entity's dynamic attributes, then overlay the Sovereign Fields.
+
+        // Extract system fields from input or defaults
+        const sysStatus = entity.attributes._sys?.status || entity.attributes.status || 'active';
+        const sysTier = entity.attributes._sys?.tier || entity.attributes.tier || 'ANCHOR';
+        const sysLastSync = entity.attributes._sys?.last_sync || now;
+
         const rawAttributes = {
             ...entity.attributes,
             id: entity.id,         // Nexus ID (Critical for Linking)
             name: entity.name,     // Canonical Name
             type: legacyType,      // 🛡️ COMPATIBILITY SHIELD
             traits: entity.traits, // 🚀 TITANIUM NATIVE
-            // Timestamps
-            created_at: entity.attributes.created_at || now,
-            last_updated: now,
-            last_titanium_sync: now // 🛡️ SMART-SYNC DEBOUNCE
+
+            // 🟢 SYSTEM METADATA (Hidden in RAG, Visible for System)
+            _sys: {
+                status: sysStatus,
+                tier: sysTier,
+                last_sync: sysLastSync
+            }
         };
 
         // 3. APPLY ANTI-MAKEUP (Pruning)

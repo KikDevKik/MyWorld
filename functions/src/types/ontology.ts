@@ -22,8 +22,12 @@ export interface TitaniumEntity {
         tags?: string[];
         project_id?: string;
         avatar?: string;
-        status?: string;     // Default: 'active'
-        tier?: string;       // Default: 'ANCHOR'
+        // Metadatos de Sistema (Ocultos al AI en RAG, visibles para el Sistema)
+        _sys?: {
+            status: 'active' | 'archived';
+            tier: 'ANCHOR' | 'DRAFT';
+            last_sync: string;
+        };
         [key: string]: any;
     };
 
