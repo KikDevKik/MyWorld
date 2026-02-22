@@ -8,29 +8,76 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 **Primary Directive:** Maintain the integrity of the user's "Canon" by detecting contradictions and narrative drift, acting as an omnipresent co-author.
 
 *   **Operational Modes (Layout Context):**
-    *   **Sentinel Mode:** (Width < 500px) Silent observation. Chat only.
-    *   **Strategist Mode:** (Width 500px - 900px) Deploys **Tactical Tools** (Sidebar).
+    *   **Sentinel Mode:** (Width < 500px) Silent observation. Chat only. Ideal for quick queries.
+    *   **Strategist Mode:** (Width 500px - 900px) Deploys **Tactical Tools** (Sidebar) for surgical interventions.
     *   **War Room:** (Width > 900px) Full command center. Displays historical session logs + tools.
 
 *   **Tactical Capabilities:**
     *   **The Inspector (El Casting):** Analyzes the current scene to extract a "Casting Report" (Active Characters, Tone, Pacing). In Ghost Mode, simulates archetypes (e.g., "Weary Leader").
+    *   **The Tribunal (El Juicio):** Invokes a critical AI panel to evaluate literary quality (0-100 score). See "The Tribunal" section below.
+    *   **Memory Sync (La Sinapsis):** Forces a manual refresh of the AI's short-term context from the active file (`handleContextSync`).
+    *   **Sensory Interface:** Accepts multi-modal input (Images, Audio) via `handleSendMessage` to influence narrative advice.
     *   **Canon Radar (Drift Detection):** Compares new content vectors against the **Project Centroid**. Returns `drift_score` and status (`STABLE`, `DRIFTING`, `CRITICAL_INCOHERENCE`).
-    *   **Canon Sync (Re-Index):** Triggered by `needsReindex` banner. Forces a "Quick Index" to prevent hallucinations when file structure changes.
     *   **Drift Control (Echoes):** Detects "Echoes" (contradictions).
         *   **Rescue:** Validates new information as Canon.
         *   **Purge:** Deletes the echo from memory permanently.
-    *   **Memory Sync (La Sinapsis):** Forces a manual refresh of the AI's short-term context from the active file.
-    *   **Sensory Interface:** Accepts multi-modal input (Images, Audio) to influence narrative advice.
 
-## 🛠️ THE ARSENAL (ZONA C)
-**Role:** Tool Dock & Navigation Controller
-**Location:** `src/components/forge/ArsenalDock.tsx`
-**Primary Directive:** Manage access to heavy AI tools without cluttering the interface.
+## 🌐 THE NEXUS (WORLD ENGINE v4.0)
+**Role:** Entity Graph & Reality Visualizer
+**Location:** `src/components/NexusCanvas.tsx`, `src/pages/WorldEnginePageV2.tsx`
+**Primary Directive:** Visualize and manage the "Ghost Graph" of entities before they are fully realized.
 
-*   **Mechanics:**
-    *   **Exclusivity:** Only ONE heavy tool (Director, Tribunal, Forge, etc.) can be active in Zone C at a time.
-    *   **Toggle Logic:** Clicking the active tool icon closes it (returns to `editor` view).
-    *   **Director Toggle:** The clapperboard icon (🎬) invokes `onToggleDirector` (or equivalent) to expand/collapse the Director Panel.
+*   **Identity Protocol (Deterministic):**
+    *   IDs are generated via **DJB2 Hash** (Slug + ProjectID).
+    *   Ensures consistent identification across scans and sessions.
+
+*   **Fusion Protocol (The Unifier):**
+    *   **Batch Merge:** Supports unifying multiple mentions (e.g., "The King", "Arthur", "King Arthur") into a single entity node.
+
+*   **Reality Tuner (Gemini 3.0 Pro Temperature):**
+    *   **Rigor (Cyan):** Strict logic, zero hallucinations. Canon pure.
+    *   **Fusion (Silver):** Narrative balance, plausible connections.
+    *   **Entropy (Violet):** Creative chaos, wild ideas.
+
+*   **Crystallization Protocol:**
+    1.  **Preview:** User approves the proposed graph.
+    2.  **Materialization:** `crystallizeGraph` generates content.
+    3.  **Forge:** Physical creation of `.md` files in Google Drive.
+    4.  **Audit:** Logs event as `STRUCTURE` in `audit_log`.
+
+## 🔨 THE FORGE (SOUL SORTER / EL ARTÍFICE)
+**Role:** Entity Taxonomist & Character Manager
+**Location:** `functions/src/soul_sorter.ts`, `src/components/forge/ForgePanel.tsx`
+**Primary Directive:** Classify narrative entities into strict ontological tiers and manage their lifecycle.
+
+*   **Lifecycle Workflow:**
+    1.  **ECHOES (The Radar):** Scans narrative text for names without files (Ghosts). **Ignores `Resources` folder.**
+    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File. "The Oracle" (Chat) assists here with **full project visibility** (including `Resources`).
+    3.  **ANCHORS (The Vault):** "Crystallized" entities with a physical Markdown file in Drive.
+
+*   **Metadata Seals (Anchor Detection):**
+    To be recognized as an ANCHOR, a file must contain specific metadata keys (YAML or Markdown) in the first 20 lines.
+    **Required Keys (English / Spanish):**
+    *   `Role` / `Rol` / `Cargo` / `Ocupación`
+    *   `Age` / `Edad`
+    *   `Class` / `Clase`
+    *   `Race` / `Raza` / `Especie`
+    *   `Alias` / `Apodo`
+    *   `Faction` / `Facción` / `Grupo`
+
+    **Accepted Formats:**
+    *   **YAML Frontmatter:**
+        ```yaml
+        ---
+        Role: Protagonist
+        Age: 19
+        ---
+        ```
+    *   **Markdown Body:**
+        ```markdown
+        **Rol:** Protagonista
+        **Edad:** 19 años
+        ```
 
 ## ⚖️ THE TRIBUNAL (EL JUICIO)
 **Role:** Literary Critique Panel
@@ -38,7 +85,7 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 **Primary Directive:** Provide multi-perspective feedback on prose quality, logic, and marketability.
 
 *   **Constraints:**
-    *   **Timeout:** The Cloud Function has an extended timeout of **540 seconds (9 minutes)** to allow deep reasoning.
+    *   **Timeout:** Extended timeout of **540 seconds (9 minutes)**.
     *   **Language Mirroring:** Must detect input language and respond in the **EXACT SAME LANGUAGE**.
 
 *   **The Judges:**
@@ -53,27 +100,21 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 
 *   **Capabilities:**
     *   **Vault Scan:** Calculates a "Health Score" based on valid vs. corrupt files.
-    *   **The Purge:** Irreversibly deletes identified "Ghost Files" to heal the project tree.
+    *   **The Purge:** Irreversibly deletes identified "Ghost Files".
     *   **Visual Filter:** `toggleShowOnlyHealthy` hides problematic files in the UI without deleting them.
 
-## 🔨 THE FORGE (SOUL SORTER / EL ARTÍFICE)
-**Role:** Entity Taxonomist & Character Manager
-**Location:** `functions/src/soul_sorter.ts`, `src/components/forge/ForgePanel.tsx`
-**Primary Directive:** Classify narrative entities into strict ontological tiers and manage their lifecycle.
+## 🔬 THE LABORATORY (EL LABORATORIO)
+**Role:** Research & Resource Management
+**Location:** `src/components/LaboratoryPanel.tsx`
+**Primary Directive:** Manage and query reference materials (PDFs, Images, Notes) without polluting the narrative canon.
 
-*   **Lifecycle Workflow:**
-    1.  **ECHOES (The Radar):** "The Eye" scans narrative text for names without files (Ghosts). Ignores `Resources` folder.
-    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File. "The Oracle" (Chat) assists here with full project visibility.
-    3.  **ANCHORS (The Vault):** "Crystallized" entities with a physical Markdown file in Drive.
+*   **The Librarian:**
+    *   **Exclusive Access:** The chat interface ("Gemini Flash") has access **ONLY** to files in the `Resources` folder.
+    *   **Query Scope:** Can answer questions like "What does the PDF say about artificial gravity?".
 
-*   **Metadata Seals (Anchor Detection):**
-    To be recognized as an ANCHOR, a file must contain specific metadata keys (YAML or Markdown) in the first 20 lines:
-    *   `Role` / `Rol` / `Cargo`
-    *   `Age` / `Edad`
-    *   `Class` / `Clase`
-    *   `Race` / `Raza` / `Especie`
-    *   `Alias` / `Apodo`
-    *   `Faction` / `Facción` / `Grupo`
+*   **Lazy Classification:**
+    *   **Mechanism:** Uses a debounce (2s) to classify new resources in the background.
+    *   **Tags:** LORE, SCIENCE, VISUAL.
 
 ## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
 **Role:** Silent Protection & Persistence
@@ -87,30 +128,31 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 
 ### 2. THE SILENT SCRIBE (AUTO-SAVE)
 *   **Trigger:** Debounce of **2000ms** (2 seconds) after last keystroke.
-*   **Significant Update:** If `char_diff > 50` (Manual) or massive change, flags update as `isSignificant: true` to trigger immediate Vector Indexing.
-*   **Conflict Resolution:** "Last Write Wins". If multiple tabs open, warns user of version conflict.
+*   **Significant Update:** If `char_diff > 50` (Manual) or massive change, flags update as `isSignificant: true`.
+*   **Conflict Resolution:** "Last Write Wins". Warns user if multiple tabs are open.
 
 ### 3. NEURONAL SYNC (THE LEARNING LOOP)
 *   **Mechanism:** Backend (`indexTDB`) listens for Drive changes.
 *   **Incremental Indexing:** Only re-processes files where the **SHA-256 Hash** has changed.
-*   **Frontend Sync:** `ProjectConfigContext.tsx` subscribes to `TDB_Index/{uid}/structure/tree` for real-time file tree updates.
+*   **Frontend Sync:** `ProjectConfigContext.tsx` subscribes to `TDB_Index/{uid}/structure/tree`.
 
 ## ⚙️ CORE MECHANICS & CONTROLS
 
-### 1. GUARDIAN (CANON RADAR)
-*   **Location:** `src/hooks/useGuardian.ts`, `functions/src/guardian.ts`
-*   **Hashing:** Calculates SHA-256 hash of content every 3 seconds to detect changes.
-*   **Resonance:** Detects "Plot Seeds" and thematic connections across files.
-*   **Drift Score:** Calculated via Cosine Similarity between Content Vector and Project Centroid.
+### 1. THE EDITOR (ZONE B)
+*   **Drift Plugin:** Visual feedback (Red/Orange underlines) for narrative incoherence detected by the AI.
+*   **Status Bar:**
+    *   **Eye of Argos:** Indicator of Guardian status (Clean/Conflict/Scanning).
+    *   **Energy Jewel:** Visual progress bar for daily word count goals.
+*   **Zen Mode:** Visual silencing of all panels (Sidebar, Tools) for focused writing.
 
 ### 2. INSTRUCTION LEAKAGE & DOS PROTECTION
 *   **Input Limits:**
     *   `MAX_AI_INPUT_CHARS`: **100,000** (approx 25k tokens).
     *   `MAX_CHAT_MESSAGE_LIMIT`: **30,000**.
     *   `MAX_FILE_SAVE_BYTES`: **5MB**.
-*   **Sanitization:** `parseSecureJSON` MUST strip Markdown code fences (```json) to prevent parsing errors.
-*   **Recursion Limit:** PDF Compilation uses **iterative** traversal (stack-based) instead of recursion to prevent Stack Overflow DoS.
+*   **Sanitization:** `parseSecureJSON` MUST strip Markdown code fences to prevent parsing errors.
+*   **Recursion Limit:** PDF Compilation uses **iterative** traversal (stack-based) to prevent Stack Overflow.
 
 ### 3. IDENTITY & PERSPECTIVE PROTOCOLS
 *   **The Chameleon (Cloaking Mode):** AI must detect the input language/dialect and **mirror it exactly**.
-*   **Perspective Lock:** AI detects First Person (I/Me) vs Third Person (He/She) and strictly adheres to it for all narrative generation.
+*   **Perspective Lock:** AI detects First Person (I/Me) vs Third Person (He/She) and strictly adheres to it.
