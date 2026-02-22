@@ -22,7 +22,7 @@ const ReadingToolbar: React.FC<ReadingToolbarProps> = ({
         <div className={`
             flex items-center gap-2 p-1 bg-titanium-900/80 backdrop-blur-md border border-titanium-700/50 rounded-full shadow-lg
             transition-all duration-300
-            ${isZenMode ? 'opacity-0 hover:opacity-100' : 'opacity-100'}
+            ${isZenMode ? 'opacity-0 hover:opacity-100 focus-within:opacity-100' : 'opacity-100'}
         `}>
             {/* FONT TOGGLE */}
             <div
