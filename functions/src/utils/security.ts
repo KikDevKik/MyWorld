@@ -119,7 +119,7 @@ export function isSafeUrl(url: string): boolean {
  * @returns The escaped string
  */
 export function escapePromptVariable(input: string | undefined | null): string {
-    if (!input) return "";
+    if (!input || typeof input !== 'string') return "";
     // Replace backslash first, then double quotes
     return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }

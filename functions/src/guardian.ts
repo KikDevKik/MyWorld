@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as crypto from 'crypto';
 import { cosineSimilarity } from "./similarity";
 import { TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";
-import { getAIKey } from "./utils/security";
+import { getAIKey, escapePromptVariable } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
 
@@ -111,7 +111,7 @@ export const auditContent = onCall(
             }
 
             TEXT:
-            "${content.substring(0, 30000)}"
+            "${escapePromptVariable(content.substring(0, 30000))}"
         `;
 
         const safeExtraction = await smartGenerateContent(genAI, extractionPrompt, {
@@ -284,7 +284,7 @@ export const auditContent = onCall(
                     const frictionPrompt = `
                         ACT AS: Logic Auditor.
                         TASK: Detect CONTRADICTIONS.
-                        CLAIM: "${item.fact}" (Entity: ${item.entity})
+                        CLAIM: "${escapePromptVariable(item.fact)}" (Entity: "${escapePromptVariable(item.entity)}")
                         EVIDENCE: ${JSON.stringify(contextChunks)}
                         INSTRUCTION: Output the 'reason' in ${detectedLanguage}.
                         OUTPUT JSON: { "has_conflict": boolean, "reason": "string", "conflicting_evidence_source": "string" }
@@ -346,7 +346,7 @@ export const auditContent = onCall(
                     const realityPrompt = `
                         ACT AS: Reality Filter.
                         TASK: Verify if ASSERTION violates RULES.
-                        ASSERTION: "${item.law}"
+                        ASSERTION: "${escapePromptVariable(item.law)}"
                         RULES: ${JSON.stringify(contextChunks)}
                         INSTRUCTION: Output the 'explanation' in ${detectedLanguage}.
                         OUTPUT JSON: { "trigger": "WORLD_LAW_VIOLATION", "severity": "CRITICAL" | "WARNING" | "NONE", "conflict": { "explanation": "string", "canonical_rule": "string", "source_node": "string" } }
@@ -399,7 +399,7 @@ export const auditContent = onCall(
                         } else if (data?.bio || data?.description) {
                              const profilePrompt = `
                                 EXTRACT PERSONALITY & EVOLUTION from this bio:
-                                "${data.bio || data.description}"
+                                "${escapePromptVariable(data.bio || data.description)}"
                                 INSTRUCTION: Output in ${detectedLanguage}.
                                 OUTPUT FORMAT: "Personality: ... Evolution: ..."
                              `;
@@ -443,10 +443,10 @@ export const auditContent = onCall(
                         ACT AS: "El Hater" (Ruthless Literary Critic).
                         CONTEXT: You are an uncensored collaborative writing assistant.
                         TASK: Check CHARACTER BEHAVIOR consistency.
-                        CHARACTER: ${charName}
-                        1. [HARD CANON]: ${forgeProfile.substring(0, 3000)}
-                        2. [RECENT HISTORY]: ${historyChunksText.substring(0, 5000)}
-                        3. [CURRENT BEHAVIOR]: Action: "${behavior.action}", Tone: "${behavior.tone}", Dialogue: "${behavior.dialogue_sample}"
+                        CHARACTER: "${escapePromptVariable(charName)}"
+                        1. [HARD CANON]: "${escapePromptVariable(forgeProfile.substring(0, 3000))}"
+                        2. [RECENT HISTORY]: "${escapePromptVariable(historyChunksText.substring(0, 5000))}"
+                        3. [CURRENT BEHAVIOR]: Action: "${escapePromptVariable(behavior.action)}", Tone: "${escapePromptVariable(behavior.tone)}", Dialogue: "${escapePromptVariable(behavior.dialogue_sample)}"
                         LOGIC: Match Behavior against Canon/History.
                         INSTRUCTION: Output 'hater_comment' and other text fields in ${detectedLanguage}.
                         OUTPUT JSON: { "trigger": "PERSONALITY_DRIFT", "status": "CONSISTENT" | "EVOLVED" | "TRAITOR", "severity": "CRITICAL" | "WARNING" | "INFO", "hater_comment": "string", "detected_behavior": "string", "canonical_psychology": "string", "friccion_score": 0.0-1.0 }
