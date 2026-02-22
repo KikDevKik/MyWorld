@@ -1,4 +1,6 @@
 
+const CLOSED_THINKING_REGEX = /<thinking>([\s\S]*?)<\/thinking>/g;
+
 /**
  * Parses text to extract <thinking>...</thinking> blocks.
  * Handles both complete blocks and unclosed blocks (streaming).
@@ -10,23 +12,19 @@ export function parseThinking(text: string): { thinking: string | null; content:
     if (!text) return { thinking: null, content: "" };
 
     const thinkingParts: string[] = [];
-    let cleanText = text;
 
-    // 1. Extract complete <thinking>...</thinking> blocks
-    // Note: We use a loop to handle multiple blocks if present
-    const closedRegex = /<thinking>([\s\S]*?)<\/thinking>/g;
-    let match;
-    while ((match = closedRegex.exec(text)) !== null) {
-        if (match[1].trim()) {
-            thinkingParts.push(match[1].trim());
+    // 1. Extract and remove complete <thinking>...</thinking> blocks in one pass
+    // We use replace with a callback to extract content while removing the block
+    let cleanText = text.replace(CLOSED_THINKING_REGEX, (_match, content) => {
+        if (content && content.trim()) {
+            thinkingParts.push(content.trim());
         }
-    }
-
-    // Remove all closed blocks from the text
-    cleanText = cleanText.replace(closedRegex, "").trim();
+        return ""; // Replace the block with empty string
+    }).trim();
 
     // 2. Handle unclosed <thinking> tag (Streaming scenario)
     // If the text ends with an open thinking block that hasn't closed yet.
+    // Note: Since we removed all closed blocks, any remaining <thinking> is unclosed.
     const openTagIndex = cleanText.indexOf("<thinking>");
     if (openTagIndex !== -1) {
         const trailingThought = cleanText.substring(openTagIndex + 10).trim();
