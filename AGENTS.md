@@ -16,7 +16,7 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
     *   **The Inspector (El Casting):** Analyzes the current scene to extract a "Casting Report" (Active Characters, Tone, Pacing). In Ghost Mode, simulates archetypes (e.g., "Weary Leader").
     *   **The Tribunal (El Juicio):** Invokes a critical AI panel to evaluate literary quality (0-100 score). See "The Tribunal" section below.
     *   **Memory Sync (La Sinapsis):** Forces a manual refresh of the AI's short-term context from the active file (`handleContextSync`).
-    *   **Sensory Interface:** Accepts multi-modal input (Images, Audio) via `handleSendMessage` to influence narrative advice.
+    *   **Sensory Interface:** Accepts multi-modal input (**Images, Audio**) via `handleSendMessage` to influence narrative advice (e.g., analyzing concept art or mood music).
     *   **Canon Radar (Drift Detection):** Compares new content vectors against the **Project Centroid**. Returns `drift_score` and status (`STABLE`, `DRIFTING`, `CRITICAL_INCOHERENCE`).
     *   **Drift Control (Echoes):** Detects "Echoes" (contradictions).
         *   **Rescue:** Validates new information as Canon.
@@ -34,10 +34,17 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Fusion Protocol (The Unifier):**
     *   **Batch Merge:** Supports unifying multiple mentions (e.g., "The King", "Arthur", "King Arthur") into a single entity node.
 
+*   **Blacklist Protocol (The Grudge):**
+    *   Persists `ignoredTerms` in `project_config`.
+    *   The AI actively ignores these terms during future scans to prevent false positives.
+
 *   **Reality Tuner (Gemini 3.0 Pro Temperature):**
     *   **Rigor (Cyan):** Strict logic, zero hallucinations. Canon pure.
     *   **Fusion (Silver):** Narrative balance, plausible connections.
     *   **Entropy (Violet):** Creative chaos, wild ideas.
+
+*   **Context Injection:**
+    *   Uses `structureAnalysis` to inject only the relevant narrative phase context (e.g., "Rising Action") to optimize token usage.
 
 *   **Crystallization Protocol:**
     1.  **Preview:** User approves the proposed graph.
@@ -51,7 +58,7 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 **Primary Directive:** Classify narrative entities into strict ontological tiers and manage their lifecycle.
 
 *   **Lifecycle Workflow:**
-    1.  **ECHOES (The Radar):** Scans narrative text for names without files (Ghosts). **Ignores `Resources` folder.**
+    1.  **ECHOES (The Radar):** Scans narrative text for names without files (Ghosts). **Strictly ignores `_RESOURCES` or `Resources` folders (Rule of Silence).**
     2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File. "The Oracle" (Chat) assists here with **full project visibility** (including `Resources`).
     3.  **ANCHORS (The Vault):** "Crystallized" entities with a physical Markdown file in Drive.
 
@@ -108,13 +115,15 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 **Location:** `src/components/LaboratoryPanel.tsx`
 **Primary Directive:** Manage and query reference materials (PDFs, Images, Notes) without polluting the narrative canon.
 
-*   **The Librarian:**
-    *   **Exclusive Access:** The chat interface ("Gemini Flash") has access **ONLY** to files in the `Resources` folder.
+*   **The Librarian (El Bibliotecario):**
+    *   **Model:** Powered by **Gemini 2.5 Flash** (Specialized for RAG/Analysis).
+    *   **Exclusive Access:** The chat interface has access **ONLY** to files in folders named `_RESOURCES`, `_RECURSOS`, or marked as `category: 'reference'`.
     *   **Query Scope:** Can answer questions like "What does the PDF say about artificial gravity?".
 
-*   **Lazy Classification:**
-    *   **Mechanism:** Uses a debounce (2s) to classify new resources in the background.
-    *   **Tags:** LORE, SCIENCE, VISUAL.
+*   **Smart Tags (Lazy Classification):**
+    *   **Mechanism:** Uses a background Cloud Function (`classifyResource`) to tag content.
+    *   **Tags:** `LORE`, `SCIENCE`, `VISUAL`.
+    *   **Context Injection:** Drag & Drop allows specific file injection for focused analysis.
 
 ## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
 **Role:** Silent Protection & Persistence
@@ -143,7 +152,9 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Status Bar:**
     *   **Eye of Argos:** Indicator of Guardian status (Clean/Conflict/Scanning).
     *   **Energy Jewel:** Visual progress bar for daily word count goals.
-*   **Zen Mode:** Visual silencing of all panels (Sidebar, Tools) for focused writing.
+*   **Zen Mode (Sentinel Shell):**
+    *   **Behavior:** Visually **unmounts** the Sidebar and Tools panels (via `SentinelShell.tsx`) to free up browser memory and remove distractions.
+    *   **Warning:** Guardian alerts (visual) are suppressed in this mode.
 
 ### 2. INSTRUCTION LEAKAGE & DOS PROTECTION
 *   **Input Limits:**
