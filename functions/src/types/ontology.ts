@@ -1,35 +1,39 @@
 export type EntityTrait =
-    | 'sentient'
-    | 'location'
-    | 'artifact'
-    | 'concept'
-    | 'event'
-    | 'creature'
-    | 'faction';
+    | 'sentient'    // Tiene agencia, diálogo, psicología (Personajes, IAs, Monstruos inteligentes)
+    | 'location'    // Tiene coordenadas, geografía, atmósfera (Lugares, Planetas)
+    | 'artifact'    // Es un objeto, tiene peso, valor, función (Items, MacGuffins)
+    | 'faction'     // Es un grupo, tiene ideología, miembros (Gremios, Cultos)
+    | 'event'       // Ocurre en el tiempo (Batallas, Escenas)
+    | 'creature'    // Bestiario, fauna, monstruos (con o sin agencia)
+    | 'concept';    // Abstracto (Leyes mágicas, Filosofía)
 
 export interface TitaniumEntity {
-    id: string;          // Nexus ID (Deterministic)
-    name: string;        // Canonical Name
+    id: string;          // Nexus ID (Hash Determinista del Path)
+    name: string;        // Nombre Canónico (Debe coincidir con H1)
 
-    // 🟢 THE CORE: FUNCTIONAL TRAITS
-    // Replaces static 'type'. Defines capability.
+    // 🚀 EL NÚCLEO: Define qué PUEDE hacer la entidad
     traits: EntityTrait[];
 
     // 🟢 DYNAMIC ATTRIBUTES (Only if valuable)
     attributes: {
-        role?: string;       // "Protagonista", "Capital", "Espada Mágica"
-        aliases?: string[];  // "The Chosen One"
-        tags?: string[];
-        project_id?: string;
-        avatar?: string;
-        // Metadatos de Sistema (Ocultos al AI en RAG, visibles para el Sistema)
+        role?: string;       // Descripción corta (ej. "Capitán de la Guardia")
+        aliases?: string[];  // Para búsqueda difusa
+        tags?: string[];     // Taxonomía flexible
+
+        // 🟢 SISTEMA (Oculto al RAG, visible para Logic)
         _sys?: {
             status: 'active' | 'archived';
-            tier: 'ANCHOR' | 'DRAFT';
+            tier: 'ANCHOR' | 'DRAFT' | 'GHOST';
             last_sync: string;
+            schema_version: '2.0';
         };
+
+        // Compatibility Shield
+        type?: string;
+
+        // Datos específicos de Trait (opcionales)
         [key: string]: any;
     };
 
-    bodyContent: string; // The Sovereign Markdown Body
+    bodyContent: string; // Markdown Soberano
 }

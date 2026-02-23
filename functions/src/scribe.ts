@@ -316,7 +316,8 @@ export const scribeCreateFile = onCall(
                     _sys: {
                         status: 'active',
                         tier: 'ANCHOR',
-                        last_sync: new Date().toISOString()
+                        last_sync: new Date().toISOString(),
+                        schema_version: '2.0'
                     }
                 },
                 bodyContent: finalBodyContent || defaultBody
@@ -668,6 +669,7 @@ export const scribePatchFile = onCall(
                             bodyContent: newBody
                         };
 
+                        // 🟢 TITANIUM 2.0 FORGE
                         finalContent = TitaniumFactory.forge(entity);
                     }
                 }
