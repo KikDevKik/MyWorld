@@ -1234,7 +1234,9 @@ export const enrichCharacterContext = onCall(
           return { success: false, message: "No se encontraron datos en la memoria para este personaje." };
       }
 
-      const contextText = chunksData.map(c => c.text).join("\n\n---\n\n");
+      const contextText = chunksData.map(c =>
+        `[SOURCE: ${c.fileName}]\n${c.text}`
+      ).join("\n\n---\n\n");
       // Deduplicate sources
       const sources = Array.from(new Set(chunksData.map(c => c.fileName)));
 
@@ -2326,7 +2328,9 @@ ${analysis}
       logger.info('📚 RAG Context Sources:', relevantChunks.map(c => c.fileName));
 
       // 5. Construir Contexto RAG
-      const contextText = relevantChunks.map(c => c.text).join("\n\n---\n\n");
+      const contextText = relevantChunks.map(c =>
+        `[SOURCE: ${c.fileName}${c.path ? ` | PATH: ${c.path}` : ''}]\n${c.text}`
+      ).join("\n\n---\n\n");
 
       // 🟢 DEBUG SOURCES
       if (filterScopePath) {
