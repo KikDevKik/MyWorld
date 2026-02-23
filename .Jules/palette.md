@@ -11,3 +11,7 @@
 ## 2026-02-22 - [Visibility of Interactive Elements in Zen Mode]
 **Learning:** Elements that are visually hidden in specific modes (like Zen Mode opacity:0) but remain in the DOM must ensure they become visible when they receive keyboard focus. Otherwise, keyboard users are navigating blindly through invisible controls.
 **Action:** Use `focus-within:opacity-100` alongside hover states to ensure container visibility when child elements are focused.
+
+## 2025-05-19 - [Modal Dismissal Standardization]
+**Learning:** Custom modals like `CrystallizeModal` often lack standard dismissal behaviors (Escape key, backdrop click), leading to user frustration and accessibility barriers. Ensuring a consistent dismissal pattern across all modals is essential for a predictable UX.
+**Action:** Implement a standard `useEffect` for the `Escape` key and a backdrop `onClick` handler in all custom modal components.
