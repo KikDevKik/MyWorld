@@ -284,9 +284,13 @@ export const genesisManifest = onCall(
                     attributes: {
                         role: item.role || "NPC",
                         age: item.age || "Desconocida",
-                        status: 'active',
-                        tier: 'ANCHOR',
-                        project_id: projectId
+                        project_id: projectId,
+                        _sys: {
+                            status: 'active',
+                            tier: 'ANCHOR',
+                            last_sync: new Date().toISOString(),
+                            schema_version: '2.0'
+                        }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`
                 };
@@ -302,9 +306,13 @@ export const genesisManifest = onCall(
                     traits: ['location'],
                     attributes: {
                         role: 'Setting',
-                        status: 'active',
-                        tier: 'ANCHOR',
-                        project_id: projectId
+                        project_id: projectId,
+                        _sys: {
+                            status: 'active',
+                            tier: 'ANCHOR',
+                            last_sync: new Date().toISOString(),
+                            schema_version: '2.0'
+                        }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🌍 Geografía\nGenerado por el Protocolo Génesis.`
                 };
@@ -320,9 +328,13 @@ export const genesisManifest = onCall(
                     traits: ['creature', 'sentient'], // 'sentient' ensures compatibility if it has personality
                     attributes: {
                         role: 'Monster',
-                        status: 'active',
-                        tier: 'ANCHOR',
-                        project_id: projectId
+                        project_id: projectId,
+                        _sys: {
+                            status: 'active',
+                            tier: 'ANCHOR',
+                            last_sync: new Date().toISOString(),
+                            schema_version: '2.0'
+                        }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🐾 Comportamiento\nGenerado por el Protocolo Génesis.`
                 };
@@ -338,9 +350,13 @@ export const genesisManifest = onCall(
                     traits: ['artifact'],
                     attributes: {
                         role: 'Item',
-                        status: 'active',
-                        tier: 'ANCHOR',
-                        project_id: projectId
+                        project_id: projectId,
+                        _sys: {
+                            status: 'active',
+                            tier: 'ANCHOR',
+                            last_sync: new Date().toISOString(),
+                            schema_version: '2.0'
+                        }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 💎 Propiedades\nGenerado por el Protocolo Génesis.`
                 };
