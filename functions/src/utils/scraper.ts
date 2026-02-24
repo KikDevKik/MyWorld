@@ -20,43 +20,61 @@ export function extractUrls(text: string): string[] {
 }
 
 /**
- * Recursively extracts text from a DOM node, inserting newlines for block elements.
- * Improves upon .textContent which merges text from adjacent block elements.
+ * Iteratively extracts text from a DOM node, inserting newlines for block elements.
+ * 🛡️ SENTINEL: Replaced recursion with stack-based iteration to prevent Stack Overflow (DoS).
  */
-function extractReadableText(node: Node): string {
-    if (node.nodeType === 3) { // TEXT_NODE
-        return node.textContent || "";
-    }
+export function extractReadableText(root: Node): string {
+    let text = "";
+    // Stack stores nodes to visit.
+    // We need to process opening tag (enter) and closing tag (leave) logic.
+    // 'enter': Push text, handle block start newline, push children.
+    // 'leave': Handle block end newline.
+    const stack: { node: Node, phase: 'enter' | 'leave' }[] = [{ node: root, phase: 'enter' }];
 
-    if (node.nodeType === 1) { // ELEMENT_NODE
-        const el = node as Element;
-        const tagName = el.tagName.toLowerCase();
+    while (stack.length > 0) {
+        const item = stack.pop()!;
+        const currentNode = item.node;
+        const phase = item.phase;
 
-        // Skip clutter (Redundant check if already cleaned, but safe)
-        if (['script', 'style', 'noscript', 'iframe', 'svg', 'img'].includes(tagName)) return "";
-        if (tagName === 'br') return "\n";
-
-        let text = "";
-
-        // Block elements where we want to ensure separation
-        const isBlock = ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'article', 'section', 'blockquote', 'pre'].includes(tagName);
-
-        // Add a newline before block elements if there isn't one (simplistic approach)
-        // We will just accumulate and then normalize whitespace later.
-        // But to prevent "TitleText", we add a space or newline.
-
-        if (isBlock) text += "\n";
-
-        for (const child of Array.from(node.childNodes)) {
-            text += extractReadableText(child);
+        if (currentNode.nodeType === 3) { // TEXT_NODE
+            if (phase === 'enter') {
+                 text += currentNode.textContent || "";
+            }
+            continue;
         }
 
-        if (isBlock) text += "\n";
+        if (currentNode.nodeType === 1) { // ELEMENT_NODE
+            const el = currentNode as Element;
+            const tagName = el.tagName.toLowerCase();
 
-        return text;
+            // Skip clutter
+            if (['script', 'style', 'noscript', 'iframe', 'svg', 'img'].includes(tagName)) continue;
+
+            if (tagName === 'br') {
+                if (phase === 'enter') text += "\n";
+                continue;
+            }
+
+            const isBlock = ['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'article', 'section', 'blockquote', 'pre'].includes(tagName);
+
+            if (phase === 'enter') {
+                if (isBlock) text += "\n";
+
+                // Re-push for 'leave' phase (post-order logic)
+                stack.push({ node: currentNode, phase: 'leave' });
+
+                // Push children in reverse order so they are popped in correct order
+                const children = currentNode.childNodes;
+                for (let i = children.length - 1; i >= 0; i--) {
+                    stack.push({ node: children[i], phase: 'enter' });
+                }
+            } else if (phase === 'leave') {
+                if (isBlock) text += "\n";
+            }
+        }
     }
 
-    return "";
+    return text;
 }
 
 /**
@@ -139,6 +157,7 @@ export async function fetchWebPageContent(url: string): Promise<{ url: string, t
 
         // 3. Extract Text Smartly
         const main = doc.querySelector('main') || doc.body;
+        // 🛡️ SENTINEL: Use iterative extraction
         const rawText = extractReadableText(main);
 
         // 4. Normalize Whitespace
