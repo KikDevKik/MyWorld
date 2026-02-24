@@ -231,8 +231,8 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                             placeholder="Descripción..."
                         />
                         <div className="flex gap-1 justify-end mt-1">
-                            <button onClick={() => setIsEditing(false)} className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>
-                            <button onClick={handleSaveEdit} className="text-[10px] text-green-400 hover:text-white px-2 py-0.5 border border-green-500/30 rounded">OK</button>
+                            <button onClick={() => setIsEditing(false)} aria-label="Cancelar edición" className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>
+                            <button onClick={handleSaveEdit} aria-label="Guardar cambios" className="text-[10px] text-green-400 hover:text-white px-2 py-0.5 border border-green-500/30 rounded">OK</button>
                         </div>
                     </div>
                 ) : (
@@ -882,10 +882,10 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
 
                          {/* ZOOM CONTROLS */}
                         <div className="absolute bottom-24 right-6 flex flex-col gap-2 pointer-events-auto">
-                            <button onClick={handleClearAll} className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title="Limpiar Todo (DB + Local)"><Trash2 size={16} /></button>
-                            <button onClick={() => spawnDebugNodes(50)} className="p-2 bg-red-900/50 border border-red-700 rounded text-red-500 mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
-                            <button onClick={() => zoomIn()} className="p-2 bg-slate-900 border border-slate-700 rounded"><Plus size={16} /></button>
-                            <button onClick={() => zoomOut()} className="p-2 bg-slate-900 border border-slate-700 rounded"><div className="w-4 h-[2px] bg-white my-2" /></button>
+                            <button onClick={handleClearAll} aria-label="Limpiar Todo (DB + Local)" className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title="Limpiar Todo (DB + Local)"><Trash2 size={16} /></button>
+                            <button onClick={() => spawnDebugNodes(50)} aria-label="Debug: Spawn Swarm" className="p-2 bg-red-900/50 border border-red-700 rounded text-red-500 mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
+                            <button onClick={() => zoomIn()} aria-label="Acercar vista" className="p-2 bg-slate-900 border border-slate-700 rounded"><Plus size={16} /></button>
+                            <button onClick={() => zoomOut()} aria-label="Alejar vista" className="p-2 bg-slate-900 border border-slate-700 rounded"><div className="w-4 h-[2px] bg-white my-2" /></button>
                         </div>
                     </>
                 )}
@@ -900,18 +900,19 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                         </div>
                         <input
                             type="text"
+                            aria-label="Comando para el Nexus"
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             placeholder={isGenerating ? "Procesando..." : "Inyectar variable..."}
                             disabled={isGenerating}
                             className="flex-1 bg-transparent outline-none text-sm text-white placeholder-slate-600 font-mono"
                         />
-                        <button type="submit" disabled={isGenerating} className="text-slate-500 hover:text-white"><Plus size={20} /></button>
+                        <button type="submit" aria-label="Ejecutar comando" disabled={isGenerating} className="text-slate-500 hover:text-white"><Plus size={20} /></button>
                     </form>
                     {/* Entropy Slider */}
                     <div className="h-1 w-full bg-slate-900 relative rounded-full overflow-hidden mx-2 mb-2 max-w-[96%] self-center">
                         <div className={`absolute top-0 left-0 h-full ${entropy > 0.6 ? "bg-red-500" : "bg-cyan-500"}`} style={{ width: `${entropy * 100}%` }} />
-                        <input type="range" min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
+                        <input type="range" aria-label="Nivel de Entropía" min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
                     </div>
                 </div>
              </div>
