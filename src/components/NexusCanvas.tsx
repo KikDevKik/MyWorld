@@ -128,12 +128,12 @@ const FactionLabel: React.FC<{ name: string, x: number, y: number, count: number
 // 🟢 ENTITY CARD (OPTIMIZED: Memo + Ref + No Internal Drag)
 const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     node: VisualNode;
-    onClick: () => void;
-    onCrystallize?: () => void;
+    onSelect: (node: VisualNode) => void;
+    onCrystallizeAction?: (node: VisualNode) => void;
     onEdit?: (nodeId: string, updates: { name: string, description: string }) => void;
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
-}>(({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId }, ref) => {
+}>(({ node, onSelect, onCrystallizeAction, onEdit, lodTier, setHoveredNodeId }, ref) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(node.name);
     const [editDesc, setEditDesc] = useState(node.description || "");
@@ -210,7 +210,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                     // Prevent drag click from triggering click if moved? D3 handles this usually.
                     // e.stopPropagation(); // We want to allow D3 drag to not trigger this if dragged?
                     // Actually, for pure click:
-                    if (!isEditing) onClick();
+                    if (!isEditing) onSelect(node);
                 }}
             >
                 {isEditing ? (
@@ -252,9 +252,9 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                                             <FileText size={10} />
                                         </button>
                                     )}
-                                    {onCrystallize && (
+                                    {onCrystallizeAction && (
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); onCrystallize(); }}
+                                            onClick={(e) => { e.stopPropagation(); onCrystallizeAction(node); }}
                                             className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
                                         >
                                             <Save size={10} />
@@ -286,7 +286,8 @@ export interface GraphSimulationHandle {
     // No methods needed currently, but keeping for future extensibility or D3 control
 }
 
-const GraphSimulation = forwardRef<GraphSimulationHandle, {
+// ⚡ OPTIMIZED: Memoized to prevent re-renders on parent state changes (e.g. hover)
+const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
     nodes: VisualNode[];
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
@@ -439,15 +440,15 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
                     node={node}
                     lodTier={lodTier}
                     setHoveredNodeId={setHoveredNodeId}
-                    onClick={() => onNodeClick(node)}
+                    onSelect={onNodeClick}
                     onEdit={onUpdateGhost}
-                    onCrystallize={() => onCrystallize(node)}
+                    onCrystallizeAction={onCrystallize}
                 />
             ))}
 
         </div>
     );
-});
+}));
 
 
 // 🟢 LINKS OVERLAY (Static Layer - "The Divorce")
@@ -698,10 +699,22 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         return combined;
     }, [dbNodes, ghostNodes]);
 
-    // Handlers
-    const handleUpdateGhost = (nodeId: string, updates: any) => {
+    // Handlers (Memoized for Performance)
+    const handleUpdateGhost = useCallback((nodeId: string, updates: any) => {
         setGhostNodes(prev => prev.map(g => g.id === nodeId ? { ...g, ...updates } : g));
-    };
+    }, []);
+
+    const handleNodeClick = useCallback((n: VisualNode) => {
+        console.log("Clicked", n.name);
+    }, []);
+
+    const handleCrystallize = useCallback((n: VisualNode) => {
+        setCrystallizeModal({ isOpen: true, node: n });
+    }, []);
+
+    const handleTick = useCallback(() => {
+        linksOverlayRef.current?.forceUpdate();
+    }, []);
 
     const spawnDebugNodes = (count: number = 50) => {
          const newGhosts: VisualNode[] = [];
@@ -872,11 +885,11 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                                 nodes={unifiedNodes}
                                 lodTier={lodTier}
                                 setHoveredNodeId={setHoveredNodeId}
-                                onNodeClick={(n) => console.log("Clicked", n.name)}
+                                onNodeClick={handleNodeClick}
                                 onUpdateGhost={handleUpdateGhost}
-                                onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
+                                onCrystallize={handleCrystallize}
                                 isLoading={loading}
-                                onTick={() => linksOverlayRef.current?.forceUpdate()}
+                                onTick={handleTick}
                             />
                         </TransformComponent>
 
