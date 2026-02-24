@@ -78,7 +78,21 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
 
     const countWords = (text: string) => {
         if (!text) return 0;
-        return text.trim().split(/\s+/).length;
+        let count = 0;
+        let inWord = false;
+        const len = text.length;
+        for (let i = 0; i < len; i++) {
+            const code = text.charCodeAt(i);
+            // Whitespace: space(32), tab(9), LF(10), CR(13), NBSP(160)
+            const isSpace = (code === 32 || code === 9 || code === 10 || code === 13 || code === 160);
+            if (isSpace) {
+                inWord = false;
+            } else if (!inWord) {
+                inWord = true;
+                count++;
+            }
+        }
+        return count;
     };
 
     // 🟢 RESET STATE ON FILE CHANGE
@@ -182,6 +196,13 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         }
     }, [projectId, fileId, conflicts.length, lawConflicts.length, personalityDrifts.length]);
 
+    // ⚡ Bolt Optimization: Latest Ref to prevent Echo Audits
+    // Stores the latest version of executeAudit so we don't need it in the effect deps
+    const executeAuditRef = useRef(executeAudit);
+    useEffect(() => {
+        executeAuditRef.current = executeAudit;
+    }, [executeAudit]);
+
     // 🟢 DEBOUNCE LOOP (3000ms)
     useEffect(() => {
         if (timerRef.current) clearTimeout(timerRef.current);
@@ -213,7 +234,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
             }
 
             lastHashRef.current = currentHash;
-            await executeAudit(content);
+            await executeAuditRef.current(content);
 
             // 🟢 UPDATE BASELINES AFTER SUCCESSFUL AUDIT
             hasAutoAuditedRef.current = true;
@@ -224,7 +245,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
         };
-    }, [content, executeAudit]);
+    }, [content]);
 
     // 🟢 FORCE AUDIT TRIGGER
     const forceAudit = () => {
