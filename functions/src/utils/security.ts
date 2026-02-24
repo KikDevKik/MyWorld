@@ -259,7 +259,13 @@ export function isPrivateIp(ip: string): boolean {
         return /^(0|10|127)\./.test(ip) ||
                ip.startsWith('169.254.') ||
                ip.startsWith('192.168.') ||
-               /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip);
+               /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip) ||
+               /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./.test(ip) || // CGNAT (100.64.0.0/10)
+               /^192\.0\.0\./.test(ip) ||     // IETF Protocol
+               /^192\.0\.2\./.test(ip) ||     // TEST-NET-1
+               /^198\.51\.100\./.test(ip) ||  // TEST-NET-2
+               /^203\.0\.113\./.test(ip) ||   // TEST-NET-3
+               /^2[4-5][0-9]\./.test(ip);     // Class E / Reserved
     }
 
     if (family === 6) {
