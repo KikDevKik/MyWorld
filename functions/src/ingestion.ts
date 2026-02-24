@@ -1,6 +1,7 @@
 import * as crypto from 'crypto';
 import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
+import matter from 'gray-matter';
 
 export interface IngestionFile {
   id: string; // Drive ID (The Primary Key)
@@ -116,6 +117,21 @@ export async function ingestFile(
             narrativeIntent = 'REGLA_ESTILISTICA';
         }
 
+        // 🧠 METADATA EXTRACTION (Frontmatter)
+        let frontmatterData: any = {};
+        try {
+            const parsed = matter(content);
+            frontmatterData = parsed.data || {};
+            // Prune empty keys to save space
+            Object.keys(frontmatterData).forEach(key => {
+                if (frontmatterData[key] === undefined || frontmatterData[key] === null || frontmatterData[key] === "") {
+                    delete frontmatterData[key];
+                }
+            });
+        } catch (e) {
+            logger.warn(`⚠️ [INGEST] Frontmatter parse error in ${file.name}:`, e);
+        }
+
         // Update File Metadata (UPSERT)
         const fileMetadata: any = {
             name: file.name,
@@ -128,7 +144,8 @@ export async function ingestFile(
             chunkCount: 1,
             category: file.category || 'canon',
             timelineDate: null,
-            contentHash: currentHash // 🟢 CRITICAL: Hash Persistence
+            contentHash: currentHash, // 🟢 CRITICAL: Hash Persistence
+            frontmatter: frontmatterData // 🟢 HYDRATION: Store metadata for RAG
         };
 
         if (narrativeIntent) {
