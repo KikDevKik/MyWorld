@@ -130,3 +130,8 @@
 **Prevention:**
 1. Secure all `onCall` functions with `if (!request.auth)` by default.
 2. Audit backend functions against frontend usage regularily to remove zombie endpoints.
+
+## 2025-06-06 - [DoS Prevention: Recursive Stack Overflow in Scraper]
+**Vulnerability:** Maximum Call Stack Size Exceeded (DoS)
+**Learning:** The `extractReadableText` function in `scraper.ts` used recursion to traverse DOM nodes. A malicious HTML structure with deep nesting (~8000 levels) caused a stack overflow, crashing the execution context despite try/catch blocks in some environments (or just failing the request). Recursion is dangerous for parsing untrusted tree structures.
+**Prevention:** Replaced recursive traversal with an iterative stack-based approach. This moves the state from the call stack (limited) to the heap (limited only by available memory), ensuring robustness against deeply nested content.
