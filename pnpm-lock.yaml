@@ -143,6 +143,9 @@ importers:
       turndown:
         specifier: ^7.2.2
         version: 7.2.2
+      unist-util-visit:
+        specifier: ^5.1.0
+        version: 5.1.0
       zustand:
         specifier: ^5.0.10
         version: 5.0.10(@types/react@19.2.9)(react@18.3.1)

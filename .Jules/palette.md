@@ -15,3 +15,7 @@
 ## 2025-05-19 - [Modal Dismissal Standardization]
 **Learning:** Custom modals like `CrystallizeModal` often lack standard dismissal behaviors (Escape key, backdrop click), leading to user frustration and accessibility barriers. Ensuring a consistent dismissal pattern across all modals is essential for a predictable UX.
 **Action:** Implement a standard `useEffect` for the `Escape` key and a backdrop `onClick` handler in all custom modal components.
+
+## 2026-05-25 - [Accessibility of Complex Canvas Controls]
+**Learning:** Highly visual components like `NexusCanvas` often rely on icon-only floating controls for Zoom and Tools. These are critical for navigation but completely inaccessible to screen readers without explicit `aria-label` attributes, as `title` is often insufficient or ignored.
+**Action:** Systematically audit all floating controls on canvas/map surfaces and enforce `aria-label` for every icon-only button, ensuring the description conveys the action (e.g., "Zoom In") rather than just the icon name.
