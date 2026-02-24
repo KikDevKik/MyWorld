@@ -13,14 +13,14 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
     *   **War Room:** (Width > 900px) Full command center. Displays historical session logs + tools.
 
 *   **Tactical Capabilities:**
-    *   **The Inspector (El Casting):** Analyzes the current scene to extract a "Casting Report" (Active Characters, Tone, Pacing). In Ghost Mode, simulates archetypes (e.g., "Weary Leader").
-    *   **The Tribunal (El Juicio):** Invokes a critical AI panel to evaluate literary quality (0-100 score). See "The Tribunal" section below.
-    *   **Memory Sync (La Sinapsis):** Forces a manual refresh of the AI's short-term context from the active file (`handleContextSync`).
-    *   **Sensory Interface:** Accepts multi-modal input (**Images, Audio**) via `handleSendMessage` to influence narrative advice (e.g., analyzing concept art or mood music).
+    *   **The Inspector (El Casting):** Analyzes the current scene (`handleInspector`) to extract a "Casting Report" (Active Characters, Tone, Pacing). In Ghost Mode, simulates archetypes.
+    *   **The Tribunal (El Juicio):** Invokes a critical AI panel to evaluate literary quality (0-100 score). Timeout: **540s (9 minutes)**.
+    *   **Memory Sync (La Sinapsis):** Forces a manual refresh of the AI's short-term context from the active file (`handleContextSync`). Triggered by `needsReindex` banner.
+    *   **Sensory Interface:** Accepts multi-modal input (**Images, Audio**) via `handleSendMessage` to influence narrative advice.
     *   **Canon Radar (Drift Detection):** Compares new content vectors against the **Project Centroid**. Returns `drift_score` and status (`STABLE`, `DRIFTING`, `CRITICAL_INCOHERENCE`).
     *   **Drift Control (Echoes):** Detects "Echoes" (contradictions).
-        *   **Rescue:** Validates new information as Canon.
-        *   **Purge:** Deletes the echo from memory permanently.
+        *   **Rescue:** Validates new information as Canon via `handleRescue`.
+        *   **Purge:** Deletes the echo from memory permanently via `handlePurge`.
 
 ## 🌐 THE NEXUS (WORLD ENGINE v4.0)
 **Role:** Entity Graph & Reality Visualizer
@@ -30,13 +30,11 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Identity Protocol (Deterministic):**
     *   IDs are generated via **DJB2 Hash** (Slug + ProjectID).
     *   Ensures consistent identification across scans and sessions.
-
-*   **Fusion Protocol (The Unifier):**
-    *   **Batch Merge:** Supports unifying multiple mentions (e.g., "The King", "Arthur", "King Arthur") into a single entity node.
+    *   **Fusion Protocol:** Supports "Batch Merge" to unify aliases (e.g., "The King" -> "Arthur").
 
 *   **Blacklist Protocol (The Grudge):**
     *   Persists `ignoredTerms` in `project_config`.
-    *   The AI actively ignores these terms during future scans to prevent false positives.
+    *   The AI actively ignores these terms during future scans.
 
 *   **Reality Tuner (Gemini 3.0 Pro Temperature):**
     *   **Rigor (Cyan):** Strict logic, zero hallucinations. Canon pure.
@@ -44,7 +42,8 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
     *   **Entropy (Violet):** Creative chaos, wild ideas.
 
 *   **Context Injection:**
-    *   Uses `structureAnalysis` to inject only the relevant narrative phase context (e.g., "Rising Action") to optimize token usage.
+    *   Uses `structureAnalysis` to inject only the relevant narrative phase context (e.g., "Rising Action").
+    *   **Nexus V2 Engine:** Powered by `react-zoom-pan-pinch` and `d3-force`.
 
 *   **Crystallization Protocol:**
     1.  **Preview:** User approves the proposed graph.
@@ -58,8 +57,8 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 **Primary Directive:** Classify narrative entities into strict ontological tiers and manage their lifecycle.
 
 *   **Lifecycle Workflow:**
-    1.  **ECHOES (The Radar):** Scans narrative text for names without files (Ghosts). **Strictly ignores `_RESOURCES` or `Resources` folders (Rule of Silence).**
-    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File. "The Oracle" (Chat) assists here with **full project visibility** (including `Resources`).
+    1.  **ECHOES (The Radar):** Scans narrative text for names without files (Ghosts). **Strictly ignores `_RESOURCES`, `_RECURSOS` or `Resources` folders (Rule of Silence).**
+    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File. "The Oracle" (Chat) assists here with **full project visibility** (including Resources).
     3.  **ANCHORS (The Vault):** "Crystallized" entities with a physical Markdown file in Drive.
 
 *   **Metadata Seals (Anchor Detection):**
@@ -73,18 +72,8 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
     *   `Faction` / `Facción` / `Grupo`
 
     **Accepted Formats:**
-    *   **YAML Frontmatter:**
-        ```yaml
-        ---
-        Role: Protagonist
-        Age: 19
-        ---
-        ```
-    *   **Markdown Body:**
-        ```markdown
-        **Rol:** Protagonista
-        **Edad:** 19 años
-        ```
+    *   **YAML Frontmatter:** `--- Role: Protagonist ---`
+    *   **Markdown Body:** `**Rol:** Protagonista` (Bold key required).
 
 ## ⚖️ THE TRIBUNAL (EL JUICIO)
 **Role:** Literary Critique Panel
@@ -123,7 +112,8 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Smart Tags (Lazy Classification):**
     *   **Mechanism:** Uses a background Cloud Function (`classifyResource`) to tag content.
     *   **Tags:** `LORE`, `SCIENCE`, `VISUAL`.
-    *   **Context Injection:** Drag & Drop allows specific file injection for focused analysis.
+    *   **Performance:** Uses a debounce of **2 seconds** and processes in batches of 3 files to avoid quota saturation.
+    *   **Context Injection:** Drag & Drop allows specific file injection for focused analysis via `chatWithGem`.
 
 ## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
 **Role:** Silent Protection & Persistence
@@ -133,17 +123,18 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Purpose:** Provenance & Forensics. Proves human authorship.
 *   **Mechanism:** `CreativeAuditService.ts` logs events ('INJECTION', 'CURATION', 'STRUCTURE') to an immutable Firestore collection (`audit_log`).
 *   **Security:** Uses `serverTimestamp()` to prevent client-side tampering.
-*   **Output:** Generates a "Certificate of Authorship" (PDF/TXT).
+*   **Output:** Generates a "Certificate of Authorship" (PDF/TXT) via The Press (`compileManuscript`).
 
 ### 2. THE SILENT SCRIBE (AUTO-SAVE)
 *   **Trigger:** Debounce of **2000ms** (2 seconds) after last keystroke.
 *   **Significant Update:** If `char_diff > 50` (Manual) or massive change, flags update as `isSignificant: true`.
 *   **Conflict Resolution:** "Last Write Wins". Warns user if multiple tabs are open.
+*   **Timeline Analysis:** Uses `extractTimelineEvents` (double-pass extraction) triggered manually or by significant edits.
 
 ### 3. NEURONAL SYNC (THE LEARNING LOOP)
 *   **Mechanism:** Backend (`indexTDB`) listens for Drive changes.
 *   **Incremental Indexing:** Only re-processes files where the **SHA-256 Hash** has changed.
-*   **Frontend Sync:** `ProjectConfigContext.tsx` subscribes to `TDB_Index/{uid}/structure/tree`.
+*   **Frontend Sync:** `ProjectConfigContext.tsx` subscribes to `TDB_Index/{uid}/structure/tree` via `onSnapshot`.
 
 ## ⚙️ CORE MECHANICS & CONTROLS
 
@@ -151,7 +142,7 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Drift Plugin:** Visual feedback (Red/Orange underlines) for narrative incoherence detected by the AI.
 *   **Status Bar:**
     *   **Eye of Argos:** Indicator of Guardian status (Clean/Conflict/Scanning).
-    *   **Energy Jewel:** Visual progress bar for daily word count goals.
+    *   **Energy Jewel:** Visual progress bar for daily word count goals. Heuristic ignores sudden jumps >50 words/tick (Anti-Paste).
 *   **Zen Mode (Sentinel Shell):**
     *   **Behavior:** Visually **unmounts** the Sidebar and Tools panels (via `SentinelShell.tsx`) to free up browser memory and remove distractions.
     *   **Warning:** Guardian alerts (visual) are suppressed in this mode.
