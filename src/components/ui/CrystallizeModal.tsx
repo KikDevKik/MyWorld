@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { X, Check, Folder, FileText, Tag, Loader2 } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 
@@ -32,6 +32,21 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
     const [selectedFolderId, setSelectedFolderId] = useState('');
     const [tags, setTags] = useState<string>('');
     const [previewContent, setPreviewContent] = useState('');
+
+    // Handle Escape Key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        if (isOpen) {
+            document.addEventListener('keydown', handleEscape);
+        }
+
+        return () => {
+            document.removeEventListener('keydown', handleEscape);
+        };
+    }, [isOpen, onClose]);
 
     // RESET STATE ON OPEN
     useEffect(() => {
@@ -84,7 +99,10 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
     if (!isOpen) return null;
 
     return (
-        <div className="absolute inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto">
+        <div
+            className="absolute inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm pointer-events-auto"
+            onClick={onClose}
+        >
             <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -92,6 +110,7 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="crystallize-title"
+                onClick={(e) => e.stopPropagation()}
             >
                 {/* HEADER */}
                 <div className="h-12 bg-slate-800 flex items-center justify-between px-4 border-b border-titanium-500/30">
