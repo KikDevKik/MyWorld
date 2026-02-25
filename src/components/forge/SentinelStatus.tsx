@@ -9,6 +9,7 @@ interface SentinelStatusProps {
     onClose: () => void;
     isSecurityReady: boolean;
     isOffline: boolean;
+    accessToken?: string | null;
 }
 
 interface ScanResult {
@@ -17,7 +18,7 @@ interface ScanResult {
     ghosts: { id: string; name: string; size: string; mimeType: string }[];
 }
 
-const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityReady, isOffline }) => {
+const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityReady, isOffline, accessToken }) => {
     const { config, fileTree, isFileTreeLoading } = useProjectConfig();
     const { showOnlyHealthy, toggleShowOnlyHealthy } = useLayoutStore();
 
@@ -47,12 +48,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
         // Let's assume we can get it from localStorage for now as a fallback or assume component props.
         // But App.tsx renders SentinelStatus. Let's check App.tsx props passed to SentinelStatus.
         // App.tsx passes: onClose, isSecurityReady, isOffline. NO accessToken.
-        // I need to add accessToken to SentinelStatusProps in App.tsx!
-        // FOR NOW: I will try to retrieve from localStorage 'google_drive_token' as a fallback,
-        // or prompt the user. But since I can't easily change App.tsx props *inside* this file edit,
-        // I will use localStorage logic which App.tsx uses.
-
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) {
             toast.error("Token de acceso expirado. Por favor, refresca la página.");
             setIsScanning(false);
@@ -89,7 +85,7 @@ const SentinelStatus: React.FC<SentinelStatusProps> = ({ onClose, isSecurityRead
         }
 
         setIsPurging(true);
-        const token = localStorage.getItem('google_drive_token'); // Fallback
+        const token = accessToken;
 
         try {
             const ghostIds = scanResult.ghosts.map(g => g.id);
