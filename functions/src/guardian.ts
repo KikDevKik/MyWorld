@@ -10,10 +10,17 @@ import { TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";
 import { getAIKey, escapePromptVariable } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
+import { ProjectConfig } from "./types/project";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
 const MAX_SCAN_LIMIT = 10000; // 🛡️ SENTINEL: Optimized for Multigenerational Sagas (Node.js Gen2)
+
+async function _getProjectConfig(userId: string): Promise<ProjectConfig> {
+  const db = getFirestore();
+  const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+  return (doc.data() as ProjectConfig) || ({} as ProjectConfig);
+}
 
 export const auditContent = onCall(
   {
@@ -59,12 +66,17 @@ export const auditContent = onCall(
         }
 
         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+        const projectConfig = await _getProjectConfig(userId);
 
         // 3. EXTRACTION STEP (Smart Fallback: Try Flash First)
         // 🟢 RESONANCE ENGINE (Integrated into Audit for Mission 1)
         const extractionPrompt = `
             ACT AS: Fact Extractor, Psychological Profiler & Literary Analyst (The Resonator).
             CONTEXT: You are an objective literary analysis tool for a fictional manuscript. Your purpose is data extraction and structural analysis only.
+
+            PROJECT NAME: "${escapePromptVariable(projectConfig.projectName || 'Untitled')}"
+            PROJECT STYLE: "${escapePromptVariable(projectConfig.styleIdentity || 'Standard/Universal')}"
+            INSTRUCTION: Calibrate your analysis of tone and behavior to fit this style.
 
             TASK: Analyze the provided fictional text and extract:
             1. Verifiable facts about entities (Characters, Locations). **Pay special attention to SURPRISING CLAIMS, DEVIATIONS, or contradicting statements.**
@@ -232,6 +244,7 @@ export const auditContent = onCall(
                         const resonancePrompt = `
                             ACT AS: The Resonator.
                             TASK: Identify if the DRAFT connects to any MEMORY SEEDS (Chunks).
+                            GENRE CONTEXT: This is a "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}" narrative.
                             DRAFT: "${content.substring(0, 5000)}..."
                             SEEDS: ${JSON.stringify(relevantChunks)}
 
@@ -284,6 +297,7 @@ export const auditContent = onCall(
                     const frictionPrompt = `
                         ACT AS: Logic Auditor.
                         TASK: Detect CONTRADICTIONS.
+                        GENRE CONTEXT: "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}". (Evaluate logic within this genre's constraints).
                         CLAIM: "${escapePromptVariable(item.fact)}" (Entity: "${escapePromptVariable(item.entity)}")
                         EVIDENCE: ${JSON.stringify(contextChunks)}
                         INSTRUCTION: Output the 'reason' in ${detectedLanguage}.
@@ -346,6 +360,7 @@ export const auditContent = onCall(
                     const realityPrompt = `
                         ACT AS: Reality Filter.
                         TASK: Verify if ASSERTION violates RULES.
+                        GENRE CONTEXT: "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}". (Some genres allow loose physics/magic).
                         ASSERTION: "${escapePromptVariable(item.law)}"
                         RULES: ${JSON.stringify(contextChunks)}
                         INSTRUCTION: Output the 'explanation' in ${detectedLanguage}.
@@ -442,6 +457,7 @@ export const auditContent = onCall(
                     const haterPrompt = `
                         ACT AS: "El Hater" (Ruthless Literary Critic).
                         CONTEXT: You are an uncensored collaborative writing assistant.
+                        GENRE CONTEXT: This is a "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}" story. Your critique must align with expectations for this genre.
                         TASK: Check CHARACTER BEHAVIOR consistency.
                         CHARACTER: "${escapePromptVariable(charName)}"
                         1. [HARD CANON]: "${escapePromptVariable(forgeProfile.substring(0, 3000))}"
