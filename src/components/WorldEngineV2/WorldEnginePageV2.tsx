@@ -243,6 +243,11 @@ const WorldEnginePageV2: React.FC<{
             return;
         }
 
+        if (!accessToken) {
+            toast.error("Sesión de Drive no válida. Recarga la página.");
+            return;
+        }
+
         setIsScanning(true);
         setCandidates([]);
         setScanStatus("INICIALIZANDO PROTOCOLO TITANIUM...");
@@ -252,6 +257,7 @@ const WorldEnginePageV2: React.FC<{
             // Note: ignoredTerms is now fetched via subscription and available in state
             const results = await scanProjectFiles(
                 config.folderId, // 🟢 NEW: Project Context
+                accessToken, // 🟢 NEW: Auth Token (Secure)
                 fileTree,
                 config.canonPaths,
                 unifiedNodes, // 🟢 FIX: Check against ALL nodes (including Ghosts)
@@ -363,8 +369,8 @@ const WorldEnginePageV2: React.FC<{
         setIsCrystallizing(true);
 
         try {
-            const token = localStorage.getItem('google_drive_token');
-            if (!token) throw new Error("Falta Token.");
+            const token = accessToken;
+            if (!token) throw new Error("Falta Token de Sesión.");
             await callFunction('crystallizeNode', {
                 accessToken: token,
                 folderId: data.folderId,

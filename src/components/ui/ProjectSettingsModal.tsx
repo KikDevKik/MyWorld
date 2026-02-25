@@ -10,9 +10,10 @@ import { callFunction } from '../../services/api';
 
 interface ProjectSettingsModalProps {
     onClose: () => void;
+    accessToken?: string | null;
 }
 
-const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) => {
+const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, accessToken }) => {
     const { config, updateConfig, loading } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
@@ -65,7 +66,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
             if (idsToFetch.length === 0) return;
 
-            const token = localStorage.getItem('google_drive_token');
+            const token = accessToken;
             if (!token) return;
 
             try {
@@ -110,7 +111,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             await updateConfig(newConfig);
 
             // 🟢 TRIGGER INDEX REFRESH (Lightweight & Strict)
-            const token = localStorage.getItem('google_drive_token');
+            const token = accessToken;
             if (token) {
                 try {
                     const allPaths = [...canonPaths, ...resourcePaths];
@@ -152,7 +153,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         currentList: ProjectPath[],
         singleSelect: boolean = false
     ) => {
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) {
             alert("No hay token de acceso. Por favor recarga la página o inicia sesión de nuevo.");
             return;
@@ -213,7 +214,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     // 🟢 AI AUTO-DISCOVERY
     const handleAutoDiscover = async () => {
         setIsAnalyzing(true);
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) return;
 
         try {
@@ -239,7 +240,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         if (!confirm(t.editor.noProjectDesc)) return; // reusing message approx
 
         setIsAnalyzing(true);
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         const rootId = config?.folderId;
 
         if (!token || !rootId) {
@@ -268,7 +269,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     // 🟢 MANUAL FOLDER SELECTOR HELPER
     const selectFolderForRole = (role: FolderRole) => {
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) return;
 
         // Use standard picker logic but for single folder

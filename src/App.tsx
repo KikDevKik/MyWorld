@@ -363,7 +363,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setCurrentFileId(null);
             setOauthToken(null);
             setDriveStatus('disconnected');
-            localStorage.removeItem('google_drive_token');
 
             toast.dismiss(toastId);
         }
@@ -682,6 +681,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onClose={() => setActiveView('editor')}
                     isSecurityReady={isSecurityReady}
                     isOffline={!driveStatus || driveStatus === 'disconnected' || driveStatus === 'error' || !isSecurityReady}
+                    accessToken={oauthToken}
                 />
             );
         } else if (activeView === 'director') {
@@ -913,7 +913,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             )}
 
             {isProjectSettingsOpen && (
-                <ProjectSettingsModal onClose={() => setIsProjectSettingsOpen(false)} />
+                <ProjectSettingsModal
+                    onClose={() => setIsProjectSettingsOpen(false)}
+                    accessToken={oauthToken}
+                />
             )}
 
             {isFieldManualOpen && (
@@ -1024,7 +1027,6 @@ function App() {
         // 👻 GHOST ACCESS: BYPASS AUTH IN DEV
         if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
             console.warn("👻 GHOST ACCESS ENABLED: Skipping Google Auth");
-            localStorage.setItem('google_drive_token', 'mock-token'); // 🟢 SET MOCK TOKEN FOR NEXUS
             setUser({
                 uid: 'jules-dev',
                 email: 'jules@internal.test',
@@ -1051,15 +1053,7 @@ function App() {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setAuthLoading(false);
-
-            // 🟢 INTENTO DE RECUPERAR TOKEN GUARDADO
-            const storedToken = localStorage.getItem('google_drive_token');
-            if (storedToken) {
-                setOauthToken(storedToken);
-                setDriveStatus('connected');
-            } else {
-                setDriveStatus('disconnected');
-            }
+            setDriveStatus('disconnected');
         });
         return () => unsubscribe();
     }, []);
@@ -1093,7 +1087,6 @@ function App() {
 
                         if (data && data.success && data.accessToken) {
                             setOauthToken(data.accessToken);
-                            localStorage.setItem('google_drive_token', data.accessToken);
                             setDriveStatus('connected');
                             toast.dismiss(toastId);
                             toast.success("¡Drive Vinculado Permanentemente!");
@@ -1126,7 +1119,6 @@ function App() {
             if (data && data.success && data.accessToken) {
                 console.log("✅ Token refrescado silenciosamente (Backend).");
                 setOauthToken(data.accessToken);
-                localStorage.setItem('google_drive_token', data.accessToken);
                 setDriveStatus('connected');
                 return data.accessToken;
             } else {

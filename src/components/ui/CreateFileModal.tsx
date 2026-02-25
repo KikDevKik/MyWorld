@@ -91,7 +91,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
     }, [isOpen, config, fileTree]);
 
     const handleOpenPicker = () => {
-        const token = accessToken || localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) {
             toast.error("Error de autenticación. Recarga la página.");
             return;

@@ -172,6 +172,7 @@ function consolidateIntraScanCandidates(candidates: AnalysisCandidate[]): Analys
 
 export const scanProjectFiles = async (
     projectId: string, // 🟢 NEW: Mandatory for Backend Context
+    accessToken: string, // 🟢 NEW: Mandatory for Auth
     fileTree: FileNode[],
     canonConfigs: { id: string }[],
     existingNodes: GraphNode[],
@@ -180,11 +181,10 @@ export const scanProjectFiles = async (
 ): Promise<AnalysisCandidate[]> => {
 
     // 0. PRE-FLIGHT CHECK (TOKEN)
-    const token = localStorage.getItem('google_drive_token');
-    if (!token) throw new Error("No hay token de sesión.");
+    if (!accessToken) throw new Error("No hay token de sesión.");
 
     // Validate connectivity before starting heavy operations
-    const isTokenValid = await validateToken(token);
+    const isTokenValid = await validateToken(accessToken);
     if (!isTokenValid) {
         throw new Error("Sesión de Drive caducada. Reconecta en Configuración.");
     }
@@ -211,7 +211,7 @@ export const scanProjectFiles = async (
 
     // 🟢 1.5. DIFFERENTIAL SCANNING (The Filter)
     onProgress("Verificando actualizaciones...", 0, targetFiles.length);
-    const fileMetadataMap = await fetchFileMetadata(targetFiles.map(f => f.id), token);
+    const fileMetadataMap = await fetchFileMetadata(targetFiles.map(f => f.id), accessToken);
 
     const filesToScan = targetFiles.filter(f => {
         const meta = fileMetadataMap[f.id];
@@ -272,19 +272,16 @@ export const scanProjectFiles = async (
         onProgress(`ANALIZANDO NOVEDADES... Lote ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} archivos).`, processedCount, batchKeys.length);
 
         try {
-            const token = localStorage.getItem('google_drive_token');
-            if (!token) throw new Error("Missing Drive Token");
-
             const data = await callFunction<{ candidates: AnalysisCandidate[] }>('analyzeNexusFile', {
                 fileIds: batchIds, // 🟢 SEND LIST
                 projectId: projectId, // 🟢 SEND PROJECT ID
-                accessToken: token,
+                accessToken: accessToken,
                 contextType: contextType,
                 ignoredTerms: ignoredTerms,
                 folderId: pid
             }, { timeout: 540000 }); // 9 Minutes
 
-            if (data.candidates && Array.isArray(data.candidates)) {
+            if (data && data.candidates && Array.isArray(data.candidates)) {
                 // 🟢 ID GENERATION & RELATION MAPPING & METADATA INJECTION
                 const candidatesWithIds = data.candidates.map(c => {
                     // Inject File Metadata using mapped name
