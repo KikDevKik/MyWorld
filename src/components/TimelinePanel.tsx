@@ -254,7 +254,7 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                         </div>
                     </div>
                 ) : events.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-titanium-600 opacity-50">
+                    <div className="flex flex-col items-center justify-center h-full text-titanium-600 opacity-50" role="status">
                         <CalendarClock size={64} className="mb-4" />
                         <p>No hay eventos registrados.</p>
                         <p className="text-sm mt-2">Configura el año y pulsa "Analizar Archivo" para que la IA extraiga la historia.</p>
@@ -264,13 +264,13 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
                         {/* Central Line */}
                         <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-titanium-800 transform -translate-x-1/2" />
 
-                        <div className="flex flex-col gap-12 py-8">
+                        <ol className="flex flex-col gap-12 py-8 list-none m-0 p-0" aria-label="Línea de tiempo de eventos">
                             {events.map((event, index) => {
                                 const isLeft = index % 2 === 0;
                                 const isSuggested = event.status === 'suggested';
 
                                 return (
-                                    <div key={event.id} className={`flex items-center w-full ${isLeft ? 'flex-row' : 'flex-row-reverse'}`}>
+                                    <li key={event.id} className={`flex items-center w-full ${isLeft ? 'flex-row' : 'flex-row-reverse'}`}>
 
                                         {/* Card */}
                                         <div className={`w-[45%] ${isLeft ? 'text-right pr-8' : 'text-left pl-8'}`}>
@@ -348,10 +348,10 @@ const TimelinePanel: React.FC<TimelinePanelProps> = ({ onClose, userId, onFileSe
 
                                         {/* Spacer for the other side */}
                                         <div className="w-[45%]" />
-                                    </div>
+                                    </li>
                                 );
                             })}
-                        </div>
+                        </ol>
                     </div>
                 )}
             </div>
