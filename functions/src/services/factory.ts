@@ -7,7 +7,7 @@ import { traitsToLegacyType, legacyTypeToTraits } from '../utils/legacy_adapter'
  * Single Source of Truth for file generation.
  * Enforces the "Functional Ontology" while maintaining backward compatibility.
  *
- * @version 2.0.0 (Anti-Makeup Protocol)
+ * @version 3.0.0 (Unified Blueprint)
  */
 export class TitaniumFactory {
 
@@ -25,20 +25,23 @@ export class TitaniumFactory {
         }
 
         // 2. Prune Status (Moved to _sys, delete from root if present)
-        if (clean.status && clean._sys?.status) delete clean.status;
+        if (clean.status) delete clean.status;
 
         // 3. Prune Role (If unknown)
-        if (clean.role && ['unknown', 'desconocido', 'entidad registrada'].includes(norm(clean.role))) {
+        if (clean.role && ['unknown', 'desconocido', 'entidad registrada', 'unregistered entity'].includes(norm(clean.role))) {
             delete clean.role;
         }
 
         // 4. Prune Tier (Moved to _sys, delete from root if present)
-        if (clean.tier && clean._sys?.tier) delete clean.tier;
+        if (clean.tier) delete clean.tier;
 
-        // 5. Prune Legacy Timestamps (Moved to _sys.last_sync)
+        // 5. Prune Legacy Timestamps
         if (clean.last_titanium_sync) delete clean.last_titanium_sync;
         if (clean.last_updated) delete clean.last_updated;
         if (clean.created_at) delete clean.created_at;
+
+        // 6. Prune ID (Moved to _sys.nexus_id or implicit)
+        if (clean.id) delete clean.id;
 
         return clean;
     }
@@ -57,9 +60,13 @@ export class TitaniumFactory {
 
         // 2. PREPARE ATTRIBUTES (Merge & Override)
         // Extract system fields from input or defaults
-        const sysStatus = entity.attributes._sys?.status || (entity.attributes.status as any) || 'active';
-        const sysTier = entity.attributes._sys?.tier || (entity.attributes.tier as any) || 'ANCHOR';
-        const sysLastSync = entity.attributes._sys?.last_sync || now;
+        // Note: attributes might have _sys already, or flat fields.
+        const existingSys = entity.attributes._sys || {} as any;
+
+        const sysStatus = existingSys.status || (entity.attributes.status as any) || 'active';
+        const sysTier = existingSys.tier || (entity.attributes.tier as any) || 'ANCHOR';
+        const sysLastSync = existingSys.last_sync || now;
+        const nexusId = entity.id || existingSys.nexus_id;
 
         // Ensure traits exist
         const traits = entity.traits && entity.traits.length > 0
@@ -68,9 +75,9 @@ export class TitaniumFactory {
 
         const rawAttributes = {
             ...entity.attributes,
-            id: entity.id,         // Nexus ID (Critical for Linking)
+            // id: entity.id,      // REMOVED from Root (Pruned)
             name: entity.name,     // Canonical Name
-            type: legacyType,      // 🛡️ COMPATIBILITY SHIELD (Required for Soul Sorter)
+            type: legacyType,      // 🛡️ COMPATIBILITY SHIELD (Kept for Soul Sorter)
             traits: traits,        // 🚀 TITANIUM NATIVE
 
             // 🟢 SYSTEM METADATA (Hidden in RAG, Visible for System)
@@ -78,7 +85,9 @@ export class TitaniumFactory {
                 status: sysStatus,
                 tier: sysTier,
                 last_sync: sysLastSync,
-                schema_version: '2.0'
+                schema_version: '3.0',
+                nexus_id: nexusId, // 🟢 ID moved here
+                legacy_type: legacyType
             }
         };
 

@@ -9,17 +9,15 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { TEMP_PRECISION } from "./ai_config";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
-import { updateFirestoreTree } from "./utils/tree_utils";
 import { ingestFile } from "./ingestion";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { getAIKey, escapePromptVariable } from "./utils/security";
 import { TitaniumFactory } from "./services/factory";
-import { TitaniumEntity, EntityTrait } from "./types/ontology";
+import { TitaniumEntity } from "./types/ontology";
 import { ProjectConfig } from "./types/project";
 import { legacyTypeToTraits } from "./utils/legacy_adapter";
-import matter from 'gray-matter';
-import { marked } from 'marked';
+import { SmartSyncService } from "./services/smart_sync";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
@@ -68,72 +66,6 @@ interface ScribePatchRequest {
     patchContent: string;
     accessToken: string;
     instructions?: string;
-}
-
-// 🟢 HELPER: AST Metadata Extraction
-function extractMetadataFromBody(body: string): { name?: string, role?: string } {
-    try {
-        const tokens = marked.lexer(body);
-        let name: string | undefined;
-        let role: string | undefined;
-
-        for (const token of tokens) {
-            // Extract Name (First H1)
-            if (token.type === 'heading' && token.depth === 1 && !name) {
-                name = token.text.trim();
-            }
-
-            // Extract Role (First Blockquote with Emphasis)
-            if (token.type === 'blockquote' && !role) {
-                if (token.tokens) {
-                    for (const subToken of token.tokens) {
-                        if (subToken.type === 'paragraph' && subToken.tokens) {
-                            for (const inline of subToken.tokens) {
-                                if (inline.type === 'em') {
-                                    role = inline.text.trim();
-                                    break;
-                                }
-                            }
-                        }
-                        if (role) break;
-                    }
-                }
-            }
-
-            if (name && role) break;
-        }
-        return { name, role };
-    } catch (e) {
-        logger.warn("⚠️ AST Extraction Failed:", e);
-        return {};
-    }
-}
-
-// 🛡️ SOVEREIGN AREAS PROTECTION
-function protectSovereignAreas(content: string): { protectedContent: string, map: Map<string, string> } {
-    const map = new Map<string, string>();
-    let counter = 0;
-
-    // Regex for <!-- SOVEREIGN START --> ... <!-- SOVEREIGN END -->
-    // Case insensitive, allowing multiline
-    const protectedContent = content.replace(
-        /<!--\s*SOVEREIGN START\s*-->([\s\S]*?)<!--\s*SOVEREIGN END\s*-->/gi,
-        (match) => {
-            const placeholder = `{{SOVEREIGN_BLOCK_${counter++}}}`;
-            map.set(placeholder, match);
-            return placeholder;
-        }
-    );
-
-    return { protectedContent, map };
-}
-
-function restoreSovereignAreas(content: string, map: Map<string, string>): string {
-    let restored = content;
-    map.forEach((originalBlock, placeholder) => {
-        restored = restored.replace(placeholder, originalBlock);
-    });
-    return restored;
 }
 
 /**
@@ -317,7 +249,8 @@ export const scribeCreateFile = onCall(
                         status: 'active',
                         tier: 'ANCHOR',
                         last_sync: new Date().toISOString(),
-                        schema_version: '2.0'
+                        schema_version: '3.0',
+                        nexus_id: nexusId
                     }
                 },
                 bodyContent: finalBodyContent || defaultBody
@@ -559,10 +492,12 @@ export const scribePatchFile = onCall(
 
             let originalContent = typeof getRes.data === 'string' ? getRes.data : JSON.stringify(getRes.data);
 
-            // 🛡️ SOVEREIGN AREAS PROTECTION
+            // 🛡️ SOVEREIGN AREAS PROTECTION (Via Middleware)
             // Mask protected areas before AI touches it
-            const { protectedContent, map: sovereignMap } = protectSovereignAreas(originalContent);
-            originalContent = protectedContent; // Replace for AI context
+            const { protectedContent, map: sovereignMap } = SmartSyncService.protectSovereignAreas(originalContent);
+
+            // Use protected content for AI Context
+            const contextForAI = protectedContent;
 
             // 2. AI MERGE
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
@@ -582,7 +517,7 @@ export const scribePatchFile = onCall(
             5. Do NOT wrap output in \`\`\`markdown code blocks. Return RAW text.
 
             EXISTING FILE:
-            "${escapePromptVariable(originalContent)}"
+            "${escapePromptVariable(contextForAI)}"
 
             NEW PATCH:
             "${escapePromptVariable(patchContent)}"
@@ -601,83 +536,12 @@ export const scribePatchFile = onCall(
             if (newContent.startsWith('```markdown')) newContent = newContent.replace(/^```markdown\n/, '').replace(/\n```$/, '');
             if (newContent.startsWith('```')) newContent = newContent.replace(/^```\n/, '').replace(/\n```$/, '');
 
-            // 🛡️ RESTORE SOVEREIGN AREAS
-            newContent = restoreSovereignAreas(newContent, sovereignMap);
+            // 🛡️ RESTORE SOVEREIGN AREAS (Via Middleware)
+            newContent = SmartSyncService.restoreSovereignAreas(newContent, sovereignMap);
 
             // 🟢 SMART-SYNC DELTA VALIDATOR (Middleware 3.0)
-            // Logic: Compare Original vs New.
-            // If Frontmatter changed -> Trust AI/User.
-            // If Frontmatter UNCHANGED -> Check Body AST and sync to Frontmatter.
-
-            let finalContent = newContent;
-            try {
-                const parsedNew = matter(newContent);
-                const parsedOriginal = matter(restoreSovereignAreas(originalContent, sovereignMap)); // Use original raw
-
-                const newFm = parsedNew.data;
-                const oldFm = parsedOriginal.data;
-                const newBody = parsedNew.content;
-
-                // A. DEBOUNCE CHECK
-                // 🟢 Check both Legacy and New _sys location
-                const lastSyncStr = newFm._sys?.last_sync || newFm.last_titanium_sync;
-                const lastSync = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
-                const now = Date.now();
-                const timeDiff = now - lastSync;
-
-                if (timeDiff < 5000) {
-                     logger.info(`⏳ [SMART-SYNC] Skipping reconciliation (Debounce: ${timeDiff}ms)`);
-                } else {
-                    // B. AST EXTRACTION
-                    const { name: extractedName, role: extractedRole } = extractMetadataFromBody(newBody);
-                    let attributes = { ...newFm };
-                    let hasChanges = false;
-
-                    // C. DELTA LOGIC
-                    // Check if AI modified FM explicitly (comparing critical fields)
-                    const fmNameChanged = newFm.name !== oldFm.name;
-                    const fmRoleChanged = newFm.role !== oldFm.role;
-
-                    if (fmNameChanged || fmRoleChanged) {
-                        logger.info("⚡ [SMART-SYNC] Explicit Frontmatter change detected. Respecting change.");
-                        hasChanges = true;
-                        // We use the NEW FM values as truth.
-                    } else {
-                        // AI preserved FM (as instructed). Check if Body changed significantly to warrant sync.
-                        if (extractedName && extractedName !== newFm.name) {
-                            attributes.name = extractedName;
-                            hasChanges = true;
-                            logger.info(`   -> Reconciling Name from Body: ${newFm.name} => ${extractedName}`);
-                        }
-                        if (extractedRole && extractedRole !== newFm.role) {
-                            attributes.role = extractedRole;
-                            hasChanges = true;
-                            logger.info(`   -> Reconciling Role from Body: ${newFm.role} => ${extractedRole}`);
-                        }
-                    }
-
-                    // D. TITANIUM FACTORY FORGE
-                    // We always run it through factory to ensure schema & anti-makeup
-                    if (hasChanges || !newFm.last_titanium_sync || !newFm._sys?.last_sync) {
-                        logger.info(`🔄 [METADATA RECONCILIATION] Re-Forging via TitaniumFactory for ${fileId}`);
-
-                        const entity: TitaniumEntity = {
-                            id: attributes.id || fileId,
-                            name: attributes.name || "Unknown",
-                            traits: attributes.traits || legacyTypeToTraits(attributes.type || 'concept'),
-                            attributes: attributes, // Factory will prune ghost data and handle _sys
-                            bodyContent: newBody
-                        };
-
-                        // 🟢 TITANIUM 2.0 FORGE
-                        finalContent = TitaniumFactory.forge(entity);
-                    }
-                }
-
-            } catch (syncErr) {
-                logger.warn(`⚠️ [SMART-SYNC] Failed to reconcile:`, syncErr);
-                // Fallback to AI content
-            }
+            // Reconcile and Enforce Schema
+            const finalContent = SmartSyncService.reconcile(fileId, originalContent, newContent);
 
             // 3. UPDATE FILE
             await drive.files.update({
@@ -712,7 +576,7 @@ export const scribePatchFile = onCall(
                         parentId: parentId,
                         category: 'canon'
                     },
-                    newContent,
+                    finalContent,
                     embeddingsModel
                 );
                 logger.info(`   🧠 [SCRIBE] Re-indexed patched file: ${fileName}`);

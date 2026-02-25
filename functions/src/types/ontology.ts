@@ -1,11 +1,10 @@
 export type EntityTrait =
     | 'sentient'    // Tiene agencia, diálogo, psicología (Personajes, IAs, Monstruos inteligentes)
-    | 'location'    // Tiene coordenadas, geografía, atmósfera (Lugares, Planetas)
-    | 'artifact'    // Es un objeto, tiene peso, valor, función (Items, MacGuffins)
-    | 'faction'     // Es un grupo, tiene ideología, miembros (Gremios, Cultos)
-    | 'event'       // Ocurre en el tiempo (Batallas, Escenas)
-    | 'creature'    // Bestiario, fauna, monstruos (con o sin agencia)
-    | 'concept';    // Abstracto (Leyes mágicas, Filosofía)
+    | 'locatable'   // Tiene coordenadas, geografía, atmósfera (Lugares, Planetas)
+    | 'tangible'    // Es un objeto físico, tiene peso, valor (Items, Artefactos, Bestias simples)
+    | 'temporal'    // Ocurre en el tiempo (Eventos, Escenas, Capítulos)
+    | 'organized'   // Es un grupo, tiene ideología, miembros (Gremios, Cultos, Facciones)
+    | 'abstract';   // Conceptos (Leyes mágicas, Filosofía, Lore puro)
 
 export interface TitaniumEntity {
     id: string;          // Nexus ID (Hash Determinista del Path)
@@ -22,13 +21,15 @@ export interface TitaniumEntity {
 
         // 🟢 SISTEMA (Oculto al RAG, visible para Logic)
         _sys?: {
-            status: 'active' | 'archived';
-            tier: 'ANCHOR' | 'DRAFT' | 'GHOST';
+            status: 'active' | 'archived' | 'ghost';
+            tier: 'ANCHOR' | 'DRAFT'; // Removed GHOST from here as it is a status
             last_sync: string;
-            schema_version: '2.0';
+            schema_version: '3.0';
+            legacy_type?: string; // Compatibility Shield
+            nexus_id?: string;    // 🟢 NEW: Explicit Nexus ID storage
         };
 
-        // Compatibility Shield
+        // Compatibility Shield (Deprecated but kept for transition)
         type?: string;
 
         // Datos específicos de Trait (opcionales)
