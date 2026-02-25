@@ -4592,6 +4592,15 @@ export const syncCharacterManifest = onCall(
                              logger.info(`🛡️ [TRUTH SHIELD] Preserving AI Role for ${slug} (Hash Match)`);
                              if (currentData.role) finalRole = currentData.role;
                              isAIEnriched = true;
+
+                             // 🟢 ECHO SHIELD: If content matches exactly, and we are just preserving, we might skip write?
+                             // But we might need to update 'lastRelinked' or 'masterFileId' if they changed?
+                             // Safe optimization: If masterFileId is same AND hash is same -> SKIP WRITE.
+                             if (currentData.masterFileId === file.id) {
+                                 logger.info(`🛡️ [ECHO SHIELD] Content & Link unchanged for ${slug}. Skipping Firestore write.`);
+                                 return;
+                             }
+
                         } else if (currentData?.contentHash !== ingestResult.hash) {
                              // IF Content Changed -> MANUAL OVERRIDE (Reset AI Flag)
                              if (currentDoc.exists) {
