@@ -21,6 +21,8 @@ import { GeminiEmbedder } from "./utils/vector_utils";
 import { Readable } from 'stream';
 import matter from 'gray-matter';
 import { ingestFile, deleteFileVectors } from "./ingestion";
+import { TitaniumFactory } from "./services/factory";
+import { TitaniumEntity } from "./types/ontology";
 import { createProjectCache } from "./utils/gemini_cache";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_CREATIVE, TEMP_PRECISION, TEMP_CHAOS, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { marked } from 'marked';
@@ -4721,9 +4723,34 @@ export const forgeToolExecution = onCall(
       const safeTitle = title.replace(/[^a-zA-Z0-9À-ÿ\s\-_]/g, '').trim() || "Untitled_Lore";
       const fileName = `${safeTitle}.md`;
 
+      // 🟢 TITANIUM FACTORY IMPLEMENTATION
+      let traits: any[] = ['abstract'];
+      const lowTitle = title.toLowerCase();
+      if (lowTitle.includes('character') || lowTitle.includes('personaje')) traits = ['sentient'];
+      else if (lowTitle.includes('location') || lowTitle.includes('lugar')) traits = ['locatable'];
+      else if (lowTitle.includes('item') || lowTitle.includes('objeto')) traits = ['tangible'];
+
+      const entity: TitaniumEntity = {
+          id: '', // Will be generated or implicit
+          name: safeTitle,
+          traits: traits,
+          attributes: {
+              role: "Tool Generated",
+              _sys: {
+                  status: 'active',
+                  tier: 'ANCHOR',
+                  last_sync: new Date().toISOString(),
+                  schema_version: '3.0'
+              }
+          },
+          bodyContent: content
+      };
+
+      const finalContent = TitaniumFactory.forge(entity);
+
       const media = {
         mimeType: 'text/markdown',
-        body: content
+        body: finalContent
       };
 
       const file = await drive.files.create({

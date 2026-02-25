@@ -283,13 +283,13 @@ export const genesisManifest = onCall(
                     traits: ['sentient'],
                     attributes: {
                         role: item.role || "NPC",
-                        age: item.age || "Desconocida",
+                        age: item.age, // Let Factory prune if "Unknown"
                         project_id: projectId,
                         _sys: {
                             status: 'active',
                             tier: 'ANCHOR',
                             last_sync: new Date().toISOString(),
-                            schema_version: '2.0'
+                            schema_version: '3.0'
                         }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`
@@ -303,7 +303,7 @@ export const genesisManifest = onCall(
                 const entity: TitaniumEntity = {
                     id: '',
                     name: item.name,
-                    traits: ['location'],
+                    traits: ['locatable'],
                     attributes: {
                         role: 'Setting',
                         project_id: projectId,
@@ -311,7 +311,7 @@ export const genesisManifest = onCall(
                             status: 'active',
                             tier: 'ANCHOR',
                             last_sync: new Date().toISOString(),
-                            schema_version: '2.0'
+                            schema_version: '3.0'
                         }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🌍 Geografía\nGenerado por el Protocolo Génesis.`
@@ -325,7 +325,8 @@ export const genesisManifest = onCall(
                 const entity: TitaniumEntity = {
                     id: '',
                     name: item.name,
-                    traits: ['creature', 'sentient'], // 'sentient' ensures compatibility if it has personality
+                    // 🟢 MAPPING: Creatures are tangible and sentient (agency)
+                    traits: ['tangible', 'sentient'],
                     attributes: {
                         role: 'Monster',
                         project_id: projectId,
@@ -333,7 +334,7 @@ export const genesisManifest = onCall(
                             status: 'active',
                             tier: 'ANCHOR',
                             last_sync: new Date().toISOString(),
-                            schema_version: '2.0'
+                            schema_version: '3.0'
                         }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🐾 Comportamiento\nGenerado por el Protocolo Génesis.`
@@ -347,7 +348,7 @@ export const genesisManifest = onCall(
                 const entity: TitaniumEntity = {
                     id: '',
                     name: item.name,
-                    traits: ['artifact'],
+                    traits: ['tangible'],
                     attributes: {
                         role: 'Item',
                         project_id: projectId,
@@ -355,7 +356,7 @@ export const genesisManifest = onCall(
                             status: 'active',
                             tier: 'ANCHOR',
                             last_sync: new Date().toISOString(),
-                            schema_version: '2.0'
+                            schema_version: '3.0'
                         }
                     },
                     bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 💎 Propiedades\nGenerado por el Protocolo Génesis.`
