@@ -30,7 +30,7 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **Identity Protocol (Deterministic):**
     *   IDs are generated via **DJB2 Hash** (Slug + ProjectID).
     *   Ensures consistent identification across scans and sessions.
-    *   **Fusion Protocol:** Supports "Batch Merge" to unify aliases (e.g., "The King" -> "Arthur").
+    *   **Fusion Protocol:** Supports "Batch Merge" to unify aliases (e.g., "The King" -> "Arthur") into a single entity ID.
 
 *   **Blacklist Protocol (The Grudge):**
     *   Persists `ignoredTerms` in `project_config`.
@@ -58,8 +58,16 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 
 *   **Lifecycle Workflow:**
     1.  **ECHOES (The Radar):** Scans narrative text for names without files (Ghosts). **Strictly ignores `_RESOURCES`, `_RECURSOS` or `Resources` folders (Rule of Silence).**
-    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File. "The Oracle" (Chat) assists here with **full project visibility** (including Resources).
+    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File.
     3.  **ANCHORS (The Vault):** "Crystallized" entities with a physical Markdown file in Drive.
+
+*   **Oracle Omniscience (Chat):**
+    *   Unlike the Radar, the Chat interface ("The Oracle") **HAS ACCESS** to the full project including `_RESOURCES` folders.
+    *   It uses this broad context to suggest traits or connections based on research notes.
+
+*   **Crystallization Protocol:**
+    *   **Action:** Invokes `scribeCreateFile` to generate a physical `.md` file for the entity.
+    *   **Audit:** Logs event as `CREATION` in `audit_log`.
 
 *   **Metadata Seals (Anchor Detection):**
     To be recognized as an ANCHOR, a file must contain specific metadata keys (YAML or Markdown) in the first 20 lines.
@@ -87,7 +95,7 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
 *   **The Judges:**
     1.  **The Architect (Blue):** Logic, plot holes, pacing, causality, world-building consistency. Tone: Cold, analytical.
     2.  **The Bard (Purple):** Aesthetics, sensory details, metaphor, prose flow. Tone: Poetic, dramatic.
-    3.  **The Hater (Red):** Market viability, clichés, boredom, "cringe" factor. Tone: Cynical, brutal, slang-heavy.
+    3.  **The Hater (Red):** Market viability, clichés, boredom, "cringe" factor. Tone: Cynical, destructive, slang-heavy.
 
 ## 🧹 THE SENTINEL (EL CONSERJE / JANITOR)
 **Role:** System Health & Hygiene
@@ -109,11 +117,17 @@ This document is the **Sovereign Source of Truth** for all AI Agent behaviors, p
     *   **Exclusive Access:** The chat interface has access **ONLY** to files in folders named `_RESOURCES`, `_RECURSOS`, or marked as `category: 'reference'`.
     *   **Query Scope:** Can answer questions like "What does the PDF say about artificial gravity?".
 
+*   **Context Injection (Drag & Drop):**
+    *   Dragging a file into the chat injects its `fileId` and full content directly into the `chatWithGem` context for focused analysis.
+
+*   **Crystallization (The Gem):**
+    *   **New File:** Invokes `scribeCreateFile` to save an idea as a new Markdown note.
+    *   **Update:** Invokes `scribePatchFile` to append the idea to an existing note.
+
 *   **Smart Tags (Lazy Classification):**
     *   **Mechanism:** Uses a background Cloud Function (`classifyResource`) to tag content.
     *   **Tags:** `LORE`, `SCIENCE`, `VISUAL`.
     *   **Performance:** Uses a debounce of **2 seconds** and processes in batches of 3 files to avoid quota saturation.
-    *   **Context Injection:** Drag & Drop allows specific file injection for focused analysis via `chatWithGem`.
 
 ## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
 **Role:** Silent Protection & Persistence
