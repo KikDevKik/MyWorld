@@ -1,83 +1,71 @@
-# Auditoría y Blueprint del Ciclo de Vida de Entidad (Proyecto Titanium)
-
-**Estado:** Borrador (Fase de Diseño)
-**Fecha:** 2026-05-21
-**Autor:** Jules (Chief Architect Persona)
-**Objetivo:** Transición de "Cosmetic Headers" a "Functional Ontology" con Integridad Bidireccional.
-
----
-
-## 1. El Diagnóstico: Entropía Estructural
-
-El sistema actual sufre de una disonancia fundamental entre cómo se *crean* los datos y cómo se *consumen*.
-
-### Hallazgos Críticos (Trace-to-Root)
-
-1.  **La Fuga de la Factoría (`forgeToolExecution`):**
-    *   **Ubicación:** `functions/src/index.ts`
-    *   **Problema:** Esta función crea archivos Markdown directamente usando `drive.files.create` con `media.body = content`. **Omite completamente `TitaniumFactory.forge`**.
-    *   **Consecuencia:** Los archivos creados por herramientas de IA (que no sean el Escriba) no tienen el esquema estandarizado, ni `_sys`, ni metadatos garantizados. Son "Archivos Salvajes".
-
-2.  **Taxonomía Rígida (`genesisManifest` y `crystallizeGraph`):**
-    *   **Ubicación:** `functions/src/genesis.ts`, `functions/src/crystallization.ts`
-    *   **Problema:** Dependen de mapas hardcodeados (`TYPE_ROLE_MAP`, `TYPE_SOUL`) que vinculan cadenas de texto específicas ("character", "beast") a carpetas físicas.
-    *   **Consecuencia:** Bloquea la evolución hacia un sistema basado en capacidades (Traits). Si una entidad es "Semi-Dios" (Character + Location), el sistema actual colapsa o la fuerza a una sola carpeta.
-
-3.  **Dependencia Visual (`NexusCanvas.tsx`):**
-    *   **Ubicación:** `src/components/NexusCanvas.tsx`
-    *   **Problema:** La lógica de renderizado (Colores, Iconos) y la física (d3-force radial grouping) leen directamente `node.type`.
-    *   **Consecuencia:** Eliminar el campo `type` rompería la visualización inmediatamente (nodos grises, sin agrupación).
-
-4.  **Datos Fantasma (Metadata Bloat):**
-    *   **Ubicación:** Colección `users/{uid}/characters`
-    *   **Problema:** Campos como `status`, `tier`, `sourceType` existen en la raíz del documento, mezclados con datos creativos. `age` y `avatar` a menudo están vacíos o son redundantes con el Markdown.
-    *   **Guardian:** El sistema de auditoría (`guardian.ts`) ignora estos campos estructurados y prefiere re-leer el `bio` o texto completo, probando que los campos estructurados son "ruido" para la IA.
+# 🏗️ Titanium Entity Lifecycle Audit & Unified Blueprint
+> **Fecha:** 2024-11-25
+> **Autor:** The Chief Architect
+> **Estado:** Fase 1 (Auditoría Profunda) & Fase 2 (Plan Maestro)
+> **Directiva:** Unificar la ontología funcional y eliminar la entropía estructural.
 
 ---
 
-## 2. El Blueprint: Ontología Funcional (Titanium 2.0)
+## 🔍 Fase 1: Auditoría Sistémica Profunda (The Deep Audit)
 
-Proponemos un cambio de "Identidad Nominal" (Qué es) a "Identidad Funcional" (Qué hace).
+El sistema actual sufre de "Fragmentación de Esquema". Múltiples herramientas crean archivos, pero cada una sigue sus propias reglas, ignorando la "Fuente de la Verdad" (`TitaniumFactory`).
 
-### La Interfaz Universal (`TitaniumEntity`)
+### 1. Puntos de Creación (Entry Points)
+He rastreado la ejecución de cada herramienta y estos son los hallazgos críticos:
+
+| Herramienta | Archivo Fuente | Estado | Hallazgo Crítico |
+| :--- | :--- | :--- | :--- |
+| **`forgeToolExecution`** | `functions/src/index.ts` | ❌ **CRÍTICO** | Escribe directamente en Drive (`drive.files.create`) ignorando por completo `TitaniumFactory`. Crea archivos "huesudos" sin metadata estandarizada. |
+| **`forgeToDrive`** | `functions/src/index.ts` | ❌ **CRÍTICO** | Convierte chats a Markdown y los guarda en Drive sin pasar por la validación de esquema. Genera nombres de archivo a veces inconsistentes. |
+| **`scribeCreateFile`** | `functions/src/scribe.ts` | ✅ PARCIAL | Usa `TitaniumFactory.forge`, pero depende excesivamente de la inferencia de `type` (legacy) en lugar de `traits`. |
+| **`genesisManifest`** | `functions/src/genesis.ts` | ⚠️ RIESGO | Usa `TitaniumFactory.forge`, pero construye manualmente los atributos (`age: "Desconocida"`), lo cual es redundante y propenso a errores si la Factory cambia. |
+| **`syncWorldManifest`** | `functions/src/index.ts` | ❌ **CRÍTICO** | Usa un prompt con taxonomía hardcodeada (`character`, `location`) que no se alinea con el sistema de Traits. Inventa tipos si la IA alucina. |
+| **`syncCharacterManifest`** | `functions/src/index.ts` | ⚠️ RIESGO | Actualiza Firestore directamente ("La Forja"), ignorando la lógica de `TitaniumFactory` para la sincronización de metadatos. |
+
+### 2. Lógica de Parcheo (`scribePatchFile`)
+La función `scribePatchFile` en `functions/src/scribe.ts` contiene la semilla del "Smart-Sync", pero está acoplada a la lógica del Escriba.
+- **Lo bueno:** Usa `TitaniumFactory.forge` para regenerar el archivo si detecta cambios en el Frontmatter.
+- **Lo malo:** La lógica de detección de cambios (Delta Validator) está hardcodeada dentro de la función y no es reutilizable por otras herramientas (como `genesis` o `forgeToolExecution`).
+
+### 3. Consumo de Datos (Ghost Data)
+El análisis de `functions/src/services/factory.ts` revela que la política "Anti-Makeup" es insuficiente.
+- **Problema:** Aún permitimos campos como `age: unknown` o `role: Entidad Registrada` si vienen del prompt de Génesis.
+- **Impacto:** Desperdicio de tokens en el Context Window de Gemini y ruido semántico.
+
+---
+
+## 🏛️ Fase 2: El Plano Unificado (The Unified Blueprint)
+
+### 1. La Interfaz Universal (Traits sobre Tipos)
+Abandonaremos `type: character` como fuente de verdad. La entidad se definirá por sus **Traits** (Rasgos Funcionales).
 
 ```typescript
+// functions/src/types/ontology.ts
+
 export type EntityTrait =
-    | 'sentient'    // Tiene agencia, psicología (Personajes, IAs)
-    | 'location'    // Tiene coordenadas, atmósfera (Lugares)
-    | 'artifact'    // Es un objeto tangible (Items)
-    | 'faction'     // Es un grupo social (Gremios)
-    | 'event'       // Ocurre en el tiempo (Escenas)
-    | 'concept'     // Abstracto (Leyes, Lore)
-    | 'document';   // Archivo puro (Capítulos)
+    | 'sentient'    // Tiene agencia, diálogo, psicología (Personajes, IAs)
+    | 'locatable'   // Tiene coordenadas, clima (Lugares, Planetas)
+    | 'tangible'    // Es un objeto físico (Items, Artefactos)
+    | 'temporal'    // Ocurre en el tiempo (Eventos, Escenas)
+    | 'organized'   // Es un grupo (Facciones, Gremios)
+    | 'abstract';   // Conceptos (Leyes, Magia)
 
 export interface TitaniumEntity {
     id: string;          // Nexus ID (Hash Determinista)
     name: string;        // Nombre Canónico
-
-    // 🚀 THE TRUTH: Lo que la entidad PUEDE hacer
-    traits: EntityTrait[];
-
-    // 🛡️ THE BRIDGE: Compatibilidad hacia atrás (Derivado de Traits)
-    // Se mantiene temporalmente para NexusCanvas y WorldEngine
-    type: string;
+    traits: EntityTrait[]; // 🚀 EL NÚCLEO
 
     attributes: {
-        role?: string;       // Descripción corta (ej. "Capitán")
-        aliases?: string[];
-        tags?: string[];
-
-        // 🗑️ GHOST DATA MOVED TO _SYS OR DELETED
-        // age: string; -> ELIMINADO (Pertenece al Body/Bio)
-        // avatar: string; -> ELIMINADO (Pertenece a Frontmatter visual)
+        role?: string;      // Rol Narrativo (ej. "Antagonista")
+        aliases?: string[]; // Búsqueda difusa
+        tags?: string[];    // Taxonomía flexible
 
         // 🟢 SISTEMA (Oculto al RAG, visible para Logic)
         _sys: {
-            status: 'active' | 'archived';
-            tier: 'ANCHOR' | 'DRAFT' | 'GHOST';
-            last_sync: string;
-            schema_version: '2.0';
-            source_tool: 'scribe' | 'forge' | 'genesis';
+            status: 'active' | 'archived' | 'ghost';
+            tier: 'ANCHOR' | 'DRAFT';
+            last_sync: string; // ISO Date
+            schema_version: '3.0'; // Titanium V3
         };
     };
 
@@ -85,84 +73,72 @@ export interface TitaniumEntity {
 }
 ```
 
-### El Puente de Compatibilidad (The Bridge)
+### 2. El Middleware "Smart-Sync"
+Crearemos una clase estática `SmartSyncService` en `functions/src/services/smart_sync.ts` que centralice la lógica de reconciliación:
 
-La `TitaniumFactory` implementará un "Auto-Derivador" para mantener vivas las herramientas legacy mientras migramos:
+1.  **Input:** Contenido Markdown (Raw) + Nuevos Metadatos (Parcial).
+2.  **Proceso:**
+    *   Extraer Frontmatter actual.
+    *   Extraer H1 y Blockquotes del Body (AST Analysis).
+    *   Detectar conflictos (Markdown dice "Rey", YAML dice "Príncipe").
+    *   **Regla de Oro:** Si el Humano editó el Texto, el Texto gana. Si la IA editó el YAML, el YAML gana.
+3.  **Output:** Llamada a `TitaniumFactory.forge()` con la entidad reconciliada.
 
-- Si `traits` incluye `'sentient'` -> `type = 'character'`
-- Si `traits` incluye `'location'` -> `type = 'location'`
-- Si `traits` incluye `'faction'` -> `type = 'faction'`
+### 3. Poda de Metadatos (Metadata Pruning - The Kill List)
+Los siguientes campos serán eliminados permanentemente del nivel raíz del Frontmatter y movidos a `_sys` o borrados:
 
-Esto permite que `NexusCanvas` siga coloreando nodos sin cambios inmediatos en el frontend.
+*   ❌ `status` (Mover a `_sys.status`)
+*   ❌ `type` (Mover a `_sys.legacy_type` solo para compatibilidad)
+*   ❌ `created_at` (Ruido)
+*   ❌ `updated_at` (Usar `_sys.last_sync`)
+*   ❌ `age` (Si es "unknown" o "desconocida", borrar. Si es dato real, mantener en `attributes`)
+*   ❌ `id` (El ID es implícito por el nombre/path, o Nexus ID calculado)
 
----
+### 4. Estandarización Cruzada (Cross-Tool Standardization)
+Todas las herramientas (`forgeToolExecution`, `forgeToDrive`, `genesisManifest`) deberán refactorizarse para:
+1.  Construir un objeto `TitaniumEntity`.
+2.  Llamar a `TitaniumFactory.forge(entity)`.
+3.  Guardar el resultado en Drive.
 
-## 3. Arquitectura "Smart-Sync" (Integridad Bidireccional)
+**NUNCA** escribirán `drive.files.create` con strings concatenados manualmente.
 
-Actualmente, `scribePatchFile` intenta esto pero es frágil. La nueva arquitectura será:
+### 5. Áreas Soberanas Humanas (Sovereign Areas)
+Para proteger la voz del autor, `SmartSyncService` respetará estrictamente los bloques:
 
-**Regla de Oro:** El Markdown (Body) es la Fuente de la Verdad Creativa. El YAML (Frontmatter) es la Fuente de la Verdad del Sistema.
-
-### Lógica del Middleware:
-1.  **Lectura:** Al leer un archivo, si el Frontmatter difiere del `_sys` en base de datos, gana el Archivo (Drive Authority).
-2.  **Escritura (Patching):**
-    *   AI genera el contenido.
-    *   **Validator:** Extrae H1 (`# Name`) y Blockquote (`> *Role*`).
-    *   **Reconciliación:** Si el H1 cambió, actualiza automáticamente el campo `name` en el Frontmatter y en Firestore (`TDB_Index`).
-    *   **Protección:** Las áreas `<!-- SOVEREIGN START -->` son intocables por la IA.
-
----
-
-## 4. Plan de Poda (Metadata Pruning)
-
-Campos a eliminar de la raíz de Firestore (`characters` y `forge_detected_entities`) y del Frontmatter visible:
-
-| Campo | Acción | Justificación |
-| :--- | :--- | :--- |
-| `age` | **Eliminar** | Dato narrativo, pertenece al texto (Bio). |
-| `status` | Mover a `_sys` | Dato de sistema, no creativo. |
-| `tier` | Mover a `_sys` | Dato de sistema. |
-| `sourceType` | Mover a `_sys` | Dato de debug. |
-| `sourceContext` | Eliminar | Redundante con `saga` o `project_id`. |
-| `avatar` | Mantener en Frontmatter (Opcional) | Visual, pero no crítico para RAG. |
-| `isGhost` | Mover a `_sys.tier` | Unificar estado. |
+```markdown
+<!-- SOVEREIGN START -->
+Este contenido es sagrado. La IA no lo tocará, no lo formateará, no lo resumirá.
+<!-- SOVEREIGN END -->
+```
+El servicio extraerá estos bloques antes de cualquier procesamiento y los reintegrará bit a bit al final.
 
 ---
 
-## 5. Estrategia de Ejecución (Fases)
+## ⚠️ Fase 3: Deuda Técnica y Riesgos (Mitigation Plan)
 
-### Fase 1: El Núcleo (Factory Upgrade)
-- Refactorizar `TitaniumFactory` para soportar `traits` y `_sys`.
-- Implementar la lógica "Bridge" (Type Derivation).
-- Actualizar `scribeCreateFile` para usar el nuevo esquema.
+### 🛑 El Riesgo del "Echo Loop" (Bucle Infinito)
+Existe una condición de carrera crítica:
+1.  `scribePatchFile` actualiza un archivo en Drive.
+2.  Drive activa el trigger (o el cliente hace polling).
+3.  `syncCharacterManifest` detecta el cambio e intenta actualizar Firestore.
+4.  Si `syncCharacterManifest` escribe un metadato que `scribe` vigila... se dispara otro patch.
 
-### Fase 2: Sellado de Fugas (Tool Fixes)
-- **Crítico:** Reescribir `forgeToolExecution` para que use `TitaniumFactory` en lugar de escritura cruda.
-- Actualizar `genesisManifest` y `crystallizeGraph` para enviar `traits` a la factoría en lugar de `type` (aunque la factoría lo soporte, debemos limpiar la entrada).
+**Solución: El Guardián del Hash (Content Hash Gatekeeper)**
+En `syncCharacterManifest` (o su sucesor en Titanium V3), implementaremos:
 
-### Fase 3: Limpieza del Frontend (Visual Update)
-- Actualizar `NexusCanvas.tsx` para leer `node.traits` para los estilos, eliminando la dependencia de strings hardcodeados.
-- Actualizar `LaboratoryPanel` para filtrar por `traits` en lugar de carpetas/categorías rígidas.
+```typescript
+// Pseudocódigo
+const incomingHash = crypto.createHash('sha256').update(fileContent).digest('hex');
+const currentDoc = await db.collection('characters').doc(id).get();
 
-### Fase 4: La Gran Migración (Baptism V2)
-- Script para recorrer todos los archivos existentes, leer su Frontmatter legacy, y re-escribirlos con el bloque `_sys` y los `traits` inferidos.
-
----
-
-## 6. Análisis de Riesgos Técnicos (Ciclos y Carreras)
-
-### 6.1. El Bucle "Echo Audit" (Scribe vs Guardian)
-*   **Riesgo:** `scribePatchFile` modifica un archivo -> Trigger `onWrite` (hipotético futuro) -> `Guardian` audita -> Guardian actualiza metadatos -> Trigger dispara `scribePatchFile`.
-*   **Mitigación:**
-    *   Implementar **"Writer Lock"**: Si el cambio proviene del `User ID` del sistema (AI), el trigger de auditoría debe ignorarlo o usar un debounce agresivo (5000ms, ya existente en `scribe.ts`).
-    *   **Timestamp Check:** `Guardian` solo debe auditar si `last_titanium_sync` > `last_audit_timestamp`.
-
-### 6.2. La Carrera del "Soul Sorter" (Forja de Almas)
-*   **Riesgo:** El usuario edita el Markdown manualmente. Al mismo tiempo, `soul_sorter` corre un escaneo programado y sobrescribe los metadatos basándose en una versión vieja del caché.
-*   **Mitigación:**
-    *   **Autoridad de Hash:** `soul_sorter` debe calcular el hash del contenido actual antes de escribir. Si el hash difiere del `last_known_hash` en Firestore, ABORTA la escritura y marca la entidad como `dirty` para re-escaneo.
-    *   **Flag `isAIEnriched`:** Si el usuario edita manualmente un campo protegido (ej. Role), este flag debe pasar a `false`. La IA tiene prohibido sobrescribir si `isAIEnriched === false`.
+if (currentDoc.data().contentHash === incomingHash) {
+    logger.info("🛡️ ECHO SHIELD: El contenido no ha cambiado. Abortando actualización de DB.");
+    return;
+}
+```
+Esto ya existe parcialmente, pero debe ser **estricto** y aplicarse a todas las sincronizaciones, no solo a personajes.
 
 ---
 
-**Siguiente Paso:** Implementar la Fase 1 (Factory Upgrade).
+## 🏁 Conclusión
+La "Catedral" necesita cimientos sólidos. La fragmentación actual en `index.ts` es una grieta estructural. Al centralizar la creación en `TitaniumFactory` y la reconciliación en `SmartSyncService`, eliminaremos la entropía y prepararemos el terreno para Titanium 3.0.
