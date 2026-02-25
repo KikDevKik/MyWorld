@@ -17,3 +17,7 @@
 ## 2026-02-07 - [O(N^2) Prop Merge in GhostGraph]
 **Learning:** Found O(N^2) complexity in `GhostGraph.tsx` where `useEffect` mapped new nodes against old state using `.find()`. This blocked the main thread during large graph updates. Replaced with `Map` for O(N) performance. Also found `React.memo` on `EntityCard` was broken by inline `onClick` handlers.
 **Action:** When merging props into local state (for physics/animation), always use a `Map` for ID lookups and ensure callbacks passed to memoized children are stable constants or `useCallback` hooks.
+
+## 2026-02-07 - [O(N) Re-render on Controlled Input]
+**Learning:** Found that `TimelinePanel` was re-rendering the entire list of events (O(N)) on every keystroke of the `currentYear` input because the list item rendering was inline. This caused visible input lag.
+**Action:** Always extract complex list items into memoized components when the parent has frequent state updates (like controlled inputs).
