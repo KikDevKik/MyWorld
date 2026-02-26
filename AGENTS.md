@@ -1,174 +1,149 @@
-# 🤖 AI AGENTS & ELITE TOOLS (TITANIUM PROTOCOL)
+# 🤖 TITANIUM PROTOCOL: AI AGENTS & ELITE MECHANICS
 
-This document is the **Sovereign Source of Truth** for all AI Agent behaviors, personas, and constraints within the Titanium project. All coding agents must adhere strictly to these definitions, bridging the gap between raw human manuals (in Spanish) and technical implementation.
+> **SOVEREIGN SOURCE OF TRUTH**: This document supersedes all previous instructions. It bridges the "Cathedral" (Creative Magic) and the "Bunker" (Security/Persistence). All coding agents must adhere strictly to these definitions.
 
-## 🛡️ THE DIRECTOR (EL CENTINELA / GUARDIAN)
-**Role:** Canon Custodian & Narrative Orchestrator
-**Location:** `functions/src/guardian.ts`, `src/components/DirectorPanel.tsx`, `src/hooks/useDirectorChat.ts`
-**Primary Directive:** Maintain the integrity of the user's "Canon" by detecting contradictions and narrative drift, acting as an omnipresent co-author.
+---
 
-*   **Operational Modes (Layout Context):**
-    *   **Sentinel Mode:** (Width < 500px) Silent observation. Chat only. Ideal for quick queries.
-    *   **Strategist Mode:** (Width 500px - 900px) Deploys **Tactical Tools** (Sidebar) for surgical interventions.
-    *   **War Room:** (Width > 900px) Full command center. Displays historical session logs + tools.
+## 🏗️ CORE PHILOSOPHY
+*   **The Cathedral:** The AI acts as an "Active Mirror" (Espejo Activo), not just a tool. It must understand plot, detect contradictions, and visualize structure.
+*   **The Bunker:** Absolute persistence. "Truth" resides in physical Markdown files (Google Drive) and immutable logs (Firestore).
+*   **The Bridge:** Coding agents ("The Weaver") translate raw Spanish manuals (`.Jules/Manuals/`) into technical constraints here.
 
-*   **Tactical Capabilities:**
-    *   **The Inspector (El Casting):** Analyzes the current scene (`handleInspector`) to extract a "Casting Report" (Active Characters, Tone, Pacing). In Ghost Mode, simulates archetypes.
-    *   **The Tribunal (El Juicio):** Invokes a critical AI panel to evaluate literary quality (0-100 score). Timeout: **540s (9 minutes)**.
-    *   **Memory Sync (La Sinapsis):** Forces a manual refresh of the AI's short-term context from the active file (`handleContextSync`). Triggered by `needsReindex` banner.
-    *   **Sensory Interface:** Accepts multi-modal input (**Images, Audio**) via `handleSendMessage` to influence narrative advice.
-    *   **Canon Radar (Drift Detection):** Compares new content vectors against the **Project Centroid**. Returns `drift_score` and status (`STABLE`, `DRIFTING`, `CRITICAL_INCOHERENCE`).
-    *   **Drift Control (Echoes):** Detects "Echoes" (contradictions).
-        *   **Rescue:** Validates new information as Canon via `handleRescue`.
-        *   **Purge:** Deletes the echo from memory permanently via `handlePurge`.
+---
+
+## ⚡ TECH STACK & MODEL ASSIGNMENTS
+*   **Gemini 3.0 Pro (The Judge):** Used for complex reasoning, logic, and critique. (Director Logic, Tribunal, Chat RAG).
+*   **Gemini 3.0 Flash (The Soldier):** Used for high-speed, low-latency tasks. (Guardian Scan, Soul Sorter Extraction, Scribe Synthesis).
+*   **Thinking Mode:** All "Pro" agents must expose their internal reasoning via a visible `<thinking>...</thinking>` block in the UI to build user trust ("Glass Box AI").
+
+---
+
+## 🛡️ THE DIRECTOR (GUARDIAN / EL CENTINELA)
+**Role:** Narrative Orchestrator & Canon Custodian.
+**Model:** Gemini 3.0 Pro (Logic) / Flash (Scan).
+**Location:** `functions/src/guardian.ts`, `src/components/DirectorPanel.tsx`.
+
+### 1. OPERATIONAL MODES (Layout Context)
+*   **Sentinel Mode (<500px):** Silent observation. Chat only.
+*   **Strategist Mode (500px-900px):** Deploys "Tactical Tools" (Sidebar) for surgical interventions.
+*   **War Room (>900px):** Full command center. Displays historical session logs + tools.
+
+### 2. TACTICAL CAPABILITIES
+*   **The Inspector:** Analyzes scene for Casting Report (Characters, Tone, Pacing).
+*   **The Tribunal:** (See dedicated section).
+*   **Memory Sync:** Forces manual context refresh (`handleContextSync`). Triggered by `needsReindex`.
+*   **Sensory Interface:** Accepts Images/Audio inputs for multi-modal advice.
+*   **Iron Guardian:** Sub-agent that strictly blocks hallucinations contradicting files marked as `[PRIORITY LORE]`.
+
+### 3. CANON RADAR (Passive Surveillance)
+*   **Trigger:** SHA-256 Hash change every 3 seconds.
+*   **Traffic Light (Argos):** `CLEAN` (Green) | `SCANNING` (Yellow) | `CONFLICT` (Red).
+*   **Detection Types:**
+    *   **Conflicts:** Direct logical contradictions.
+    *   **Fractures of Reality:** Violations of world physics/magic rules.
+    *   **Narrative Betrayal:** Personality drift or out-of-character actions.
+*   **Drift Control:**
+    *   **Rescue:** User validates new info as Canon.
+    *   **Purge:** User deletes the "Echo" (contradiction) from memory.
+
+---
 
 ## 🌐 THE NEXUS (WORLD ENGINE v4.0)
-**Role:** Entity Graph & Reality Visualizer
-**Location:** `src/components/NexusCanvas.tsx`, `src/pages/WorldEnginePageV2.tsx`
-**Primary Directive:** Visualize and manage the "Ghost Graph" of entities before they are fully realized.
+**Role:** Entity Graph & Reality Visualizer.
+**Location:** `src/components/NexusCanvas.tsx`, `src/pages/WorldEnginePageV2.tsx`.
 
-*   **Identity Protocol (Deterministic):**
-    *   IDs are generated via **DJB2 Hash** (Slug + ProjectID).
-    *   Ensures consistent identification across scans and sessions.
-    *   **Fusion Protocol:** Supports "Batch Merge" to unify aliases (e.g., "The King" -> "Arthur") into a single entity ID.
+### 1. IDENTITY PROTOCOL
+*   **Deterministic Identity:** IDs = `DJB2_Hash(Slug + ProjectID)`. Ensures consistency across sessions.
+*   **Batch Merge:** Unifies aliases (e.g., "The King" -> "Arthur") into a single node.
 
-*   **Blacklist Protocol (The Grudge):**
-    *   Persists `ignoredTerms` in `project_config`.
-    *   The AI actively ignores these terms during future scans.
+### 2. REALITY TUNER (Temperature Control)
+*   **Rigor (Cyan):** Strict logic. Zero hallucinations. Pure Canon.
+*   **Fusion (Silver):** Narrative balance. Plausible connections.
+*   **Entropy (Violet):** Creative chaos. Wild ideas.
 
-*   **Reality Tuner (Gemini 3.0 Pro Temperature):**
-    *   **Rigor (Cyan):** Strict logic, zero hallucinations. Canon pure.
-    *   **Fusion (Silver):** Narrative balance, plausible connections.
-    *   **Entropy (Violet):** Creative chaos, wild ideas.
+### 3. THE GRUDGE (Blacklist)
+*   Persists `ignoredTerms` in `project_config`. The AI actively ignores these terms during future scans.
 
-*   **Context Injection:**
-    *   Uses `structureAnalysis` to inject only the relevant narrative phase context (e.g., "Rising Action").
-    *   **Nexus V2 Engine:** Powered by `react-zoom-pan-pinch` and `d3-force`.
-
-*   **Crystallization Protocol:**
-    1.  **Preview:** User approves the proposed graph.
-    2.  **Materialization:** `crystallizeGraph` generates content.
-    3.  **Forge:** Physical creation of `.md` files in Google Drive.
-    4.  **Audit:** Logs event as `STRUCTURE` in `audit_log`.
+---
 
 ## 🔨 THE FORGE (SOUL SORTER / EL ARTÍFICE)
-**Role:** Entity Taxonomist & Character Manager
-**Location:** `functions/src/soul_sorter.ts`, `src/components/forge/ForgePanel.tsx`
-**Primary Directive:** Classify narrative entities into strict ontological tiers and manage their lifecycle.
+**Role:** Entity Taxonomist.
+**Model:** Gemini 3.0 Flash.
+**Location:** `functions/src/soul_sorter.ts`.
 
-*   **Lifecycle Workflow:**
-    1.  **ECHOES (The Radar):** Scans narrative text for names without files (Ghosts). **Strictly ignores `_RESOURCES`, `_RECURSOS` or `Resources` folders (Rule of Silence).**
-    2.  **LIMBO (The Workshop):** Draft phase. Entities exist as ideas/notes but lack a Master File.
-    3.  **ANCHORS (The Vault):** "Crystallized" entities with a physical Markdown file in Drive.
+### 1. LIFECYCLE WORKFLOW
+*   **ECHOES (The Radar):** Scans text for names without files. **RULE OF SILENCE:** The Radar *strictly ignores* `_RESOURCES` / `_RECURSOS` folders.
+*   **LIMBO (The Workshop):** Draft entities. Notes without Master File.
+*   **ANCHORS (The Vault):** Crystallized entities with physical `.md` files.
 
-*   **Oracle Omniscience (Chat):**
-    *   Unlike the Radar, the Chat interface ("The Oracle") **HAS ACCESS** to the full project including `_RESOURCES` folders.
-    *   It uses this broad context to suggest traits or connections based on research notes.
+### 2. ORACLE OMNISCIENCE
+*   **Contrast:** Unlike the Radar, the **Chat Interface (Oracle)** *HAS ACCESS* to `_RESOURCES`. It uses this to suggest connections from research notes.
 
-*   **Crystallization Protocol:**
-    *   **Action:** Invokes `scribeCreateFile` to generate a physical `.md` file for the entity.
-    *   **Audit:** Logs event as `CREATION` in `audit_log`.
+### 3. METADATA SEALS (Anchor Detection)
+To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the first 20 lines:
+*   `Role` / `Rol` / `Cargo`
+*   `Age` / `Edad`
+*   `Class` / `Clase`
+*   `Race` / `Raza` / `Especie`
+*   `Alias` / `Apodo`
+*   `Faction` / `Facción`
 
-*   **Metadata Seals (Anchor Detection):**
-    To be recognized as an ANCHOR, a file must contain specific metadata keys (YAML or Markdown) in the first 20 lines.
-    **Required Keys (English / Spanish):**
-    *   `Role` / `Rol` / `Cargo` / `Ocupación`
-    *   `Age` / `Edad`
-    *   `Class` / `Clase`
-    *   `Race` / `Raza` / `Especie`
-    *   `Alias` / `Apodo`
-    *   `Faction` / `Facción` / `Grupo`
-
-    **Accepted Formats:**
-    *   **YAML Frontmatter:** `--- Role: Protagonist ---`
-    *   **Markdown Body:** `**Rol:** Protagonista` (Bold key required).
+---
 
 ## ⚖️ THE TRIBUNAL (EL JUICIO)
-**Role:** Literary Critique Panel
-**Location:** `functions/src/index.ts` (`summonTheTribunal`), `src/components/TribunalPanel.tsx`
-**Primary Directive:** Provide multi-perspective feedback on prose quality, logic, and marketability.
+**Role:** Literary Critique Panel.
+**Model:** Gemini 3.0 Pro.
+**Timeout:** **540 seconds (9 minutes)**.
 
-*   **Constraints:**
-    *   **Timeout:** Extended timeout of **540 seconds (9 minutes)**.
-    *   **Language Mirroring:** Must detect input language and respond in the **EXACT SAME LANGUAGE**.
+### THE JUDGES
+1.  **The Architect (Blue):** Logic, pacing, plot holes. Cold/Analytical.
+2.  **The Bard (Purple):** Aesthetics, metaphors, sensory details. Poetic/Dramatic.
+3.  **The Hater (Red):** Market viability, clichés, "cringe" factor. Cynical/Destructive.
 
-*   **The Judges:**
-    1.  **The Architect (Blue):** Logic, plot holes, pacing, causality, world-building consistency. Tone: Cold, analytical.
-    2.  **The Bard (Purple):** Aesthetics, sensory details, metaphor, prose flow. Tone: Poetic, dramatic.
-    3.  **The Hater (Red):** Market viability, clichés, boredom, "cringe" factor. Tone: Cynical, destructive, slang-heavy.
-
-## 🧹 THE SENTINEL (EL CONSERJE / JANITOR)
-**Role:** System Health & Hygiene
-**Location:** `functions/src/janitor.ts` (`scanVaultHealth`, `purgeArtifacts`)
-**Primary Directive:** Ensure the project vault remains clean of "Ghost Files" (0-byte or corrupt artifacts).
-
-*   **Capabilities:**
-    *   **Vault Scan:** Calculates a "Health Score" based on valid vs. corrupt files.
-    *   **The Purge:** Irreversibly deletes identified "Ghost Files".
-    *   **Visual Filter:** `toggleShowOnlyHealthy` hides problematic files in the UI without deleting them.
+---
 
 ## 🔬 THE LABORATORY (EL LABORATORIO)
-**Role:** Research & Resource Management
-**Location:** `src/components/LaboratoryPanel.tsx`
-**Primary Directive:** Manage and query reference materials (PDFs, Images, Notes) without polluting the narrative canon.
+**Role:** Research & Resource Management.
+**Model:** Gemini 2.5 Flash (per Manual) / 3.0 Flash (per Stack).
+**Location:** `src/components/LaboratoryPanel.tsx`.
 
-*   **The Librarian (El Bibliotecario):**
-    *   **Model:** Powered by **Gemini 2.5 Flash** (Specialized for RAG/Analysis).
-    *   **Exclusive Access:** The chat interface has access **ONLY** to files in folders named `_RESOURCES`, `_RECURSOS`, or marked as `category: 'reference'`.
-    *   **Query Scope:** Can answer questions like "What does the PDF say about artificial gravity?".
+### 1. EXCLUSIVE SCOPE
+*   The Librarian chat has access **ONLY** to files in `_RESOURCES` / `_RECURSOS`. It cannot see the main manuscript (Canon) to prevent pollution.
 
-*   **Context Injection (Drag & Drop):**
-    *   Dragging a file into the chat injects its `fileId` and full content directly into the `chatWithGem` context for focused analysis.
+### 2. MECHANICS
+*   **Smart Tags:** `classifyResource` Cloud Function tags content as `LORE`, `SCIENCE`, `VISUAL`.
+*   **Lazy Classification:** 2000ms debounce, batches of 3 files.
+*   **Context Injection:** Drag & Drop injects specific `fileId` + content into chat context.
 
-*   **Crystallization (The Gem):**
-    *   **New File:** Invokes `scribeCreateFile` to save an idea as a new Markdown note.
-    *   **Update:** Invokes `scribePatchFile` to append the idea to an existing note.
+---
 
-*   **Smart Tags (Lazy Classification):**
-    *   **Mechanism:** Uses a background Cloud Function (`classifyResource`) to tag content.
-    *   **Tags:** `LORE`, `SCIENCE`, `VISUAL`.
-    *   **Performance:** Uses a debounce of **2 seconds** and processes in batches of 3 files to avoid quota saturation.
+## 🧹 THE SENTINEL (JANITOR / CONSERJE)
+**Role:** System Hygiene.
+**Location:** `functions/src/janitor.ts`.
+
+*   **Vault Scan:** Calculates Health Score (Valid vs Corrupt).
+*   **The Purge:** **Irreversibly** deletes 0-byte or corrupt "Ghost Files".
+*   **Visual Filter:** `toggleShowOnlyHealthy` hides garbage without deleting.
+
+---
 
 ## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
-**Role:** Silent Protection & Persistence
-**Location:** `src/services/CreativeAuditService.ts`, `src/App.tsx`, `functions/src/index.ts`
 
-### 1. CREATIVE AUDIT (LA AUDITORÍA)
-*   **Purpose:** Provenance & Forensics. Proves human authorship.
-*   **Mechanism:** `CreativeAuditService.ts` logs events ('INJECTION', 'CURATION', 'STRUCTURE') to an immutable Firestore collection (`audit_log`).
-*   **Security:** Uses `serverTimestamp()` to prevent client-side tampering.
-*   **Output:** Generates a "Certificate of Authorship" (PDF/TXT) via The Press (`compileManuscript`).
+### 1. CREATIVE AUDIT (The Notary)
+*   **Purpose:** Prove human authorship.
+*   **Mechanism:** Logs `INJECTION`, `CURATION`, `STRUCTURE` events to immutable Firestore `audit_log`.
+*   **Output:** "Certificate of Authorship" (PDF/TXT) via The Press.
 
-### 2. THE SILENT SCRIBE (AUTO-SAVE)
-*   **Trigger:** Debounce of **2000ms** (2 seconds) after last keystroke.
-*   **Significant Update:** If `char_diff > 50` (Manual) or massive change, flags update as `isSignificant: true`.
-*   **Conflict Resolution:** "Last Write Wins". Warns user if multiple tabs are open.
-*   **Timeline Analysis:** Uses `extractTimelineEvents` (double-pass extraction) triggered manually or by significant edits.
+### 2. SILENT SCRIBE (Auto-Save)
+*   **Trigger:** 2000ms debounce after last keystroke.
+*   **Significant Update:** If `char_diff > 50`, flags as significant.
+*   **Conflict:** "Last Write Wins".
 
-### 3. NEURONAL SYNC (THE LEARNING LOOP)
-*   **Mechanism:** Backend (`indexTDB`) listens for Drive changes.
-*   **Incremental Indexing:** Only re-processes files where the **SHA-256 Hash** has changed.
-*   **Frontend Sync:** `ProjectConfigContext.tsx` subscribes to `TDB_Index/{uid}/structure/tree` via `onSnapshot`.
+### 3. NEURONAL SYNC (Learning Loop)
+*   **Mechanism:** Backend listens to Drive changes.
+*   **Efficiency:** Incremental indexing (only re-processes if SHA-256 changes).
 
-## ⚙️ CORE MECHANICS & CONTROLS
-
-### 1. THE EDITOR (ZONE B)
-*   **Drift Plugin:** Visual feedback (Red/Orange underlines) for narrative incoherence detected by the AI.
-*   **Status Bar:**
-    *   **Eye of Argos:** Indicator of Guardian status (Clean/Conflict/Scanning).
-    *   **Energy Jewel:** Visual progress bar for daily word count goals. Heuristic ignores sudden jumps >50 words/tick (Anti-Paste).
-*   **Zen Mode (Sentinel Shell):**
-    *   **Behavior:** Visually **unmounts** the Sidebar and Tools panels (via `SentinelShell.tsx`) to free up browser memory and remove distractions.
-    *   **Warning:** Guardian alerts (visual) are suppressed in this mode.
-
-### 2. INSTRUCTION LEAKAGE & DOS PROTECTION
-*   **Input Limits:**
-    *   `MAX_AI_INPUT_CHARS`: **100,000** (approx 25k tokens).
-    *   `MAX_CHAT_MESSAGE_LIMIT`: **30,000**.
-    *   `MAX_FILE_SAVE_BYTES`: **5MB**.
-*   **Sanitization:** `parseSecureJSON` MUST strip Markdown code fences to prevent parsing errors.
-*   **Recursion Limit:** PDF Compilation uses **iterative** traversal (stack-based) to prevent Stack Overflow.
-
-### 3. IDENTITY & PERSPECTIVE PROTOCOLS
-*   **The Chameleon (Cloaking Mode):** AI must detect the input language/dialect and **mirror it exactly**.
-*   **Perspective Lock:** AI detects First Person (I/Me) vs Third Person (He/She) and strictly adheres to it.
+### 4. INSTRUCTION LEAKAGE DEFENSE
+*   **Input Limit:** 100,000 chars (~25k tokens).
+*   **Recursion:** Iterative stack-based parsing for PDFs to prevent Stack Overflow.
+*   **Sanitization:** `parseSecureJSON` strips Markdown code fences.
