@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
@@ -17,12 +17,20 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
 
-    // Reset step when modal opens/closes
+    // 🎨 PALETTE: Auto-focus Cancel button for safety
+    const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
+    // Reset step when modal opens/closes and manage focus
     useEffect(() => {
         if (isOpen) {
             setStep(1);
+            // Focus cancel button after mount/step change
+            const timer = setTimeout(() => {
+                cancelButtonRef.current?.focus();
+            }, 50);
+            return () => clearTimeout(timer);
         }
-    }, [isOpen]);
+    }, [isOpen, step]);
 
     if (!isOpen) return null;
 
@@ -49,8 +57,9 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
                 step === 1 ? (
                     <>
                         <button
+                            ref={cancelButtonRef}
                             onClick={onClose}
-                            className="flex-1 py-2 text-sm font-medium text-titanium-300 hover:bg-titanium-800 rounded-lg transition-colors border border-transparent hover:border-titanium-700"
+                            className="flex-1 py-2 text-sm font-medium text-titanium-300 hover:bg-titanium-800 rounded-lg transition-colors border border-transparent hover:border-titanium-700 focus-visible:ring-2 focus-visible:ring-titanium-500"
                         >
                             {t.common.cancel}
                         </button>
@@ -64,9 +73,10 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
                 ) : (
                     <>
                         <button
+                            ref={cancelButtonRef}
                             onClick={onClose}
                             disabled={isDeleting}
-                            className="flex-1 py-2 text-sm font-medium text-titanium-300 hover:bg-titanium-800 rounded-lg transition-colors border border-transparent hover:border-titanium-700 disabled:opacity-50"
+                            className="flex-1 py-2 text-sm font-medium text-titanium-300 hover:bg-titanium-800 rounded-lg transition-colors border border-transparent hover:border-titanium-700 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-titanium-500"
                         >
                             {t.common.cancel}
                         </button>
