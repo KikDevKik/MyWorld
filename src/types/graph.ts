@@ -16,6 +16,7 @@ export interface GraphNode {
   name: string;
   label?: string;        // Mapped from name for UI/DB compatibility
   type: EntityType;      // Discriminador para la colección unificada 'entities'
+  traits?: string[];     // 🟢 V3.0 Traits (Optional for transition)
   projectId: string;
 
   // Campos opcionales para IA y Bloqueo Manual

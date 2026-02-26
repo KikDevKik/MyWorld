@@ -1,6 +1,8 @@
 import * as logger from "firebase-functions/logger";
 import matter from 'gray-matter';
 import { marked } from 'marked';
+import * as crypto from 'crypto';
+import { getFirestore } from "firebase-admin/firestore";
 import { TitaniumFactory } from "./factory";
 import { TitaniumEntity } from "../types/ontology";
 import { legacyTypeToTraits } from "../utils/legacy_adapter";
@@ -39,13 +41,14 @@ export class SmartSyncService {
         return restored;
     }
 
-    // 🟢 HELPER: AST Metadata Extraction
-    static extractMetadataFromBody(body: string): { name?: string, role?: string } {
+    // 🟢 HELPER: AST Metadata Extraction (Deep Sync)
+    static extractMetadataFromBody(body: string): Record<string, any> {
         try {
             const tokens = marked.lexer(body);
             let name: string | undefined;
             let role: string | undefined;
 
+            // 1. Structural Extraction (H1, Blockquote)
             for (const token of tokens) {
                 // Extract Name (First H1)
                 if (token.type === 'heading' && token.depth === 1 && !name) {
@@ -71,7 +74,37 @@ export class SmartSyncService {
 
                 if (name && role) break;
             }
-            return { name, role };
+
+            // 2. Key-Value Extraction (Deep Sync)
+            const kvPairs: Record<string, any> = {};
+            const lines = body.split('\n');
+            // Regex for **Key**: Value (ignoring list markers, supports Spanish accents)
+            const kvRegex = /^[\-\*\s]*\*\*([a-zA-Z0-9\sÁÉÍÓÚÑáéíóúñ]+)\*\*:\s*(.+)$/;
+
+            for (const line of lines) {
+                const match = line.match(kvRegex);
+                if (match) {
+                    const key = match[1].toLowerCase().trim();
+                    const value = match[2].trim();
+
+                    // Map common keys to schema
+                    if (['alias', 'aliases', 'apodos'].includes(key)) {
+                        kvPairs.aliases = value.split(/[,;]/).map(s => s.trim());
+                    } else if (['tags', 'etiquetas'].includes(key)) {
+                        kvPairs.tags = value.split(/[,;]/).map(s => s.trim());
+                    } else if (['role', 'rol', 'cargo'].includes(key)) {
+                        if (!role) role = value; // Override if not found in blockquote
+                        kvPairs.role = value;
+                    } else {
+                        // Dynamic attributes (Generic)
+                        // Only allow alphanumeric keys to prevent injection
+                        const safeKey = key.replace(/[^a-z0-9_]/g, '');
+                        if (safeKey.length > 0) kvPairs[safeKey] = value;
+                    }
+                }
+            }
+
+            return { name, role, ...kvPairs };
         } catch (e) {
             logger.warn("⚠️ AST Extraction Failed:", e);
             return {};
@@ -80,72 +113,83 @@ export class SmartSyncService {
 
     /**
      * Reconciles differences between the Original Content and the New Content (Draft).
-     * @param fileId - The ID of the file (Nexus ID).
-     * @param originalContent - The raw content before edit (for baseline comparison).
+     * 🟢 GUARDIAN HASH: Checks Firestore before applying changes to prevent Echo Loops.
+     * @param userId - The User ID (for TDB_Index lookup).
+     * @param fileId - The Drive ID of the file.
+     * @param originalContent - The raw content before edit.
      * @param newContent - The raw content after AI/User edit.
-     * @returns The final, crystallized Titanium content.
      */
-    static reconcile(fileId: string, originalContent: string, newContent: string): string {
+    static async reconcile(userId: string, fileId: string, originalContent: string, newContent: string): Promise<string> {
+        const db = getFirestore();
         try {
-            const parsedNew = matter(newContent);
-            const parsedOriginal = matter(originalContent);
+            // A. GUARDIAN HASH CHECK (Echo Shield)
+            const incomingHash = crypto.createHash('sha256').update(newContent).digest('hex');
 
-            const newFm = parsedNew.data;
-            const oldFm = parsedOriginal.data;
-            const newBody = parsedNew.content;
+            // Query TDB_Index by driveId to find the current hash
+            const indexQuery = await db.collection("TDB_Index").doc(userId).collection("files")
+                .where("driveId", "==", fileId).limit(1).get();
 
-            // A. DEBOUNCE CHECK
-            // Check both Legacy and New _sys location
-            const lastSyncStr = newFm._sys?.last_sync || newFm.last_titanium_sync;
-            const lastSync = lastSyncStr ? new Date(lastSyncStr).getTime() : 0;
-            const now = Date.now();
-            const timeDiff = now - lastSync;
+            if (!indexQuery.empty) {
+                const indexDoc = indexQuery.docs[0];
+                const storedHash = indexDoc.data().contentHash;
 
-            if (timeDiff < 5000) {
-                 logger.info(`⏳ [SMART-SYNC] Skipping reconciliation (Debounce: ${timeDiff}ms)`);
-                 return newContent; // Return as-is if debounced
+                if (storedHash === incomingHash) {
+                     logger.info(`🛡️ [GUARDIAN HASH] Content unchanged (${incomingHash}). Skipping reconciliation.`);
+                     return newContent; // Return as-is, caller should ideally abort upload if identical
+                }
             }
 
-            // B. AST EXTRACTION
-            const { name: extractedName, role: extractedRole } = SmartSyncService.extractMetadataFromBody(newBody);
+            const parsedNew = matter(newContent);
+
+            // Use original Frontmatter as base if new parsing fails or is empty?
+            // Usually matter returns empty object if no FM.
+            const newFm = parsedNew.data;
+            const newBody = parsedNew.content;
+
+            // B. AST EXTRACTION (Deep Sync)
+            const extractedMeta = SmartSyncService.extractMetadataFromBody(newBody);
             let attributes = { ...newFm };
             let hasChanges = false;
 
-            // C. DELTA LOGIC
-            // Check if AI modified FM explicitly (comparing critical fields)
-            const fmNameChanged = newFm.name !== oldFm.name;
-            const fmRoleChanged = newFm.role !== oldFm.role;
+            // C. DELTA LOGIC (Text Sovereignty)
+            // If Text defines a value, it overrides FM unless FM was explicitly changed by AI (which we assume happens in newFm).
+            // Actually, we treat Text as the Source of Truth for these fields during reconciliation.
 
-            if (fmNameChanged || fmRoleChanged) {
-                logger.info("⚡ [SMART-SYNC] Explicit Frontmatter change detected. Respecting change.");
-                hasChanges = true;
-                // We use the NEW FM values as truth.
-            } else {
-                // AI preserved FM (as instructed). Check if Body changed significantly to warrant sync.
-                if (extractedName && extractedName !== newFm.name) {
-                    attributes.name = extractedName;
-                    hasChanges = true;
-                    logger.info(`   -> Reconciling Name from Body: ${newFm.name} => ${extractedName}`);
+            Object.keys(extractedMeta).forEach(key => {
+                const bodyVal = extractedMeta[key];
+                const fmVal = newFm[key];
+
+                // If Body has value and it differs from FM
+                if (bodyVal !== undefined && JSON.stringify(bodyVal) !== JSON.stringify(fmVal)) {
+                     attributes[key] = bodyVal;
+                     hasChanges = true;
+                     logger.info(`   -> Deep Sync: Updated ${key} from Body: ${JSON.stringify(bodyVal)}`);
                 }
-                if (extractedRole && extractedRole !== newFm.role) {
-                    attributes.role = extractedRole;
-                    hasChanges = true;
-                    logger.info(`   -> Reconciling Role from Body: ${newFm.role} => ${extractedRole}`);
-                }
-            }
+            });
 
             // D. TITANIUM FACTORY FORGE
-            // We always run it through factory to ensure schema & anti-makeup
-            // Note: If no changes, we still might want to run it to ensure V3 schema if old file?
-            // Yes, enforce V3.
-
             logger.info(`🔄 [METADATA RECONCILIATION] Re-Forging via TitaniumFactory for ${fileId}`);
 
+            const nexusId = attributes.nexus_id || attributes._sys?.nexus_id || crypto.createHash('sha256').update(fileId).digest('hex');
+
+            // Ensure _sys exists for strict typing
+            if (!attributes._sys) {
+                attributes._sys = {
+                    status: 'active',
+                    tier: 'ANCHOR',
+                    last_sync: new Date().toISOString(),
+                    schema_version: '3.0',
+                    nexus_id: nexusId
+                };
+            } else {
+                attributes._sys.nexus_id = nexusId; // Ensure ID consistency
+            }
+
             const entity: TitaniumEntity = {
-                id: attributes.id || fileId, // Use attributes.id if present (legacy) or fileId (new)
+                id: nexusId,
                 name: attributes.name || "Unknown",
                 traits: attributes.traits || legacyTypeToTraits(attributes.type || 'concept'),
-                attributes: attributes, // Factory will prune ghost data and handle _sys
+                attributes: attributes as any, // Cast to allow dynamic fields while satisfying interface
                 bodyContent: newBody
             };
 
