@@ -4760,7 +4760,8 @@ export const forgeToolExecution = onCall(
       else if (lowTitle.includes('location') || lowTitle.includes('lugar')) traits = ['locatable'];
       else if (lowTitle.includes('item') || lowTitle.includes('objeto')) traits = ['tangible'];
 
-      const nexusId = crypto.createHash('sha256').update(fileName + Date.now()).digest('hex');
+      // 🟢 DETERMINISTIC ID (V3.0)
+      const nexusId = crypto.createHash('sha256').update(folderId + fileName).digest('hex');
 
       const entity: TitaniumEntity = {
           id: nexusId,

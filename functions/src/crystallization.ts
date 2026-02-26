@@ -15,7 +15,7 @@ import { ProjectConfig, FolderRole } from "./types/project";
 import { getAIKey, escapeDriveQuery } from "./utils/security";
 import { TitaniumFactory } from "./services/factory";
 import { TitaniumEntity, EntityTrait } from "./types/ontology";
-import { legacyTypeToTraits } from "./utils/legacy_adapter";
+import { legacyTypeToTraits, traitsToLegacyCategory } from "./utils/legacy_adapter";
 import matter from 'gray-matter';
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");

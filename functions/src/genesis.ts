@@ -277,7 +277,7 @@ export const genesisManifest = onCall(
             if (item.type === 'TYPE_SOUL') {
                 folderId = peopleFolderId;
                 fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(fileName + Date.now()).digest('hex');
+                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
 
                 const entity: TitaniumEntity = {
                     id: nexusId,
@@ -302,7 +302,7 @@ export const genesisManifest = onCall(
             } else if (item.type === 'TYPE_LOCATION') {
                 folderId = worldFolderId;
                 fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(fileName + Date.now()).digest('hex');
+                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
 
                 const entity: TitaniumEntity = {
                     id: nexusId,
@@ -326,7 +326,7 @@ export const genesisManifest = onCall(
             } else if (item.type === 'TYPE_BEAST') {
                 folderId = bestiaryFolderId;
                 fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(fileName + Date.now()).digest('hex');
+                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
 
                 const entity: TitaniumEntity = {
                     id: nexusId,
@@ -351,7 +351,7 @@ export const genesisManifest = onCall(
             } else if (item.type === 'TYPE_ITEM') {
                 folderId = itemsFolderId || worldFolderId;
                 fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(fileName + Date.now()).digest('hex');
+                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
 
                 const entity: TitaniumEntity = {
                     id: nexusId,
