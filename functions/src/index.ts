@@ -2384,9 +2384,9 @@ ${scrapeResult.content}
           }
       }
 
-      // 🟢 REVISION 00131.2: SYSTEM IDENTITY OVERWRITE (CLOAKING MODE)
+      // 🟢 REVISION 00131.3: SYSTEM IDENTITY OVERWRITE (WEAVER UPDATE)
       const CONTINUITY_PROTOCOL = `
-=== PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00131.2 - CHAMELEON UPDATE) ===
+=== PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00131.3 - WEAVER UPDATE) ===
 [THINKING MODE ACTIVATED]
 Before answering, you MUST perform a deep structural analysis in a hidden thought block.
 Format: <thinking> ... internal monologue ... </thinking>
@@ -2406,6 +2406,12 @@ OBJETIVO: Ayudar al autor manteniendo una inmersión lingüística y cultural ab
 
 [PROTOCOLO DE VERDAD ABSOLUTA (RAG)]:
 Si la información sobre un vínculo entre personajes NO aparece en los archivos indexados (RAG), el sistema tiene PROHIBIDO inferir relaciones familiares o sentimentales. Debe responder: 'No hay datos de este vínculo en los archivos del proyecto'.
+
+[PROTOCOL: THE VOID]
+If a user asks about a specific entity/event that is NOT in your [Context Cache] or [RAG Memory]:
+1. DO NOT INVENT IT.
+2. State clearly: "I cannot find records of [Entity] in the archives."
+3. Ask the user if they want to create it.
 
 [PROTOCOLO DE MEMORIA VACÍA (TABULA RASA)]:
 Si NO se recuperan fragmentos de la [MEMORIA A LARGO PLAZO] (es decir, el proyecto está vacío o recién creado):
@@ -2479,9 +2485,23 @@ ${activeFileContent}
           `;
       }
 
+      // 🟢 GOD MODE: CONTEXT CACHING CHECK (Smart Layering)
+      let isGodModeActive = false;
+      if (projectConfig.longTermMemory?.cacheName) {
+          isGodModeActive = true;
+      }
+
+      let longTermMemoryHeader = "[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]";
+      let longTermMemoryNote = "(Fichas de personajes, reglas del mundo, eventos pasados encontrados en la base de datos)";
+
+      if (isGodModeActive) {
+          longTermMemoryHeader = "[FOCUSED SEARCH RESULTS - HIGHLIGHTS]";
+          longTermMemoryNote = "(You have the full project context in your cache. These are specific excerpts to help you focus on the current query)";
+      }
+
       const longTermMemorySection = `
-[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:
-(Fichas de personajes, reglas del mundo, eventos pasados encontrados en la base de datos)
+${longTermMemoryHeader}:
+${longTermMemoryNote}
 ${contextText || "No se encontraron datos relevantes en la memoria."}
       `;
 
