@@ -36,6 +36,7 @@ import { maskLog } from "./utils/logger";
 import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
 import { getAIKey, handleSecureError, escapeDriveQuery } from "./utils/security";
 import { extractUrls, fetchWebPageContent } from "./utils/scraper";
+import * as crypto from 'crypto';
 
 const htmlToPdfmake = require('html-to-pdfmake');
 const { JSDOM } = require('jsdom');
@@ -4759,8 +4760,10 @@ export const forgeToolExecution = onCall(
       else if (lowTitle.includes('location') || lowTitle.includes('lugar')) traits = ['locatable'];
       else if (lowTitle.includes('item') || lowTitle.includes('objeto')) traits = ['tangible'];
 
+      const nexusId = crypto.createHash('sha256').update(fileName + Date.now()).digest('hex');
+
       const entity: TitaniumEntity = {
-          id: '', // Will be generated or implicit
+          id: nexusId,
           name: safeTitle,
           traits: traits,
           attributes: {
@@ -4769,7 +4772,8 @@ export const forgeToolExecution = onCall(
                   status: 'active',
                   tier: 'ANCHOR',
                   last_sync: new Date().toISOString(),
-                  schema_version: '3.0'
+                  schema_version: '3.0',
+                  nexus_id: nexusId
               }
           },
           bodyContent: content

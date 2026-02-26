@@ -141,18 +141,39 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     // Detect Style
     let nodeStyleKey = 'default';
     const type = (node.type || '').toUpperCase();
+    const traits = node.traits || [];
 
-    if (type === 'CHARACTER' || type === 'PERSON') nodeStyleKey = 'character';
-    else if (type === 'LOCATION') nodeStyleKey = 'location';
-    else if (node.meta?.node_type === 'conflict' || type === 'ENEMY') nodeStyleKey = 'conflict';
-    else if (type === 'IDEA' || node.isGhost) nodeStyleKey = 'idea';
-    else if (['FACTION', 'EVENT', 'OBJECT'].includes(type)) nodeStyleKey = 'default';
+    // V3.0 Traits Logic (Priority)
+    if (traits.length > 0) {
+        if (traits.includes('sentient')) nodeStyleKey = 'character';
+        else if (traits.includes('locatable')) nodeStyleKey = 'location';
+        else if (traits.includes('abstract')) nodeStyleKey = 'idea';
+        // Fallback or specific mappings for others
+    } else {
+        // Fallback to legacy type
+        if (type === 'CHARACTER' || type === 'PERSON') nodeStyleKey = 'character';
+        else if (type === 'LOCATION') nodeStyleKey = 'location';
+        else if (node.meta?.node_type === 'conflict' || type === 'ENEMY') nodeStyleKey = 'conflict';
+        else if (type === 'IDEA' || node.isGhost) nodeStyleKey = 'idea';
+    }
 
     const style = NODE_STYLES[nodeStyleKey] || NODE_STYLES.default;
 
     // Icon Mapping
     const getIcon = () => {
         if (node.isRescue) return <AlertTriangle size={12} className="text-red-500 animate-pulse" />;
+        const traits = node.traits || [];
+
+        // V3.0 Traits Icons
+        if (traits.length > 0) {
+            if (traits.includes('sentient')) return <User size={12} />;
+            if (traits.includes('locatable')) return <MapPin size={12} />;
+            if (traits.includes('tangible')) return <Box size={12} />;
+            if (traits.includes('temporal')) return <Zap size={12} />;
+            if (traits.includes('organized')) return <Swords size={12} />;
+            if (traits.includes('abstract')) return <BrainCircuit size={12} />;
+        }
+
         const type = (node.type || '').toUpperCase();
         switch (type) {
             case 'CHARACTER':
@@ -352,8 +373,17 @@ const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
             .force("collide", d3Force.forceCollide().radius(100).strength(0.7))
             .force("radial", d3Force.forceRadial(
                 (d: any) => {
-                    const type = (d.type || 'concept').toUpperCase();
+                    const traits = d.traits || [];
                     if (d.isGhost) return 900;
+
+                    if (traits.length > 0) {
+                        if (traits.includes('sentient')) return 100;
+                        if (traits.includes('organized')) return 300;
+                        if (traits.includes('locatable')) return 500;
+                        return 800;
+                    }
+
+                    const type = (d.type || 'concept').toUpperCase();
                     if (type === 'CHARACTER' || type === 'PERSON') return 100;
                     if (type === 'LOCATION') return 500;
                     if (type === 'FACTION') return 300;

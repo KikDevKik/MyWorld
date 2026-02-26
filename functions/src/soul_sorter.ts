@@ -36,6 +36,17 @@ export function isGenericName(name: string): boolean {
 export function detectCategoryByMetadata(content: string): EntityCategory | null {
     const lines = content.split('\n').slice(0, 30);
 
+    // Check for explicit Traits line (V3.0 Body Signal)
+    const traitsLine = lines.find(l => /trait(s?):/i.test(l));
+    if (traitsLine) {
+        const lower = traitsLine.toLowerCase();
+        if (lower.includes('sentient') && lower.includes('tangible')) return 'CREATURE';
+        if (lower.includes('sentient')) return 'PERSON';
+        if (lower.includes('locatable')) return 'LOCATION';
+        if (lower.includes('tangible')) return 'OBJECT';
+        if (lower.includes('organized')) return 'PERSON'; // Factions are people groups
+    }
+
     // Helper to check regex against lines
     const checkKeys = (keys: string[]) => {
         return keys.some(key => {
@@ -158,12 +169,24 @@ export async function identifyEntities(
 
                 // Check category from frontmatter 'type' or 'category'
                 let category: EntityCategory = 'PERSON'; // Default
-                const typeRaw = (parsed.data.type || parsed.data.category || "").toLowerCase();
 
-                if (typeRaw.includes('creature') || typeRaw.includes('bestiary') || typeRaw.includes('beast')) category = 'CREATURE';
-                else if (typeRaw.includes('flora') || typeRaw.includes('plant')) category = 'FLORA';
-                else if (typeRaw.includes('location') || typeRaw.includes('place') || typeRaw.includes('lugar')) category = 'LOCATION';
-                else if (typeRaw.includes('object') || typeRaw.includes('item')) category = 'OBJECT';
+                // 🟢 NEW: Check Traits (V3.0)
+                const traits = (parsed.data.traits || []) as string[];
+                if (traits.length > 0) {
+                     const t = traits.map((tr: string) => tr.toLowerCase());
+                     if (t.includes('sentient') && t.includes('tangible')) category = 'CREATURE';
+                     else if (t.includes('sentient')) category = 'PERSON';
+                     else if (t.includes('locatable')) category = 'LOCATION';
+                     else if (t.includes('tangible')) category = 'OBJECT';
+                     else if (t.includes('organized')) category = 'PERSON';
+                } else {
+                    // Fallback to legacy type
+                    const typeRaw = (parsed.data.type || parsed.data.category || "").toLowerCase();
+                    if (typeRaw.includes('creature') || typeRaw.includes('bestiary') || typeRaw.includes('beast')) category = 'CREATURE';
+                    else if (typeRaw.includes('flora') || typeRaw.includes('plant')) category = 'FLORA';
+                    else if (typeRaw.includes('location') || typeRaw.includes('place') || typeRaw.includes('lugar')) category = 'LOCATION';
+                    else if (typeRaw.includes('object') || typeRaw.includes('item')) category = 'OBJECT';
+                }
 
                 if (name) {
                     entitiesMap.set(name.toLowerCase(), {

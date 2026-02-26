@@ -541,7 +541,7 @@ export const scribePatchFile = onCall(
 
             // 🟢 SMART-SYNC DELTA VALIDATOR (Middleware 3.0)
             // Reconcile and Enforce Schema
-            const finalContent = SmartSyncService.reconcile(fileId, originalContent, newContent);
+            const finalContent = await SmartSyncService.reconcile(userId, fileId, originalContent, newContent);
 
             // 3. UPDATE FILE
             await drive.files.update({

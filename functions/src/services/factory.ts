@@ -43,6 +43,9 @@ export class TitaniumFactory {
         // 6. Prune ID (Moved to _sys.nexus_id or implicit)
         if (clean.id) delete clean.id;
 
+        // 7. Prune Category (Redundant with Traits)
+        if (clean.category) delete clean.category;
+
         return clean;
     }
 
@@ -56,11 +59,10 @@ export class TitaniumFactory {
         // 1. LEGACY ADAPTER (Compatibility Shield)
         // If entity already has a 'type' attribute (e.g. from Scribe inference), use it.
         // Otherwise, derive it from traits.
-        const legacyType = entity.attributes.type || traitsToLegacyType(entity.traits);
+        const legacyType = (entity.attributes as any).type || traitsToLegacyType(entity.traits);
 
         // 2. PREPARE ATTRIBUTES (Merge & Override)
         // Extract system fields from input or defaults
-        // Note: attributes might have _sys already, or flat fields.
         const existingSys = entity.attributes._sys || {} as any;
 
         const sysStatus = existingSys.status || (entity.attributes.status as any) || 'active';
@@ -77,7 +79,7 @@ export class TitaniumFactory {
             ...entity.attributes,
             // id: entity.id,      // REMOVED from Root (Pruned)
             name: entity.name,     // Canonical Name
-            type: legacyType,      // 🛡️ COMPATIBILITY SHIELD (Kept for Soul Sorter)
+            type: legacyType,      // 🛡️ COMPATIBILITY SHIELD (Kept for Soul Sorter until Phase 3)
             traits: traits,        // 🚀 TITANIUM NATIVE
 
             // 🟢 SYSTEM METADATA (Hidden in RAG, Visible for System)
