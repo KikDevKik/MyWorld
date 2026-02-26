@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
 import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
@@ -31,6 +31,21 @@ interface FileTreeProps {
     onToggleDeleteSelect?: (id: string) => void; // 👈 NEW: Selection Handler
 }
 
+// ⚡ PERFORMANCE: Context to avoid Prop Drilling and O(N) re-renders
+interface FileTreeContextValue {
+    activeFileId: string | null;
+    conflictingFileIds?: Set<string>;
+    showOnlyHealthy?: boolean;
+    isDeleteMode?: boolean;
+    selectedDeleteIds?: Set<string>;
+    onToggleDeleteSelect?: (id: string) => void;
+}
+
+const FileTreeContext = createContext<FileTreeContextValue>({
+    activeFileId: null
+});
+
+
 // --- HELPER PARA EXTRAER DATOS DE FORMA SEGURA ---
 const extractFiles = (resultData: any): FileNode[] => {
     // Si el backend devuelve directamente el array (Plan A)
@@ -47,19 +62,34 @@ interface FileTreeNodeProps {
     onFileSelect: (id: string, content: string, name?: string, isBackgroundUpdate?: boolean) => void;
     accessToken: string | null;
     isPreloaded?: boolean;
-    conflictingFileIds?: Set<string>;
-    showOnlyHealthy?: boolean;
-    activeFileId?: string | null;
-    isDeleteMode?: boolean;
-    selectedDeleteIds?: Set<string>;
-    onToggleDeleteSelect?: (id: string) => void;
 }
 
-const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPreloaded, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect }: FileTreeNodeProps) => {
-    const [isOpen, setIsOpen] = useState(false);
-    const [children, setChildren] = useState<FileNode[]>(node.children || []);
-    const [isLoading, setIsLoading] = useState(false);
-    const [isLoaded, setIsLoaded] = useState(!!node.children && node.children.length > 0);
+// ⚡ PERFORMANCE: Separated Presentation (Row) from Logic (Node)
+// This component consumes the context and re-renders only when its specific props change
+// or the context values it consumes change.
+const FileNodeRow = React.memo(({
+    node,
+    depth,
+    isOpen,
+    isLoading,
+    onToggle,
+    onRename
+}: {
+    node: FileNode;
+    depth: number;
+    isOpen: boolean;
+    isLoading: boolean;
+    onToggle: (e?: React.MouseEvent) => void;
+    onRename: (newName: string) => Promise<void>;
+}) => {
+    const {
+        activeFileId,
+        conflictingFileIds,
+        showOnlyHealthy,
+        isDeleteMode,
+        selectedDeleteIds,
+        onToggleDeleteSelect
+    } = useContext(FileTreeContext);
 
     // 🟢 RENAME STATE
     const [isEditing, setIsEditing] = useState(false);
@@ -71,13 +101,10 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     const { currentLanguage } = useLanguageStore();
     const displayName = getLocalizedFolderName(node.name, currentLanguage);
 
-    // Update children if node prop changes (essential for preloaded updates)
-    useEffect(() => {
-        if (node.children) {
-            setChildren(node.children);
-            if (node.children.length > 0) setIsLoaded(true);
-        }
-    }, [node.children]);
+    const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
+    const isActive = node.id === activeFileId;
+    const isConflicting = conflictingFileIds?.has(node.id) || (node.driveId && conflictingFileIds?.has(node.driveId));
+    const isDeleteSelected = selectedDeleteIds?.has(node.id);
 
     // Focus input on edit
     useEffect(() => {
@@ -87,32 +114,207 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
         }
     }, [isEditing]);
 
-    // Detectar carpetas de forma segura
-    const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
-    const isActive = node.id === activeFileId;
-
-    // 🟢 CONFLICT LOGIC
-    const isConflicting = conflictingFileIds?.has(node.id) || (node.driveId && conflictingFileIds?.has(node.driveId));
-
     // 🟢 FILTER LOGIC
     if (showOnlyHealthy && isConflicting) {
         return null; // Hide this node
     }
 
-    // 🟢 DELETE MODE SELECTION STATE
-    const isDeleteSelected = selectedDeleteIds?.has(node.id);
+    const handleSaveRename = async () => {
+        if (!editName.trim() || editName === node.name) {
+            setIsEditing(false);
+            setEditName(node.name);
+            return;
+        }
+
+        setIsSaving(true);
+        try {
+            await onRename(editName);
+            setIsEditing(false);
+        } catch (error) {
+            setEditName(node.name); // Revert
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (isEditing) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleSaveRename();
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                setIsEditing(false);
+                setEditName(node.name);
+            }
+            return; // Don't trigger navigation
+        }
+
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggle();
+        }
+        if (e.key === 'ArrowRight' && isFolder && !isOpen) {
+            e.preventDefault();
+            onToggle();
+        }
+        if (e.key === 'ArrowLeft' && isFolder && isOpen) {
+            e.preventDefault();
+            onToggle();
+        }
+    };
+
+    return (
+        <div
+            className={`
+                flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
+                ${isActive && !isEditing && !isDeleteMode
+                    ? 'bg-cyan-900/20 text-cyan-400 font-medium'
+                    : isConflicting
+                        ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-900/20'
+                        : isDeleteSelected
+                            ? 'bg-red-900/20 text-red-300' // Highlight selected for delete
+                            : 'text-titanium-300 hover:text-titanium-100 hover:bg-cyan-900/20'
+                }
+                ${!isFolder && isLoading ? 'animate-pulse' : ''}
+            `}
+            style={{ paddingLeft: `${depth * 12 + 8}px` }}
+            onKeyDown={handleKeyDown}
+            tabIndex={0}
+            title={isConflicting ? "Divergencia Narrativa detectada por el Guardián. Revisión pendiente." : undefined}
+            onClick={(e) => {
+                // If clicking the row background (not icon/name), standard toggle behavior if needed
+                // Currently toggle logic is on Icon and Name specific areas
+            }}
+        >
+            {/* 🟢 DELETE MODE CHECKBOX */}
+            {isDeleteMode && (
+                <div
+                    className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer mr-1 hover:text-red-400 text-titanium-500 transition-colors"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        if (onToggleDeleteSelect) onToggleDeleteSelect(node.id);
+                    }}
+                >
+                    {isDeleteSelected ? <CheckSquare size={14} className="text-red-500" /> : <Square size={14} />}
+                </div>
+            )}
+
+            {/* 🟢 CLICK AREA 1: ICON (TOGGLE) */}
+            <div
+                className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer hover:text-cyan-400 transition-colors"
+                onClick={(e) => {
+                     // 🟢 FIX: Respect delete mode on icon click too
+                     if (isDeleteMode) {
+                        e.stopPropagation();
+                        if (onToggleDeleteSelect) onToggleDeleteSelect(node.id);
+                        return;
+                     }
+                     onToggle(e);
+                }}
+            >
+                {isLoading || isSaving ? (
+                    <Loader2 size={14} className="animate-spin text-cyan-500" />
+                ) : isConflicting ? (
+                    <AlertTriangle size={14} className="animate-pulse" />
+                ) : isFolder ? (
+                    <div className="text-cyan-500">
+                        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                    </div>
+                ) : (
+                    <FileText size={14} className={isActive ? "text-cyan-500" : "text-titanium-500"}/>
+                )}
+            </div>
+
+            {/* 🟢 CLICK AREA 2: NAME (EDIT / SELECT) */}
+            {isEditing ? (
+                <div className="flex-1 flex items-center gap-1">
+                    <input
+                        ref={inputRef}
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        onBlur={handleSaveRename} // Auto-save on blur
+                        className="w-full bg-titanium-950 text-titanium-100 text-xs px-1 py-0.5 rounded border border-cyan-500/50 focus:outline-none focus:border-cyan-500"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            ) : (
+                <span
+                    className={`text-xs truncate cursor-pointer flex-1 ${isConflicting ? 'font-bold' : ''}`}
+                    onClick={(e) => {
+                        if (isDeleteMode && onToggleDeleteSelect) {
+                            // In delete mode, clicking name toggles selection
+                            e.stopPropagation();
+                            onToggleDeleteSelect(node.id);
+                            return;
+                        }
+
+                        if (!isFolder) {
+                            // Files select on click -> Toggle logic handles loading content
+                            onToggle();
+                        } else {
+                            e.stopPropagation();
+                        }
+                    }}
+                    onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        if (!isDeleteMode) setIsEditing(true);
+                    }}
+                >
+                    {displayName}
+                </span>
+            )}
+        </div>
+    );
+});
+
+const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPreloaded }: FileTreeNodeProps) => {
+    // ⚡ PERFORMANCE: This component now ONLY manages structure (open/close, children loading)
+    // It is immune to context updates (activeFileId, etc) unless passed as props (which we removed).
+
+    const [isOpen, setIsOpen] = useState(false);
+    const [children, setChildren] = useState<FileNode[]>(node.children || []);
+    const [isLoading, setIsLoading] = useState(false);
+    const [isLoaded, setIsLoaded] = useState(!!node.children && node.children.length > 0);
+
+    // We need to access delete mode here ONLY to decide click behavior in handleToggle
+    // But to keep this component pure, we will delegate decision logic to `handleToggle`
+    // which checks context inside `FileNodeRow`? No, logic is mixed.
+    // ⚡ Better approach: FileTreeNode is the "Controller", FileNodeRow is "View".
+    // But FileTreeNode renders recursive children.
+
+    // To properly decouple, we access context here solely for logic, OR pass callbacks down.
+    // Accessing context here will re-render the whole subtree if context changes.
+    // ❌ WE DO NOT WANT TO ACCESS CONTEXT HERE.
+
+    // Solution: The `onToggle` passed to Row handles the logic.
+    // BUT `FileTreeNode` needs to know if it should expand/load children.
+
+    // Let's keep `handleToggle` here.
+    // The Row will call it.
+
+    const isFolder = node.mimeType === 'application/vnd.google-apps.folder';
+
+    // Update children if node prop changes (essential for preloaded updates)
+    useEffect(() => {
+        if (node.children) {
+            setChildren(node.children);
+            if (node.children.length > 0) setIsLoaded(true);
+        }
+    }, [node.children]);
 
     const handleToggle = async (e?: React.MouseEvent) => {
         if (e) e.stopPropagation(); // Stop propagation
 
-        // 🟢 DELETE MODE: FILE CLICK -> SELECT
-        if (!isFolder) {
-            if (isDeleteMode && onToggleDeleteSelect) {
-                onToggleDeleteSelect(node.id);
-                return;
-            }
+        // ⚠️ Logic check: If delete mode is active, we don't expand/load, we select.
+        // However, we don't have access to `isDeleteMode` here without Context.
+        // If we consume context, we break the optimization.
+        // TRICK: The `FileNodeRow` handles the "Selection" click internally if delete mode is on.
+        // It only calls `onToggle` if it's a standard interaction.
+        // So here we assume standard interaction.
 
-            // ES UN ARCHIVO: CARGAR CONTENIDO
+        if (!isFolder) {
+             // ES UN ARCHIVO: CARGAR CONTENIDO
             loadContent();
             return;
         }
@@ -186,154 +388,36 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
         }
     };
 
-    // 🟢 RENAME LOGIC
-    const handleRename = async () => {
-        if (!editName.trim() || editName === node.name) {
-            setIsEditing(false);
-            setEditName(node.name);
-            return;
-        }
-
-        setIsSaving(true);
-        try {
+    const handleRename = async (newName: string) => {
+         try {
             // Use driveId if available (for Shortcuts/Preloaded), else id
             const targetId = node.driveId || node.id;
 
             await callFunction('renameDriveFolder', {
                 accessToken,
                 fileId: targetId,
-                newName: editName
+                newName: newName
             });
 
-            node.name = editName; // Optimistic update local node ref
+            node.name = newName; // Optimistic update local node ref
             toast.success("Nombre actualizado");
-            setIsEditing(false);
         } catch (error: any) {
             console.error("Error renaming:", error);
             toast.error("Error al renombrar: " + error.message);
-            setEditName(node.name); // Revert
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (isEditing) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleRename();
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                setIsEditing(false);
-                setEditName(node.name);
-            }
-            return; // Don't trigger navigation
-        }
-
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleToggle();
-        }
-        if (e.key === 'ArrowRight' && isFolder && !isOpen) {
-            e.preventDefault();
-            handleToggle();
-        }
-        if (e.key === 'ArrowLeft' && isFolder && isOpen) {
-            e.preventDefault();
-            handleToggle();
+            throw error;
         }
     };
 
     return (
-        <div className="select-none" role="treeitem" aria-selected={isActive} aria-expanded={isFolder ? isOpen : undefined}>
-            <div
-                className={`
-                    flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
-                    ${isActive && !isEditing && !isDeleteMode
-                        ? 'bg-cyan-900/20 text-cyan-400 font-medium'
-                        : isConflicting
-                            ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-900/20'
-                            : isDeleteSelected
-                                ? 'bg-red-900/20 text-red-300' // Highlight selected for delete
-                                : 'text-titanium-300 hover:text-titanium-100 hover:bg-cyan-900/20'
-                    }
-                    ${!isFolder && isLoading ? 'animate-pulse' : ''}
-                `}
-                style={{ paddingLeft: `${depth * 12 + 8}px` }}
-                onKeyDown={handleKeyDown}
-                tabIndex={0}
-                title={isConflicting ? "Divergencia Narrativa detectada por el Guardián. Revisión pendiente." : undefined}
-            >
-                {/* 🟢 DELETE MODE CHECKBOX */}
-                {isDeleteMode && (
-                    <div
-                        className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer mr-1 hover:text-red-400 text-titanium-500 transition-colors"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (onToggleDeleteSelect) onToggleDeleteSelect(node.id);
-                        }}
-                    >
-                        {isDeleteSelected ? <CheckSquare size={14} className="text-red-500" /> : <Square size={14} />}
-                    </div>
-                )}
-
-                {/* 🟢 CLICK AREA 1: ICON (TOGGLE) */}
-                <div
-                    className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer hover:text-cyan-400 transition-colors"
-                    onClick={(e) => handleToggle(e)}
-                >
-                    {isLoading || isSaving ? (
-                        <Loader2 size={14} className="animate-spin text-cyan-500" />
-                    ) : isConflicting ? (
-                        <AlertTriangle size={14} className="animate-pulse" />
-                    ) : isFolder ? (
-                        <div className="text-cyan-500">
-                             {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                        </div>
-                    ) : (
-                        <FileText size={14} className={isActive ? "text-cyan-500" : "text-titanium-500"}/>
-                    )}
-                </div>
-
-                {/* 🟢 CLICK AREA 2: NAME (EDIT / SELECT) */}
-                {isEditing ? (
-                    <div className="flex-1 flex items-center gap-1">
-                        <input
-                            ref={inputRef}
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            onBlur={handleRename} // Auto-save on blur
-                            className="w-full bg-titanium-950 text-titanium-100 text-xs px-1 py-0.5 rounded border border-cyan-500/50 focus:outline-none focus:border-cyan-500"
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    </div>
-                ) : (
-                    <span
-                        className={`text-xs truncate cursor-pointer flex-1 ${isConflicting ? 'font-bold' : ''}`}
-                        onClick={(e) => {
-                            if (isDeleteMode && onToggleDeleteSelect) {
-                                // In delete mode, clicking name toggles selection
-                                e.stopPropagation();
-                                onToggleDeleteSelect(node.id);
-                                return;
-                            }
-
-                            if (!isFolder) {
-                                // Files select on click
-                                loadContent();
-                            } else {
-                                e.stopPropagation();
-                            }
-                        }}
-                        onDoubleClick={(e) => {
-                            e.stopPropagation();
-                            if (!isDeleteMode) setIsEditing(true);
-                        }}
-                    >
-                        {displayName}
-                    </span>
-                )}
-            </div>
+        <div className="select-none" role="treeitem" aria-expanded={isFolder ? isOpen : undefined}>
+            <FileNodeRow
+                node={node}
+                depth={depth}
+                isOpen={isOpen}
+                isLoading={isLoading}
+                onToggle={handleToggle}
+                onRename={handleRename}
+            />
 
             {/* 🛡️ BLINDAJE: (children || []).map */}
             {isOpen && isFolder && (
@@ -346,12 +430,6 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
                             onFileSelect={onFileSelect}
                             accessToken={accessToken}
                             isPreloaded={isPreloaded}
-                            conflictingFileIds={conflictingFileIds} // Pass Down
-                            showOnlyHealthy={showOnlyHealthy} // Pass Down
-                            activeFileId={activeFileId} // Pass Down
-                            isDeleteMode={isDeleteMode} // Pass Down
-                            selectedDeleteIds={selectedDeleteIds} // Pass Down
-                            onToggleDeleteSelect={onToggleDeleteSelect} // Pass Down
                         />
                     ))}
                     {children.length === 0 && !isLoading && (
@@ -419,26 +497,32 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
         );
     }
 
+    // ⚡ PERFORMANCE: Inject Context here
+    const contextValue: FileTreeContextValue = {
+        activeFileId: activeFileId || null,
+        conflictingFileIds,
+        showOnlyHealthy,
+        isDeleteMode,
+        selectedDeleteIds,
+        onToggleDeleteSelect
+    };
+
     // 🛡️ BLINDAJE: (displayedFiles || []).map
     return (
-        <div className="flex flex-col gap-0.5" role="tree">
-            {(displayedFiles || []).map(file => (
-                <FileTreeNode
-                    key={file.id}
-                    node={file}
-                    depth={0}
-                    onFileSelect={onFileSelect}
-                    accessToken={accessToken}
-                    isPreloaded={!!preloadedTree} // Pass flag down
-                    conflictingFileIds={conflictingFileIds} // Pass Down
-                    showOnlyHealthy={showOnlyHealthy} // Pass Down
-                    activeFileId={activeFileId} // Pass Down
-                    isDeleteMode={isDeleteMode}
-                    selectedDeleteIds={selectedDeleteIds}
-                    onToggleDeleteSelect={onToggleDeleteSelect}
-                />
-            ))}
-        </div>
+        <FileTreeContext.Provider value={contextValue}>
+            <div className="flex flex-col gap-0.5" role="tree">
+                {(displayedFiles || []).map(file => (
+                    <FileTreeNode
+                        key={file.id}
+                        node={file}
+                        depth={0}
+                        onFileSelect={onFileSelect}
+                        accessToken={accessToken}
+                        isPreloaded={!!preloadedTree} // Pass flag down
+                    />
+                ))}
+            </div>
+        </FileTreeContext.Provider>
     );
 };
 
