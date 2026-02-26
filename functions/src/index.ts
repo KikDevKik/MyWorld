@@ -34,7 +34,7 @@ import { _getDriveFileContentInternal, streamToString } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { maskLog } from "./utils/logger";
 import { updateFirestoreTree } from "./utils/tree_utils"; // 🟢 PERSISTENCE UTILS
-import { getAIKey, handleSecureError, escapeDriveQuery } from "./utils/security";
+import { getAIKey, handleSecureError, escapeDriveQuery, escapePromptVariable } from "./utils/security";
 import { extractUrls, fetchWebPageContent } from "./utils/scraper";
 import * as crypto from 'crypto';
 
@@ -592,8 +592,8 @@ export const analyzeConnection = onCall(
       });
 
       const prompt = `
-        TASK: Analyze the relationship between '${sourceName}' and '${targetName}'.
-        CONTEXT: ${context || "No specific context."}
+        TASK: Analyze the relationship between "${escapePromptVariable(sourceName)}" and "${escapePromptVariable(targetName)}".
+        CONTEXT: ${escapePromptVariable(context) || "No specific context."}
 
         STRICT CLASSIFICATION PROTOCOL:
         1. DETECT CONTRADICTION: If the link creates a logical error (e.g. character is in two places, dead person talking, timeline paradox), mark status as 'INVALID'.
@@ -2023,8 +2023,8 @@ export const chatWithGem = onCall(
     // 🟢 WEAVER: Inject Project Identity for Genre Awareness
     const projectIdentityContext = `
 === PROJECT IDENTITY (GENRE & STYLE) ===
-PROJECT NAME: ${projectConfig.projectName || 'Untitled Project'}
-DETECTED STYLE DNA: ${projectConfig.styleIdentity || 'Not analyzed yet'}
+PROJECT NAME: ${escapePromptVariable(projectConfig.projectName || 'Untitled Project')}
+DETECTED STYLE DNA: ${escapePromptVariable(projectConfig.styleIdentity || 'Not analyzed yet')}
 GENRE INSTRUCTION: Adopt the tone, vocabulary, and pacing associated with this style.
 ========================================
 `;
@@ -2033,9 +2033,9 @@ GENRE INSTRUCTION: Adopt the tone, vocabulary, and pacing associated with this s
     if (profile.style || profile.inspirations || profile.rules) {
       profileContext = `
 === USER WRITING PROFILE ===
-STYLE: ${profile.style || 'Not specified'}
-INSPIRATIONS: ${profile.inspirations || 'Not specified'}
-RULES: ${profile.rules || 'Not specified'}
+STYLE: ${escapePromptVariable(profile.style || 'Not specified')}
+INSPIRATIONS: ${escapePromptVariable(profile.inspirations || 'Not specified')}
+RULES: ${escapePromptVariable(profile.rules || 'Not specified')}
 ============================
 `;
       logger.info(`🎨 Profile injected for user ${userId}`);
@@ -2345,7 +2345,7 @@ ${analysis}
       if (activeFileName && activeFileContent) {
           activeCharacterPrompt = `
 [CONTEXTO VISUAL ACTIVO]:
-Nombre: ${activeFileName}
+Nombre: ${escapePromptVariable(activeFileName)}
 (Este es el personaje o archivo que el usuario tiene abierto en pantalla. Prioriza su información sobre cualquier búsqueda externa si hay conflicto).
 `;
       }
@@ -2354,7 +2354,7 @@ Nombre: ${activeFileName}
       let attachedContextSection = "";
       if (attachedFiles && Array.isArray(attachedFiles) && attachedFiles.length > 0) {
           const filesContent = attachedFiles.map((f: any) =>
-              `--- ARCHIVO ADJUNTO: ${f.name} ---\n${f.content}\n--- FIN ADJUNTO ---`
+              `--- ARCHIVO ADJUNTO: ${escapePromptVariable(f.name)} ---\n${escapePromptVariable(f.content)}\n--- FIN ADJUNTO ---`
           ).join("\n\n");
 
           attachedContextSection = `
@@ -2482,7 +2482,7 @@ ${activeCharacterPrompt}
           activeContextSection = `
 ${header}:
 ${note}
-${activeFileContent}
+"${escapePromptVariable(activeFileContent)}"
           `;
       }
 
@@ -2537,7 +2537,7 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
         ${historyText}
         -------------------------------------------
 
-        PREGUNTA DEL USUARIO: "${finalQuery}"
+        PREGUNTA DEL USUARIO: "${escapePromptVariable(finalQuery)}"
       `;
 
       // 🟢 OPERATION BYPASS TOTAL: NATIVE SDK IMPLEMENTATION
@@ -2876,7 +2876,7 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
         7. Constraint: Do not rush. If the user asks about 'War', analyze the economic impact of 'Psycho-Energy' on weapon manufacturing first.
         8. THE CHRONICLER RULE: Always refer to the CURRENT SESSION HISTORY (if available) to maintain consistency. If the user previously decided X in this session, do not contradict it.
 
-        USER PROMPT: "${prompt}"
+        USER PROMPT: "${escapePromptVariable(prompt)}"
 
         OUTPUT FORMATS (JSON ONLY):
 
@@ -3734,16 +3734,16 @@ export const summonTheTribunal = onCall(
 
       const profileContext = `
         USER WRITING PROFILE:
-        - Style/Voice: ${profile.style || 'Not specified'}
-        - Inspirations: ${profile.inspirations || 'Not specified'}
-        - Personal Rules: ${profile.rules || 'Not specified'}
+        - Style/Voice: ${escapePromptVariable(profile.style || 'Not specified')}
+        - Inspirations: ${escapePromptVariable(profile.inspirations || 'Not specified')}
+        - Personal Rules: ${escapePromptVariable(profile.rules || 'Not specified')}
       `;
 
       // 🟢 WEAVER REFACTOR: Standardized Context Injection
       const projectIdentityContext = `
 === PROJECT IDENTITY (GENRE & STYLE) ===
-PROJECT NAME: ${projectConfig.projectName || 'Untitled Project'}
-DETECTED STYLE DNA: ${projectConfig.styleIdentity || 'Universal/Neutral'}
+PROJECT NAME: ${escapePromptVariable(projectConfig.projectName || 'Untitled Project')}
+DETECTED STYLE DNA: ${escapePromptVariable(projectConfig.styleIdentity || 'Universal/Neutral')}
 GENRE AWARENESS INSTRUCTION: The Judges must adapt their critique criteria to this specific style.
 (e.g. If "Cyberpunk", The Architect checks for tech-logic. If "Romance", The Hater checks for chemistry.)
 ========================================
@@ -3788,7 +3788,7 @@ GENRE AWARENESS INSTRUCTION: The Judges must adapt their critique criteria to th
         ANÁLISIS DE IDIOMA: Detecta automáticamente el idioma del texto proporcionado (Español, Inglés, Japonés, etc.). Tu respuesta JSON (los campos verdict y critique) DEBE estar escrita estrictamente en ese mismo idioma.
 
         INPUT CONTEXT:
-        "${context || 'No specific context provided.'}"
+        "${escapePromptVariable(context) || 'No specific context provided.'}"
 
         ${projectIdentityContext}
 
