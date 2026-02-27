@@ -19,3 +19,7 @@
 ## 2026-05-25 - [Accessibility of Complex Canvas Controls]
 **Learning:** Highly visual components like `NexusCanvas` often rely on icon-only floating controls for Zoom and Tools. These are critical for navigation but completely inaccessible to screen readers without explicit `aria-label` attributes, as `title` is often insufficient or ignored.
 **Action:** Systematically audit all floating controls on canvas/map surfaces and enforce `aria-label` for every icon-only button, ensuring the description conveys the action (e.g., "Zoom In") rather than just the icon name.
+
+## 2026-06-15 - [Safe Default Focus in Destructive Modals]
+**Learning:** In critical workflows (like deletion), standard focus behavior (first element) is risky. Users hitting 'Enter' can accidentally trigger the primary destructive action.
+**Action:** Use `useRef` and `useEffect` to explicitly set focus to the 'Cancel' or 'Safe' action button when the modal opens.
