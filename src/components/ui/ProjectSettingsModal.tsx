@@ -5,7 +5,7 @@ import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import useDrivePicker from 'react-google-drive-picker';
-import { ProjectPath, FolderRole, ProjectConfig } from '../../types/core';
+import { ProjectPath, FolderRole, ProjectConfig } from '../../types/project'; // Corrected import
 import { callFunction } from '../../services/api';
 
 interface ProjectSettingsModalProps {
@@ -94,6 +94,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Correctly typecast or construct the object to match ProjectConfig
             const newConfig: ProjectConfig = config ? {
                 ...config,
                 canonPaths,

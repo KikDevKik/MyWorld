@@ -14,7 +14,8 @@ import { FolderRole, ProjectConfig } from "./types/project";
 import { updateFirestoreTree } from "./utils/tree_utils";
 import { ingestFile } from "./ingestion";
 import { TitaniumFactory } from "./services/factory";
-import { TitaniumEntity } from "./types/ontology";
+import { TitaniumEntity, EntityTrait } from "./types/ontology";
+import { TitaniumGenesis } from "./services/genesis";
 import * as crypto from 'crypto';
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -158,13 +159,6 @@ export const genesisManifest = onCall(
             } as any
         });
 
-        // 🟢 INITIALIZE EMBEDDINGS MODEL
-        const embeddingsModel = new GeminiEmbedder({
-            apiKey: finalApiKey,
-            model: "gemini-embedding-001",
-            taskType: TaskType.RETRIEVAL_DOCUMENT,
-        });
-
         const prompt = `
             TASK: Analyze the Socratic Chat and extract the structural elements of the story.
 
@@ -267,184 +261,102 @@ export const genesisManifest = onCall(
         }
 
         for (const item of entities) {
-            let content = "";
-            let folderId = "";
-            let fileName = "";
-            // let fileType = 'file'; // Unused
-
             const projectId = (config as any).folderId || "unknown_genesis";
+            let folderId = "";
+            let traits: EntityTrait[] = [];
+            let role = "Entity";
+            let context = "";
 
             if (item.type === 'TYPE_SOUL') {
                 folderId = peopleFolderId;
-                fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
-
-                const entity: TitaniumEntity = {
-                    id: nexusId,
-                    name: item.name,
-                    traits: ['sentient'],
-                    attributes: {
-                        role: item.role || "NPC",
-                        age: item.age, // Let Factory prune if "Unknown"
-                        project_id: projectId,
-                        _sys: {
-                            status: 'active',
-                            tier: 'ANCHOR',
-                            last_sync: new Date().toISOString(),
-                            schema_version: '3.0',
-                            nexus_id: nexusId
-                        }
-                    },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`
-                };
-                content = TitaniumFactory.forge(entity);
-
+                traits = ['sentient'];
+                role = item.role || "NPC";
+                context = `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`;
             } else if (item.type === 'TYPE_LOCATION') {
                 folderId = worldFolderId;
-                fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
-
-                const entity: TitaniumEntity = {
-                    id: nexusId,
-                    name: item.name,
-                    traits: ['locatable'],
-                    attributes: {
-                        role: 'Setting',
-                        project_id: projectId,
-                        _sys: {
-                            status: 'active',
-                            tier: 'ANCHOR',
-                            last_sync: new Date().toISOString(),
-                            schema_version: '3.0',
-                            nexus_id: nexusId
-                        }
-                    },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🌍 Geografía\nGenerado por el Protocolo Génesis.`
-                };
-                content = TitaniumFactory.forge(entity);
-
+                traits = ['locatable'];
+                role = "Setting";
+                context = `## 📝 Descripción\n${item.traits}\n\n## 🌍 Geografía\nGenerado por el Protocolo Génesis.`;
             } else if (item.type === 'TYPE_BEAST') {
                 folderId = bestiaryFolderId;
-                fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
-
-                const entity: TitaniumEntity = {
-                    id: nexusId,
-                    name: item.name,
-                    // 🟢 MAPPING: Creatures are tangible and sentient (agency)
-                    traits: ['tangible', 'sentient'],
-                    attributes: {
-                        role: 'Monster',
-                        project_id: projectId,
-                        _sys: {
-                            status: 'active',
-                            tier: 'ANCHOR',
-                            last_sync: new Date().toISOString(),
-                            schema_version: '3.0',
-                            nexus_id: nexusId
-                        }
-                    },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 🐾 Comportamiento\nGenerado por el Protocolo Génesis.`
-                };
-                content = TitaniumFactory.forge(entity);
-
+                traits = ['tangible', 'sentient'];
+                role = "Monster";
+                context = `## 📝 Descripción\n${item.traits}\n\n## 🐾 Comportamiento\nGenerado por el Protocolo Génesis.`;
             } else if (item.type === 'TYPE_ITEM') {
                 folderId = itemsFolderId || worldFolderId;
-                fileName = `${item.name}.md`;
-                const nexusId = crypto.createHash('sha256').update(projectId + fileName).digest('hex');
-
-                const entity: TitaniumEntity = {
-                    id: nexusId,
-                    name: item.name,
-                    traits: ['tangible'],
-                    attributes: {
-                        role: 'Item',
-                        project_id: projectId,
-                        _sys: {
-                            status: 'active',
-                            tier: 'ANCHOR',
-                            last_sync: new Date().toISOString(),
-                            schema_version: '3.0',
-                            nexus_id: nexusId
-                        }
-                    },
-                    bodyContent: `## 📝 Descripción\n${item.traits}\n\n## 💎 Propiedades\nGenerado por el Protocolo Génesis.`
-                };
-                content = TitaniumFactory.forge(entity);
-
+                traits = ['tangible'];
+                role = "Item";
+                context = `## 📝 Descripción\n${item.traits}\n\n## 💎 Propiedades\nGenerado por el Protocolo Génesis.`;
             } else if (item.type === 'TYPE_CHAPTER') {
                 folderId = targetManuscriptFolder;
-                fileName = `${item.title.replace(/[^a-zA-Z0-9\-_ ]/g, '')}.md`;
-                content = generateDraftContent({
+                const fileName = `${item.title.replace(/[^a-zA-Z0-9\-_ ]/g, '')}.md`;
+                const content = generateDraftContent({
                     title: item.title,
                     type: 'draft',
                     summary: item.summary,
                     content: item.content
                 });
+
+                // Chapters are just regular files, usually handled directly as they are not "Entities" in the Ontology sense yet
+                // But we can use TitaniumGenesis to birth them as 'temporal' events or similar?
+                // Or just keep legacy creation for chapters since they are content, not entities?
+                // The Blueprint says "Entry Points Audit... Audit every function that creates a file".
+                // Chapters ARE files. Let's stick to legacy for pure chapters for now as they are not "Titanium Entities" in the same way.
+
+                try {
+                    const fileRes = await drive.files.create({
+                        requestBody: {
+                            name: fileName,
+                            parents: [folderId],
+                            mimeType: 'text/markdown'
+                        },
+                        media: {
+                            mimeType: 'text/markdown',
+                            body: content
+                        },
+                        fields: 'id, name, webViewLink'
+                    });
+                    if (fileRes.data.id) {
+                         createdFiles.push({
+                            id: fileRes.data.id,
+                            name: fileName,
+                            type: item.type,
+                            link: fileRes.data.webViewLink
+                        });
+                        // Auto-index logic for chapters...
+                    }
+                } catch(e) { logger.error("Chapter creation failed", e); }
+                continue;
             } else {
                 continue;
             }
 
-            // CREATE FILE
+            // 🚀 TITANIUM GENESIS: BIRTH ENTITY
             try {
-                const fileRes = await drive.files.create({
-                    requestBody: {
-                        name: fileName,
-                        parents: [folderId],
-                        mimeType: 'text/markdown'
-                    },
-                    media: {
-                        mimeType: 'text/markdown',
-                        body: content
-                    },
-                    fields: 'id, name, webViewLink'
+                const genesisResult = await TitaniumGenesis.birth({
+                    userId: userId,
+                    name: item.name,
+                    context: context,
+                    targetFolderId: folderId,
+                    accessToken: accessToken,
+                    projectId: projectId,
+                    role: role,
+                    aiKey: getAIKey(request.data, googleApiKey.value()),
+                    inferredTraits: traits,
+                    attributes: {
+                        age: item.age
+                    }
                 });
 
-                const fileId = fileRes.data.id;
+                createdFiles.push({
+                    id: genesisResult.fileId,
+                    name: `${item.name}.md`,
+                    type: item.type,
+                    link: genesisResult.webViewLink
+                });
 
-                if (fileId) {
-                    createdFiles.push({
-                        id: fileId,
-                        name: fileName,
-                        type: item.type,
-                        link: fileRes.data.webViewLink
-                    });
-
-                    // 🟢 PERSISTENCE: Sync Tree
-                    await updateFirestoreTree(userId, 'add', fileId, {
-                        parentId: folderId,
-                        newNode: {
-                            id: fileId,
-                            name: fileName,
-                            mimeType: 'text/markdown',
-                            type: 'file',
-                            children: []
-                        }
-                    });
-
-                    // 🟢 AUTO-INDEX (RAG)
-                    // Use config.folderId as project anchor or fallback
-                    const projectAnchorId = (config as any).folderId || "unknown_genesis";
-
-                    await ingestFile(
-                        db,
-                        userId,
-                        projectAnchorId,
-                        {
-                            id: fileId,
-                            name: fileName,
-                            path: fileName, // Simplified path for immediate access
-                            saga: 'Genesis',
-                            parentId: folderId,
-                            category: 'canon'
-                        },
-                        content,
-                        embeddingsModel
-                    );
-                    logger.info(`🧠 [GENESIS] Auto-indexed ${fileName}`);
-                }
             } catch (err: any) {
-                logger.error(`❌ Genesis: Failed to create ${fileName}:`, err);
+                logger.error(`❌ Genesis: Failed to create ${item.name}:`, err);
             }
         }
 

@@ -1,37 +1,43 @@
-import { EntityCategory } from './core';
+export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'CONCEPT';
+export type EntityTier = 'MAIN' | 'SECONDARY' | 'BACKGROUND' | 'GHOST' | 'LIMBO' | 'ANCHOR' | 'SUPPORTING'; // Added SUPPORTING
 
-export type EntityTier = 'GHOST' | 'LIMBO' | 'ANCHOR';
-export type { EntityCategory }; // Re-export for convenience
+export interface DetectedEntity {
+    name: string;
+    tier: EntityTier;
+    category: EntityCategory;
+    confidence: number;
+    reasoning: string;
+    sourceFileId: string;
+    sourceFileName: string;
+    saga: string;
+    foundIn: string[];
+    rawContent?: string;
+    role?: string;
+    avatar?: string;
+    mergeSuggestion?: string;
+}
 
-// Estructura unificada para facilitar el renderizado
 export interface SoulEntity {
-  id: string;             // Hash único
-  name: string;           // Ej: "Thomas"
-  tier: EntityTier;       // GHOST, LIMBO, o ANCHOR
-  category?: EntityCategory; // 🟢 NEW: Category field
-  sourceSnippet: string;  // Contexto o descripción breve (Ghost Snippet / Limbo Preview)
-  occurrences: number;    // Relevancia
-  mergeSuggestion?: string; // ID sugerido para fusión
-  driveId?: string;       // Solo para ANCHOR
-  role?: string;          // Added: Useful for UI
-  avatar?: string;        // Added: Useful for UI (Anchors)
-  tags?: string[];        // Added: Limbo traits (e.g. [Tímido, Leal])
-  aliases?: string[];     // Added: Known aliases for search/linking
-
-  // 🟢 NEW: Bestiary Specific Data (Optional)
-  bestiaryMetadata?: {
-    type?: string; // Fauna, Flora, Monstruo...
-    habitat?: string;
-    dangerLevel?: string;
-    diet?: string;
-  };
+    id: string;
+    name: string;
+    tier: EntityTier;
+    category: EntityCategory;
+    role?: string;
+    avatar?: string;
+    driveId?: string;
+    sourceSnippet: string;
+    mergeSuggestion?: string;
+    tags?: string[];
+    occurrences: number;
+    lastDetected: string;
+    aliases?: string[]; // Added aliases
 }
 
 export interface ForgePayload {
-  entities: SoulEntity[]; // Array único ordenado por relevancia
-  stats: {
-    totalGhosts: number;
-    totalLimbos: number;
-    totalAnchors: number;
-  };
+    entities: SoulEntity[];
+    stats: {
+        totalGhosts: number;
+        totalLimbos: number;
+        totalAnchors: number;
+    };
 }
