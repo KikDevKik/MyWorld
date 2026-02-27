@@ -22,7 +22,7 @@
     "@langchain/community": "^1.0.4",
     "@langchain/core": "^1.0.6",
     "@langchain/google-genai": "^1.0.3",
-    "@langchain/textsplitters": "^1.0.0",
+    "@langchain/textsplitters": "^1.0.1",
     "@opentelemetry/api": "^1.9.0",
     "@types/js-yaml": "^4.0.9",
     "@types/pdfmake": "^0.2.12",
