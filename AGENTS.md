@@ -18,10 +18,10 @@
 
 ---
 
-## 🛡️ THE DIRECTOR (GUARDIAN / EL CENTINELA)
-**Role:** Narrative Orchestrator & Canon Custodian.
-**Model:** Gemini 3.0 Pro (Logic) / Flash (Scan).
-**Location:** `functions/src/guardian.ts`, `src/components/DirectorPanel.tsx`.
+## 🎬 THE DIRECTOR (EL DIRECTOR)
+**Role:** Narrative Orchestrator & Context Manager.
+**Model:** Gemini 3.0 Pro.
+**Location:** `src/components/DirectorPanel.tsx`, `functions/src/director.ts`.
 
 ### 1. OPERATIONAL MODES (Layout Context)
 *   **Sentinel Mode (<500px):** Silent observation. Chat only.
@@ -29,22 +29,34 @@
 *   **War Room (>900px):** Full command center. Displays historical session logs + tools.
 
 ### 2. TACTICAL CAPABILITIES
-*   **The Inspector:** Analyzes scene for Casting Report (Characters, Tone, Pacing).
-*   **The Tribunal:** (See dedicated section).
-*   **Memory Sync:** Forces manual context refresh (`handleContextSync`). Triggered by `needsReindex`.
-*   **Sensory Interface:** Accepts Images/Audio inputs for multi-modal advice.
-*   **Iron Guardian:** Sub-agent that strictly blocks hallucinations contradicting files marked as `[PRIORITY LORE]`.
+*   **The Inspector:** Analyzes scene for Casting Report (Characters, Tone, Pacing). Returns a structured JSON.
+*   **The Tribunal:** Invokes the 3 Judges (see dedicated section).
+*   **Memory Sync:** Forces manual context refresh (`handleContextSync`). Triggered by `needsReindex` banner.
+*   **Sensory Interface:** Accepts Images/Audio inputs. Analyzes tone/visuals to provide multi-modal narrative advice.
 
-### 3. CANON RADAR (Passive Surveillance)
-*   **Trigger:** SHA-256 Hash change every 3 seconds.
-*   **Traffic Light (Argos):** `CLEAN` (Green) | `SCANNING` (Yellow) | `CONFLICT` (Red).
-*   **Detection Types:**
-    *   **Conflicts:** Direct logical contradictions.
-    *   **Fractures of Reality:** Violations of world physics/magic rules.
-    *   **Narrative Betrayal:** Personality drift or out-of-character actions.
-*   **Drift Control:**
-    *   **Rescue:** User validates new info as Canon.
-    *   **Purge:** User deletes the "Echo" (contradiction) from memory.
+---
+
+## 🛡️ THE GUARDIAN (CANON RADAR / EL CENTINELA)
+**Role:** Passive Surveillance & Continuity Enforcement.
+**Model:** Gemini 3.0 Flash (High Speed).
+**Location:** `src/hooks/useGuardian.ts`, `src/components/StatusBar.tsx`.
+
+### 1. MECHANICS
+*   **Trigger:** SHA-256 Hash change on text buffer.
+*   **Interval:** 3000ms debounce.
+*   **Traffic Light (Argos):**
+    *   `CLEAN` (Green): No issues.
+    *   `SCANNING` (Yellow): Analysis in progress.
+    *   `CONFLICT` (Red): Issue detected.
+
+### 2. DETECTION SCOPE
+*   **Conflicts:** Direct logical contradictions (e.g., "Dead character speaks").
+*   **Fractures of Reality:** Violations of world physics or magic rules.
+*   **Narrative Betrayal:** Personality drift or out-of-character actions.
+
+### 3. DRIFT CONTROL
+*   **Rescue:** User validates new info as Canon (updates database).
+*   **Purge:** User deletes the "Echo" (contradiction) from memory.
 
 ---
 
@@ -53,16 +65,17 @@
 **Location:** `src/components/NexusCanvas.tsx`, `src/pages/WorldEnginePageV2.tsx`.
 
 ### 1. IDENTITY PROTOCOL
-*   **Deterministic Identity:** IDs = `DJB2_Hash(Slug + ProjectID)`. Ensures consistency across sessions.
+*   **Deterministic Identity:** IDs = `DJB2_Hash(Slug + ProjectID)`.
 *   **Batch Merge:** Unifies aliases (e.g., "The King" -> "Arthur") into a single node.
 
-### 2. REALITY TUNER (Temperature Control)
+### 2. GHOST NODES (Drafts)
+*   **Storage:** Entities detected but not yet crystallized live in `localStorage` (`nexus_drafts_v1`).
+*   **Crystallization:** The process of converting a Ghost Node into a physical Markdown file in Drive.
+
+### 3. REALITY TUNER (Temperature Control)
 *   **Rigor (Cyan):** Strict logic. Zero hallucinations. Pure Canon.
 *   **Fusion (Silver):** Narrative balance. Plausible connections.
 *   **Entropy (Violet):** Creative chaos. Wild ideas.
-
-### 3. THE GRUDGE (Blacklist)
-*   Persists `ignoredTerms` in `project_config`. The AI actively ignores these terms during future scans.
 
 ---
 
@@ -72,21 +85,18 @@
 **Location:** `functions/src/soul_sorter.ts`.
 
 ### 1. LIFECYCLE WORKFLOW
-*   **ECHOES (The Radar):** Scans text for names without files. **RULE OF SILENCE:** The Radar *strictly ignores* `_RESOURCES` / `_RECURSOS` folders.
+*   **ECHOES (The Radar):** Scans text for names without files. **RULE OF SILENCE:** Strictly ignores `_RESOURCES` / `_RECURSOS` folders.
 *   **LIMBO (The Workshop):** Draft entities. Notes without Master File.
 *   **ANCHORS (The Vault):** Crystallized entities with physical `.md` files.
 
-### 2. ORACLE OMNISCIENCE
-*   **Contrast:** Unlike the Radar, the **Chat Interface (Oracle)** *HAS ACCESS* to `_RESOURCES`. It uses this to suggest connections from research notes.
-
-### 3. METADATA SEALS (Anchor Detection)
+### 2. METADATA SEALS (Anchor Detection)
 To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the first 20 lines:
-*   `Role` / `Rol` / `Cargo`
+*   `Role` / `Rol` / `Cargo` / `Ocupación`
 *   `Age` / `Edad`
 *   `Class` / `Clase`
 *   `Race` / `Raza` / `Especie`
 *   `Alias` / `Apodo`
-*   `Faction` / `Facción`
+*   `Faction` / `Facción` / `Grupo`
 
 ---
 
@@ -104,22 +114,47 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 
 ## 🔬 THE LABORATORY (EL LABORATORIO)
 **Role:** Research & Resource Management.
-**Model:** Gemini 2.5 Flash (per Manual) / 3.0 Flash (per Stack).
+**Model:** Gemini 2.5 Flash / 3.0 Flash.
 **Location:** `src/components/LaboratoryPanel.tsx`.
 
 ### 1. EXCLUSIVE SCOPE
-*   The Librarian chat has access **ONLY** to files in `_RESOURCES` / `_RECURSOS`. It cannot see the main manuscript (Canon) to prevent pollution.
+*   The Librarian chat has access **ONLY** to files in `_RESOURCES` / `_RECURSOS`. It cannot see the main manuscript (Canon).
 
 ### 2. MECHANICS
-*   **Smart Tags:** `classifyResource` Cloud Function tags content as `LORE`, `SCIENCE`, `VISUAL`.
+*   **Smart Tags:** `classifyResource` tags content as `LORE`, `SCIENCE`, `VISUAL`.
 *   **Lazy Classification:** 2000ms debounce, batches of 3 files.
-*   **Context Injection:** Drag & Drop injects specific `fileId` + content into chat context.
+*   **Context Injection:** Drag & Drop injects `fileId` + content into chat.
+
+---
+
+## ⏳ THE CHRONOLOGIST (EL CRONOGRAMA)
+**Role:** Timeline & Event Extractor.
+**Location:** `src/components/TimelinePanel.tsx`.
+
+### 1. MECHANICS
+*   **Double Pass:** Uses `extractTimelineEvents` to scan text for temporal markers.
+*   **Circuit Breaker:** Blocks execution if AppCheck security is not ready.
+*   **Ambiguity Handling:** Requires explicit "Current Year" configuration to resolve relative dates (e.g., "ten years ago").
+
+---
+
+## 🖨️ THE PRESS (LA IMPRENTA)
+**Role:** Manuscript Compiler & Auditor.
+**Location:** `src/components/ExportPanel.tsx`.
+
+### 1. COMPILATION
+*   **Tech:** Generates PDF via `pdfmake` on the backend.
+*   **Security:** Returns Base64 string. Client decodes to `Uint8Array` Blob. File never touches public storage.
+
+### 2. AUTHORSHIP CERTIFICATE
+*   **Purpose:** Forensically prove human authorship.
+*   **Source:** Compiles data from the immutable `audit_log` in Firestore.
 
 ---
 
 ## 🧹 THE SENTINEL (JANITOR / CONSERJE)
 **Role:** System Hygiene.
-**Location:** `functions/src/janitor.ts`.
+**Location:** `functions/src/janitor.ts`, `src/components/SentinelStatus.tsx`.
 
 *   **Vault Scan:** Calculates Health Score (Valid vs Corrupt).
 *   **The Purge:** **Irreversibly** deletes 0-byte or corrupt "Ghost Files".
@@ -130,20 +165,19 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 ## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
 
 ### 1. CREATIVE AUDIT (The Notary)
-*   **Purpose:** Prove human authorship.
-*   **Mechanism:** Logs `INJECTION`, `CURATION`, `STRUCTURE` events to immutable Firestore `audit_log`.
-*   **Output:** "Certificate of Authorship" (PDF/TXT) via The Press.
+*   **Service:** `CreativeAuditService.ts`.
+*   **Storage:** Immutable Firestore collection `audit_log`.
+*   **Security:** `serverTimestamp()` enforces chronological truth. No edits/deletes allowed.
 
 ### 2. SILENT SCRIBE (Auto-Save)
 *   **Trigger:** 2000ms debounce after last keystroke.
-*   **Significant Update:** If `char_diff > 50`, flags as significant.
-*   **Conflict:** "Last Write Wins".
+*   **Significant Update:** Marked if `char_diff > 50`. Updates `lastSignificantUpdate` timestamp.
+*   **Conflict Resolution:** "Last Write Wins".
 
 ### 3. NEURONAL SYNC (Learning Loop)
-*   **Mechanism:** Backend listens to Drive changes.
-*   **Efficiency:** Incremental indexing (only re-processes if SHA-256 changes).
+*   **Mechanism:** Backend listens to Drive changes via `onSnapshot` on `TDB_Index`.
+*   **Efficiency:** Incremental indexing based on file Hash.
 
 ### 4. INSTRUCTION LEAKAGE DEFENSE
 *   **Input Limit:** 100,000 chars (~25k tokens).
-*   **Recursion:** Iterative stack-based parsing for PDFs to prevent Stack Overflow.
 *   **Sanitization:** `parseSecureJSON` strips Markdown code fences.
