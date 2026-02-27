@@ -32,8 +32,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             const token = credential?.accessToken;
 
             if (token) {
-                // Guardar en localStorage para que sobreviva al F5 (Recarga)
-                localStorage.setItem('google_drive_token', token);
+                // Token captured successfully
+                onLoginSuccess(result.user, token);
+            } else {
+                // Fallback to basic login if drive token is not returned
+                onLoginSuccess(result.user, null);
             }
 
         } catch (error: any) {
