@@ -77,9 +77,8 @@ export class TitaniumFactory {
 
         const rawAttributes = {
             ...entity.attributes,
-            // id: entity.id,      // REMOVED from Root (Pruned)
             name: entity.name,     // Canonical Name
-            type: legacyType,      // 🛡️ COMPATIBILITY SHIELD (Kept for Soul Sorter until Phase 3)
+            // type: legacyType,      // REMOVED: Type is dead. Long live Traits.
             traits: traits,        // 🚀 TITANIUM NATIVE
 
             // 🟢 SYSTEM METADATA (Hidden in RAG, Visible for System)
@@ -89,7 +88,7 @@ export class TitaniumFactory {
                 last_sync: sysLastSync,
                 schema_version: '3.0',
                 nexus_id: nexusId, // 🟢 ID moved here
-                legacy_type: legacyType
+                legacy_type: legacyType // 🛡️ COMPATIBILITY SHIELD (Hidden in _sys)
             }
         };
 
@@ -111,7 +110,50 @@ export class TitaniumFactory {
         // schema: JSON_SCHEMA ensures compatibility with most parsers
         const yamlBlock = yaml.dump(finalAttributes, { lineWidth: -1, schema: yaml.JSON_SCHEMA }).trim();
 
-        // 6. ASSEMBLE (Sovereign Body)
-        return `---\n${yamlBlock}\n---\n\n${entity.bodyContent}`;
+        // 6. GENERATE METADATA BLOCKQUOTE (The Human Interface)
+        // Extract key fields for the Callout
+        const metaLines = [];
+        if (finalAttributes.role) metaLines.push(`> **Role**: ${finalAttributes.role}`);
+        if (finalAttributes.aliases && finalAttributes.aliases.length > 0) metaLines.push(`> **Aliases**: ${finalAttributes.aliases.join(', ')}`);
+
+        // Tags
+        if (finalAttributes.tags && finalAttributes.tags.length > 0) {
+             const tagString = finalAttributes.tags.map((t: string) => t.startsWith('#') ? t : `#${t}`).join(' ');
+             metaLines.push(`> **Tags**: ${tagString}`);
+        }
+
+        // Traits (Visual confirmation)
+        if (traits && traits.length > 0) {
+             const traitString = traits.map((t: string) => `[${t.toUpperCase()}]`).join(' ');
+             metaLines.push(`> **Traits**: ${traitString}`);
+        }
+
+        const metadataBlock = metaLines.length > 0 ? `${metaLines.join('\n')}\n` : '';
+
+        // 7. ASSEMBLE (Sovereign Body)
+        // If the bodyContent already starts with H1, we don't add it again?
+        // The previous implementation added H1. Let's stick to the blueprint which says "H1 Header: The Entity Name".
+        // But we should check if bodyContent already has it to avoid dupes.
+
+        let processedBody = entity.bodyContent.trim();
+        const h1Regex = /^#\s+(.+)$/m;
+
+        // If body doesn't start with H1 of the name, prepend it.
+        // Actually, let's just ensure the Metadata Block is inserted after the first H1 if it exists, or at the top.
+
+        let finalContent = "";
+
+        if (h1Regex.test(processedBody)) {
+            // Insert metadata block after H1
+            finalContent = processedBody.replace(h1Regex, (match) => `${match}\n\n${metadataBlock}`);
+        } else {
+            // Prepend H1 and Metadata
+            finalContent = `# ${entity.name}\n\n${metadataBlock}\n${processedBody}`;
+        }
+
+        // Clean up excessive newlines
+        finalContent = finalContent.replace(/\n{3,}/g, '\n\n');
+
+        return `---\n${yamlBlock}\n---\n\n${finalContent}`;
     }
 }

@@ -8,7 +8,7 @@ import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable, useS
 import ForgeChat from './ForgeChat';
 import ForgeCard from './ForgeCard';
 import { Character, DriveFile } from '../../types';
-import { ForgePayload, SoulEntity } from '../../types/forge';
+import { ForgePayload, SoulEntity, EntityTier } from '../../types/forge';
 import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
@@ -148,7 +148,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     id: doc.id,
                     ...d,
                     category: derivedCategory,
-                    status: 'EXISTING'
+                    status: 'EXISTING',
+                    tier: d.tier as EntityTier
                 } as Character);
             });
             setCharacters(chars);
@@ -176,17 +177,19 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     sourceContext: 'GLOBAL',
                     masterFileId: 'mock_file_verify',
                     role: 'Protagonista de Prueba',
-                    appearances: [],
-                    snippets: []
+                    // appearances: [], // REMOVED (Not in Character interface)
+                    snippets: [],
+                    status: 'EXISTING',
+                    lastUpdated: new Date().toISOString()
                 }
             ]);
             setDetectedEntities([
-                { id: 'g1', name: 'Sombra del Pasillo', tier: 'GHOST', category: 'PERSON', sourceSnippet: '...una figura alta se desvaneció...', occurrences: 3 },
-                { id: 'l1', name: 'Borrador Capitán', tier: 'LIMBO', category: 'PERSON', sourceSnippet: 'Idea: Capitán retirado, cinico.', occurrences: 1, tags: ['Militar', 'Cínico'] },
-                { id: 'g2', name: 'Lobo de Sombras', tier: 'GHOST', category: 'CREATURE', sourceSnippet: '...un aullido gutural resonó en la oscuridad...', occurrences: 2 },
-                { id: 'l2', name: 'Flor Lunar', tier: 'LIMBO', category: 'FLORA', sourceSnippet: 'Florece solo con la luna llena.', occurrences: 1, tags: ['Rara', 'Magica'] },
-                { id: 'l3', name: 'Castillo de Cristal', tier: 'LIMBO', category: 'LOCATION', sourceSnippet: 'Ubicación clave para el final.', occurrences: 1, tags: ['Estructura', 'Magia'] },
-                { id: 'g3', name: 'Espada de Luz', tier: 'GHOST', category: 'OBJECT', sourceSnippet: '...brillaba con una luz cegadora...', occurrences: 1 }
+                { id: 'g1', name: 'Sombra del Pasillo', tier: 'GHOST', category: 'PERSON', sourceSnippet: '...una figura alta se desvaneció...', occurrences: 3, lastDetected: new Date().toISOString() },
+                { id: 'l1', name: 'Borrador Capitán', tier: 'LIMBO', category: 'PERSON', sourceSnippet: 'Idea: Capitán retirado, cinico.', occurrences: 1, tags: ['Militar', 'Cínico'], lastDetected: new Date().toISOString() },
+                { id: 'g2', name: 'Lobo de Sombras', tier: 'GHOST', category: 'CREATURE', sourceSnippet: '...un aullido gutural resonó en la oscuridad...', occurrences: 2, lastDetected: new Date().toISOString() },
+                { id: 'l2', name: 'Flor Lunar', tier: 'LIMBO', category: 'FLORA', sourceSnippet: 'Florece solo con la luna llena.', occurrences: 1, tags: ['Rara', 'Magica'], lastDetected: new Date().toISOString() },
+                { id: 'l3', name: 'Castillo de Cristal', tier: 'LIMBO', category: 'LOCATION', sourceSnippet: 'Ubicación clave para el final.', occurrences: 1, tags: ['Estructura', 'Magia'], lastDetected: new Date().toISOString() },
+                { id: 'g3', name: 'Espada de Luz', tier: 'GHOST', category: 'OBJECT', sourceSnippet: '...brillaba con una luz cegadora...', occurrences: 1, lastDetected: new Date().toISOString() }
             ]);
             return;
         }
@@ -231,13 +234,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 entities.push({
                     id: doc.id,
                     name: d.name,
-                    tier: d.tier as 'GHOST' | 'LIMBO' | 'ANCHOR',
+                    tier: d.tier as EntityTier,
                     category: derivedCategory || 'PERSON',
                     sourceSnippet: d.sourceSnippet || (d.foundIn || []).join('\n'),
                     occurrences: d.occurrences || d.confidence || 0,
                     tags: d.tags,
                     role: d.reasoning,
-                    mergeSuggestion: d.mergeSuggestion
+                    mergeSuggestion: d.mergeSuggestion,
+                    lastDetected: d.lastDetected || new Date().toISOString()
                 });
             });
 
@@ -347,7 +351,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         occurrences: 0,
         role: c.role,
         avatar: c.avatar,
-        driveId: c.masterFileId
+        driveId: c.masterFileId,
+        lastDetected: c.lastUpdated
     })).filter(filterByMode);
 
     const registeredNames = new Set(registeredAnchors.map(a => a.name.toLowerCase().trim()));

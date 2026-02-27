@@ -36,10 +36,14 @@ interface VisualNode extends GraphNode {
     y?: number;
     vx?: number;
     vy?: number;
+    fx?: number | null;
+    fy?: number | null;
     // UI Flags
     isGhost?: boolean; // True = Local Draft (Idea)
     isRescue?: boolean; // True = Failed Save (Lifeboat)
     meta?: any; // 🟢 Fallback for meta
+    traits?: string[]; // 🟢 V3.0 Traits
+    content?: string; // 🟢 Added content
 }
 
 interface PendingCrystallization {
@@ -261,7 +265,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                         <div className="flex items-center justify-between">
                             <div className={`flex items-center gap-1.5 ${style.iconColor} font-mono font-bold text-[10px] uppercase tracking-wider`}>
                                 {getIcon()}
-                                <span className="truncate max-w-[80px]">{node.type}</span>
+                                <span className="truncate max-w-[80px]">{node.traits && node.traits.length > 0 ? node.traits[0] : node.type}</span>
                             </div>
                             {isMicro && node.isGhost && (
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

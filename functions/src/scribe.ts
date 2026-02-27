@@ -1,23 +1,21 @@
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
-import * as crypto from 'crypto';
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { google } from "googleapis";
 import * as logger from "firebase-functions/logger";
-import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { TEMP_PRECISION } from "./ai_config";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
-import { ingestFile } from "./ingestion";
-import { GeminiEmbedder } from "./utils/vector_utils";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { getAIKey, escapePromptVariable } from "./utils/security";
-import { TitaniumFactory } from "./services/factory";
-import { TitaniumEntity } from "./types/ontology";
+import { TitaniumGenesis } from "./services/genesis";
 import { ProjectConfig } from "./types/project";
-import { legacyTypeToTraits } from "./utils/legacy_adapter";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { SmartSyncService } from "./services/smart_sync";
+import { GeminiEmbedder } from "./utils/vector_utils";
+import { TaskType } from "@google/generative-ai";
+import { ingestFile } from "./ingestion";
+import { google } from "googleapis";
+import { TEMP_PRECISION } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
@@ -92,11 +90,7 @@ export const scribeCreateFile = onCall(
         }
 
         const userId = request.auth.uid;
-        // Clean name for filesystem
-        const safeName = entityData.name.replace(/[^a-zA-Z0-9À-ÿ\s\-_]/g, '').trim();
-        const fileName = `${safeName}.md`;
-
-        logger.info(`✍️ SCRIBE: Forging file for ${safeName} (${entityId})`);
+        logger.info(`✍️ SCRIBE: Forging file for ${entityData.name} (${entityId})`);
 
         try {
             let finalBodyContent: string | undefined = undefined;
@@ -203,23 +197,6 @@ export const scribeCreateFile = onCall(
                 }
             }
 
-            const auth = new google.auth.OAuth2();
-            auth.setCredentials({ access_token: accessToken });
-            const drive = google.drive({ version: "v3", auth });
-
-            // 2. NEXUS IDENTITY PROTOCOL (Trace Path)
-            logger.info("   -> Tracing lineage...");
-            const folderPath = await resolveVirtualPath(drive, folderId);
-            const fullVirtualPath = `${folderPath}/${fileName}`;
-
-            // Generate Deterministic ID (Only for Nexus Link, not used as Doc ID anymore)
-            const nexusId = crypto.createHash('sha256').update(fullVirtualPath).digest('hex');
-            logger.info(`   -> Deterministic Nexus ID: ${nexusId}`);
-
-            // 3. TITANIUM FORGE (Unified Factory)
-            // Map legacy type string to traits
-            const traits = legacyTypeToTraits(entityData.type || 'concept');
-
             // Default body content if synthesis failed or wasn't requested
             const defaultBody = [
                 `# ${entityData.name}`,
@@ -236,119 +213,39 @@ export const scribeCreateFile = onCall(
                 ""
             ].join("\n");
 
-            const entity: TitaniumEntity = {
-                id: nexusId, // Nexus Link
+            const bodyToUse = finalBodyContent || defaultBody;
+
+            // 🚀 TITANIUM GENESIS: BIRTH ENTITY
+            const genesisResult = await TitaniumGenesis.birth({
+                userId: userId,
                 name: entityData.name,
-                traits: traits,
+                context: bodyToUse,
+                targetFolderId: folderId,
+                accessToken: accessToken,
+                projectId: sagaId || 'Global',
+                role: entityData.role,
+                aiKey: getAIKey(request.data, googleApiKey.value()),
                 attributes: {
-                    role: entityData.role,
+                    type: entityData.type, // Legacy support
                     aliases: entityData.aliases,
-                    tags: entityData.tags || ['tdb/entity'],
-                    project_id: sagaId,
-                    _sys: {
-                        status: 'active',
-                        tier: 'ANCHOR',
-                        last_sync: new Date().toISOString(),
-                        schema_version: '3.0',
-                        nexus_id: nexusId
-                    }
-                },
-                bodyContent: finalBodyContent || defaultBody
-            };
-
-            const fullContent = TitaniumFactory.forge(entity);
-
-            // 4. SAVE TO DRIVE
-            const file = await drive.files.create({
-                requestBody: {
-                    name: fileName,
-                    parents: [folderId],
-                    mimeType: 'text/markdown'
-                },
-                media: {
-                    mimeType: 'text/markdown',
-                    body: fullContent
-                },
-                fields: 'id, name, webViewLink'
+                    tags: entityData.tags
+                }
             });
 
-            const newFileId = file.data.id;
-            if (!newFileId) throw new Error("Drive failed to return ID.");
-
-            logger.info(`   ✅ File created in Drive: ${newFileId}`);
-
-            // 5. UPDATE FIRESTORE (The Registry)
-
-            // A. FIRE & FORGET VECTORIZATION (Server-Side Trigger) ⚡
-            try {
-                const embeddingsModel = new GeminiEmbedder({
-                    apiKey: googleApiKey.value(),
-                    model: "gemini-embedding-001",
-                    taskType: TaskType.RETRIEVAL_DOCUMENT,
-                });
-
-                await ingestFile(
-                    db,
-                    userId,
-                    folderId, // Scope anchor
-                    {
-                        id: newFileId, // Drive ID (The King)
-                        name: fileName,
-                        path: fullVirtualPath,
-                        saga: sagaId || 'Global',
-                        parentId: folderId,
-                        category: 'canon'
-                    },
-                    fullContent,
-                    embeddingsModel
-                );
-
-                // 🟢 METADATA ENRICHMENT (Post-Ingest)
-                await db.collection("TDB_Index").doc(userId).collection("files").doc(newFileId).update({
-                    smartTags: FieldValue.arrayUnion('CREATED_BY_SCRIBE'),
-                    nexusId: nexusId
-                });
-
-                logger.info(`   🧠 [SCRIBE] Vectorized & Indexed: ${fileName}`);
-
-            } catch (ingestErr) {
-                logger.error("   🔥 [SCRIBE] Ingestion Failed:", ingestErr);
-            }
-
-            // B. Update Source (Radar)
+            // Update Source (Radar)
             await db.collection("users").doc(userId).collection("forge_detected_entities").doc(entityId).set({
                 tier: 'ANCHOR',
                 status: 'ANCHOR',
-                driveId: newFileId,
-                driveLink: file.data.webViewLink,
+                driveId: genesisResult.fileId,
+                driveLink: genesisResult.webViewLink,
                 lastSynced: FieldValue.serverTimestamp()
-            }, { merge: true });
-
-            // C. Update/Create Roster (The Character Sheet)
-            const rosterId = safeName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            const rosterRef = db.collection("users").doc(userId).collection("characters").doc(rosterId);
-
-            await rosterRef.set({
-                id: rosterId,
-                name: entityData.name,
-                role: entityData.role || "Nuevo Personaje",
-                tier: 'MAIN',
-                status: 'EXISTING',
-                sourceType: 'MASTER',
-                sourceContext: sagaId || 'GLOBAL',
-                masterFileId: newFileId,
-                lastUpdated: new Date().toISOString(),
-                isAIEnriched: true,
-                tags: entityData.tags || [],
-                aliases: entityData.aliases || [],
-                nexusId: nexusId
             }, { merge: true });
 
             return {
                 success: true,
-                driveId: newFileId,
-                rosterId: rosterId,
-                nexusId: nexusId,
+                driveId: genesisResult.fileId,
+                rosterId: genesisResult.rosterId,
+                nexusId: genesisResult.nexusId,
                 message: "El Escriba ha documentado la entidad."
             };
 
