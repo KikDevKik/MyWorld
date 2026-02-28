@@ -486,6 +486,58 @@ const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
 
 
 // 🟢 LINKS OVERLAY (Static Layer - "The Divorce")
+
+// ⚡ Bolt Optimization: Extracted LinkItem into a React.memo component
+// Why: Prevents O(N) re-renders of all Xarrow components when hovering a single node or link.
+// Impact: Reduces React rendering time from O(N) to O(1) on hover state changes.
+interface LinkItemProps {
+    link: any;
+    isFocused: boolean;
+    setHoveredLineId: (id: string | null) => void;
+}
+
+const LinkItem = React.memo(({ link, isFocused, setHoveredLineId }: LinkItemProps) => {
+    return (
+        <Xarrow
+            start={link.start}
+            end={link.end}
+            startAnchor="middle"
+            endAnchor="middle"
+            color={link.color}
+            strokeWidth={1.5}
+            headSize={3}
+            curveness={0.3}
+            path="smooth"
+            zIndex={0}
+            animateDrawing={false}
+            passProps={{
+                onMouseEnter: () => setHoveredLineId(link.key),
+                onMouseLeave: () => setHoveredLineId(null),
+                style: { cursor: 'pointer', pointerEvents: 'auto' }
+            }}
+            labels={{
+                middle: (
+                    <div
+                        className={`
+                            bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
+                            ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
+                        `}
+                        style={{
+                            borderColor: link.color,
+                            color: link.color,
+                            boxShadow: `0 0 5px ${link.color}20`,
+                            pointerEvents: 'auto'
+                        }}
+                        title={`${link.relation}: ${link.context || 'Sin contexto'}`}
+                    >
+                        {link.labelText}
+                    </div>
+                )
+            }}
+        />
+    );
+});
+
 export interface LinksOverlayHandle {
     forceUpdate: () => void;
 }
@@ -561,43 +613,11 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
                     const isFocused = hoveredNodeId === link.start || hoveredNodeId === link.end || hoveredLineId === link.key;
 
                     return (
-                        <Xarrow
+                        <LinkItem
                             key={link.key}
-                            start={link.start}
-                            end={link.end}
-                            startAnchor="middle"
-                            endAnchor="middle"
-                            color={link.color}
-                            strokeWidth={1.5}
-                            headSize={3}
-                            curveness={0.3}
-                            path="smooth"
-                            zIndex={0}
-                            animateDrawing={false}
-                            passProps={{
-                                onMouseEnter: () => setHoveredLineId(link.key),
-                                onMouseLeave: () => setHoveredLineId(null),
-                                style: { cursor: 'pointer', pointerEvents: 'auto' }
-                            }}
-                            labels={{
-                                middle: (
-                                    <div
-                                        className={`
-                                            bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
-                                            ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
-                                        `}
-                                        style={{
-                                            borderColor: link.color,
-                                            color: link.color,
-                                            boxShadow: `0 0 5px ${link.color}20`,
-                                            pointerEvents: 'auto'
-                                        }}
-                                        title={`${link.relation}: ${link.context || 'Sin contexto'}`}
-                                    >
-                                        {link.labelText}
-                                    </div>
-                                )
-                            }}
+                            link={link}
+                            isFocused={isFocused}
+                            setHoveredLineId={setHoveredLineId}
                         />
                     );
                 })}
