@@ -6,7 +6,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
-import { getAIKey } from "./utils/security";
+import { getAIKey, escapePromptVariable } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -53,9 +53,9 @@ export const classifyResource = onCall(
             const prompt = `
             TASK: Classify this resource file into ONE category.
 
-            FILENAME: "${fileName}"
-            TYPE: "${mimeType || 'Unknown'}"
-            CONTENT SNIPPET: "${snippet ? snippet.substring(0, 2000) : 'No content preview'}"
+            FILENAME: "${escapePromptVariable(fileName)}"
+            TYPE: "${escapePromptVariable(mimeType || 'Unknown')}"
+            CONTENT SNIPPET: "${escapePromptVariable(snippet ? snippet.substring(0, 2000) : 'No content preview')}"
 
             CATEGORIES:
             - 'LORE': World info, history, maps, geography, politics, religion.
