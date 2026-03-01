@@ -608,7 +608,7 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
 
 
 // 🟢 MAIN COMPONENT
-const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
+const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> = ({ isOpen = true, accessToken }) => {
     const graphRef = useRef<GraphSimulationHandle>(null);
     const linksOverlayRef = useRef<LinksOverlayHandle>(null);
     const { config, user } = useProjectConfig();
@@ -686,10 +686,9 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         setIsCrystallizing(true);
 
         try {
-            const token = localStorage.getItem('google_drive_token');
-            if (!token) throw new Error("Falta Token.");
+            if (!accessToken) throw new Error("Falta Token. Asegúrate de haber iniciado sesión y concedido permisos.");
             await callFunction('crystallizeNode', {
-                accessToken: token,
+                accessToken: accessToken,
                 folderId: data.folderId,
                 fileName: data.fileName,
                 content: targetNode.content || `# ${targetNode.name}\n\n*Creado via NexusCanvas*`,
@@ -836,20 +835,21 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
 
         try {
              toast.info("🧠 Contactando al Motor...");
+             if (!accessToken) throw new Error("Falta Token.");
              const data = await callFunction<any>('worldEngine', {
                 prompt: inputValue,
                 agentId: 'nexus-terminal',
                 chaosLevel: entropy,
                 context: { canon_dump: "", timeline_dump: "" },
                 currentGraphContext: unifiedNodes.slice(0, 20),
-                accessToken: localStorage.getItem('google_drive_token')
+                accessToken: accessToken
              });
 
              if(data.newNodes) {
-                 const newG = data.newNodes.map((n: any) => ({
+                 const newG: VisualNode[] = data.newNodes.map((n: any) => ({
                      id: n.id || `ai-${Date.now()}`,
                      name: n.title,
-                     type: (n.metadata?.node_type || 'IDEA').toUpperCase(),
+                     type: (n.metadata?.node_type || 'IDEA').toUpperCase() as EntityType,
                      description: n.content,
                      isGhost: true,
                      x: 2000, y: 2000,
