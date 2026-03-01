@@ -29,10 +29,10 @@
 *   **War Room (>900px):** Full command center. Displays historical session logs + tools.
 
 ### 2. TACTICAL CAPABILITIES
-*   **The Inspector:** Analyzes scene for Casting Report (Characters, Tone, Pacing). Returns a structured JSON.
-*   **The Tribunal:** Invokes the 3 Judges (see dedicated section).
+*   **The Inspector:** Analyzes scene for Casting Report (Characters, Tone, Pacing). Returns a structured JSON. (`handleInspector`)
+*   **The Tribunal:** Invokes the 3 Judges (see dedicated section). (`handleTribunal`)
 *   **Memory Sync:** Forces manual context refresh (`handleContextSync`). Triggered by `needsReindex` banner.
-*   **Sensory Interface:** Accepts Images/Audio inputs. Analyzes tone/visuals to provide multi-modal narrative advice.
+*   **Sensory Interface:** Accepts Images/Audio inputs. Analyzes tone/visuals to provide multi-modal narrative advice. (`handleSendMessage` con Attachment)
 
 ---
 
@@ -105,6 +105,7 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 **Role:** Literary Critique Panel.
 **Model:** Gemini 3.0 Pro.
 **Timeout:** **540 seconds (9 minutes)**.
+**Output Requirement:** Must return a structured JSON with `verdict`, `critique`, and `score` for each judge.
 
 ### 1. THE JUDGES
 1.  **The Architect (Blue):** Logic, pacing, plot holes. Cold/Analytical.
@@ -160,8 +161,8 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 **Role:** System Hygiene.
 **Location:** `functions/src/janitor.ts`, `src/components/SentinelStatus.tsx`.
 
-*   **Vault Scan:** Calculates Health Score (Valid vs Corrupt).
-*   **The Purge:** **Irreversibly** deletes 0-byte or corrupt "Ghost Files".
+*   **Vault Scan:** Calculates Health Score (Valid vs Corrupt) using `scanVaultHealth` Cloud Function.
+*   **The Purge:** **Irreversibly** deletes 0-byte or corrupt "Ghost Files" using `purgeArtifacts` Cloud Function.
 *   **Visual Filter:** `toggleShowOnlyHealthy` hides garbage without deleting.
 
 ---
@@ -176,7 +177,7 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 
 ### 2. SILENT SCRIBE (Auto-Save)
 *   **Trigger:** 2000ms debounce after last keystroke.
-*   **Significant Update:** Marked if `char_diff > 50`. Updates `lastSignificantUpdate` timestamp.
+*   **Significant Update:** Marked as `isSignificant: true` if `Math.abs(diff) > 50`. Updates `lastSignificantUpdate` timestamp.
 *   **Conflict Resolution:** "Last Write Wins".
 
 ### 3. NEURONAL SYNC (Learning Loop)
