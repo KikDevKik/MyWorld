@@ -21,3 +21,7 @@
 ## 2026-02-07 - [O(N) Re-render on Controlled Input]
 **Learning:** Found that `TimelinePanel` was re-rendering the entire list of events (O(N)) on every keystroke of the `currentYear` input because the list item rendering was inline. This caused visible input lag.
 **Action:** Always extract complex list items into memoized components when the parent has frequent state updates (like controlled inputs).
+
+## 2026-02-07 - [Double Rendering Bug in Lists]
+**Learning:** Found a severe double-rendering bug in `TimelinePanel` where the array of events was mapped twice: once inline to build the DOM directly, and a second time right below it using the newly extracted memoized component. The DOM output was duplicated, essentially causing a 200% rendering overhead per item. This happens sometimes during half-finished component extractions.
+**Action:** When extracting components from a list loop, verify that the original inline loop is removed completely, rather than accidentally leaving both in place.
