@@ -159,6 +159,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                     <button
                         onClick={onCancel}
                         className="p-2 hover:bg-white/10 rounded-lg text-zinc-500 hover:text-white transition-colors"
+                        aria-label="Cerrar selector de carpeta"
                     >
                         <X size={20} />
                     </button>
