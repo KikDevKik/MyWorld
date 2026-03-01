@@ -85,9 +85,10 @@
 **Location:** `functions/src/soul_sorter.ts`.
 
 ### 1. LIFECYCLE WORKFLOW
-*   **ECHOES (The Radar):** Scans text for names without files. **RULE OF SILENCE:** Strictly ignores `_RESOURCES` / `_RECURSOS` folders.
-*   **LIMBO (The Workshop):** Draft entities. Notes without Master File.
-*   **ANCHORS (The Vault):** Crystallized entities with physical `.md` files.
+*   **ECHOES (The Radar):** Scans text for names without files. **RULE OF SILENCE:** Strictly ignores `_RESOURCES` / `_RECURSOS` folders to avoid mistaking research notes for canon characters.
+*   **LIMBO (The Workshop):** Draft entities. Notes without Master File. Interacting here invokes **The Oracle (Chat)**.
+    *   **Omniscience Protocol:** Unlike the Radar, The Oracle *can* read `_RESOURCES` via full Vector Memory to suggest lore-based traits.
+*   **ANCHORS (The Vault):** Crystallized entities with physical `.md` files in Google Drive.
 
 ### 2. METADATA SEALS (Anchor Detection)
 To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the first 20 lines:
@@ -105,10 +106,13 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 **Model:** Gemini 3.0 Pro.
 **Timeout:** **540 seconds (9 minutes)**.
 
-### THE JUDGES
+### 1. THE JUDGES
 1.  **The Architect (Blue):** Logic, pacing, plot holes. Cold/Analytical.
 2.  **The Bard (Purple):** Aesthetics, metaphors, sensory details. Poetic/Dramatic.
 3.  **The Hater (Red):** Market viability, clichés, "cringe" factor. Cynical/Destructive.
+
+### 2. EXECUTION CONSTRAINTS
+*   **Output Format:** Must return a structured JSON containing `verdict`, `critique`, and `score` (0-100) for each of the 3 judges.
 
 ---
 
@@ -168,6 +172,7 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 *   **Service:** `CreativeAuditService.ts`.
 *   **Storage:** Immutable Firestore collection `audit_log`.
 *   **Security:** `serverTimestamp()` enforces chronological truth. No edits/deletes allowed.
+*   **Events Logged:** Manual Injection, Curation (accept/reject AI suggestions), and Structure changes. Used to generate legal Authorship Certificates.
 
 ### 2. SILENT SCRIBE (Auto-Save)
 *   **Trigger:** 2000ms debounce after last keystroke.
@@ -181,3 +186,7 @@ To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the f
 ### 4. INSTRUCTION LEAKAGE DEFENSE
 *   **Input Limit:** 100,000 chars (~25k tokens).
 *   **Sanitization:** `parseSecureJSON` strips Markdown code fences.
+
+### 5. DIRECTOR CONSTRAINTS
+*   **Iron Guardian:** A sub-agent blocks hallucinations if they contradict files marked as `[PRIORITY LORE]`.
+*   **Reality Tuner (Trifase):** Adjusts temperature/persona. Logical Engineer (< 0.4), Visionary Architect (< 0.7), Chaotic Dreamer (> 0.7).
