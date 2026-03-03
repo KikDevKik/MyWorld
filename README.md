@@ -1,65 +1,65 @@
-# MyWorld
+# MyWorld: The Synaptic Loom
 
-AI-Powered Creative Writing Environment with Socratic Guidance.
+**AI-Powered Creative Writing Environment with Socratic Guidance & Forensic Authorship.**
 
-Built for Gemini Hackathon 3 | Powered by Gemini 3.0 Pro
+Built for the future of narrative resonance | Powered by **Gemini 3.0 Pro & Flash**.
+
+## 🚀 Overview
+
+MyWorld is not just an editor; it's a **Creative Mirror**. It combines high-performance writing tools with a suite of AI agents ("The Titanium Protocol") designed to maintain continuity, visualize complex world-building, and certify human authorship in the age of generative AI.
+
+## 🏗️ The Titanium Architecture (V3.0)
+
+The core of MyWorld is the **Titanium Unified Architecture**, a trait-based entity system that synchronizes "The Cathedral" (Creative Magic) with "The Bunker" (Security & Persistence). 
+
+*   **Deterministic Identity:** Every character, location, and object has a unique ID based on its narrative path.
+*   **Trait-Based Taxonomy:** Entities are defined by functional traits (*Sentient, Tangible, Locatable*) rather than rigid RPG classes.
+*   **Triple-Tier Triage:** All narrative elements live in one of three states:
+    *   **Ghost:** Mentioned in text but not yet defined.
+    *   **Limbo:** Draft entities living in the workbench.
+    *   **Anchor:** Crystallized files synced with Google Drive.
+
+## 🚀 System Modules
+
+*   **🖋️ The Sentinel Editor:** A Zen-mode Markdown interface with real-time **Canon Radar** (The Guardian) that detects plot holes and character drift as you type.
+*   **🌐 The Nexus (World Engine v4.0):** A 2D force-directed graph for world-building visualization. Supports **LOD (Level of Detail)** views (Macro/Meso/Micro) and **Crystallization** of ideas into files.
+*   **🎬 The Director:** Your narrative orchestrator. Supports responsive modes (Sentinel, Strategist, War Room) and tactical tools like **The Inspector** and **The Tribunal**.
+*   **⚖️ The Tribunal:** A literary critique panel featuring 3 distinct AI personalities: **The Architect** (Logic), **The Bard** (Aesthetics), and **The Hater** (Market/Cringe).
+*   **🔨 The Forge (Soul Sorter):** Automatically extracts and triages entities from your manuscript using high-speed RAG analysis.
+*   **🔬 The Laboratory:** A dedicated research space for lore and reference materials. Uses **Smart Tags** and **Lazy Classification** to organize your worldbuilding.
+*   **🖨️ The Press:** Compiles manuscripts and generates a **Certificate of Authorship**, forensically proving human input through immutable logs.
+
+## 🛠️ Tech Stack
+
+*   **Frontend:** React 18 + Vite + TailwindCSS 4 (Titanium Dark Theme).
+*   **State Management:** Zustand + React Context.
+*   **Editor:** CodeMirror 6 (Markdown specialized).
+*   **Visualization:** D3-force + React Xarrows + Framer Motion.
+*   **Backend:** Firebase Cloud Functions v2 (Node.js 22).
+*   **AI:** Google Gemini 3.0 Pro (Reasoning) & 3.0 Flash (Speed).
+*   **Database:** Firestore Native Vector Search (Cosine Similarity).
+*   **Storage:** Google Drive API v3 (Direct file-to-file sync).
 
 ## 🚀 Setup Instructions
 
 ### Prerequisites
-*   Node.js (v18+)
+*   Node.js (v20+)
 *   pnpm (v9+)
-*   Firebase CLI (installed globally)
+*   Firebase CLI
 
 ### Installation
-1.  Clone the repository:
+1.  Clone the repository and install dependencies:
     ```bash
-    git clone https://github.com/your-username/MyWorld.git
-    cd MyWorld
-    ```
-2.  Install dependencies:
-    ```bash
-    npm install
-    # or
     pnpm install
     ```
-
-### Configuration
-1.  Create a `.env.local` file in the root directory and add your Firebase configuration:
-    ```env
-    VITE_FIREBASE_API_KEY=your_api_key
-    VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
-    VITE_FIREBASE_PROJECT_ID=your_project_id
-    VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
-    VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-    VITE_FIREBASE_APP_ID=your_app_id
-    ```
-2.  Set up Firebase Functions secrets (if deploying):
+2.  Configure your `.env.local` with Firebase credentials.
+3.  Set up Firebase secrets:
     ```bash
     firebase functions:secrets:set GOOGLE_API_KEY
-    firebase functions:secrets:set BAPTISM_MASTER_KEY
     ```
 
 ### Running Local Development
-Start the development server:
 ```bash
-npm run dev
-# or
 pnpm dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
-
-## 🚀 System Modules
-
-* **🖋️ The Editor:** "Zen Mode" WYSIWYG interface with dynamic typography and telemetry.
-* **⚖️ The Tribunal:** Narrative judgment with 3 AI personalities (Architect, Bard, Hater).
-* **🧪 The Laboratory:** Asset management (Canon vs Reference) with RAG research chat.
-* **🖨️ The Press:** Manuscript compilation and PDF export.
-* **🔨 The Forge:** Idea and character generator.
-
-## 🛠️ Tech Stack
-
-* **Frontend:** React + Vite + TailwindCSS (Titanium Dark Theme).
-* **Backend:** Firebase Cloud Functions v2.
-* **AI:** Google Gemini 3.0 Pro & Flash.
-* **Database:** Firestore (Vector Search).
+Open [http://localhost:5173](http://localhost:5173).

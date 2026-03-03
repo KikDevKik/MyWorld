@@ -14,7 +14,8 @@
 ## ⚡ TECH STACK & MODEL ASSIGNMENTS
 *   **Gemini 3.0 Pro (The Judge):** Used for complex reasoning, logic, and critique. (Director Logic, Tribunal, Chat RAG).
 *   **Gemini 3.0 Flash (The Soldier):** Used for high-speed, low-latency tasks. (Guardian Scan, Soul Sorter Extraction, Scribe Synthesis).
-*   **Thinking Mode:** All "Pro" agents must expose their internal reasoning via a visible `<thinking>...</thinking>` block in the UI to build user trust ("Glass Box AI").
+*   **Gemini 2.5 Flash / 3.0 Flash (The Librarian):** Used for research, categorization, and Laboratory tasks.
+*   **Gemini 2.5 Pro (TTS):** Used for high-fidelity Text-to-Speech with emotional depth (`gemini-2.5-pro-preview-tts`).
 
 ---
 
@@ -38,82 +39,56 @@
 
 ## 🛡️ THE GUARDIAN (CANON RADAR / EL CENTINELA)
 **Role:** Passive Surveillance & Continuity Enforcement.
-**Model:** Gemini 3.0 Flash (High Speed).
-**Location:** `src/hooks/useGuardian.ts`, `src/components/StatusBar.tsx`.
+**Model:** Gemini 3.0 Flash (Detection) & Pro (Logic).
+**Location:** `src/hooks/useGuardian.ts`, `functions/src/guardian.ts`.
 
 ### 1. MECHANICS
 *   **Trigger:** SHA-256 Hash change on text buffer.
 *   **Interval:** 3000ms debounce.
-*   **Traffic Light (Argos):**
-    *   `CLEAN` (Green): No issues.
-    *   `SCANNING` (Yellow): Analysis in progress.
-    *   `CONFLICT` (Red): Issue detected.
+*   **Traffic Light (Argos):** `CLEAN`, `SCANNING`, `CONFLICT`.
 
 ### 2. DETECTION SCOPE
-*   **Conflicts:** Direct logical contradictions (e.g., "Dead character speaks").
-*   **Fractures of Reality:** Violations of world physics or magic rules.
-*   **Narrative Betrayal:** Personality drift or out-of-character actions.
+*   **Friction Analysis:** Detects logical contradictions against the RAG memory (Friction Score).
+*   **Personality Drift:** Uses **"The Hater"** personality to detect if character actions betray their canonical profile.
+*   **World Law Violations:** Flags violations of established physics, magic, or chronology.
+*   **Resonance Engine (New):** Identifies connections between current drafts and previously written "Memory Seeds" (Chunks).
+*   **Structure Analyst (New):** Analyzes the narrative phase (Setup, Inciting Incident, Climax, etc.) and provides structural advice.
 
-### 3. DRIFT CONTROL
-*   **Rescue:** User validates new info as Canon (updates database).
-*   **Purge:** User deletes the "Echo" (contradiction) from memory.
+### 3. CENTROID SYNC
+*   Calculates a **Semantic Centroid** for the entire project. Detects "Drift" when a new chapter deviates too far from the project's core style and themes.
 
 ---
 
 ## 🌐 THE NEXUS (WORLD ENGINE v4.0)
 **Role:** Entity Graph & Reality Visualizer.
-**Location:** `src/components/NexusCanvas.tsx`, `src/pages/WorldEnginePageV2.tsx`.
+**Location:** `src/components/NexusCanvas.tsx`.
 
 ### 1. IDENTITY PROTOCOL
 *   **Deterministic Identity:** IDs = `DJB2_Hash(Slug + ProjectID)`.
-*   **Batch Merge:** Unifies aliases (e.g., "The King" -> "Arthur") into a single node.
+*   **V3.0 Traits:** Uses universal traits (*Sentient, Tangible, Locatable, Abstract*) instead of rigid classes.
 
-### 2. GHOST NODES (Drafts)
-*   **Storage:** Entities detected but not yet crystallized live in `localStorage` (`nexus_drafts_v1`).
-*   **Crystallization:** The process of converting a Ghost Node into a physical Markdown file in Drive.
+### 2. L.O.D. SYSTEM (Level of Detail)
+*   **MACRO:** View factions and high-level relationships.
+*   **MESO:** Standard interactive node view.
+*   **MICRO:** Detailed cards with descriptions and crystallization tools.
 
-### 3. REALITY TUNER (Temperature Control)
-*   **Rigor (Cyan):** Strict logic. Zero hallucinations. Pure Canon.
-*   **Fusion (Silver):** Narrative balance. Plausible connections.
-*   **Entropy (Violet):** Creative chaos. Wild ideas.
-
----
-
-## 🔨 THE FORGE (SOUL SORTER / EL ARTÍFICE)
-**Role:** Entity Taxonomist.
-**Model:** Gemini 3.0 Flash.
-**Location:** `functions/src/soul_sorter.ts`.
-
-### 1. LIFECYCLE WORKFLOW
-*   **ECHOES (The Radar):** Scans text for names without files. **RULE OF SILENCE:** Strictly ignores `_RESOURCES` / `_RECURSOS` folders to avoid mistaking research notes for canon characters.
-*   **LIMBO (The Workshop):** Draft entities. Notes without Master File. Interacting here invokes **The Oracle (Chat)**.
-    *   **Omniscience Protocol:** Unlike the Radar, The Oracle *can* read `_RESOURCES` via full Vector Memory to suggest lore-based traits.
-*   **ANCHORS (The Vault):** Crystallized entities with physical `.md` files in Google Drive.
-
-### 2. METADATA SEALS (Anchor Detection)
-To be an ANCHOR, a file must contain these keys (YAML or Markdown Bold) in the first 20 lines:
-*   `Role` / `Rol` / `Cargo` / `Ocupación`
-*   `Age` / `Edad`
-*   `Class` / `Clase`
-*   `Race` / `Raza` / `Especie`
-*   `Alias` / `Apodo`
-*   `Faction` / `Facción` / `Grupo`
+### 3. THE LIFEBOAT (Boyas Locales)
+*   If crystallization fails (e.g. network error), entities are saved as **Rescue Nodes** in `localStorage` until sync is restored.
 
 ---
 
 ## ⚖️ THE TRIBUNAL (EL JUICIO)
 **Role:** Literary Critique Panel.
 **Model:** Gemini 3.0 Pro.
-**Timeout:** **540 seconds (9 minutes)**.
-**Output Requirement:** Must return a structured JSON with `verdict`, `critique`, and `score` for each judge.
+**Timeout:** 540 seconds.
 
 ### 1. THE JUDGES
-1.  **The Architect (Blue):** Logic, pacing, plot holes. Cold/Analytical.
-2.  **The Bard (Purple):** Aesthetics, metaphors, sensory details. Poetic/Dramatic.
-3.  **The Hater (Red):** Market viability, clichés, "cringe" factor. Cynical/Destructive.
+1.  **The Architect (Blue):** Logic and pacing.
+2.  **The Bard (Purple):** Aesthetics and subtext.
+3.  **The Hater (Red):** Marketability and "cringe" detection.
 
-### 2. EXECUTION CONSTRAINTS
-*   **Output Format:** Must return a structured JSON containing `verdict`, `critique`, and `score` (0-100) for each of the 3 judges.
+### 2. FORENSIC AUDIT (The Notary)
+*   Generates a **Human Score** and **Certificate of Authorship** based on the immutable audit log, distinguishing human effort from AI suggestions.
 
 ---
 
