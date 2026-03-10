@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
@@ -126,9 +127,9 @@ export const refreshDriveToken = onCall(
     } catch (error: any) {
       // If refresh token is invalid (revoked), we should probably delete it?
       if (error.message && (error.message.includes('invalid_grant') || error.message.includes('unauthorized_client'))) {
-          logger.warn(`🗑️ Refresh Token invalid (Revoked?). Deleting from Vault.`);
-          await db.collection("users").doc(userId).collection("system_secrets").doc("drive").delete();
-          return { success: false, reason: "TOKEN_REVOKED" };
+        logger.warn(`🗑️ Refresh Token invalid (Revoked?). Deleting from Vault.`);
+        await db.collection("users").doc(userId).collection("system_secrets").doc("drive").delete();
+        return { success: false, reason: "TOKEN_REVOKED" };
       }
 
       throw handleSecureError(error, "refreshDriveToken");

@@ -1,3 +1,4 @@
+import '../admin'; // Ensure firebase-admin is initialized
 import * as logger from "firebase-functions/logger";
 import matter from 'gray-matter';
 import { marked } from 'marked';

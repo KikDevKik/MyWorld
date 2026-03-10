@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";

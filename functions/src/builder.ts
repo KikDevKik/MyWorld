@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";

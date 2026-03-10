@@ -1,3 +1,4 @@
+import '../admin'; // Ensure firebase-admin is initialized
 import * as logger from "firebase-functions/logger";
 import * as crypto from 'crypto';
 import { getFirestore, FieldValue } from "firebase-admin/firestore";

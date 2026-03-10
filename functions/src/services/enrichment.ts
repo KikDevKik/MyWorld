@@ -1,3 +1,4 @@
+import '../admin'; // Ensure firebase-admin is initialized
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import { Firestore } from "firebase-admin/firestore";

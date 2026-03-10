@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
