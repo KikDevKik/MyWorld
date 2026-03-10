@@ -1,3 +1,8 @@
+import * as admin from 'firebase-admin';
+if (admin.apps.length === 0) {
+  admin.initializeApp();
+}
+
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
@@ -42,7 +47,7 @@ export const forgeToolExecution = onCall(
     }
 
     if (typeof content === 'string' && content.length > MAX_FILE_SAVE_BYTES) {
-        throw new HttpsError("resource-exhausted", `Content exceeds limit of ${MAX_FILE_SAVE_BYTES / 1024 / 1024}MB.`);
+      throw new HttpsError("resource-exhausted", `Content exceeds limit of ${MAX_FILE_SAVE_BYTES / 1024 / 1024}MB.`);
     }
 
     if (!accessToken) {
@@ -57,15 +62,15 @@ export const forgeToolExecution = onCall(
     try {
       // 🚀 TITANIUM GENESIS: BIRTH ENTITY
       const genesisResult = await TitaniumGenesis.birth({
-          userId: userId,
-          name: title,
-          context: content,
-          targetFolderId: folderId,
-          accessToken: accessToken,
-          projectId: folderId, // Assuming folderId is root or part of project
-          aiKey: getAIKey(request.data, googleApiKey.value()),
-          role: "Tool Generated",
-          // Let AI infer traits from context/title
+        userId: userId,
+        name: title,
+        context: content,
+        targetFolderId: folderId,
+        accessToken: accessToken,
+        projectId: folderId, // Assuming folderId is root or part of project
+        aiKey: getAIKey(request.data, googleApiKey.value()),
+        role: "Tool Generated",
+        // Let AI infer traits from context/title
       });
 
       logger.info(`   ✅ Materialización exitosa: ${genesisResult.fileId}`);
@@ -78,9 +83,13 @@ export const forgeToolExecution = onCall(
       };
 
     } catch (error: any) {
-        // Fallback for custom logic if Genesis fails? No, Genesis handles it.
-        logger.error("Forge Tool Execution Failed:", error);
-        throw new HttpsError('internal', error.message);
+      // Fallback for custom logic if Genesis fails? No, Genesis handles it.
+      logger.error("Forge Tool Execution Failed:", error);
+      throw new HttpsError('internal', error.message);
     }
   }
 );
+
+// --- RE-EXPORTS: Functions defined in other modules ---
+export { checkIndexStatus } from './librarian';
+export { exchangeAuthCode, refreshDriveToken } from './auth';

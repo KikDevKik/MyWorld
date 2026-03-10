@@ -1,4 +1,4 @@
-import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions } from 'firebase/functions';
+import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions, connectFunctionsEmulator } from 'firebase/functions';
 import { toast } from 'sonner';
 
 /**
@@ -7,6 +7,11 @@ import { toast } from 'sonner';
  */
 export const callFunction = async <T>(name: string, data: any = {}, options?: HttpsCallableOptions): Promise<T | null> => {
     const functions = getFunctions();
+
+    if (import.meta.env.DEV && window.location.hostname === 'localhost') {
+        try { connectFunctionsEmulator(functions, 'localhost', 5001); } catch (e) { }
+    }
+
     const customKey = localStorage.getItem('myworld_custom_gemini_key');
     const envKey = import.meta.env.VITE_GOOGLE_API_KEY;
 
@@ -27,28 +32,28 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
         // Manejo de Errores (Safety Net)
         // Detectamos el código específico INVALID_CUSTOM_KEY que envía el backend
         if (error.message && (error.message.includes('INVALID_CUSTOM_KEY') || error.message.includes('API key not valid'))) {
-             toast.error("Tu llave personal no funciona. Revisa en Ajustes o bórrala para usar la del sistema.", {
-                 duration: 10000,
-                 action: {
-                     label: 'Ajustes',
-                     onClick: () => {
-                         // Dispatch custom event to open settings if possible, or just let user know
-                         window.dispatchEvent(new CustomEvent('OPEN_SETTINGS_MODAL'));
-                     }
-                 }
-             });
+            toast.error("Tu llave personal no funciona. Revisa en Ajustes o bórrala para usar la del sistema.", {
+                duration: 10000,
+                action: {
+                    label: 'Ajustes',
+                    onClick: () => {
+                        // Dispatch custom event to open settings if possible, or just let user know
+                        window.dispatchEvent(new CustomEvent('OPEN_SETTINGS_MODAL'));
+                    }
+                }
+            });
         }
 
         // Nuevo manejo de errores de red (CORS/Network Error)
         // Si es un error de red o fetch fallido, retornamos null para evitar crash
         if (error.code === 'unavailable' || error.message?.includes('network') || error.message?.includes('Failed to fetch')) {
-             console.error("🚨 Error de Red Crítico en callFunction:", {
-                 functionName: name,
-                 details: error.message,
-                 code: error.code
-             });
-             // Retornamos null para que la UI pueda manejarlo (mostrando un estado de error o reintentar)
-             return null;
+            console.error("🚨 Error de Red Crítico en callFunction:", {
+                functionName: name,
+                details: error.message,
+                code: error.code
+            });
+            // Retornamos null para que la UI pueda manejarlo (mostrando un estado de error o reintentar)
+            return null;
         }
 
         // Para otros errores (lógica de negocio), seguimos re-lanzando para manejo específico si es necesario

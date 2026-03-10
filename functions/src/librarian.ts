@@ -115,6 +115,42 @@ export const releaseLock = onCall(
     }
 );
 
+/**
+ * CHECK INDEX STATUS
+ * Returns whether the user has any indexed files and when the last indexing occurred.
+ */
+export const checkIndexStatus = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+
+        const db = getFirestore();
+        const userId = request.auth.uid;
+
+        try {
+            const filesRef = db.collection("TDB_Index").doc(userId).collection("files");
+            const snapshot = await filesRef.orderBy("lastIndexed", "desc").limit(1).get();
+
+            if (snapshot.empty) {
+                return { isIndexed: false, lastIndexedAt: null };
+            }
+
+            const mostRecent = snapshot.docs[0].data();
+            return {
+                isIndexed: true,
+                lastIndexedAt: mostRecent.lastIndexed || null,
+            };
+        } catch (error: any) {
+            // If there's no index yet (missing field, missing collection), return false gracefully
+            return { isIndexed: false, lastIndexedAt: null };
+        }
+    }
+);
+
 // Internal Helper for other Functions
 export async function verifyLock(userId: string, fileId: string, clientId?: string): Promise<boolean> {
     const db = getFirestore();
