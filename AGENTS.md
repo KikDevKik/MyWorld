@@ -1,168 +1,262 @@
-# 🤖 TITANIUM PROTOCOL: AI AGENTS & ELITE MECHANICS
+# 🤖 AGENTS.md — MyWorld: Titanium Protocol
+> **SOVEREIGN SOURCE OF TRUTH** for all coding agents (Antigravity, Jules, etc.).
+> Branch: `dev-v2` | Stack: React 18 + Firebase Cloud Functions v2 + Gemini 3.1
+> Last updated: March 2026
 
-> **SOVEREIGN SOURCE OF TRUTH**: This document supersedes all previous instructions. It bridges the "Cathedral" (Creative Magic) and the "Bunker" (Security/Persistence). All coding agents must adhere strictly to these definitions.
+---
+
+## ⚡ CRITICAL RULES FOR ALL AGENTS
+
+1. **Never touch `main` branch.** All work goes to `dev-v2`.
+2. **Always run `cd functions && npm run build` after modifying any file in `functions/src/`.**
+3. **All new Cloud Functions MUST be exported in `functions/src/index.ts`.**
+4. **Import `admin` and `db` exclusively from `functions/src/admin.ts`** — never call `admin.initializeApp()` elsewhere.
+5. **Embeddings use `outputDimensionality: 768`** — Firestore vector index is configured for 768d.
+6. **CORS is handled by Firebase SDK** — do NOT add manual CORS headers to `onCall` functions.
+7. **Sovereign Areas** (`<!-- SOVEREIGN START --> ... <!-- SOVEREIGN END -->`) in Markdown files must NEVER be overwritten by any agent.
 
 ---
 
 ## 🏗️ CORE PHILOSOPHY
-*   **The Cathedral:** The AI acts as an "Active Mirror" (Espejo Activo), not just a tool. It must understand plot, detect contradictions, and visualize structure.
-*   **The Bunker:** Absolute persistence. "Truth" resides in physical Markdown files (Google Drive) and immutable logs (Firestore).
-*   **The Bridge:** Coding agents ("The Weaver") translate raw Spanish manuals (`.Jules/Manuals/`) into technical constraints here.
+
+- **The Cathedral:** AI as "Active Mirror" (Espejo Activo). Understands plot, detects contradictions, visualizes structure.
+- **The Bunker:** Absolute persistence. Truth lives in physical Markdown files (Google Drive) and immutable Firestore logs.
+- **The Bridge:** Coding agents ("The Weaver") implement the manuals from `.Jules/Manuals/` as technical constraints.
 
 ---
 
 ## ⚡ TECH STACK & MODEL ASSIGNMENTS
-*   **Gemini 3.1 Pro (The Judge):** Used for complex reasoning, logic, and critique. (Director Logic, Tribunal, Chat RAG).
-*   **Gemini 3.1 Flash Lite (The Soldier):** Used for high-speed, low-latency tasks. (Guardian Scan, Soul Sorter Extraction, Scribe Synthesis).
-*   **Gemini 3.1 Flash Lite (The Librarian):** Used for research, categorization, and Laboratory tasks.
-*   **Gemini 2.5 Pro (TTS):** Used for high-fidelity Text-to-Speech with emotional depth (`gemini-2.5-pro-preview-tts`).
+
+| Role | Model String | Used For |
+|---|---|---|
+| **The Judge** | `gemini-3.1-pro-preview` | Director Logic, Tribunal, Chat RAG, complex reasoning |
+| **The Soldier** | `gemini-3.1-flash-lite-preview` | Guardian Scan, Soul Sorter, Scribe Synthesis |
+| **The Librarian** | `gemini-3.1-flash-lite-preview` | Laboratory research, classification |
+| **TTS** | `gemini-2.5-pro-preview-tts` | High-fidelity Text-to-Speech (DO NOT change) |
+| **Embeddings** | `gemini-embedding-001` | Vector search — always use `outputDimensionality: 768` |
+
+Constants live in `functions/src/ai_config.ts` and `src/constants.ts`.
 
 ---
 
-## 🎬 THE DIRECTOR (EL DIRECTOR)
-**Role:** Narrative Orchestrator & Context Manager.
-**Model:** Gemini 3.1 Pro.
-**Location:** `src/components/DirectorPanel.tsx`, `functions/src/director.ts`.
+## 📁 KEY FILE MAP
 
-### 1. OPERATIONAL MODES (Layout Context)
-*   **Sentinel Mode (<500px):** Silent observation. Chat only.
-*   **Strategist Mode (500px-900px):** Deploys "Tactical Tools" (Sidebar) for surgical interventions.
-*   **War Room (>900px):** Full command center. Displays historical session logs + tools.
+```
+functions/src/
+├── admin.ts          ← Singleton Firebase Admin init. Import from here ONLY.
+├── ai_config.ts      ← MODEL_FLASH, MODEL_PRO constants
+├── index.ts          ← ALL function exports. If a function isn't here, it doesn't exist.
+├── config.ts         ← ALLOWED_ORIGINS (must include http://localhost:3000)
+├── director.ts       ← The Director agent
+├── guardian.ts       ← Canon Radar / Guardian agent
+├── soul_sorter.ts    ← Forge / Soul Sorter agent
+├── scribe.ts         ← File creation & patch (Smart-Sync)
+├── ingestion.ts      ← RAG chunking & vectorization
+├── vector_utils.ts   ← Embedding helpers (use outputDimensionality: 768)
+├── crystallization.ts← Ghost → Anchor crystallization
+├── audit.ts          ← Authorship certificate & forensic audit
+├── janitor.ts        ← Sentinel / system hygiene
+└── types/
+    └── forge.ts      ← TitaniumEntity, EntityTier, EntityCategory
 
-### 2. TACTICAL CAPABILITIES
-*   **The Inspector:** Analyzes scene for Casting Report (Characters, Tone, Pacing). Returns a structured JSON. (`handleInspector`)
-*   **The Tribunal:** Invokes the 3 Judges (see dedicated section). (`handleTribunal`)
-*   **Memory Sync:** Forces manual context refresh (`handleContextSync`). Triggered by `needsReindex` banner.
-*   **Sensory Interface:** Accepts Images/Audio inputs. Analyzes tone/visuals to provide multi-modal narrative advice. (`handleSendMessage` con Attachment)
-
----
-
-## 🛡️ THE GUARDIAN (CANON RADAR / EL CENTINELA)
-**Role:** Passive Surveillance & Continuity Enforcement.
-**Model:** Gemini 3.1 Flash Lite (Detection) & Pro (Logic).
-**Location:** `src/hooks/useGuardian.ts`, `functions/src/guardian.ts`.
-
-### 1. MECHANICS
-*   **Trigger:** SHA-256 Hash change on text buffer.
-*   **Interval:** 3000ms debounce.
-*   **Traffic Light (Argos):** `CLEAN`, `SCANNING`, `CONFLICT`.
-
-### 2. DETECTION SCOPE
-*   **Friction Analysis:** Detects logical contradictions against the RAG memory (Friction Score).
-*   **Personality Drift:** Uses **"The Hater"** personality to detect if character actions betray their canonical profile.
-*   **World Law Violations:** Flags violations of established physics, magic, or chronology.
-*   **Resonance Engine (New):** Identifies connections between current drafts and previously written "Memory Seeds" (Chunks).
-*   **Structure Analyst (New):** Analyzes the narrative phase (Setup, Inciting Incident, Climax, etc.) and provides structural advice.
-
-### 3. CENTROID SYNC
-*   Calculates a **Semantic Centroid** for the entire project. Detects "Drift" when a new chapter deviates too far from the project's core style and themes.
+src/
+├── services/api.ts   ← callFunction() wrapper. Connects to emulator on localhost:5001.
+├── lib/firebase.ts   ← Firebase init (Firestore points to PRODUCTION)
+└── constants.ts      ← Frontend model constants
+```
 
 ---
 
-## 🌐 THE NEXUS (WORLD ENGINE v4.0)
-**Role:** Entity Graph & Reality Visualizer.
-**Location:** `src/components/NexusCanvas.tsx`.
+## ☁️ EXPORTED CLOUD FUNCTIONS (44 total)
 
-### 1. IDENTITY PROTOCOL
-*   **Deterministic Identity:** IDs = `DJB2_Hash(Slug + ProjectID)`.
-*   **V3.0 Traits:** Uses universal traits (*Sentient, Tangible, Locatable, Abstract*) instead of rigid classes.
+All functions below MUST be exported from `functions/src/index.ts`:
 
-### 2. L.O.D. SYSTEM (Level of Detail)
-*   **MACRO:** View factions and high-level relationships.
-*   **MESO:** Standard interactive node view.
-*   **MICRO:** Detailed cards with descriptions and crystallization tools.
+**Auth & Drive:**
+`exchangeAuthCode`, `refreshDriveToken`, `revokeDriveAccess`
 
-### 3. THE LIFEBOAT (Boyas Locales)
-*   If crystallization fails (e.g. network error), entities are saved as **Rescue Nodes** in `localStorage` until sync is restored.
+**Drive File Operations:**
+`saveDriveFile`, `getDriveFileContent`, `getDriveFiles`, `scribeCreateFile`, `scribePatchFile`, `getBatchDriveMetadata`, `getFileSystemNodes`, `renameDriveFolder`, `trashDriveItems`
 
----
+**Sync & Index:**
+`syncSmart`, `discoverFolderRoles`, `createTitaniumStructure`, `indexTDB`, `checkIndexStatus`, `crystallizeGraph`, `crystallizeForgeEntity`, `relinkAnchor`
 
-## ⚖️ THE TRIBUNAL (EL JUICIO)
-**Role:** Literary Critique Panel.
-**Model:** Gemini 3.1 Pro.
-**Timeout:** 540 seconds.
+**AI Agents:**
+`auditContent`, `forgeToolExecution`, `analyzeStyleDNA`, `generateSpeech`, `classifyResource`, `integrateNarrative`, `transformToGuide`, `scanProjectDrift`, `rescueEcho`, `purgeEcho`
 
-### 1. THE JUDGES
-1.  **The Architect (Blue):** Logic and pacing.
-2.  **The Bard (Purple):** Aesthetics and subtext.
-3.  **The Hater (Red):** Marketability and "cringe" detection.
+**Project Config:**
+`saveProjectConfig`, `nukeProject`
 
-### 2. FORENSIC AUDIT (The Notary)
-*   Generates a **Human Score** and **Certificate of Authorship** based on the immutable audit log, distinguishing human effort from AI suggestions.
+**Forge / Session:**
+`addForgeMessage`, `clearSessionMessages`, `deleteForgeSession`, `updateForgeCharacter`
 
----
+**Locks:**
+`acquireLock`, `releaseLock`
 
-## 🔬 THE LABORATORY (EL LABORATORIO)
-**Role:** Research & Resource Management.
-**Model:** Gemini 3.1 Flash Lite.
-**Location:** `src/components/LaboratoryPanel.tsx`.
+**Health & Cleanup:**
+`scanVaultHealth`, `purgeArtifacts`, `purgeEmptySessions`, `purgeForgeEntities`, `purgeForgeDatabase`
 
-### 1. EXCLUSIVE SCOPE
-*   The Librarian chat has access **ONLY** to files in `_RESOURCES` / `_RECURSOS`. It cannot see the main manuscript (Canon).
-
-### 2. MECHANICS
-*   **Smart Tags:** `classifyResource` tags content as `LORE`, `SCIENCE`, `VISUAL`.
-*   **Lazy Classification:** 2000ms debounce, batches of 3 files.
-*   **Context Injection:** Drag & Drop injects `fileId` + content into chat.
+**Export:**
+`generateAuditPDF`, `generateCertificate`
 
 ---
 
-## ⏳ THE CHRONOLOGIST (EL CRONOGRAMA)
-**Role:** Timeline & Event Extractor.
-**Location:** `src/components/TimelinePanel.tsx`.
+## 🎬 THE DIRECTOR
 
-### 1. MECHANICS
-*   **Double Pass:** Uses `extractTimelineEvents` to scan text for temporal markers.
-*   **Circuit Breaker:** Blocks execution if AppCheck security is not ready.
-*   **Ambiguity Handling:** Requires explicit "Current Year" configuration to resolve relative dates (e.g., "ten years ago").
+**File:** `functions/src/director.ts`, `src/components/DirectorPanel.tsx`
+**Model:** `gemini-3.1-pro-preview`
 
----
+### Layout Modes
+- **Sentinel (<500px):** Silent observation. Chat only.
+- **Strategist (500px-900px):** Tactical Tools sidebar unlocked.
+- **War Room (>900px):** Full command center with session history.
 
-## 🖨️ THE PRESS (LA IMPRENTA)
-**Role:** Manuscript Compiler & Auditor.
-**Location:** `src/components/ExportPanel.tsx`.
+### Tactical Tools
+- `handleInspector` — Casting Report (Characters, Tone, Pacing). Returns structured JSON.
+- `handleTribunal` → calls `summonTheTribunal` Cloud Function.
+- `handleContextSync` — Forces manual context refresh.
+- `handleSendMessage` — Accepts image/audio attachments for multi-modal advice.
 
-### 1. COMPILATION
-*   **Tech:** Generates PDF via `pdfmake` on the backend.
-*   **Security:** Returns Base64 string. Client decodes to `Uint8Array` Blob. File never touches public storage.
-
-### 2. AUTHORSHIP CERTIFICATE
-*   **Purpose:** Forensically prove human authorship.
-*   **Source:** Compiles data from the immutable `audit_log` in Firestore.
+### Reality Tuner (Temperature)
+- **Rigor (LOGIC):** `temp < 0.4` — zero hallucinations, pure canon.
+- **Fusión (BALANCE):** `temp < 0.7` — narrative balance.
+- **Entropía (CHAOS):** `temp > 0.7` — creative chaos.
 
 ---
 
-## 🧹 THE SENTINEL (JANITOR / CONSERJE)
-**Role:** System Hygiene.
-**Location:** `functions/src/janitor.ts`, `src/components/SentinelStatus.tsx`.
+## 🛡️ THE GUARDIAN (Canon Radar)
 
-*   **Vault Scan:** Calculates Health Score (Valid vs Corrupt) using `scanVaultHealth` Cloud Function.
-*   **The Purge:** **Irreversibly** deletes 0-byte or corrupt "Ghost Files" using `purgeArtifacts` Cloud Function.
-*   **Visual Filter:** `toggleShowOnlyHealthy` hides garbage without deleting.
+**File:** `functions/src/guardian.ts`, `src/hooks/useGuardian.ts`
+**Model:** Flash Lite (detection) + Pro (logic)
+
+### Trigger
+SHA-256 hash change on text buffer. 3000ms debounce.
+
+### Detection Scope
+- **Friction Analysis:** Logical contradictions against RAG memory.
+- **Personality Drift:** "The Hater" persona detects character betrayal.
+- **World Law Violations:** Physics, magic, chronology flags.
+- **Resonance Engine:** Connects current draft to past "Memory Seeds."
+- **Structure Analyst:** Identifies narrative phase (Setup, Climax, etc.).
+- **Centroid Sync:** Detects drift from project's core style/theme.
+
+### Vector Dimension
+Always use `outputDimensionality: 768` in all `embedContent()` calls.
 
 ---
 
-## 👻 GHOST MECHANICS (INVISIBLE PROTOCOLS)
+## ⚖️ THE TRIBUNAL
 
-### 1. CREATIVE AUDIT (The Notary)
-*   **Service:** `CreativeAuditService.ts`.
-*   **Storage:** Immutable Firestore collection `audit_log`.
-*   **Security:** `serverTimestamp()` enforces chronological truth. No edits/deletes allowed.
-*   **Events Logged:** Manual Injection, Curation (accept/reject AI suggestions), and Structure changes. Used to generate legal Authorship Certificates.
+**Cloud Function:** `summonTheTribunal`
+**Model:** `gemini-3.1-pro-preview`
+**Timeout:** 540 seconds
 
-### 2. SILENT SCRIBE (Auto-Save)
-*   **Trigger:** 2000ms debounce after last keystroke.
-*   **Significant Update:** Marked as `isSignificant: true` if `Math.abs(diff) > 50`. Updates `lastSignificantUpdate` timestamp.
-*   **Conflict Resolution:** "Last Write Wins".
+### The Judges
+1. **The Architect (Blue):** Logic and pacing.
+2. **The Bard (Purple):** Aesthetics and subtext.
+3. **The Hater (Red):** Marketability and cringe detection.
 
-### 3. NEURONAL SYNC (Learning Loop)
-*   **Mechanism:** Backend listens to Drive changes via `onSnapshot` on `TDB_Index`.
-*   **Efficiency:** Incremental indexing based on file Hash.
+### Known Issue (dev-v2)
+`summonTheTribunal` must be exported in `index.ts` — CORS error appears when missing.
 
-### 4. INSTRUCTION LEAKAGE DEFENSE
-*   **Input Limit:** 100,000 chars (~25k tokens).
-*   **Sanitization:** `parseSecureJSON` strips Markdown code fences.
+---
 
-### 5. DIRECTOR CONSTRAINTS
-*   **Iron Guardian:** A sub-agent blocks hallucinations if they contradict files marked as `[PRIORITY LORE]`.
-*   **Reality Tuner (Trifase):** Adjusts temperature/persona. Logical Engineer (< 0.4), Visionary Architect (< 0.7), Chaotic Dreamer (> 0.7).
+## 🌐 THE NEXUS (World Engine v4.0)
+
+**File:** `src/components/NexusCanvas.tsx`
+
+### Identity Protocol
+IDs = `DJB2_Hash(Slug + ProjectID)`. Deterministic — same entity always gets same ID.
+
+### LOD System
+- **MACRO:** Faction-level overview.
+- **MESO:** Standard interactive node view.
+- **MICRO:** Detailed cards with crystallization tools.
+
+### Entity Visuals (Traits → Colors)
+When refactoring NexusCanvas, use traits not `node.type`:
+```typescript
+const traits = node.traits || legacyTypeToTraits(node.type); // migration bridge
+// ['sentient'] → Yellow
+// ['locatable'] → Cyan
+// ['abstract'] → Purple
+```
+
+### The Lifeboat
+Failed crystallizations are saved as Rescue Nodes in `localStorage` until sync restores.
+
+---
+
+## 🔬 THE LABORATORY
+
+**File:** `src/components/LaboratoryPanel.tsx`
+**Model:** `gemini-3.1-flash-lite-preview`
+
+- **Scope:** ONLY files in `_RESOURCES` / `_RECURSOS` folders.
+- **Smart Tags:** `classifyResource` → `LORE`, `SCIENCE`, `VISUAL`.
+- **Lazy Classification:** 2000ms debounce, batches of 3.
+- **Prompt Injection:** Always use `escapePromptVariable()` on `fileName`, `mimeType`, `snippet` before interpolation (injection vulnerability prevention).
+
+---
+
+## 🏭 TITANIUM FACTORY (Entity Lifecycle)
+
+**Status:** Hybrid V2.5 — legacy `type` field still present for backward compat.
+
+### Do NOT remove `type` from frontmatter yet.
+`soul_sorter.ts` and `NexusCanvas.tsx` still depend on `node.type`. Use the bridge:
+```typescript
+const traits = node.traits || legacyTypeToTraits(node.type);
+```
+
+### Smart-Sync Rules
+1. Calculate `SHA-256` of file content before any write.
+2. If `newHash === storedHash` → **ABORT WRITE** (prevents Echo Loop).
+3. `<!-- SOVEREIGN START --> ... <!-- SOVEREIGN END -->` blocks are UNTOUCHABLE.
+4. Debounce writes: if `Date.now() - last_titanium_sync < 5000ms` → skip reconciliation.
+
+---
+
+## 🧹 THE SENTINEL (Janitor)
+
+**File:** `functions/src/janitor.ts`, `src/components/SentinelStatus.tsx`
+
+- `scanVaultHealth` — calculates Health Score (Valid vs Corrupt).
+- `purgeArtifacts` — **IRREVERSIBLY** deletes 0-byte or corrupt Ghost Files.
+- `toggleShowOnlyHealthy` — visual filter only, does NOT delete.
+
+---
+
+## 👻 GHOST MECHANICS
+
+### Creative Audit
+- **Service:** `CreativeAuditService.ts`
+- **Storage:** Immutable `audit_log` Firestore collection.
+- **Security:** `serverTimestamp()` only — no client clock manipulation possible.
+- **Events:** `INJECTION`, `CURATION`, `STRUCTURE`.
+
+### Silent Scribe (Auto-Save)
+- 2000ms debounce on `selectedFileContent`.
+- `isSignificant: true` if `Math.abs(diff) > 50`.
+- Significant saves update `lastSignificantUpdate` → triggers Director re-index.
+
+### Security Limits
+- Input cap: 100,000 chars (~25k tokens).
+- Use `parseSecureJSON` to strip Markdown code fences from AI responses.
+
+---
+
+## 🔧 LOCAL EMULATOR SETUP
+
+```bash
+firebase emulators:start
+```
+
+| Service | URL |
+|---|---|
+| Functions | `http://127.0.0.1:5001` |
+| Hosting | `http://127.0.0.1:5000` |
+| Frontend | `http://localhost:3000` |
+
+**Note:** Firestore points to **PRODUCTION** (no emulator for Firestore). Functions point to local emulator via `connectFunctionsEmulator` in `src/services/api.ts`.
+
+Drive tokens reset on emulator restart — reconnect Drive once per session.
