@@ -3,8 +3,8 @@ import { AudioSegment } from '../types/editorTypes';
 import { toast } from 'sonner';
 
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const BRAIN_MODEL_PRIMARY = 'gemini-3-flash-preview'; // Exact string requested by user
-const BRAIN_MODEL_FALLBACK = 'gemini-2.0-flash'; // Safe fallback
+const BRAIN_MODEL_PRIMARY = 'gemini-3.1-flash-lite-preview'; // Updated to 3.1
+const BRAIN_MODEL_FALLBACK = 'gemini-2.5-flash'; // Stable fallback
 
 // Patterns that should NOT be read aloud
 const IGNORE_PATTERNS = [
@@ -193,8 +193,8 @@ Schema:
                     const isMetadata = IGNORE_PATTERNS.some(pattern => pattern.test(missedText));
 
                     if (missedText.length > 0 && !isMetadata) {
-                         // Insert Bridge Segment for missed narration
-                         result.push({
+                        // Insert Bridge Segment for missed narration
+                        result.push({
                             text: originalText.substring(currentIndex, foundIndex), // Keep original spacing for audio? Or trim? Better keep raw.
                             type: 'NARRATION',
                             speakerId: null,
@@ -207,7 +207,7 @@ Schema:
                             },
                             from: currentIndex,
                             to: foundIndex
-                         });
+                        });
                     } else if (isMetadata) {
                         console.log("Skipping Metadata Segment:", missedText);
                     }
@@ -222,11 +222,11 @@ Schema:
                 });
                 currentIndex = end;
             } else {
-                 console.warn(`Narrator alignment warning: Could not find segment at index ${currentIndex}`);
-                 // If we can't find it, we skip adding it to maintain the strict timeline,
-                 // OR we just push it without offsets (which might break highlighting).
-                 // Best effort: Push it, but it won't have valid highlighting.
-                 result.push(segment);
+                console.warn(`Narrator alignment warning: Could not find segment at index ${currentIndex}`);
+                // If we can't find it, we skip adding it to maintain the strict timeline,
+                // OR we just push it without offsets (which might break highlighting).
+                // Best effort: Push it, but it won't have valid highlighting.
+                result.push(segment);
             }
         }
 

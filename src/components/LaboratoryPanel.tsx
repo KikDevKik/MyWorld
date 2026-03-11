@@ -154,7 +154,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
     const librarianGem: Gem = useMemo(() => ({
         id: 'laboratorio',
         name: t.tools.laboratorio,
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.1-flash-lite-preview',
         color: 'emerald',
         backgroundImage: '',
         systemInstruction: t.laboratory.systemInstruction

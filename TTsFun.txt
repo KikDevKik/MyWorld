@@ -8,7 +8,7 @@ El sistema de narración opera en tres capas principales:
 
 1.  **El Director (Cerebro - `NarratorService.ts`):**
     *   **Función:** Analiza el texto bruto de la escena.
-    *   **Modelo:** Usa Google Gemini (`gemini-3.0-flash` o `gemini-2.0-flash`).
+    *   **Modelo:** Usa Google Gemini (`gemini-3.1-flash-lite-preview`).
     *   **Prompt Actual:** Tiene una instrucción estricta de **"FULL COVERAGE: You MUST include 100% of the input text verbatim"**. Esto se diseñó para evitar que la IA se saltara párrafos aburridos, pero tiene el efecto secundario de obligarla a incluir notas técnicas, cronologías (`-TIMELINE`) y comentarios de usuario.
 
 2.  **El Protocolo de Supervivencia (`realignSegments`):**
@@ -19,7 +19,7 @@ El sistema de narración opera en tres capas principales:
 
 3.  **El Motor de Voz (`TTSService.ts` / `functions/tts.ts`):**
     *   **Función:** Convierte el texto segmentado en audio real.
-    *   **Modelo:** Usa `gemini-2.5-flash-preview-tts` para voces emocionales y variadas.
+    *   **Modelo:** Usa `gemini-2.5-pro-preview-tts` para voces emocionales y variadas.
     *   **El Problema "No cambia de voz":** Según los logs del sistema, el proyecto ha excedido la cuota de uso de la API de Google (`429 Too Many Requests`).
     *   **Fallback (Plan B):** Cuando la API falla por cuota, el sistema activa automáticamente `window.speechSynthesis` (la voz robótica del navegador). Esta voz del navegador **no soporta los perfiles emocionales** de Gemini, resultando en una lectura plana, monocromática y con una sola voz para todos los personajes.
 

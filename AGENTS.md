@@ -12,16 +12,16 @@
 ---
 
 ## ⚡ TECH STACK & MODEL ASSIGNMENTS
-*   **Gemini 3.0 Pro (The Judge):** Used for complex reasoning, logic, and critique. (Director Logic, Tribunal, Chat RAG).
-*   **Gemini 3.0 Flash (The Soldier):** Used for high-speed, low-latency tasks. (Guardian Scan, Soul Sorter Extraction, Scribe Synthesis).
-*   **Gemini 2.5 Flash / 3.0 Flash (The Librarian):** Used for research, categorization, and Laboratory tasks.
+*   **Gemini 3.1 Pro (The Judge):** Used for complex reasoning, logic, and critique. (Director Logic, Tribunal, Chat RAG).
+*   **Gemini 3.1 Flash Lite (The Soldier):** Used for high-speed, low-latency tasks. (Guardian Scan, Soul Sorter Extraction, Scribe Synthesis).
+*   **Gemini 3.1 Flash Lite (The Librarian):** Used for research, categorization, and Laboratory tasks.
 *   **Gemini 2.5 Pro (TTS):** Used for high-fidelity Text-to-Speech with emotional depth (`gemini-2.5-pro-preview-tts`).
 
 ---
 
 ## 🎬 THE DIRECTOR (EL DIRECTOR)
 **Role:** Narrative Orchestrator & Context Manager.
-**Model:** Gemini 3.0 Pro.
+**Model:** Gemini 3.1 Pro.
 **Location:** `src/components/DirectorPanel.tsx`, `functions/src/director.ts`.
 
 ### 1. OPERATIONAL MODES (Layout Context)
@@ -39,7 +39,7 @@
 
 ## 🛡️ THE GUARDIAN (CANON RADAR / EL CENTINELA)
 **Role:** Passive Surveillance & Continuity Enforcement.
-**Model:** Gemini 3.0 Flash (Detection) & Pro (Logic).
+**Model:** Gemini 3.1 Flash Lite (Detection) & Pro (Logic).
 **Location:** `src/hooks/useGuardian.ts`, `functions/src/guardian.ts`.
 
 ### 1. MECHANICS
@@ -79,7 +79,7 @@
 
 ## ⚖️ THE TRIBUNAL (EL JUICIO)
 **Role:** Literary Critique Panel.
-**Model:** Gemini 3.0 Pro.
+**Model:** Gemini 3.1 Pro.
 **Timeout:** 540 seconds.
 
 ### 1. THE JUDGES
@@ -94,7 +94,7 @@
 
 ## 🔬 THE LABORATORY (EL LABORATORIO)
 **Role:** Research & Resource Management.
-**Model:** Gemini 2.5 Flash / 3.0 Flash.
+**Model:** Gemini 3.1 Flash Lite.
 **Location:** `src/components/LaboratoryPanel.tsx`.
 
 ### 1. EXCLUSIVE SCOPE

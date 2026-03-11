@@ -44,17 +44,18 @@ export class GeminiEmbedder {
         try {
             const result = await this.model.embedContent({
                 content: { role: 'user', parts: [{ text: processedText }] },
-                taskType: this.taskType
-            });
+                taskType: this.taskType,
+                outputDimensionality: 768, // 🔒 FIXED: Enforce 768d (text-embedding-004 / gemini-embedding-001)
+            } as any);
 
             const vector = result.embedding.values;
 
-            // 3. Dimensionality Check (The Fix)
-            if (vector.length > 2048) {
-                logger.error(`💥 [EMBEDDER] DIMENSION OVERFLOW: ${vector.length}. Model: ${this.modelName}. Truncating to 768.`);
-                // If model returns huge vector (e.g. concatenated), we must fix it.
-                // gemini-embedding-001 should be 768.
-                return vector.slice(0, 768);
+            // 3. Dimensionality Check (Safety Guard)
+            if (vector.length !== 768) {
+                logger.error(`💥 [EMBEDDER] UNEXPECTED DIMENSION: ${vector.length}. Expected 768. Model: ${this.modelName}. Truncating/padding to 768.`);
+                if (vector.length > 768) return vector.slice(0, 768);
+                // Should not happen, but guard anyway
+                return [...vector, ...new Array(768 - vector.length).fill(0)];
             }
 
             return vector;

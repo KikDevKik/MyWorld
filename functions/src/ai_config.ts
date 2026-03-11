@@ -4,8 +4,8 @@ import { HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 // We now define FLASH and PRO explicitly.
 // FLASH (El Soldado): Fast, cheap, but sensitive.
 // PRO (El Juez): Deep reasoning, robust, understands context.
-export const MODEL_FLASH = "gemini-3-flash-preview";
-export const MODEL_PRO = "gemini-3-pro-preview";
+export const MODEL_FLASH = "gemini-3.1-flash-lite-preview";
+export const MODEL_PRO = "gemini-3.1-pro-preview";
 
 // 🟢 LEGACY POINTERS
 export const MODEL_LOW_COST = MODEL_FLASH;
