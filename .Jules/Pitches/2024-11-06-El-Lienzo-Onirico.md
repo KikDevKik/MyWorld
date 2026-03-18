@@ -33,3 +33,6 @@ Ahora puedes *describir* lo que *ves*. "Las lunas no eran blancas, eran de un vi
 **⚖️ Cathedral & Bunker Check:**
 *   **The Bunker (Privacidad):** Las imágenes se generan en la nube (necesario por GPU), pero el prompt es anónimo y las imágenes no aceptadas se purgan tras la sesión. El usuario mantiene los derechos de lo generado.
 *   **The Cathedral (Magia):** Transforma Titanium de un "procesador de texto" a un "estudio de producción". Elimina el bloqueo del escritor visual y llena el mundo de color y textura. Es el fin de la página en blanco.
+
+
+PALABRAS DE KikDevKik: Se decidio que myworld no generara imagenes, sino que generara un prompt para que el usuario pueda generar las imagenes con la IA que desee.

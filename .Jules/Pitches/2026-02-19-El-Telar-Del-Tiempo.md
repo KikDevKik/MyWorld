@@ -45,3 +45,7 @@ Transformamos el Cronograma en una **Interfaz Temporal Cuántica (Horizontal & N
 **⚖️ Cathedral & Bunker Check:**
 *   **The Bunker (Privacidad):** Las "Profecías" son efímeras y locales hasta que el usuario las acepta. El análisis de causalidad usa la API segura existente. No se entrenan modelos con los datos del usuario.
 *   **The Cathedral (Excelencia):** Eleva la herramienta de "procesador de texto" a "Simulador de Destino". Convierte la planificación (aburrida) en un juego de dioses (emocionante).
+
+
+PALABRAS DE KikDevKik: 
+Esto se agregaria para cuando Myworld este en produccion y se tenga planeada una big update, ya que es una funcion que requiere de muchos recursos y tiempo de desarrollo. Por ahora no se implementara.

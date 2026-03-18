@@ -26,3 +26,8 @@ El usuario puede "Podar" ramas muertas o "Colapsar" una rama alternativa para co
 **⚖️ Cathedral & Bunker Check:**
 *   **The Bunker (Privacidad):** Las ramas alternativas ("Timeline Variants") se almacenan como metadatos locales o documentos "Ghost" en Firebase, vinculados solo al usuario. El usuario decide explícitamente qué rama se "Cristaliza" en el Canon oficial.
 *   **The Cathedral (Magia):** Eleva a la IA de "secretaria que toma notas" a "Dios del Tiempo" que puede ver y mostrar todos los futuros posibles. Maximiza la capacidad multimodal y lógica de Gemini para mantener la coherencia causal.
+
+
+
+PALABRAS DE KikDevKik: 
+Esto se agregaria para cuando Myworld este en produccion y se tenga planeada una big update, ya que es una funcion que requiere de muchos recursos y tiempo de desarrollo. Por ahora no se implementara.
