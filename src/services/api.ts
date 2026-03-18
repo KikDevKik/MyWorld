@@ -12,16 +12,11 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
         try { connectFunctionsEmulator(functions, 'localhost', 5001); } catch (e) { }
     }
 
+    // BYOK: Only inject the user's personal key if they explicitly provided one.
+    // The server uses its own Gemini key from Firebase Secret Manager.
+    // NEVER inject VITE_GOOGLE_API_KEY here — that would expose the server key from the client bundle.
     const customKey = localStorage.getItem('myworld_custom_gemini_key');
-    const envKey = import.meta.env.VITE_GOOGLE_API_KEY;
-
-    // Prioridad: 1. Llave Personal (BYOK) -> 2. Llave de Entorno (Local) -> 3. Sistema (Server Secret)
-    // Si el usuario tiene una llave personal, usamos esa. Si no, usamos la del .env local como backup
-    // para evitar problemas con secretos expirados en el servidor.
-    const effectiveKey = customKey || envKey;
-
-    // Inyección: Si existe una llave efectiva, la enviamos en el cuerpo con la bandera _authOverride
-    const payload = effectiveKey ? { ...data, _authOverride: effectiveKey } : data;
+    const payload = customKey ? { ...data, _authOverride: customKey } : data;
 
     const fn = firebaseHttpsCallable(functions, name, options);
 

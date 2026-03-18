@@ -38,7 +38,7 @@ export { acquireLock, releaseLock, checkIndexStatus } from './librarian';
 export { crystallizeGraph, crystallizeForgeEntity } from './crystallization';
 export { generateAuditPDF, generateCertificate } from './audit';
 export { analyzeStyleDNA } from './analyst';
-export { generateSpeech } from './tts';
+export { generateSpeech, analyzeScene } from './tts';
 
 // --- CORE HANDLERS (Bridge) ---
 

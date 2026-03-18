@@ -994,8 +994,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
 function App() {
     console.log("🚀 App Mounting...");
-    console.log("👻 JULES MODE:", import.meta.env.VITE_JULES_MODE);
-    console.log("🛠️ DEV MODE:", import.meta.env.DEV);
+    if (import.meta.env.DEV) {
+        console.log("👻 JULES MODE:", import.meta.env.VITE_JULES_MODE);
+        console.log("🛠️ DEV MODE:", import.meta.env.DEV);
+    }
 
     // 1. ALL HOOKS FIRST (Unconditional)
 
@@ -1107,8 +1109,8 @@ function App() {
     const handleTokenRefresh = async (): Promise<string | null> => {
         // 🟢 AUTH GUARD (Race Condition Fix)
         if (!user) {
-             console.warn("⚠️ Token Refresh Blocked: User not authenticated.");
-             return null;
+            console.warn("⚠️ Token Refresh Blocked: User not authenticated.");
+            return null;
         }
 
         setDriveStatus('refreshing');

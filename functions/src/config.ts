@@ -1,9 +1,13 @@
 // Centralized configuration for Firebase Functions
 
 // CORS Allowed Origins
-// Used to prevent hardcoding URLs across multiple files
-const defaultOrigins = [
+// Separated by environment to avoid localhost origins in production.
+const productionOrigins = [
   "https://myword-67b03.web.app",
+  "https://myword-67b03.firebaseapp.com",
+];
+
+const devOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
   "http://localhost:4173",
@@ -14,9 +18,13 @@ const defaultOrigins = [
   "http://127.0.0.1:5000",
 ];
 
+// ALLOWED_CORS_ORIGINS env var (manual override) takes highest priority.
+// FUNCTIONS_EMULATOR is auto-injected by the Firebase emulator — never present in Cloud Functions production.
 export const ALLOWED_ORIGINS = process.env.ALLOWED_CORS_ORIGINS
-  ? process.env.ALLOWED_CORS_ORIGINS.split(",").map((origin) => origin.trim())
-  : defaultOrigins;
+  ? process.env.ALLOWED_CORS_ORIGINS.split(",").map((o) => o.trim())
+  : process.env.FUNCTIONS_EMULATOR
+    ? [...productionOrigins, ...devOrigins]
+    : productionOrigins;
 
 // Region for function deployment
 export const FUNCTIONS_REGION = "us-central1";
