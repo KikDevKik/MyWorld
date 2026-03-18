@@ -55,7 +55,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 ? { text, context }
                 : { fileId: currentFileId, accessToken, context, text: '' }; // Send empty text if file mode
 
-            const verdict = await callFunction<TribunalResult>('summonTheTribunal', payload, { timeout: 540000 });
+            const verdict = await callFunction<TribunalResult>('summonTheTribunal', payload, { timeout: 300000 });
             setResult(verdict);
             toast.success(t.success);
         } catch (error: any) {

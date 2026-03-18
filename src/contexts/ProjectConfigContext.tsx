@@ -75,15 +75,15 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // 🟢 BYOK: Custom Gemini Key State
   const [customGeminiKey, setCustomGeminiKeyState] = useState<string | null>(() => {
-    return localStorage.getItem('myworld_custom_gemini_key');
+    return sessionStorage.getItem('myworld_custom_gemini_key');
   });
 
   const setCustomGeminiKey = (key: string | null) => {
       setCustomGeminiKeyState(key);
       if (key) {
-          localStorage.setItem('myworld_custom_gemini_key', key);
+          sessionStorage.setItem('myworld_custom_gemini_key', key);
       } else {
-          localStorage.removeItem('myworld_custom_gemini_key');
+          sessionStorage.removeItem('myworld_custom_gemini_key');
       }
   };
 

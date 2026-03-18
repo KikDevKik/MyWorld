@@ -98,13 +98,13 @@ The backbone of MyWorld is a **Trait-Based Entity Ontology** that synchronizes t
 
 ### Prerequisites
 - Node.js v22+
-- pnpm v9+
+- npm v10+
 - Firebase CLI
 
 ### Installation
 ```bash
 git clone <repo>
-pnpm install
+npm install
 ```
 
 ### Environment
@@ -118,7 +118,7 @@ firebase functions:secrets:set GOOGLE_CLIENT_SECRET
 ### Local Development
 ```bash
 # Terminal 1 — Frontend
-pnpm dev
+npm run dev
 
 # Terminal 2 — Firebase Emulator (Functions on :5001)
 firebase emulators:start

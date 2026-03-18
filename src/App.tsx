@@ -1,3 +1,4 @@
+import { ErrorBoundary } from "./components/ErrorBoundary";
 /*
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
@@ -686,7 +687,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             );
         } else if (activeView === 'director') {
             expandedContent = (
-                <DirectorPanel
+                <ErrorBoundary>
+<DirectorPanel
                     isOpen={true}
                     onClose={() => setActiveView('editor')}
                     activeSessionId={activeDirectorSessionId}
@@ -702,15 +704,18 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     accessToken={oauthToken}
                     onInsertContent={handleInsertContent}
                 />
+</ErrorBoundary>
             );
         } else if (activeView === 'tribunal') {
             expandedContent = (
-                <TribunalPanel
+                <ErrorBoundary>
+<TribunalPanel
                     onClose={() => setActiveView('editor')}
                     initialText={selectedFileContent}
                     currentFileId={currentFileId}
                     accessToken={oauthToken}
                 />
+</ErrorBoundary>
             );
         } else if (activeView === 'guardian') {
             expandedContent = (
@@ -757,23 +762,27 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const renderZoneBContent = () => {
         if (activeView === 'forja') {
             return (
-                <ForgePanel
+                <ErrorBoundary>
+<ForgePanel
                     onClose={() => setActiveView('editor')}
                     folderId={folderId}
                     accessToken={oauthToken}
                     onRefreshTokens={handleTokenRefresh}
                 />
+</ErrorBoundary>
             );
         }
         if (activeView === 'perforador') {
             return (
-                <WorldEnginePageV2
+                <ErrorBoundary>
+<WorldEnginePageV2
                     isOpen={true}
                     onClose={() => setActiveView('editor')}
                     activeGemId={'perforador'}
                     accessToken={oauthToken}
                     onRefreshTokens={handleTokenRefresh}
                 />
+</ErrorBoundary>
             );
         }
         if (activeView === 'laboratorio') {
