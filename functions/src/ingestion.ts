@@ -1,9 +1,6 @@
-import './admin'; // Ensure firebase-admin is initialized
 import * as crypto from 'crypto';
 import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
-import matter from 'gray-matter';
-import { RecursiveCharacterTextSplitter } from '@langchain/textsplitters';
 
 export interface IngestionFile {
   id: string; // Drive ID (The Primary Key)
@@ -108,6 +105,7 @@ export async function ingestFile(
         // 4. VECTORIZE & SAVE
         // Note: Currently we treat the whole file as one chunk (up to a limit).
         // Future: Splitter logic goes here.
+        const chunkText = content.substring(0, 8000);
         const now = new Date().toISOString();
 
         // 🟢 NARRATIVE INTENT LOGIC (AUTO-CLASSIFIER)
@@ -116,74 +114,6 @@ export async function ingestFile(
             narrativeIntent = 'TRAMA_PROBABLE';
         } else if (file.path && file.path.endsWith('Que he Aprendido.md')) {
             narrativeIntent = 'REGLA_ESTILISTICA';
-        }
-
-        // 🧠 METADATA EXTRACTION (Frontmatter)
-        let frontmatterData: any = {};
-        try {
-            const parsed = matter(content);
-            frontmatterData = parsed.data || {};
-            // Prune empty keys to save space
-            Object.keys(frontmatterData).forEach(key => {
-                if (frontmatterData[key] === undefined || frontmatterData[key] === null || frontmatterData[key] === "") {
-                    delete frontmatterData[key];
-                }
-            });
-        } catch (e) {
-            logger.warn(`⚠️ [INGEST] Frontmatter parse error in ${file.name}:`, e);
-        }
-
-        const splitter = new RecursiveCharacterTextSplitter({
-            chunkSize: 2000,
-            chunkOverlap: 200,
-        });
-
-        const docs = await splitter.createDocuments([content]);
-        let chunksCreated = 0;
-        let batch = db.batch();
-        let operationCount = 0;
-
-        for (let i = 0; i < docs.length; i++) {
-            const chunkText = docs[i].pageContent;
-            // Embed
-            const vector = await embeddingsModel.embedQuery(chunkText);
-
-            // Save Chunk
-            const chunkPayload: any = {
-                userId: userId,
-                projectId: projectId,
-                fileName: file.name,
-                text: chunkText,
-                docId: docId, // Drive ID
-                driveId: file.id, // Drive ID
-                folderId: file.parentId || 'unknown',
-                path: file.path || file.name,
-                saga: file.saga || 'Global',
-                timestamp: now,
-                type: 'file',
-                category: file.category || 'canon',
-                embedding: FieldValue.vector(vector),
-                chunkIndex: i
-            };
-
-            if (narrativeIntent) {
-                chunkPayload.narrativeIntent = narrativeIntent;
-            }
-
-            const chunkRef = chunksRef.doc(`chunk_${i}`);
-            batch.set(chunkRef, chunkPayload);
-            chunksCreated++;
-            operationCount++;
-
-            if (operationCount >= 400) {
-                await batch.commit();
-                batch = db.batch();
-                operationCount = 0;
-            }
-        }
-
-        if (operationCount > 0) {
-            await batch.commit();
         }
 
         // Update File Metadata (UPSERT)
@@ -195,11 +125,10 @@ export async function ingestFile(
             parentId: file.parentId || null, // 🟢 STORE PARENT ID for Hierarchy
             lastIndexed: now,
             updatedAt: now, // 🟢 CRITICAL: Timestamp Contract
-            chunkCount: chunksCreated,
+            chunkCount: 1,
             category: file.category || 'canon',
             timelineDate: null,
-            contentHash: currentHash, // 🟢 CRITICAL: Hash Persistence
-            frontmatter: frontmatterData // 🟢 HYDRATION: Store metadata for RAG
+            contentHash: currentHash // 🟢 CRITICAL: Hash Persistence
         };
 
         if (narrativeIntent) {
@@ -208,13 +137,38 @@ export async function ingestFile(
 
         await fileRef.set(fileMetadata);
 
+        // Embed
+        const vector = await embeddingsModel.embedQuery(chunkText);
 
-        logger.info(`   ✨ [INGEST] Indexed: ${file.name} (${chunksCreated} chunks)`);
+        // Save Chunk
+        const chunkPayload: any = {
+            userId: userId,
+            projectId: projectId,
+            fileName: file.name,
+            text: chunkText,
+            docId: docId, // Drive ID
+            driveId: file.id, // Drive ID
+            folderId: file.parentId || 'unknown',
+            path: file.path || file.name,
+            saga: file.saga || 'Global',
+            timestamp: now,
+            type: 'file',
+            category: file.category || 'canon',
+            embedding: FieldValue.vector(vector)
+        };
+
+        if (narrativeIntent) {
+            chunkPayload.narrativeIntent = narrativeIntent;
+        }
+
+        await chunksRef.doc("chunk_0").set(chunkPayload);
+
+        logger.info(`   ✨ [INGEST] Indexed: ${file.name}`);
 
         return {
             status: 'processed',
             hash: currentHash,
-            chunksCreated: chunksCreated,
+            chunksCreated: 1,
             chunksDeleted: deletedCount
         };
 

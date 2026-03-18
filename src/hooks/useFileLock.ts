@@ -127,15 +127,9 @@ export const useFileLock = (fileId: string | null, userId: string | undefined) =
 
     }, [fileId, userId]);
 
-    // Separate cleanup effect to handle "Release"
-    useEffect(() => {
-        if (!fileId || !userId) return;
-        const lockRef = doc(db, "users", userId, "file_locks", fileId);
 
-        return () => {
-             deleteDoc(lockRef).catch(e => console.warn("Failed to release lock", e));
-        };
-    }, [fileId, userId]);
+    // End of lock hook logic
+
 
     return status;
     */
