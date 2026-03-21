@@ -12,7 +12,7 @@ interface SentinelShellProps {
 }
 
 // 🟢 HEAVY TOOLS: Hide Sidebar to Maximize Space
-const HEAVY_TOOLS: string[] = ['forja', 'perforador', 'laboratorio', 'cronograma', 'imprenta'];
+const HEAVY_TOOLS: string[] = ['forja', 'perforador', 'laboratorio', 'cronograma', 'imprenta', 'arquitecto'];
 
 // 🟢 SIDE TOOLS: Render in Zone C (Overlay or Split)
 const SIDE_TOOLS: string[] = ['director', 'tribunal', 'guardian', 'chat', 'sentinel'];
@@ -49,16 +49,16 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
         else if (activeView === 'guardian') startWidth = guardianWidth;
 
         const onMouseMove = (moveEvent: MouseEvent) => {
-             // Calculate delta from Right Edge?
-             // Zone C is on the right.
-             // If I drag LEFT, width increases.
-             // If I drag RIGHT, width decreases.
-             const delta = startX - moveEvent.clientX;
-             const newWidth = Math.max(350, Math.min(window.innerWidth, startWidth + delta));
+            // Calculate delta from Right Edge?
+            // Zone C is on the right.
+            // If I drag LEFT, width increases.
+            // If I drag RIGHT, width decreases.
+            const delta = startX - moveEvent.clientX;
+            const newWidth = Math.max(350, Math.min(window.innerWidth, startWidth + delta));
 
-             if (activeView === 'director') setDirectorWidth(newWidth);
-             else if (activeView === 'tribunal') setTribunalWidth(newWidth);
-             else if (activeView === 'guardian') setGuardianWidth(newWidth);
+            if (activeView === 'director') setDirectorWidth(newWidth);
+            else if (activeView === 'tribunal') setTribunalWidth(newWidth);
+            else if (activeView === 'guardian') setGuardianWidth(newWidth);
         };
 
         const onMouseUp = () => {
@@ -115,31 +115,31 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
         zoneCClasses += " bg-titanium-950 border-l border-titanium-800";
 
         if (!isZoneCVisible) {
-             zoneCClasses += " w-16"; // Minimum width for Dock
+            zoneCClasses += " w-16"; // Minimum width for Dock
         } else {
             // Active View is a Side Tool -> Expanded
             if (activeView === 'director') {
-                 // 🟢 DIRECTOR ELASTIC MODE
-                 zoneCStyle = { width: `${directorWidth}px` };
+                // 🟢 DIRECTOR ELASTIC MODE
+                zoneCStyle = { width: `${directorWidth}px` };
             } else if (activeView === 'tribunal') {
-                 // 🟢 TRIBUNAL ELASTIC MODE
-                 zoneCStyle = { width: `${tribunalWidth}px` };
+                // 🟢 TRIBUNAL ELASTIC MODE
+                zoneCStyle = { width: `${tribunalWidth}px` };
             } else if (activeView === 'guardian') {
-                 // 🟢 GUARDIAN ELASTIC MODE
-                 zoneCStyle = { width: `${guardianWidth}px` };
+                // 🟢 GUARDIAN ELASTIC MODE
+                zoneCStyle = { width: `${guardianWidth}px` };
             } else {
-                 // Legacy Modes for other tools (Chat history?)
-                 // Or maybe all side tools should share the width?
-                 // User instruction: "Scope limitado al Director... por ahora".
-                 const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
-                 zoneCClasses += ` ${widthClass}`;
+                // Legacy Modes for other tools (Chat history?)
+                // Or maybe all side tools should share the width?
+                // User instruction: "Scope limitado al Director... por ahora".
+                const widthClass = isArsenalWide ? "w-[50vw] max-w-3xl" : "w-[26rem]";
+                zoneCClasses += ` ${widthClass}`;
             }
         }
     }
 
     // Special Case: Zen Mode hides EVERYTHING except Editor?
     if (isZenMode) {
-         zoneCClasses = "hidden"; // Or w-0
+        zoneCClasses = "hidden"; // Or w-0
     }
 
     // 🟢 SHOW DRAG HANDLE FOR RESIZABLE TOOLS
@@ -183,7 +183,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
 
             {/* ZONA C: INTELIGENCIA (DOCK + SIDE PANELS) */}
             <aside className={zoneCClasses} style={zoneCStyle}>
-               {tools}
+                {tools}
             </aside>
         </div>
     );

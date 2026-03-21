@@ -1,0 +1,250 @@
+import { useState, useCallback, useRef } from 'react';
+import { useLayoutStore } from '../stores/useLayoutStore';
+import { callFunction } from '../services/api';
+import { toast } from 'sonner';
+
+export interface PendingItem {
+    code: string;
+    severity: 'critical' | 'warning' | 'suggestion';
+    title: string;
+    description: string;
+    relatedFiles?: string[];
+    category: 'continuidad' | 'worldbuilding' | 'personaje' | 'cronologia' | 'estructura';
+}
+
+export interface ArquitectoMessage {
+    id: string;
+    role: 'user' | 'assistant' | 'system';
+    text: string;
+    timestamp: number;
+    mode?: string;
+}
+
+interface UseArquitectoProps {
+    accessToken: string | null;
+    folderId: string;
+}
+
+export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => {
+    const [messages, setMessages] = useState<ArquitectoMessage[]>([]);
+    const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
+    const [projectSummary, setProjectSummary] = useState<string>('');
+    const {
+        arquitectoSessionId: sessionId,
+        setArquitectoSessionId: setSessionId,
+        arquitectoHasInitialized: hasInitialized,
+        setArquitectoHasInitialized: setHasInitialized
+    } = useLayoutStore();
+    const [isInitializing, setIsInitializing] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [lastAnalyzedAt, setLastAnalyzedAt] = useState<string | null>(null);
+
+    // Ghost mode simulation
+    const isGhostMode = import.meta.env.VITE_JULES_MODE === 'true';
+
+    const initialize = useCallback(async () => {
+        if (hasInitialized || isInitializing) return;
+        if (!accessToken) {
+            toast.error("Conecta Google Drive primero.");
+            return;
+        }
+
+        setIsInitializing(true);
+
+        // Ghost Mode
+        if (isGhostMode) {
+            setTimeout(() => {
+                const mockPending: PendingItem[] = [
+                    {
+                        code: 'ERR-001',
+                        severity: 'critical',
+                        title: 'Contradicción en la cronología del Domo',
+                        description: 'El archivo "Era del Odio.md" establece que el Domo fue creado hace 400 años, pero "Contexto Zoorians.md" menciona 350 años.',
+                        relatedFiles: ['Era del Odio.md', 'Contexto Zoorians.md'],
+                        category: 'cronologia'
+                    },
+                    {
+                        code: 'WRN-001',
+                        severity: 'warning',
+                        title: 'Motivación de Daniel sin documentar',
+                        description: 'Daniel busca redención pero no hay archivo que establezca qué crimen cometió específicamente.',
+                        relatedFiles: ['Daniel.md'],
+                        category: 'personaje'
+                    },
+                    {
+                        code: 'SUG-001',
+                        severity: 'suggestion',
+                        title: 'Definir el nombre de la Era Actual',
+                        description: 'La era post-GardenFlowers no tiene nombre definido. Un nombre reforzaría la identidad temática de la saga.',
+                        category: 'worldbuilding'
+                    }
+                ];
+                const mockSession = `ghost-session-${Date.now()}`;
+                const mockMessage = "El Arquitecto en línea. He analizado tu proyecto y encontré 1 problema crítico y 2 advertencias. ¿Quieres que empecemos por las contradicciones de cronología o prefieres trabajar el arco de algún personaje específico?";
+
+                setSessionId(mockSession);
+                setPendingItems(mockPending);
+                useLayoutStore.getState().setArquitectoPendingItems(mockPending);
+                setProjectSummary("Proyecto con worldbuilding sólido pero con algunas inconsistencias cronológicas y personajes con motivaciones poco documentadas.");
+                setMessages([{
+                    id: 'init',
+                    role: 'assistant',
+                    text: mockMessage,
+                    timestamp: Date.now()
+                }]);
+                setHasInitialized(true);
+                setIsInitializing(false);
+                setLastAnalyzedAt(new Date().toISOString());
+            }, 2000);
+            return;
+        }
+
+        try {
+            const data = await callFunction<any>('arquitectoInitialize', { accessToken });
+
+            if (!data) throw new Error("Sin respuesta del servidor.");
+
+            setSessionId(data.sessionId);
+            setPendingItems(data.pendingItems || []);
+            useLayoutStore.getState().setArquitectoPendingItems(data.pendingItems || []);
+            setProjectSummary(data.projectSummary || '');
+            setLastAnalyzedAt(data.lastAnalyzedAt);
+            setMessages([{
+                id: 'init',
+                role: 'assistant',
+                text: data.initialMessage,
+                timestamp: Date.now()
+            }]);
+            setHasInitialized(true);
+
+        } catch (error) {
+            console.error("Arquitecto init error:", error);
+            toast.error("El Arquitecto no pudo inicializarse.");
+        } finally {
+            setIsInitializing(false);
+        }
+    }, [accessToken, hasInitialized, isInitializing, isGhostMode]);
+
+    const sendMessage = useCallback(async (text: string) => {
+        if (!text.trim() || isThinking) return;
+        if (!sessionId) {
+            toast.error("Sesión no iniciada.");
+            return;
+        }
+
+        const userMsg: ArquitectoMessage = {
+            id: Date.now().toString(),
+            role: 'user',
+            text,
+            timestamp: Date.now()
+        };
+
+        setMessages(prev => [...prev, userMsg]);
+        setIsThinking(true);
+
+        // Ghost Mode
+        if (isGhostMode) {
+            setTimeout(() => {
+                const mockResponses = [
+                    "Buena pregunta. Antes de responder necesito entender mejor el contexto: ¿en qué libro de la saga ocurre esto específicamente?",
+                    "Eso tiene implicaciones interesantes en el Efecto Dominó. Si el Domo se debilita, ¿qué consecuencia inmediata tendría para los Errantes que ya existen?",
+                    "El arco de ese personaje tiene un hueco en la motivación. Te pregunto: ¿qué pierde este personaje si fracasa en su objetivo?"
+                ];
+                const response = mockResponses[Math.floor(Math.random() * mockResponses.length)];
+                setMessages(prev => [...prev, {
+                    id: (Date.now() + 1).toString(),
+                    role: 'assistant',
+                    text: response,
+                    timestamp: Date.now(),
+                    mode: 'general'
+                }]);
+                setIsThinking(false);
+            }, 1500);
+            return;
+        }
+
+        try {
+            const historyPayload = messages
+                .filter(m => m.role !== 'system')
+                .slice(-10)
+                .map(m => ({ role: m.role, message: m.text }));
+
+            const data = await callFunction<any>('arquitectoChat', {
+                query: text,
+                sessionId,
+                history: historyPayload,
+                pendingItems,
+                accessToken
+            });
+
+            if (!data) throw new Error("Sin respuesta.");
+
+            setMessages(prev => [...prev, {
+                id: (Date.now() + 1).toString(),
+                role: 'assistant',
+                text: data.response,
+                timestamp: Date.now(),
+                mode: data.suggestedMode
+            }]);
+
+        } catch (error) {
+            console.error("Arquitecto chat error:", error);
+            toast.error("Error al comunicarse con El Arquitecto.");
+        } finally {
+            setIsThinking(false);
+        }
+    }, [sessionId, messages, pendingItems, accessToken, isThinking, isGhostMode]);
+
+    const reAnalyze = useCallback(async () => {
+        if (!sessionId || isAnalyzing) return;
+        if (!accessToken) return;
+
+        setIsAnalyzing(true);
+        toast.loading("El Arquitecto está re-analizando el proyecto...", { id: 'arquitecto-analyze' });
+
+        try {
+            const data = await callFunction<any>('arquitectoAnalyze', {
+                sessionId,
+                accessToken
+            });
+
+            if (!data) throw new Error("Sin respuesta.");
+
+            setPendingItems(data.pendingItems || []);
+            useLayoutStore.getState().setArquitectoPendingItems(data.pendingItems || []);
+            setProjectSummary(data.projectSummary || '');
+            setLastAnalyzedAt(data.analyzedAt);
+
+            toast.success("Análisis actualizado.", { id: 'arquitecto-analyze' });
+
+            // Mensaje de sistema en el chat
+            setMessages(prev => [...prev, {
+                id: `reanalyze-${Date.now()}`,
+                role: 'system',
+                text: `Análisis actualizado: ${data.pendingItems?.length || 0} pendientes encontrados.`,
+                timestamp: Date.now()
+            }]);
+
+        } catch (error) {
+            toast.error("Error al re-analizar.", { id: 'arquitecto-analyze' });
+        } finally {
+            setIsAnalyzing(false);
+        }
+    }, [sessionId, accessToken, isAnalyzing]);
+
+    return {
+        messages,
+        pendingItems,
+        projectSummary,
+        sessionId,
+        isInitializing,
+        isThinking,
+        isAnalyzing,
+        lastAnalyzedAt,
+        hasInitialized,
+        initialize,
+        sendMessage,
+        reAnalyze
+    };
+};

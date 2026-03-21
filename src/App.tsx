@@ -25,6 +25,8 @@ import SettingsModal from './components/ui/SettingsModal';
 import FieldManualModal from './components/ui/FieldManualModal';
 import ProjectSettingsModal from './components/ui/ProjectSettingsModal';
 import { DirectorPanel } from './components/DirectorPanel'; // 👈 IMPORT
+import ArquitectoPanel from './components/ArquitectoPanel';
+import ArquitectoPendingWidget from './components/ArquitectoPendingWidget';
 import NexusCanvas from './components/NexusCanvas'; // 👈 IMPORT NEXUS (V2)
 import WorldEnginePageV2 from './components/WorldEngineV2/WorldEnginePageV2'; // 👈 IMPORT WORLD ENGINE V2 (NEW)
 import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
@@ -57,7 +59,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const commonT = TRANSLATIONS[currentLanguage].common;
 
     // 🟢 GLOBAL STORE CONSUMPTION
-    const { activeView, setActiveView } = useLayoutStore();
+    const { activeView, setActiveView, setArquitectoPendingItems, arquitectoPendingItems } = useLayoutStore();
 
     // APP STATE
     const [folderId, setFolderId] = useState<string>("");
@@ -688,34 +690,34 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         } else if (activeView === 'director') {
             expandedContent = (
                 <ErrorBoundary>
-<DirectorPanel
-                    isOpen={true}
-                    onClose={() => setActiveView('editor')}
-                    activeSessionId={activeDirectorSessionId}
-                    onSessionSelect={setActiveDirectorSessionId}
-                    pendingMessage={directorPendingMessage}
-                    onClearPendingMessage={() => setDirectorPendingMessage(null)}
-                    activeFileContent={effectiveFileContent}
-                    activeFileName={effectiveFileName}
-                    activeFileId={currentFileId}
-                    isFallbackContext={isFallbackContext}
-                    folderId={folderId}
-                    driftAlerts={driftAlerts}
-                    accessToken={oauthToken}
-                    onInsertContent={handleInsertContent}
-                />
-</ErrorBoundary>
+                    <DirectorPanel
+                        isOpen={true}
+                        onClose={() => setActiveView('editor')}
+                        activeSessionId={activeDirectorSessionId}
+                        onSessionSelect={setActiveDirectorSessionId}
+                        pendingMessage={directorPendingMessage}
+                        onClearPendingMessage={() => setDirectorPendingMessage(null)}
+                        activeFileContent={effectiveFileContent}
+                        activeFileName={effectiveFileName}
+                        activeFileId={currentFileId}
+                        isFallbackContext={isFallbackContext}
+                        folderId={folderId}
+                        driftAlerts={driftAlerts}
+                        accessToken={oauthToken}
+                        onInsertContent={handleInsertContent}
+                    />
+                </ErrorBoundary>
             );
         } else if (activeView === 'tribunal') {
             expandedContent = (
                 <ErrorBoundary>
-<TribunalPanel
-                    onClose={() => setActiveView('editor')}
-                    initialText={selectedFileContent}
-                    currentFileId={currentFileId}
-                    accessToken={oauthToken}
-                />
-</ErrorBoundary>
+                    <TribunalPanel
+                        onClose={() => setActiveView('editor')}
+                        initialText={selectedFileContent}
+                        currentFileId={currentFileId}
+                        accessToken={oauthToken}
+                    />
+                </ErrorBoundary>
             );
         } else if (activeView === 'guardian') {
             expandedContent = (
@@ -751,6 +753,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return (
             <>
                 {dock}
+                {/* Widget pendientes Arquitecto — solo visible en editor */}
+                {activeView === 'editor' && currentFileId && (
+                    <ArquitectoPendingWidget
+                        pendingItems={arquitectoPendingItems}
+                        onOpenArquitecto={() => setActiveView('arquitecto')}
+                    />
+                )}
                 <div className="flex-1 min-w-0 h-full overflow-hidden">
                     {expandedContent}
                 </div>
@@ -763,26 +772,26 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         if (activeView === 'forja') {
             return (
                 <ErrorBoundary>
-<ForgePanel
-                    onClose={() => setActiveView('editor')}
-                    folderId={folderId}
-                    accessToken={oauthToken}
-                    onRefreshTokens={handleTokenRefresh}
-                />
-</ErrorBoundary>
+                    <ForgePanel
+                        onClose={() => setActiveView('editor')}
+                        folderId={folderId}
+                        accessToken={oauthToken}
+                        onRefreshTokens={handleTokenRefresh}
+                    />
+                </ErrorBoundary>
             );
         }
         if (activeView === 'perforador') {
             return (
                 <ErrorBoundary>
-<WorldEnginePageV2
-                    isOpen={true}
-                    onClose={() => setActiveView('editor')}
-                    activeGemId={'perforador'}
-                    accessToken={oauthToken}
-                    onRefreshTokens={handleTokenRefresh}
-                />
-</ErrorBoundary>
+                    <WorldEnginePageV2
+                        isOpen={true}
+                        onClose={() => setActiveView('editor')}
+                        activeGemId={'perforador'}
+                        accessToken={oauthToken}
+                        onRefreshTokens={handleTokenRefresh}
+                    />
+                </ErrorBoundary>
             );
         }
         if (activeView === 'laboratorio') {
@@ -813,6 +822,16 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onClose={() => setActiveView('editor')}
                     folderId={folderId}
                     accessToken={oauthToken}
+                />
+            );
+        }
+        if (activeView === 'arquitecto') {
+            return (
+                <ArquitectoPanel
+                    onClose={() => setActiveView('editor')}
+                    accessToken={oauthToken}
+                    folderId={folderId}
+                    onPendingItemsUpdate={setArquitectoPendingItems}
                 />
             );
         }

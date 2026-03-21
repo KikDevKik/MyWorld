@@ -19,9 +19,9 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
     const t = TRANSLATIONS[currentLanguage];
 
     // Local state for form handling
-    const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
-    const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>([]);
-    const [folderMapping, setFolderMapping] = useState<Partial<Record<FolderRole, string>>>({});
+    const [canonPaths, setCanonPaths] = useState<ProjectPath[]>(config?.canonPaths || []);
+    const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>(config?.resourcePaths || []);
+    const [folderMapping, setFolderMapping] = useState<Partial<Record<FolderRole, string>>>(config?.folderMapping || {});
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'paths' | 'taxonomy'>('paths');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -361,11 +361,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                     )}
                     <button
                         onClick={() => selectFolderForRole(role)}
-                        className={`px-3 py-1.5 text-xs rounded border transition-colors ${
-                            currentId
-                            ? 'bg-titanium-800 border-titanium-700 text-titanium-300 hover:bg-titanium-700'
-                            : 'bg-titanium-800/30 border-dashed border-titanium-600 text-titanium-400 hover:text-titanium-200 hover:border-titanium-500'
-                        }`}
+                        className={`px-3 py-1.5 text-xs rounded border transition-colors ${currentId
+                                ? 'bg-titanium-800 border-titanium-700 text-titanium-300 hover:bg-titanium-700'
+                                : 'bg-titanium-800/30 border-dashed border-titanium-600 text-titanium-400 hover:text-titanium-200 hover:border-titanium-500'
+                            }`}
                     >
                         {currentId ? 'Cambiar' : 'Seleccionar'}
                     </button>
@@ -411,11 +410,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                             role="tab"
                             aria-selected={activeTab === 'paths'}
                             aria-controls="panel-paths"
-                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${
-                                activeTab === 'paths'
-                                ? 'bg-titanium-700 text-white shadow-sm'
-                                : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
-                            }`}
+                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'paths'
+                                    ? 'bg-titanium-700 text-white shadow-sm'
+                                    : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
+                                }`}
                         >
                             <Folder size={14} /> Rutas de Acceso
                         </button>
@@ -424,11 +422,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                             role="tab"
                             aria-selected={activeTab === 'taxonomy'}
                             aria-controls="panel-taxonomy"
-                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${
-                                activeTab === 'taxonomy'
-                                ? 'bg-cyan-900/50 text-cyan-200 shadow-sm border border-cyan-800/50'
-                                : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
-                            }`}
+                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'taxonomy'
+                                    ? 'bg-cyan-900/50 text-cyan-200 shadow-sm border border-cyan-800/50'
+                                    : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
+                                }`}
                         >
                             <Brain size={14} /> Taxonomía (Cerebro)
                         </button>
@@ -462,7 +459,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                             <div className="flex items-center justify-between bg-titanium-950/30 p-4 rounded-lg border border-titanium-800">
                                 <div>
                                     <h3 className="text-sm font-bold text-titanium-200 flex items-center gap-2">
-                                        <Cpu size={16} className="text-cyan-500"/> Asistente de Estructura
+                                        <Cpu size={16} className="text-cyan-500" /> Asistente de Estructura
                                     </h3>
                                     <p className="text-xs text-titanium-500 mt-1">
                                         Deja que la IA organice tu proyecto automáticamente.

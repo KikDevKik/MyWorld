@@ -24,6 +24,14 @@ Cuando el autor pida desarrollar una escena:
 4.  **Respeta el Canon:** Todas tus escenas deben ser 100% coherentes con el lore del PDC Nivel 1 y 2 que te proporcionó el autor.
 5.  **Tono:** Sé energético, creativo, colaborativo y valiente. Estás aquí para proponer ideas audaces, no para ser un asistente pasivo.`
   },
+  arquitecto: {
+    id: 'arquitecto',
+    name: 'El Arquitecto',
+    backgroundImage: '',
+    model: 'gemini-3.1-pro-preview',
+    color: 'emerald',
+    systemInstruction: 'Eres El Arquitecto. Planificación narrativa estratégica.'
+  },
   perforador: {
     id: 'perforador',
     name: 'Perforador de Mundos',
@@ -111,12 +119,12 @@ export const MOCK_FILES: DriveFile[] = [
 export const AUTO_REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
 
 export const TOASTER_THEME = {
-    background: '#09090b',
-    border: '1px solid #27272a',
-    color: '#e4e4e7',
+  background: '#09090b',
+  border: '1px solid #27272a',
+  color: '#e4e4e7',
 };
 
 // 🟢 UI COLORS (Used in DirectorPanel)
 export const UI_COLORS = {
-    DIRECTOR_BG: '#0a0a0a',
+  DIRECTOR_BG: '#0a0a0a',
 };
