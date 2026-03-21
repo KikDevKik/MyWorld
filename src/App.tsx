@@ -265,7 +265,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const isReadOnly = isLocked && !isSelfLocked;
 
     // 🟢 TUTORIAL HOOK
-    const isEmptyProject = !fileTree || fileTree.length === 0;
+    const hasConfiguredFoldersGlobal = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
+    const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFoldersGlobal;
     const { startTutorial } = useTutorial({
         setIsProjectSettingsOpen,
         user,
@@ -295,10 +296,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
             // 1. RESTORE TOKEN (Already done in parent)
 
-            // 2. RESTORE PROJECT CONFIG (Folder ID)
-            if (config?.folderId) {
-                console.log("✅ Folder ID recuperado de Cloud Config:", config.folderId);
-                setFolderId(config.folderId);
+            // 2. RESTORE PROJECT CONFIG
+            const hasConfiguredFoldersGlobal = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
+            if (hasConfiguredFoldersGlobal) {
+                console.log("✅ Configuración de Proyecto (Roots/Paths) recuperada de Cloud Config.");
+                // Si existe un folderId maestro, usarlo. Si no, poner un token genérico para que no sea null
+                setFolderId(config?.folderId || "decentralized-project");
             } else {
                 console.warn("⚠️ No Cloud Config found. Waiting for user input (Drive Connect).");
             }
@@ -470,7 +473,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 loading: 'Generando Memoria Profunda (Omnisciencia)...',
                 success: (result: any) => {
                     refreshConfig();
-                    return `¡Memoria Activada! ${result.fileCount} archivos cargados.`;
+                    return `¡Memoria Activada! ${result.fileCount ?? result.count ?? '?'} archivos cargados.`;
                 },
                 error: 'Error al cargar memoria. Revisa que tus archivos Canon sean texto.',
             });
@@ -838,7 +841,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         // Default: Editor
         if (!currentFileId) {
-            const isEmptyProject = !fileTree || fileTree.length === 0;
+            // Un proyecto "vacío" (sin configurar) es el que no tiene árbol NI tiene carpetas configuradas
+            const hasConfiguredFolders = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
+            const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFolders;
+
             return (
                 <EmptyEditorState
                     onCreate={() => setIsCreateFileModalOpen(true)}

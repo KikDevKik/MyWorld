@@ -412,7 +412,10 @@ export const indexTDB = onCall(
     const db = getFirestore();
 
     if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
-    if (!projectId) throw new HttpsError("invalid-argument", "Falta projectId.");
+    // 🟢 DECENTRALIZED V3: projectId is no longer strictly mandatory if folderIds exist
+    // However, it's used to namespace things. If missing, we use a fallback.
+    const effectiveProjectId = projectId || "decentralized-project";
+
     if (!folderIds || !Array.isArray(folderIds) || folderIds.length === 0) {
       throw new HttpsError("invalid-argument", "Falta folderIds (array).");
     }
@@ -463,6 +466,15 @@ export const indexTDB = onCall(
           const itemPath = parentPath ? `${parentPath}/${item.name}` : item.name;
 
           if (item.mimeType === 'application/vnd.google-apps.folder') {
+            // 🟢 V3 FIX: MUST include the folder itself so the UI tree can render it!
+            files.push({
+              id: item.id,
+              name: item.name, // Just the name for folders in tree
+              path: itemPath,
+              parentId: folderId, // Immediate parent
+              category: category,
+              mimeType: item.mimeType
+            });
             // Recursivo: entrar a subcarpetas
             const subFiles = await listFilesInFolder(item.id, category, itemPath);
             files.push(...subFiles);
@@ -477,12 +489,12 @@ export const indexTDB = onCall(
 
             if (isIndexable) {
               files.push({
-                id: item.id,
-                name: item.name,
+                id: item.id!,
+                name: item.name!,
                 path: itemPath,
-                saga: 'Global',
-                parentId: folderId,
+                parentId: folderId, // 🟢 V3 FIX: Associate file with its parent folder
                 category: category,
+                mimeType: item.mimeType || 'text/markdown'
               });
             }
           }
@@ -525,20 +537,25 @@ export const indexTDB = onCall(
 
       await Promise.all(batch.map(async (file) => {
         try {
-          // Descargar contenido desde Drive
-          const content = await _getDriveFileContentInternal(drive, file.id);
+          let content = "";
+          const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
 
-          if (!content || content.length < 10) {
-            logger.warn(`⚠️ [INDEX TDB] Archivo vacío ignorado: ${file.name}`);
-            skipped++;
-            return;
+          if (!isFolder) {
+            // Descargar contenido desde Drive
+            content = await _getDriveFileContentInternal(drive, file.id);
+
+            if (!content || content.length < 10) {
+              logger.warn(`⚠️ [INDEX TDB] Archivo vacío ignorado: ${file.name}`);
+              skipped++;
+              return;
+            }
           }
 
           // Invocar la función real de ingesta
           const result = await ingestFile(
             db,
             userId,
-            projectId,
+            effectiveProjectId,
             file,
             content,
             embeddingsModel

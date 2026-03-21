@@ -3,12 +3,13 @@ import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 
 export interface IngestionFile {
-  id: string; // Drive ID (The Primary Key)
-  name: string;
-  path: string;
-  saga?: string;
-  parentId?: string;
-  category?: 'canon' | 'reference';
+    id: string; // Drive ID (The Primary Key)
+    name: string;
+    path: string;
+    saga?: string;
+    parentId?: string;
+    category?: 'canon' | 'reference';
+    mimeType?: string;
 }
 
 export interface IngestionResult {
@@ -31,20 +32,39 @@ export async function ingestFile(
     embeddingsModel: any
 ): Promise<IngestionResult> {
     try {
-        // 1. VALIDATION
-        if (!content || content.trim().length === 0) {
-            logger.warn(`⚠️ [INGEST] File is empty: ${file.name}`);
-            return { status: 'skipped', hash: '', chunksCreated: 0, chunksDeleted: 0 };
-        }
-
         // 🟢 ID STRATEGY: DRIVE ID IS KING 👑 (Titanium Spec)
         if (!file.id) {
             logger.error(`💥 [INGEST ERROR] File missing Drive ID: ${file.name}`);
             return { status: 'error', hash: '', chunksCreated: 0, chunksDeleted: 0 };
         }
 
+        const isFolder = file.mimeType === 'application/vnd.google-apps.folder';
         const docId = file.id; // Use Drive ID directly
         const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(docId);
+
+        // 🟢 DIRTY CHECK FOR FOLDERS (No content parsing)
+        if (isFolder) {
+            await fileRef.set({
+                name: file.name,
+                path: file.path,
+                saga: file.saga || 'Global',
+                parentId: file.parentId || null,
+                category: file.category || 'canon',
+                lastIndexed: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                driveId: file.id,
+                mimeType: file.mimeType,
+                type: 'folder'
+            }, { merge: true });
+
+            return { status: 'processed', hash: '', chunksCreated: 0, chunksDeleted: 0 };
+        }
+
+        // 1. VALIDATION FOR TEXT FILES
+        if (!content || content.trim().length === 0) {
+            logger.warn(`⚠️ [INGEST] File is empty: ${file.name}`);
+            return { status: 'skipped', hash: '', chunksCreated: 0, chunksDeleted: 0 };
+        }
 
         // 2. HASH CHECK (Upsert Logic)
         // We hash the content to detect changes.
@@ -128,7 +148,9 @@ export async function ingestFile(
             chunkCount: 1,
             category: file.category || 'canon',
             timelineDate: null,
-            contentHash: currentHash // 🟢 CRITICAL: Hash Persistence
+            contentHash: currentHash, // 🟢 CRITICAL: Hash Persistence
+            mimeType: file.mimeType || 'text/markdown',
+            type: 'file'
         };
 
         if (narrativeIntent) {

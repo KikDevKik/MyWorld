@@ -128,35 +128,66 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [selectedFiles, setSelectedFiles] = useState<DriveFile[]>([]);
 
-    // Subscribe to TDB_Index
+    // Subscribe to TDB_Index (V2 Flat Collection)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
         if (!user) return;
 
         const db = getFirestore();
-        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
+        import("firebase/firestore").then(({ collection, getDocs }) => {
+            const filesRef = collection(db, "TDB_Index", user.uid, "files");
 
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data && data.tree && Array.isArray(data.tree)) {
-                    // Filter tree immediately
-                    const filtered = filterTree(data.tree);
-                    setTree(filtered);
-                    setIsEmpty(filtered.length === 0);
-                } else {
+            getDocs(filesRef).then(snapshot => {
+                if (snapshot.empty) {
                     setTree([]);
                     setIsEmpty(true);
+                    setIsLoading(false);
+                    return;
                 }
-            } else {
+
+                // Build tree from flat files
+                const nodeMap = new Map<string, DriveFile>();
+                const roots: DriveFile[] = [];
+
+                // First pass: initialize all nodes
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    nodeMap.set(doc.id, {
+                        id: doc.id,
+                        name: data.name,
+                        path: data.path,
+                        mimeType: data.mimeType || (data.type === 'folder' ? 'application/vnd.google-apps.folder' : 'text/markdown'),
+                        type: data.type || (data.mimeType === 'application/vnd.google-apps.folder' ? 'folder' : 'file'),
+                        children: []
+                    });
+                });
+
+                // Second pass: attach to parents
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    const node = nodeMap.get(doc.id)!;
+
+                    if (data.parentId && nodeMap.has(data.parentId)) {
+                        nodeMap.get(data.parentId)!.children!.push(node);
+                    } else {
+                        // If it has no parent or parent isn't loaded (e.g. root mapping), it's a root
+                        roots.push(node);
+                    }
+                });
+
+                // Filter tree immediately
+                const filtered = filterTree(roots);
+                setTree(filtered);
+                setIsEmpty(filtered.length === 0);
+                setIsLoading(false);
+            }).catch(err => {
+                console.error("Error fetching V2 flat files:", err);
                 setTree([]);
                 setIsEmpty(true);
-            }
-            setIsLoading(false);
+                setIsLoading(false);
+            });
         });
-
-        return () => unsubscribe();
     }, []);
 
     // Handle Node Selection

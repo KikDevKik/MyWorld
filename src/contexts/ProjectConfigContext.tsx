@@ -42,23 +42,23 @@ export const useProjectConfig = () => {
 
 // 🟢 GHOST IDENTITY
 const GHOST_USER = {
-    uid: "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq",
-    displayName: "Commander Ghost",
-    email: "ghost@titanium.ai",
-    isAnonymous: false,
-    emailVerified: true,
-    phoneNumber: null,
-    photoURL: null,
-    providerId: 'ghost',
-    metadata: { creationTime: new Date().toISOString(), lastSignInTime: new Date().toISOString() },
-    providerData: [],
-    refreshToken: '',
-    tenantId: null,
-    delete: async () => {},
-    getIdToken: async () => 'ghost-token',
-    getIdTokenResult: async () => ({ token: 'ghost-token', signInProvider: 'ghost', claims: {}, authTime: '', issuedAtTime: '', expirationTime: '' }),
-    reload: async () => {},
-    toJSON: () => ({})
+  uid: "1mImHC6_uFVo06QjqL-pFcKF-E6ufQUdq",
+  displayName: "Commander Ghost",
+  email: "ghost@titanium.ai",
+  isAnonymous: false,
+  emailVerified: true,
+  phoneNumber: null,
+  photoURL: null,
+  providerId: 'ghost',
+  metadata: { creationTime: new Date().toISOString(), lastSignInTime: new Date().toISOString() },
+  providerData: [],
+  refreshToken: '',
+  tenantId: null,
+  delete: async () => { },
+  getIdToken: async () => 'ghost-token',
+  getIdTokenResult: async () => ({ token: 'ghost-token', signInProvider: 'ghost', claims: {}, authTime: '', issuedAtTime: '', expirationTime: '' }),
+  reload: async () => { },
+  toJSON: () => ({})
 };
 
 export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -79,26 +79,26 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   });
 
   const setCustomGeminiKey = (key: string | null) => {
-      setCustomGeminiKeyState(key);
-      if (key) {
-          sessionStorage.setItem('myworld_custom_gemini_key', key);
-      } else {
-          sessionStorage.removeItem('myworld_custom_gemini_key');
-      }
+    setCustomGeminiKeyState(key);
+    if (key) {
+      sessionStorage.setItem('myworld_custom_gemini_key', key);
+    } else {
+      sessionStorage.removeItem('myworld_custom_gemini_key');
+    }
   };
 
   // 1. AUTH LISTENER
   useEffect(() => {
     // Check Ghost Mode
     if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
-        console.warn("👻 GHOST MODE ACTIVATED: Impersonating Commander.");
-        setUser(GHOST_USER);
-        return;
+      console.warn("👻 GHOST MODE ACTIVATED: Impersonating Commander.");
+      setUser(GHOST_USER);
+      return;
     }
 
     const auth = getAuth();
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-        setUser(currentUser);
+      setUser(currentUser);
     });
     return () => unsubscribe();
   }, []);
@@ -107,33 +107,35 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     // GHOST MODE BYPASS
     if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
-        console.warn("👻 GHOST MODE: Bypassing Config Fetch (User: jules-dev)");
-        setConfig({
-            canonPaths: [{ id: "mock-canon-id", name: "Mock Canon Root" }], // 🟢 MOCK CANON PATH
-            resourcePaths: [],
-            activeBookContext: "",
-            folderId: "mock-project-id", // 🟢 FIXED: Non-empty ID for Nexus Scan
-            characterVaultId: "mock-vault-id", // 🟢 MOCK VAULT ID (REQUIRED FOR CONNECT LOGIC)
-        });
+      console.warn("👻 GHOST MODE: Bypassing Config Fetch (User: jules-dev)");
+      setConfig({
+        canonPaths: [{ id: "mock-canon-id", name: "Mock Canon Root" }], // 🟢 MOCK CANON PATH
+        resourcePaths: [],
+        activeBookContext: "",
+        folderId: "mock-project-id", // 🟢 FIXED: Non-empty ID for Nexus Scan
+        characterVaultId: "mock-vault-id", // 🟢 MOCK VAULT ID (REQUIRED FOR CONNECT LOGIC)
+      });
 
-        // 🟢 MOCK FILE TREE
-        setFileTree([
-            { id: "mock-canon-id", name: "Mock Canon Root", mimeType: "application/vnd.google-apps.folder", children: [
-                 { id: "mock-file-1", name: "Mock File.md", mimeType: "text/markdown" }
-            ]}
-        ]);
+      // 🟢 MOCK FILE TREE
+      setFileTree([
+        {
+          id: "mock-canon-id", name: "Mock Canon Root", mimeType: "application/vnd.google-apps.folder", children: [
+            { id: "mock-file-1", name: "Mock File.md", mimeType: "text/markdown" }
+          ]
+        }
+      ]);
 
-        setLoading(false);
-        setIsFileTreeLoading(false); // Also stop tree loading
-        return;
+      setLoading(false);
+      setIsFileTreeLoading(false); // Also stop tree loading
+      return;
     }
 
     const auth = getAuth();
     const currentUser = auth.currentUser;
 
     if (!currentUser) {
-        setLoading(false);
-        return;
+      setLoading(false);
+      return;
     }
 
     const db = getFirestore();
@@ -143,115 +145,111 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     setLoading(true);
 
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data() as ProjectConfig;
-            setConfig(data);
-        } else {
-            console.log("⚠️ No se encontró configuración del proyecto.");
-            setConfig(null); // Or default empty config?
-        }
-        setLoading(false);
+      if (docSnap.exists()) {
+        const data = docSnap.data() as ProjectConfig;
+        setConfig(data);
+      } else {
+        console.log("⚠️ No se encontró configuración del proyecto.");
+        setConfig(null); // Or default empty config?
+      }
+      setLoading(false);
     }, (error) => {
-        console.error("Error escuchando configuración:", error);
-        toast.error('Error de sincronización (Config).');
-        setLoading(false);
+      console.error("Error escuchando configuración:", error);
+      toast.error('Error de sincronización (Config).');
+      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [user]); // Re-run when user changes
 
   const refreshConfig = async () => {
-      // No-op for snapshot, but kept for compatibility
-      console.log("🔄 Config refresh triggered (handled via Snapshot)");
+    // No-op for snapshot, but kept for compatibility
+    console.log("🔄 Config refresh triggered (handled via Snapshot)");
   };
 
   const updateConfig = async (newConfig: ProjectConfig) => {
     // 🟢 GHOST MODE BYPASS
     if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
-        console.warn("👻 GHOST MODE: Mocking Save Config");
-        setConfig(newConfig);
-        await new Promise(resolve => setTimeout(resolve, 500)); // Fake delay
-        toast.success('Configuración guardada (GHOST MODE).');
-        return;
+      console.warn("👻 GHOST MODE: Mocking Save Config");
+      setConfig(newConfig);
+      await new Promise(resolve => setTimeout(resolve, 500)); // Fake delay
+      toast.success('Configuración guardada (GHOST MODE).');
+      return;
     }
 
     try {
-        await callFunction('saveProjectConfig', newConfig);
-        setConfig(newConfig);
-        toast.success('Configuración guardada correctamente.');
+      await callFunction('saveProjectConfig', newConfig);
+      setConfig(newConfig);
+      toast.success('Configuración guardada correctamente.');
     } catch (error) {
-        console.error('Error saving project config:', error);
-        toast.error('Error al guardar la configuración.');
-        throw error;
+      console.error('Error saving project config:', error);
+      toast.error('Error al guardar la configuración.');
+      throw error;
     }
   };
 
-  // 🟢 NEW: Global File Tree Listener
+  // 🟢 DECENTRALIZED V3: Derive the root fileTree from config mappings instead of legacy structure/tree
   useEffect(() => {
-    // Note: We don't have isSecurityReady here, so we rely on user auth.
-    // If App Check fails, Firestore will reject the listener, which is fine (we handle error).
-
-    // In Ghost Mode, we might want to mock this too, or actually try to fetch if we have permissions
-    if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
-         // If we want to test FileTree in Ghost Mode, we would need to mock it or open security rules for TDB_Index too.
-         // For now, let's leave it as returning empty or mock if needed.
-         // The user instruction was specifically about WorldEnginePanel reading ENTITIES.
-         // But let's be safe.
-         setIsFileTreeLoading(false);
-         return;
+    if (!config) {
+      setFileTree([]);
+      setIsFileTreeLoading(false);
+      return;
     }
 
-    const auth = getAuth();
-    const currentUser = auth.currentUser;
+    const newTree: any[] = [];
 
-    if (!currentUser) {
-        setFileTree(null);
-        setIsFileTreeLoading(false);
-        return;
+    // 1. Map Canon Paths
+    if (config.canonPaths && config.canonPaths.length > 0) {
+      config.canonPaths.forEach(p => {
+        newTree.push({
+          id: p.id,
+          name: p.name,
+          mimeType: 'application/vnd.google-apps.folder',
+          driveId: p.id
+        });
+      });
     }
 
-    const db = getFirestore();
-    const docRef = doc(db, "TDB_Index", currentUser.uid, "structure", "tree");
+    // 2. Map Resource Paths
+    if (config.resourcePaths && config.resourcePaths.length > 0) {
+      config.resourcePaths.forEach(p => {
+        newTree.push({
+          id: p.id,
+          name: p.name,
+          mimeType: 'application/vnd.google-apps.folder',
+          driveId: p.id
+        });
+      });
+    }
 
-    console.log("📡 [ProjectConfig] Suscribiéndose a TDB_Index/structure/tree...");
-    setIsFileTreeLoading(true);
+    // 3. Fallback to Master Folder if no decentralized paths
+    if (newTree.length === 0 && config.folderId) {
+      newTree.push({
+        id: config.folderId,
+        name: 'Carpeta Maestra',
+        mimeType: 'application/vnd.google-apps.folder',
+        driveId: config.folderId
+      });
+    }
 
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const data = docSnap.data();
-            if (data && data.tree && Array.isArray(data.tree)) {
-                 console.log("🌳 Árbol indexado actualizado (Global):", data.tree.length, "nodos raíz");
-                 setFileTree(data.tree);
-            } else {
-                 setFileTree([]);
-            }
-        } else {
-            console.log("⚠️ No se encontró estructura de árbol (¿Nuclear Re-index requerido?)");
-            setFileTree([]);
-        }
-        setIsFileTreeLoading(false);
-    }, (error) => {
-        console.error("Error escuchando árbol indexado:", error);
-        setFileTree([]);
-        setIsFileTreeLoading(false);
-    });
+    setFileTree(newTree);
+    setIsFileTreeLoading(false);
 
-    return () => unsubscribe();
-  }, [user]); // Re-run when user changes
+  }, [config]);
 
   return (
     <ProjectConfigContext.Provider value={{
-        config,
-        loading,
-        updateConfig,
-        refreshConfig: refreshConfig,
-        technicalError,
-        setTechnicalError,
-        fileTree,
-        isFileTreeLoading,
-        user,
-        customGeminiKey,
-        setCustomGeminiKey
+      config,
+      loading,
+      updateConfig,
+      refreshConfig: refreshConfig,
+      technicalError,
+      setTechnicalError,
+      fileTree,
+      isFileTreeLoading,
+      user,
+      customGeminiKey,
+      setCustomGeminiKey
     }}>
       {children}
     </ProjectConfigContext.Provider>

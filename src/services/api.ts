@@ -60,10 +60,10 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
         // Asumiré que para errores de lógica del backend (que lanzan HttpsError) todavía queremos que el caller lo sepa,
         // pero para errores de *conexión* (que es el contexto del problema CORS), retornamos null.
 
-        // Sin embargo, el usuario pidió: "y que la función retorne null explícitamente" en general en el contexto de ERR_FAILED.
-        // Voy a aplicar la lógica para errores de red y "internal" (que a veces enmascara CORS).
-
         console.error(`❌ Error en Cloud Function [${name}]:`, error);
-        return null;
+
+        // En lugar de tragar el error y retornar null (lo que causa falsos positivos), lanzamos el error
+        // a menos que sea un error crítico de red que debe manejarse en silencio (rare case).
+        throw error;
     }
 }

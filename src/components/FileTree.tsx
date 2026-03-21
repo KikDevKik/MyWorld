@@ -204,13 +204,13 @@ const FileNodeRow = React.memo(({
             <div
                 className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer hover:text-cyan-400 transition-colors"
                 onClick={(e) => {
-                     // 🟢 FIX: Respect delete mode on icon click too
-                     if (isDeleteMode) {
+                    // 🟢 FIX: Respect delete mode on icon click too
+                    if (isDeleteMode) {
                         e.stopPropagation();
                         if (onToggleDeleteSelect) onToggleDeleteSelect(node.id);
                         return;
-                     }
-                     onToggle(e);
+                    }
+                    onToggle(e);
                 }}
             >
                 {isLoading || isSaving ? (
@@ -222,7 +222,7 @@ const FileNodeRow = React.memo(({
                         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </div>
                 ) : (
-                    <FileText size={14} className={isActive ? "text-cyan-500" : "text-titanium-500"}/>
+                    <FileText size={14} className={isActive ? "text-cyan-500" : "text-titanium-500"} />
                 )}
             </div>
 
@@ -314,7 +314,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
         // So here we assume standard interaction.
 
         if (!isFolder) {
-             // ES UN ARCHIVO: CARGAR CONTENIDO
+            // ES UN ARCHIVO: CARGAR CONTENIDO
             loadContent();
             return;
         }
@@ -323,10 +323,8 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
 
         // Si es carpeta, abrimos y cargamos hijos si no están cargados
         if (!isLoaded && !isOpen) {
-            // If preloaded mode, do NOT fetch. Children should already be there.
-            if (isPreloaded) {
-                return;
-            }
+            // 🟢 V3 DECENTRALIZED FIX: Preloaded roots (canonPaths) are just the shells.
+            // We MUST fetch their children from Firestore!
 
             setIsLoading(true);
             try {
@@ -389,7 +387,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     };
 
     const handleRename = async (newName: string) => {
-         try {
+        try {
             // Use driveId if available (for Shortcuts/Preloaded), else id
             const targetId = node.driveId || node.id;
 
@@ -437,7 +435,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
                             className="text-[10px] text-titanium-600 py-1 italic"
                             style={{ paddingLeft: `${(depth + 1) * 12 + 24}px` }}
                         >
-                            {isPreloaded ? 'Vacío (en memoria)' : 'Vacío'}
+                            Vacío
                         </div>
                     )}
                 </div>

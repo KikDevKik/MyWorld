@@ -81,7 +81,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
 
     // 🟢 DERIVED STATE
-    const isEmptyProject = !fileTree || fileTree.length === 0;
+    const hasConfiguredFoldersGlobal = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
+    const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFoldersGlobal;
 
     // 🟢 SMART SYNC STATE
     const hasSyncedRef = useRef(false);
@@ -467,7 +468,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 ) : (
                     <>
                         {/* EMPTY STATE */}
-                        {(!fileTree || fileTree.length === 0) && (
+                        {isEmptyProject && (
                             <div className="flex flex-col items-center p-6 text-center gap-4 mt-4 mb-auto animate-in fade-in zoom-in duration-300">
                                 <div className="p-4 bg-titanium-800/50 rounded-full border border-titanium-700/50 shadow-lg shadow-black/20">
                                     <FolderCog className="text-titanium-400" size={24} />

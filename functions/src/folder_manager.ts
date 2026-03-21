@@ -21,20 +21,20 @@ const MAX_FILENAME_LENGTH = 255; // Prevent filesystem abuse via massive filenam
 
 // Internal helper to get config (avoiding circular dependency with index.ts)
 async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
-  const db = getFirestore();
-  const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+    const db = getFirestore();
+    const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
 
-  const defaultConfig: ProjectConfig = {
-    canonPaths: [],
-    primaryCanonPathId: null,
-    resourcePaths: [],
-    activeBookContext: ""
-  };
+    const defaultConfig: ProjectConfig = {
+        canonPaths: [],
+        primaryCanonPathId: null,
+        resourcePaths: [],
+        activeBookContext: ""
+    };
 
-  if (!doc.exists) {
-    return defaultConfig;
-  }
-  return { ...defaultConfig, ...doc.data() };
+    if (!doc.exists) {
+        return defaultConfig;
+    }
+    return { ...defaultConfig, ...doc.data() };
 }
 
 /**
@@ -42,60 +42,67 @@ async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
  * Escanea la carpeta raíz y sugiere un mapeo semántico.
  */
 export const discoverFolderRoles = onCall(
-  {
-    region: FUNCTIONS_REGION,
-    cors: ALLOWED_ORIGINS,
-    enforceAppCheck: false,
-    secrets: [googleApiKey],
-    memory: "4GiB",
-  },
-  async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        secrets: [googleApiKey],
+        memory: "4GiB",
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { accessToken, rootFolderId } = request.data;
-    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+        const { accessToken, rootFolderId } = request.data;
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
-    const userId = request.auth.uid;
-    const config = await getProjectConfigLocal(userId);
-    const targetRootId = rootFolderId || config.folderId;
+        const userId = request.auth.uid;
+        const config = await getProjectConfigLocal(userId);
+        const targetRootId = rootFolderId || config.folderId;
 
-    if (!targetRootId) {
-        throw new HttpsError("failed-precondition", "No hay carpeta raíz configurada.");
-    }
+        let folders: { id?: string | null; name?: string | null }[] = [];
 
-    try {
-      const auth = new google.auth.OAuth2();
-      auth.setCredentials({ access_token: accessToken });
-      const drive = google.drive({ version: "v3", auth });
+        try {
+            if (targetRootId) {
+                const auth = new google.auth.OAuth2();
+                auth.setCredentials({ access_token: accessToken });
+                const drive = google.drive({ version: "v3", auth });
 
-      // 1. Scan Top-Level Folders
-      // 🛡️ SECURITY: Escape targetRootId
-      const q = `'${escapeDriveQuery(targetRootId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-      const res = await drive.files.list({
-        q,
-        fields: "files(id, name)",
-        pageSize: 50 // Enough for top level
-      });
+                // 1. Scan Top-Level Folders
+                // 🛡️ SECURITY: Escape targetRootId
+                const q = `'${escapeDriveQuery(targetRootId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+                const res = await drive.files.list({
+                    q,
+                    fields: "files(id, name)",
+                    pageSize: 50 // Enough for top level
+                });
 
-      const folders = res.data.files || [];
-      if (folders.length === 0) {
-          return { suggestion: {}, message: "Carpeta vacía." };
-      }
+                folders = res.data.files || [];
+            } else {
+                // Decentralized structure: use user-selected paths if no root folder is set
+                folders = [
+                    ...(config.canonPaths || []),
+                    ...(config.resourcePaths || [])
+                ].map(p => ({ id: p.id, name: p.name }));
+            }
 
-      const folderNames = folders.map(f => f.name);
+            if (folders.length === 0) {
+                throw new HttpsError("failed-precondition", "No hay carpeta raíz configurada ni rutas de acceso.");
+            }
 
-      // 2. AI Mapping (Gemini Flash)
-      const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-      const model = genAI.getGenerativeModel({
-        model: MODEL_LOW_COST,
-        safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-        generationConfig: {
-          temperature: TEMP_PRECISION,
-          responseMimeType: "application/json"
-        } as any
-      });
+            const folderNames = folders.map(f => f.name).filter(Boolean);
 
-      const prompt = `
+            // 2. AI Mapping (Gemini Flash)
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const model = genAI.getGenerativeModel({
+                model: MODEL_LOW_COST,
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+                generationConfig: {
+                    temperature: TEMP_PRECISION,
+                    responseMimeType: "application/json"
+                } as any
+            });
+
+            const prompt = `
         TASK: Map User Folders to System Roles.
 
         SYSTEM ROLES (Definitions):
@@ -121,35 +128,36 @@ export const discoverFolderRoles = onCall(
         OUTPUT JSON:
       `;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      const mappingNames = parseSecureJSON(text, "FolderDiscovery");
+            const result = await model.generateContent(prompt);
+            const text = result.response.text();
+            const mappingNames = parseSecureJSON(text, "FolderDiscovery");
 
-      // Convert Name Mapping to ID Mapping
-      const finalMapping: Record<string, string> = {};
+            // Convert Name Mapping to ID Mapping
+            const finalMapping: Record<string, string> = {};
 
-      if (mappingNames && typeof mappingNames === 'object') {
-          for (const [role, folderName] of Object.entries(mappingNames)) {
-              const match = folders.find(f => f.name === folderName);
-              if (match && match.id) {
-                  finalMapping[role] = match.id;
-              }
-          }
-      }
+            if (mappingNames && typeof mappingNames === 'object') {
+                for (const [role, folderName] of Object.entries(mappingNames)) {
+                    const match = folders.find(f => f.name === folderName);
+                    if (match && match.id) {
+                        const cleanRole = role.replace(/^ROLE_/, '');
+                        finalMapping[cleanRole] = match.id;
+                    }
+                }
+            }
 
-      logger.info(`🔍 Discovery complete for ${userId}. Mapped ${Object.keys(finalMapping).length} roles.`);
+            logger.info(`🔍 Discovery complete for ${userId}. Mapped ${Object.keys(finalMapping).length} roles.`);
 
-      return {
-          suggestion: finalMapping,
-          folderList: folders,
-          message: "Análisis completado."
-      };
+            return {
+                suggestion: finalMapping,
+                folderList: folders,
+                message: "Análisis completado."
+            };
 
-    } catch (error: any) {
-      logger.error("Error in discoverFolderRoles:", error);
-      throw new HttpsError("internal", error.message);
+        } catch (error: any) {
+            logger.error("Error in discoverFolderRoles:", error);
+            throw new HttpsError("internal", error.message);
+        }
     }
-  }
 );
 
 // Helper to resolve role -> folderId from config
@@ -162,273 +170,273 @@ export const getFolderIdForRole = (config: ProjectConfig, role: FolderRole): str
  * Crea la estructura de carpetas estándar.
  */
 export const createTitaniumStructure = onCall(
-  {
-    region: FUNCTIONS_REGION,
-    cors: ALLOWED_ORIGINS,
-    enforceAppCheck: false,
-    memory: "1GiB",
-  },
-  async (request) => {
-    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        memory: "1GiB",
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { accessToken, rootFolderId, newProjectName } = request.data;
-    if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+        const { accessToken, rootFolderId, newProjectName } = request.data;
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
-    // 🛡️ SENTINEL CHECK: Input Length (DoS Prevention)
-    if (newProjectName && newProjectName.length > MAX_FILENAME_LENGTH) {
-        throw new HttpsError("invalid-argument", `El nombre del proyecto excede el límite de ${MAX_FILENAME_LENGTH} caracteres.`);
-    }
-
-    // We need either a rootFolderId OR a newProjectName to create one
-    if (!rootFolderId && !newProjectName) {
-        throw new HttpsError("invalid-argument", "Se requiere rootFolderId o newProjectName.");
-    }
-
-    const userId = request.auth.uid;
-    const db = getFirestore();
-
-    const STRUCTURE = [
-        { name: "UNIVERSO", legacyName: "00_UNIVERSO", role: FolderRole.WORLD_CORE },
-        { name: "PERSONAJES", legacyName: "01_PERSONAJES", role: FolderRole.ENTITY_PEOPLE },
-        { name: "BESTIARIO", legacyName: "02_BESTIARIO", role: FolderRole.ENTITY_BESTIARY },
-        { name: "OBJETOS", legacyName: "98_OBJETOS", role: FolderRole.ENTITY_OBJECTS },
-        { name: "MANUSCRITO", legacyName: "03_MANUSCRITO", role: FolderRole.SAGA_MAIN },
-        { name: "EXTRAS", legacyName: "04_EXTRAS", role: FolderRole.SAGA_EXTRAS },
-        { name: "RECURSOS", legacyName: "99_RECURSOS", role: FolderRole.RESOURCES }
-    ];
-
-    try {
-        const auth = new google.auth.OAuth2();
-        auth.setCredentials({ access_token: accessToken });
-        const drive = google.drive({ version: "v3", auth });
-
-        // 0. Resolve Root Folder (Validation & Creation)
-        let targetRootId = rootFolderId;
-        const configUpdates: any = {};
-        let rootFolderName = newProjectName || "Unknown Project";
-
-        // 🟢 VALIDATION: Check if provided ID actually exists (was not deleted outside)
-        if (targetRootId) {
-            try {
-                const meta = await drive.files.get({ fileId: targetRootId, fields: "id, name, trashed" });
-                if (meta.data.trashed) {
-                    logger.warn(`⚠️ Target Root ${targetRootId} is in TRASH. Treating as missing.`);
-                    targetRootId = null; // Force recreation
-                } else {
-                    rootFolderName = meta.data.name || rootFolderName;
-                }
-            } catch (e: any) {
-                logger.warn(`⚠️ Target Root ${targetRootId} not found (404). Treating as missing.`);
-                targetRootId = null; // Force recreation
-            }
+        // 🛡️ SENTINEL CHECK: Input Length (DoS Prevention)
+        if (newProjectName && newProjectName.length > MAX_FILENAME_LENGTH) {
+            throw new HttpsError("invalid-argument", `El nombre del proyecto excede el límite de ${MAX_FILENAME_LENGTH} caracteres.`);
         }
 
-        if (!targetRootId) {
-            if (newProjectName) {
-                // Create New Root Folder
-                logger.info(`Creating new root project folder: ${newProjectName}`);
-                const rootRes = await drive.files.create({
-                    requestBody: {
-                        name: newProjectName,
-                        mimeType: "application/vnd.google-apps.folder",
-                        // No parent = Root
-                    },
-                    fields: "id"
-                });
-                targetRootId = rootRes.data.id;
-                configUpdates.folderId = targetRootId;
-                configUpdates.projectName = newProjectName;
-                configUpdates.activeBookContext = newProjectName; // Set context name too
-                rootFolderName = newProjectName;
-            } else {
-                // We needed a root but found none and have no name to create one
-                throw new HttpsError("failed-precondition", "La carpeta del proyecto no existe y no se proporcionó un nombre para crear una nueva.");
-            }
+        // We need either a rootFolderId OR a newProjectName to create one
+        if (!rootFolderId && !newProjectName) {
+            throw new HttpsError("invalid-argument", "Se requiere rootFolderId o newProjectName.");
         }
 
-        if (!targetRootId) throw new Error("Failed to resolve Root Folder ID");
+        const userId = request.auth.uid;
+        const db = getFirestore();
 
-        const newMapping: Partial<Record<FolderRole, string>> = {};
-        const createdFolders: any[] = [];
-        const canonPaths: { id: string, name: string }[] = [];
-        const resourcePaths: { id: string, name: string }[] = [];
+        const STRUCTURE = [
+            { name: "UNIVERSO", legacyName: "00_UNIVERSO", role: FolderRole.WORLD_CORE },
+            { name: "PERSONAJES", legacyName: "01_PERSONAJES", role: FolderRole.ENTITY_PEOPLE },
+            { name: "BESTIARIO", legacyName: "02_BESTIARIO", role: FolderRole.ENTITY_BESTIARY },
+            { name: "OBJETOS", legacyName: "98_OBJETOS", role: FolderRole.ENTITY_OBJECTS },
+            { name: "MANUSCRITO", legacyName: "03_MANUSCRITO", role: FolderRole.SAGA_MAIN },
+            { name: "EXTRAS", legacyName: "04_EXTRAS", role: FolderRole.SAGA_EXTRAS },
+            { name: "RECURSOS", legacyName: "99_RECURSOS", role: FolderRole.RESOURCES }
+        ];
 
-        // 1. Create Folders Sequentially (Legacy Aware)
-        for (const item of STRUCTURE) {
-            let folderId = null;
-            let folderName = item.name;
-
-            // A. Check New Name First
-            // 🛡️ SECURITY: Escape targetRootId and item.name (even if name is constant, good practice)
-            const qNew = `'${escapeDriveQuery(targetRootId)}' in parents and name = '${escapeDriveQuery(item.name)}' and trashed = false`;
-            const checkNew = await drive.files.list({ q: qNew, fields: "files(id, name)" });
-
-            if (checkNew.data.files && checkNew.data.files.length > 0) {
-                folderId = checkNew.data.files[0].id;
-                folderName = checkNew.data.files[0].name!;
-                logger.info(`   -> Folder exists (New Standard): ${folderName}`);
-            } else if (item.legacyName) {
-                // B. Check Legacy Name
-                const qLegacy = `'${escapeDriveQuery(targetRootId)}' in parents and name = '${escapeDriveQuery(item.legacyName)}' and trashed = false`;
-                const checkLegacy = await drive.files.list({ q: qLegacy, fields: "files(id, name)" });
-
-                if (checkLegacy.data.files && checkLegacy.data.files.length > 0) {
-                    folderId = checkLegacy.data.files[0].id;
-                    folderName = checkLegacy.data.files[0].name!;
-                    logger.info(`   -> Folder exists (Legacy): ${folderName}`);
-                }
-            }
-
-            // C. Create if neither exists
-            if (!folderId) {
-                const res = await drive.files.create({
-                    requestBody: {
-                        name: item.name,
-                        mimeType: "application/vnd.google-apps.folder",
-                        parents: [targetRootId]
-                    },
-                    fields: "id"
-                });
-                folderId = res.data.id;
-                logger.info(`   -> Created: ${item.name}`);
-            }
-
-            if (folderId && item.role) {
-                newMapping[item.role] = folderId;
-                createdFolders.push({ name: folderName, id: folderId, role: item.role });
-
-                // D. Sort into Canon/Resources
-                const pathObj = { id: folderId, name: folderName };
-                if (item.role === FolderRole.RESOURCES) {
-                    resourcePaths.push(pathObj);
-                } else {
-                    canonPaths.push(pathObj);
-                }
-            }
-        }
-
-        // 2. Sub-folders for Manuscript (Libro 1, Libro 2)
-        if (newMapping[FolderRole.SAGA_MAIN]) {
-             const sagaId = newMapping[FolderRole.SAGA_MAIN];
-             // Optional: Create Libro 1
-             // 🛡️ SECURITY: Escape sagaId (though it comes from internal logic, safety first)
-             const q = `'${escapeDriveQuery(sagaId || "")}' in parents and name = 'Libro_01' and trashed = false`;
-             const check = await drive.files.list({ q, fields: "files(id, name)" });
-             if (!check.data.files?.length) {
-                 const subRes = await drive.files.create({
-                     requestBody: {
-                         name: "Libro_01",
-                         mimeType: "application/vnd.google-apps.folder",
-                         parents: [sagaId!]
-                     },
-                     fields: "id"
-                 });
-                 // Track for Index
-                 const match = createdFolders.find(f => f.id === sagaId);
-                 if (match) {
-                     if (!match.children) match.children = [];
-                     match.children.push({
-                         id: subRes.data.id,
-                         name: "Libro_01",
-                         type: "folder",
-                         mimeType: "application/vnd.google-apps.folder"
-                     });
-                 }
-             }
-        }
-
-        // 🟢 2.5. AUTO-INDEX (TITANIUM V2)
         try {
-            const filesCollection = db.collection("TDB_Index").doc(userId).collection("files");
-            const batch = db.batch();
-            const now = new Date().toISOString();
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
 
-            const addToBatch = (node: any, parentId: string | null) => {
-                const ref = filesCollection.doc(node.id);
-                batch.set(ref, {
-                    id: node.id,
-                    name: node.name,
-                    type: node.type || 'folder',
-                    mimeType: node.mimeType || 'application/vnd.google-apps.folder',
-                    parentId: parentId,
-                    driveId: node.id,
-                    updatedAt: now,
-                    lastIndexed: now,
-                    category: 'canon', // Default for struct
-                    isGhost: false
-                }, { merge: true });
+            // 0. Resolve Root Folder (Validation & Creation)
+            let targetRootId = rootFolderId;
+            const configUpdates: any = {};
+            let rootFolderName = newProjectName || "Unknown Project";
 
-                if (node.children) {
-                    node.children.forEach((child: any) => addToBatch(child, node.id));
+            // 🟢 VALIDATION: Check if provided ID actually exists (was not deleted outside)
+            if (targetRootId) {
+                try {
+                    const meta = await drive.files.get({ fileId: targetRootId, fields: "id, name, trashed" });
+                    if (meta.data.trashed) {
+                        logger.warn(`⚠️ Target Root ${targetRootId} is in TRASH. Treating as missing.`);
+                        targetRootId = null; // Force recreation
+                    } else {
+                        rootFolderName = meta.data.name || rootFolderName;
+                    }
+                } catch (e: any) {
+                    logger.warn(`⚠️ Target Root ${targetRootId} not found (404). Treating as missing.`);
+                    targetRootId = null; // Force recreation
                 }
+            }
+
+            if (!targetRootId) {
+                if (newProjectName) {
+                    // Create New Root Folder
+                    logger.info(`Creating new root project folder: ${newProjectName}`);
+                    const rootRes = await drive.files.create({
+                        requestBody: {
+                            name: newProjectName,
+                            mimeType: "application/vnd.google-apps.folder",
+                            // No parent = Root
+                        },
+                        fields: "id"
+                    });
+                    targetRootId = rootRes.data.id;
+                    configUpdates.folderId = targetRootId;
+                    configUpdates.projectName = newProjectName;
+                    configUpdates.activeBookContext = newProjectName; // Set context name too
+                    rootFolderName = newProjectName;
+                } else {
+                    // We needed a root but found none and have no name to create one
+                    throw new HttpsError("failed-precondition", "La carpeta del proyecto no existe y no se proporcionó un nombre para crear una nueva.");
+                }
+            }
+
+            if (!targetRootId) throw new Error("Failed to resolve Root Folder ID");
+
+            const newMapping: Partial<Record<FolderRole, string>> = {};
+            const createdFolders: any[] = [];
+            const canonPaths: { id: string, name: string }[] = [];
+            const resourcePaths: { id: string, name: string }[] = [];
+
+            // 1. Create Folders Sequentially (Legacy Aware)
+            for (const item of STRUCTURE) {
+                let folderId = null;
+                let folderName = item.name;
+
+                // A. Check New Name First
+                // 🛡️ SECURITY: Escape targetRootId and item.name (even if name is constant, good practice)
+                const qNew = `'${escapeDriveQuery(targetRootId)}' in parents and name = '${escapeDriveQuery(item.name)}' and trashed = false`;
+                const checkNew = await drive.files.list({ q: qNew, fields: "files(id, name)" });
+
+                if (checkNew.data.files && checkNew.data.files.length > 0) {
+                    folderId = checkNew.data.files[0].id;
+                    folderName = checkNew.data.files[0].name!;
+                    logger.info(`   -> Folder exists (New Standard): ${folderName}`);
+                } else if (item.legacyName) {
+                    // B. Check Legacy Name
+                    const qLegacy = `'${escapeDriveQuery(targetRootId)}' in parents and name = '${escapeDriveQuery(item.legacyName)}' and trashed = false`;
+                    const checkLegacy = await drive.files.list({ q: qLegacy, fields: "files(id, name)" });
+
+                    if (checkLegacy.data.files && checkLegacy.data.files.length > 0) {
+                        folderId = checkLegacy.data.files[0].id;
+                        folderName = checkLegacy.data.files[0].name!;
+                        logger.info(`   -> Folder exists (Legacy): ${folderName}`);
+                    }
+                }
+
+                // C. Create if neither exists
+                if (!folderId) {
+                    const res = await drive.files.create({
+                        requestBody: {
+                            name: item.name,
+                            mimeType: "application/vnd.google-apps.folder",
+                            parents: [targetRootId]
+                        },
+                        fields: "id"
+                    });
+                    folderId = res.data.id;
+                    logger.info(`   -> Created: ${item.name}`);
+                }
+
+                if (folderId && item.role) {
+                    newMapping[item.role] = folderId;
+                    createdFolders.push({ name: folderName, id: folderId, role: item.role });
+
+                    // D. Sort into Canon/Resources
+                    const pathObj = { id: folderId, name: folderName };
+                    if (item.role === FolderRole.RESOURCES) {
+                        resourcePaths.push(pathObj);
+                    } else {
+                        canonPaths.push(pathObj);
+                    }
+                }
+            }
+
+            // 2. Sub-folders for Manuscript (Libro 1, Libro 2)
+            if (newMapping[FolderRole.SAGA_MAIN]) {
+                const sagaId = newMapping[FolderRole.SAGA_MAIN];
+                // Optional: Create Libro 1
+                // 🛡️ SECURITY: Escape sagaId (though it comes from internal logic, safety first)
+                const q = `'${escapeDriveQuery(sagaId || "")}' in parents and name = 'Libro_01' and trashed = false`;
+                const check = await drive.files.list({ q, fields: "files(id, name)" });
+                if (!check.data.files?.length) {
+                    const subRes = await drive.files.create({
+                        requestBody: {
+                            name: "Libro_01",
+                            mimeType: "application/vnd.google-apps.folder",
+                            parents: [sagaId!]
+                        },
+                        fields: "id"
+                    });
+                    // Track for Index
+                    const match = createdFolders.find(f => f.id === sagaId);
+                    if (match) {
+                        if (!match.children) match.children = [];
+                        match.children.push({
+                            id: subRes.data.id,
+                            name: "Libro_01",
+                            type: "folder",
+                            mimeType: "application/vnd.google-apps.folder"
+                        });
+                    }
+                }
+            }
+
+            // 🟢 2.5. AUTO-INDEX (TITANIUM V2)
+            try {
+                const filesCollection = db.collection("TDB_Index").doc(userId).collection("files");
+                const batch = db.batch();
+                const now = new Date().toISOString();
+
+                const addToBatch = (node: any, parentId: string | null) => {
+                    const ref = filesCollection.doc(node.id);
+                    batch.set(ref, {
+                        id: node.id,
+                        name: node.name,
+                        type: node.type || 'folder',
+                        mimeType: node.mimeType || 'application/vnd.google-apps.folder',
+                        parentId: parentId,
+                        driveId: node.id,
+                        updatedAt: now,
+                        lastIndexed: now,
+                        category: 'canon', // Default for struct
+                        isGhost: false
+                    }, { merge: true });
+
+                    if (node.children) {
+                        node.children.forEach((child: any) => addToBatch(child, node.id));
+                    }
+                };
+
+                // createdFolders has { id, name, children... }
+                for (const folder of createdFolders) {
+                    // Top level folders have parent = targetRootId
+                    addToBatch(folder, targetRootId);
+                }
+
+                await batch.commit();
+                logger.info("🌳 Auto-indexed fresh Titanium structure (V2 Collection).");
+
+            } catch (idxErr) {
+                logger.warn("⚠️ Failed to auto-index structure:", idxErr);
+            }
+
+            // 3. Save to Config
+            const configRef = db.collection("users").doc(userId).collection("profile").doc("project_config");
+
+            // Merge with existing mapping if any
+            const currentConfig = await getProjectConfigLocal(userId);
+            const mergedMapping = { ...(currentConfig.folderMapping || {}), ...newMapping };
+
+            // Merge Paths (Append if not present)
+            const currentCanon = currentConfig.canonPaths || [];
+            const currentResources = currentConfig.resourcePaths || [];
+
+            const mergedCanon = [...currentCanon];
+            for (const p of canonPaths) {
+                if (!mergedCanon.some(cp => cp.id === p.id)) {
+                    mergedCanon.push(p);
+                }
+            }
+
+            const mergedResources = [...currentResources];
+            for (const p of resourcePaths) {
+                if (!mergedResources.some(rp => rp.id === p.id)) {
+                    mergedResources.push(p);
+                }
+            }
+
+            const updatePayload: any = {
+                ...configUpdates, // Include folderId/projectName if new
+                folderMapping: mergedMapping,
+                canonPaths: mergedCanon,
+                resourcePaths: mergedResources,
+                updatedAt: new Date().toISOString()
             };
 
-            // createdFolders has { id, name, children... }
-            for (const folder of createdFolders) {
-                // Top level folders have parent = targetRootId
-                addToBatch(folder, targetRootId);
+            // Sync Legacy Field
+            if (newMapping[FolderRole.ENTITY_PEOPLE]) {
+                updatePayload.characterVaultId = newMapping[FolderRole.ENTITY_PEOPLE];
             }
 
-            await batch.commit();
-            logger.info("🌳 Auto-indexed fresh Titanium structure (V2 Collection).");
+            await configRef.set(updatePayload, { merge: true });
 
-        } catch (idxErr) {
-            logger.warn("⚠️ Failed to auto-index structure:", idxErr);
+            return {
+                success: true,
+                mapping: mergedMapping,
+                created: createdFolders,
+                canonPaths: mergedCanon,
+                resourcePaths: mergedResources
+            };
+
+        } catch (error: any) {
+            logger.error("Error creating Titanium structure:", error);
+            throw new HttpsError("internal", error.message);
         }
-
-        // 3. Save to Config
-        const configRef = db.collection("users").doc(userId).collection("profile").doc("project_config");
-
-        // Merge with existing mapping if any
-        const currentConfig = await getProjectConfigLocal(userId);
-        const mergedMapping = { ...(currentConfig.folderMapping || {}), ...newMapping };
-
-        // Merge Paths (Append if not present)
-        const currentCanon = currentConfig.canonPaths || [];
-        const currentResources = currentConfig.resourcePaths || [];
-
-        const mergedCanon = [...currentCanon];
-        for (const p of canonPaths) {
-            if (!mergedCanon.some(cp => cp.id === p.id)) {
-                mergedCanon.push(p);
-            }
-        }
-
-        const mergedResources = [...currentResources];
-        for (const p of resourcePaths) {
-            if (!mergedResources.some(rp => rp.id === p.id)) {
-                mergedResources.push(p);
-            }
-        }
-
-        const updatePayload: any = {
-            ...configUpdates, // Include folderId/projectName if new
-            folderMapping: mergedMapping,
-            canonPaths: mergedCanon,
-            resourcePaths: mergedResources,
-            updatedAt: new Date().toISOString()
-        };
-
-        // Sync Legacy Field
-        if (newMapping[FolderRole.ENTITY_PEOPLE]) {
-            updatePayload.characterVaultId = newMapping[FolderRole.ENTITY_PEOPLE];
-        }
-
-        await configRef.set(updatePayload, { merge: true });
-
-        return {
-            success: true,
-            mapping: mergedMapping,
-            created: createdFolders,
-            canonPaths: mergedCanon,
-            resourcePaths: mergedResources
-        };
-
-    } catch (error: any) {
-        logger.error("Error creating Titanium structure:", error);
-        throw new HttpsError("internal", error.message);
     }
-  }
 );
 
 /**
@@ -589,7 +597,7 @@ export const getBatchDriveMetadata = onCall(
 
         // Limit batch size
         if (fileIds.length > MAX_BATCH_SIZE) {
-             throw new HttpsError("invalid-argument", "Too many IDs.");
+            throw new HttpsError("invalid-argument", "Too many IDs.");
         }
 
         try {
@@ -617,10 +625,10 @@ export const getBatchDriveMetadata = onCall(
                 } catch (e: any) {
                     logger.warn(`Failed to fetch metadata for ${id}:`, e.message);
                     // Return placeholder
-                     results[id] = {
-                            name: "Inaccesible / Borrado",
-                            mimeType: "error"
-                        };
+                    results[id] = {
+                        name: "Inaccesible / Borrado",
+                        mimeType: "error"
+                    };
                 }
             }));
 
@@ -665,11 +673,11 @@ export const getFileSystemNodes = onCall(
             }
 
             if (!targetParentId) {
-                 const configRef = db.collection("users").doc(userId).collection("profile").doc("project_config");
-                 const configSnap = await configRef.get();
-                 if (configSnap.exists) {
-                     targetParentId = configSnap.data()?.folderId;
-                 }
+                const configRef = db.collection("users").doc(userId).collection("profile").doc("project_config");
+                const configSnap = await configRef.get();
+                if (configSnap.exists) {
+                    targetParentId = configSnap.data()?.folderId;
+                }
             }
 
             if (!targetParentId) {
@@ -679,8 +687,8 @@ export const getFileSystemNodes = onCall(
 
             // Query Files Collection
             const q = db.collection("TDB_Index").doc(userId).collection("files")
-                        .where("parentId", "==", targetParentId)
-                        .orderBy("name", "asc"); // Can sort by type in memory if needed, or composite index
+                .where("parentId", "==", targetParentId)
+                .orderBy("name", "asc"); // Can sort by type in memory if needed, or composite index
 
             const snapshot = await q.get();
 

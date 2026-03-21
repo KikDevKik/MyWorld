@@ -56,6 +56,13 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
         }
     }, [config]);
 
+    // 🟢 Explicit fallback sync for folder mapping
+    useEffect(() => {
+        if (config?.folderMapping) {
+            setFolderMapping(config.folderMapping);
+        }
+    }, [config?.folderMapping]);
+
     // 🟢 FETCH FOLDER NAMES (Metadata)
     useEffect(() => {
         const fetchNames = async () => {
@@ -111,38 +118,48 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
 
             await updateConfig(newConfig);
 
-            // 🟢 TRIGGER INDEX REFRESH (Lightweight & Strict)
+            // 🟢 TRIGGER MEMORY INDEX REFRESH (Botón de Indexar Automático)
             const token = accessToken;
             if (token) {
                 try {
                     const allPaths = [...canonPaths, ...resourcePaths];
                     const folderIds = allPaths.map(p => p.id);
 
-                    // 🟢 STRICT LOGIC: Do NOT append config.folderId fallback.
-                    // If the list is empty, we MUST send empty list to clear the tree.
-
-                    // Fire and forget (or await if critical) - Awaiting to ensure consistency
-                    toast.info(folderIds.length > 0 ? "Actualizando índice de archivos..." : "Limpiando índice...");
-
+                    // 1. Árbol de archivos (Bloqueante para la Bóveda/Sidebar)
+                    toast.info(folderIds.length > 0 ? "Actualizando bóveda de archivos..." : "Limpiando bóveda...");
                     await callFunction('getDriveFiles', {
-                        folderIds, // Can be empty []
+                        folderIds,
                         accessToken: token,
                         recursive: true,
-                        persist: true // 🟢 ENABLE PERSISTENCE (Wipes tree if empty)
+                        persist: true
                     });
 
-                    toast.success("Índice actualizado.");
+                    // 2. Cerebro / Vector Indexing (En segundo plano)
+                    if (folderIds.length > 0) {
+                        toast.info("Iniciando indexado profundo en segundo plano...");
+
+                        // Fire and forget (No await para no bloquear el modal)
+                        callFunction('indexTDB', {
+                            folderIds: folderIds,
+                            projectId: newConfig.folderId || "no-root", // Fallback (Aunque folderId no se use realmente en indexado descentralizado, es de rigor)
+                            accessToken: token,
+                            forceFullReindex: false
+                        }).then((result: any) => {
+                            toast.success(`¡Aprendizaje Completado! ${result?.message || ''}`);
+                        }).catch(err => {
+                            console.error("Auto-index error:", err);
+                            toast.error("Error en indexado automático de memoria. Revisa la consola.");
+                        });
+                    }
 
                 } catch (e) {
                     console.error("Failed to refresh index:", e);
-                    toast.warning("Configuración guardada, pero falló la indexación automática.");
+                    toast.warning("Configuración guardada, pero falló la actualización de la bóveda.");
                 }
             }
 
             onClose();
         } catch (error) {
-            // Error handling is done in context (updateConfig throws?)
-            // updateConfig throws, so we catch here
             toast.error("Error al guardar la configuración.");
         } finally {
             setIsSaving(false);
@@ -362,8 +379,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                     <button
                         onClick={() => selectFolderForRole(role)}
                         className={`px-3 py-1.5 text-xs rounded border transition-colors ${currentId
-                                ? 'bg-titanium-800 border-titanium-700 text-titanium-300 hover:bg-titanium-700'
-                                : 'bg-titanium-800/30 border-dashed border-titanium-600 text-titanium-400 hover:text-titanium-200 hover:border-titanium-500'
+                            ? 'bg-titanium-800 border-titanium-700 text-titanium-300 hover:bg-titanium-700'
+                            : 'bg-titanium-800/30 border-dashed border-titanium-600 text-titanium-400 hover:text-titanium-200 hover:border-titanium-500'
                             }`}
                     >
                         {currentId ? 'Cambiar' : 'Seleccionar'}
@@ -411,8 +428,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                             aria-selected={activeTab === 'paths'}
                             aria-controls="panel-paths"
                             className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'paths'
-                                    ? 'bg-titanium-700 text-white shadow-sm'
-                                    : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
+                                ? 'bg-titanium-700 text-white shadow-sm'
+                                : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
                                 }`}
                         >
                             <Folder size={14} /> Rutas de Acceso
@@ -423,8 +440,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                             aria-selected={activeTab === 'taxonomy'}
                             aria-controls="panel-taxonomy"
                             className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'taxonomy'
-                                    ? 'bg-cyan-900/50 text-cyan-200 shadow-sm border border-cyan-800/50'
-                                    : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
+                                ? 'bg-cyan-900/50 text-cyan-200 shadow-sm border border-cyan-800/50'
+                                : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
                                 }`}
                         >
                             <Brain size={14} /> Taxonomía (Cerebro)
