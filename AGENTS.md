@@ -1,75 +1,160 @@
 # 🤖 AGENTS.md — MyWorld: Titanium Protocol
-> **SOVEREIGN SOURCE OF TRUTH** for all coding agents (Antigravity, Jules, etc.).
+> **SOVEREIGN SOURCE OF TRUTH** para todos los agentes de código (Antigravity, Jules, etc.).
 > Branch: `dev-v2` | Stack: React 18 + Firebase Cloud Functions v2 + Gemini 3.1
-> Last updated: March 2026
+> Última actualización: Marzo 2026
 
 ---
 
-## ⚡ CRITICAL RULES FOR ALL AGENTS
+## ⚡ REGLAS CRÍTICAS PARA TODOS LOS AGENTES
 
-1. **Never touch `main` branch.** All work goes to `dev-v2`.
-2. **Always run `cd functions && npm run build` after modifying any file in `functions/src/`.**
-3. **All new Cloud Functions MUST be exported in `functions/src/index.ts`.**
-4. **Import `admin` and `db` exclusively from `functions/src/admin.ts`** — never call `admin.initializeApp()` elsewhere.
-5. **Embeddings use `outputDimensionality: 768`** — Firestore vector index is configured for 768d.
-6. **CORS is handled by Firebase SDK** — do NOT add manual CORS headers to `onCall` functions.
-7. **Sovereign Areas** (`<!-- SOVEREIGN START --> ... <!-- SOVEREIGN END -->`) in Markdown files must NEVER be overwritten by any agent.
-
----
-
-## 🏗️ CORE PHILOSOPHY
-
-- **The Cathedral:** AI as "Active Mirror" (Espejo Activo). Understands plot, detects contradictions, visualizes structure.
-- **The Bunker:** Absolute persistence. Truth lives in physical Markdown files (Google Drive) and immutable Firestore logs.
-- **The Bridge:** Coding agents ("The Weaver") implement the manuals from `.Jules/Manuals/` as technical constraints.
+1. **Nunca tocar `main`.** Todo va a `dev-v2`.
+2. **Siempre correr `cd functions && npm run build`** después de modificar cualquier archivo en `functions/src/`.
+3. **Todas las Cloud Functions nuevas DEBEN exportarse en `functions/src/index.ts`.**
+4. **Importar `admin` y `db` exclusivamente desde `functions/src/admin.ts`** — nunca llamar `admin.initializeApp()` en otro lugar.
+5. **Embeddings usan `outputDimensionality: 768`** — el índice vectorial de Firestore está configurado para 768d.
+6. **CORS es manejado por Firebase SDK** — NO agregar headers CORS manuales a funciones `onCall`.
+7. **Sovereign Areas** (`<!-- SOVEREIGN START --> ... <!-- SOVEREIGN END -->`) en archivos Markdown NUNCA deben ser sobreescritas por ningún agente.
 
 ---
 
-## ⚡ TECH STACK & MODEL ASSIGNMENTS
+## 🎨 FILOSOFÍA CENTRAL (Leer antes de implementar cualquier feature de IA)
 
-| Role | Model String | Used For |
+### La IA no escribe por el usuario
+
+MyWorld no es un ghostwriter. La IA es un **Espejo Activo** — recuerda, detecta contradicciones, enseña y pregunta. El autor siempre es dueño de su obra.
+
+Esto aplica a TODA la IA de MyWorld:
+- El Director hace más preguntas que sugerencias
+- El Arquitecto pregunta antes de responder, siempre
+- La Investigación Cultural explica el *por qué* histórico — el autor decide qué adopta
+- Ninguna herramienta genera contenido creativo sin que el autor lo haya sembrado primero
+
+**Antipatrón a evitar:** IA genera cultura → usuario copia → resultado genérico sin alma.
+**Patrón correcto:** IA enseña historia real → explica el por qué → usuario entiende → usuario decide → resultado con raíces reales pero completamente suyo.
+
+---
+
+## ⚡ TECH STACK & ASIGNACIÓN DE MODELOS
+
+| Rol | Model String | Usado Para |
 |---|---|---|
-| **The Judge** | `gemini-3.1-pro-preview` | Director Logic, Tribunal, Chat RAG, complex reasoning |
+| **The Judge** | `gemini-3.1-pro-preview` | Director, Tribunal, Chat RAG, razonamiento complejo |
 | **The Soldier** | `gemini-3.1-flash-lite-preview` | Guardian Scan, Soul Sorter, Scribe Synthesis |
-| **The Librarian** | `gemini-3.1-flash-lite-preview` | Laboratory research, classification |
-| **TTS** | `gemini-2.5-pro-preview-tts` | High-fidelity Text-to-Speech (DO NOT change) |
-| **Embeddings** | `gemini-embedding-001` | Vector search — always use `outputDimensionality: 768` |
+| **The Librarian** | `gemini-3.1-flash-lite-preview` | Laboratory, clasificación |
+| **The Architect** | `gemini-3.1-pro-preview` | Planificación de saga, Efecto Dominó, Revelación |
+| **TTS** | `gemini-2.5-pro-preview-tts` | Text-to-Speech de alta fidelidad (NO cambiar) |
+| **Embeddings** | `gemini-embedding-001` | Vector search — siempre usar `outputDimensionality: 768` |
 
-Constants live in `functions/src/ai_config.ts` and `src/constants.ts`.
+Constantes en `functions/src/ai_config.ts` y `src/constants.ts`.
 
 ---
 
-## 📁 KEY FILE MAP
+## 📁 MAPA DE ARCHIVOS CLAVE
 
 ```
 functions/src/
-├── admin.ts          ← Singleton Firebase Admin init. Import from here ONLY.
-├── ai_config.ts      ← MODEL_FLASH, MODEL_PRO constants
-├── index.ts          ← ALL function exports. If a function isn't here, it doesn't exist.
-├── config.ts         ← ALLOWED_ORIGINS (must include http://localhost:3000)
-├── director.ts       ← The Director agent
-├── guardian.ts       ← Canon Radar / Guardian agent
-├── soul_sorter.ts    ← Forge / Soul Sorter agent
-├── scribe.ts         ← File creation & patch (Smart-Sync)
-├── ingestion.ts      ← RAG chunking & vectorization
-├── vector_utils.ts   ← Embedding helpers (use outputDimensionality: 768)
-├── crystallization.ts← Ghost → Anchor crystallization
-├── audit.ts          ← Authorship certificate & forensic audit
-├── janitor.ts        ← Sentinel / system hygiene
+├── admin.ts              ← Singleton Firebase Admin init. Importar SOLO desde aquí.
+├── ai_config.ts          ← MODEL_FLASH, MODEL_PRO constants
+├── index.ts              ← TODOS los exports. Si no está aquí, no existe.
+├── config.ts             ← ALLOWED_ORIGINS (incluye http://localhost:3000)
+├── architect.ts          ← 🆕 El Arquitecto (por crear)
+├── guardian.ts           ← Canon Radar / Guardian agent
+├── soul_sorter.ts        ← Forge / Soul Sorter agent
+├── scribe.ts             ← Creación y patch de archivos (Smart-Sync)
+├── ingestion.ts          ← RAG chunking & vectorización
 └── types/
-    └── forge.ts      ← TitaniumEntity, EntityTier, EntityCategory
+    └── forge.ts          ← TitaniumEntity, EntityTier, EntityCategory
 
 src/
-├── services/api.ts   ← callFunction() wrapper. Connects to emulator on localhost:5001.
-├── lib/firebase.ts   ← Firebase init (Firestore points to PRODUCTION)
-└── constants.ts      ← Frontend model constants
+├── components/
+│   ├── ArquitectoPanel.tsx    ← 🆕 Panel dedicado (por crear)
+│   └── director/
+├── services/api.ts            ← callFunction() wrapper. Conecta al emulador en localhost:5001.
+└── hooks/
+    └── useArquitecto.ts       ← 🆕 Hook del Arquitecto (por crear)
 ```
 
 ---
 
-## ☁️ EXPORTED CLOUD FUNCTIONS (44 total)
+## 🏛️ EL ARQUITECTO (Big Feature #1)
 
-All functions below MUST be exported from `functions/src/index.ts`:
+> Documento de diseño completo: `EL_ARQUITECTO_DESIGN.md`
+
+### Propósito
+Planificación estratégica de sagas antes de escribir. No es el Director (que trabaja escena por escena). El Arquitecto trabaja a nivel de saga completa.
+
+### Comportamiento base (invariable)
+```
+usuario da documento / idea
+→ Arquitecto lee y analiza
+→ Identifica huecos y contradicciones
+→ Hace preguntas ANTES de responder cualquier cosa
+→ Usuario responde
+→ Ambos construyen desde las respuestas del usuario
+```
+
+### Regla absoluta
+**El Arquitecto pregunta antes de responder. Siempre.** Si no tiene suficiente información, nunca asume — pregunta.
+
+### Modos (auto-detectados por contexto)
+
+**Efecto Dominó**
+Parte de una decisión del mundo (ej: el ciclo de Psico Energía se rompe) y traza consecuencias capa por capa. En cada capa hace UNA pregunta. La respuesta desbloquea la siguiente.
+
+**Cronología de Revelación**
+Mapea qué sabe el lector en cada libro de una saga. Detecta paradojas de revelación. No decide el orden — muestra las consecuencias de cada opción.
+
+**Investigación Cultural**
+Recibe documentos históricos reales. Explica el *por qué* histórico de cada elemento. NO genera la cultura ficticia. Enseña para que el autor decida.
+
+**Personaje**
+Hace preguntas que revelan huecos en arco o motivación. Ejemplo: *"Perdió todo dos veces. ¿Qué perdió la primera vez que todavía no sabe que perdió?"*
+
+### Lo que NUNCA hace
+- Generar culturas completas
+- Decidir tramas o giros
+- Escribir escenas o diálogos
+- Asumir respuestas cuando no tiene información
+
+### Prompt del sistema base
+```
+Eres El Arquitecto de MyWorld. Eres un colaborador de planificación narrativa para sagas complejas.
+
+REGLA ABSOLUTA: Antes de responder cualquier cosa, analiza lo que el usuario compartió e identifica:
+1. Qué huecos existen (información que falta para que el mundo sea coherente)
+2. Qué contradicciones existen (elementos que se contradicen entre sí)
+3. Qué preguntas el usuario no se ha hecho todavía
+
+Haz esas preguntas PRIMERO. Solo cuando el usuario responda, construyes con él.
+
+NUNCA:
+- Generes culturas, tramas o escenas sin que el usuario las haya sembrado
+- Asumas respuestas cuando no tienes información
+- Decidas por el usuario
+
+SIEMPRE:
+- Explica el *por qué* de cada cosa cuando enseñas historia real
+- Señala huecos sin rellenarlos
+- Construye desde las respuestas del usuario, no desde tus suposiciones
+
+El usuario es el autor. Tú eres perspectiva externa.
+```
+
+### Diferencia con el Director
+
+| El Director | El Arquitecto |
+|---|---|
+| Co-piloto durante la escritura | Planificación antes de escribir |
+| Trabaja escena por escena | Trabaja saga completa |
+| Mantiene coherencia táctica | Construye estructura estratégica |
+| Responde sobre el texto | Pregunta sobre el mundo |
+| Memoria de lo que escribiste | Mapa de lo que planeas |
+
+---
+
+## ☁️ CLOUD FUNCTIONS EXPORTADAS
+
+Todas deben estar en `functions/src/index.ts`:
 
 **Auth & Drive:**
 `exchangeAuthCode`, `refreshDriveToken`, `revokeDriveAccess`
@@ -82,6 +167,10 @@ All functions below MUST be exported from `functions/src/index.ts`:
 
 **AI Agents:**
 `auditContent`, `forgeToolExecution`, `analyzeStyleDNA`, `generateSpeech`, `classifyResource`, `integrateNarrative`, `transformToGuide`, `scanProjectDrift`, `rescueEcho`, `purgeEcho`
+
+**El Arquitecto (nuevas):**
+`arquitectoChat` ← 🆕 Chat principal del Arquitecto
+`arquitectoAnalyzeDoc` ← 🆕 Análisis de documentos con identificación de huecos
 
 **Project Config:**
 `saveProjectConfig`, `nukeProject`
@@ -100,163 +189,54 @@ All functions below MUST be exported from `functions/src/index.ts`:
 
 ---
 
-## 🎬 THE DIRECTOR
+## 🎬 EL DIRECTOR
 
-**File:** `functions/src/director.ts`, `src/components/DirectorPanel.tsx`
-**Model:** `gemini-3.1-pro-preview`
+**Archivo:** `src/components/DirectorPanel.tsx`
+**Modelo:** `gemini-3.1-pro-preview`
 
 ### Layout Modes
-- **Sentinel (<500px):** Silent observation. Chat only.
-- **Strategist (500px-900px):** Tactical Tools sidebar unlocked.
-- **War Room (>900px):** Full command center with session history.
+- **Sentinel (<500px):** Chat only.
+- **Strategist (500px-900px):** Tactical Tools sidebar.
+- **War Room (>900px):** Full command center.
 
-### Tactical Tools
-- `handleInspector` — Casting Report (Characters, Tone, Pacing). Returns structured JSON.
-- `handleTribunal` → calls `summonTheTribunal` Cloud Function.
-- `handleContextSync` — Forces manual context refresh.
-- `handleSendMessage` — Accepts image/audio attachments for multi-modal advice.
-
-### Reality Tuner (Temperature)
-- **Rigor (LOGIC):** `temp < 0.4` — zero hallucinations, pure canon.
-- **Fusión (BALANCE):** `temp < 0.7` — narrative balance.
-- **Entropía (CHAOS):** `temp > 0.7` — creative chaos.
+### Nota de refactorización pendiente
+El Director actual tiende a generar contenido rápidamente. Pendiente refactorizar su prompt para que haga más preguntas y genere menos automáticamente. La filosofía del Arquitecto (preguntar primero) debe eventualmente impregnar también al Director.
 
 ---
 
 ## 🛡️ THE GUARDIAN (Canon Radar)
 
-**File:** `functions/src/guardian.ts`, `src/hooks/useGuardian.ts`
-**Model:** Flash Lite (detection) + Pro (logic)
+**Archivo:** `functions/src/guardian.ts`, `src/hooks/useGuardian.ts`
+**Modelo:** Flash Lite (detección) + Pro (lógica)
 
 ### Trigger
-SHA-256 hash change on text buffer. 3000ms debounce.
+Cambio de hash SHA-256 en el buffer de texto. Debounce de 3000ms.
 
-### Detection Scope
-- **Friction Analysis:** Logical contradictions against RAG memory.
-- **Personality Drift:** "The Hater" persona detects character betrayal.
-- **World Law Violations:** Physics, magic, chronology flags.
-- **Resonance Engine:** Connects current draft to past "Memory Seeds."
-- **Structure Analyst:** Identifies narrative phase (Setup, Climax, etc.).
-- **Centroid Sync:** Detects drift from project's core style/theme.
-
-### Vector Dimension
-Always use `outputDimensionality: 768` in all `embedContent()` calls.
-
----
-
-## ⚖️ THE TRIBUNAL
-
-**Cloud Function:** `summonTheTribunal`
-**Model:** `gemini-3.1-pro-preview`
-**Timeout:** 540 seconds
-
-### The Judges
-1. **The Architect (Blue):** Logic and pacing.
-2. **The Bard (Purple):** Aesthetics and subtext.
-3. **The Hater (Red):** Marketability and cringe detection.
-
-### Known Issue (dev-v2)
-`summonTheTribunal` must be exported in `index.ts` — CORS error appears when missing.
-
----
-
-## 🌐 THE NEXUS (World Engine v4.0)
-
-**File:** `src/components/NexusCanvas.tsx`
-
-### Identity Protocol
-IDs = `DJB2_Hash(Slug + ProjectID)`. Deterministic — same entity always gets same ID.
-
-### LOD System
-- **MACRO:** Faction-level overview.
-- **MESO:** Standard interactive node view.
-- **MICRO:** Detailed cards with crystallization tools.
-
-### Entity Visuals (Traits → Colors)
-When refactoring NexusCanvas, use traits not `node.type`:
-```typescript
-const traits = node.traits || legacyTypeToTraits(node.type); // migration bridge
-// ['sentient'] → Yellow
-// ['locatable'] → Cyan
-// ['abstract'] → Purple
-```
-
-### The Lifeboat
-Failed crystallizations are saved as Rescue Nodes in `localStorage` until sync restores.
-
----
-
-## 🔬 THE LABORATORY
-
-**File:** `src/components/LaboratoryPanel.tsx`
-**Model:** `gemini-3.1-flash-lite-preview`
-
-- **Scope:** ONLY files in `_RESOURCES` / `_RECURSOS` folders.
-- **Smart Tags:** `classifyResource` → `LORE`, `SCIENCE`, `VISUAL`.
-- **Lazy Classification:** 2000ms debounce, batches of 3.
-- **Prompt Injection:** Always use `escapePromptVariable()` on `fileName`, `mimeType`, `snippet` before interpolation (injection vulnerability prevention).
-
----
-
-## 🏭 TITANIUM FACTORY (Entity Lifecycle)
-
-**Status:** Hybrid V2.5 — legacy `type` field still present for backward compat.
-
-### Do NOT remove `type` from frontmatter yet.
-`soul_sorter.ts` and `NexusCanvas.tsx` still depend on `node.type`. Use the bridge:
-```typescript
-const traits = node.traits || legacyTypeToTraits(node.type);
-```
-
-### Smart-Sync Rules
-1. Calculate `SHA-256` of file content before any write.
-2. If `newHash === storedHash` → **ABORT WRITE** (prevents Echo Loop).
-3. `<!-- SOVEREIGN START --> ... <!-- SOVEREIGN END -->` blocks are UNTOUCHABLE.
-4. Debounce writes: if `Date.now() - last_titanium_sync < 5000ms` → skip reconciliation.
+### Dimensión vectorial
+Siempre usar `outputDimensionality: 768` en todas las llamadas `embedContent()`.
 
 ---
 
 ## 🧹 THE SENTINEL (Janitor)
 
-**File:** `functions/src/janitor.ts`, `src/components/SentinelStatus.tsx`
-
-- `scanVaultHealth` — calculates Health Score (Valid vs Corrupt).
-- `purgeArtifacts` — **IRREVERSIBLY** deletes 0-byte or corrupt Ghost Files.
-- `toggleShowOnlyHealthy` — visual filter only, does NOT delete.
+- `scanVaultHealth` — calcula Health Score
+- `purgeArtifacts` — elimina Ghost Files **irreversiblemente**
+- `toggleShowOnlyHealthy` — filtro visual solamente, NO elimina
 
 ---
 
-## 👻 GHOST MECHANICS
-
-### Creative Audit
-- **Service:** `CreativeAuditService.ts`
-- **Storage:** Immutable `audit_log` Firestore collection.
-- **Security:** `serverTimestamp()` only — no client clock manipulation possible.
-- **Events:** `INJECTION`, `CURATION`, `STRUCTURE`.
-
-### Silent Scribe (Auto-Save)
-- 2000ms debounce on `selectedFileContent`.
-- `isSignificant: true` if `Math.abs(diff) > 50`.
-- Significant saves update `lastSignificantUpdate` → triggers Director re-index.
-
-### Security Limits
-- Input cap: 100,000 chars (~25k tokens).
-- Use `parseSecureJSON` to strip Markdown code fences from AI responses.
-
----
-
-## 🔧 LOCAL EMULATOR SETUP
+## 🔧 SETUP LOCAL
 
 ```bash
-firebase emulators:start
+cd functions && npm run build && cd .. && firebase emulators:start
 ```
 
-| Service | URL |
+| Servicio | URL |
 |---|---|
 | Functions | `http://127.0.0.1:5001` |
 | Hosting | `http://127.0.0.1:5000` |
 | Frontend | `http://localhost:3000` |
 
-**Note:** Firestore points to **PRODUCTION** (no emulator for Firestore). Functions point to local emulator via `connectFunctionsEmulator` in `src/services/api.ts`.
+**Nota:** Firestore apunta a PRODUCCIÓN. Functions al emulador local.
 
-Drive tokens reset on emulator restart — reconnect Drive once per session.
+BYOK para desarrollo: `sessionStorage.setItem('myworld_custom_gemini_key', 'TU_KEY')` en consola del navegador.

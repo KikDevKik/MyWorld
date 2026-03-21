@@ -21,48 +21,101 @@
 
 ---
 
-## 🔧 En progreso (dev-v2)
+## ✅ Completado (dev-v2 — fixes post-hackathon)
 
-> *Mejoras activas siendo desarrolladas y probadas localmente.*
+- App Check debug token hardcodeado eliminado
+- CORS separado por entorno (local vs producción)
+- NarratorService migrado a Cloud Function (`analyzeScene`)
+- BYOK migrado de `localStorage` → `sessionStorage`
+- Memory leak en `useFileLock.ts` corregido
+- `ErrorBoundary.tsx` aplicado a componentes críticos
+- 16 Cloud Functions huérfanas exportadas en `index.ts`
+- GeminiEmbedder shadowing corregido (funciones de RAG operativas)
+- Migración pnpm → npm
 
-<!-- Agregar items aquí cuando se definan -->
+---
+
+## 🔴 En progreso / Inmediato
+
+### BYOK Onboarding
+Mostrar mensaje claro cuando el usuario no tiene API key configurada. Sin esto los usuarios nuevos no saben por qué la IA no responde.
+
+### Drive no carga al login
+Token se refresca silenciosamente pero la UI no reacciona. Bug de estado en App.tsx.
+
+### Fix SettingsModal auditoría de rutas
+`nodes.forEach is not a function` — cambio en formato de respuesta de `getDriveFiles`.
+
+---
+
+## 🏛️ BIG FEATURE #1 — El Arquitecto
+
+> **Prioridad:** Crítica. Desbloquea al autor para escribir con rumbo claro.
+> **Documento de diseño:** `EL_ARQUITECTO_DESIGN.md`
+
+### El problema que resuelve
+El autor tiene el universo completo en la cabeza pero se pierde entre sus propias ideas cuando la saga abarca múltiples libros, razas, eras y sistemas de magia interconectados. No puede definir aspectos de la Era Actual porque el efecto dominó de eras pasadas tiene huecos. No sabe qué revelar en cada libro sin arruinar otro.
+
+### Filosofía
+La IA potencia la creatividad, no la reemplaza. El Arquitecto no genera tramas ni culturas. Enseña, pregunta y muestra. **Pregunta antes de responder, siempre.**
+
+### Comportamiento base
+```
+autor da documento / idea
+→ Arquitecto identifica huecos y contradicciones
+→ Hace preguntas antes de responder
+→ Autor responde
+→ Ambos construyen desde las respuestas del autor
+```
+
+### Modos naturales (auto-detectados por contexto)
+- **Efecto Dominó** — trazar consecuencias de una decisión del mundo, capa por capa
+- **Cronología de Revelación** — qué sabe el lector en cada libro y cuándo
+- **Investigación Cultural** — explica el *por qué* histórico real para que el autor decida qué adoptar
+- **Personaje** — preguntas que revelan huecos en arco o motivación
+
+### Fases de implementación
+- **Fase 1 (MVP):** Chat dedicado + comportamiento base + Modo Efecto Dominó
+- **Fase 2:** Cronología de Revelación + Investigación Cultural + sesiones persistentes
+- **Fase 3:** Integración con Forja y Nexus Canvas
 
 ---
 
 ## 📋 Backlog
 
-> *Features definidas, sin fecha asignada. Ver `ORACLE_STATUS.md` para detalles completos.*
+### 🔧 Refactorización de herramientas existentes
+El Director y el Tribunal deben ser más apoyo que reemplazo. Pendiente refactorizar sus prompts para que hagan más preguntas y generen menos contenido automático.
 
 ### 🎨 Editor & Escritura
 - [ ] **El Prisma de Voces** — Reescribir texto desde la voz de un personaje (BubbleMenu + `reimagineText`)
 - [ ] **El Espejo del Alma** — Crear personajes mediante roleplay conversacional
 - [ ] **La Pluma Fantasma** — Ghost text autocomplete lore-aware en CodeMirror
-- [ ] **Resonancia Atmosférica** — Bio-feedback visual y sonoro según tono de escena
 
 ### 🌐 Nexus & Visualización
-- [ ] **Gravedad Semántica** (completar) — Reordenamiento dinámico del grafo según contexto del editor
-- [ ] **La Tinta Viva** (completar) — Nexus Cards en hover sobre entidades en el editor
-- [ ] **La Hélice Narrativa** — Doble hélice Plot + Soul como visualización de estructura
-
-### 🎭 Director & Agentes
-- [ ] **Protocolo Médium** — Séance multi-personaje (Director en modo especial)
-
-### ⏳ Timeline
-- [ ] **El Telar del Tiempo v2** — Timeline cuántico con modo Profecía y Efecto Mariposa
+- [ ] **La Tinta Viva** — Nexus Cards en hover sobre entidades en el editor
 
 ### 📦 Infraestructura
 - [ ] Exportación EPUB/Kindle nativa en The Press
 - [ ] Modo Offline First agresivo (PWA)
-- [ ] Cursores colaborativos multijugador
 
-### 🌕 Moonshots
-- [ ] **La Topografía del Alma** — Nexus en 3D con React Three Fiber
-- [ ] **El Telar del Tiempo** cuántico completo con ramas de multiverso
+### 🌕 Moonshots (sin fecha)
+- [ ] La Topografía del Alma — Nexus en 3D
+- [ ] El Telar del Tiempo cuántico — ramas de multiverso
 
 ---
 
-## 📝 Notas
+## ❌ Descartado / Postergado
 
-- Los Oracle Pitches con fecha 2024-xx-xx son propuestas originales de visión.
-- Los Oracle Pitches con fecha 2026-02-xx son revisiones más detalladas técnicamente y superseden las versiones anteriores.
-- Consultar `ORACLE_STATUS.md` para el análisis completo de qué está implementado, parcial, o pendiente.
+- **Resonancia Atmosférica** — solo efectos visuales, bajo valor
+- **El Lienzo Onírico** → convertido en generador de prompts para IA de imágenes externa (no generación directa)
+- **El Telar del Tiempo v2** — big update para cuando MyWorld esté en producción con usuarios reales
+- **La Topografía del Alma (3D)** — moonshot, no prioritario
+
+---
+
+## 📝 Principios de Diseño (No negociables)
+
+1. **La IA no escribe por el autor.** Recuerda, detecta, pregunta, enseña.
+2. **El Arquitecto pregunta antes de responder.** Siempre.
+3. **Las culturas las construye el autor.** La IA enseña historia real, el autor decide qué adopta.
+4. **El autor siempre es dueño de su obra.** La IA es perspectiva externa, no co-autor.
