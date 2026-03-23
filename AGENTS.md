@@ -6,6 +6,7 @@
 ---
 
 ## ⚡ REGLAS CRÍTICAS PARA TODOS LOS AGENTES
+0. **Manejo de Paquetes:** Este proyecto usa ESTRICTAMENTE `npm`. NUNCA uses `pnpm` o `yarn`. Si accidentalmente instalas algo con pnpm o yarn, debes eliminar sus archivos lock inmediatamente y usar `npm install`.
 
 1. **Nunca tocar `main`.** Todo va a `dev-v2`.
 2. **Siempre correr `cd functions && npm run build`** después de modificar cualquier archivo en `functions/src/`.
