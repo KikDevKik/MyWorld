@@ -29,13 +29,8 @@ interface LayoutState {
   showOnlyHealthy: boolean;
   toggleShowOnlyHealthy: () => void;
 
-  // 🟢 ARQUITECTO: Pendientes compartidos entre Zone B y Zone C
-  arquitectoSessionId: string | null;
-  setArquitectoSessionId: (id: string | null) => void;
-  arquitectoHasInitialized: boolean;
-  setArquitectoHasInitialized: (v: boolean) => void;
-  arquitectoPendingItems: any[];
-  setArquitectoPendingItems: (items: any[]) => void;
+  arquitectoWidgetVisible: boolean;
+  setArquitectoWidgetVisible: (v: boolean) => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
@@ -82,11 +77,6 @@ export const useLayoutStore = create<LayoutState>((set) => ({
   showOnlyHealthy: false,
   toggleShowOnlyHealthy: () => set((state) => ({ showOnlyHealthy: !state.showOnlyHealthy })),
 
-  // Arquitecto
-  arquitectoSessionId: null,
-  setArquitectoSessionId: (id) => set({ arquitectoSessionId: id }),
-  arquitectoHasInitialized: false,
-  setArquitectoHasInitialized: (v) => set({ arquitectoHasInitialized: v }),
-  arquitectoPendingItems: [],
-  setArquitectoPendingItems: (items) => set({ arquitectoPendingItems: items }),
+  arquitectoWidgetVisible: true,
+  setArquitectoWidgetVisible: (v) => set({ arquitectoWidgetVisible: v }),
 }));

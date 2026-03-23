@@ -39,7 +39,8 @@ import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfi
 import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
-import { useLayoutStore } from './stores/useLayoutStore'; // 🟢 IMPORT STORE
+import { useLayoutStore } from './stores/useLayoutStore';
+import { useArquitectoStore } from './stores/useArquitectoStore'; // 🟢 IMPORT STORE
 import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 import { CreativeAuditService } from './services/CreativeAuditService';
 import EmptyEditorState from './components/editor/EmptyEditorState';
@@ -59,7 +60,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const commonT = TRANSLATIONS[currentLanguage].common;
 
     // 🟢 GLOBAL STORE CONSUMPTION
-    const { activeView, setActiveView, setArquitectoPendingItems, arquitectoPendingItems } = useLayoutStore();
+    const { activeView, setActiveView, arquitectoWidgetVisible } = useLayoutStore();
+    const { arquitectoPendingItems, setArquitectoPendingItems } = useArquitectoStore();
 
     // APP STATE
     const [folderId, setFolderId] = useState<string>("");
@@ -774,7 +776,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             <>
                 {dock}
                 {/* Widget pendientes Arquitecto — visible si hay pendientes y no está abierto */}
-                {activeView !== 'arquitecto' && arquitectoPendingItems.length > 0 && (
+                {activeView !== 'arquitecto' && arquitectoWidgetVisible && arquitectoPendingItems.length > 0 && (
                     <ArquitectoPendingWidget
                         pendingItems={arquitectoPendingItems}
                         onOpenArquitecto={() => setActiveView('arquitecto')}
