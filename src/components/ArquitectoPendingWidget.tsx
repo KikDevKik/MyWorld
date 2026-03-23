@@ -1,6 +1,7 @@
 import React from 'react';
-import { Landmark, AlertCircle, AlertTriangle, Lightbulb, ArrowLeft } from 'lucide-react';
+import { Landmark, AlertCircle, AlertTriangle, Lightbulb, ArrowLeft, X } from 'lucide-react';
 import { PendingItem } from '../hooks/useArquitecto';
+import { useLayoutStore } from '../stores/useLayoutStore';
 
 interface ArquitectoPendingWidgetProps {
     pendingItems: PendingItem[];
@@ -15,6 +16,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
     onClose,
     isAnalyzing = false
 }) => {
+    const setArquitectoWidgetVisible = useLayoutStore(state => state.setArquitectoWidgetVisible);
     const criticals = pendingItems.filter(i => i.severity === 'critical');
     const warnings = pendingItems.filter(i => i.severity === 'warning');
     const suggestions = pendingItems.filter(i => i.severity === 'suggestion');
@@ -36,6 +38,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                         Proyecto: Nebulosa
                     </div>
 
+                    <div className="flex items-center gap-2">
                     <button
                         onClick={onOpenArquitecto} // Reusing this to trigger analyze if passed from parent
                         disabled={isAnalyzing}
@@ -43,6 +46,14 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                     >
                         {isAnalyzing ? 'Analizando...' : 'Analizar'}
                     </button>
+                    <button
+                        onClick={() => setArquitectoWidgetVisible(false)}
+                        className="p-1.5 ml-4 rounded hover:bg-titanium-800 text-titanium-500 hover:text-titanium-300 transition-colors"
+                        aria-label="Cerrar widget"
+                    >
+                        <X size={18} />
+                    </button>
+                    </div>
                 </header>
 
                 {/* Analysis Content - using #0a0a0a specifically for background as per rules */}
@@ -55,7 +66,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                                 <AlertCircle size={16} />
                                 Rojo / Crítico
                             </h3>
-                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 canvas-scroll">
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 custom-scrollbar max-h-80">
                                 {criticals.length === 0 ? (
                                     <p className="text-xs text-titanium-600 font-mono">Sin problemas críticos detectados.</p>
                                 ) : (
@@ -75,7 +86,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                                 <AlertTriangle size={16} />
                                 Amarillo / Aviso
                             </h3>
-                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 canvas-scroll">
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 custom-scrollbar max-h-80">
                                 {warnings.length === 0 ? (
                                     <p className="text-xs text-titanium-600 font-mono">Sin advertencias detectadas.</p>
                                 ) : (
@@ -95,7 +106,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                                 <Lightbulb size={16} />
                                 Gris / Sugerencia
                             </h3>
-                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 canvas-scroll">
+                            <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 custom-scrollbar max-h-80">
                                 {suggestions.length === 0 ? (
                                     <p className="text-xs text-titanium-600 font-mono">Sin sugerencias pendientes.</p>
                                 ) : (

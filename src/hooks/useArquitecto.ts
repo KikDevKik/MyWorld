@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useLayoutStore } from '../stores/useLayoutStore';
+import { useArquitectoStore } from '../stores/useArquitectoStore';
 import { callFunction } from '../services/api';
 import { toast } from 'sonner';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
@@ -29,14 +30,14 @@ interface UseArquitectoProps {
 export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => {
     const { config, updateConfig } = useProjectConfig();
     const [messages, setMessages] = useState<ArquitectoMessage[]>([]);
-    const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
-    const [projectSummary, setProjectSummary] = useState<string>('');
+    const [pendingItems, setPendingItems] = useState<PendingItem[]>(() => useArquitectoStore.getState().arquitectoPendingItems || []);
+    const [projectSummary, setProjectSummary] = useState<string>(() => useArquitectoStore.getState().arquitectoSummary || config?.arquitectoSummary || '');
     const {
         arquitectoSessionId: sessionId,
         setArquitectoSessionId: setSessionId,
         arquitectoHasInitialized: hasInitialized,
         setArquitectoHasInitialized: setHasInitialized
-    } = useLayoutStore();
+    } = useArquitectoStore();
     const [isInitializing, setIsInitializing] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -47,8 +48,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
     // 🟢 Fix A: Restauración al montar (Persistencia)
     useEffect(() => {
-        const cachedItems = useLayoutStore.getState().arquitectoPendingItems;
-        const cachedSummary = config?.arquitectoSummary;
+        const cachedItems = useArquitectoStore.getState().arquitectoPendingItems;
+        const cachedSummary = useArquitectoStore.getState().arquitectoSummary || config?.arquitectoSummary;
 
         if (cachedItems && cachedItems.length > 0) {
             setPendingItems(cachedItems);
@@ -74,7 +75,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         // 🟢 RESTAURACIÓN INMEDIATA (Síncrona para el UI)
         if (lastAnalysis || cachedItems.length > 0) {
             setPendingItems(cachedItems);
-            useLayoutStore.getState().setArquitectoPendingItems(cachedItems);
+            useArquitectoStore.getState().setArquitectoPendingItems(cachedItems);
+            useLayoutStore.getState().setArquitectoWidgetVisible(true);
             setProjectSummary(config?.arquitectoSummary || '');
             setLastAnalyzedAt(lastAnalysis);
             setHasInitialized(true);
@@ -143,8 +145,10 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
                 setSessionId(mockSession);
                 setPendingItems(mockPending);
-                useLayoutStore.getState().setArquitectoPendingItems(mockPending);
+                useArquitectoStore.getState().setArquitectoPendingItems(mockPending);
+                useLayoutStore.getState().setArquitectoWidgetVisible(true);
                 setProjectSummary("Proyecto con worldbuilding sólido pero con algunas inconsistencias cronológicas y personajes con motivaciones poco documentadas.");
+                useArquitectoStore.getState().setArquitectoSummary("Proyecto con worldbuilding sólido pero con algunas inconsistencias cronológicas y personajes con motivaciones poco documentadas.");
                 setMessages([{
                     id: 'init',
                     role: 'assistant',
@@ -165,8 +169,10 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
             setSessionId(data.sessionId);
             setPendingItems(data.pendingItems || []);
-            useLayoutStore.getState().setArquitectoPendingItems(data.pendingItems || []);
+            useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems || []);
+            useLayoutStore.getState().setArquitectoWidgetVisible(true);
             setProjectSummary(data.projectSummary || '');
+            useArquitectoStore.getState().setArquitectoSummary(data.projectSummary || '');
             setLastAnalyzedAt(data.lastAnalyzedAt);
             setMessages([{
                 id: 'init',
@@ -307,8 +313,10 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             if (!data) throw new Error("Sin respuesta.");
 
             setPendingItems(data.pendingItems || []);
-            useLayoutStore.getState().setArquitectoPendingItems(data.pendingItems || []);
+            useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems || []);
+            useLayoutStore.getState().setArquitectoWidgetVisible(true);
             setProjectSummary(data.projectSummary || '');
+            useArquitectoStore.getState().setArquitectoSummary(data.projectSummary || '');
             setLastAnalyzedAt(data.analyzedAt);
 
             toast.success("Análisis actualizado.", { id: 'arquitecto-analyze' });

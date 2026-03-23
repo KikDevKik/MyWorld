@@ -86,7 +86,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
 
             {/* Top Drawer: Pendientes (Analysis View) - Solo se muestra si está abierto */}
-            <div className={`absolute top-0 left-0 w-full z-40 transition-transform duration-300 ease-in-out origin-top ${isPendingDrawerOpen ? 'translate-y-0 scale-y-100 opacity-100' : '-translate-y-full scale-y-0 opacity-0 pointer-events-none'}`}>
+            <div className={`absolute top-0 left-0 w-full z-40 transition-transform duration-300 ease-in-out origin-top max-h-[60vh] overflow-y-auto custom-scrollbar ${isPendingDrawerOpen ? 'translate-y-0 scale-y-100 opacity-100' : '-translate-y-full scale-y-0 opacity-0 pointer-events-none'}`}>
                 <ArquitectoPendingWidget
                     pendingItems={pendingItems}
                     onOpenArquitecto={reAnalyze} // Passed as Analyze trigger in this context
