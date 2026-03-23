@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { callFunction } from '../services/api';
 import { toast } from 'sonner';
@@ -44,6 +44,19 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
     // Ghost mode simulation
     const isGhostMode = import.meta.env.VITE_JULES_MODE === 'true';
+
+    // 🟢 Fix A: Restauración al montar (Persistencia)
+    useEffect(() => {
+        const cachedItems = useLayoutStore.getState().arquitectoPendingItems;
+        const cachedSummary = config?.arquitectoSummary;
+
+        if (cachedItems && cachedItems.length > 0) {
+            setPendingItems(cachedItems);
+        }
+        if (cachedSummary) {
+            setProjectSummary(cachedSummary);
+        }
+    }, []); // 👈 Solo al montar el hook
 
     const initialize = useCallback(async () => {
         if (hasInitialized || isInitializing) return;
