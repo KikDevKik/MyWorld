@@ -329,7 +329,11 @@ Responde SOLO con el texto del mensaje, sin JSON ni markdown.
         await db
             .collection("users").doc(userId)
             .collection("profile").doc("project_config")
-            .set({ lastArquitectoAnalysis: now }, { merge: true });
+            .set({
+                lastArquitectoAnalysis: now,
+                arquitectoCachedPendingItems: pendingItems,
+                arquitectoSummary: projectSummary
+            }, { merge: true });
 
         logger.info(`✅ [ARQUITECTO] Inicialización completa. ${pendingItems.length} pendientes. Sesión: ${sessionRef.id}`);
 

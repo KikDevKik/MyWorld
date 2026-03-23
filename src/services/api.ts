@@ -15,7 +15,7 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
     // BYOK: Only inject the user's personal key if they explicitly provided one.
     // The server uses its own Gemini key from Firebase Secret Manager.
     // NEVER inject VITE_GOOGLE_API_KEY here — that would expose the server key from the client bundle.
-    const customKey = sessionStorage.getItem('myworld_custom_gemini_key');
+    const customKey = sessionStorage.getItem('myworld_custom_gemini_key') || localStorage.getItem('myworld_custom_gemini_key');
     const payload = customKey ? { ...data, _authOverride: customKey } : data;
 
     const fn = firebaseHttpsCallable(functions, name, options);

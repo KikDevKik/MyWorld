@@ -73,6 +73,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         isAnalyzing,
         lastAnalyzedAt,
         hasInitialized,
+        isOutdated,
         initialize,
         sendMessage,
         reAnalyze
@@ -83,14 +84,14 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         if (!hasInitialized) {
             initialize();
         }
-    }, []);
+    }, [hasInitialized, initialize]);
 
     // Sincronizar store
     useEffect(() => {
         if (pendingItems.length > 0 && onPendingItemsUpdate) {
             onPendingItemsUpdate(pendingItems);
         }
-    }, [pendingItems]);
+    }, [pendingItems, onPendingItemsUpdate]);
 
     // Auto-scroll
     useEffect(() => {
@@ -164,6 +165,24 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 </div>
             </div>
 
+            {/* BANNER DE OUTDATED */}
+            {isOutdated && !isAnalyzing && (
+                <div className="bg-amber-950/40 border-b border-amber-900/50 px-6 py-2.5 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2.5">
+                        <AlertTriangle size={14} className="text-amber-500" />
+                        <span className="text-xs font-medium text-amber-200/90 tracking-wide">
+                            Tu proyecto ha cambiado desde el último análisis.
+                        </span>
+                    </div>
+                    <button
+                        onClick={reAnalyze}
+                        className="text-[10px] font-bold uppercase tracking-wider text-amber-400 hover:text-amber-300 bg-amber-900/30 hover:bg-amber-900/50 border border-amber-700/50 hover:border-amber-500/50 px-3 py-1.5 rounded-lg transition-all"
+                    >
+                        Re-analizar
+                    </button>
+                </div>
+            )}
+
             {/* BODY: layout de dos columnas */}
             <div className="flex-1 flex min-h-0">
 
@@ -223,35 +242,55 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                     {/* Lista de pendientes */}
                     {isPendingOpen && (
-                        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-                            {isInitializing ? (
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                            {(!hasInitialized && isInitializing) ? (
                                 <div className="flex flex-col items-center justify-center h-32 gap-2">
                                     <Loader2 size={20} className="animate-spin text-emerald-500" />
                                     <p className="text-[11px] text-titanium-500">Analizando proyecto...</p>
                                 </div>
-                            ) : pendingItems.length === 0 ? (
-                                <div className="flex flex-col items-center justify-center h-32 gap-2 text-center">
-                                    <div className="p-3 bg-emerald-900/10 rounded-full">
-                                        <Landmark size={20} className="text-emerald-500/50" />
-                                    </div>
-                                    <p className="text-[11px] text-titanium-500">
-                                        Todo en orden. Sin pendientes detectados.
-                                    </p>
-                                </div>
                             ) : (
                                 <>
-                                    {/* Críticos */}
-                                    {pendingItems.filter(i => i.severity === 'critical').map(item => (
-                                        <PendingItemCard key={item.code} item={item} />
-                                    ))}
-                                    {/* Warnings */}
-                                    {pendingItems.filter(i => i.severity === 'warning').map(item => (
-                                        <PendingItemCard key={item.code} item={item} />
-                                    ))}
-                                    {/* Sugerencias */}
-                                    {pendingItems.filter(i => i.severity === 'suggestion').map(item => (
-                                        <PendingItemCard key={item.code} item={item} />
-                                    ))}
+                                    {/* 📝 PROJECT SUMMARY (NEW) */}
+                                    {projectSummary && (
+                                        <div className="bg-emerald-900/5 border border-emerald-500/20 rounded-lg p-3.5 mb-2">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="p-1 px-1.5 bg-emerald-900/40 rounded border border-emerald-500/30">
+                                                    <span className="text-[9px] font-bold text-emerald-400 uppercase tracking-widest leading-none">Resumen de Estado</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-[11px] text-titanium-300 leading-relaxed">
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                                    {projectSummary}
+                                                </ReactMarkdown>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {pendingItems.length === 0 && !isAnalyzing ? (
+                                        <div className="flex flex-col items-center justify-center h-32 gap-2 text-center py-8">
+                                            <div className="p-3 bg-emerald-900/10 rounded-full">
+                                                <Landmark size={20} className="text-emerald-500/50" />
+                                            </div>
+                                            <p className="text-[10px] text-titanium-500 max-w-[160px] mx-auto">
+                                                {isOutdated ? "El análisis está desactualizado. Haz clic en 'Analizar' para actualizar misiones." : "Todo en orden. Sin misiones pendientes detectadas."}
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            {/* Críticos */}
+                                            {pendingItems.filter(i => i.severity === 'critical').map(item => (
+                                                <PendingItemCard key={item.code} item={item} />
+                                            ))}
+                                            {/* Warnings */}
+                                            {pendingItems.filter(i => i.severity === 'warning').map(item => (
+                                                <PendingItemCard key={item.code} item={item} />
+                                            ))}
+                                            {/* Sugerencias */}
+                                            {pendingItems.filter(i => i.severity === 'suggestion').map(item => (
+                                                <PendingItemCard key={item.code} item={item} />
+                                            ))}
+                                        </div>
+                                    )}
                                 </>
                             )}
                         </div>
@@ -263,7 +302,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                     {/* Mensajes */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-5">
-                        {isInitializing ? (
+                        {(!hasInitialized && isInitializing) ? (
                             <div className="flex flex-col items-center justify-center h-full gap-4">
                                 <div className="p-5 bg-emerald-900/10 rounded-full border border-emerald-500/20 animate-pulse">
                                     <Landmark size={32} className="text-emerald-500/60" />

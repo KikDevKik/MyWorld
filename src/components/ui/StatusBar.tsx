@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle, Loader2, Pause, Square, Play } from 'lucide-react';
+import { Settings, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle, Loader2, Pause, Square, Play, Landmark } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLanguageStore } from '../../stores/useLanguageStore';
+import { useLayoutStore } from '../../stores/useLayoutStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 
 interface StatusBarProps {
@@ -34,6 +35,7 @@ const getTodayKey = () => {
 const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, narratorControls }) => {
     const { customGeminiKey } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
+    const { arquitectoPendingItems, setActiveView } = useLayoutStore();
     const t = TRANSLATIONS[currentLanguage].statusBar;
 
     // METRICS STATE
@@ -122,20 +124,64 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
             <div className="flex items-center gap-4">
                 {/* 🟢 BYOK INDICATOR */}
                 <div
-                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-help transition-colors ${
-                        customGeminiKey
-                            ? 'text-purple-400 bg-purple-900/20 hover:bg-purple-900/30'
-                            : 'text-amber-400 bg-amber-900/20 hover:bg-amber-900/30'
-                    }`}
+                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-help transition-colors ${customGeminiKey
+                        ? 'text-purple-400 bg-purple-900/20 hover:bg-purple-900/30'
+                        : 'text-amber-400 bg-amber-900/20 hover:bg-amber-900/30'
+                        }`}
                     title={customGeminiKey ? t.tooltipPro : t.tooltipDemo}
                 >
-                   {customGeminiKey ? <Key size={12} /> : <AlertTriangle size={12} />}
-                   <span className="font-bold tracking-wider">
-                       {customGeminiKey ? t.proKey : t.demoMode}
-                   </span>
+                    {customGeminiKey ? <Key size={12} /> : <AlertTriangle size={12} />}
+                    <span className="font-bold tracking-wider">
+                        {customGeminiKey ? t.proKey : t.demoMode}
+                    </span>
                 </div>
 
                 <div className="h-3 w-px bg-titanium-800 mx-1" />
+
+                {/* 🏛️ ARQUITECTO INDICATOR */}
+                {arquitectoPendingItems.length > 0 && (
+                    <>
+                        <div className="relative group flex items-center">
+                            <button
+                                onClick={() => setActiveView('arquitecto')}
+                                className="flex items-center gap-1.5 px-2 py-0.5 rounded transition-all duration-300 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/40"
+                                aria-label={`${arquitectoPendingItems.length} pendientes del Arquitecto`}
+                            >
+                                <Landmark size={12} />
+                                <span className="font-bold tracking-wider">{arquitectoPendingItems.length}</span>
+                            </button>
+
+                            {/* POPUP TOOLTIP */}
+                            <div className="absolute bottom-full left-0 mb-2 w-64 bg-titanium-950 border border-titanium-700/50 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-50 overflow-hidden flex flex-col">
+                                <div className="bg-titanium-900/50 px-3 py-2 border-b border-titanium-800 flex items-center gap-2 shrink-0">
+                                    <Landmark size={12} className="text-emerald-400" />
+                                    <span className="text-[10px] font-bold text-titanium-200 uppercase tracking-wider">
+                                        {arquitectoPendingItems.length} misiones pendientes
+                                    </span>
+                                </div>
+                                <div className="p-2 flex flex-col gap-2">
+                                    {arquitectoPendingItems.slice(0, 5).map((item: any, idx: number) => (
+                                        <div key={idx} className="flex flex-col gap-0.5">
+                                            <span className="text-[10px] font-bold text-titanium-300 leading-tight flex gap-1">
+                                                <span className="text-titanium-500">-</span>
+                                                {item.title}
+                                            </span>
+                                            <span className="text-[9px] text-titanium-500 leading-tight pl-2.5 line-clamp-2">
+                                                {item.description}
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {arquitectoPendingItems.length > 5 && (
+                                        <div className="text-[9px] text-titanium-500 text-center pt-1 font-medium border-t border-titanium-800/50 mt-1">
+                                            y {arquitectoPendingItems.length - 5} más... (clic para abrir)
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="h-3 w-px bg-titanium-800 mx-1" />
+                    </>
+                )}
 
                 {/* 🛡️ EYE OF ARGOS (GUARDIAN TRIGGER) */}
                 {guardianStatus && (
@@ -144,9 +190,9 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         className={`
                             flex items-center gap-1.5 px-2 py-0.5 rounded transition-all duration-300
                             ${guardianStatus === 'scanning' ? 'text-amber-400 bg-amber-900/20 animate-pulse' :
-                              guardianStatus === 'conflict' ? 'text-red-400 bg-red-900/20 animate-pulse' :
-                              guardianStatus === 'clean' ? 'text-zinc-500 hover:text-emerald-400' :
-                              'text-zinc-600 hover:text-zinc-400'}
+                                guardianStatus === 'conflict' ? 'text-red-400 bg-red-900/20 animate-pulse' :
+                                    guardianStatus === 'clean' ? 'text-zinc-500 hover:text-emerald-400' :
+                                        'text-zinc-600 hover:text-zinc-400'}
                         `}
                         title={guardianStatus === 'scanning' ? t.tooltipArgosScan : guardianStatus === 'conflict' ? t.tooltipArgosConflict : t.tooltipArgosClean}
                         aria-label={guardianStatus === 'scanning' ? t.scanning : guardianStatus === 'conflict' ? t.conflict : t.argos}
@@ -154,7 +200,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         <ScanEye size={12} />
                         <span className="font-bold tracking-wider">
                             {guardianStatus === 'scanning' ? t.scanning :
-                             guardianStatus === 'conflict' ? t.conflict : t.argos}
+                                guardianStatus === 'conflict' ? t.conflict : t.argos}
                         </span>
                     </button>
                 )}
@@ -168,8 +214,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                 <Loader2 size={12} className="animate-spin text-cyan-400" />
                             ) : (
                                 <span className="flex h-2 w-2 relative">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
                                 </span>
                             )}
 

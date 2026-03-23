@@ -43,20 +43,6 @@ console.log("[DEBUG] Firebase Project ID:", firebaseConfig.projectId);
 // Singleton pattern to prevent re-initialization
 export const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
-// 🟢 CONNECT TO FIRESTORE EMULATOR IN DEV MODE
-if (import.meta.env.DEV && typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-    try {
-        const db = getFirestore(app);
-        // Evita doble inicialización si hay fast-refresh
-        if (!(db as any)._settingsFrozen) {
-            connectFirestoreEmulator(db, 'localhost', 8088);
-            console.log("🔥 [FIRESTORE] Conectado al Emulador Local (Puerto 8088)");
-        }
-    } catch (e) {
-        console.warn("⚠️ Error conectando al emulador de Firestore:", e);
-    }
-}
-
 export interface SecurityStatus {
     isReady: boolean;
     error: string | null;

@@ -237,7 +237,12 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
 
         try {
             toast.info("Escaneando estructura de carpetas...");
-            const data = await callFunction<any>('discoverFolderRoles', { accessToken: token });
+            const data = await callFunction<any>('discoverFolderRoles', {
+                accessToken: token,
+                rootFolderId: config?.folderId,
+                canonPaths: canonPaths,
+                resourcePaths: resourcePaths
+            });
 
             if (data.suggestion && Object.keys(data.suggestion).length > 0) {
                 setFolderMapping(prev => ({ ...prev, ...data.suggestion }));

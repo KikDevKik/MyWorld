@@ -51,6 +51,9 @@ export interface ProjectConfig {
     lastIndexed?: string;
     lastSignificantUpdate?: string;
     lastForgeScan?: string;
+    lastArquitectoAnalysis?: string;
+    arquitectoCachedPendingItems?: any[];
+    arquitectoSummary?: string;
 
     // God Mode
     longTermMemory?: {

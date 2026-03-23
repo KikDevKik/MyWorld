@@ -2,6 +2,7 @@ import { useState, useCallback, useRef } from 'react';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { callFunction } from '../services/api';
 import { toast } from 'sonner';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 
 export interface PendingItem {
     code: string;
@@ -26,6 +27,7 @@ interface UseArquitectoProps {
 }
 
 export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => {
+    const { config, updateConfig } = useProjectConfig();
     const [messages, setMessages] = useState<ArquitectoMessage[]>([]);
     const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
     const [projectSummary, setProjectSummary] = useState<string>('');
@@ -51,6 +53,41 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         }
 
         setIsInitializing(true);
+
+        const lastAnalysis = config?.lastArquitectoAnalysis;
+        const lastUpdate = config?.lastSignificantUpdate;
+        const cachedItems = config?.arquitectoCachedPendingItems || [];
+
+        // 🟢 RESTAURACIÓN INMEDIATA (Síncrona para el UI)
+        if (lastAnalysis || cachedItems.length > 0) {
+            setPendingItems(cachedItems);
+            useLayoutStore.getState().setArquitectoPendingItems(cachedItems);
+            setProjectSummary(config?.arquitectoSummary || '');
+            setLastAnalyzedAt(lastAnalysis);
+            setHasInitialized(true);
+
+            const isOutdated = lastUpdate && lastAnalysis ? lastUpdate > lastAnalysis : false;
+            setMessages([{
+                id: 'restored',
+                role: 'assistant',
+                text: isOutdated
+                    ? '📋 Análisis previo restaurado. He detectado cambios recientes en el proyecto, te sugiero re-analizar.'
+                    : '📋 Análisis restaurado. No hubo cambios desde el último análisis.',
+                timestamp: Date.now()
+            }]);
+
+            // 🔍 Búsqueda de sesión en segundo plano para habilitar chat/re-analyze
+            callFunction<any[]>('getForgeSessions', { type: 'arquitecto' })
+                .then(sessions => {
+                    if (sessions && sessions.length > 0) {
+                        setSessionId(sessions[0].id);
+                    }
+                })
+                .catch(err => console.warn("Error background session fetch:", err))
+                .finally(() => setIsInitializing(false));
+
+            return;
+        }
 
         // Ghost Mode
         if (isGhostMode) {
@@ -82,6 +119,14 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 ];
                 const mockSession = `ghost-session-${Date.now()}`;
                 const mockMessage = "El Arquitecto en línea. He analizado tu proyecto y encontré 1 problema crítico y 2 advertencias. ¿Quieres que empecemos por las contradicciones de cronología o prefieres trabajar el arco de algún personaje específico?";
+                const now = new Date().toISOString();
+
+                // 🟢 PERSISTENCIA GHOST: Guardar en Firestore para que el caché funcione al recargar
+                updateConfig({
+                    ...config,
+                    lastArquitectoAnalysis: now,
+                    arquitectoCachedPendingItems: mockPending
+                } as any);
 
                 setSessionId(mockSession);
                 setPendingItems(mockPending);
@@ -95,7 +140,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 }]);
                 setHasInitialized(true);
                 setIsInitializing(false);
-                setLastAnalyzedAt(new Date().toISOString());
+                setLastAnalyzedAt(now);
             }, 2000);
             return;
         }
@@ -164,6 +209,27 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             return;
         }
 
+        let currentSessionId = sessionId;
+
+        // Si no hay sessionId, intentamos buscarla o inicializar
+        if (!currentSessionId) {
+            try {
+                const sessions = await callFunction<any[]>('getForgeSessions', { type: 'arquitecto' });
+                if (sessions && sessions.length > 0) {
+                    currentSessionId = sessions[0].id;
+                    setSessionId(currentSessionId);
+                } else {
+                    toast.error("Sesión no encontrada. Re-analiza el proyecto.");
+                    setIsThinking(false);
+                    return;
+                }
+            } catch (e) {
+                toast.error("Error al recuperar la sesión.");
+                setIsThinking(false);
+                return;
+            }
+        }
+
         try {
             const historyPayload = messages
                 .filter(m => m.role !== 'system')
@@ -197,15 +263,31 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     }, [sessionId, messages, pendingItems, accessToken, isThinking, isGhostMode]);
 
     const reAnalyze = useCallback(async () => {
-        if (!sessionId || isAnalyzing) return;
+        if (isAnalyzing) return;
         if (!accessToken) return;
 
         setIsAnalyzing(true);
         toast.loading("El Arquitecto está re-analizando el proyecto...", { id: 'arquitecto-analyze' });
 
+        let currentSessionId = sessionId;
+
         try {
+            // Si no hay sessionId, intentamos buscarla o crear una nueva via initialize
+            if (!currentSessionId) {
+                const sessions = await callFunction<any[]>('getForgeSessions', { type: 'arquitecto' });
+                if (sessions && sessions.length > 0) {
+                    currentSessionId = sessions[0].id;
+                    setSessionId(currentSessionId);
+                } else {
+                    // Si realmente no hay sesión, llamamos a la función de inicialización del backend
+                    const initData = await callFunction<any>('arquitectoInitialize', { accessToken });
+                    currentSessionId = initData.sessionId;
+                    setSessionId(currentSessionId);
+                }
+            }
+
             const data = await callFunction<any>('arquitectoAnalyze', {
-                sessionId,
+                sessionId: currentSessionId,
                 accessToken
             });
 
@@ -232,6 +314,9 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             setIsAnalyzing(false);
         }
     }, [sessionId, accessToken, isAnalyzing]);
+    const isOutdated = config?.lastSignificantUpdate && lastAnalyzedAt
+        ? config.lastSignificantUpdate > lastAnalyzedAt
+        : false;
 
     return {
         messages,
@@ -243,6 +328,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         isAnalyzing,
         lastAnalyzedAt,
         hasInitialized,
+        isOutdated,
         initialize,
         sendMessage,
         reAnalyze

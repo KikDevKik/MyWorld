@@ -52,12 +52,16 @@ export const discoverFolderRoles = onCall(
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-        const { accessToken, rootFolderId } = request.data;
+        const { accessToken, rootFolderId, canonPaths, resourcePaths } = request.data;
         if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
         const userId = request.auth.uid;
         const config = await getProjectConfigLocal(userId);
-        const targetRootId = rootFolderId || config.folderId;
+
+        // 🟢 Robust fallback for Root ID
+        const targetRootId = rootFolderId
+            || (canonPaths && canonPaths.length > 0 ? canonPaths[0].id : null)
+            || config.folderId;
 
         let folders: { id?: string | null; name?: string | null }[] = [];
 
@@ -68,7 +72,6 @@ export const discoverFolderRoles = onCall(
                 const drive = google.drive({ version: "v3", auth });
 
                 // 1. Scan Top-Level Folders
-                // 🛡️ SECURITY: Escape targetRootId
                 const q = `'${escapeDriveQuery(targetRootId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
                 const res = await drive.files.list({
                     q,
@@ -79,9 +82,12 @@ export const discoverFolderRoles = onCall(
                 folders = res.data.files || [];
             } else {
                 // Decentralized structure: use user-selected paths if no root folder is set
+                const targetCanonPaths = canonPaths || config.canonPaths || [];
+                const targetResourcePaths = resourcePaths || config.resourcePaths || [];
+
                 folders = [
-                    ...(config.canonPaths || []),
-                    ...(config.resourcePaths || [])
+                    ...targetCanonPaths,
+                    ...targetResourcePaths
                 ].map(p => ({ id: p.id, name: p.name }));
             }
 

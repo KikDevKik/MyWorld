@@ -99,6 +99,23 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         activeSegment
     } = useNarrator();
 
+    // 🟢 ARQUITECTO QUIET RESTORATION
+    // Restore state from config on load to ensure the widget appears if there's an analysis
+    useEffect(() => {
+        if (!config || configLoading) return;
+
+        if (config.lastArquitectoAnalysis && config.arquitectoCachedPendingItems) {
+            const lastAnalysis = config.lastArquitectoAnalysis;
+            const lastUpdate = config.lastSignificantUpdate;
+
+            // Same logic as useArquitecto cache check
+            if (!lastUpdate || lastAnalysis > lastUpdate) {
+                console.log("🏛️ [Arquitecto] Quiet restoring cached pending items:", config.arquitectoCachedPendingItems.length);
+                setArquitectoPendingItems(config.arquitectoCachedPendingItems);
+            }
+        }
+    }, [config, configLoading]);
+
     // 🧪 DRIFT SIMULATION (PHASE 3)
     const [driftMarkers, setDriftMarkers] = useState<DriftMarker[]>([]);
 
@@ -473,7 +490,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 loading: 'Generando Memoria Profunda (Omnisciencia)...',
                 success: (result: any) => {
                     refreshConfig();
-                    return `¡Memoria Activada! ${result.fileCount ?? result.count ?? '?'} archivos cargados.`;
+                    return `¡Memoria Activada! ${result.fileCount ?? result.count ?? result.files ?? '?'} archivos cargados.`;
                 },
                 error: 'Error al cargar memoria. Revisa que tus archivos Canon sean texto.',
             });
@@ -756,8 +773,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return (
             <>
                 {dock}
-                {/* Widget pendientes Arquitecto — solo visible en editor */}
-                {activeView === 'editor' && currentFileId && (
+                {/* Widget pendientes Arquitecto — visible si hay pendientes y no está abierto */}
+                {activeView !== 'arquitecto' && arquitectoPendingItems.length > 0 && (
                     <ArquitectoPendingWidget
                         pendingItems={arquitectoPendingItems}
                         onOpenArquitecto={() => setActiveView('arquitecto')}
@@ -779,7 +796,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onClose={() => setActiveView('editor')}
                         folderId={folderId}
                         accessToken={oauthToken}
-                        onRefreshTokens={handleTokenRefresh}
                     />
                 </ErrorBoundary>
             );
@@ -1190,9 +1206,14 @@ function App() {
     // 🟢 INITIAL CHECK (ON LOAD)
     useEffect(() => {
         if (user) {
-            // Always try silent refresh on load to validate token freshness
-            // This prevents "Green but Broken" state (Stale Token)
-            handleTokenRefresh();
+            const init = async () => {
+                const token = await handleTokenRefresh();
+                if (!token) {
+                    // No hay refresh token guardado — conectar Drive automáticamente
+                    setTimeout(() => handleDriveLink(), 1500);
+                }
+            };
+            init();
         }
     }, [user]);
 
