@@ -51,6 +51,13 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         }
     }, [pendingItems, onPendingItemsUpdate]);
 
+    // 🟢 Fix B1: Abrir drawer automáticamente si hay pendingItems restaurados del cache
+    useEffect(() => {
+        if (pendingItems.length > 0 && !hasInitialized) {
+            setIsPendingDrawerOpen(true);
+        }
+    }, [pendingItems.length, hasInitialized]);
+
     // Auto-scroll
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -53,6 +53,13 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
         if (cachedItems && cachedItems.length > 0) {
             setPendingItems(cachedItems);
+            // Mensaje provisional — se reemplaza con historial real en initialize()
+            setMessages([{
+                id: 'cache-restored',
+                role: 'assistant',
+                text: '📋 Análisis restaurado. Cargando historial...',
+                timestamp: Date.now()
+            }]);
         }
         if (cachedSummary) {
             setProjectSummary(cachedSummary);
@@ -81,22 +88,46 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             setLastAnalyzedAt(lastAnalysis);
             setHasInitialized(true);
 
-            const isOutdated = lastUpdate && lastAnalysis ? lastUpdate > lastAnalysis : false;
-            setMessages([{
-                id: 'restored',
-                role: 'assistant',
-                text: isOutdated
-                    ? '📋 Análisis previo restaurado. He detectado cambios recientes en el proyecto, te sugiero re-analizar.'
-                    : '📋 Análisis restaurado. No hubo cambios desde el último análisis.',
-                timestamp: Date.now()
-            }]);
-
             // 🔍 Búsqueda de sesión en segundo plano para habilitar chat/re-analyze
             callFunction<any[]>('getForgeSessions', { type: 'arquitecto' })
-                .then(sessions => {
+                .then(async sessions => {
+                    let resolvedSessionId: string | null = null;
                     if (sessions && sessions.length > 0) {
-                        setSessionId(sessions[0].id);
+                        resolvedSessionId = sessions[0].id;
+                        setSessionId(resolvedSessionId);
                     }
+
+                    // 🟢 Bug 2 Fix: Cargar historial real de Firestore
+                    const sidForHistory = resolvedSessionId || useArquitectoStore.getState().arquitectoSessionId;
+                    if (sidForHistory) {
+                        try {
+                            const history = await callFunction<any[]>('getForgeHistory', { sessionId: sidForHistory });
+                            if (history && history.length > 0) {
+                                const mapped: ArquitectoMessage[] = history.map((m: any) => ({
+                                    id: m.id,
+                                    role: m.role as ArquitectoMessage['role'],
+                                    text: m.text || '',
+                                    timestamp: m.timestamp?.toMillis ? m.timestamp.toMillis() : (m.timestamp || Date.now()),
+                                    mode: m.mode
+                                }));
+                                setMessages(mapped);
+                                return; // Historial cargado — no poner mensaje de sistema
+                            }
+                        } catch (err) {
+                            console.warn('[Arquitecto] Error cargando historial:', err);
+                        }
+                    }
+
+                    // Fallback: sin historial, poner mensaje de restauración estático
+                    const isOutdated = lastUpdate && lastAnalysis ? lastUpdate > lastAnalysis : false;
+                    setMessages([{
+                        id: 'restored',
+                        role: 'assistant',
+                        text: isOutdated
+                            ? '📋 Análisis previo restaurado. He detectado cambios recientes en el proyecto, te sugiero re-analizar.'
+                            : '📋 Análisis restaurado. No hubo cambios desde el último análisis.',
+                        timestamp: Date.now()
+                    }]);
                 })
                 .catch(err => console.warn("Error background session fetch:", err))
                 .finally(() => setIsInitializing(false));
@@ -265,13 +296,21 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
             if (!data) throw new Error("Sin respuesta.");
 
-            setMessages(prev => [...prev, {
+            const assistantMsg: ArquitectoMessage = {
                 id: (Date.now() + 1).toString(),
                 role: 'assistant',
                 text: data.response,
                 timestamp: Date.now(),
                 mode: data.suggestedMode
-            }]);
+            };
+
+            setMessages(prev => [...prev, assistantMsg]);
+
+            // 🟢 Bug 2 Fix: Persistir ambos mensajes en Firestore
+            if (currentSessionId) {
+                callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'user', text }).catch(() => { });
+                callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'assistant', text: data.response }).catch(() => { });
+            }
 
         } catch (error) {
             console.error("Arquitecto chat error:", error);
