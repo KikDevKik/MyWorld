@@ -12,6 +12,7 @@ import { ForgePayload, SoulEntity, EntityTier } from '../../types/forge';
 import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
+import { EntityService } from '../../services/EntityService';
 
 interface ForgeDashboardProps {
     folderId: string; // Project Root ID (for global context)
@@ -113,49 +114,17 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         }
 
         const auth = getAuth();
-        if (!auth.currentUser) return;
-        const db = getFirestore();
+        if (!auth.currentUser || !activeSaga) return;
 
         console.log(`[ANCHOR_DEBUG] Fetching anchors for context: ${activeSaga.id} (${activeSaga.name})`);
 
-        const q = query(
-            collection(db, "users", auth.currentUser.uid, "characters"),
-            where("sourceContext", "==", activeSaga.id)
+        const unsubscribe = EntityService.subscribeToAnchors(
+            auth.currentUser.uid,
+            activeSaga.id,
+            (chars) => setCharacters(chars),
+            (error) => console.error("Error fetching characters:", error)
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const chars: Character[] = [];
-            snapshot.forEach(doc => {
-                const d = doc.data();
-
-                // 🟢 ROBUST MAPPING: Infer category from legacy fields if missing
-                let derivedCategory = d.category;
-                if (!derivedCategory) {
-                    const rawType = (d.type || d.subtype || '').toLowerCase();
-                    if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna')) derivedCategory = 'CREATURE';
-                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
-                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
-                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
-                    else derivedCategory = 'PERSON';
-                }
-
-                // 🟢 DEBUG: Log if masterFileId is missing for an Anchor
-                if (!d.masterFileId) {
-                    console.warn(`[ANCHOR_DEBUG] Character ${d.name} (${doc.id}) missing masterFileId.`);
-                }
-
-                chars.push({
-                    id: doc.id,
-                    ...d,
-                    category: derivedCategory,
-                    status: 'EXISTING',
-                    tier: d.tier as EntityTier
-                } as Character);
-            });
-            setCharacters(chars);
-        }, (error) => {
-            console.error("Error fetching characters:", error);
-        });
         return () => unsubscribe();
     }, [activeSaga?.id]);
 
@@ -196,7 +165,6 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
         const auth = getAuth();
         if (!auth.currentUser) return;
-        const db = getFirestore();
 
         // 🟢 SHARED SCOPE: Fetch ghosts for BOTH sagas (Person & Beast) to allow cross-mode visibility
         const sagaIds = [];
@@ -206,49 +174,16 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         // Fallback to active only if both missing (shouldn't happen if loaded)
         if (sagaIds.length === 0 && activeSaga?.id) sagaIds.push(activeSaga.id);
 
-        const q = query(
-            collection(db, "users", auth.currentUser.uid, "forge_detected_entities"),
-            where("saga", "in", sagaIds.length > 0 ? sagaIds : ['Global'])
+        const unsubscribe = EntityService.subscribeToDetectedEntities(
+            auth.currentUser.uid,
+            sagaIds,
+            (entities) => {
+                setDetectedEntities(entities);
+                setState('KANBAN');
+                setIsLoading(false);
+            },
+            (error) => console.error("Error fetching detected entities:", error)
         );
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const entities: SoulEntity[] = [];
-            snapshot.forEach(doc => {
-                const d = doc.data();
-
-                // 🟢 ROBUST MAPPING: Infer category for Ghosts/Limbos too
-                let derivedCategory = d.category;
-                if (!derivedCategory) {
-                    const rawType = (d.type || d.tier || d.reasoning || '').toLowerCase();
-                    // 🛡️ EVENT GUARD: Prevent "Year/Event" from becoming "Creature"
-                    if (rawType.includes('event') || rawType.includes('evento') || rawType.includes('año') || rawType.includes('year') || rawType.includes('timeline')) {
-                        derivedCategory = 'OBJECT'; // Map events to Objects/Concepts
-                    }
-                    else if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna') || rawType.includes('bestia') || rawType.includes('monster') || rawType.includes('monstruo')) derivedCategory = 'CREATURE';
-                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
-                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
-                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
-                    else derivedCategory = 'PERSON';
-                }
-
-                entities.push({
-                    id: doc.id,
-                    name: d.name,
-                    tier: d.tier as EntityTier,
-                    category: derivedCategory || 'PERSON',
-                    sourceSnippet: d.sourceSnippet || (d.foundIn || []).join('\n'),
-                    occurrences: d.occurrences || d.confidence || 0,
-                    tags: d.tags,
-                    role: d.reasoning,
-                    mergeSuggestion: d.mergeSuggestion,
-                    lastDetected: d.lastDetected || new Date().toISOString()
-                });
-            });
-
-            setDetectedEntities(entities);
-            setState('KANBAN');
-            setIsLoading(false);
-        });
 
         return () => unsubscribe();
     }, [activeSaga?.id]);
@@ -345,7 +280,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const registeredAnchors: SoulEntity[] = characters.map(c => ({
         id: c.id,
         name: c.name,
-        tier: 'ANCHOR',
+        tier: 'ANCHOR' as EntityTier,
         category: c.category || 'PERSON',
         sourceSnippet: c.role || t.registeredCharacter,
         occurrences: 0,
