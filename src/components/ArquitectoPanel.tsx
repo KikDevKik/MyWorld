@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings } from 'lucide-react';
+import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto, PendingItem } from '../hooks/useArquitecto';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -17,6 +18,8 @@ interface ArquitectoPanelProps {
 type ActiveTool = 'none' | 'domino' | 'personajes' | 'map' | 'lore' | 'settings';
 
 const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate }) => {
+    const { config } = useProjectConfig();
+    const projectName = config?.projectName || 'Mi Proyecto';
     const [inputValue, setInputValue] = useState('');
     const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
     const [activeTool, setActiveTool] = useState<ActiveTool>('none');
@@ -51,12 +54,12 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         }
     }, [pendingItems, onPendingItemsUpdate]);
 
-    // 🟢 Fix B1: Abrir drawer automáticamente si hay pendingItems restaurados del cache
+    // 🟢 Fix Bug 1: Abrir drawer automáticamente si hay pendingItems restaurados del cache
     useEffect(() => {
-        if (pendingItems.length > 0 && !hasInitialized) {
+        if (pendingItems.length > 0 && messages.length <= 1) {
             setIsPendingDrawerOpen(true);
         }
-    }, [pendingItems.length, hasInitialized]);
+    }, [pendingItems.length, messages.length]);
 
     // Auto-scroll
     useEffect(() => {
@@ -92,46 +95,61 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     return (
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
 
-            {/* Top Drawer: Pendientes (Analysis View) - Solo se muestra si está abierto */}
-            <div className={`absolute top-0 left-0 w-full z-40 transition-transform duration-300 ease-in-out origin-top max-h-[60vh] overflow-y-auto custom-scrollbar ${isPendingDrawerOpen ? 'translate-y-0 scale-y-100 opacity-100' : '-translate-y-full scale-y-0 opacity-0 pointer-events-none'}`}>
+            {/* Top Drawer: Pendientes (Analysis View) */}
+            <div className={`w-full shrink-0 z-30 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${isPendingDrawerOpen ? 'max-h-[55vh] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
                 <ArquitectoPendingWidget
                     pendingItems={pendingItems}
-                    onOpenArquitecto={reAnalyze} // Passed as Analyze trigger in this context
+                    onOpenArquitecto={reAnalyze}
                     onClose={() => setIsPendingDrawerOpen(false)}
                     isAnalyzing={isAnalyzing}
+                    hideHeader={true}
                 />
             </div>
 
-            {/* HEADER (Focused View) - Visible cuando el Drawer está cerrado */}
-            {!isPendingDrawerOpen && (
-                <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md z-30 relative">
+            {/* HEADER — siempre visible */}
+            <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md z-30 relative">
+                <button
+                    onClick={onClose}
+                    className="flex items-center gap-2 text-titanium-500 hover:text-titanium-300 transition-colors group"
+                    aria-label="Cerrar Arquitecto"
+                >
+                    <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+                    <span className="text-sm font-medium">El Arquitecto</span>
+                </button>
+
+                <div className="text-titanium-500 text-sm font-medium uppercase tracking-wider font-mono">
+                    Proyecto: {projectName}
+                </div>
+
+                <div className="w-[100px] flex justify-end">
                     <button
-                        onClick={onClose}
-                        className="flex items-center gap-2 text-titanium-500 hover:text-titanium-300 transition-colors group"
-                        aria-label="Cerrar Arquitecto"
+                        onClick={handleAnalyze}
+                        disabled={isAnalyzing || isInitializing}
+                        className="text-cyan-500 text-sm font-medium border border-cyan-500/30 px-3 py-1 rounded hover:bg-cyan-500/10 transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                        <span className="text-sm font-medium">El Arquitecto</span>
+                        {isAnalyzing ? 'Analizando...' : 'Analizar'}
                     </button>
+                </div>
+            </header>
 
-                    <div className="text-titanium-500 text-sm font-medium uppercase tracking-wider font-mono">
-                        Proyecto: Nebulosa
-                    </div>
-
-                    <div className="w-[100px] flex justify-end">
-                        <button
-                            onClick={handleAnalyze}
-                            disabled={isAnalyzing || isInitializing}
-                            className="text-cyan-500 text-sm font-medium border border-cyan-500/30 px-3 py-1 rounded hover:bg-cyan-500/10 transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isAnalyzing ? 'Analizando...' : 'Analizar'}
-                        </button>
-                    </div>
-                </header>
+            {/* Chevron toggle — abre/cierra el drawer de misiones */}
+            {pendingItems.length > 0 && (
+                <div className="flex justify-center shrink-0 z-30 bg-[#0a0a0a]/60">
+                    <button
+                        onClick={() => setIsPendingDrawerOpen(v => !v)}
+                        className="flex items-center gap-1.5 px-4 py-1 text-titanium-500 hover:text-cyan-400 transition-colors text-xs font-mono tracking-wider group"
+                        aria-label={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
+                        title={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
+                    >
+                        {isPendingDrawerOpen
+                            ? <ChevronUp size={14} className="group-hover:scale-110 transition-transform" />
+                            : <ChevronDown size={14} className="group-hover:scale-110 transition-transform" />}
+                    </button>
+                </div>
             )}
 
             {/* Main Workspace Area */}
-            <main className={`flex-1 relative flex justify-center w-full overflow-hidden transition-all duration-300 ${isPendingDrawerOpen || activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
+            <main className={`flex-1 relative flex justify-center w-full overflow-hidden transition-all duration-300 ${activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
 
                 {/* Chat Feed Container */}
                 <div className="w-full max-w-[720px] h-full flex flex-col pt-8 pb-[100px] px-4 overflow-y-auto z-10 scroll-smooth">

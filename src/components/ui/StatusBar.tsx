@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { useLayoutStore } from '../../stores/useLayoutStore';
+import { useArquitectoStore } from '../../stores/useArquitectoStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 
 interface StatusBarProps {
@@ -35,7 +36,8 @@ const getTodayKey = () => {
 const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, narratorControls }) => {
     const { customGeminiKey } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
-    const { arquitectoPendingItems, setActiveView } = useLayoutStore();
+    const { setActiveView } = useLayoutStore();
+    const arquitectoPendingItems = useArquitectoStore(state => state.arquitectoPendingItems) ?? [];
     const t = TRANSLATIONS[currentLanguage].statusBar;
 
     // METRICS STATE

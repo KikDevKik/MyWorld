@@ -775,13 +775,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return (
             <>
                 {dock}
-                {/* Widget pendientes Arquitecto — visible si hay pendientes y no está abierto */}
-                {activeView !== 'arquitecto' && arquitectoWidgetVisible && arquitectoPendingItems.length > 0 && (
-                    <ArquitectoPendingWidget
-                        pendingItems={arquitectoPendingItems}
-                        onOpenArquitecto={() => setActiveView('arquitecto')}
-                    />
-                )}
+
                 <div className="flex-1 min-w-0 h-full overflow-hidden">
                     {expandedContent}
                 </div>
