@@ -52,8 +52,20 @@ import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 import { useLanguageStore } from './stores/useLanguageStore';
 import { TRANSLATIONS } from './i18n/translations';
 
+interface AppContentProps {
+    user: User | null;
+    setUser: React.Dispatch<React.SetStateAction<User | null>>;
+    setOauthToken: React.Dispatch<React.SetStateAction<string | null>>;
+    oauthToken: string | null;
+    driveStatus: 'connected' | 'refreshing' | 'error' | 'disconnected';
+    setDriveStatus: React.Dispatch<React.SetStateAction<'connected' | 'refreshing' | 'error' | 'disconnected'>>;
+    handleTokenRefresh: () => Promise<string | null>;
+    handleDriveLink: () => void;
+    isSecurityReady: boolean;
+}
+
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
-function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: any) {
+function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: AppContentProps) {
     const { config, updateConfig, refreshConfig, loading: configLoading, technicalError, fileTree } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].toasts;
@@ -245,7 +257,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 setIsScanningDrift(true);
                 try {
                     console.log("📡 [SENTINEL] Triggering Deep Drift Scan...");
-                    const data = await callFunction<any>('scanProjectDrift', { projectId: folderId });
+                    const data = await callFunction<{ success: boolean; alerts: any[] }>('scanProjectDrift', { projectId: folderId });
 
                     if (data && data.success && data.alerts) {
                         console.log("📡 [SENTINEL] Scan Results:", data.alerts);
@@ -278,6 +290,25 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
     const [editorWidth, setEditorWidth] = useState<'narrow' | 'wide'>('narrow');
     const [indexStatus, setIndexStatus] = useState<{ isIndexed: boolean; lastIndexedAt: string | null }>({ isIndexed: false, lastIndexedAt: null });
+    const [initialByokChecked, setInitialByokChecked] = useState(false);
+
+    // 🟢 BYOK ONBOARDING
+    const { customGeminiKey } = useProjectConfig();
+    useEffect(() => {
+        if (!isAppLoading && user && !initialByokChecked) {
+            setInitialByokChecked(true);
+            if (!customGeminiKey) {
+                toast("Falta Clave de IA (BYOK)", {
+                    description: "Para usar las herramientas avanzadas, necesitas configurar tu propia API Key de Google Gemini.",
+                    duration: 10000,
+                    action: {
+                        label: "Configurar",
+                        onClick: () => setIsSettingsModalOpen(true)
+                    }
+                });
+            }
+        }
+    }, [isAppLoading, user, customGeminiKey, initialByokChecked]);
 
     // 🟢 FILE LOCKING
     const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);
@@ -452,7 +483,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         try {
             console.log("Iniciando indexado estricto...", folderIds);
 
-            const promise = callFunction<any>('indexTDB', {
+            const promise = callFunction<{ success: boolean; message: string }>('indexTDB', {
                 folderIds: folderIds,
                 projectId: config.folderId || folderId,
                 accessToken: oauthToken,
@@ -483,7 +514,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
 
         try {
-            const promise = callFunction<any>('updateLongTermMemory', {
+            const promise = callFunction<{ success: boolean; fileCount?: number; count?: number; files?: number }>('updateLongTermMemory', {
                 accessToken: oauthToken,
                 folderId: folderId
             });
@@ -1131,7 +1162,7 @@ function App() {
                 if (response.code) {
                     const toastId = toast.loading("Vinculando Drive permanentemente...");
                     try {
-                        const data = await callFunction<any>('exchangeAuthCode', { code: response.code });
+                        const data = await callFunction<{ success: boolean; accessToken: string }>('exchangeAuthCode', { code: response.code });
 
                         if (data && data.success && data.accessToken) {
                             setOauthToken(data.accessToken);
@@ -1162,7 +1193,7 @@ function App() {
         setDriveStatus('refreshing');
         try {
             // 🟢 BACKEND REFRESH (SILENT)
-            const data = await callFunction<any>('refreshDriveToken');
+            const data = await callFunction<{ success: boolean; accessToken?: string; reason?: string }>('refreshDriveToken');
 
             if (data && data.success && data.accessToken) {
                 console.log("✅ Token refrescado silenciosamente (Backend).");

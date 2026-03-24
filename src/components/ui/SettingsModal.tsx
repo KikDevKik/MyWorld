@@ -230,6 +230,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     };
 
     const traverseAndLog = (nodes: any[], path: string = '') => {
+        if (!Array.isArray(nodes)) return 0; // 🟢 SECURITY GUARD: Prevent forEach crash on invalid payload
         let count = 0;
         nodes.forEach(node => {
             const fullPath = `${path}/${node.name}`;

@@ -75,9 +75,9 @@ autor da documento / idea
 - **Personaje** — preguntas que revelan huecos en arco o motivación
 
 ### Fases de implementación
-- **Fase 1 (MVP):** Chat dedicado + comportamiento base + Modo Efecto Dominó
-- **Fase 2:** Cronología de Revelación + Investigación Cultural + sesiones persistentes
-- **Fase 3:** Integración con Forja y Nexus Canvas
+- **Fase 1 (MVP):** ✅ Chat dedicado + comportamiento base + Modo Efecto Dominó
+- **Fase 2:** ✅ Caché de análisis inteligente + Status Bar Hover (Reemplazando el diseño original de Widget Persistente para mantener la UI limpia) + Cronología de Revelación.
+- **Fase 3:** (Pendiente) Integración con Forja y Nexus Canvas
 
 ---
 
