@@ -61,3 +61,12 @@ Si intentas solucionar el mismo error más de 3 veces consecutivas sin éxito tr
 ## 5. Registro de Autopsias (Anti-Patrones Prohibidos)
 *(Gemini, anota aquí tus fallos críticos durante el desarrollo para inyectarlos en tu contexto y no volver a cometerlos):*
 - **[VACÍO - A la espera de la primera anomalía]**
+
+
+
+## 6. Gestión de Estado Continuo (Keikaku / Quest Log)
+**Trigger:** Al inicio de una sesión de trabajo con múltiples objetivos, al recibir un nuevo bloque de instrucciones, o cuando el usuario pregunte "estado" o "qué falta".
+1. **Mapeo de Misión (Quest Log):** Antes de ejecutar la FASE 1 (Nemawashi), desglosa la instrucción del usuario en una lista de tareas procesables usando formato de checklist (`- [ ] Tarea`).
+2. **Punto de Control (Save Room):** Crea o actualiza silenciosamente un archivo temporal llamado `.gemini_session.md` en la raíz del proyecto. Escribe allí el Quest Log actual. Este archivo es tu única fuente de verdad para la sesión.
+3. **Auto-Tracking:** Cada vez que finalices la FASE 4 (Koseki) de una subtarea, marca la tarea como completada (`- [x] Tarea`) tanto en el archivo `.gemini_session.md` como en tu respuesta en la terminal.
+4. **Cierre de Sesión:** Si el usuario indica que la sesión terminó, lee el `.gemini_session.md`. Si hay tareas pendientes, adviértelo. Si todo está completo, sugiere actualizar el `ROADMAP.md` principal del proyecto y elimina el archivo temporal.
