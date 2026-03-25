@@ -403,28 +403,27 @@ export const auditContent = onCall(
                         const charName = behavior.character;
                         const slug = charName.toLowerCase().replace(/\s+/g, '-');
 
-                        // Fetch Profile
+                        // Fetch Profile from WorldEntities
+                        const { EntityRepository } = await import("./repository/EntityRepository");
                         let forgeProfile = "";
-                        let charDocRef = db.collection("users").doc(userId).collection("characters").doc(slug);
-                        let charDoc = await charDocRef.get();
+                        
+                        const charsSnap = await EntityRepository.getCollection(userId)
+                            .where("name", "==", charName)
+                            .where("category", "==", "PERSON")
+                            .limit(1).get();
+                            
+                        let charDoc = charsSnap.empty ? null : charsSnap.docs[0];
 
-                        if (!charDoc.exists) {
-                            const charsSnap = await db.collection("users").doc(userId).collection("characters")
-                                .where("name", "==", charName).limit(1).get();
-                            if (!charsSnap.empty) {
-                                charDoc = charsSnap.docs[0];
-                                charDocRef = charDoc.ref;
-                            }
-                        }
-
-                        if (charDoc.exists) {
+                        if (charDoc) {
                             const data = charDoc.data();
-                            if (data?.personality && data?.evolution) {
-                                forgeProfile = `PERSONALITY: ${data.personality}\nEVOLUTION ARC: ${data.evolution}`;
-                            } else if (data?.bio || data?.description) {
+                            // Look inside ECS modules or legacy fallback
+                            const summary = data.modules?.forge?.summary || data.description || data.bio || "";
+                            if (summary) {
+                                forgeProfile = `SUMMARY/PROFILE: ${summary}`;
+                            } else {
                                 const profilePrompt = `
-                                EXTRACT PERSONALITY & EVOLUTION from this bio:
-                                "${escapePromptVariable(data.bio || data.description)}"
+                                EXTRACT PERSONALITY & EVOLUTION from this text (if possible):
+                                "${escapePromptVariable(JSON.stringify(data))}"
                                 INSTRUCTION: Output in ${detectedLanguage}.
                                 OUTPUT FORMAT: "Personality: ... Evolution: ..."
                              `;
@@ -438,9 +437,13 @@ export const auditContent = onCall(
 
                                 if (safeProfile.text) {
                                     forgeProfile = safeProfile.text;
-                                    charDocRef.set({
-                                        personality: forgeProfile,
-                                        lastAnalyzed: new Date().toISOString()
+                                    charDoc.ref.set({
+                                        modules: {
+                                            guardian: {
+                                                personality: forgeProfile,
+                                                lastAnalyzed: new Date().toISOString()
+                                            }
+                                        }
                                     }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
                                 }
                             }
@@ -683,8 +686,11 @@ export const scanProjectDrift = onCall(
             };
 
             // 3. Pre-load Context for Classification (Lightweight)
-            // Characters
-            const charsSnap = await db.collection("users").doc(userId).collection("characters").select("name").get();
+            // Characters from ECS
+            const { EntityRepository } = await import("./repository/EntityRepository");
+            const charsSnap = await EntityRepository.getCollection(userId)
+                .where("category", "==", "PERSON")
+                .select("name").get();
             const charNames = charsSnap.docs.map(d => d.data().name.toLowerCase());
 
             let count = 0;

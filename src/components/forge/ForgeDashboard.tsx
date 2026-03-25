@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle, User, PawPrint, ExternalLink, MapPin, Box } from 'lucide-react';
 import { toast } from 'sonner';
 import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, DragStartEvent } from '@dnd-kit/core';
 
+// 🟢 ECS SYNCHRONIZED DASHBOARD
+// Uses EntityService to listen to unified WorldEntities collection.
 import ForgeChat from './ForgeChat';
 import ForgeCard from './ForgeCard';
 import { Character, DriveFile } from '../../types';
@@ -129,32 +130,35 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         setDetectedEntities([]);
 
         // 🟢 GHOST MODE BYPASS: Allow rendering without saga
-        if (!activeSaga && import.meta.env.VITE_JULES_MODE !== 'true') {
+        if (!folderId && import.meta.env.VITE_JULES_MODE !== 'true') {
             setIsLoading(false);
             return;
         }
 
         const auth = getAuth();
-        if (!auth.currentUser || !activeSaga) return;
+        if (!auth.currentUser || !folderId) return;
 
-        console.log(`[ANCHOR_DEBUG] Fetching anchors for context: ${activeSaga.id} (${activeSaga.name})`);
+        console.log(`[ANCHOR_DEBUG] Fetching anchors for project root: ${folderId}`);
 
+        // We subscribe to the ROOT folderId to see all project entities, 
+        // ForgeDashboard will handle filtering by category (PERSON vs CREATURE)
         const unsubscribe = EntityService.subscribeToAnchors(
             auth.currentUser.uid,
-            activeSaga.id,
+            folderId,
             (entities) => setCharacters(entities.map(toCharacter)),
             (error) => console.error("Error fetching characters:", error)
         );
 
         return () => unsubscribe();
-    }, [activeSaga?.id]);
+    }, [folderId]);
 
     // --- 2. SOUL SORTER LISTENER (GHOSTS & LIMBOS) ---
     useEffect(() => {
         // 🟢 GHOST MODE BYPASS
-        if (!activeSaga && import.meta.env.VITE_JULES_MODE !== 'true') return;
+        if (!folderId && import.meta.env.VITE_JULES_MODE !== 'true') return;
 
         if (import.meta.env.VITE_JULES_MODE === 'true') {
+            // ... (mock data remains same)
             setState('KANBAN');
             setIsLoading(false);
             setCharacters([
@@ -167,7 +171,6 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     sourceContext: 'GLOBAL',
                     masterFileId: 'mock_file_verify',
                     role: 'Protagonista de Prueba',
-                    // appearances: [], // REMOVED (Not in Character interface)
                     snippets: [],
                     status: 'EXISTING',
                     lastUpdated: new Date().toISOString()
@@ -185,19 +188,11 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         }
 
         const auth = getAuth();
-        if (!auth.currentUser) return;
-
-        // 🟢 SHARED SCOPE: Fetch ghosts for BOTH sagas (Person & Beast) to allow cross-mode visibility
-        const sagaIds = [];
-        if (characterSaga?.id) sagaIds.push(characterSaga.id);
-        if (bestiarySaga?.id) sagaIds.push(bestiarySaga.id);
-
-        // Fallback to active only if both missing (shouldn't happen if loaded)
-        if (sagaIds.length === 0 && activeSaga?.id) sagaIds.push(activeSaga.id);
+        if (!auth.currentUser || !folderId) return;
 
         const unsubscribe = EntityService.subscribeToDetectedEntities(
             auth.currentUser.uid,
-            sagaIds,
+            folderId,
             (entities) => {
                 setDetectedEntities(entities.map(toSoulEntity));
                 setState('KANBAN');
@@ -207,7 +202,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         );
 
         return () => unsubscribe();
-    }, [activeSaga?.id]);
+    }, [folderId]);
 
     // --- ACTIONS ---
 

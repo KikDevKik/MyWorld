@@ -128,4 +128,97 @@ export class EntityService {
             onUpdate(entities);
         }, onError);
     }
+
+    // ── CRUD OPERATIONS ────────────────────────────────────────────────────────
+
+    static async updateEntity(userId: string, entityId: string, updates: Partial<WorldEntity>): Promise<void> {
+        const { updateDoc, doc } = await import('firebase/firestore');
+        const db = getFirestore();
+        const ref = doc(db, 'users', userId, 'WorldEntities', entityId);
+        await updateDoc(ref, updates as DocumentData);
+    }
+
+    static async deleteEntity(userId: string, entityId: string): Promise<void> {
+        const { deleteDoc, doc } = await import('firebase/firestore');
+        const db = getFirestore();
+        const ref = doc(db, 'users', userId, 'WorldEntities', entityId);
+        await deleteDoc(ref);
+    }
+
+    static async getEntity(userId: string, entityId: string): Promise<WorldEntity | null> {
+        const { getDoc, doc } = await import('firebase/firestore');
+        const db = getFirestore();
+        const ref = doc(db, 'users', userId, 'WorldEntities', entityId);
+        const snap = await getDoc(ref);
+        if (snap.exists()) {
+            return { id: snap.id, ...snap.data() } as WorldEntity;
+        }
+        return null;
+    }
+
+    static async saveEntity(userId: string, entityId: string, data: Partial<WorldEntity>): Promise<void> {
+        const { setDoc, doc } = await import('firebase/firestore');
+        const db = getFirestore();
+        const ref = doc(db, 'users', userId, 'WorldEntities', entityId);
+        await setDoc(ref, data, { merge: true });
+    }
+
+    static async findEntityByName(userId: string, projectId: string, name: string): Promise<WorldEntity | null> {
+        const { getDocs, limit } = await import('firebase/firestore');
+        const q = query(
+            EntityService.getCollection(userId),
+            where('projectId', '==', projectId),
+            where('name', '==', name),
+            limit(1)
+        );
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+            return { id: snap.docs[0].id, ...snap.docs[0].data() } as WorldEntity;
+        }
+        return null;
+    }
+
+    static async deleteAllProjectEntities(userId: string, projectId: string): Promise<void> {
+        const { getDocs, writeBatch } = await import('firebase/firestore');
+        const db = getFirestore();
+        const q = query(EntityService.getCollection(userId), where('projectId', '==', projectId));
+        const snap = await getDocs(q);
+        
+        const batch = writeBatch(db);
+        snap.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+    }
+
+    // ── SETTINGS OPERATIONS ──────────────────────────────────────────────────
+
+    static async getProjectSettings(userId: string, projectId: string): Promise<DocumentData | null> {
+        const { getDoc, doc } = await import('firebase/firestore');
+        const db = getFirestore();
+        const ref = doc(db, 'users', userId, 'projects', projectId, 'settings', 'general');
+        const snap = await getDoc(ref);
+        return snap.exists() ? snap.data() : null;
+    }
+
+    static async updateProjectSettings(userId: string, projectId: string, updates: DocumentData): Promise<void> {
+        const { setDoc, doc } = await import('firebase/firestore');
+        const db = getFirestore();
+        const ref = doc(db, 'users', userId, 'projects', projectId, 'settings', 'general');
+        await setDoc(ref, updates, { merge: true });
+    }
+
+    static subscribeToProjectSettings(
+        userId: string,
+        projectId: string,
+        onUpdate: (settings: DocumentData | null) => void,
+        onError?: (error: unknown) => void
+    ): Unsubscribe {
+        const { doc, onSnapshot } = require('firebase/firestore');
+        const db = getFirestore();
+        const ref = doc(db, 'users', userId, 'projects', projectId, 'settings', 'general');
+        return onSnapshot(ref, (snap: any) => {
+            onUpdate(snap.exists() ? snap.data() : null);
+        }, onError);
+    }
 }

@@ -103,23 +103,25 @@ export const scribeCreateFile = onCall(
                     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
 
                     const inferencePrompt = `
-                    TASK: Classify the Entity described in the text.
+                    TASK: Extrae componentes para una 'WorldEntity' descrita en el texto.
                     ENTITY NAME: "${escapePromptVariable(entityData.name)}"
                     CONTEXT: "${escapePromptVariable(chatContent.substring(0, 5000))}"
 
-                    VALID TYPES:
-                    - 'character': Person, AI, sentient being.
-                    - 'location': Place, city, planet, building.
-                    - 'faction': Group, organization, guild.
-                    - 'object': Item, weapon, artifact.
-                    - 'event': Historical event, scene.
-                    - 'lore': History, myth, legend.
-                    - 'concept': Magic system, law, philosophy.
-
-                    OUTPUT JSON:
+                    REGLAS STRICTAS:
+                    - NO devuelvas "tipos" monolíticos (ej. character, location).
+                    - Devuelve ÚNICAMENTE un JSON con los siguientes módulos de datos:
+                    
+                    OUTPUT JSON FORMAT:
                     {
-                      "type": "character" | "location" | "faction" | "object" | "event" | "lore" | "concept",
-                      "role": "Short 3-5 word role description (e.g. 'Main Protagonist', 'Ancient Sword')"
+                      "forge": {
+                         "tags": ["Array de tags de 1 palabra para la Forja"],
+                         "summary": "Resumen de 1-2 oraciones del rol de la entidad"
+                      },
+                      "nexus": {
+                         "relations": [
+                             { "targetId": "Nombre de otra entidad", "relationType": "ALLY | ENEMY | FAMILY | NEUTRAL", "context": "Por qué están relacionados" }
+                         ]
+                      }
                     }
                     `;
 

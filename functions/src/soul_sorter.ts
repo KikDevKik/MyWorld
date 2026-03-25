@@ -11,6 +11,7 @@ import matter from 'gray-matter';
 import { EntityTier, EntityCategory, ForgePayload, SoulEntity, DetectedEntity } from "./types/forge";
 import { enrichEntitiesParallel } from "./services/enrichment";
 import { getAIKey } from "./utils/security";
+import { EntityRepository } from "./repository/EntityRepository";
 
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
@@ -330,11 +331,11 @@ export async function identifyEntities(
     KNOWN ENTITIES: [${knownEntitiesList}]
 
     RULES:
-    1. Extract Proper Names of People/Beings (e.g. "Thomas", "Megu") -> Category: 'PERSON'.
-    2. Extract Names of MYTHICAL CREATURES or SPECIAL FAUNA (e.g. "Baku-fante", "Shadow Wolf") -> Category: 'CREATURE'.
-    3. Extract Names of SPECIAL FLORA (e.g. "Moon Flower") -> Category: 'FLORA'.
-    4. Extract Names of IMPORTANT LOCATIONS (Cities, Kingdoms, Planets) -> Category: 'LOCATION'.
-    5. Extract Names of LEGENDARY/MAGIC OBJECTS (Swords, Artifacts) -> Category: 'OBJECT'.
+    1. Extract Proper Names of People/Beings -> Category: 'PERSON'.
+    2. Extract Names of MYTHICAL CREATURES or SPECIAL FAUNA -> Category: 'CREATURE'.
+    3. Extract Names of SPECIAL FLORA -> Category: 'FLORA'.
+    4. Extract Names of IMPORTANT LOCATIONS -> Category: 'LOCATION'.
+    5. Extract Names of LEGENDARY/MAGIC OBJECTS -> Category: 'OBJECT'.
 
     6. DEDUPLICATION: Use known names if possible.
     7. STRICT CLASSIFICATION: Do not label a Place as a Person.
@@ -344,7 +345,9 @@ export async function identifyEntities(
       {
         "name": "Name",
         "category": "PERSON" | "CREATURE" | "FLORA" | "LOCATION" | "OBJECT",
-        "context": "Brief context snippet (max 10 words)"
+        "modules": {
+            "forge": { "summary": "Brief context snippet (max 10 words)" }
+        }
       }
     ]
     `;
@@ -526,59 +529,37 @@ export const classifyEntities = onCall(
                 5
             );
 
-            // --- 4. PERSISTENCE ---
-            const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
-            const charactersRef = db.collection("users").doc(uid).collection("characters");
-
-            const BATCH_SIZE = 200; // Reduced to prevent exceeding 500 ops limit
+            // --- 4. PERSISTENCE (ECS) ---
+            const BATCH_SIZE = 100; // Using EntityRepository which resolves its own queries
             const setOperations: Promise<any>[] = [];
-            let currentSetBatch = db.batch();
-            let setCount = 0;
 
             enrichedEntities.forEach(e => {
-                // A. SAVE TO DETECTED ENTITIES (Radar)
-                const ref = detectionRef.doc(e.id);
-
                 const safePayload: any = {
-                    ...e,
-                    role: e.role || null,
-                    avatar: e.avatar || null,
-                    driveId: e.driveId || null,
+                    id: e.id,
+                    projectId: sagaId || 'Global',
+                    name: e.name,
                     category: e.category || 'PERSON',
-                    sourceSnippet: e.sourceSnippet || "No preview available",
-                    mergeSuggestion: e.mergeSuggestion || null,
-                    tags: e.tags || [],
-                    saga: sagaId || 'Global',
-                    lastDetected: new Date().toISOString(),
-                    occurrences: FieldValue.increment(e.occurrences)
+                    tier: e.tier,
+                    status: 'active',
+                    modules: {
+                        forge: {
+                            summary: e.sourceSnippet || "No preview available",
+                            aliases: e.aliases || [],
+                            tags: e.tags || [],
+                        },
+                        guardian: {
+                            occurrences: FieldValue.increment(e.occurrences),
+                            firstMentionedIn: (e as any).sourceFileId || null
+                        }
+                    }
                 };
 
-                currentSetBatch.set(ref, safePayload, { merge: true });
-
-                // 🟢 B. AUTO-HEALING (Sync Anchors to Roster)
                 if (e.tier === 'ANCHOR' && e.driveId) {
-                    const charRef = charactersRef.doc(e.id);
-                    currentSetBatch.set(charRef, {
-                        masterFileId: e.driveId,
-                        lastRelinked: new Date().toISOString(),
-                        sourceContext: sagaId || 'Global',
-                        status: 'EXISTING',
-                        sourceType: 'MASTER',
-                        name: e.name,
-                        category: e.category || 'PERSON',
-                        tier: 'ANCHOR',
-                        isAIEnriched: true
-                    }, { merge: true });
+                    safePayload.driveFileId = e.driveId;
                 }
 
-                setCount++;
-                if (setCount >= BATCH_SIZE) {
-                    setOperations.push(currentSetBatch.commit());
-                    currentSetBatch = db.batch();
-                    setCount = 0;
-                }
+                setOperations.push(EntityRepository.upsertEntity(uid, e.id, safePayload));
             });
-            if (setCount > 0) setOperations.push(currentSetBatch.commit());
 
             // --- 6. UPDATE SOUL HASHES (OPTIMIZATION) ---
             // Update lastSoulSortedHash for processed files

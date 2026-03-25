@@ -643,6 +643,8 @@ export const indexTDB = onCall(
   }
 );
 
+import { EntityRepository } from "./repository/EntityRepository";
+
 /**
  * SUMMON THE TRIBUNAL
  * Three ruthless AI judges evaluate a piece of writing and issue a verdict.
@@ -664,6 +666,7 @@ export const summonTheTribunal = onCall(
     if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
 
     let { text, context, fileId, accessToken } = request.data;
+    const userId = request.auth.uid;
 
     // Resolve text from Drive file if fileId provided
     if (fileId && accessToken && !text) {
@@ -751,11 +754,37 @@ OUTPUT JSON:
         };
       };
 
-      return {
+      const finalVerdict = {
         architect: parseJudge(architectResult, 'TribunalArchitect'),
         bard: parseJudge(bardResult, 'TribunalBard'),
         hater: parseJudge(haterResult, 'TribunalHater'),
       };
+
+      // 🟢 ECS PERSISTENCE: Save verdicts to WorldEntity if we have a fileId
+      if (fileId) {
+        const db = getFirestore();
+        const entitiesRef = db.collection("users").doc(userId).collection("WorldEntities");
+        const querySnap = await entitiesRef.where("driveFileId", "==", fileId).limit(1).get();
+
+        if (!querySnap.empty) {
+          const entityId = querySnap.docs[0].id;
+          await EntityRepository.upsertEntity(userId, entityId, {
+            modules: {
+              judgement: {
+                tribunalVerdicts: {
+                  architect: JSON.stringify(finalVerdict.architect),
+                  bard: JSON.stringify(finalVerdict.bard),
+                  hater: JSON.stringify(finalVerdict.hater)
+                },
+                lastJudgedAt: new Date().toISOString()
+              }
+            }
+          });
+          logger.info(`✅ [TRIBUNAL] Verdict persisted for entity ${entityId}`);
+        }
+      }
+
+      return finalVerdict;
 
     } catch (error: any) {
       logger.error("[TRIBUNAL] Session failed:", error);
@@ -3014,6 +3043,25 @@ export const forgeAnalyzer = onCall(
           }
           return e;
         });
+      }
+
+      // 🟢 ECS PERSISTENCE: Save Inspector Report to WorldEntity
+      if (fileId) {
+        const entitiesRef = db.collection("users").doc(userId).collection("WorldEntities");
+        const querySnap = await entitiesRef.where("driveFileId", "==", fileId).limit(1).get();
+
+        if (!querySnap.empty) {
+          const entityId = querySnap.docs[0].id;
+          await EntityRepository.upsertEntity(userId, entityId, {
+            modules: {
+              judgement: {
+                lastInspectorReport: JSON.stringify(parsed),
+                lastJudgedAt: new Date().toISOString()
+              }
+            }
+          });
+          logger.info(`✅ [INSPECTOR] Report persisted for entity ${entityId}`);
+        }
       }
 
       return parsed;

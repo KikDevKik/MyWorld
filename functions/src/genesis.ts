@@ -168,18 +168,12 @@ export const genesisManifest = onCall(
             - Valid values: 'FPS', 'TPS', 'CINEMATIC'. Default: 'TPS'.
 
             EXTRACT ENTITIES (The Taxonomy):
-            1. TYPE_SOUL: Characters with agency/dialogue. (Max 3).
-               - REQUIRED METADATA: 'role' (Default: "NPC"), 'age' (Default: "Desconocida").
-            2. TYPE_BEAST: Monsters, creatures, or non-sentient threats.
-            3. TYPE_LOCATION: Key settings/places. (Max 2).
-            4. TYPE_ITEM: Important objects, artifacts, or MacGuffins.
-            5. TYPE_CHAPTER: The inciting incident or first chapter idea. (Max 1).
-
-            AGENCY CHECK PROTOCOL:
-            - If it speaks or has a political/social role -> TYPE_SOUL.
-            - If it growls/kills but doesn't debate -> TYPE_BEAST.
-            - If it's a place -> TYPE_LOCATION.
-            - If it's an object -> TYPE_ITEM.
+            - Entities must be classified by 'category' (PERSON, CREATURE, LOCATION, OBJECT) instead of legacy types.
+            1. PERSON: Characters with agency/dialogue. (Max 3). REQUIRED METADATA: 'role', 'age'.
+            2. CREATURE: Monsters, creatures, or non-sentient threats.
+            3. LOCATION: Key settings/places. (Max 2).
+            4. OBJECT: Important objects, artifacts.
+            5. CHAPTER: The inciting incident or first chapter idea. (Max 1).
 
             LANGUAGE INSTRUCTION:
             Detect the language of the CHAT HISTORY.
@@ -190,29 +184,19 @@ export const genesisManifest = onCall(
               "narrative_style": "FPS" | "TPS" | "CINEMATIC",
               "entities": [
                 {
-                  "type": "TYPE_SOUL",
+                  "category": "PERSON",
                   "name": "Name",
                   "role": "Protagonist / Antagonist / NPC",
                   "age": "30 / Unknown",
                   "traits": "Brief description..."
                 },
                 {
-                  "type": "TYPE_BEAST",
+                  "category": "CREATURE",
                   "name": "Monster Name",
                   "traits": "Scary details..."
                 },
                 {
-                  "type": "TYPE_LOCATION",
-                  "name": "Location Name",
-                  "traits": "Atmosphere..."
-                },
-                {
-                  "type": "TYPE_ITEM",
-                  "name": "Object Name",
-                  "traits": "Function..."
-                },
-                {
-                  "type": "TYPE_CHAPTER",
+                  "category": "CHAPTER",
                   "title": "Chapter Title",
                   "summary": "Brief summary",
                   "content": "Starting paragraph..."
@@ -268,27 +252,27 @@ export const genesisManifest = onCall(
             let role = "Entity";
             let context = "";
 
-            if (item.type === 'TYPE_SOUL') {
+            if (item.category === 'PERSON') {
                 folderId = peopleFolderId;
                 traits = ['sentient'];
                 role = item.role || "NPC";
                 context = `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`;
-            } else if (item.type === 'TYPE_LOCATION') {
+            } else if (item.category === 'LOCATION') {
                 folderId = worldFolderId;
                 traits = ['locatable'];
                 role = "Setting";
                 context = `## 📝 Descripción\n${item.traits}\n\n## 🌍 Geografía\nGenerado por el Protocolo Génesis.`;
-            } else if (item.type === 'TYPE_BEAST') {
+            } else if (item.category === 'CREATURE') {
                 folderId = bestiaryFolderId;
                 traits = ['tangible', 'sentient'];
                 role = "Monster";
                 context = `## 📝 Descripción\n${item.traits}\n\n## 🐾 Comportamiento\nGenerado por el Protocolo Génesis.`;
-            } else if (item.type === 'TYPE_ITEM') {
+            } else if (item.category === 'OBJECT') {
                 folderId = itemsFolderId || worldFolderId;
                 traits = ['tangible'];
                 role = "Item";
                 context = `## 📝 Descripción\n${item.traits}\n\n## 💎 Propiedades\nGenerado por el Protocolo Génesis.`;
-            } else if (item.type === 'TYPE_CHAPTER') {
+            } else if (item.category === 'CHAPTER') {
                 folderId = targetManuscriptFolder;
                 const fileName = `${item.title.replace(/[^a-zA-Z0-9\-_ ]/g, '')}.md`;
                 const content = generateDraftContent({
@@ -297,12 +281,6 @@ export const genesisManifest = onCall(
                     summary: item.summary,
                     content: item.content
                 });
-
-                // Chapters are just regular files, usually handled directly as they are not "Entities" in the Ontology sense yet
-                // But we can use TitaniumGenesis to birth them as 'temporal' events or similar?
-                // Or just keep legacy creation for chapters since they are content, not entities?
-                // The Blueprint says "Entry Points Audit... Audit every function that creates a file".
-                // Chapters ARE files. Let's stick to legacy for pure chapters for now as they are not "Titanium Entities" in the same way.
 
                 try {
                     const fileRes = await drive.files.create({
@@ -321,7 +299,7 @@ export const genesisManifest = onCall(
                          createdFiles.push({
                             id: fileRes.data.id,
                             name: fileName,
-                            type: item.type,
+                            category: item.category,
                             link: fileRes.data.webViewLink
                         });
                         // Auto-index logic for chapters...
@@ -345,14 +323,15 @@ export const genesisManifest = onCall(
                     aiKey: getAIKey(request.data, googleApiKey.value()),
                     inferredTraits: traits,
                     attributes: {
-                        age: item.age
+                        age: item.age,
+                        category: item.category // Support for explicit ECS Category
                     }
                 });
 
                 createdFiles.push({
                     id: genesisResult.fileId,
                     name: `${item.name}.md`,
-                    type: item.type,
+                    category: item.category,
                     link: genesisResult.webViewLink
                 });
 

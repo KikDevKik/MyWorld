@@ -53,16 +53,16 @@ interface AnalysisCandidate {
 // 🟢 HELPER: VIP CONTEXT INJECTION
 async function getVipContext(userId: string, projectId: string): Promise<string> {
     try {
-        const db = getFirestore();
-        const entitiesRef = db.collection("users").doc(userId).collection("projects").doc(projectId).collection("entities");
+        const { EntityRepository } = await import("./repository/EntityRepository");
+        const entitiesRef = EntityRepository.getCollection(userId).where("projectId", "==", projectId);
 
         // Query High Value Nodes
         // Firestore OR queries are limited, so we do parallel queries or just fetch one type if indices missing.
         // Let's fetch FACTION and LOCATION for now, and maybe Main Characters.
 
-        const factionsQuery = entitiesRef.where("type", "==", "faction").limit(10).get();
-        const locationsQuery = entitiesRef.where("type", "==", "location").limit(10).get();
-        const mainCharsQuery = entitiesRef.where("subtype", "==", "MAIN_CHARACTER").limit(10).get();
+        const factionsQuery = entitiesRef.where("category", "==", "FACTION").limit(10).get();
+        const locationsQuery = entitiesRef.where("category", "==", "LOCATION").limit(10).get();
+        const mainCharsQuery = entitiesRef.where("tier", "==", "ANCHOR").limit(10).get(); // Assuming MAIN_CHARACTER translates to ANCHOR
 
         const [factionsSnap, locationsSnap, mainCharsSnap] = await Promise.all([factionsQuery, locationsQuery, mainCharsQuery]);
 
@@ -74,8 +74,8 @@ async function getVipContext(userId: string, projectId: string): Promise<string>
                 const data = doc.data();
                 if (!seen.has(data.name)) {
                     // 🟢 FIX: Inject ID and Aliases for better merging
-                    const aliases = data.aliases ? ` [Aliases: ${data.aliases.join(', ')}]` : '';
-                    context += `- ${data.name} (${data.type})${aliases} [ID: ${doc.id}]\n`;
+                    const aliases = data.modules?.forge?.aliases ? ` [Aliases: ${data.modules.forge.aliases.join(', ')}]` : '';
+                    context += `- ${data.name} (${data.category})${aliases} [ID: ${doc.id}]\n`;
                     seen.add(data.name);
                 }
             });
