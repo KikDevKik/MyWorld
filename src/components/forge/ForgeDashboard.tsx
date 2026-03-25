@@ -8,7 +8,9 @@ import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable, useS
 import ForgeChat from './ForgeChat';
 import ForgeCard from './ForgeCard';
 import { Character, DriveFile } from '../../types';
-import { ForgePayload, SoulEntity, EntityTier } from '../../types/forge';
+import { SoulEntity, EntityTier, ForgePayload } from '../../types/forge';
+import { WorldEntity } from '../../types/entity';
+import { toSoulEntity } from './ForgeCard';
 import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
@@ -23,6 +25,25 @@ interface ForgeDashboardProps {
 }
 
 type DashboardState = 'SCANNING' | 'KANBAN';
+
+// ── 🔄 ADAPTER: WorldEntity → Character ────────────────────────────────────────
+function toCharacter(e: WorldEntity): Character {
+    return {
+        id: e.id,
+        name: e.name,
+        tier: (e.tier === 'ANCHOR' ? 'MAIN' : e.tier) as any, // Legacy enum mapping
+        category: e.category,
+        role: e.modules?.forge?.smartTags?.join(', ') || e.modules?.forge?.summary,
+        avatar: '', // Will be resolved via masterFileId logic if needed
+        masterFileId: e.driveFileId,
+        sourceType: 'MASTER',
+        sourceContext: e.projectId,
+        lastUpdated: e.updatedAt,
+        status: 'EXISTING',
+        snippets: [],
+        appearances: []
+    } as Character;
+}
 
 // --- DND WRAPPERS ---
 
@@ -121,7 +142,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         const unsubscribe = EntityService.subscribeToAnchors(
             auth.currentUser.uid,
             activeSaga.id,
-            (chars) => setCharacters(chars),
+            (entities) => setCharacters(entities.map(toCharacter)),
             (error) => console.error("Error fetching characters:", error)
         );
 
@@ -178,7 +199,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
             auth.currentUser.uid,
             sagaIds,
             (entities) => {
-                setDetectedEntities(entities);
+                setDetectedEntities(entities.map(toSoulEntity));
                 setState('KANBAN');
                 setIsLoading(false);
             },
@@ -308,7 +329,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
                 {/* CYBER BACKGROUND PATTERN */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
-                     style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}
+                    style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}
                 />
 
                 {/* HEADER */}
@@ -323,22 +344,20 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                             <div className="flex bg-titanium-950 rounded-lg p-1 border border-titanium-800">
                                 <button
                                     onClick={() => setActiveMode('PERSON')}
-                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${
-                                        activeMode === 'PERSON'
-                                        ? 'bg-titanium-800 text-white shadow-sm'
-                                        : 'text-titanium-500 hover:text-titanium-300'
-                                    }`}
+                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${activeMode === 'PERSON'
+                                            ? 'bg-titanium-800 text-white shadow-sm'
+                                            : 'text-titanium-500 hover:text-titanium-300'
+                                        }`}
                                 >
                                     <User size={14} />
                                     {t.people}
                                 </button>
                                 <button
                                     onClick={() => setActiveMode('CREATURE')}
-                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${
-                                        activeMode === 'CREATURE'
-                                        ? 'bg-titanium-800 text-emerald-400 shadow-sm'
-                                        : 'text-titanium-500 hover:text-titanium-300'
-                                    }`}
+                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${activeMode === 'CREATURE'
+                                            ? 'bg-titanium-800 text-emerald-400 shadow-sm'
+                                            : 'text-titanium-500 hover:text-titanium-300'
+                                        }`}
                                 >
                                     <PawPrint size={14} />
                                     {t.bestiary}
@@ -442,7 +461,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                             {activeMode === 'PERSON' ? t.missingVaultPerson : t.missingVaultBestiary}
                         </h2>
                         <p className="max-w-md mb-8">
-                             {t.missingVaultDesc.replace('{type}', activeMode === 'PERSON' ? t.yourCharacters : t.yourCreatures)}
+                            {t.missingVaultDesc.replace('{type}', activeMode === 'PERSON' ? t.yourCharacters : t.yourCreatures)}
                         </p>
                         <button
                             onClick={onOpenSettings}
@@ -525,7 +544,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 <DragOverlay>
                     {activeEntity ? (
                         <div className="opacity-90 scale-105 rotate-2">
-                            <ForgeCard entity={activeEntity} onAction={() => {}} />
+                            <ForgeCard entity={activeEntity} onAction={() => { }} />
                         </div>
                     ) : null}
                 </DragOverlay>

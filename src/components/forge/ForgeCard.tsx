@@ -1,8 +1,26 @@
 import React from 'react';
 import { SoulEntity } from '../../types/forge';
+import { WorldEntity } from '../../types/entity';
 import { Ghost, FileEdit, Anchor, ArrowRight, Zap, Database, PawPrint, Flower, User, MapPin, Box } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
+
+// ── 🔄 ADAPTER: WorldEntity → SoulEntity ─────────────────────────────────────
+// Permite que la Forja reciba el nuevo WorldEntity del ECS sin cambiar el JSX.
+export function toSoulEntity(e: WorldEntity): SoulEntity {
+    return {
+        id: e.id,
+        name: e.name,
+        tier: e.tier,
+        category: e.category,
+        tags: e.modules?.forge?.tags,
+        aliases: e.modules?.forge?.aliases,
+        occurrences: e.modules?.guardian?.occurrences ?? 0,
+        sourceSnippet: e.modules?.forge?.summary ?? '',
+        lastDetected: e.updatedAt,
+        role: e.modules?.forge?.smartTags?.join(', '),
+    };
+}
 
 interface ForgeCardProps {
     entity: SoulEntity;
@@ -65,7 +83,7 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
             <div className="group p-4 rounded-xl border border-amber-500/30 bg-titanium-900/50 hover:bg-amber-950/10 hover:border-amber-500/60 transition-all duration-300 shadow-sm">
                 <div className="flex items-start justify-between mb-2">
                     <h3 className="text-lg font-bold text-titanium-100 group-hover:text-amber-200 transition-colors flex items-center gap-2">
-                         <CategoryIcon category={entity.category} className="w-4 h-4 text-amber-500/50" />
+                        <CategoryIcon category={entity.category} className="w-4 h-4 text-amber-500/50" />
                         {entity.name}
                     </h3>
                     <FileEdit size={14} className="text-amber-500/50 group-hover:text-amber-400" />
@@ -84,7 +102,7 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                 </div>
 
                 <p className="text-xs text-titanium-400 mb-4 line-clamp-2 leading-relaxed">
-                   {entity.sourceSnippet || entity.role || t.draftNoContent}
+                    {entity.sourceSnippet || entity.role || t.draftNoContent}
                 </p>
 
                 <button

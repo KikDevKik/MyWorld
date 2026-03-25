@@ -1,3 +1,21 @@
+// ── UNIFIED KNOWLEDGE GRAPH (ECS) ────────────────────────────────────────────
+export type {
+    WorldEntity,
+    EntityModules,
+    ForgeModule,
+    NexusModule,
+    GuardianModule,
+    JudgementModule,
+    TribunalVerdicts,
+    EntityRelation,
+    NexusBuilderMetadata,
+    EntityCategory,
+    EntityTier,
+    EntityStatus,
+    SynthesisMode,
+} from './entity';
+
+// ── LEGACY TYPES (Compat shims — will be phased out progressively) ────────────
 export interface DriveFile {
     id: string;
     name: string;
@@ -35,5 +53,5 @@ export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
 // Re-export Character from graph for convenience if needed, but it's better to import from graph.ts or forge.ts
 // But to fix existing errors quickly:
 export type { Character } from './graph';
-export type { EntityCategory, EntityTier, SoulEntity } from './forge';
+export type { SoulEntity } from './forge'; // EntityCategory/EntityTier migrated to entity.ts
 export type { ProjectConfig, ProjectPath, FolderRole } from './project';

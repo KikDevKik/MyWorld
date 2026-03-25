@@ -1,89 +1,130 @@
-import { getFirestore, collection, query, where, onSnapshot, Unsubscribe } from 'firebase/firestore';
-import { Character } from '../types';
-import { SoulEntity, EntityTier } from '../types/forge';
+import {
+    getFirestore,
+    collection,
+    query,
+    where,
+    onSnapshot,
+    Unsubscribe,
+    Query,
+    DocumentData,
+} from 'firebase/firestore';
+import { WorldEntity, EntityTier } from '../types/entity';
 
+/**
+ * ============================================================
+ *  EntityService — Unified Knowledge Graph
+ *  Colección Firestore: users/{userId}/WorldEntities/{entityId}
+ *
+ *  Principios:
+ *  - Un único servicio, una única colección plana por usuario.
+ *  - El userId define el "tenant"; projectId filtra el proyecto activo.
+ *  - Devuelve siempre WorldEntity[] para que los mappers de la UI
+ *    conviertan al tipo legado que necesiten (SoulEntity, GraphNode…).
+ * ============================================================
+ */
 export class EntityService {
+
+    // ── HELPERS ──────────────────────────────────────────────────────────────
+
     /**
-     * Subscribe to Anchor Characters (Unified Graph Nodes)
+     * Devuelve la referencia base a la colección unificada del usuario.
+     * Ruta: users/{userId}/WorldEntities
      */
-    static subscribeToAnchors(userId: string, contextId: string, onUpdate: (characters: Character[]) => void, onError?: (error: any) => void): Unsubscribe {
-        const db = getFirestore();
-        // 🟢 ENTTITY UNIFICATION: Pointing to new root collection 'WorldEntities'
-        const q = query(
-            collection(db, "WorldEntities", userId, "characters"),
-            where("sourceContext", "==", contextId)
-        );
+    private static getCollection(userId: string) {
+        return collection(getFirestore(), 'users', userId, 'WorldEntities');
+    }
+
+    /**
+     * Construye una query filtrada por proyecto(s) y uno o más tiers.
+     */
+    private static buildTierQuery(
+        userId: string,
+        projectId: string | string[],
+        tiers: EntityTier[]
+    ): Query<DocumentData> {
+        const col = EntityService.getCollection(userId);
+        let q = query(col, where('status', '!=', 'archived'));
+
+        // Filtrar por Proyecto (o lista de Proyectos/Sagas)
+        if (Array.isArray(projectId)) {
+            if (projectId.length > 0) {
+                q = query(q, where('projectId', 'in', projectId));
+            } else {
+                // Si el array está vacío, forzamos que no devuelva nada (o un default)
+                q = query(q, where('projectId', '==', 'NONE'));
+            }
+        } else {
+            q = query(q, where('projectId', '==', projectId));
+        }
+
+        // Filtrar por Tier
+        if (tiers.length === 1) {
+            q = query(q, where('tier', '==', tiers[0]));
+        } else if (tiers.length > 1) {
+            q = query(q, where('tier', 'in', tiers));
+        }
+
+        return q;
+    }
+
+    // ── SUBSCRIPTIONS ────────────────────────────────────────────────────────
+
+    /**
+     * Suscripción reactiva a las entidades ANCHOR (canon confirmado).
+     */
+    static subscribeToAnchors(
+        userId: string,
+        projectId: string | string[],
+        onUpdate: (entities: WorldEntity[]) => void,
+        onError?: (error: unknown) => void
+    ): Unsubscribe {
+        const q = EntityService.buildTierQuery(userId, projectId, ['ANCHOR']);
 
         return onSnapshot(q, (snapshot) => {
-            const chars: Character[] = [];
+            const entities: WorldEntity[] = [];
             snapshot.forEach(doc => {
-                const d = doc.data();
-
-                let derivedCategory = d.category;
-                if (!derivedCategory) {
-                    const rawType = (d.type || d.subtype || '').toLowerCase();
-                    if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna')) derivedCategory = 'CREATURE';
-                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
-                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
-                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
-                    else derivedCategory = 'PERSON';
-                }
-
-                chars.push({
-                    id: doc.id,
-                    ...d,
-                    category: derivedCategory,
-                    status: 'EXISTING',
-                    tier: d.tier as EntityTier
-                } as Character);
+                entities.push({ id: doc.id, ...doc.data() } as WorldEntity);
             });
-            onUpdate(chars);
+            onUpdate(entities);
         }, onError);
     }
 
     /**
-     * Subscribe to Ghosts and Limbos (Detected Entities)
+     * Suscripción reactiva a entidades detectadas: GHOST y LIMBO.
      */
-    static subscribeToDetectedEntities(userId: string, sagaIds: string[], onUpdate: (entities: SoulEntity[]) => void, onError?: (error: any) => void): Unsubscribe {
-        const db = getFirestore();
-        // 🟢 ENTITY UNIFICATION: Pointing to new root collection 'WorldEntities'
-        const q = query(
-            collection(db, "WorldEntities", userId, "forge_detected_entities"),
-            where("saga", "in", sagaIds.length > 0 ? sagaIds : ['Global'])
-        );
+    static subscribeToDetectedEntities(
+        userId: string,
+        projectId: string | string[],
+        onUpdate: (entities: WorldEntity[]) => void,
+        onError?: (error: unknown) => void
+    ): Unsubscribe {
+        const q = EntityService.buildTierQuery(userId, projectId, ['GHOST', 'LIMBO']);
 
         return onSnapshot(q, (snapshot) => {
-            const entities: SoulEntity[] = [];
+            const entities: WorldEntity[] = [];
             snapshot.forEach(doc => {
-                const d = doc.data();
-
-                let derivedCategory = d.category;
-                if (!derivedCategory) {
-                    const rawType = (d.type || d.tier || d.reasoning || '').toLowerCase();
-                    if (rawType.includes('event') || rawType.includes('evento') || rawType.includes('año') || rawType.includes('year') || rawType.includes('timeline')) {
-                        derivedCategory = 'OBJECT'; 
-                    }
-                    else if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna') || rawType.includes('bestia') || rawType.includes('monster') || rawType.includes('monstruo')) derivedCategory = 'CREATURE';
-                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
-                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
-                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
-                    else derivedCategory = 'PERSON';
-                }
-
-                entities.push({
-                    id: doc.id,
-                    name: d.name,
-                    tier: d.tier as EntityTier,
-                    category: derivedCategory || 'PERSON',
-                    sourceSnippet: d.sourceSnippet || (d.foundIn || []).join('\n'),
-                    occurrences: d.occurrences || d.confidence || 0,
-                    tags: d.tags,
-                    role: d.reasoning,
-                    mergeSuggestion: d.mergeSuggestion,
-                    lastDetected: d.lastDetected || new Date().toISOString()
-                });
+                entities.push({ id: doc.id, ...doc.data() } as WorldEntity);
             });
+            onUpdate(entities);
+        }, onError);
+    }
 
+    /**
+     * Suscripción al grafo completo (todos los tiers activos).
+     */
+    static subscribeToAllEntities(
+        userId: string,
+        projectId: string | string[],
+        onUpdate: (entities: WorldEntity[]) => void,
+        onError?: (error: unknown) => void
+    ): Unsubscribe {
+        const q = EntityService.buildTierQuery(userId, projectId, ['ANCHOR', 'GHOST', 'LIMBO']);
+
+        return onSnapshot(q, (snapshot) => {
+            const entities: WorldEntity[] = [];
+            snapshot.forEach(doc => {
+                entities.push({ id: doc.id, ...doc.data() } as WorldEntity);
+            });
             onUpdate(entities);
         }, onError);
     }

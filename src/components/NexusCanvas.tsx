@@ -27,8 +27,36 @@ import { toast } from 'sonner';
 
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { GraphNode, EntityType } from '../types/graph';
+import { WorldEntity } from '../types/entity';
+import { EntityService } from '../services/EntityService';
 import CrystallizeModal from './ui/CrystallizeModal';
 import { callFunction } from '../services/api';
+
+// ── 🔄 ADAPTER: WorldEntity → GraphNode ─────────────────────────────────────────
+// Permite que NexusCanvas reciba WorldEntity del ECS sin tocar el JSX/D3.
+function toGraphNode(e: WorldEntity): GraphNode {
+    return {
+        id: e.id,
+        name: e.name,
+        projectId: e.projectId,
+        type: e.category,          // 'PERSON', 'CREATURE', etc. → type string
+        description: e.modules?.forge?.summary ?? '',
+        relations: e.modules?.nexus?.relations?.map(r => ({
+            targetId: r.targetId,
+            relation: r.relationType,
+            context: r.context,
+        })),
+        traits: e.modules?.forge?.smartTags,
+        aliases: e.modules?.forge?.aliases,
+        isGhost: e.tier === 'GHOST',
+        meta: {
+            tier: e.tier,
+            driveFileId: e.driveFileId,
+            isCrystallized: e.modules?.nexus?.builderMetadata?.isCrystallized,
+            brief: e.modules?.forge?.summary,
+        },
+    };
+}
 
 // 🟢 VISUAL TYPES
 interface VisualNode extends GraphNode {
@@ -240,7 +268,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
             >
                 {isEditing ? (
                     <div className="flex flex-col gap-2 pointer-events-auto" onClick={e => e.stopPropagation()}>
-                         <input
+                        <input
                             className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-cyan-500"
                             value={editName}
                             onChange={e => setEditName(e.target.value)}
@@ -335,7 +363,7 @@ const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
         // We want to preserve existing simulation nodes if possible to avoid re-layout?
         // But for now, simple sync.
         // We clone to avoid mutating props
-        const nextNodes = nodes.map(n => ({...n, x: n.x || undefined, y: n.y || undefined }));
+        const nextNodes = nodes.map(n => ({ ...n, x: n.x || undefined, y: n.y || undefined }));
         setSimNodes(nextNodes);
     }, [nodes]);
 
@@ -419,7 +447,7 @@ const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
                 if (!event.active) simulation.alphaTarget(0.3).restart(); // Wake up!
                 d.fx = d.x;
                 d.fy = d.y;
-                if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grabbing';
+                if (nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grabbing';
             })
             .on("drag", (event, d) => {
                 d.fx = event.x;
@@ -433,18 +461,18 @@ const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
                 if (!event.active) simulation.alphaTarget(0); // Go back to sleep
                 d.fx = null;
                 d.fy = null;
-                if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grab';
+                if (nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grab';
             });
 
         // Attach Drag to Refs
         // We use a timeout to ensure refs are populated after render
         setTimeout(() => {
-             simNodes.forEach((node: any) => {
-                 const el = nodeRefs.current[node.id];
-                 if (el) {
-                     d3Select(el).datum(node).call(dragBehavior as any);
-                 }
-             });
+            simNodes.forEach((node: any) => {
+                const el = nodeRefs.current[node.id];
+                if (el) {
+                    d3Select(el).datum(node).call(dragBehavior as any);
+                }
+            });
         }, 0);
 
         simulationRef.current = simulation;
@@ -457,8 +485,8 @@ const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
     // 🟢 RENDER
     return (
         <div className="relative w-[4000px] h-[4000px]">
-             {/* Background Grid */}
-             <div
+            {/* Background Grid */}
+            <div
                 className="absolute inset-0 opacity-20 pointer-events-none"
                 style={{
                     backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
@@ -470,7 +498,7 @@ const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
             {simNodes.map((node) => (
                 <EntityCard
                     key={node.id}
-                    ref={(el) => { if(el) nodeRefs.current[node.id] = el; }}
+                    ref={(el) => { if (el) nodeRefs.current[node.id] = el; }}
                     node={node}
                     lodTier={lodTier}
                     setHoveredNodeId={setHoveredNodeId}
@@ -659,7 +687,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                 const parsed = JSON.parse(savedRescue) as PendingCrystallization[];
                 setPendingNodes(parsed);
                 initialGhosts = parsed.map(p => ({ ...p.node, isGhost: true, isRescue: true }));
-            } catch (e) {}
+            } catch (e) { }
         }
         const savedDrafts = localStorage.getItem(DRAFTS_KEY);
         if (savedDrafts) {
@@ -668,7 +696,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                 const rescueIds = new Set(initialGhosts.map(n => n.id));
                 const uniqueDrafts = parsedDrafts.filter(d => !rescueIds.has(d.id));
                 initialGhosts = [...initialGhosts, ...uniqueDrafts];
-            } catch (e) {}
+            } catch (e) { }
         }
         if (initialGhosts.length > 0) setGhostNodes(prev => [...prev, ...initialGhosts]);
     }, []);
@@ -728,20 +756,25 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
         }
     };
 
-    // Data Subscription
+    // Data Subscription — Unified Knowledge Graph
     useEffect(() => {
         if (!user || !config?.folderId) {
             setLoading(false);
             return;
         }
-        const db = getFirestore();
-        const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
-        const unsubscribe = onSnapshot(entitiesRef, (snapshot) => {
-            const loaded: GraphNode[] = [];
-            snapshot.forEach(doc => loaded.push(doc.data() as GraphNode));
-            setDbNodes(loaded);
-            setLoading(false);
-        });
+        // 🟢 ECS: query users/{userId}/WorldEntities filtrado por projectId
+        const unsubscribe = EntityService.subscribeToAllEntities(
+            user.uid,
+            config.folderId,
+            (entities: WorldEntity[]) => {
+                setDbNodes(entities.map(toGraphNode));
+                setLoading(false);
+            },
+            (err) => {
+                console.error('[NexusCanvas] WorldEntities subscription error:', err);
+                setLoading(false);
+            }
+        );
         return () => unsubscribe();
     }, [user, config?.folderId]);
 
@@ -770,8 +803,8 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
     }, []);
 
     const spawnDebugNodes = (count: number = 50) => {
-         const newGhosts: VisualNode[] = [];
-         for (let i = 0; i < count; i++) {
+        const newGhosts: VisualNode[] = [];
+        for (let i = 0; i < count; i++) {
             const id = `debug-${Date.now()}-${i}`;
             const r = Math.random();
             // Cast to any to bypass strict enum check for debug
@@ -780,7 +813,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
             if (i > 0) {
                 // Link to previous for chain
                 relations.push({
-                    targetId: `debug-${Date.now()}-${i-1}`, // This ID might be slightly off if Date.now changes?
+                    targetId: `debug-${Date.now()}-${i - 1}`, // This ID might be slightly off if Date.now changes?
                     // Wait, Date.now() is constant in the loop? No, loop is fast but Date.now() might be same.
                     // Better to assign IDs first.
                     relation: 'FRIEND',
@@ -794,27 +827,27 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                 description: "Test node",
                 projectId: config?.folderId || 'debug',
                 isGhost: true,
-                x: 2000 + (Math.random()-0.5)*1000,
-                y: 2000 + (Math.random()-0.5)*1000,
+                x: 2000 + (Math.random() - 0.5) * 1000,
+                y: 2000 + (Math.random() - 0.5) * 1000,
                 relations: [],
                 meta: {}
             });
-         }
+        }
 
-         // Post-link to avoid ID issues
-         for(let i=1; i<count; i++) {
-             newGhosts[i].relations = [{
-                 targetId: newGhosts[i-1].id,
-                 targetName: newGhosts[i-1].name,
-                 targetType: newGhosts[i-1].type,
-                 relation: 'ALLY',
-                 context: 'Swarm Connection',
-                 sourceFileId: 'debug'
-             }];
-         }
+        // Post-link to avoid ID issues
+        for (let i = 1; i < count; i++) {
+            newGhosts[i].relations = [{
+                targetId: newGhosts[i - 1].id,
+                targetName: newGhosts[i - 1].name,
+                targetType: newGhosts[i - 1].type,
+                relation: 'ALLY',
+                context: 'Swarm Connection',
+                sourceFileId: 'debug'
+            }];
+        }
 
-         setGhostNodes(prev => [...prev, ...newGhosts]);
-         toast.success(`🪲 +${count} Nodos`);
+        setGhostNodes(prev => [...prev, ...newGhosts]);
+        toast.success(`🪲 +${count} Nodos`);
     };
 
     const handleClearAll = async () => {
@@ -826,22 +859,22 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
 
         // 2. Delete Canon Nodes (Firestore)
         if (user && config?.folderId) {
-             const db = getFirestore();
-             const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
-             try {
-                 const snapshot = await getDocs(entitiesRef);
-                 const batch = writeBatch(db);
-                 snapshot.docs.forEach((doc) => {
-                     batch.delete(doc.ref);
-                 });
-                 await batch.commit();
-                 toast.success("🗑️ Todo eliminado (Local + DB).");
-             } catch (e: any) {
-                 console.error(e);
-                 toast.error("Error borrando DB: " + e.message);
-             }
+            const db = getFirestore();
+            const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
+            try {
+                const snapshot = await getDocs(entitiesRef);
+                const batch = writeBatch(db);
+                snapshot.docs.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                toast.success("🗑️ Todo eliminado (Local + DB).");
+            } catch (e: any) {
+                console.error(e);
+                toast.error("Error borrando DB: " + e.message);
+            }
         } else {
-             toast.success("🗑️ Vista local limpia.");
+            toast.success("🗑️ Vista local limpia.");
         }
     };
 
@@ -854,35 +887,35 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
         // Actually I should preserve the logic.
 
         try {
-             toast.info("🧠 Contactando al Motor...");
-             if (!accessToken) throw new Error("Falta Token.");
-             const data = await callFunction<any>('worldEngine', {
+            toast.info("🧠 Contactando al Motor...");
+            if (!accessToken) throw new Error("Falta Token.");
+            const data = await callFunction<any>('worldEngine', {
                 prompt: inputValue,
                 agentId: 'nexus-terminal',
                 chaosLevel: entropy,
                 context: { canon_dump: "", timeline_dump: "" },
                 currentGraphContext: unifiedNodes.slice(0, 20),
                 accessToken: accessToken
-             });
+            });
 
-             if(data.newNodes) {
-                 const newG: VisualNode[] = data.newNodes.map((n: any) => ({
-                     id: n.id || `ai-${Date.now()}`,
-                     name: n.title,
-                     type: (n.metadata?.node_type || 'IDEA').toUpperCase() as EntityType,
-                     description: n.content,
-                     isGhost: true,
-                     x: 2000, y: 2000,
-                     meta: n.metadata
-                 }));
-                 setGhostNodes(p => [...p, ...newG]);
-                 toast.success("✨ Ideas generadas.");
-             }
-             setInputValue("");
-        } catch(e: any) {
+            if (data.newNodes) {
+                const newG: VisualNode[] = data.newNodes.map((n: any) => ({
+                    id: n.id || `ai-${Date.now()}`,
+                    name: n.title,
+                    type: (n.metadata?.node_type || 'IDEA').toUpperCase() as EntityType,
+                    description: n.content,
+                    isGhost: true,
+                    x: 2000, y: 2000,
+                    meta: n.metadata
+                }));
+                setGhostNodes(p => [...p, ...newG]);
+                toast.success("✨ Ideas generadas.");
+            }
+            setInputValue("");
+        } catch (e: any) {
             toast.error("Error: " + e.message);
             // Fallback
-             setGhostNodes(p => [...p, { id: `manual-${Date.now()}`, name: inputValue, type: 'IDEA' as any, isGhost: true, projectId: 'temp', x: 2000, y: 2000, meta: {} }]);
+            setGhostNodes(p => [...p, { id: `manual-${Date.now()}`, name: inputValue, type: 'IDEA' as any, description: '', isGhost: true, projectId: 'temp', x: 2000, y: 2000, meta: {} }]);
         } finally {
             setIsGenerating(false);
         }
@@ -890,17 +923,17 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
 
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
-             {/* WARMUP */}
-             <AnimatePresence>
+            {/* WARMUP */}
+            <AnimatePresence>
                 {loading && (
                     <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-[#141413] z-[100] flex items-center justify-center pointer-events-none">
-                         <div className="text-cyan-500 font-mono">CARGANDO NEXUS...</div>
+                        <div className="text-cyan-500 font-mono">CARGANDO NEXUS...</div>
                     </motion.div>
                 )}
-             </AnimatePresence>
+            </AnimatePresence>
 
-             {/* CANVAS WRAPPER */}
-             <TransformWrapper
+            {/* CANVAS WRAPPER */}
+            <TransformWrapper
                 initialScale={0.8}
                 minScale={0.1}
                 maxScale={3}
@@ -917,7 +950,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                     else if (s > 2.0) setLodTier('MICRO');
                     else setLodTier('MESO');
                 }}
-             >
+            >
                 {({ zoomIn, zoomOut }) => (
                     <>
                         {/* 🟢 LINKS OVERLAY (Separated Layer) */}
@@ -947,7 +980,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                             />
                         </TransformComponent>
 
-                         {/* ZOOM CONTROLS */}
+                        {/* ZOOM CONTROLS */}
                         <div className="absolute bottom-24 right-6 flex flex-col gap-2 pointer-events-auto">
                             <button onClick={handleClearAll} aria-label="Limpiar Todo (DB + Local)" className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title="Limpiar Todo (DB + Local)"><Trash2 size={16} /></button>
                             <button onClick={() => spawnDebugNodes(50)} aria-label="Debug: Spawn Swarm" className="p-2 bg-red-900/50 border border-red-700 rounded text-red-500 mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
@@ -956,14 +989,14 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                         </div>
                     </>
                 )}
-             </TransformWrapper>
+            </TransformWrapper>
 
-             {/* TERMINAL (Same as before) */}
-             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl pointer-events-auto z-50">
+            {/* TERMINAL (Same as before) */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl pointer-events-auto z-50">
                 <div className="bg-slate-950/90 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl p-1 flex flex-col gap-0">
                     <form onSubmit={handleInputEnter} className="flex items-center gap-2 p-2">
                         <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800">
-                             {isGenerating ? <Loader2 size={16} className="animate-spin text-cyan-500" /> : <Globe size={16} className="text-cyan-500" />}
+                            {isGenerating ? <Loader2 size={16} className="animate-spin text-cyan-500" /> : <Globe size={16} className="text-cyan-500" />}
                         </div>
                         <input
                             type="text"
@@ -982,10 +1015,10 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                         <input type="range" aria-label="Nivel de Entropía" min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
                     </div>
                 </div>
-             </div>
+            </div>
 
-             {/* MODAL */}
-             <AnimatePresence>
+            {/* MODAL */}
+            <AnimatePresence>
                 {crystallizeModal.isOpen && (
                     <CrystallizeModal
                         isOpen={crystallizeModal.isOpen}
@@ -999,7 +1032,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                         isProcessing={isCrystallizing}
                     />
                 )}
-             </AnimatePresence>
+            </AnimatePresence>
         </div>
     );
 };
