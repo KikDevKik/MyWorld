@@ -173,6 +173,21 @@ async function deleteFileArtifact(drive: any, db: admin.firestore.Firestore, use
         await db.recursiveDelete(db.collection("TDB_Index").doc(userId).collection("files").doc(fileId));
         logger.info(`   -> Recursive Delete OK (Chunks Cleaned).`);
 
+        // 🟢 PURGE FROM ECS (WorldEntities)
+        // Find any entity that was anchored to this file
+        const entitiesQuery = db.collection("users").doc(userId).collection("WorldEntities")
+            .where("driveFileId", "==", fileId);
+        const entitiesSnap = await entitiesQuery.get();
+
+        if (!entitiesSnap.empty) {
+            let entityBatch = db.batch();
+            entitiesSnap.docs.forEach(d => {
+                entityBatch.delete(d.ref);
+            });
+            await entityBatch.commit();
+            logger.info(`   -> WorldEntities Purged: ${entitiesSnap.size}`);
+        }
+
         return { id: fileId, status: 'purged' };
 
     } catch (err: any) {
@@ -453,17 +468,15 @@ export const relinkAnchor = onCall(
             const bestMatch = candidates[0];
             logger.info(`   ✅ Archivo encontrado: ${bestMatch.name} (${bestMatch.id})`);
 
-            // 3. UPDATE FIRESTORE
-            await db.collection("users").doc(userId).collection("characters").doc(characterId).set({
-                masterFileId: bestMatch.id,
-                lastRelinked: new Date().toISOString(),
-                ...(sourceContext ? { sourceContext } : {}),
+            // 3. UPDATE FIRESTORE ECS (WorldEntities)
+            const { EntityRepository } = await import("./repository/EntityRepository");
+            await EntityRepository.upsertEntity(userId, characterId, {
+                driveFileId: bestMatch.id,
                 name: characterName,
                 category: category || 'PERSON',
                 tier: tier || 'ANCHOR',
-                sourceType: 'MASTER',
-                status: 'EXISTING'
-            }, { merge: true });
+                status: 'active'
+            });
 
             return {
                 success: true,

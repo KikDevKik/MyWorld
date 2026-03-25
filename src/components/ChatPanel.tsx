@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
-import type { ChatMessage, GemId, Gem, DriveFile } from '../types';
+import type { GemId, Gem, DriveFile } from '../types';
+import type { ChatMessage } from '../types/core';
 import { callFunction } from '../services/api';
 import { GEMS } from '../constants';
 import ReactMarkdown from 'react-markdown';

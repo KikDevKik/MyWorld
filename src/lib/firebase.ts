@@ -75,9 +75,9 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
     try {
         // 🟢 FAIL-OPEN WRAPPER (App Check Throttling Defense)
         const appCheckProvider = new ReCaptchaV3Provider(siteKey);
-        const originalGetToken = appCheckProvider.getToken.bind(appCheckProvider);
+        const originalGetToken = (appCheckProvider as any).getToken.bind(appCheckProvider);
 
-        appCheckProvider.getToken = async () => {
+        (appCheckProvider as any).getToken = async () => {
             try {
                 return await originalGetToken();
             } catch (error: any) {

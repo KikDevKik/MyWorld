@@ -43,7 +43,6 @@ import { useLayoutStore } from './stores/useLayoutStore';
 import { useArquitectoStore } from './stores/useArquitectoStore'; // 🟢 IMPORT STORE
 import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 import { CreativeAuditService } from './services/CreativeAuditService';
-import EmptyEditorState from './components/editor/EmptyEditorState';
 import CreateFileModal from './components/ui/CreateFileModal';
 import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
@@ -889,13 +888,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFolders;
 
             return (
-                <EmptyEditorState
-                    onCreate={() => setIsCreateFileModalOpen(true)}
-                    onGenesis={() => setIsGenesisOpen(true)}
-                    isEmptyProject={isEmptyProject}
-                    onCreateProject={() => setIsCreateProjectModalOpen(true)}
-                    onConnectDrive={() => setIsProjectSettingsOpen(true)}
-                />
+                <div className="flex-1 flex items-center justify-center bg-titanium-950">
+                    <div className="text-titanium-500 font-mono text-sm opacity-50">
+                        Selecciona un archivo del canon para comenzar.
+                    </div>
+                </div>
             );
         }
 

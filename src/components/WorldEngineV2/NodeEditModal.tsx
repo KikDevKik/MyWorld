@@ -25,7 +25,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
     useEffect(() => {
         if (node) {
             setName(node.name);
-            setType(node.type);
+            setType(node.type as EntityType);
             setSubtype(node.subtype || '');
             setDescription(node.description || node.meta?.brief || '');
         }

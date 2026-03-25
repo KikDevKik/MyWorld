@@ -942,7 +942,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                 wheel={{ step: 0.1 }}
                 panning={{ activationKeys: ["Shift"], excluded: ["nodrag"] }} // 🔒 EXCLUDED CLASS
                 onPanning={() => linksOverlayRef.current?.forceUpdate()}
-                onZooming={() => linksOverlayRef.current?.forceUpdate()}
+                onZoom={() => linksOverlayRef.current?.forceUpdate()}
                 onTransformed={(ref) => {
                     linksOverlayRef.current?.forceUpdate();
                     const s = ref.state.scale;

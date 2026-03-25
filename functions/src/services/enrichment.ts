@@ -5,7 +5,7 @@ import { Firestore } from "firebase-admin/firestore";
 import { MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE } from "../ai_config";
 import { parseSecureJSON } from "../utils/json";
 import { SoulEntity, DetectedEntity, EntityCategory } from "../types/forge";
-import pLimit = require("p-limit"); // Use CommonJS require for v3 compatibility in TS if needed, or allow synthetic default import.
+import pLimit from "p-limit";
 // Actually, p-limit v3 exports a default function. 'import pLimit from "p-limit"' usually works if esModuleInterop is on.
 // Given tsconfig usually has esModuleInterop, I will stick to standard import.
 // However, since I just downgraded to v3, let's verify if I need "import pLimit = require('p-limit')".

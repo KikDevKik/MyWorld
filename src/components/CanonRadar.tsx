@@ -192,7 +192,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(sortedDrifts || []).length > 0 && (
                     <div className="space-y-3">
                          <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase mb-2 animate-pulse">
-                            <Skull size={14} title={t.narrativeBetrayal} aria-label={t.narrativeBetrayal} />
+                                    <span title={t.narrativeBetrayal} aria-label={t.narrativeBetrayal}>
+                                        <Skull size={14} />
+                                    </span>
                             <span>{t.narrativeBetrayal} ({(sortedDrifts || []).length})</span>
                         </div>
 
@@ -221,7 +223,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                 {/* Hater Comment */}
                                 <div className="bg-black/40 rounded p-2 border border-titanium-800 relative mt-2">
                                     <div className="flex items-start gap-2">
-                                        <Skull size={14} className="text-titanium-500 mt-0.5 shrink-0" title={t.haterComment} aria-label={t.haterComment} />
+                                        <span title={t.haterComment} aria-label={t.haterComment}>
+                                            <Skull size={14} className="text-titanium-500 mt-0.5 shrink-0" />
+                                        </span>
                                         <p className="text-titanium-400 text-[10px] font-mono leading-relaxed">
                                             {drift.hater_comment}
                                         </p>
@@ -262,7 +266,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(lawConflicts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-amber-500 text-xs font-bold uppercase mb-2 animate-pulse">
-                            <Zap size={14} className="fill-amber-500/20" title={t.realityFractures} aria-label={t.realityFractures} />
+                            <span title={t.realityFractures} aria-label={t.realityFractures}>
+                                <Zap size={14} className="fill-amber-500/20" />
+                            </span>
                             <span>{t.realityFractures} ({(lawConflicts || []).length})</span>
                         </div>
 
@@ -286,7 +292,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                                     {/* The Violation Explanation */}
                                     <div className="bg-black/40 rounded p-2 border border-amber-900/50">
                                         <div className="flex items-start gap-1.5">
-                                            <AlertTriangle size={12} className="text-amber-500 mt-0.5 shrink-0" title={t.explanation} aria-label={t.explanation} />
+                                            <span title={t.explanation} aria-label={t.explanation}>
+                                                <AlertTriangle size={12} className="text-amber-500 mt-0.5 shrink-0" />
+                                            </span>
                                             <p className="text-titanium-200 text-[11px] leading-relaxed">
                                                 {item.conflict.explanation}
                                             </p>
@@ -317,7 +325,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(conflicts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase mb-2">
-                            <ShieldAlert size={14} title={t.activeConflicts} aria-label={t.activeConflicts} />
+                            <span title={t.activeConflicts} aria-label={t.activeConflicts}>
+                                <ShieldAlert size={14} />
+                            </span>
                             <span>{t.activeConflicts} ({(conflicts || []).length})</span>
                         </div>
 
@@ -352,7 +362,9 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 {(facts || []).length > 0 && (
                     <div className="space-y-3">
                         <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase mb-2">
-                            <CheckCircle size={14} title={t.verifiedFacts} aria-label={t.verifiedFacts} />
+                            <span title={t.verifiedFacts} aria-label={t.verifiedFacts}>
+                                <CheckCircle size={14} />
+                            </span>
                             <span>{t.verifiedFacts} ({(facts || []).length})</span>
                         </div>
 

@@ -44,8 +44,8 @@ const GraphSimulationV2 = forwardRef<GraphSimulationHandle, {
                         y: existing.y,
                         vx: existing.vx,
                         vy: existing.vy,
-                        fx: existing.fx,
-                        fy: existing.fy
+                        fx: (existing as any).fx,
+                        fy: (existing as any).fy
                     };
                 }
                 return { ...n, x: n.x || undefined, y: n.y || undefined };

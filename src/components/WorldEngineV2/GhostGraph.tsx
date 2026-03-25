@@ -78,7 +78,7 @@ const GhostGraph: React.FC<GhostGraphProps> = ({ nodes, edges }) => {
              const tId = typeof e.target === 'object' ? e.target.id : e.target;
              const key = `link-${sId}-${tId}`;
              const el = document.getElementById(key);
-             if (el) edgeEls.current.set(key, el as SVGLineElement);
+             if (el) edgeEls.current.set(key, el as unknown as SVGLineElement);
         });
 
         const simulation = d3Force.forceSimulation(simNodes as any)
