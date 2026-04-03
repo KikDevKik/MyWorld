@@ -2,16 +2,10 @@ import '../admin'; // Ensure firebase-admin is initialized
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import { Firestore } from "firebase-admin/firestore";
-import { MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE } from "../ai_config";
 import { parseSecureJSON } from "../utils/json";
-import { SoulEntity, DetectedEntity, EntityCategory } from "../types/forge";
+import { SoulEntity, DetectedEntity } from "../types/forge";
 import pLimit from "p-limit";
-// Actually, p-limit v3 exports a default function. 'import pLimit from "p-limit"' usually works if esModuleInterop is on.
-// Given tsconfig usually has esModuleInterop, I will stick to standard import.
-// However, since I just downgraded to v3, let's verify if I need "import pLimit = require('p-limit')".
-// p-limit v3 is CommonJS exporting a function directly: module.exports = ...
-// So `import pLimit from 'p-limit'` works if `esModuleInterop` is true.
-// I'll stick to `import pLimit from 'p-limit'` but if build fails I'll switch.
+import { smartGenerateContent } from "../utils/smart_generate";
 
 // Helper for retries
 async function withRetry<T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
@@ -55,8 +49,6 @@ export async function enrichEntity(
             const queryVector = embeddingResult.embedding.values;
             const chunksColl = db.collectionGroup("chunks");
 
-            // Vector Search (Firestore logic doesn't need retry usually, but we could wrap it if needed.
-            // Firestore SDK has built-in retries for some errors, but not all. Let's keep it simple.)
             const vectorQuery = chunksColl.where("userId", "==", uid).findNearest({
                 queryVector: queryVector,
                 limit: 1,
@@ -79,17 +71,12 @@ export async function enrichEntity(
             }
         } catch (e) {
             logger.warn(`Failed to enrich Ghost ${entity.name}:`, e);
-            // Keep default foundIn snippet
         }
     }
 
     // B. ENRICH LIMBOS (Light AI)
     if (entity.tier === 'LIMBO' && entity.rawContent) {
         try {
-            const limboModel = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE
-            });
             const limboPrompt = `
                 Analyze this character note.
                 1. DETECT LANGUAGE of the content (e.g. Spanish, English).
@@ -102,13 +89,18 @@ export async function enrichEntity(
                 JSON Output: { "preview": "...", "traits": ["A", "B"] }
             `;
 
-            // Wrap in Retry
-            const res = await withRetry(() => limboModel.generateContent(limboPrompt));
-            const data = parseSecureJSON(res.response.text(), "LimboEnrichment");
+            const result = await smartGenerateContent(genAI, limboPrompt, {
+                useFlash: true,
+                contextLabel: "LimboEnrichment",
+                jsonMode: true
+            });
 
-            if (data.preview) sourceSnippet = data.preview;
-            if (data.traits && Array.isArray(data.traits)) {
-                 role = `Rasgos: ${data.traits.join(', ')}`;
+            if (result.text) {
+                const data = parseSecureJSON(result.text, "LimboEnrichment");
+                if (data.preview) sourceSnippet = data.preview;
+                if (data.traits && Array.isArray(data.traits)) {
+                     role = `Rasgos: ${data.traits.join(', ')}`;
+                }
             }
         } catch (e) {
             logger.warn(`Failed to enrich Limbo ${entity.name}:`, e);

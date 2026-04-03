@@ -59,9 +59,7 @@ export const discoverFolderRoles = onCall(
         const config = await getProjectConfigLocal(userId);
 
         // 🟢 Robust fallback for Root ID
-        const targetRootId = rootFolderId
-            || (canonPaths && canonPaths.length > 0 ? canonPaths[0].id : null)
-            || config.folderId;
+        const targetRootId = rootFolderId || config.folderId;
 
         let folders: { id?: string | null; name?: string | null }[] = [];
 

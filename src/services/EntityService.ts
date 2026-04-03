@@ -7,6 +7,7 @@ import {
     Unsubscribe,
     Query,
     DocumentData,
+    doc,
 } from 'firebase/firestore';
 import { WorldEntity, EntityTier } from '../types/entity';
 
@@ -39,30 +40,25 @@ export class EntityService {
      */
     private static buildTierQuery(
         userId: string,
-        projectId: string | string[],
-        tiers: EntityTier[]
+        projectId: string | string[]
     ): Query<DocumentData> {
         const col = EntityService.getCollection(userId);
-        let q = query(col, where('status', '!=', 'archived'));
+        let q = query(col);
 
         // Filtrar por Proyecto (o lista de Proyectos/Sagas)
         if (Array.isArray(projectId)) {
             if (projectId.length > 0) {
                 q = query(q, where('projectId', 'in', projectId));
             } else {
-                // Si el array está vacío, forzamos que no devuelva nada (o un default)
                 q = query(q, where('projectId', '==', 'NONE'));
             }
         } else {
             q = query(q, where('projectId', '==', projectId));
         }
 
-        // Filtrar por Tier
-        if (tiers.length === 1) {
-            q = query(q, where('tier', '==', tiers[0]));
-        } else if (tiers.length > 1) {
-            q = query(q, where('tier', 'in', tiers));
-        }
+        // INFO: Removemos el filtrado de 'tier' de la query de Firestore para evitar
+        // la necesidad de Índices Compuestos complejos (projectId + tier).
+        // El filtrado de tiers se realizará en memoria en los métodos subscribe.
 
         return q;
     }
@@ -78,12 +74,15 @@ export class EntityService {
         onUpdate: (entities: WorldEntity[]) => void,
         onError?: (error: unknown) => void
     ): Unsubscribe {
-        const q = EntityService.buildTierQuery(userId, projectId, ['ANCHOR']);
+        const q = EntityService.buildTierQuery(userId, projectId);
 
         return onSnapshot(q, (snapshot) => {
             const entities: WorldEntity[] = [];
             snapshot.forEach(doc => {
-                entities.push({ id: doc.id, ...doc.data() } as WorldEntity);
+                const data = doc.data() as WorldEntity;
+                if (data.status !== 'archived' && data.tier === 'ANCHOR') {
+                    entities.push({ id: doc.id, ...data });
+                }
             });
             onUpdate(entities);
         }, onError);
@@ -98,12 +97,16 @@ export class EntityService {
         onUpdate: (entities: WorldEntity[]) => void,
         onError?: (error: unknown) => void
     ): Unsubscribe {
-        const q = EntityService.buildTierQuery(userId, projectId, ['GHOST', 'LIMBO']);
+        const q = EntityService.buildTierQuery(userId, projectId);
 
         return onSnapshot(q, (snapshot) => {
             const entities: WorldEntity[] = [];
             snapshot.forEach(doc => {
-                entities.push({ id: doc.id, ...doc.data() } as WorldEntity);
+                const data = doc.data() as WorldEntity;
+                const allowedTiers: EntityTier[] = ['GHOST', 'LIMBO'];
+                if (data.status !== 'archived' && allowedTiers.includes(data.tier)) {
+                    entities.push({ id: doc.id, ...data });
+                }
             });
             onUpdate(entities);
         }, onError);
@@ -118,12 +121,39 @@ export class EntityService {
         onUpdate: (entities: WorldEntity[]) => void,
         onError?: (error: unknown) => void
     ): Unsubscribe {
-        const q = EntityService.buildTierQuery(userId, projectId, ['ANCHOR', 'GHOST', 'LIMBO']);
+        const q = EntityService.buildTierQuery(userId, projectId);
 
         return onSnapshot(q, (snapshot) => {
             const entities: WorldEntity[] = [];
             snapshot.forEach(doc => {
-                entities.push({ id: doc.id, ...doc.data() } as WorldEntity);
+                const data = doc.data() as WorldEntity;
+                const allowedTiers: EntityTier[] = ['ANCHOR', 'GHOST', 'LIMBO'];
+                if (data.status !== 'archived' && allowedTiers.includes(data.tier)) {
+                    entities.push({ id: doc.id, ...data });
+                }
+            });
+            onUpdate(entities);
+        }, onError);
+    }
+
+    /**
+     * Suscripción reactiva a las entidades en estado de conflicto.
+     */
+    static subscribeToConflicts(
+        userId: string,
+        projectId: string | string[],
+        onUpdate: (entities: WorldEntity[]) => void,
+        onError?: (error: unknown) => void
+    ): Unsubscribe {
+        let q = EntityService.buildTierQuery(userId, projectId);
+
+        return onSnapshot(q, (snapshot) => {
+            const entities: WorldEntity[] = [];
+            snapshot.forEach(doc => {
+                const data = doc.data() as WorldEntity;
+                if (data.status === 'conflict') {
+                    entities.push({ id: doc.id, ...data });
+                }
             });
             onUpdate(entities);
         }, onError);
@@ -183,7 +213,7 @@ export class EntityService {
         const db = getFirestore();
         const q = query(EntityService.getCollection(userId), where('projectId', '==', projectId));
         const snap = await getDocs(q);
-        
+
         const batch = writeBatch(db);
         snap.docs.forEach(doc => {
             batch.delete(doc.ref);
@@ -214,10 +244,9 @@ export class EntityService {
         onUpdate: (settings: DocumentData | null) => void,
         onError?: (error: unknown) => void
     ): Unsubscribe {
-        const { doc, onSnapshot } = require('firebase/firestore');
         const db = getFirestore();
         const ref = doc(db, 'users', userId, 'projects', projectId, 'settings', 'general');
-        return onSnapshot(ref, (snap: any) => {
+        return onSnapshot(ref, (snap) => {
             onUpdate(snap.exists() ? snap.data() : null);
         }, onError);
     }

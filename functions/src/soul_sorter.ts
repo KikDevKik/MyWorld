@@ -3,15 +3,16 @@ import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { TEMP_PRECISION } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
-import { EntityTier, EntityCategory, ForgePayload, SoulEntity, DetectedEntity } from "./types/forge";
+import { EntityCategory, ForgePayload, DetectedEntity } from "./types/forge";
 import { enrichEntitiesParallel } from "./services/enrichment";
 import { getAIKey } from "./utils/security";
 import { EntityRepository } from "./repository/EntityRepository";
+import { smartGenerateContent } from "./utils/smart_generate";
 
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
@@ -92,19 +93,6 @@ function extractNameFromBlock(text: string): string | null {
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_BATCH_CHARS = 75000;
 
-// 🟢 RETRY HELPER
-async function generateWithRetry(model: GenerativeModel, prompt: any[], retries = 3) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await model.generateContent(prompt);
-        } catch (e: any) {
-            if (i === retries - 1) throw e;
-            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
-        }
-    }
-    throw new Error("Retry failed");
-}
-
 export interface FileContent {
     id: string;
     name: string;
@@ -120,7 +108,7 @@ interface SorterRequest {
 // 🟢 EXPORTED LOGIC FOR TESTING
 export async function identifyEntities(
     files: FileContent[],
-    aiModel: GenerativeModel,
+    genAI: GoogleGenerativeAI,
     sagaId?: string
 ): Promise<Map<string, DetectedEntity>> {
 
@@ -354,8 +342,20 @@ export async function identifyEntities(
 
     for (const batchText of batches) {
         try {
-            const result = await generateWithRetry(aiModel, [extractionPrompt, batchText]);
-            const extracted = parseSecureJSON(result.response.text(), "SoulSorterExtraction");
+            const result = await smartGenerateContent(genAI, batchText, {
+                useFlash: true,
+                systemInstruction: extractionPrompt,
+                contextLabel: "SoulSorterExtraction",
+                jsonMode: true,
+                temperature: 0.2
+            });
+
+            if (result.error || !result.text) {
+                logger.error("Soul Sorter Batch Error:", result.error);
+                continue;
+            }
+
+            const extracted = parseSecureJSON(result.text, "SoulSorterExtraction");
 
             if (Array.isArray(extracted)) {
                 for (const item of extracted) {
@@ -507,16 +507,8 @@ export const classifyEntities = onCall(
 
             // --- 2. IDENTIFY ENTITIES (Logic) ---
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            const model = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    temperature: TEMP_PRECISION
-                } as any
-            });
-
-            const entitiesMap = await identifyEntities(fileContents, model, sagaId);
+            
+            const entitiesMap = await identifyEntities(fileContents, genAI, sagaId);
 
             // --- 3. ENRICHMENT PHASE ---
             const entityList = Array.from(entitiesMap.values());

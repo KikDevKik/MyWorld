@@ -99,7 +99,7 @@ export interface CharacterSnippet {
   text: string;
 }
 
-export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'LORE' | 'CONCEPT';
+export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'LORE' | 'CONCEPT' | 'RESOURCE';
 
 export interface Character {
   id: string; // Slug

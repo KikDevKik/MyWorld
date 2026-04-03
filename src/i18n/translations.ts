@@ -47,7 +47,9 @@ export const TRANSLATIONS: Record<Language, any> = {
             analyzing: "Analizando..."
         },
         laboratory: {
-            systemInstruction: "Eres el Bibliotecario. Tu misión es analizar referencias y conectar puntos."
+            systemInstruction: `Eres el Co-escritor Omnisciente y Analista Principal del Laboratorio de Ideas. Conectas los puntos del universo del autor usando toda la Memoria del proyecto.
+
+REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elemento, NO lo inventes. Di: '⚠️ No encuentro registros canónicos sobre esto. ¿Quieres que lo definamos?' EXCEPCIÓN: Si el usuario pide brainstorming especulativo, puedes proponer ideas pero márcalas como [PROPUESTA - No canónico].`
         },
         sidebar: {
             explorer: "EXPLORADOR",
@@ -455,7 +457,9 @@ export const TRANSLATIONS: Record<Language, any> = {
             analyzing: "Analyzing..."
         },
         laboratory: {
-            systemInstruction: "You are the Librarian. Your mission is to analyze references and connect dots."
+            systemInstruction: `You are the Omniscient Co-Writer and Lead Analyst of the Ideas Laboratory. You connect the dots of the author's universe using the full project Memory.
+
+STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an element, do NOT invent it. Say: '⚠️ I found no canonical records about this in the project. Want to define it now?' EXCEPTION: If the user requests speculative brainstorming, you may propose ideas but mark them as [PROPOSAL - Non-canonical].`
         },
         sidebar: {
             explorer: "EXPLORER",
@@ -863,8 +867,11 @@ export const TRANSLATIONS: Record<Language, any> = {
             analyzing: "分析中..."
         },
         laboratory: {
-            systemInstruction: "あなたは司書です。あなたの使命は、参考文献を分析し、点をつなぐことです。"
+            systemInstruction: `あなたは全知の共同執筆者です。プロジェクトの全メモリを使って宇宙の点を結びます。
+
+厳格なルール: コンテキストにデータがない場合、決して指してはいけません。'⚠️ このプロジェクトに正典記録が見つかりません。今定義しますか?' 例外: 投機的なブレインストーミングの場合は[PROPOSAL - Non-canonical]とマークして提案できます。`
         },
+
         sidebar: {
             explorer: "エクスプローラー",
             delete: "削除",
@@ -1254,7 +1261,9 @@ export const TRANSLATIONS: Record<Language, any> = {
             analyzing: "분석 중..."
         },
         laboratory: {
-            systemInstruction: "당신은 사서입니다. 당신의 임무는 참고 문헌을 분석하고 점들을 연결하는 것입니다."
+            systemInstruction: `당신은 전지전능한 공동 작가입니다. 프로젝트의 전체 메모리를 사용하여 세계의 점들을 연결합니다.
+
+엄격한 규칙: 컨텍스트에 데이터가 없으면 절대 발명하지 마세요. '⚠️ 이 프로젝트에서 정경 기록을 찾을 수 없습니다. 지금 정의하시겠어요?' 예외: 투기적 브레인스토밍의 경우 [PROPOSAL - Non-canonical]로 표시하여 제안할 수 있습니다.`
         },
         sidebar: {
             explorer: "탐색기",
@@ -1645,7 +1654,9 @@ export const TRANSLATIONS: Record<Language, any> = {
             analyzing: "分析中..."
         },
         laboratory: {
-            systemInstruction: "你是图书管理员。你的任务是分析参考资料并连接各个点。"
+            systemInstruction: `您是全知共同作者。使用项目的全部记忆连接宇宙的点。
+
+严格规则：如果上下文中没有数据，绝对不要虚构。说：'⚠️ 在项目中找不到正典记录。现在定义吗？' 例外：投机性头脑风暴时可以提出想法，但标注[PROPOSAL - Non-canonical]。`
         },
         sidebar: {
             explorer: "资源管理器",

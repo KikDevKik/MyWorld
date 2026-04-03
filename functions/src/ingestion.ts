@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import { FieldValue } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 import matter from 'gray-matter';
+import { ResourceDistillationService } from "./services/ResourceDistillationService";
 
 export interface IngestionFile {
     id: string; // Drive ID (The Primary Key)

@@ -60,7 +60,15 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
 
     // 🟢 LOCAL DEVELOPMENT: Skip App Check entirely on localhost (emulator handles auth)
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-        console.log("🛠️ [SECURITY] Localhost detected — skipping App Check (emulator mode).");
+        console.log("🛠️ [SECURITY] Localhost detected — connecting to Firestore Emulator (8088).");
+        try {
+            const { getFirestore, connectFirestoreEmulator } = await import("firebase/firestore");
+            const db = getFirestore(app);
+            connectFirestoreEmulator(db, 'localhost', 8088);
+            console.log("✅ [EMULATOR] Firestore connected to localhost:8088");
+        } catch (e) {
+            console.warn("⚠️ [EMULATOR] Firestore emulator already connected or failed:", e);
+        }
         return { isReady: true, error: null };
     }
 

@@ -1,96 +1,69 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // 🔒 SYSTEM SECRETS (OAuth Refresh Tokens) — Solo Cloud Functions via Admin SDK
-    // Never accessible from clients, regardless of auth status.
-    match /users/{userId}/system_secrets/{document=**} {
-      allow read, write: if false;
-    }
-
-    // 🟢 PUBLIC CERTIFICATES (THE JUDGE)
-    match /public_certificates/{certificateId} {
-      allow read: if true; // Public Verification
-      allow write: if false; // Only Cloud Function can write
-    }
-
-    // ¡¡¡AQUÍ ESTÁ LA LLAVE!!!
-    // ¡BLOQUEA TODO por defecto! ¡Nadie entra!
+    // Bloqueo total por defecto (nadie accede a lo no especificado)
     match /{document=**} {
       allow read, write: if false;
     }
 
-
-    // ¡¡¡LA EXCEPCIÓN!!!
-    // ¡Solo permitimos que el USUARIO LOGUEADO (el Chasis)...
-    // ...pueda LEER la colección "TDB_Index" de su PROPIO usuario!
-    match /TDB_Index/{userId}/{document=**} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      // ¡¡¡LA ESCRITURA SIGUE BLOQUEADA!!! ¡Solo el "Motor" (backend) puede escribir!
-    }
-
-    // 🟢 NUEVA REGLA PARA EL CRONOGRAMA (Intelligent Timeline)
-    // Permitimos leer y escribir (para confirmar/borrar eventos desde la UI)
-    match /TDB_Timeline/{userId}/events/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-
-    // 🟢 REGLA MAESTRA ANIDADA (MATCHING FRONTEND TRUTH)
-    // Coincide con la estructura: users/{userId}/projects/{projectId}/...
     match /users/{userId} {
-      // Permite acceso al documento de usuario (opcional, pero buena práctica)
       allow read, write: if request.auth != null && request.auth.uid == userId;
 
-      // ... Y a sus subcolecciones (como characters)
-      match /characters/{document=**} {
+      match /profile/{doc} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // 🟢 PERFIL (Config & Settings)
-      match /profile/{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+      match /WorldEntities/{entityId} {
+        allow read: if true;
+        allow write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // 🟢 PROYECTOS
+      match /forge_sessions/{sessionId} {
+        allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+
+        match /{document=**} {
+          allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+
+      match /muse_sessions/{sessionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+
+        match /messages/{messageId} {
+          allow read, write: if request.auth != null && request.auth.uid == userId;
+        }
+      }
+
       match /projects/{projectId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
 
-        // SUB-COLLECTION: ENTITIES (Confirmed in Report [4])
-        match /entities/{entityId} {
+        match /{subcollection=**} {
           allow read, write: if request.auth != null && request.auth.uid == userId;
-        }
-
-        // SUB-COLLECTION: EDGES (Critical for Purge Button [5])
-        match /edges/{edgeId} {
-          allow read, write: if request.auth != null && request.auth.uid == userId;
-        }
-
-        // SUB-COLLECTION: SETTINGS (For Blacklist/Rencor Protocol)
-        match /settings/{settingId} {
-           allow read, write: if request.auth != null && request.auth.uid == userId;
-        }
-
-        // 🟢 AUDIT LOG (Creative Audit Service)
-        match /audit_log/{logId} {
-           allow read, write: if request.auth != null && request.auth.uid == userId;
-        }
-
-        // 🟢 AUDIT STATS (The Spy's Memory)
-        match /stats/{statId} {
-           allow read, write: if request.auth != null && request.auth.uid == userId;
         }
       }
 
-      // 🟢 FORGE DETECTED ENTITIES (Soul Sorter)
-      match /forge_detected_entities/{entityId} {
+      match /characters/{charId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
 
-      // 🟢 FILE LOCKS (Mutex UI)
-      match /file_locks/{lockId} {
+      match /audit_cache/{doc} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      match /file_locks/{fileId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /system_secrets/{doc} {
+        allow read: if false;
+        allow write: if false;
+      }
+    }
+
+    match /public_certificates/{certId} {
+      allow read: if true;
+      allow write: if false;
     }
   }
 }

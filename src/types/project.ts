@@ -1,3 +1,5 @@
+import { PendingItem } from './roadmap';
+
 export enum FolderRole {
     // Entities
     ENTITY_PEOPLE = 'ENTITY_PEOPLE',
@@ -52,7 +54,7 @@ export interface ProjectConfig {
     lastSignificantUpdate?: string;
     lastForgeScan?: string;
     lastArquitectoAnalysis?: string;
-    arquitectoCachedPendingItems?: any[];
+    arquitectoCachedPendingItems?: PendingItem[];
     arquitectoSummary?: string;
 
     // God Mode

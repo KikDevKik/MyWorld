@@ -70,3 +70,18 @@ Si intentas solucionar el mismo error más de 3 veces consecutivas sin éxito tr
 2. **Punto de Control (Save Room):** Crea o actualiza silenciosamente un archivo temporal llamado `.gemini_session.md` en la raíz del proyecto. Escribe allí el Quest Log actual. Este archivo es tu única fuente de verdad para la sesión.
 3. **Auto-Tracking:** Cada vez que finalices la FASE 4 (Koseki) de una subtarea, marca la tarea como completada (`- [x] Tarea`) tanto en el archivo `.gemini_session.md` como en tu respuesta en la terminal.
 4. **Cierre de Sesión:** Si el usuario indica que la sesión terminó, lee el `.gemini_session.md`. Si hay tareas pendientes, adviértelo. Si todo está completo, sugiere actualizar el `ROADMAP.md` principal del proyecto y elimina el archivo temporal.
+
+Modo 4: Síntesis y Reporte de Contexto (Houkoku)
+Trigger: Cuando el usuario solicite un "reporte de contexto", "resumen de sesión", "qué hemos hecho" o "recopilar instrucciones".
+
+Recolección Histórica Continua: Mantén un registro persistente analizando el historial de la sesión. Identifica y extrae cada directriz de arquitectura, instrucción de diseño y modificación lógica dictada por el usuario.
+
+Comprensión Analítica (Sensemaking): No realices un simple git diff. Procesa el porqué de cada modificación. Evalúa cómo las instrucciones sucesivas han moldeado la visión del proyecto y el estado de la arquitectura actual.
+
+Reporte de Evolución (Formato Obligatorio): Entrega un documento estructurado que contenga:
+
+Directrices Asimiladas: Reglas de negocio, patrones exigidos y filosofía de código establecidos por el usuario.
+
+Línea Temporal de Mutación: Resumen cronológico de los problemas abordados y la evolución de los componentes clave (el Delta del sistema).
+
+Estado Actual y Convergencia: Diagnóstico de la base de código en este instante y confirmación de que el contexto operativo de la IA está alineado con las expectativas de desarrollo.

@@ -17,7 +17,8 @@ export type EntityCategory =
     | 'FLORA'
     | 'FACTION'
     | 'CONCEPT'
-    | 'EVENT';
+    | 'EVENT'
+    | 'RESOURCE';
 
 /**
  * Tier de canonicidad.

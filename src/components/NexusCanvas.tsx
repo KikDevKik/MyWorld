@@ -22,7 +22,7 @@ import {
     Bug,
     Trash2
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../contexts/ProjectConfigContext";

@@ -620,6 +620,31 @@ export const crystallizeGraph = onCall(
                             lastUpdated: new Date().toISOString()
                         }, { merge: true });
 
+                        // 🟢 UPDATE SSOT (WorldEntities)
+                        try {
+                            const ssotRef = db.collection("users").doc(userId).collection("WorldEntities").doc(node.id);
+                            await ssotRef.set({
+                                id: node.id,
+                                projectId: projectId,
+                                name: node.name,
+                                category: finalType,
+                                tier: 'ANCHOR',
+                                status: 'ACTIVE',
+                                driveFileId: fileId,
+                                modules: {
+                                    forge: { summary: finalDesc },
+                                    nexus: { 
+                                        relations: finalRelations,
+                                        builderMetadata: { isCrystallized: true }
+                                    }
+                                },
+                                updatedAt: FieldValue.serverTimestamp()
+                            }, { merge: true });
+                            logger.info(`✅ SSOT WorldEntities updated for ${node.id}`);
+                        } catch (ssotErr) {
+                            logger.error(`❌ Failed to update SSOT for ${node.id}:`, ssotErr);
+                        }
+
                         createdFiles.push({ id: fileId, name: fileName });
                         successCount++;
                     }

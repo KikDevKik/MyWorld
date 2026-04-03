@@ -1,6 +1,6 @@
 import React from 'react';
 import { Landmark, AlertCircle, AlertTriangle, Lightbulb, ArrowLeft, X } from 'lucide-react';
-import { PendingItem } from '../hooks/useArquitecto';
+import { PendingItem } from '../types/roadmap';
 import { useLayoutStore } from '../stores/useLayoutStore';
 
 interface ArquitectoPendingWidgetProps {

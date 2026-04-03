@@ -5,9 +5,10 @@ import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { TEMP_PRECISION } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey, escapePromptVariable } from "./utils/security";
+import { smartGenerateContent } from "./utils/smart_generate";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -36,21 +37,10 @@ export const classifyResource = onCall(
         const db = getFirestore();
 
         try {
-            // 1. Check if already tagged (Idempotency) - Optional, but frontend usually handles this.
-            // We'll proceed to classify/re-classify.
-
-            // 2. Prepare AI
+            // 1. Prepare AI
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            const model = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    temperature: TEMP_PRECISION // We want consistent classification
-                } as any
-            });
-
-            // 3. Construct Prompt
+            
+            // 2. Construct Prompt
             const prompt = `
             TASK: Classify this resource file into ONE category.
 
@@ -75,11 +65,22 @@ export const classifyResource = onCall(
             { "tag": "LORE", "reason": "Describes the political system of X." }
             `;
 
-            const result = await model.generateContent(prompt);
-            const data = parseSecureJSON(result.response.text(), "ResourceClassification");
+            const result = await smartGenerateContent(genAI, prompt, {
+                useFlash: true, // Use Flash for quick classification
+                contextLabel: "ResourceClassification",
+                temperature: TEMP_PRECISION,
+                jsonMode: true
+            });
+
+            if (result.error || !result.text) {
+                logger.error("Error classifying resource:", result.error);
+                throw new HttpsError("internal", `Error en clasificación AI: ${result.error}`);
+            }
+
+            const data = parseSecureJSON(result.text, "ResourceClassification");
             const tag = data.tag || 'OTROS';
 
-            // 4. Update Firestore
+            // 3. Update Firestore
             await db.collection("TDB_Index").doc(uid).collection("files").doc(fileId).set({
                 smartTags: [tag], // Array for future expansion
                 lastClassified: new Date().toISOString()

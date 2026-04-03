@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import CreateProjectModal from './ui/CreateProjectModal';
 import DeleteConfirmationModal from './ui/DeleteConfirmationModal'; // 🟢 NEW
 import { callFunction } from '../services/api';
+import { EntityService } from '../services/EntityService';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
 import { getLocalizedFolderName } from '../utils/folderLocalization';
@@ -147,34 +148,38 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         };
     }, [indexMenuRef]);
 
-    // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
+    // 🟢 LISTEN FOR CONFLICTS (Using EntityService)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
-        if (!user || !isSecurityReady) return;
+        if (!user || !isSecurityReady || !config?.folderId) return;
 
-        const db = getFirestore();
-        // Query TDB_Index/files where isConflicting == true
-        const q = query(
-            collection(db, "TDB_Index", user.uid, "files"),
-            where("isConflicting", "==", true)
+        console.log("📡 Listening for Conflicting Entities...");
+        const unsubscribe = EntityService.subscribeToConflicts(
+            user.uid,
+            config.folderId,
+            (entities) => {
+                const conflictIds = new Set<string>();
+                entities.forEach(entity => {
+                    // Si tienes conflictos, típicamente se muestra el error en el archivo, 
+                    // necesitamos mapearlo a id de drive o ID de entidad que el UI usa para resaltar
+                    if (entity.id) { 
+                        conflictIds.add(entity.id);
+                    }
+                    if (entity.driveFileId) {
+                        conflictIds.add(entity.driveFileId);
+                    }
+                });
+                console.log(`⚠️ Updated Conflicts: ${conflictIds.size} entities`);
+                setConflictingFileIds(conflictIds);
+            },
+            (error) => {
+                console.error("Error listening for conflicts:", error);
+            }
         );
 
-        console.log("📡 Listening for Conflicting Files...");
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const conflictIds = new Set<string>();
-            snapshot.docs.forEach(doc => {
-                const data = doc.data();
-                if (data.driveId) {
-                    conflictIds.add(data.driveId);
-                }
-            });
-            console.log(`⚠️ Updated Conflicts: ${conflictIds.size} files`);
-            setConflictingFileIds(conflictIds);
-        });
-
         return () => unsubscribe();
-    }, [isSecurityReady]);
+    }, [isSecurityReady, config?.folderId]);
 
 
     // 🟢 OPTIMIZED TREE SPLIT LOGIC (useMemo)

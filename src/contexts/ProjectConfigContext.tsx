@@ -179,14 +179,24 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       return;
     }
 
+    // 🛡️ SANITIZACIÓN CLIENTE: Nunca enviar claves a Firestore
+    const { 
+        // @ts-ignore - estos campos no deberían existir en ProjectConfig
+        _authOverride,
+        customGeminiKey, 
+        apiKey,
+        accessToken,
+        ...sanitizedConfig 
+    } = newConfig as any;
+
     try {
-      await callFunction('saveProjectConfig', newConfig);
-      setConfig(newConfig);
-      toast.success('Configuración guardada correctamente.');
+        await callFunction('saveProjectConfig', sanitizedConfig);
+        setConfig(sanitizedConfig as ProjectConfig);
+        toast.success('Configuración guardada correctamente.');
     } catch (error) {
-      console.error('Error saving project config:', error);
-      toast.error('Error al guardar la configuración.');
-      throw error;
+        console.error('Error saving project config:', error);
+        toast.error('Error al guardar la configuración.');
+        throw error;
     }
   };
 

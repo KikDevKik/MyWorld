@@ -1,4 +1,4 @@
-export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'CONCEPT';
+export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'CONCEPT' | 'RESOURCE';
 export type EntityTier = 'MAIN' | 'SECONDARY' | 'BACKGROUND' | 'GHOST' | 'LIMBO' | 'ANCHOR' | 'SUPPORTING'; // Added SUPPORTING
 
 export interface DetectedEntity {

@@ -4,15 +4,9 @@ import { useArquitectoStore } from '../stores/useArquitectoStore';
 import { callFunction } from '../services/api';
 import { toast } from 'sonner';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
-
-export interface PendingItem {
-    code: string;
-    severity: 'critical' | 'warning' | 'suggestion';
-    title: string;
-    description: string;
-    relatedFiles?: string[];
-    category: 'continuidad' | 'worldbuilding' | 'personaje' | 'cronologia' | 'estructura';
-}
+import { PendingItem, RoadmapCard, RoadmapImpact } from '../types/roadmap';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 
 export interface ArquitectoMessage {
     id: string;
@@ -32,6 +26,16 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     const [messages, setMessages] = useState<ArquitectoMessage[]>([]);
     const [pendingItems, setPendingItems] = useState<PendingItem[]>(() => useArquitectoStore.getState().arquitectoPendingItems || []);
     const [projectSummary, setProjectSummary] = useState<string>(() => useArquitectoStore.getState().arquitectoSummary || config?.arquitectoSummary || '');
+
+    // ── Sprint 4.1: Nuevos estados reactivos ──
+    const [roadmapCards, setRoadmapCards] = useState<RoadmapCard[]>([]);
+    const [activeCardId, setActiveCardId] = useState<string | null>(null);
+    const [pendingDominoImpact, setPendingDominoImpact] = useState<RoadmapImpact | null>(null);
+    const [isRecalculating, setIsRecalculating] = useState(false);
+
+    // Sprint 5.4: Objetivo Actual (Foco)
+    const [currentObjective, setCurrentObjective] = useState<string | null>(null);
+
     const {
         arquitectoSessionId: sessionId,
         setArquitectoSessionId: setSessionId,
@@ -64,6 +68,57 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             setProjectSummary(cachedSummary);
         }
     }, []); // 👈 Solo al montar el hook
+
+    // ── Sprint 4.1 & 5.4: onSnapshot al Roadmap activo y su Objetivo ──
+    // Se activa cuando hay sessionId y lo desuscribe al cambiar sesión o desmontar.
+    useEffect(() => {
+        if (!sessionId || isGhostMode) return;
+
+        const auth = getAuth();
+        const userId = auth.currentUser?.uid;
+        if (!userId) return;
+
+        const db = getFirestore();
+        const roadmapDocRef = doc(
+            db,
+            'users', userId,
+            'forge_sessions', sessionId,
+            'architect', 'roadmap'
+        );
+
+        const cardsRef = collection(roadmapDocRef, 'cards');
+        const cardsQuery = query(cardsRef, orderBy('order', 'asc'));
+
+        const unsubscribeCards = onSnapshot(
+            cardsQuery,
+            (snap) => {
+                const cards = snap.docs.map(d => d.data() as RoadmapCard);
+                setRoadmapCards(cards);
+            },
+            (err) => {
+                console.warn('[Arquitecto] onSnapshot roadmap/cards falló:', err.message);
+            }
+        );
+
+        const unsubscribeObjective = onSnapshot(
+            roadmapDocRef,
+            (snap) => {
+                if (snap.exists()) {
+                    setCurrentObjective(snap.data().objective || null);
+                } else {
+                    setCurrentObjective(null);
+                }
+            },
+            (err) => {
+                console.warn('[Arquitecto] onSnapshot roadmap doc falló:', err.message);
+            }
+        );
+
+        return () => {
+            unsubscribeCards();
+            unsubscribeObjective();
+        };
+    }, [sessionId, isGhostMode]);
 
     const initialize = useCallback(async () => {
         if (hasInitialized || isInitializing) return;
@@ -180,6 +235,12 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             setProjectSummary(data.projectSummary || '');
             useArquitectoStore.getState().setArquitectoSummary(data.projectSummary || '');
             setLastAnalyzedAt(data.lastAnalyzedAt);
+
+            // Sprint 2: roadmapCards ya disponibles desde el backend
+            if (data.roadmapCards && data.roadmapCards.length > 0) {
+                setRoadmapCards(data.roadmapCards);
+            }
+
             setMessages([{
                 id: 'init',
                 role: 'assistant',
@@ -266,7 +327,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 sessionId,
                 history: historyPayload,
                 pendingItems,
-                accessToken
+                accessToken,
+                objective: currentObjective
             });
 
             if (!data) throw new Error("Sin respuesta.");
@@ -281,6 +343,11 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
             setMessages(prev => [...prev, assistantMsg]);
 
+            // ── Sprint 4.1: Interceptar roadmapImpact del backend ──
+            if (data.roadmapImpact?.hasImpact === true) {
+                setPendingDominoImpact(data.roadmapImpact as RoadmapImpact);
+            }
+
         } catch (error) {
             console.error("Arquitecto chat error:", error);
             toast.error("Error al comunicarse con El Arquitecto.");
@@ -288,6 +355,43 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             setIsThinking(false);
         }
     }, [sessionId, messages, pendingItems, accessToken, isThinking, isGhostMode]);
+
+    // ── Sprint 4.1: Confirmar impacto → reescribir tarjetas vía backend ──
+    const confirmDominoImpact = useCallback(async () => {
+        if (!pendingDominoImpact || !sessionId) return;
+        if (pendingDominoImpact.affectedCardIds.length === 0) {
+            setPendingDominoImpact(null);
+            return;
+        }
+
+        setIsRecalculating(true);
+        const lastUserMessage = messages.filter(m => m.role === 'user').at(-1)?.text ?? '';
+
+        try {
+            const data = await callFunction<any>('arquitectoRecalculateCards', {
+                sessionId,
+                affectedCardIds: pendingDominoImpact.affectedCardIds,
+                userMessage: lastUserMessage,
+            });
+
+            if (data?.updatedCards) {
+                // El onSnapshot actualizará roadmapCards automáticamente desde Firestore.
+                // Solo necesitamos limpiar el estado de impacto pendiente.
+                toast.success(`🗺️ ${data.updatedCards.length} tarjeta(s) del Roadmap actualizadas.`);
+            }
+        } catch (error) {
+            console.error("RecalculateCards error:", error);
+            toast.error("No se pudo recalcular el Roadmap.");
+        } finally {
+            setIsRecalculating(false);
+            setPendingDominoImpact(null);
+        }
+    }, [pendingDominoImpact, sessionId, messages]);
+
+    // ── Sprint 4.1: Descartar impacto sin recalcular ──
+    const dismissDominoImpact = useCallback(() => {
+        setPendingDominoImpact(null);
+    }, []);
 
     const reAnalyze = useCallback(async () => {
         if (isAnalyzing) return;
@@ -343,6 +447,54 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             setIsAnalyzing(false);
         }
     }, [sessionId, accessToken, isAnalyzing]);
+
+    // ── Sprint 5.5: Guardián del Roadmap Unificado ──
+    const [isCrystallizing, setIsCrystallizing] = useState(false);
+    const [isAuditing, setIsAuditing] = useState(false);
+    const [readinessResult, setReadinessResult] = useState<{
+        isReady: boolean;
+        missingElements: string[];
+        warningMessage: string;
+    } | null>(null);
+
+    const generateRoadmap = useCallback(async () => {
+        if (!sessionId) { toast.error('Sesión faltante.'); return; }
+        setIsCrystallizing(true);
+        toast.loading('Generando el Roadmap Atómico...', { id: 'cristalizar' });
+
+        try {
+            const data = await callFunction<any>('arquitectoGenerateRoadmap', {
+                sessionId,
+                projectId: config?.folderId,
+                objective: currentObjective
+            });
+
+            if (!data.ready) {
+                // Pre-flight fallido
+                setReadinessResult({
+                    isReady: false,
+                    missingElements: ['Interacciones insuficientes'],
+                    warningMessage: 'Necesitamos conversar un poco más (al menos 3 interacciones) antes de poder cristalizar un Roadmap preciso. ¡Explícame más sobre tu idea!'
+                });
+                toast.dismiss('cristalizar');
+                return;
+            }
+
+            if (data?.pendingItems) {
+                setPendingItems(data.pendingItems);
+                useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems);
+            }
+
+            // roadmapCards llega via onSnapshot automáticamente desde Firestore
+            setReadinessResult(null);
+            toast.success('✨ Roadmap cristalizado con éxito.', { id: 'cristalizar' });
+        } catch (e) {
+            toast.error('Error al cristalizar el Roadmap.', { id: 'cristalizar' });
+        } finally {
+            setIsCrystallizing(false);
+        }
+    }, [sessionId, config?.folderId, currentObjective]);
+
     const isOutdated = config?.lastSignificantUpdate && lastAnalyzedAt
         ? config.lastSignificantUpdate > lastAnalyzedAt
         : false;
@@ -358,8 +510,25 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         lastAnalyzedAt,
         hasInitialized,
         isOutdated,
+        // Sprint 4.1
+        roadmapCards,
+        activeCardId,
+        setActiveCardId,
+        pendingDominoImpact,
+        isRecalculating,
+        confirmDominoImpact,
+        dismissDominoImpact,
         initialize,
         sendMessage,
-        reAnalyze
+        reAnalyze,
+        // Sprint 5.2: Guardián del Roadmap
+        isCrystallizing,
+        isAuditing,
+        readinessResult,
+        setReadinessResult,
+        generateRoadmap,
+        // Sprint 5.4: Estado del objetivo narrativo actual
+        currentObjective,
+        setCurrentObjective,
     };
 };

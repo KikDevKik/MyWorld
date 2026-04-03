@@ -9,7 +9,7 @@ import { getAIKey } from "./utils/security";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { GeminiEmbedder } from "./utils/vector_utils";
-import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAI, TaskType, SchemaType } from "@google/generative-ai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
@@ -45,9 +45,10 @@ export { acquireLock, releaseLock, checkIndexStatus } from './librarian';
 export { crystallizeGraph, crystallizeForgeEntity } from './crystallization';
 export { generateAuditPDF, generateCertificate } from './audit';
 export { analyzeStyleDNA } from './analyst';
-export { arquitectoInitialize, arquitectoChat, arquitectoAnalyze } from './architect';
-
-
+export { arquitectoInitialize, arquitectoChat, arquitectoAnalyze, arquitectoRecalculateCards, arquitectoGenerateRoadmap } from './architect';
+// export { distillResourceOnIndex } from './distillation_trigger'; // 🟢 NEW: Trigger para Recursos (Desactivado: backfill hace todo)
+export { backfillResourcesFromDrive } from './backfill'; // 🟢 NEW: Sistema de Backfill (Golden Fix)
+export { distillResource } from './distill'; // 🟢 NEW: Destilación Poco a Poco (Bajo demanda)
 
 export { generateSpeech, analyzeScene } from "./tts";
 
@@ -259,25 +260,103 @@ export const getDriveFiles = onCall(
  * Persists project-specific settings to Firestore.
  */
 export const saveProjectConfig = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        // 🛡️ SANITIZACIÓN CRÍTICA: Nunca persistir claves en Firestore
+        const sanitizedData = { ...request.data };
+        delete sanitizedData._authOverride;
+        delete sanitizedData.customGeminiKey;
+        delete sanitizedData.apiKey;
+        delete sanitizedData.accessToken; // El token de Drive tampoco
+
+        try {
+            await db.collection("users").doc(userId)
+                .collection("profile").doc("project_config")
+                .set({
+                    ...sanitizedData,
+                    updatedAt: new Date().toISOString()
+                }, { merge: true });
+
+            return { success: true };
+        } catch (error: any) {
+            logger.error("Save Project Config Failed:", error);
+            throw new HttpsError('internal', error.message);
+        }
+    }
+);
+
+/**
+ * MUSE MESSAGE MANAGEMENT & META-RAG
+ */
+export const addMuseMessage = onCall(
   {
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
+    secrets: [googleApiKey],
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+    const { sessionId, role, text } = request.data;
     const userId = request.auth.uid;
     const db = getFirestore();
 
     try {
-      await db.collection("users").doc(userId).collection("profile").doc("project_config").set({
-        ...request.data,
-        updatedAt: new Date().toISOString()
+      const sessionRef = db.collection("users").doc(userId).collection("muse_sessions").doc(sessionId);
+      await sessionRef.collection("messages").add({
+        role,
+        text,
+        timestamp: FieldValue.serverTimestamp()
+      });
+
+      // Update session heartbeat and preview
+      await sessionRef.set({
+        lastActivity: FieldValue.serverTimestamp(),
+        preview: text.substring(0, 100)
       }, { merge: true });
+
+      // 🟢 META-RAG GENERATION: Trigger on AI response
+      if (role === 'model' || role === 'ia') {
+        // Perform async background update (don't await to keep UI fast)
+        // Actually, in Cloud Functions we should await or use a separate trigger.
+        // For reliability in this surgical update, we'll do it here but catch errors.
+        try {
+          const messagesSnap = await sessionRef.collection("messages").orderBy("timestamp", "desc").limit(10).get();
+          const fullText = messagesSnap.docs.reverse().map(m => `[${m.data().role}]: ${m.data().text}`).join("\n");
+
+          const finalKey = getAIKey(request.data, googleApiKey.value());
+          const genAI = new GoogleGenerativeAI(finalKey);
+          const model = genAI.getGenerativeModel({ model: MODEL_FLASH });
+
+          const summaryPrompt = `Resume esta conversación de MyWorld en una sola frase técnica que capture la esencia creativa, los personajes discutidos y el tema. Úsalo para búsqueda semántica futura.\n\nCONVERSACIÓN:\n${fullText}`;
+          const summaryResult = await model.generateContent(summaryPrompt);
+          const summary = summaryResult.response.text();
+
+          const embeddings = new GeminiEmbedder({ apiKey: finalKey, model: "gemini-embedding-001" });
+          const vector = await embeddings.embedQuery(summary);
+
+          await sessionRef.set({
+            summary: summary,
+            embedding: vector,
+            vectorizedAt: FieldValue.serverTimestamp()
+          }, { merge: true });
+
+          logger.info(`🧠 Meta-RAG Updated for session ${sessionId}`);
+        } catch (e) {
+          logger.error("💥 Failed to update Meta-RAG:", e);
+        }
+      }
 
       return { success: true };
     } catch (error: any) {
-      logger.error("Save Project Config Failed:", error);
       throw new HttpsError('internal', error.message);
     }
   }
@@ -1098,9 +1177,47 @@ ${analysis}
         path: doc.data().path || ""
       }));
 
-      // 🟢 SOURCE DIVERSITY LIMITING
-      const returnLimit = isFallbackContext ? 20 : 15;
-      const MAX_CHUNKS_PER_FILE = 5;
+      // 🟢 RAG DINÁMICO: Determinar límites según el tier de la entidad reconocida
+      // Esto destru­ye el cuello de botella estático que filtraba protagonistas del contexto.
+      let returnLimit = isFallbackContext ? 20 : 15;
+      let MAX_CHUNKS_PER_FILE = 5;
+
+      try {
+        // Leer tier y occurrences de la entidad coincidente desde WorldEntities
+        if (entityContext) {
+          const entityName = entityContext.match(/DEEP ANALYSIS\]:\n\(This is verified intelligence about (.+?)\./)?.[1];
+          if (entityName) {
+            const weRef = db.collection('users').doc(userId).collection('WorldEntities');
+            const snap = await weRef
+              .where('name', '>=', entityName)
+              .where('name', '<=', entityName + '\uf8ff')
+              .limit(1)
+              .get();
+
+            if (!snap.empty) {
+              const we = snap.docs[0].data();
+              const tier = we.tier || 'GHOST';
+              const occurrences = we.modules?.guardian?.occurrences || we.modules?.forge?.occurrences || 0;
+
+              if (tier === 'ANCHOR' || occurrences > 50) {
+                // Protagonistas / entidades densas: contexto máximo
+                returnLimit = 150;
+                MAX_CHUNKS_PER_FILE = 50;
+                logger.info(`🔓 [RAG DINÁMICO] ANCHOR/ALTA DENSIDAD: ${entityName} (tier=${tier}, occ=${occurrences}) → returnLimit=150, cap=50`);
+              } else if (tier === 'LIMBO' || occurrences > 10) {
+                // Entidades secundarias importantes
+                returnLimit = 40;
+                MAX_CHUNKS_PER_FILE = 15;
+                logger.info(`🔓 [RAG DINÁMICO] LIMBO/MEDIA DENSIDAD: ${entityName} (tier=${tier}, occ=${occurrences}) → returnLimit=40, cap=15`);
+              } else {
+                logger.info(`🔓 [RAG DINÁMICO] GHOST/DEFAULT: ${entityName} (tier=${tier}, occ=${occurrences}) → usando valores base`);
+              }
+            }
+          }
+        }
+      } catch (dynErr: any) {
+        logger.warn(`⚠️ [RAG DINÁMICO] Fallo al leer WorldEntities para ajuste dinámico: ${dynErr.message}. Usando valores base.`);
+      }
 
       const finalContext: any[] = [];
       const rejectedCandidates: any[] = [];
@@ -1232,11 +1349,10 @@ OBJETIVO: Ayudar al autor manteniendo una inmersión lingüística y cultural ab
 Si la información sobre un vínculo entre personajes NO aparece en los archivos indexados (RAG), el sistema tiene PROHIBIDO inferir relaciones familiares o sentimentales. Debe responder: 'No hay datos de este vínculo en los archivos del proyecto'.
 
 [PROTOCOLO DE MEMORIA VACÍA (TABULA RASA)]:
-Si NO se recuperan fragmentos de la [MEMORIA A LARGO PLAZO] (es decir, el proyecto está vacío o recién creado):
+Si NO se recuperan fragmentos de la [MEMORIA A LARGO PLAZO] (proyecto vacío o entidad desconocida):
 1. NO INVENTES HECHOS SOBRE EL LORE O PERSONAJES ESPECÍFICOS.
-2. ADMITE que no tienes datos previos sobre esa entidad.
-3. PREGUNTA al usuario por detalles básicos para empezar a construir la base de datos.
-4. EXCEPCIÓN: Si el usuario te pide ideas genéricas (Brainstorming), eres libre de ser creativo. Pero si pregunta "¿Quién es Anna?", y Anna no está en la memoria, di "No tengo registros de Anna en este proyecto".
+2. Di claramente: '⚠️ No encuentro registros canónicos sobre esto en el proyecto. Si quieres, podemos definirlo ahora — cuéntame más y lo guardamos en el sistema.'
+3. EXCEPCIÓN: Si el usuario pide ideas genéricas (brainstorming sin lore específico), puedes ser creativo. Pero si pregunta '¿Quién es Anna?' y Anna no está en la memoria, responde: 'No tengo registros de Anna en este proyecto. ¿Quieres que lo definamos?'
 
 [REGLA DE BÚSQUEDA DE PERSONAJES]:
 Si el usuario pregunta por alguien que NO es el personaje activo, busca primero en la Lista de Personajes cargada actualmente (Memoria a Largo Plazo), y luego usa la herramienta RAG (Vectores) para buscar en todo el proyecto.
@@ -1283,7 +1399,10 @@ ${activeCharacterPrompt}
       finalSystemInstruction = CONTINUITY_PROTOCOL + "\n\n" + entityContext + "\n\n" + finalSystemInstruction;
 
       if (categoryFilter === 'reference') {
-        finalSystemInstruction += "\n\nIMPORTANTE: Responde basándote EXCLUSIVAMENTE en el material de referencia proporcionado. Actúa como un tutor o experto en la materia.";
+        // 🟢 OMNISCIENT MODE: No longer exclusive — RAG already searches ALL user chunks.
+        // We prioritize reference material in the response framing, but the AI can
+        // cross-reference canon, characters and lore to give a complete answer.
+        finalSystemInstruction += "\n\n[MODO LABORATORIO - PRIORIDAD DE FUENTES]:\nEstás en modo Analista de Recursos. Cuando respondas, prioriza la información de los archivos de referencia y recursos adjuntos. SIN EMBARGO, puedes y DEBES cruzar esa información con el resto del canon del proyecto (personajes, facciones, lore) recuperado de la Memoria a Largo Plazo para dar respuestas completas y conectadas. No te limites solo a los archivos de referencia — eres un Co-escritor Omnisciente.";
       }
 
       let activeContextSection = "";
@@ -1355,18 +1474,38 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
           logger.info(`🧠 [GOD MODE] Using Context Cache in Forge: ${cachedContent}`);
         }
 
-        // --- 1. CONFIGURATION ---
+        // --- 1. CONFIGURATION & TOOLS ---
+        const fetchPastSessionsTool = {
+          functionDeclarations: [
+            {
+              name: "fetchPastSessions",
+              description: "Recupera un resumen de las conversaciones pasadas del usuario para mantener la memoria transversal. Úsalo solo si el usuario pide recordar algo específico de otro chat.",
+              parameters: {
+                type: SchemaType.OBJECT,
+                properties: {
+                  searchQuery: {
+                    type: SchemaType.STRING,
+                    description: "Palabra clave para buscar en los títulos o contenido de sesiones pasadas."
+                  }
+                },
+                required: ["searchQuery"]
+              }
+            }
+          ]
+        } as any; // Cast to any to bypass strict schema vs interface mismatch in SDK types
+
         const generationConfig = {
           temperature: TEMP_CREATIVE,
           maxOutputTokens: 8192,
         };
 
-        // --- 2. ATTEMPT 1: STANDARD CALL ---
+        // --- 2. ATTEMPT 1: STANDARD CALL WITH TOOLS ---
         let model = genAI.getGenerativeModel({
           model: MODEL_PRO,
           generationConfig,
           safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-          cachedContent: cachedContent
+          cachedContent: cachedContent,
+          tools: [fetchPastSessionsTool]
         });
 
         // 🟢 MULTIMODAL PAYLOAD
@@ -1379,9 +1518,82 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
           logger.info("📸 Multimodal Payload Detected");
         }
 
-        logger.info("🚀 [BYPASS] Attempt 1: Calling Gemini Native SDK...");
-        let result = await model.generateContent(payload);
+        logger.info("🚀 [BYPASS] Attempt 1: Calling Gemini Native SDK with Tools...");
+
+        const chat = model.startChat();
+        let result = await chat.sendMessage(payload);
         let response = result.response;
+
+        // 🟢 TOOL HANDLING (FUNCTION CALLING)
+        const calls = response.functionCalls();
+        if (calls && calls.length > 0) {
+          const call = calls[0];
+          if (call.name === "fetchPastSessions") {
+            logger.info("🧠 AI requested fetchPastSessions tool (Meta-RAG Mode)");
+            const { searchQuery: q } = call.args as any;
+
+            let sessionContexts: string[] = [];
+
+            try {
+              // 1. Vectorize Query
+              const embeddings = new GeminiEmbedder({
+                apiKey: getAIKey(request.data, googleApiKey.value()),
+                model: "gemini-embedding-001"
+              });
+              const queryVector = await embeddings.embedQuery(q || "conversaciones pasadas");
+
+              // 2. Vector Search (Firestore findNearest)
+              const vectorQuery = db.collection("users").doc(userId)
+                .collection("muse_sessions")
+                .findNearest({
+                  queryVector: queryVector,
+                  distanceMeasure: "COSINE",
+                  limit: 5,
+                  vectorField: "embedding"
+                });
+
+              const vectorSnap = await vectorQuery.get();
+
+              if (!vectorSnap.empty) {
+                sessionContexts = await Promise.all(vectorSnap.docs.map(async d => {
+                  const data = d.data();
+                  // Fetch last few messages for deeper context
+                  const messages = await d.ref.collection("messages").orderBy("timestamp", "desc").limit(3).get();
+                  const msgText = messages.docs.reverse().map(m => `[${m.data().role}]: ${m.data().text}`).join("\n");
+                  return `SESIÓN: ${data.title}\nRESUMEN: ${data.preview}\nCONTENIDO RELEVANTE:\n${msgText}`;
+                }));
+              } else {
+                // Fallback: Recent sessions if no vector match
+                const recentSnap = await db.collection("users").doc(userId)
+                  .collection("muse_sessions")
+                  .orderBy("lastActivity", "desc")
+                  .limit(3)
+                  .get();
+
+                sessionContexts = recentSnap.docs.map(d => `SESIÓN: ${d.data().title}\nRESUMEN: ${d.data().preview}`);
+              }
+
+            } catch (vecError) {
+              logger.error("💥 Meta-RAG Search Failed:", vecError);
+              // Critical Fallback
+              sessionContexts = ["Error en búsqueda semántica. Intenta una búsqueda por fecha."];
+            }
+
+            const toolResponse = sessionContexts.length > 0
+              ? "Aquí tienes fragmentos de conversaciones pasadas semánticamente relevantes:\n\n" + sessionContexts.join("\n\n---\n\n")
+              : "No encontré conversaciones pasadas relevantes para tu búsqueda.";
+
+            // Send tool result back
+            result = await chat.sendMessage([{
+              functionResponse: {
+                name: "fetchPastSessions",
+                response: { content: toolResponse }
+              }
+            }]);
+            response = result.response;
+          }
+        }
+
         let finishReason = response.candidates?.[0]?.finishReason;
 
         // 🟢 DEBUG RAW RESPONSE
@@ -2490,7 +2702,7 @@ export const updateLongTermMemory = onCall(
       // If we want to use Pro with the cache, the cache must be compatible?
       // Gemini caches are model-specific? Docs say: "The cache is associated with a specific model."
       // We want to use this with BOTH? No, usually one.
-      // The user wants "Pro" to have the memory. So we should target 'models/gemini-1.5-pro-001' (or 3.0-pro).
+      // The user wants "Pro" to have the memory. So we should target 'gemini-3.1-pro-preview'.
       // Let's target MODEL_PRO.
 
       // However, user also said "Flash reads everything". Maybe Flash creates the map?

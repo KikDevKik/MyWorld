@@ -5,8 +5,8 @@ import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Readable } from 'stream';
-import { MODEL_HIGH_REASONING, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { getAIKey } from "./utils/security";
+import { smartGenerateContent } from "./utils/smart_generate";
 
 // --- CONFIG ---
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -131,14 +131,7 @@ export const analyzeStyleDNA = onCall(
 
             // 2. AI Analysis
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            const model = genAI.getGenerativeModel({
-                model: MODEL_HIGH_REASONING,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: {
-                    temperature: 0.7, // Creative but grounded
-                }
-            });
-
+            
             const prompt = `
                 Actúa como un analista literario experto.
                 Analiza el siguiente texto y genera una 'Definición de Identidad Narrativa' compacta.
@@ -153,8 +146,18 @@ export const analyzeStyleDNA = onCall(
                 ${aggregatedText.substring(0, 100000)}
             `;
 
-            const result = await model.generateContent(prompt);
-            const styleIdentity = result.response.text();
+            const result = await smartGenerateContent(genAI, prompt, {
+                useFlash: false, // Use Pro for deep style analysis
+                contextLabel: "StyleDNAAnalyst",
+                temperature: 0.7
+            });
+
+            if (result.error) {
+                logger.error("🧬 [STYLE DNA] Analysis failed:", result.error);
+                throw new HttpsError("internal", `Error en el análisis de estilo: ${result.error}`);
+            }
+
+            const styleIdentity = result.text || "No se pudo generar el análisis de estilo.";
 
             logger.info("🧬 [STYLE DNA] Analysis complete.");
             return { styleIdentity };

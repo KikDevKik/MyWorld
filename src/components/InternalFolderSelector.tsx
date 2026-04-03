@@ -1,28 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
 import { ChevronRight, ChevronDown, Folder, Check, X, AlertTriangle, Inbox } from 'lucide-react';
 import { DriveFile } from '../types';
+import { EntityService } from '../services/EntityService';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 
 interface InternalFolderSelectorProps {
     onFolderSelected: (folder: { id: string; name: string; path?: string }) => void;
     onCancel: () => void;
     currentFolderId?: string | null;
 }
-
-// 🟢 HELPER: Filter Tree (Folders Only)
-const filterTree = (nodes: DriveFile[]): DriveFile[] => {
-    return nodes
-        .map(node => {
-            if (node.mimeType === 'application/vnd.google-apps.folder') {
-                const filteredChildren = node.children ? filterTree(node.children) : [];
-                // Return folder regardless of children content, as we want to select empty folders too
-                return { ...node, children: filteredChildren };
-            }
-            return null;
-        })
-        .filter(Boolean) as DriveFile[];
-};
 
 // 🟢 COMPONENT: Tree Node
 const SelectorNode: React.FC<{
@@ -101,43 +88,63 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
     const [isLoading, setIsLoading] = useState(true);
     const [isEmpty, setIsEmpty] = useState(false);
 
-    // Subscribe to TDB_Index
+    const { config } = useProjectConfig();
+
+    // Subscribe to EntityService (WorldEntities)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user || !config?.folderId) {
+            setIsLoading(false);
+            return;
+        }
 
-        const db = getFirestore();
-        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
-
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data && data.tree && Array.isArray(data.tree)) {
-                    const filtered = filterTree(data.tree);
-                    setTree(filtered);
-                    setIsEmpty(filtered.length === 0);
-                } else {
+        const unsubscribe = EntityService.subscribeToAllEntities(
+            user.uid,
+            config.folderId,
+            (entities) => {
+                if (entities.length === 0) {
                     setTree([]);
                     setIsEmpty(true);
+                    setIsLoading(false);
+                    return;
                 }
-            } else {
+
+                // Group by category to form "Folders"
+                const categorySet = new Set<string>();
+                entities.forEach(entity => {
+                    categorySet.add(entity.category);
+                });
+
+                const roots = Array.from(categorySet).map(cat => ({
+                    id: `cat-${cat}`,
+                    name: cat,
+                    type: 'folder',
+                    mimeType: 'application/vnd.google-apps.folder',
+                    children: []
+                })).sort((a, b) => a.name.localeCompare(b.name));
+
+                // We only return the folders themselves without their files because this is a *Folder* selector
+                setTree(roots as unknown as DriveFile[]);
+                setIsEmpty(roots.length === 0);
+                setIsLoading(false);
+            },
+            (err) => {
+                console.error("Error fetching WorldEntities:", err);
                 setTree([]);
                 setIsEmpty(true);
+                setIsLoading(false);
             }
-            setIsLoading(false);
-        });
+        );
 
         return () => unsubscribe();
-    }, []);
+    }, [config]);
 
     const handleNodeSelect = (node: DriveFile) => {
         onFolderSelected({ id: node.id, name: node.name, path: (node as any).path });
     };
 
     const handleDefaultInbox = () => {
-        // Return a special ID or just let parent handle it.
-        // Parent will interpret this as "Use Default"
         onFolderSelected({ id: 'DEFAULT_INBOX', name: 'Inbox (Auto)' });
     };
 
@@ -152,8 +159,8 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                             <Folder size={18} />
                         </div>
                         <div>
-                            <h2 className="font-bold text-base text-zinc-100">Select Destination</h2>
-                            <p className="text-[10px] text-zinc-500 font-mono tracking-wider">PROJECT STRUCTURE</p>
+                            <h2 className="font-bold text-base text-zinc-100">Seleccionar Categoría (Carpeta)</h2>
+                            <p className="text-[10px] text-zinc-500 font-mono tracking-wider">WORLD_ENTITIES :: READY</p>
                         </div>
                     </div>
                     <button
@@ -170,7 +177,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-40 text-zinc-500 gap-3">
                             <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-                            <p className="text-xs font-mono">SCANNING DRIVE...</p>
+                            <p className="text-xs font-mono">SCANNING ENTITIES...</p>
                         </div>
                     ) : isEmpty ? (
                         <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4 p-8 text-center">
@@ -178,9 +185,9 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                                 <AlertTriangle size={24} />
                             </div>
                             <div>
-                                <h3 className="text-zinc-300 font-bold mb-1 text-sm">No Folders Found</h3>
+                                <h3 className="text-zinc-300 font-bold mb-1 text-sm">Sin Categorías</h3>
                                 <p className="text-xs max-w-[200px] mx-auto text-zinc-600">
-                                    Your project index seems empty. Please run a scan first.
+                                    No hay entidades indexadas.
                                 </p>
                             </div>
                         </div>
@@ -214,7 +221,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
 
                 {/* FOOTER */}
                 <div className="p-3 bg-black/80 border-t border-white/10 flex justify-end text-xs text-zinc-500">
-                    <span className="font-mono opacity-50">FOLDER_MODE</span>
+                    <span className="font-mono opacity-50">V2.ENTITY_FOLDER_SELECTOR</span>
                 </div>
             </div>
         </div>

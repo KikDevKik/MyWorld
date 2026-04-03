@@ -4,9 +4,10 @@ import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAIKey } from "./utils/security";
+import { MODEL_FLASH, MODEL_FLASH_2_5 } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
-const TTS_MODEL = 'gemini-2.5-pro-preview-tts';
+const TTS_MODEL = 'gemini-3.1-pro-tts'; // 🟢 Updated to 3.1 Pro TTS
 
 // Local Interface Definitions
 interface VoiceProfile {
@@ -100,11 +101,7 @@ export const generateSpeech = onCall(
                 throw new HttpsError("internal", "Invalid response structure from TTS model.");
             }
 
-            return {
-                audioData: part.inlineData.data,
-                mimeType: part.inlineData.mimeType || 'audio/wav'
-            };
-
+            return { audioData: part.inlineData.data, mimeType: part.inlineData.mimeType || 'audio/wav' };
         } catch (error: any) {
             logger.error("Error en generateSpeech:", error);
             throw new HttpsError("internal", error.message);
@@ -112,8 +109,8 @@ export const generateSpeech = onCall(
     }
 );
 
-const ANALYZE_MODEL_PRIMARY = 'gemini-2.5-flash';
-const ANALYZE_MODEL_FALLBACK = 'gemini-2.0-flash';
+const ANALYZE_MODEL_PRIMARY = MODEL_FLASH;
+const ANALYZE_MODEL_FALLBACK = MODEL_FLASH_2_5;
 const SCENE_ANALYSIS_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 const ANALYZE_SYSTEM_INSTRUCTION = `

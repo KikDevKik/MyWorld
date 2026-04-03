@@ -1,0 +1,564 @@
+diff --git a/src/components/ArquitectoPanel.tsx b/src/components/ArquitectoPanel.tsx
+index 2accb02..d9a2fdd 100644
+--- a/src/components/ArquitectoPanel.tsx
++++ b/src/components/ArquitectoPanel.tsx
+@@ -1,12 +1,19 @@
+ import React, { useState, useEffect, useRef } from 'react';  
+-import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp } from 'lucide-react';
++import { Landmark, RefreshCw, Send, Loader2, ArrowLeft, Network, AlertTriangle, CheckCircle, XCircle, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+ import { useProjectConfig } from '../contexts/ProjectConfigContext';
+-import { useArquitecto, PendingItem } from '../hooks/useArquitecto';
++import { useArquitecto } from '../hooks/useArquitecto';      
++import { useArquitectoStore } from '../stores/useArquitectoStore';
++import { PendingItem } from '../types/roadmap';
+ import ReactMarkdown from 'react-markdown';
+ import remarkGfm from 'remark-gfm';
+ import ArquitectoPendingWidget from './ArquitectoPendingWidget';
+ import EfectoDomino from './architect/EfectoDomino';
+ import PersonajesHerramienta from './architect/PersonajesHerramienta';
++import ArquitectoToolbar, { ActiveTool } from './architect/ArquitectoToolbar';
++import SlideUpPanel from './architect/SlideUpPanel';
++import ReadinessModal from './architect/ReadinessModal';     
++import ArquitectoConfigModal from './architect/ArquitectoConfigModal';
++import ArquitectoFocusSelector, { FOCUS_OPTIONS } from './architect/ArquitectoFocusSelector';
+
+ interface ArquitectoPanelProps {
+     onClose: () => void;
+@@ -15,10 +22,9 @@ interface ArquitectoPanelProps {
+     onPendingItemsUpdate?: (items: PendingItem[]) => void;   
+ }
+
+-type ActiveTool = 'none' | 'domino' | 'personajes' | 'map' | 'lore' | 'settings';
+-
+ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate }) => {    
+     const { config } = useProjectConfig();
++    const { arquitectoSessionId } = useArquitectoStore();    
+     const projectName = config?.projectName || 'Mi Proyecto';
+     const [inputValue, setInputValue] = useState('');        
+     const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
+@@ -35,9 +41,23 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
+         isAnalyzing,
+         lastAnalyzedAt,
+         hasInitialized,
++        roadmapCards,
++        pendingDominoImpact,
++        isRecalculating,
++        confirmDominoImpact,
++        dismissDominoImpact,
+         initialize,
+         sendMessage,
+-        reAnalyze
++        reAnalyze,
++        // Sprint 5.2
++        isCrystallizing,
++        isAuditing,
++        readinessResult,
++        setReadinessResult,
++        generateRoadmap,
++        // Sprint 5.4
++        currentObjective,
++        setCurrentObjective,
+     } = useArquitecto({ accessToken, folderId });
+
+     // Auto-inicializar al abrir
+@@ -92,206 +112,332 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
+         setIsPendingDrawerOpen(true);
+     };
+
+-    return (
+-        <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
+-
+-            {/* Top Drawer: Pendientes (Analysis View) */}   
+-            <div className={`w-full shrink-0 z-30 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${isPendingDrawerOpen ? 'max-h-[55vh] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
+-                <ArquitectoPendingWidget
+-                    pendingItems={pendingItems}
+-                    onOpenArquitecto={reAnalyze}
+-                    onClose={() => setIsPendingDrawerOpen(false)}
+-                    isAnalyzing={isAnalyzing}
+-                    hideHeader={true}
+-                />
+-            </div>
++    // Sprint 5.5: Guardiaán — auditar y cristalizar (Unificado)
++    const handleCrystalize = async () => {
++        await generateRoadmap();
++    };
+
+-            {/* HEADER — siempre visible */}
+-            <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md z-30 relative">
+-                <button
+-                    onClick={onClose}
+-                    className="flex items-center gap-2 text-titanium-500 hover:text-titanium-300 transition-colors group"  
+-                    aria-label="Cerrar Arquitecto"
+-                >
+-                    <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
+-                    <span className="text-sm font-medium">El Arquitecto</span>
+-                </button>
++    // Si hay una herramienta activa, aplicar efecto foco (blur) al chat
++    const chatBlurClass = activeTool !== 'none'
++        ? 'blur-md opacity-40 pointer-events-none'
++        : 'opacity-100';
++
++    // 🟢 Polish Dinámico: Extracción de Triage Chips        
++    const lastAiMessage = Array.isArray(messages) ? messages.filter(m => m.role !== 'user' && m.role !== 'system').pop()?.text || '' : '';
++    const suggestedChips = FOCUS_OPTIONS.filter(opt => {     
++        // Extraemos la primera palabra clave (ej. "Mega-Roadmap", "Ingeniería") para la detección
++        const keyword = opt.label.split(' ')[0].toLowerCase();
++        return lastAiMessage.toLowerCase().includes(keyword);
++    });
++    // Fallback: Si no mencionó palabras clave precisas, mostramos las 3 primeras por defecto
++    const chipsToRender = suggestedChips.length > 0 ? suggestedChips : FOCUS_OPTIONS.slice(0, 3);
+
+-                <div className="text-titanium-500 text-sm font-medium uppercase tracking-wider font-mono">
+-                    Proyecto: {projectName}
+-                </div>
++    return (
++        <>
++            <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
+
+-                <div className="w-[100px] flex justify-end"> 
++                {/* HEADER — siempre visible */}
++                <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md z-40 relative">
+                     <button
+-                        onClick={handleAnalyze}
+-                        disabled={isAnalyzing || isInitializing}
+-                        className="text-cyan-500 text-sm font-medium border border-cyan-500/30 px-3 py-1 rounded hover:bg-cyan-500/10 transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
++                        onClick={onClose}
++                        className="flex items-center gap-2 text-titanium-500 hover:text-titanium-300 transition-colors group"
++                        aria-label="Cerrar Arquitecto"       
+                     >
+-                        {isAnalyzing ? 'Analizando...' : 'Analizar'}
++                        <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
++                        <span className="text-sm font-medium">El Arquitecto</span>
+                     </button>
+-                </div>
+-            </header>
+
+-            {/* Chevron toggle — abre/cierra el drawer de misiones */}
+-            {pendingItems.length > 0 && (
+-                <div className="flex justify-center shrink-0 z-30 bg-[#0a0a0a]/60">
+-                    <button
+-                        onClick={() => setIsPendingDrawerOpen(v => !v)}
+-                        className="flex items-center gap-1.5 px-4 py-1 text-titanium-500 hover:text-cyan-400 transition-colors text-xs font-mono tracking-wider group"
+-                        aria-label={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
+-                        title={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
+-                    >
+-                        {isPendingDrawerOpen
+-                            ? <ChevronUp size={14} className="group-hover:scale-110 transition-transform" />
+-                            : <ChevronDown size={14} className="group-hover:scale-110 transition-transform" />}
+-                    </button>
++                    <div className="text-titanium-500 text-sm font-medium uppercase tracking-wider font-mono">
++                        Proyecto: {projectName}
++                    </div>
++
++                    <div className="w-[100px] flex justify-end">
++                        <button
++                            onClick={handleAnalyze}
++                            disabled={isAnalyzing || isInitializing}
++                            className="text-cyan-500 text-sm font-medium border border-cyan-500/30 px-3 py-1 rounded hover:bg-cyan-500/10 transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"     
++                        >
++                            {isAnalyzing ? 'Analizando...' : 'Analizar'}
++                        </button>
++                    </div>
++                </header>
++
++                {/* Top Drawer: Pendientes (Analysis View) */}
++                <div className={`w-full shrink-0 z-30 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${isPendingDrawerOpen ? 'max-h-[55vh] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
++                    <ArquitectoPendingWidget
++                        pendingItems={pendingItems}
++                        onOpenArquitecto={reAnalyze}
++                        onClose={() => setIsPendingDrawerOpen(false)}
++                        isAnalyzing={isAnalyzing}
++                        hideHeader={true}
++                    />
+                 </div>
+-            )}
+
+-            {/* Main Workspace Area */}
+-            <main className={`flex-1 relative flex justify-center w-full overflow-hidden transition-all duration-300 ${activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
++                {/* Chevron toggle — abre/cierra el drawer de misiones */}
++                {pendingItems.length > 0 && (
++                    <div className="flex justify-center shrink-0 z-30 bg-[#0a0a0a]/60">
++                        <button
++                            onClick={() => setIsPendingDrawerOpen(v => !v)}
++                            className="flex items-center gap-1.5 px-4 py-1 text-titanium-500 hover:text-cyan-400 transition-colors text-xs font-mono tracking-wider group"
++                            aria-label={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
++                            title={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
++                        >
++                            {isPendingDrawerOpen
++                                ? <ChevronUp size={14} className="group-hover:scale-110 transition-transform" />
++                                : <ChevronDown size={14} className="group-hover:scale-110 transition-transform" />}        
++                        </button>
++                    </div>
++                )}
+
+-                {/* Chat Feed Container */}
+-                <div className="w-full max-w-[720px] h-full flex flex-col pt-8 pb-[100px] px-4 overflow-y-auto z-10 scroll-smooth">
++                {/* Main Workspace Area */}
++                <main className="flex-1 relative flex justify-center w-full overflow-hidden">
+
+-                    {/* Messages List */}
+-                    <div className="flex flex-col gap-6 w-full mt-auto">
++                    {/* ── Chat Feed — Aplicar Efecto Foco cuando hay herramienta activa ── */}
++                    <div className={`w-full max-w-[720px] h-full flex flex-col pt-8 pb-[160px] px-4 overflow-y-auto z-10 scroll-smooth transition-all duration-500 ${chatBlurClass}`}>   
+
+-                        {(!hasInitialized && isInitializing) ? (
+-                            <div className="flex flex-col items-center justify-center py-20 opacity-60">
+-                                <Landmark size={48} className="text-titanium-600 mb-4 animate-pulse" />
+-                                <p className="text-lg font-medium text-titanium-300">Inicializando Arquitectura...</p>     
+-                            </div>
+-                        ) : messages.length === 0 ? (        
+-                            <div className="flex-1 flex flex-col items-center justify-center text-center pb-20 opacity-60">
+-                                <Landmark size={48} className="text-titanium-600 mb-4" />
+-                                <p className="text-lg font-medium text-titanium-300">¿Qué estructura construiremos hoy?</p>
+-                            </div>
+-                        ) : (
+-                            messages.map(msg => (
+-                                <div key={msg.id} className={`flex flex-col max-w-[85%] ${msg.role === 'user' ? 'items-end self-end' : 'items-start'}`}>
+-                                    <div className={`        
++                        {/* Messages List */}
++                        <div className="flex flex-col gap-6 w-full mt-auto">
++
++                            {(!hasInitialized && isInitializing) ? (
++                                <div className="flex-1 flex flex-col items-center justify-center py-[10vh] min-h-[50vh] relative overflow-hidden group">
++                                    {/* Místico: Efecto de Pensadero (Anillos y Resplandor) */}
++                                    <div className="absolute inset-0 flex items-center justify-center opacity-30 select-none pointer-events-none">
++                                        <div className="absolute w-[240px] h-[240px] rounded-full border border-cyan-500/20 animate-[spin_20s_linear_infinite]" />
++                                        <div className="absolute w-[320px] h-[320px] rounded-full border border-titanium-600/10 animate-[spin_30s_linear_infinite_reverse] border-dashed" />
++                                        <div className="absolute w-full h-full bg-[radial-gradient(ellipse_at_center,rgba(6,182,212,0.08)_0%,transparent_50%)] animate-pulse" />
++                                    </div>
++
++                                    <div className="relative z-10 flex flex-col items-center">
++                                        <div className="relative mb-6">
++                                            <div className="absolute inset-0 bg-cyan-500/20 blur-xl rounded-full animate-pulse" />
++                                            <Network size={56} strokeWidth={1.5} className="text-cyan-400 opacity-90 drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]" />
++                                        </div>
++                                        <h3 className="text-lg font-semibold text-titanium-200 tracking-widest mb-3 drop-shadow-sm font-mono uppercase">El Pensadero</h3>
++                                        <p className="text-sm text-cyan-500/70 max-w-[280px] text-center mb-6 leading-relaxed bg-[#0a0a0a]/50 py-1 px-3 rounded-full border border-cyan-500/10 animate-pulse">
++                                            Auditando ecosistema narrativo...
++                                        </p>
++
++                                        {/* Indicadores de salto (Visuales para Multi-hop) */}
++                                        <div className="flex gap-4">
++                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" style={{ animationDelay: '0ms', animationDuration: '1.5s' }} />
++                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-ping" style={{ animationDelay: '300ms', animationDuration: '1.5s' }} />
++                                            <div className="w-1.5 h-1.5 rounded-full bg-cyan-600 animate-ping" style={{ animationDelay: '600ms', animationDuration: '1.5s' }} />
++                                        </div>
++                                    </div>
++                                </div>
++                            ) : messages.length === 0 ? (    
++                                <div className="flex-1 flex flex-col items-center justify-center text-center pb-20 opacity-60">
++                                    <Landmark size={48} className="text-titanium-600 mb-4" />
++                                    <p className="text-lg font-medium text-titanium-300">¿Qué estructura construiremos hoy?</p>
++                                </div>
++                            ) : (
++                                messages.map(msg => (        
++                                    <div key={msg.id} className={`flex flex-col max-w-[85%] ${msg.role === 'user' ? 'items-end self-end' : 'items-start'}`}>
++                                        <div className={`    
+                                         border px-5 py-4 rounded-xl text-[15px] leading-[1.6]
+                                         ${msg.role === 'user'
+-                                            ? 'bg-emerald-950/20 border-titanium-800/50 rounded-br-none text-titanium-300 shadow-sm'
+-                                            : 'bg-titanium-900 border-titanium-800 rounded-bl-none text-titanium-200 shadow-sm'
+-                                        }
++                                                ? 'bg-emerald-950/20 border-titanium-800/50 rounded-br-none text-titanium-300 shadow-sm'
++                                                : msg.role === 'system'
++                                                    ? 'bg-titanium-900/40 border-titanium-800/30 rounded-none text-titanium-500 text-xs font-mono'
++                                                    : 'bg-titanium-900 border-titanium-800 rounded-bl-none text-titanium-200 shadow-sm'
++                                            }
+                                     `}>
+-                                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500">
+-                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+-                                                {msg.text}   
+-                                            </ReactMarkdown> 
++                                            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500">
++                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>
++                                                    {msg.text}
++                                                </ReactMarkdown>
++                                            </div>
+                                         </div>
++                                        {msg.role !== 'system' && (
++                                            <span className={`text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest ${msg.role === 'user' ? 'mr-1' : 'ml-1'}`}>
++                                                {msg.role === 'user' ? 'Tú' : 'Arquitecto'}
++                                            </span>
++                                        )}
++                                    </div>
++                                ))
++                            )}
++
++                            {/* Architect Message (Thinking/Loading state) */}
++                            {isThinking && (
++                                <div className="flex flex-col items-start max-w-[85%] mt-2">
++                                    <div className="bg-titanium-900 border border-titanium-800 px-5 py-4 rounded-xl rounded-bl-none flex items-center gap-2 h-[56px]">
++                                        <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
++                                        <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
++                                        <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                                     </div>
+-                                    <span className={`text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest ${msg.role === 'user' ? 'mr-1' : 'ml-1'}`}>
+-                                        {msg.role === 'user' ? 'Tú' : 'Arquitecto'}
+-                                    </span>
+                                 </div>
+-                            ))
++                            )}
++                            <div ref={messagesEndRef} />     
++                        </div>
++                    </div>
++
++                    {/* ── Floating Toolbar (refactorizado como componente) ── */}
++                    <ArquitectoToolbar
++                        activeTool={activeTool}
++                        onToolChange={setActiveTool}
++                    />
++
++                    {/* ── Input Area + Banner de Impacto ── */}
++                    <div className="absolute bottom-0 w-full max-w-[720px] px-4 z-20 pb-6 flex flex-col gap-2">
++
++                        {/* ★ Botón Cristalizar Roadmap — Sprint 5.2 (visible solo si no hay roadmap y conversaciones >= 6) */}
++                        {roadmapCards.length === 0 && Array.isArray(messages) && messages.length >= 6 && hasInitialized && !isInitializing && (
++                            <button
++                                onClick={handleCrystalize}   
++                                disabled={isAuditing || isCrystallizing}
++                                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-cyan-500/30 bg-cyan-950/20 text-cyan-300 text-sm font-medium hover:bg-cyan-950/40 transition-all shadow-[0_0_20px_rgba(6,182,212,0.08)] disabled:opacity-50 disabled:cursor-not-allowed"      
++                            >
++                                {isAuditing ? (
++                                    <><Loader2 size={14} className="animate-spin" /> Auditando respuestas...</>
++                                ) : isCrystallizing ? (      
++                                    <><Loader2 size={14} className="animate-spin" /> Cristalizando...</>
++                                ) : (
++                                    <><Sparkles size={14} /> Cristalizar Roadmap</>
++                                )}
++                            </button>
+                         )}
+
+-                        {/* Architect Message (Thinking/Loading state) */}
+-                        {isThinking && (
+-                            <div className="flex flex-col items-start max-w-[85%] mt-2">
+-                                <div className="bg-titanium-900 border border-titanium-800 px-5 py-4 rounded-xl rounded-bl-none flex items-center gap-2 h-[56px]">
+-                                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
+-                                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
+-                                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
++                        {/* ★ Banner de Impacto Dominó — Sprint 4.1 */}
++                        {pendingDominoImpact && (
++                            <div className="
++                            w-full rounded-xl border border-amber-500/40
++                            bg-amber-950/30 backdrop-blur-md 
++                            px-4 py-3 flex items-start gap-3 
++                            shadow-[0_0_20px_rgba(245,158,11,0.1)]
++                            animate-in slide-in-from-bottom-2 duration-300
++                        ">
++                                <AlertTriangle size={18} className="text-amber-400 shrink-0 mt-0.5" />
++                                <div className="flex-1 min-w-0">
++                                    <p className="text-amber-300 text-sm font-semibold font-mono tracking-wide">
++                                        ⚠️ El Dominó ha sido  alterado
++                                    </p>
++                                    <p className="text-amber-400/70 text-xs mt-0.5 line-clamp-2">
++                                        {pendingDominoImpact.impactDescription || `${pendingDominoImpact.affectedCardIds.length} tarjeta(s) del Roadmap afectadas por esta idea.`}       
++                                    </p>
++                                    <p className="text-amber-500/50 text-[10px] font-mono mt-1">
++                                        Tarjetas: {pendingDominoImpact.affectedCardIds.join(', ')}
++                                    </p>
++                                </div>
++                                <div className="flex gap-2 shrink-0">
++                                    <button
++                                        onClick={confirmDominoImpact}
++                                        disabled={isRecalculating}
++                                        className="flex items-center gap-1 text-xs font-mono px-2.5 py-1.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
++                                    >
++                                        {isRecalculating     
++                                            ? <Loader2 size={12} className="animate-spin" />
++                                            : <CheckCircle size={12} />
++                                        }
++                                        {isRecalculating ? 'Recalculando...' : 'Confirmar'}
++                                    </button>
++                                    <button
++                                        onClick={dismissDominoImpact}
++                                        disabled={isRecalculating}
++                                        className="flex items-center gap-1 text-xs font-mono px-2.5 py-1.5 rounded-lg text-titanium-500 border border-titanium-700/50 hover:bg-titanium-800/30 transition-colors disabled:opacity-50"
++                                    >
++                                        <XCircle size={12} />
++                                        Ignorar
++                                    </button>
+                                 </div>
+                             </div>
+                         )}
+-                        <div ref={messagesEndRef} />
+-                    </div>
+-                </div>
+-
+-                {/* Floating Toolbar (Left) */}
+-                <div className="absolute left-8 bottom-8 z-20">
+-                    <div className="bg-titanium-900/70 backdrop-blur-xl border border-titanium-800 rounded-full p-2 flex flex-col gap-3 shadow-2xl">
+-
+-                        <button
+-                            onClick={() => setActiveTool(activeTool === 'domino' ? 'none' : 'domino')}
+-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+-                        >
+-                            <Network size={20} />
+-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+-                                Efecto Dominó
+-                            </span>
+-                        </button>
+
+-                        <button
+-                            onClick={() => setActiveTool(activeTool === 'personajes' ? 'none' : 'personajes')}
+-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'personajes' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+-                        >
+-                            <Users size={20} />
+-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+-                                Personajes
+-                            </span>
+-                        </button>
+-
+-                        <button className="w-10 h-10 flex items-center justify-center rounded-full text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50 transition-all group relative">
+-                            <Map size={20} />
+-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+-                                Mundo
+-                            </span>
+-                        </button>
+-
+-                        <button className="w-10 h-10 flex items-center justify-center rounded-full text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50 transition-all group relative">
+-                            <Book size={20} />
+-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+-                                Lore
+-                            </span>
+-                        </button>
++                        {/* ★ Botones de Acción Rápida (Triage Chips) — Sprint 5.5 */}
++                        {!currentObjective && hasInitialized && roadmapCards.length === 0 && Array.isArray(messages) && messages.length > 0 && (
++                            <div className="flex items-center gap-2 mb-1 px-1 overflow-x-auto custom-scrollbar pb-1">      
++                                {FOCUS_OPTIONS.slice(0, 3).map(opt => (
++                                    <button
++                                        key={opt.id}
++                                        onClick={() => {     
++                                            setCurrentObjective(opt.label);
++                                            sendMessage(opt.label);
++                                        }}
++                                        className="bg-titanium-800 hover:bg-cyan-500/20 text-titanium-300 border border-titanium-600 hover:border-cyan-500/50 rounded-full px-4 py-2 text-[13px] font-medium transition-all"
++                                    >
++                                        [{opt.label}]        
++                                    </button>
++                                ))}
++                            </div>
++                        )}
+
+-                        <button className="w-10 h-10 flex items-center justify-center rounded-full text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50 transition-all group relative">
+-                            <Settings size={20} />
+-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+-                                Ajustes
++                        {/* Input actual */}
++                        <div className="relative flex items-stretch w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-visible shadow-2xl">
++                            {/* Selector de Foco Integrado */}
++                            <div className="border-r border-titanium-600 shrink-0">
++                                <ArquitectoFocusSelector     
++                                    sessionId={hasInitialized && !isInitializing ? "active" : null}
++                                    currentObjective={currentObjective}
++                                    setCurrentObjective={setCurrentObjective}
++                                    disabled={isInitializing || isThinking || activeTool !== 'none'}
++                                />
++                            </div>
++                            <textarea
++                                ref={textareaRef}
++                                value={inputValue}
++                                onChange={e => setInputValue(e.target.value)}
++                                onKeyDown={handleKeyDown}    
++                                disabled={isInitializing || isThinking || activeTool !== 'none'}
++                                className="w-full bg-transparent border-none text-titanium-300 text-[15px] placeholder:text-titanium-600 focus:ring-0 resize-none py-4 pl-4 pr-14 max-h-[120px]"
++                                placeholder={activeTool !== 'none' ? 'Cierra la herramienta para volver a chatear...' : 'Instruye al Arquitecto...'}
++                                rows={1}
++                            />
++                            <button
++                                onClick={handleSend}
++                                disabled={!inputValue.trim() || isThinking || isInitializing || activeTool !== 'none'}     
++                                className="absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-lg text-cyan-500 hover:bg-cyan-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
++                                aria-label="Enviar mensaje"  
++                            >
++                                <Send size={20} />
++                            </button>
++                        </div>
++                        <div className="text-center">        
++                            <span className="text-[10px] text-titanium-600 font-mono uppercase tracking-widest">
++                                El Arquitecto procesa la lógica, tú pones el alma.
+                             </span>
+-                        </button>
+-
++                        </div>
+                     </div>
+-                </div>
+
+-                {/* Chat Input Area */}
+-                <div className="absolute bottom-6 w-full max-w-[720px] px-4 z-20">
+-                    <div className="relative flex items-center w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-hidden shadow-2xl">
+-                        <textarea
+-                            ref={textareaRef}
+-                            value={inputValue}
+-                            onChange={e => setInputValue(e.target.value)}
+-                            onKeyDown={handleKeyDown}        
+-                            disabled={isInitializing || isThinking}
+-                            className="w-full bg-transparent border-none text-titanium-300 text-[15px] placeholder:text-titanium-600 focus:ring-0 resize-none py-4 pl-4 pr-14 max-h-[120px]"
+-                            placeholder="Instruye al Arquitecto..."
+-                            rows={1}
+-                        />
+-                        <button
+-                            onClick={handleSend}
+-                            disabled={!inputValue.trim() || isThinking || isInitializing}
+-                            className="absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-lg text-cyan-500 hover:bg-cyan-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-                            aria-label="Enviar mensaje"      
+-                        >
+-                            <Send size={20} />
+-                        </button>
+-                    </div>
+-                    <div className="text-center mt-2">       
+-                        <span className="text-[10px] text-titanium-600 font-mono uppercase tracking-widest">
+-                            El Arquitecto procesa la lógica, tú pones el alma.
+-                        </span>
+-                    </div>
+-                </div>
+-            </main>
++                </main>
+
+-            {/* Overlays - Tools */}
+-            {activeTool === 'domino' && (
+-                <EfectoDomino onClose={() => setActiveTool('none')} />
+-            )}
++                {/* ── Single SlideUpPanel (Dynamic) ── */}  
++                <SlideUpPanel
++                    isOpen={activeTool === 'domino' || activeTool === 'personajes'}
++                    title={activeTool === 'domino' ? "Efecto Dominó" : activeTool === 'personajes' ? "Personajes" : ""}    
++                    icon={activeTool === 'domino' ? <Network size={16} /> : activeTool === 'personajes' ? <Landmark size={16} /> : <></>}
++                    onClose={() => setActiveTool('none')}    
++                >
++                    {activeTool === 'domino' && <EfectoDomino onClose={() => setActiveTool('none')} roadmapCards={roadmapCards} />}
++                    {activeTool === 'personajes' && <PersonajesHerramienta onClose={() => setActiveTool('none')} />}       
++                </SlideUpPanel>
++
++            </div>
+
+-            {activeTool === 'personajes' && (
+-                <PersonajesHerramienta onClose={() => setActiveTool('none')} />
++            {/* ── ConfigModal — Sprint 5.4 ── */}
++            {activeTool === 'settings' && (
++                <ArquitectoConfigModal
++                    sessionId={hasInitialized && !isInitializing ? arquitectoSessionId : null}
++                    onClose={() => setActiveTool('none')}    
++                    onPanicResolved={() => {
++                        setActiveTool('none');
++                        window.location.reload();
++                    }}
++                />
+             )}
+
+-        </div>
++            {/* ── ReadinessModal — Sprint 5.2 ── */}        
++            {
++                readinessResult && !readinessResult.isReady && (
++                    <ReadinessModal
++                        isOpen={true}
++                        warningMessage={readinessResult.warningMessage}
++                        missingElements={readinessResult.missingElements}
++                        isCrystallizing={isCrystallizing}    
++                        onClose={() => setReadinessResult(null)}
++                        onForce={generateRoadmap}
++                    />
++                )
++            }
++        </>
+     );
+ };
+

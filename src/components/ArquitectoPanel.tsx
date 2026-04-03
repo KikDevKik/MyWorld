@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
-import { useArquitecto, PendingItem } from '../hooks/useArquitecto';
+import { useArquitecto } from '../hooks/useArquitecto';
+import { PendingItem } from '../types/roadmap';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ArquitectoPendingWidget from './ArquitectoPendingWidget';
 import EfectoDomino from './architect/EfectoDomino';
 import PersonajesHerramienta from './architect/PersonajesHerramienta';
+import ArquitectoConfigModal from './architect/ArquitectoConfigModal';
+import SlideUpPanel from './architect/SlideUpPanel';
+import { useArquitectoStore } from '../stores/useArquitectoStore';
+import ArquitectoFocusSelector, { FOCUS_OPTIONS } from './architect/ArquitectoFocusSelector';
 
 interface ArquitectoPanelProps {
     onClose: () => void;
@@ -23,6 +28,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const [inputValue, setInputValue] = useState('');
     const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
     const [activeTool, setActiveTool] = useState<ActiveTool>('none');
+    const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
+    const isPurging = useArquitectoStore(state => state.isPurging); // 🟢 Fetch isPurging flag
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -37,15 +44,18 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         hasInitialized,
         initialize,
         sendMessage,
-        reAnalyze
+        reAnalyze,
+        currentObjective,
+        setCurrentObjective
     } = useArquitecto({ accessToken, folderId });
 
     // Auto-inicializar al abrir
     useEffect(() => {
+        if (isPurging) return; // 🟢 BLOQUEO: Previene inicialización mientras se purga la BD
         if (!hasInitialized) {
             initialize();
         }
-    }, [hasInitialized, initialize]);
+    }, [hasInitialized, initialize, isPurging]);
 
     // Sincronizar store
     useEffect(() => {
@@ -90,6 +100,20 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const handleAnalyze = () => {
         reAnalyze();
         setIsPendingDrawerOpen(true);
+    };
+
+    const lastAiMessageObj = messages.filter(m => m.role === 'ia' || m.role === 'assistant').pop();
+    const lastAiMessage = lastAiMessageObj?.text || '';
+    
+    // Triage chips reactive logic
+    const availableChips = FOCUS_OPTIONS.filter(opt => 
+        lastAiMessage.toLowerCase().includes(opt.label.toLowerCase()) || 
+        lastAiMessage.toLowerCase().includes(opt.shortName.toLowerCase())
+    );
+
+    const handleChipClick = (opt: any) => {
+        setCurrentObjective(opt.label);
+        sendMessage(`He elegido: ${opt.label}`);
     };
 
     return (
@@ -160,7 +184,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         {(!hasInitialized && isInitializing) ? (
                             <div className="flex flex-col items-center justify-center py-20 opacity-60">
                                 <Landmark size={48} className="text-titanium-600 mb-4 animate-pulse" />
-                                <p className="text-lg font-medium text-titanium-300">Inicializando Arquitectura...</p>
+                                <div className="animate-pulse text-lg font-medium text-titanium-300">El Arquitecto está realizando una auditoría profunda del canon...</div>
                             </div>
                         ) : messages.length === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-center pb-20 opacity-60">
@@ -193,11 +217,29 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         {/* Architect Message (Thinking/Loading state) */}
                         {isThinking && (
                             <div className="flex flex-col items-start max-w-[85%] mt-2">
-                                <div className="bg-titanium-900 border border-titanium-800 px-5 py-4 rounded-xl rounded-bl-none flex items-center gap-2 h-[56px]">
-                                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></div>
-                                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: '0.2s' }}></div>
-                                    <div className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse" style={{ animationDelay: '0.4s' }}></div>
+                                <div className="bg-titanium-900 border border-titanium-800 px-5 py-4 rounded-xl rounded-bl-none flex items-center gap-3 h-[56px]">
+                                    <div className="flex gap-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce"></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                                    </div>
+                                    <span className="text-xs text-titanium-400 font-mono">El Arquitecto está procesando la estructura...</span>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Triage Chips Reactivos */}
+                        {!currentObjective && availableChips.length > 0 && !isThinking && (
+                            <div className="flex flex-wrap gap-2 mt-4 max-w-[85%] self-start animate-in fade-in duration-300">
+                                {availableChips.map(opt => (
+                                    <button
+                                        key={opt.id}
+                                        onClick={() => handleChipClick(opt)}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-cyan-950/30 border border-cyan-800/50 hover:bg-cyan-900/50 hover:border-cyan-700 rounded-lg text-cyan-400 text-sm font-medium transition-all"
+                                    >
+                                        {opt.label}
+                                    </button>
+                                ))}
                             </div>
                         )}
                         <div ref={messagesEndRef} />
@@ -242,7 +284,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </span>
                         </button>
 
-                        <button className="w-10 h-10 flex items-center justify-center rounded-full text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50 transition-all group relative">
+                        <button 
+                            onClick={() => setActiveTool(activeTool === 'settings' ? 'none' : 'settings')}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                        >
                             <Settings size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
                                 Ajustes
@@ -253,7 +298,17 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 </div>
 
                 {/* Chat Input Area */}
-                <div className="absolute bottom-6 w-full max-w-[720px] px-4 z-20">
+                <div className="absolute bottom-6 w-full max-w-[720px] px-4 z-20 flex flex-col gap-2">
+                    {messages.length > 0 && (
+                        <div className="self-end mb-1">
+                            <ArquitectoFocusSelector
+                                sessionId={arquitectoSessionId}
+                                currentObjective={currentObjective}
+                                setCurrentObjective={setCurrentObjective}
+                                disabled={isThinking || isInitializing}
+                            />
+                        </div>
+                    )}
                     <div className="relative flex items-center w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-hidden shadow-2xl">
                         <textarea
                             ref={textareaRef}
@@ -283,12 +338,30 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             </main>
 
             {/* Overlays - Tools */}
-            {activeTool === 'domino' && (
-                <EfectoDomino onClose={() => setActiveTool('none')} />
-            )}
+            <SlideUpPanel
+                isOpen={activeTool === 'domino'}
+                title="Efecto Dominó"
+                icon={<Network size={16} />}
+                onClose={() => setActiveTool('none')}
+            >
+                {activeTool === 'domino' && <EfectoDomino onClose={() => setActiveTool('none')} />}
+            </SlideUpPanel>
 
-            {activeTool === 'personajes' && (
-                <PersonajesHerramienta onClose={() => setActiveTool('none')} />
+            <SlideUpPanel
+                isOpen={activeTool === 'personajes'}
+                title="Herramienta de Personajes"
+                icon={<Users size={16} />}
+                onClose={() => setActiveTool('none')}
+            >
+                {activeTool === 'personajes' && <PersonajesHerramienta onClose={() => setActiveTool('none')} />}
+            </SlideUpPanel>
+
+            {activeTool === 'settings' && (
+                <ArquitectoConfigModal 
+                    sessionId={useArquitectoStore.getState().arquitectoSessionId} 
+                    onClose={() => setActiveTool('none')} 
+                    onPanicResolved={() => setActiveTool('none')} 
+                />
             )}
 
         </div>
