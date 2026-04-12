@@ -107,6 +107,59 @@ export async function enrichEntity(
         }
     }
 
+    // C. ENRIQUECIMIENTO PSICOLÓGICO SPRINT 6.0
+    if ((entity.category === 'PERSON' || entity.category === 'CREATURE') && (entity.rawContent || sourceSnippet)) {
+        try {
+            const psychologyExtractionPrompt = `
+ACT AS: Literary Character Analyst (Truby/McKee methodology)
+ENTITY: "${entity.name}" (${entity.category})
+CONTENT: "${entity.rawContent?.substring(0, 2000) || sourceSnippet}"
+
+Extrae las variables psicológicas de este personaje del texto disponible.
+Si el texto no menciona algo, deja el campo vacío. NO inventes datos.
+
+Responde SOLO con JSON:
+{
+  "summary": "Resumen de 2 oraciones del rol y función narrativa",
+  "psychology": {
+    "goal": "Objetivo consciente que persigue (si se menciona)",
+    "fear": "Miedo central que lo limita (si se menciona o se infiere claramente)",
+    "flaw": "Defecto moral o psicológico (si se menciona)",
+    "lie": "La mentira que cree sobre el mundo o sobre sí mismo (si se infiere)",
+    "wound": "Herida del pasado que lo define (si se menciona)",
+    "need": "Lo que realmente necesita pero no busca conscientemente (si se infiere)"
+  }
+}
+
+IMPORTANTE: Si el texto es fragmentario o no suficiente para inferir estos campos,
+devuelve solo el summary y deja psychology con campos vacíos.
+Mejor datos escasos y precisos que datos inventados.
+`;
+
+            const result = await smartGenerateContent(genAI, psychologyExtractionPrompt, {
+                useFlash: true,
+                contextLabel: "PsychologyEnrichment",
+                jsonMode: true
+            });
+
+            if (result.text) {
+                const enrichedData = parseSecureJSON(result.text, "PsychologyEnrichment");
+                
+                if (enrichedData.summary) {
+                    sourceSnippet = enrichedData.summary;
+                }
+
+                if (enrichedData.psychology && Object.values(enrichedData.psychology).some(v => !!v)) {
+                    const { EntityRepository } = await import('../repository/EntityRepository');
+                    await EntityRepository.updatePsychology(uid, entityHash, enrichedData.psychology);
+                    logger.info(`🧠 [FORJA] Psicología extraída para: ${entity.name}`);
+                }
+            }
+        } catch (e) {
+            logger.warn(`Failed to extract psychology for ${entity.name}:`, e);
+        }
+    }
+
     return {
         id: entityHash,
         name: entity.name,

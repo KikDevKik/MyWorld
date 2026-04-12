@@ -33,3 +33,26 @@ export interface TitaniumEntity {
 
     bodyContent: string; // Markdown Soberano
 }
+
+/**
+ * Extensión de ForgeModule para el motor neuro-simbólico.
+ * Refleja exactamente src/types/entity.ts
+ */
+export interface ForgePsychology {
+    goal?: string;
+    fear?: string;
+    flaw?: string;
+    lie?: string;
+    wound?: string;
+    need?: string;
+    mbti?: string;
+}
+
+export interface ForgeInjury {
+    id: string;
+    description: string;
+    chapterIntroduced: string;
+    mechanicalImpact: string;
+    isResolved: boolean;
+    resolvedAt?: string;
+}

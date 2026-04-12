@@ -49,6 +49,41 @@ export interface ForgeModule {
     tags?: string[];
     /** Smart-tags inyectados por La Musa (ej. 'LORE', 'VISUAL'). */
     smartTags?: string[];
+
+    // ═══ NUEVOS CAMPOS SPRINT 6.0 ═══
+
+    /**
+     * Variables psicológicas estructuradas.
+     * Solo se pueblan para entidades PERSON y CREATURE.
+     * Todos los campos son opcionales para no romper entidades existentes.
+     * Fuente: Truby 22 Steps + McKee Character Psychology
+     */
+    psychology?: {
+        goal?: string;      // Objetivo consciente: "vengar la muerte del padre"
+        fear?: string;      // Miedo central: "perder el control sobre los demás"
+        flaw?: string;      // Defecto moral: "orgullo que ciega su empatía"
+        lie?: string;       // La Mentira que Cree: "el fin justifica los medios"
+        wound?: string;     // Herida del pasado (Ghost): "abandono en la infancia"
+        need?: string;      // Lo que realmente necesita: "aprender a confiar"
+        mbti?: string;      // Opcional: perfil tipológico para coherencia de voz
+    };
+
+    /**
+     * Estado físico persistente del personaje.
+     * Implementa la "Autopsia Biomecánica" del manifiesto.
+     * Elimina el Plot Armor: las heridas son nodos restrictivos permanentes.
+     */
+    physicalState?: {
+        injuries?: Array<{
+            id: string;              // UUID para referenciar en auditorías
+            description: string;     // "Corte profundo en muslo izquierdo"
+            chapterIntroduced: string; // "Capítulo 2, escena del callejón"
+            mechanicalImpact: string;  // "Reduce velocidad de movimiento, limita sigilo"
+            isResolved: boolean;
+            resolvedAt?: string;
+        }>;
+        currentStatus?: 'healthy' | 'injured' | 'critical' | 'deceased';
+    };
 }
 
 /** Relación dirigida entre entidades dentro del grafo. */

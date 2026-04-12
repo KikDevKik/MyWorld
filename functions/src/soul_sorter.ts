@@ -158,7 +158,7 @@ export async function identifyEntities(
                 const name = (parsed.data.name || parsed.data.Nombre || "").trim();
 
                 // Check category from frontmatter 'type' or 'category'
-                let category: EntityCategory = 'PERSON'; // Default
+                let category: EntityCategory | 'UNKNOWN' = 'UNKNOWN';
 
                 // 🟢 NEW: Check Traits (V3.0)
                 const traits = (parsed.data.traits || []) as string[];
@@ -178,11 +178,11 @@ export async function identifyEntities(
                     else if (typeRaw.includes('object') || typeRaw.includes('item')) category = 'OBJECT';
                 }
 
-                if (name) {
+                if (name && category !== 'UNKNOWN') {
                     entitiesMap.set(name.toLowerCase(), {
                         name: name,
                         tier: 'ANCHOR',
-                        category: category,
+                        category: category as EntityCategory,
                         confidence: 100,
                         reasoning: "Metadatos Detectados (Frontmatter)",
                         sourceFileId: file.id,
@@ -319,20 +319,21 @@ export async function identifyEntities(
     KNOWN ENTITIES: [${knownEntitiesList}]
 
     RULES:
-    1. Extract Proper Names of People/Beings -> Category: 'PERSON'.
-    2. Extract Names of MYTHICAL CREATURES or SPECIAL FAUNA -> Category: 'CREATURE'.
-    3. Extract Names of SPECIAL FLORA -> Category: 'FLORA'.
-    4. Extract Names of IMPORTANT LOCATIONS -> Category: 'LOCATION'.
-    5. Extract Names of LEGENDARY/MAGIC OBJECTS -> Category: 'OBJECT'.
+    1. Extract Entities and classify them STRICTLY in one of these categories: 'PERSON', 'LOCATION', 'CREATURE', 'OBJECT', 'CONCEPT'.
+    2. Proper Names of People/Beings -> Category: 'PERSON'.
+    3. MYTHICAL CREATURES or SPECIAL FAUNA -> Category: 'CREATURE'.
+    4. IMPORTANT LOCATIONS (Even if they have proper names like 'Valoria') -> Category: 'LOCATION', NOT 'PERSON'.
+    5. LEGENDARY/MAGIC OBJECTS -> Category: 'OBJECT'.
+    6. Abstract ideas or systems -> Category: 'CONCEPT'.
 
-    6. DEDUPLICATION: Use known names if possible.
-    7. STRICT CLASSIFICATION: Do not label a Place as a Person.
+    7. DEDUPLICATION: Use known names if possible.
+    8. STRICT CLASSIFICATION: Do not label a Place as a Person.
 
     OUTPUT JSON (Array):
     [
       {
         "name": "Name",
-        "category": "PERSON" | "CREATURE" | "FLORA" | "LOCATION" | "OBJECT",
+        "category": "PERSON" | "CREATURE" | "LOCATION" | "OBJECT" | "CONCEPT",
         "modules": {
             "forge": { "summary": "Brief context snippet (max 10 words)" }
         }
@@ -373,15 +374,18 @@ export async function identifyEntities(
                             existing.category = item.category as EntityCategory;
                         }
                     } else {
-                        entitiesMap.set(key, {
-                            name: item.name,
-                            tier: 'GHOST',
-                            category: (item.category as EntityCategory) || 'PERSON',
-                            confidence: 50,
-                            reasoning: "Mención en Narrativa",
-                            saga: sagaId || 'Global',
-                            foundIn: [item.context || "Mentioned"]
-                        });
+                        const detectedCategory = (item.category as EntityCategory) || 'UNKNOWN';
+                        if (detectedCategory !== 'UNKNOWN') {
+                            entitiesMap.set(key, {
+                                name: item.name,
+                                tier: 'GHOST',
+                                category: detectedCategory,
+                                confidence: 50,
+                                reasoning: "Mención en Narrativa",
+                                saga: sagaId || 'Global',
+                                foundIn: [item.context || "Mentioned"]
+                            });
+                        }
                     }
                 }
             }

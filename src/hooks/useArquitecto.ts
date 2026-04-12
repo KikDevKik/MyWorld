@@ -36,6 +36,17 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     // Sprint 5.4: Objetivo Actual (Foco)
     const [currentObjective, setCurrentObjective] = useState<string | null>(null);
 
+    // ★ NUEVOS estados — Sprint 6.0 (Motor Socrático)
+    const [lastDetectedIntent, setLastDetectedIntent] = useState<'DEBATE' | 'RESOLUCION' | 'REFUTACION' | 'CONSULTA' | null>(null);
+    const [pendingDrivePatches, setPendingDrivePatches] = useState<Array<{
+        documentName: string;
+        driveFileId: string | null;
+        newRuleStatement: string;
+    }>>([]);
+    const [focusMode, setFocusMode] = useState<'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO'>('TRIAGE');
+    const [severityMode, setSeverityMode] = useState<'HIGH' | 'MEDIUM' | 'LOW' | 'ALL'>('ALL');
+    const [implementationGoal, setImplementationGoal] = useState<string>('');
+
     const {
         arquitectoSessionId: sessionId,
         setArquitectoSessionId: setSessionId,
@@ -50,25 +61,6 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     // Ghost mode simulation
     const isGhostMode = import.meta.env.VITE_JULES_MODE === 'true';
 
-    // 🟢 Fix A: Restauración al montar (Persistencia)
-    useEffect(() => {
-        const cachedItems = useArquitectoStore.getState().arquitectoPendingItems;
-        const cachedSummary = useArquitectoStore.getState().arquitectoSummary || config?.arquitectoSummary;
-
-        if (cachedItems && cachedItems.length > 0) {
-            setPendingItems(cachedItems);
-            setMessages([{
-                id: 'restore-' + Date.now(),
-                role: 'assistant',
-                text: '📋 Análisis restaurado. No hubo cambios desde el último análisis.',
-                timestamp: Date.now(),
-            }]);
-        }
-        if (cachedSummary) {
-            setProjectSummary(cachedSummary);
-        }
-    }, []); // 👈 Solo al montar el hook
-
     // ── Sprint 4.1 & 5.4: onSnapshot al Roadmap activo y su Objetivo ──
     // Se activa cuando hay sessionId y lo desuscribe al cambiar sesión o desmontar.
     useEffect(() => {
@@ -79,6 +71,11 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         if (!userId) return;
 
         const db = getFirestore();
+        
+        // Documento raíz de la sesión para pendingItems
+        const sessionDocRef = doc(db, 'users', userId, 'forge_sessions', sessionId);
+        
+        // Documento de roadmap y tarjetas
         const roadmapDocRef = doc(
             db,
             'users', userId,
@@ -89,6 +86,24 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         const cardsRef = collection(roadmapDocRef, 'cards');
         const cardsQuery = query(cardsRef, orderBy('order', 'asc'));
 
+        // 1. Snapshot para pendingItems (Session)
+        const unsubscribeSession = onSnapshot(
+            sessionDocRef,
+            (snap) => {
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.pendingItems) {
+                        setPendingItems(data.pendingItems);
+                        useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems);
+                    }
+                }
+            },
+            (err) => {
+                console.warn('[Arquitecto] onSnapshot session/pendingItems falló:', err.message);
+            }
+        );
+
+        // 2. Snapshot para Roadmap Cards
         const unsubscribeCards = onSnapshot(
             cardsQuery,
             (snap) => {
@@ -100,6 +115,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             }
         );
 
+        // 3. Snapshot para Objetivo actual
         const unsubscribeObjective = onSnapshot(
             roadmapDocRef,
             (snap) => {
@@ -115,13 +131,14 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         );
 
         return () => {
+            unsubscribeSession();
             unsubscribeCards();
             unsubscribeObjective();
         };
     }, [sessionId, isGhostMode]);
 
     const initialize = useCallback(async () => {
-        if (hasInitialized || isInitializing) return;
+        if (hasInitialized || isInitializing || !folderId) return;
         if (!accessToken) {
             toast.error("Conecta Google Drive primero.");
             return;
@@ -129,40 +146,53 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
         setIsInitializing(true);
 
-        const lastAnalysis = config?.lastArquitectoAnalysis;
-        const lastUpdate = config?.lastSignificantUpdate;
-        const cachedItems = config?.arquitectoCachedPendingItems || [];
-
-        // 🟢 RESTAURACIÓN INMEDIATA (Síncrona para el UI)
-        if (lastAnalysis || cachedItems.length > 0) {
-            setPendingItems(cachedItems);
-            useArquitectoStore.getState().setArquitectoPendingItems(cachedItems);
-            useLayoutStore.getState().setArquitectoWidgetVisible(true);
-            setProjectSummary(config?.arquitectoSummary || '');
-            setLastAnalyzedAt(lastAnalysis);
-            setHasInitialized(true);
-
-            // 🔍 Búsqueda de sesión en segundo plano para habilitar chat/re-analyze
-            callFunction<any[]>('getForgeSessions', { type: 'arquitecto' })
-                .then(sessions => {
-                    if (sessions && sessions.length > 0) {
-                        setSessionId(sessions[0].id);
-                    }
-
+        // ═══ VERIFICACIÓN DE SESIÓN EXISTENTE ═══
+        // Antes de llamar al backend, verificar si hay una sesión reciente
+        try {
+            const sessions = await callFunction<any[]>('getForgeSessions', { type: 'arquitecto' });
+            
+            if (sessions && sessions.length > 0) {
+                const latestSession = sessions[0]; // Ya ordenadas por updatedAt desc
+                const sessionUpdateTimestamp = new Date(latestSession.updatedAt).getTime();
+                const hoursElapsed = (Date.now() - sessionUpdateTimestamp) / (1000 * 60 * 60);
+                
+                // Si la sesión tiene menos de 24 horas, restaurar sin re-analizar
+                if (hoursElapsed < 24 && latestSession.pendingItems?.length > 0) {
+                    console.log("🔄 [ARQUITECTO] Restaurando sesión existente...");
+                    
+                    setSessionId(latestSession.id);
+                    setPendingItems(latestSession.pendingItems || []);
+                    useArquitectoStore.getState().setArquitectoPendingItems(latestSession.pendingItems || []);
+                    useLayoutStore.getState().setArquitectoWidgetVisible(true);
+                    setProjectSummary(latestSession.projectSummary || '');
+                    setLastAnalyzedAt(latestSession.lastAnalyzedAt);
+                    
+                    // Verificar si hay cambios recientes en el proyecto
+                    const lastAnalysis = latestSession.lastAnalyzedAt;
+                    const lastUpdate = config?.lastSignificantUpdate;
                     const isOutdated = lastUpdate && lastAnalysis ? lastUpdate > lastAnalysis : false;
+                    
+                    const restorationMessage = isOutdated
+                        ? "He restaurado el análisis anterior. Detecto cambios recientes en tu proyecto. ¿Quieres que re-analice o continuamos desde donde lo dejamos?"
+                        : "Análisis restaurado. Continuamos donde lo dejamos. " + 
+                          (latestSession.snapshot?.lastCriticalAlert?.socraticQuestion || 
+                           "¿En qué aspecto del proyecto trabajamos hoy?");
+                    
                     setMessages([{
                         id: 'restored-' + Date.now(),
                         role: 'assistant',
-                        text: isOutdated
-                            ? '📋 Análisis previo restaurado. He detectado cambios recientes en el proyecto, te sugiero re-analizar.'
-                            : '📋 Análisis restaurado. No hubo cambios desde el último análisis.',
+                        text: restorationMessage,
                         timestamp: Date.now()
                     }]);
-                })
-                .catch(err => console.warn("Error background session fetch:", err))
-                .finally(() => setIsInitializing(false));
-
-            return;
+                    
+                    setHasInitialized(true);
+                    setIsInitializing(false);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn("[ARQUITECTO] No se pudo verificar sesiones existentes:", e);
+            // Continuar con inicialización normal
         }
 
         // Ghost Mode
@@ -224,7 +254,10 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         }
 
         try {
-            const data = await callFunction<any>('arquitectoInitialize', { accessToken });
+            const data = await callFunction<any>('arquitectoInitialize', { 
+                accessToken,
+                projectId: folderId
+            });
 
             if (!data) throw new Error("Sin respuesta del servidor.");
 
@@ -251,14 +284,15 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
         } catch (error) {
             console.error("Arquitecto init error:", error);
+            setHasInitialized(true); // 🟢 CORTOCIRCUITO: Evita bucle infinito en error
             toast.error("El Arquitecto no pudo inicializarse.");
         } finally {
             setIsInitializing(false);
         }
-    }, [accessToken, hasInitialized, isInitializing, isGhostMode]);
+    }, [accessToken, hasInitialized, isInitializing, isGhostMode, folderId, config, updateConfig, setSessionId, setPendingItems, setProjectSummary, setLastAnalyzedAt, setMessages, setRoadmapCards]);
 
-    const sendMessage = useCallback(async (text: string) => {
-        if (!text.trim() || isThinking) return;
+    const sendMessage = useCallback(async (text: string, attachment?: { fileName: string; fileData: string; mimeType: string }) => {
+        if ((!text.trim() && !attachment) || isThinking) return;
         if (!sessionId) {
             toast.error("Sesión no iniciada.");
             return;
@@ -267,7 +301,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         const userMsg: ArquitectoMessage = {
             id: Date.now().toString(),
             role: 'user',
-            text,
+            text: text || `[Adjunto: ${attachment?.fileName}]`,
             timestamp: Date.now()
         };
 
@@ -325,10 +359,12 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             const data = await callFunction<any>('arquitectoChat', {
                 query: text,
                 sessionId,
+                projectId: folderId,
                 history: historyPayload,
                 pendingItems,
                 accessToken,
-                objective: currentObjective
+                objective: currentObjective,
+                attachment
             });
 
             if (!data) throw new Error("Sin respuesta.");
@@ -342,6 +378,16 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             };
 
             setMessages(prev => [...prev, assistantMsg]);
+
+            if (data?.detectedIntent) {
+                setLastDetectedIntent(data.detectedIntent);
+            }
+            if (data?.hadResolution) {
+                toast.success('✅ Contradicción resuelta. Efecto Dominó calculado.', {
+                    icon: '🌊',
+                    duration: 4000
+                });
+            }
 
             // ── Sprint 4.1: Interceptar roadmapImpact del backend ──
             if (data.roadmapImpact?.hasImpact === true) {
@@ -411,7 +457,10 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                     setSessionId(currentSessionId);
                 } else {
                     // Si realmente no hay sesión, llamamos a la función de inicialización del backend
-                    const initData = await callFunction<any>('arquitectoInitialize', { accessToken });
+                    const initData = await callFunction<any>('arquitectoInitialize', { 
+                        accessToken,
+                        projectId: folderId
+                    });
                     currentSessionId = initData.sessionId;
                     setSessionId(currentSessionId);
                 }
@@ -419,6 +468,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
             const data = await callFunction<any>('arquitectoAnalyze', {
                 sessionId: currentSessionId,
+                projectId: folderId,
                 accessToken
             });
 
@@ -460,36 +510,52 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     const generateRoadmap = useCallback(async () => {
         if (!sessionId) { toast.error('Sesión faltante.'); return; }
         setIsCrystallizing(true);
-        toast.loading('Generando el Roadmap Atómico...', { id: 'cristalizar' });
+        let toastId = toast.loading('Generando el Roadmap Atómico...', { id: 'cristalizar' });
 
         try {
-            const data = await callFunction<any>('arquitectoGenerateRoadmap', {
-                sessionId,
-                projectId: config?.folderId,
-                objective: currentObjective
-            });
+            let hasMorePhases = true;
+            let currentPhase = null;
+            let isContinuation = false;
 
-            if (!data.ready) {
-                // Pre-flight fallido
-                setReadinessResult({
-                    isReady: false,
-                    missingElements: ['Interacciones insuficientes'],
-                    warningMessage: 'Necesitamos conversar un poco más (al menos 3 interacciones) antes de poder cristalizar un Roadmap preciso. ¡Explícame más sobre tu idea!'
+            while (hasMorePhases) {
+                if (currentPhase) {
+                    toast.loading(`Generando fase: ${currentPhase}...`, { id: toastId });
+                }
+
+                const data = await callFunction<any>('arquitectoGenerateRoadmap', {
+                    sessionId,
+                    projectId: config?.folderId,
+                    objective: currentObjective,
+                    isContinuation,
+                    currentPhase
                 });
-                toast.dismiss('cristalizar');
-                return;
-            }
 
-            if (data?.pendingItems) {
-                setPendingItems(data.pendingItems);
-                useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems);
+                if (!data.ready) {
+                    // Pre-flight fallido
+                    setReadinessResult({
+                        isReady: false,
+                        missingElements: ['Interacciones insuficientes'],
+                        warningMessage: 'Necesitamos conversar un poco más (al menos 3 interacciones) antes de poder cristalizar un Roadmap preciso. ¡Explícame más sobre tu idea!'
+                    });
+                    toast.dismiss(toastId);
+                    return;
+                }
+
+                if (data?.pendingItems) {
+                    setPendingItems(data.pendingItems);
+                    useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems);
+                }
+
+                hasMorePhases = !!data.hasMorePhases;
+                currentPhase = data.nextPhaseToGenerate;
+                isContinuation = true;
             }
 
             // roadmapCards llega via onSnapshot automáticamente desde Firestore
             setReadinessResult(null);
-            toast.success('✨ Roadmap cristalizado con éxito.', { id: 'cristalizar' });
+            toast.success('✨ Roadmap cristalizado con éxito.', { id: toastId });
         } catch (e) {
-            toast.error('Error al cristalizar el Roadmap.', { id: 'cristalizar' });
+            toast.error('Error al cristalizar el Roadmap.', { id: toastId });
         } finally {
             setIsCrystallizing(false);
         }
@@ -498,6 +564,29 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     const isOutdated = config?.lastSignificantUpdate && lastAnalyzedAt
         ? config.lastSignificantUpdate > lastAnalyzedAt
         : false;
+
+        const resolveItem = useCallback(async (
+        itemCode: string,
+        resolutionText: string,
+        skipRipple = false
+    ) => {
+        if (!sessionId) return;
+        try {
+            const data = await callFunction<any>('arquitectoResolvePendingItem', {
+                sessionId,
+                itemCode,
+                resolutionText,
+                skipRipple
+            });
+            if (data?.pendingItems) {
+                setPendingItems(data.pendingItems);
+                useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems);
+            }
+            toast.success('Item resuelto.');
+        } catch (e) {
+            toast.error('Error al resolver el item.');
+        }
+    }, [sessionId]);
 
     return {
         messages,
@@ -530,5 +619,14 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         // Sprint 5.4: Estado del objetivo narrativo actual
         currentObjective,
         setCurrentObjective,
+        lastDetectedIntent,
+        pendingDrivePatches,
+        focusMode,
+        setFocusMode,
+        severityMode,
+        setSeverityMode,
+        implementationGoal,
+        setImplementationGoal,
+        resolveItem,
     };
 };

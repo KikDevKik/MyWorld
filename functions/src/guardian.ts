@@ -844,3 +844,168 @@ export const rescueEcho = onCall(
         }
     }
 );
+
+// ============================================================
+// SPRINT 6.0: EL GUARDIÁN OMNISCIENTE
+// Auditoría global de dependencias narrativas y paradojas.
+// ============================================================
+
+export const auditGlobal = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        timeoutSeconds: 300, // 5 minutos para análisis global
+        memory: "2GiB",
+        secrets: [googleApiKey],
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { projectId } = request.data;
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        logger.info(`👁️ [GUARDIÁN OMNISCIENTE] Auditoría global para ${userId}/${projectId}`);
+
+        try {
+            // 1. CONSTRUIR GRAFO COMPLETO
+            const { buildNarrativeGraph } = await import('./services/narrativeDependencyEngine');
+            const graph = await buildNarrativeGraph(db, userId, projectId);
+
+            // 2. DETECTAR PARADOJAS TEMPORALES VIA LLM
+            // El motor simbólico detecta colisiones deterministas.
+            // El LLM detecta colisiones semánticas complejas.
+            
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            
+            // Solo invocar el LLM si hay entidades suficientes
+            let temporalParadoxes: any[] = [];
+            
+            if (graph.stats.totalNodes > 2) {
+                const { serializeGraphForLLM } = await import('./services/narrativeDependencyEngine');
+                const graphSerialized = serializeGraphForLLM(graph);
+                
+                // Leer el Timeline para cruzar con el grafo
+                let timelineData = "Sin datos de timeline disponibles.";
+                try {
+                    const timelineSnap = await db
+                        .collection("TDB_Timeline").doc(userId)
+                        .collection("events")
+                        .where("projectId", "==", projectId)
+                        .where("status", "==", "confirmed")
+                        .orderBy("absoluteYear", "asc")
+                        .limit(30)
+                        .get();
+                    
+                    if (!timelineSnap.empty) {
+                        timelineData = timelineSnap.docs.map(doc => {
+                            const d = doc.data();
+                            return `Año ${d.absoluteYear}: ${d.eventName} — ${d.description?.substring(0, 100)}`;
+                        }).join("\n");
+                    }
+                } catch (e) {
+                    logger.warn("[GUARDIÁN] No se pudo leer Timeline:", e);
+                }
+
+                const paradoxPrompt = `
+ACT AS: Narrative Consistency Auditor (Nivel Máximo de Rigor)
+
+Analiza el siguiente Grafo de Dependencias Narrativas y el Timeline de la historia.
+Detecta ÚNICAMENTE paradojas verificables o fallas sistémicas.
+
+Busca activamente las siguientes colisiones:
+
+Contradicciones en la Economía de la Escasez (ej. magia/tecnología que anula la necesidad de comercio pero la sociedad sigue igual).
+
+Infraestructura Política hueca (ej. un "Imperio del Mal" sin un monopolio de recursos reales que explique por qué el ejército no lo derroca).
+
+Errores de Autopsia Biomecánica (heridas registradas en el physicalState que no limitan al personaje lógicamente).
+
+Rupturas del Timeline (personajes muertos o ausentes que participan en eventos futuros).
+
+Relaciones Asimétricas imposibles (enemigos jurados que cooperan sin justificación o evento puente).
+
+GRAFO:
+${graphSerialized.substring(0, 15000)}
+
+TIMELINE:
+${timelineData}
+
+Responde SOLO con JSON. Si no hay paradojas verificables, devuelve array vacío:
+{
+"paradoxes": [
+{
+"type": "WORLDBUILDING" | "ECONOMY" | "TEMPORAL" | "LOGICAL" | "RELATIONAL" | "BIOMECHANICAL",
+"severity": "critical" | "warning",
+"entities": ["Nombre A", "Nombre B"],
+"description": "Descripción específica de la contradicción o falla sistémica",
+"timelineReference": "Año o evento específico donde ocurre (si aplica)",
+"socraticQuestion": "Interrogatorio hostil/socrático que exija al autor resolver la falla estructural (ej. ¿Qué recurso vital monopoliza este tirano para gobernar?)"
+}
+]
+}
+`;
+
+                const result = await smartGenerateContent(genAI, paradoxPrompt, {
+                    useFlash: false, // Pro para razonamiento complejo
+                    jsonMode: true,
+                    temperature: 0.1, // Mínima temperatura para máxima precisión
+                    contextLabel: "GuardianOmnisciente"
+                });
+
+                if (result.text) {
+                    const parsed = parseSecureJSON(result.text, "GuardianOmnisciente");
+                    if (parsed && !parsed.error) {
+                        temporalParadoxes = parsed.paradoxes || [];
+                    }
+                }
+            }
+
+            // 3. COMBINAR: Colisiones del motor simbólico + Paradojas del LLM
+            const allIssues = [
+                ...graph.alerts.map(alert => ({
+                    type: alert.type,
+                    severity: alert.severity,
+                    description: alert.description,
+                    socraticQuestion: alert.socraticQuestion,
+                    source: 'symbolic_engine'
+                })),
+                ...temporalParadoxes.map((p: any) => ({
+                    ...p,
+                    source: 'llm_analysis'
+                }))
+            ];
+
+            // 4. PERSISTIR RESULTADOS PARA EL PANEL DEL GUARDIÁN
+            await db
+                .collection("users").doc(userId)
+                .collection("profile").doc("project_config")
+                .set({
+                    lastGlobalAudit: new Date().toISOString(),
+                    globalAuditStats: {
+                        totalIssues: allIssues.length,
+                        criticalCount: allIssues.filter(i => i.severity === 'critical').length,
+                        warningCount: allIssues.filter(i => i.severity === 'warning').length,
+                        graphNodes: graph.stats.totalNodes,
+                        graphEdges: graph.stats.totalEdges
+                    }
+                }, { merge: true });
+
+            logger.info(`✅ [GUARDIÁN OMNISCIENTE] Auditoría completa: ${allIssues.length} issues encontrados`);
+
+            return {
+                success: true,
+                issues: allIssues,
+                stats: {
+                    ...graph.stats,
+                    temporalParadoxes: temporalParadoxes.length
+                }
+            };
+
+        } catch (error: any) {
+            logger.error("[GUARDIÁN OMNISCIENTE] Error:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);

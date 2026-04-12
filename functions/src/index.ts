@@ -22,7 +22,7 @@ import * as crypto from 'crypto';
 // --- RE-EXPORTS (Modular Architecture) ---
 
 export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from './auth';
-export { auditContent, purgeEcho, scanProjectDrift, rescueEcho } from './guardian';
+export { auditContent, purgeEcho, scanProjectDrift, rescueEcho, auditGlobal } from './guardian';
 export { scribeCreateFile, integrateNarrative, scribePatchFile, transformToGuide, syncSmart } from './scribe';
 export {
   discoverFolderRoles,
@@ -45,7 +45,7 @@ export { acquireLock, releaseLock, checkIndexStatus } from './librarian';
 export { crystallizeGraph, crystallizeForgeEntity } from './crystallization';
 export { generateAuditPDF, generateCertificate } from './audit';
 export { analyzeStyleDNA } from './analyst';
-export { arquitectoInitialize, arquitectoChat, arquitectoAnalyze, arquitectoRecalculateCards, arquitectoGenerateRoadmap } from './architect';
+export { arquitectoInitialize, arquitectoChat, arquitectoAnalyze, arquitectoRecalculateCards, arquitectoGenerateRoadmap, arquitectoResolvePendingItem, arquitectoGenerateRoadmapFinal } from './architect';
 // export { distillResourceOnIndex } from './distillation_trigger'; // 🟢 NEW: Trigger para Recursos (Desactivado: backfill hace todo)
 export { backfillResourcesFromDrive } from './backfill'; // 🟢 NEW: Sistema de Backfill (Golden Fix)
 export { distillResource } from './distill'; // 🟢 NEW: Destilación Poco a Poco (Bajo demanda)
@@ -1061,6 +1061,56 @@ ${analysis}
 
       } catch (e) {
         logger.warn(`⚠️ Entity Recognition failed:`, e);
+      }
+
+      // ═══ INYECCIÓN DE WORLDENTITIES PARA EL DIRECTOR ═══
+      // Para cada entidad mencionada en el query, traer sus datos completos del SSOT
+      let worldEntitiesRAG = "";
+      try {
+          // Extraer nombres de entidades del query usando el grafo en memoria
+          const entityNamesInQuery: string[] = [];
+          
+          // Simple detección: buscar entidades conocidas que aparecen en el query
+          const entitiesSnap = await db
+              .collection("users").doc(userId)
+              .collection("WorldEntities")
+              .where("tier", "==", "ANCHOR")
+              .select("name", "modules") // Solo traer lo necesario
+              .limit(100)
+              .get();
+
+          for (const doc of entitiesSnap.docs) {
+              const data = doc.data();
+              if (data.category === 'RESOURCE') continue;
+              
+              const entityName = data.name?.toLowerCase();
+              if (entityName && finalQuery.toLowerCase().includes(entityName)) {
+                  entityNamesInQuery.push(doc.id);
+                  
+                  // Construir contexto rico para esta entidad
+                  const psych = data.modules?.forge?.psychology;
+                  const relations = data.modules?.nexus?.relations?.slice(0, 3) || [];
+                  const injuries = data.modules?.forge?.physicalState?.injuries?.filter(
+                      (i: any) => !i.isResolved
+                  ) || [];
+                  
+                  worldEntitiesRAG += `\n[ENTIDAD: ${data.name}]`;
+                  if (data.modules?.forge?.summary) {
+                      worldEntitiesRAG += `\nResumen: ${data.modules.forge.summary}`;
+                  }
+                  if (psych?.goal) worldEntitiesRAG += `\nObjetivo: ${psych.goal}`;
+                  if (psych?.flaw) worldEntitiesRAG += `\nDefecto: ${psych.flaw}`;
+                  if (injuries.length > 0) {
+                      worldEntitiesRAG += `\nLesiones activas: ${injuries.map((i: any) => i.description).join(', ')}`;
+                  }
+                  if (relations.length > 0) {
+                      worldEntitiesRAG += `\nRelaciones clave: ${relations.map((r: any) => `${r.relationType} → ${r.targetName}`).join(', ')}`;
+                  }
+                  worldEntitiesRAG += '\n';
+              }
+          }
+      } catch (e) {
+          logger.warn("[DIRECTOR] No se pudo inyectar WorldEntities:", e);
       }
 
       // 1. Preparar Búsqueda Contextual

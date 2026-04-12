@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2, Sparkles, BrainCircuit, Flag } from 'lucide-react';
+import { X, ShieldAlert, CheckCircle, ScanEye, AlertTriangle, FileText, Zap, Skull, RefreshCw, Loader2, Sparkles, BrainCircuit, Flag, Globe } from 'lucide-react';
 import { GuardianConflict, GuardianFact, GuardianStatus, GuardianLawConflict, GuardianPersonalityDrift, ResonanceMatch, StructureAnalysis } from '../hooks/useGuardian';
 import { LucideProps } from 'lucide-react';
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
+import { toast } from 'sonner';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 
 interface CanonRadarProps {
     status: GuardianStatus;
@@ -31,8 +33,12 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
     accessToken
 }) => {
     const { currentLanguage } = useLanguageStore();
+    const { config } = useProjectConfig();
+    const folderId = config?.folderId;
     const t = TRANSLATIONS[currentLanguage].canonRadar;
     const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+    const [isRunningGlobal, setIsRunningGlobal] = useState(false);
+    const [globalIssues, setGlobalIssues] = useState<any[]>([]);
 
     // 🟢 SORTING LOGIC: TRAITOR (Critical) FIRST, then EVOLVED
     const sortedDrifts = useMemo(() => {
@@ -82,6 +88,35 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
                 next.delete(charKey);
                 return next;
             });
+        }
+    };
+
+    const handleGlobalAudit = async () => {
+        if (!folderId) {
+            toast.error("Conecta tu proyecto primero.");
+            return;
+        }
+        
+        setIsRunningGlobal(true);
+        const toastId = toast.loading("Ejecutando Auditoría Global del Canon...");
+        
+        try {
+            const result = await callFunction<any>('auditGlobal', { projectId: folderId });
+            
+            if (result?.success) {
+                setGlobalIssues(result.issues || []);
+                const criticalCount = result.stats?.criticalCount || 0;
+                
+                if (criticalCount > 0) {
+                    toast.error(`⚠️ ${criticalCount} paradojas críticas detectadas.`, { id: toastId });
+                } else {
+                    toast.success("✅ Canon verificado. Sin paradojas detectadas.", { id: toastId });
+                }
+            }
+        } catch (e: any) {
+            toast.error("Error en auditoría global.", { id: toastId });
+        } finally {
+            setIsRunningGlobal(false);
         }
     };
 
@@ -398,16 +433,26 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
             </div>
 
             {/* FOOTER ACTIONS */}
-            <div className="p-4 border-t border-titanium-800 bg-titanium-900/50">
+            <div className="p-4 border-t border-titanium-800 bg-titanium-900/50 flex gap-2">
                 <button
                     onClick={onForceAudit}
                     disabled={status === 'scanning'}
-                    className="w-full py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 py-2 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     title={t.forceAudit}
                     aria-label={t.forceAudit}
                 >
                     <ScanEye size={14} />
                     {status === 'scanning' ? t.analyzing : t.forceAudit}
+                </button>
+                <button
+                    onClick={handleGlobalAudit}
+                    disabled={isRunningGlobal}
+                    className="flex-1 py-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800/50 text-emerald-400 text-xs font-bold rounded flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Auditoría Global"
+                    aria-label="Auditoría Global"
+                >
+                    {isRunningGlobal ? <Loader2 size={14} className="animate-spin" /> : <Globe size={14} />}
+                    Auditoría Global
                 </button>
             </div>
         </div>

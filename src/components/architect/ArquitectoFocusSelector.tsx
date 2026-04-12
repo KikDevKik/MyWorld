@@ -22,6 +22,9 @@ interface ArquitectoFocusSelectorProps {
     sessionId: string | null;
     currentObjective: string | null;
     setCurrentObjective: (obj: string) => void;
+    // ★ NUEVOS
+    focusMode: 'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO';
+    setFocusMode: (mode: 'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO') => void;
     disabled?: boolean;
 }
 

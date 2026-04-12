@@ -291,15 +291,32 @@ export async function ingestFile(
         // 4. Inyección de Eventos de IA en las relaciones del Nexus
         for (const evt of events) {
             if (evt.entitiesInvolved && evt.entitiesInvolved.length >= 2) {
-                const edgeRef = db.collection("users").doc(userId).collection("projects").doc(projectId).collection("edges").doc();
-                batch.set(edgeRef, {
-                    source: evt.entitiesInvolved[0], // En un sistema real buscaríamos el ID real, aquí simplificamos a nombre
-                    target: evt.entitiesInvolved[1],
-                    label: evt.description || "Relación extraída por IA",
-                    status: evt.conflict ? 'conflict' : 'active',
-                    discoveredIn: file.id,
-                    createdAt: new Date().toISOString()
-                });
+                const sourceName = evt.entitiesInvolved[0];
+                const targetName = evt.entitiesInvolved[1];
+                
+                // Generar IDs deterministas basados en el nombre (slugification simple para coincidir con Soul Sorter)
+                const sourceId = sourceName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+                const targetId = targetName.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\-]/g, '');
+
+                if (sourceId && targetId && sourceId !== targetId) {
+                    const entityRef = db.collection("users").doc(userId).collection("WorldEntities").doc(sourceId);
+                    
+                    batch.set(entityRef, {
+                        modules: {
+                            nexus: {
+                                relations: FieldValue.arrayUnion({
+                                    targetId: targetId,
+                                    targetName: targetName,
+                                    relationType: evt.type === 'RELATION' ? 'CONNECTED' : 'EVENT_LINK',
+                                    context: evt.description || "Relación extraída por IA durante ingesta",
+                                    sourceFileId: file.id,
+                                    discoveredAt: new Date().toISOString()
+                                })
+                            }
+                        },
+                        updatedAt: new Date().toISOString()
+                    }, { merge: true });
+                }
             }
         }
 

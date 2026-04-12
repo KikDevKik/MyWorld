@@ -24,8 +24,8 @@ const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToo
     const tools: ToolbarButton[] = [
         { id: 'domino', icon: <Network size={20} />, label: 'Efecto Dominó', enabled: true },
         { id: 'personajes', icon: <Users size={20} />, label: 'Personajes', enabled: true },
-        { id: 'map', icon: <Map size={20} />, label: 'Mundo', enabled: false },
-        { id: 'lore', icon: <Book size={20} />, label: 'Lore', enabled: false },
+        { id: 'map', icon: <Map size={20} />, label: 'Mapa de Colisiones', enabled: true },
+        { id: 'lore', icon: <Book size={20} />, label: 'Roadmap Final', enabled: true },
         { id: 'settings', icon: <Settings size={20} />, label: 'Ajustes', enabled: true },
     ];
 

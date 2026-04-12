@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
 import { PendingItem } from '../types/roadmap';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import ContradiccionesDrawer from './architect/ContradiccionesDrawer';
+import ColisionesMap from './architect/ColisionesMap';
+import RoadmapFinalView from './architect/RoadmapFinalView';
 import ArquitectoPendingWidget from './ArquitectoPendingWidget';
 import EfectoDomino from './architect/EfectoDomino';
 import PersonajesHerramienta from './architect/PersonajesHerramienta';
@@ -12,6 +15,7 @@ import ArquitectoConfigModal from './architect/ArquitectoConfigModal';
 import SlideUpPanel from './architect/SlideUpPanel';
 import { useArquitectoStore } from '../stores/useArquitectoStore';
 import ArquitectoFocusSelector, { FOCUS_OPTIONS } from './architect/ArquitectoFocusSelector';
+import { toast } from 'sonner';
 
 interface ArquitectoPanelProps {
     onClose: () => void;
@@ -31,6 +35,11 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const isPurging = useArquitectoStore(state => state.isPurging); // 🟢 Fetch isPurging flag
 
+    // File Attachment State
+    const [attachedFile, setAttachedFile] = useState<File | null>(null);
+    const [isUploadingFile, setIsUploadingFile] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -46,16 +55,19 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         sendMessage,
         reAnalyze,
         currentObjective,
-        setCurrentObjective
+        setCurrentObjective,
+        lastDetectedIntent,
+        focusMode,
+        setFocusMode
     } = useArquitecto({ accessToken, folderId });
 
     // Auto-inicializar al abrir
     useEffect(() => {
         if (isPurging) return; // 🟢 BLOQUEO: Previene inicialización mientras se purga la BD
-        if (!hasInitialized) {
+        if (!hasInitialized && folderId && !isInitializing) {
             initialize();
         }
-    }, [hasInitialized, initialize, isPurging]);
+    }, [hasInitialized, initialize, isPurging, folderId, isInitializing]);
 
     // Sincronizar store
     useEffect(() => {
@@ -84,16 +96,67 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         }
     }, [inputValue]);
 
-    const handleSend = () => {
-        if (!inputValue.trim() || isThinking) return;
-        sendMessage(inputValue.trim());
+    const handleFileAttach = async (file: File) => {
+        if (!file || file.type !== 'application/pdf') {
+            toast.error("Solo se aceptan archivos PDF como referencia cultural.");
+            return;
+        }
+        
+        if (file.size > 10 * 1024 * 1024) { // 10MB max
+            toast.error("El archivo no debe superar 10MB.");
+            return;
+        }
+        
+        setAttachedFile(file);
+        toast.success(`📎 "${file.name}" listo para enviar con tu próximo mensaje.`);
+    };
+
+    const fileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64 = (reader.result as string).split(',')[1];
+                resolve(base64);
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    };
+
+    const handleSendWithFile = async () => {
+        if (!inputValue.trim() && !attachedFile) return;
+        if (isThinking || isUploadingFile) return;
+        
+        if (attachedFile) {
+            setIsUploadingFile(true);
+            try {
+                // Convertir a base64 para enviar al backend
+                const base64 = await fileToBase64(attachedFile);
+                
+                // Enviar mensaje con archivo
+                await sendMessage(inputValue.trim(), {
+                    fileName: attachedFile.name,
+                    fileData: base64,
+                    mimeType: 'application/pdf'
+                });
+                
+                setAttachedFile(null);
+            } catch (e) {
+                toast.error("Error al procesar el archivo.");
+            } finally {
+                setIsUploadingFile(false);
+            }
+        } else {
+            await sendMessage(inputValue.trim());
+        }
+        
         setInputValue('');
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSend();
+            handleSendWithFile();
         }
     };
 
@@ -102,7 +165,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         setIsPendingDrawerOpen(true);
     };
 
-    const lastAiMessageObj = messages.filter(m => m.role === 'ia' || m.role === 'assistant').pop();
+    const lastAiMessageObj = messages.filter(m => m.role === 'assistant').pop();
     const lastAiMessage = lastAiMessageObj?.text || '';
     
     // Triage chips reactive logic
@@ -121,13 +184,18 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             {/* Top Drawer: Pendientes (Analysis View) */}
             <div className={`w-full shrink-0 z-30 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${isPendingDrawerOpen ? 'max-h-[55vh] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
-                <ArquitectoPendingWidget
-                    pendingItems={pendingItems}
-                    onOpenArquitecto={reAnalyze}
-                    onClose={() => setIsPendingDrawerOpen(false)}
-                    isAnalyzing={isAnalyzing}
-                    hideHeader={true}
-                />
+                {pendingItems.length > 0 && (
+                    <ContradiccionesDrawer
+                        pendingItems={pendingItems}
+                        isOpen={isPendingDrawerOpen}
+                        onToggle={() => setIsPendingDrawerOpen(v => !v)}
+                        activeItemCode={undefined}
+                        onSelectItem={(item) => {
+                            sendMessage(`[Retomar disonancia: ${item.code}] ${item.title}`);
+                            setIsPendingDrawerOpen(false);
+                        }}
+                    />
+                )}
             </div>
 
             {/* HEADER — siempre visible */}
@@ -182,9 +250,28 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     <div className="flex flex-col gap-6 w-full mt-auto">
 
                         {(!hasInitialized && isInitializing) ? (
-                            <div className="flex flex-col items-center justify-center py-20 opacity-60">
-                                <Landmark size={48} className="text-titanium-600 mb-4 animate-pulse" />
-                                <div className="animate-pulse text-lg font-medium text-titanium-300">El Arquitecto está realizando una auditoría profunda del canon...</div>
+                            <div className="flex flex-col items-center justify-center py-24 opacity-90 w-full">
+                                {/* Núcleo de Escaneo */}
+                                <div className="relative flex items-center justify-center w-24 h-24 mb-8">
+                                    <div className="absolute inset-0 border-2 border-cyan-500/20 rounded-full animate-ping" style={{ animationDuration: '2s' }}></div>
+                                    <div className="absolute inset-3 border border-titanium-700 border-t-cyan-500/50 rounded-full animate-spin" style={{ animationDuration: '3s' }}></div>
+                                    <Landmark size={36} className="text-cyan-400 animate-pulse relative z-10" />
+                                </div>
+
+                                <div className="text-xl font-medium text-titanium-100 tracking-wide mb-3">
+                                    Auditoría Estructural en Curso
+                                </div>
+                                
+                                <div className="text-xs text-cyan-500/80 font-mono mb-8 animate-pulse flex items-center gap-2">
+                                    <span className="inline-block w-2 h-2 bg-cyan-500 rounded-full"></span>
+                                    MINERÍA MULTI-HOP: EXTRAYENDO CANON
+                                </div>
+                                {/* Barra de Asimilación (Simulada) */}
+                                <div className="w-72 h-1.5 bg-titanium-900 rounded-full overflow-hidden relative shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
+                                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-700 to-cyan-400 rounded-full animate-pulse" 
+                                         style={{ width: '85%', transition: 'width 8s cubic-bezier(0.1, 0.5, 0.1, 1)' }}>
+                                    </div>
+                                </div>
                             </div>
                         ) : messages.length === 0 ? (
                             <div className="flex-1 flex flex-col items-center justify-center text-center pb-20 opacity-60">
@@ -210,6 +297,31 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                     <span className={`text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest ${msg.role === 'user' ? 'mr-1' : 'ml-1'}`}>
                                         {msg.role === 'user' ? 'Tú' : 'Arquitecto'}
                                     </span>
+                                    
+                                    {msg.role === 'assistant' && lastDetectedIntent && msg.id === messages[messages.length - 1]?.id && (
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                            {lastDetectedIntent === 'RESOLUCION' && (
+                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                    ✓ RESOLUCIÓN
+                                                </span>
+                                            )}
+                                            {lastDetectedIntent === 'REFUTACION' && (
+                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                                    ⚡ REFUTACIÓN
+                                                </span>
+                                            )}
+                                            {lastDetectedIntent === 'CONSULTA' && (
+                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                    📖 CONSULTA
+                                                </span>
+                                            )}
+                                            {lastDetectedIntent === 'DEBATE' && (
+                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-titanium-800 text-titanium-500 border border-titanium-700">
+                                                    ⚔ DEBATE
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ))
                         )}
@@ -270,14 +382,20 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </span>
                         </button>
 
-                        <button className="w-10 h-10 flex items-center justify-center rounded-full text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50 transition-all group relative">
+                        <button 
+                            onClick={() => setActiveTool(activeTool === 'map' ? 'none' : 'map')}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                        >
                             <Map size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
                                 Mundo
                             </span>
                         </button>
 
-                        <button className="w-10 h-10 flex items-center justify-center rounded-full text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50 transition-all group relative">
+                        <button 
+                            onClick={() => setActiveTool(activeTool === 'lore' ? 'none' : 'lore')}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                        >
                             <Book size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
                                 Lore
@@ -305,29 +423,67 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 sessionId={arquitectoSessionId}
                                 currentObjective={currentObjective}
                                 setCurrentObjective={setCurrentObjective}
+                                focusMode={focusMode}
+                                setFocusMode={setFocusMode}
                                 disabled={isThinking || isInitializing}
                             />
                         </div>
                     )}
-                    <div className="relative flex items-center w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-hidden shadow-2xl">
-                        <textarea
-                            ref={textareaRef}
-                            value={inputValue}
-                            onChange={e => setInputValue(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            disabled={isInitializing || isThinking}
-                            className="w-full bg-transparent border-none text-titanium-300 text-[15px] placeholder:text-titanium-600 focus:ring-0 resize-none py-4 pl-4 pr-14 max-h-[120px]"
-                            placeholder="Instruye al Arquitecto..."
-                            rows={1}
-                        />
-                        <button
-                            onClick={handleSend}
-                            disabled={!inputValue.trim() || isThinking || isInitializing}
-                            className="absolute right-2 bottom-2 w-10 h-10 flex items-center justify-center rounded-lg text-cyan-500 hover:bg-cyan-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                            aria-label="Enviar mensaje"
-                        >
-                            <Send size={20} />
-                        </button>
+                    <div className="relative flex flex-col w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-hidden shadow-2xl">
+                        {/* Indicador de archivo adjunto */}
+                        {attachedFile && (
+                            <div className="flex items-center gap-2 bg-titanium-900 border-b border-titanium-800 px-3 py-2 text-xs text-cyan-400">
+                                <FileText size={14} />
+                                <span className="flex-1 truncate">{attachedFile.name}</span>
+                                <button 
+                                    onClick={() => setAttachedFile(null)}
+                                    className="text-titanium-500 hover:text-red-400 ml-1 p-1"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </div>
+                        )}
+                        <div className="flex items-center relative">
+                            <textarea
+                                ref={textareaRef}
+                                value={inputValue}
+                                onChange={e => setInputValue(e.target.value)}
+                                onKeyDown={handleKeyDown}
+                                disabled={isInitializing || isThinking || isUploadingFile}
+                                className="w-full bg-transparent border-none text-titanium-300 text-[15px] placeholder:text-titanium-600 focus:ring-0 resize-none py-4 pl-4 pr-24 max-h-[120px]"
+                                placeholder={attachedFile ? "Agrega un mensaje a tu documento..." : "Instruye al Arquitecto..."}
+                                rows={1}
+                            />
+                            
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".pdf"
+                                className="hidden"
+                                onChange={(e) => e.target.files?.[0] && handleFileAttach(e.target.files[0])}
+                            />
+
+                            <div className="absolute right-2 bottom-2 flex gap-1 items-center">
+                                <button
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isThinking || isInitializing || isUploadingFile}
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg text-titanium-500 hover:text-cyan-400 hover:bg-titanium-800/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Adjuntar documento de referencia cultural (PDF)"
+                                    aria-label="Adjuntar PDF"
+                                >
+                                    <Paperclip size={18} />
+                                </button>
+
+                                <button
+                                    onClick={handleSendWithFile}
+                                    disabled={(!inputValue.trim() && !attachedFile) || isThinking || isInitializing || isUploadingFile}
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg text-cyan-500 hover:bg-cyan-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    aria-label="Enviar mensaje"
+                                >
+                                    {isUploadingFile ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
+                                </button>
+                            </div>
+                        </div>
                     </div>
                     <div className="text-center mt-2">
                         <span className="text-[10px] text-titanium-600 font-mono uppercase tracking-widest">
@@ -354,6 +510,34 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 onClose={() => setActiveTool('none')}
             >
                 {activeTool === 'personajes' && <PersonajesHerramienta onClose={() => setActiveTool('none')} />}
+            </SlideUpPanel>
+
+            <SlideUpPanel
+                isOpen={activeTool === 'map'}
+                title="Mapa de Colisiones"
+                icon={<Map size={16} />}
+                onClose={() => setActiveTool('none')}
+            >
+                {activeTool === 'map' && (
+                    <ColisionesMap 
+                        pendingItems={pendingItems}
+                        onSelectItem={(item) => {
+                            setActiveTool('none');
+                            setIsPendingDrawerOpen(true);
+                        }}
+                    />
+                )}
+            </SlideUpPanel>
+
+            <SlideUpPanel
+                isOpen={activeTool === 'lore'}
+                title="Roadmap Final"
+                icon={<Book size={16} />}
+                onClose={() => setActiveTool('none')}
+            >
+                {activeTool === 'lore' && (
+                    <RoadmapFinalView sessionId={arquitectoSessionId} />
+                )}
             </SlideUpPanel>
 
             {activeTool === 'settings' && (
