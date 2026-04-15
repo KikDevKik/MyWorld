@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X } from 'lucide-react';
+import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
 import { PendingItem } from '../types/roadmap';
@@ -8,11 +8,14 @@ import remarkGfm from 'remark-gfm';
 import ContradiccionesDrawer from './architect/ContradiccionesDrawer';
 import ColisionesMap from './architect/ColisionesMap';
 import RoadmapFinalView from './architect/RoadmapFinalView';
+import DrivePatches from './architect/DrivePatches';
 import ArquitectoPendingWidget from './ArquitectoPendingWidget';
 import EfectoDomino from './architect/EfectoDomino';
 import PersonajesHerramienta from './architect/PersonajesHerramienta';
 import ArquitectoConfigModal from './architect/ArquitectoConfigModal';
 import SlideUpPanel from './architect/SlideUpPanel';
+import IntentionModal from './architect/IntentionModal';
+import WelcomeState from './architect/WelcomeState';
 import { useArquitectoStore } from '../stores/useArquitectoStore';
 import ArquitectoFocusSelector, { FOCUS_OPTIONS } from './architect/ArquitectoFocusSelector';
 import { toast } from 'sonner';
@@ -24,11 +27,18 @@ interface ArquitectoPanelProps {
     onPendingItemsUpdate?: (items: PendingItem[]) => void;
 }
 
-type ActiveTool = 'none' | 'domino' | 'personajes' | 'map' | 'lore' | 'settings';
+type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings';
+type PanelView = 'welcome' | 'intention' | 'chat' | 'reinitializing';
 
 const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate }) => {
     const { config } = useProjectConfig();
     const projectName = config?.projectName || 'Mi Proyecto';
+    
+    // Panel View State
+    const [panelView, setPanelView] = useState<PanelView>('welcome');
+    const [reinitStep, setReinitStep] = useState<0 | 1 | 2>(0);
+    const [showReinitConfirm, setShowReinitConfirm] = useState(false);
+
     const [inputValue, setInputValue] = useState('');
     const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
     const [activeTool, setActiveTool] = useState<ActiveTool>('none');
@@ -57,17 +67,14 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         currentObjective,
         setCurrentObjective,
         lastDetectedIntent,
+        pendingDrivePatches,
         focusMode,
-        setFocusMode
+        setFocusMode,
+        reinitialize,
+        existingSession,
+        resumeSession,
+        discardSession,
     } = useArquitecto({ accessToken, folderId });
-
-    // Auto-inicializar al abrir
-    useEffect(() => {
-        if (isPurging) return; // 🟢 BLOQUEO: Previene inicialización mientras se purga la BD
-        if (!hasInitialized && folderId && !isInitializing) {
-            initialize();
-        }
-    }, [hasInitialized, initialize, isPurging, folderId, isInitializing]);
 
     // Sincronizar store
     useEffect(() => {
@@ -75,6 +82,58 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             onPendingItemsUpdate(pendingItems);
         }
     }, [pendingItems, onPendingItemsUpdate]);
+
+    // Cambiar a 'chat' cuando la sesión está lista con mensajes.
+    // NO tiene else: los estados 'welcome'/'intention'/'reinitializing' se manejan
+    // por transiciones explícitas. El else causaba que resumeSession() (hasInitialized=true
+    // pero messages.length=0 hasta que carga el onSnapshot) reseteara a 'welcome'.
+    useEffect(() => {
+        if (hasInitialized && messages.length > 0) {
+            setPanelView('chat');
+        }
+    }, [hasInitialized, messages.length]);
+
+    const handleIntentionConfirm = async (goal: string, culturalFile?: {
+        fileName: string;
+        fileData: string;
+        mimeType: string;
+    }) => {
+        setPanelView('intention'); // Muestra loading state en el modal
+        
+        try {
+            await initialize({
+                implementationGoal: goal,
+                culturalDocument: culturalFile || null
+            });
+            setPanelView('chat');
+        } catch (e) {
+            setPanelView('welcome');
+            toast.error('Error al iniciar la sesión. Intenta de nuevo.');
+        }
+    };
+
+    const handleReinitStart = () => setReinitStep(1);
+
+    const handleReinitConfirm1 = () => setReinitStep(2);
+
+    const handleReinitConfirm2 = async () => {
+        setReinitStep(0);
+        setPanelView('reinitializing');
+        await reinitialize();
+        setPanelView('welcome');
+    };
+
+    const handleReinitCancel = () => setReinitStep(0);
+
+    const handleResume = async () => {
+        await resumeSession();
+        setPanelView('chat');
+    };
+
+    const handleDiscard = async () => {
+        await discardSession();
+        setPanelView('intention');
+    };
 
     // 🟢 Fix Bug 1: Abrir drawer automáticamente si hay pendingItems restaurados del cache
     useEffect(() => {
@@ -182,21 +241,23 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     return (
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
 
-            {/* Top Drawer: Pendientes (Analysis View) */}
-            <div className={`w-full shrink-0 z-30 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${isPendingDrawerOpen ? 'max-h-[55vh] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
-                {pendingItems.length > 0 && (
-                    <ContradiccionesDrawer
-                        pendingItems={pendingItems}
-                        isOpen={isPendingDrawerOpen}
-                        onToggle={() => setIsPendingDrawerOpen(v => !v)}
-                        activeItemCode={undefined}
-                        onSelectItem={(item) => {
-                            sendMessage(`[Retomar disonancia: ${item.code}] ${item.title}`);
-                            setIsPendingDrawerOpen(false);
-                        }}
-                    />
-                )}
-            </div>
+            {/* Top Drawer: Pendientes — solo en estado chat */}
+            {panelView === 'chat' && (
+                <div className={`w-full shrink-0 z-30 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${isPendingDrawerOpen ? 'max-h-[55vh] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
+                    {pendingItems.length > 0 && (
+                        <ContradiccionesDrawer
+                            pendingItems={pendingItems}
+                            isOpen={isPendingDrawerOpen}
+                            onToggle={() => setIsPendingDrawerOpen(v => !v)}
+                            activeItemCode={undefined}
+                            onSelectItem={(item) => {
+                                sendMessage(`[Retomar disonancia: ${item.code}] ${item.title}`);
+                                setIsPendingDrawerOpen(false);
+                            }}
+                        />
+                    )}
+                </div>
+            )}
 
             {/* HEADER — siempre visible */}
             <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md z-30 relative">
@@ -213,19 +274,71 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     Proyecto: {projectName}
                 </div>
 
-                <div className="w-[100px] flex justify-end">
-                    <button
-                        onClick={handleAnalyze}
-                        disabled={isAnalyzing || isInitializing}
-                        className="text-cyan-500 text-sm font-medium border border-cyan-500/30 px-3 py-1 rounded hover:bg-cyan-500/10 transition-colors shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {isAnalyzing ? 'Analizando...' : 'Analizar'}
-                    </button>
+                <div className="w-[150px] flex justify-end">
+                    {panelView === 'chat' && (
+                        <div className="relative">
+                            <button
+                                onClick={handleReinitStart}
+                                className="text-titanium-500 hover:text-titanium-300 text-[12px] font-mono uppercase tracking-wider transition-colors"
+                            >
+                                Nueva Sesión
+                            </button>
+
+                            {/* Primera confirmación */}
+                            {reinitStep === 1 && (
+                                <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-titanium-700 rounded-xl p-4 w-64 z-50 shadow-2xl">
+                                    <p className="text-[13px] text-titanium-300 mb-3">
+                                        ¿Iniciar una nueva sesión? El progreso actual se preserva pero comenzarás desde cero.
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleReinitConfirm1}
+                                            className="flex-1 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[12px] rounded-lg hover:bg-amber-500/20 transition-colors"
+                                        >
+                                            Continuar
+                                        </button>
+                                        <button
+                                            onClick={handleReinitCancel}
+                                            className="flex-1 py-1.5 text-titanium-500 border border-titanium-700 text-[12px] rounded-lg hover:bg-titanium-800/30 transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Segunda confirmación */}
+                            {reinitStep === 2 && (
+                                <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-red-500/30 rounded-xl p-4 w-64 z-50 shadow-2xl">
+                                    <p className="text-[13px] text-titanium-300 mb-1">
+                                        ¿Estás seguro?
+                                    </p>
+                                    <p className="text-[11px] text-titanium-600 mb-3">
+                                        El chat actual no se puede recuperar.
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleReinitConfirm2}
+                                            className="flex-1 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] rounded-lg hover:bg-red-500/20 transition-colors"
+                                        >
+                                            Sí, nueva sesión
+                                        </button>
+                                        <button
+                                            onClick={handleReinitCancel}
+                                            className="flex-1 py-1.5 text-titanium-500 border border-titanium-700 text-[12px] rounded-lg hover:bg-titanium-800/30 transition-colors"
+                                        >
+                                            Cancelar
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </header>
 
-            {/* Chevron toggle — abre/cierra el drawer de misiones */}
-            {pendingItems.length > 0 && (
+            {/* Chevron toggle — solo en estado chat */}
+            {panelView === 'chat' && pendingItems.length > 0 && (
                 <div className="flex justify-center shrink-0 z-30 bg-[#0a0a0a]/60">
                     <button
                         onClick={() => setIsPendingDrawerOpen(v => !v)}
@@ -242,6 +355,41 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             {/* Main Workspace Area */}
             <main className={`flex-1 relative flex justify-center w-full overflow-hidden transition-all duration-300 ${activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
+
+                {/* ESTADO: BIENVENIDA */}
+                {panelView === 'welcome' && (
+                    <WelcomeState
+                        projectName={projectName}
+                        onStart={() => setPanelView('intention')}
+                        onResume={handleResume}
+                        onDiscard={handleDiscard}
+                        lastSessionDate={lastAnalyzedAt
+                            ? new Date(lastAnalyzedAt).toLocaleDateString()
+                            : undefined
+                        }
+                        existingSession={existingSession}
+                    />
+                )}
+
+                {/* ESTADO: MODAL DE INTENCIÓN */}
+                {panelView === 'intention' && (
+                    <IntentionModal
+                        onConfirm={handleIntentionConfirm}
+                        isLoading={isInitializing}
+                    />
+                )}
+
+                {/* ESTADO: REINICIALIZANDO */}
+                {panelView === 'reinitializing' && (
+                    <div className="flex flex-col items-center justify-center h-full gap-4 opacity-60">
+                        <div className="w-8 h-8 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
+                        <p className="text-sm text-titanium-400">Iniciando nueva sesión...</p>
+                    </div>
+                )}
+
+                {/* ESTADO: CHAT */}
+                {panelView === 'chat' && (
+                <>
 
                 {/* Chat Feed Container */}
                 <div className="w-full max-w-[720px] h-full flex flex-col pt-8 pb-[100px] px-4 overflow-y-auto z-10 scroll-smooth">
@@ -377,8 +525,26 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'personajes' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
                         >
                             <Users size={20} />
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
                                 Personajes
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTool(activeTool === 'patches' ? 'none' : 'patches')}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'patches' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                        >
+                            <GitMerge size={20} />
+                            
+                            {/* Badge para patches */}
+                            {pendingDrivePatches.filter(p => p.status === 'pending').length > 0 && (
+                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-black text-[9px] font-bold rounded-full flex items-center justify-center z-10">
+                                    {pendingDrivePatches.filter(p => p.status === 'pending').length > 9 ? '9+' : pendingDrivePatches.filter(p => p.status === 'pending').length}
+                                </span>
+                            )}
+
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
+                                Parches de Canon
                             </span>
                         </button>
 
@@ -417,18 +583,6 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                 {/* Chat Input Area */}
                 <div className="absolute bottom-6 w-full max-w-[720px] px-4 z-20 flex flex-col gap-2">
-                    {messages.length > 0 && (
-                        <div className="self-end mb-1">
-                            <ArquitectoFocusSelector
-                                sessionId={arquitectoSessionId}
-                                currentObjective={currentObjective}
-                                setCurrentObjective={setCurrentObjective}
-                                focusMode={focusMode}
-                                setFocusMode={setFocusMode}
-                                disabled={isThinking || isInitializing}
-                            />
-                        </div>
-                    )}
                     <div className="relative flex flex-col w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-hidden shadow-2xl">
                         {/* Indicador de archivo adjunto */}
                         {attachedFile && (
@@ -491,6 +645,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         </span>
                     </div>
                 </div>
+                </>
+                )}
             </main>
 
             {/* Overlays - Tools */}
@@ -510,6 +666,24 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 onClose={() => setActiveTool('none')}
             >
                 {activeTool === 'personajes' && <PersonajesHerramienta onClose={() => setActiveTool('none')} />}
+            </SlideUpPanel>
+
+            <SlideUpPanel
+                isOpen={activeTool === 'patches'}
+                title="Parches de Canon"
+                icon={<GitMerge size={16} />}
+                onClose={() => setActiveTool('none')}
+            >
+                {activeTool === 'patches' && (
+                    <DrivePatches
+                        patches={pendingDrivePatches}
+                        sessionId={arquitectoSessionId}
+                        accessToken={accessToken}
+                        onPatchesUpdate={() => {
+                            // El onSnapshot actualiza automáticamente
+                        }}
+                    />
+                )}
             </SlideUpPanel>
 
             <SlideUpPanel
@@ -545,6 +719,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     sessionId={useArquitectoStore.getState().arquitectoSessionId} 
                     onClose={() => setActiveTool('none')} 
                     onPanicResolved={() => setActiveTool('none')} 
+                    onReinitialize={reinitialize}
                 />
             )}
 

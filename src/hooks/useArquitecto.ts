@@ -58,8 +58,51 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [lastAnalyzedAt, setLastAnalyzedAt] = useState<string | null>(null);
 
+    // Sprint 6.4: Sesión existente para WelcomeState
+    const [existingSession, setExistingSession] = useState<{
+        id: string;
+        name: string;
+        lastUpdatedAt: string;
+        resolvedCount: number;
+        pendingCount: number;
+    } | null>(null);
+
     // Ghost mode simulation
     const isGhostMode = import.meta.env.VITE_JULES_MODE === 'true';
+
+    // Sprint 6.4: Detectar sesión existente al montar (solo una vez)
+    useEffect(() => {
+        if (isGhostMode) return;
+        callFunction<any[]>('getForgeSessions', { type: 'arquitecto' })
+            .then((sessions) => {
+                if (!sessions || sessions.length === 0) {
+                    setExistingSession(null);
+                    return;
+                }
+                // Filtrar sesiones archivadas en el cliente
+                const activeSessions = sessions.filter((s: any) => s.status !== 'archived');
+                if (activeSessions.length === 0) {
+                    setExistingSession(null);
+                    return;
+                }
+                const latest = activeSessions[0];
+                const daysSince = (Date.now() - new Date(latest.updatedAt).getTime()) / (1000 * 60 * 60 * 24);
+                if (daysSince > 30) {
+                    setExistingSession(null);
+                    return;
+                }
+                const items: any[] = latest.pendingItems || [];
+                setExistingSession({
+                    id: latest.id,
+                    name: latest.name || latest.projectName || 'Sesión anterior',
+                    lastUpdatedAt: latest.updatedAt,
+                    resolvedCount: items.filter((i: any) => i.resolved === true).length,
+                    pendingCount: items.filter((i: any) => !i.resolved).length,
+                });
+            })
+            .catch(() => setExistingSession(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Sprint 4.1 & 5.4: onSnapshot al Roadmap activo y su Objetivo ──
     // Se activa cuando hay sessionId y lo desuscribe al cambiar sesión o desmontar.
@@ -95,6 +138,9 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                     if (data.pendingItems) {
                         setPendingItems(data.pendingItems);
                         useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems);
+                    }
+                    if (data.pendingDrivePatches !== undefined) {
+                        setPendingDrivePatches(data.pendingDrivePatches || []);
                     }
                 }
             },
@@ -137,7 +183,16 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         };
     }, [sessionId, isGhostMode]);
 
-    const initialize = useCallback(async () => {
+    const initialize = useCallback(async (options?: {
+        implementationGoal?: string;
+        culturalDocument?: {
+            fileName: string;
+            fileData: string;
+            mimeType: string;
+        } | null;
+        forcedFocusMode?: ArquitectoFocusMode;
+        forcedSeverityMode?: ArquitectoSeverityMode;
+    }) => {
         if (hasInitialized || isInitializing || !folderId) return;
         if (!accessToken) {
             toast.error("Conecta Google Drive primero.");
@@ -256,10 +311,24 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         try {
             const data = await callFunction<any>('arquitectoInitialize', { 
                 accessToken,
-                projectId: folderId
+                projectId: folderId,
+                focusMode: options?.forcedFocusMode || focusMode,
+                severityMode: options?.forcedSeverityMode || severityMode,
+                implementationGoal: options?.implementationGoal || implementationGoal,
+                culturalDocument: options?.culturalDocument || null
             });
 
             if (!data) throw new Error("Sin respuesta del servidor.");
+
+            // setMessages PRIMERO para que hasInitialized=true lo encuentre poblado
+            if (data.initialMessage) {
+                setMessages([{
+                    id: 'init-' + Date.now(),
+                    role: 'assistant',
+                    text: data.initialMessage,
+                    timestamp: Date.now()
+                }]);
+            }
 
             setSessionId(data.sessionId);
             setPendingItems(data.pendingItems || []);
@@ -274,13 +343,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 setRoadmapCards(data.roadmapCards);
             }
 
-            setMessages([{
-                id: 'init',
-                role: 'assistant',
-                text: data.initialMessage,
-                timestamp: Date.now()
-            }]);
-            setHasInitialized(true);
+            setHasInitialized(true); // SIEMPRE AL FINAL
 
         } catch (error) {
             console.error("Arquitecto init error:", error);
@@ -289,7 +352,61 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         } finally {
             setIsInitializing(false);
         }
-    }, [accessToken, hasInitialized, isInitializing, isGhostMode, folderId, config, updateConfig, setSessionId, setPendingItems, setProjectSummary, setLastAnalyzedAt, setMessages, setRoadmapCards]);
+    }, [accessToken, hasInitialized, isInitializing, isGhostMode, folderId, config, updateConfig, setSessionId, setPendingItems, setProjectSummary, setLastAnalyzedAt, setMessages, setRoadmapCards, focusMode, severityMode, implementationGoal]);
+
+    const resumeSession = useCallback(async () => {
+        if (!existingSession) return;
+        setSessionId(existingSession.id);
+        setHasInitialized(true);
+    }, [existingSession, setSessionId, setHasInitialized]);
+
+    const discardSession = useCallback(async () => {
+        if (!existingSession) return;
+        try {
+            const { getFirestore: getFS, doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+            const { getAuth: getA } = await import('firebase/auth');
+            const db = getFS();
+            const userId = getA().currentUser?.uid;
+            if (!userId) return;
+            await fsSetDoc(
+                fsDoc(db, 'users', userId, 'forge_sessions', existingSession.id),
+                { status: 'archived', archivedAt: new Date().toISOString() },
+                { merge: true }
+            );
+        } catch (e) {
+            console.warn('[Arquitecto] No se pudo archivar la sesión:', e);
+        }
+        // Reset completo del estado local (setSessionId(null) desuscribe el onSnapshot)
+        setExistingSession(null);
+        setMessages([]);
+        setPendingItems([]);
+        setPendingDrivePatches([]);
+        setRoadmapCards([]);
+        setSessionId(null);
+        setHasInitialized(false);
+        setProjectSummary('');
+        setLastAnalyzedAt(null);
+        setCurrentObjective(null);
+        setReadinessResult(null);
+        useArquitectoStore.getState().clearArquitectoData();
+    }, [existingSession, setSessionId, setHasInitialized]);
+
+    const reinitialize = useCallback(async () => {
+        // Reset completo del estado local y del store global
+        useArquitectoStore.getState().clearArquitectoData();
+        setMessages([]);
+        setPendingItems([]);
+        setPendingDrivePatches([]);
+        setRoadmapCards([]);
+        setSessionId(null);
+        setHasInitialized(false);
+        setProjectSummary('');
+        setLastAnalyzedAt(null);
+        setCurrentObjective(null);
+
+        // Lanzar inicialización fresca
+        await initialize();
+    }, [initialize]);
 
     const sendMessage = useCallback(async (text: string, attachment?: { fileName: string; fileData: string; mimeType: string }) => {
         if ((!text.trim() && !attachment) || isThinking) return;
@@ -628,5 +745,9 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         implementationGoal,
         setImplementationGoal,
         resolveItem,
+        reinitialize,
+        existingSession,
+        resumeSession,
+        discardSession,
     };
 };

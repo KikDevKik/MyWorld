@@ -19,6 +19,8 @@ interface ArquitectoState {
   // Sprint 5.6: Bloqueo de Rehidratación Fantasma
   isPurging: boolean;
   setIsPurging: (v: boolean) => void;
+  // Sprint 6.4: Limpiar todos los datos de sesión
+  clearArquitectoData: () => void;
 }
 
 export const useArquitectoStore = create<ArquitectoState>()(
@@ -47,6 +49,14 @@ export const useArquitectoStore = create<ArquitectoState>()(
       // Sprint 5.6
       isPurging: false,
       setIsPurging: (v) => set({ isPurging: v }),
+
+      // Sprint 6.4
+      clearArquitectoData: () => set({
+          arquitectoPendingItems: [],
+          arquitectoSummary: '',
+          arquitectoSessionId: null,
+          arquitectoHasInitialized: false,
+      }),
     }),
     {
       name: 'myworld_arquitecto_cache',

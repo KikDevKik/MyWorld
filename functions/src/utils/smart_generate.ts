@@ -17,6 +17,12 @@ export interface SmartConfig {
     jsonMode?: boolean;
     contextLabel?: string;
     maxOutputTokens?: number;
+    mediaPayload?: {
+        inlineData: {
+            mimeType: string;
+            data: string;
+        }
+    };
 }
 
 /**

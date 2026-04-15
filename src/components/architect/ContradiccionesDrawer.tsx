@@ -136,12 +136,12 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                             {/* Items de la capa */}
                             {isExpanded && (
                                 <div className="divide-y divide-titanium-800/20">
-                                    {items.map(item => {
+                                    {items.map((item, idx) => {
                                         const isActive = item.code === activeItemCode;
                                         const severityColor = item.severity === 'critical' ? 'text-red-400' : item.severity === 'warning' ? 'text-amber-400' : 'text-blue-400';
                                         
                                         return (
-                                            <div key={item.code} className={`w-full group flex flex-col px-6 py-3 transition-colors hover:bg-titanium-900/40 ${isActive ? 'bg-cyan-500/5 border-l-2 border-cyan-500' : ''}`}>
+                                            <div key={`${item.code}-${idx}`} className={`w-full group flex flex-col px-6 py-3 transition-colors hover:bg-titanium-900/40 ${isActive ? 'bg-cyan-500/5 border-l-2 border-cyan-500' : ''}`}>
                                                 <div 
                                                     className="flex items-start gap-2 cursor-pointer flex-1"
                                                     onClick={() => onSelectItem?.(item)}

@@ -460,7 +460,12 @@ RESTRICCIONES ABSOLUTAS:
 - NO des sugerencias de trama a menos que el usuario pida explícitamente "una idea" o "ayuda".
 - Detecta el idioma del autor y responde SIEMPRE en ese idioma.
 - Usa Markdown: párrafos cortos, negritas para conceptos clave, viñetas solo cuando listes.
-- Tono: frío, quirúrgico, directo. Sin halagos innecesarios.`;
+- Tono: frío, quirúrgico, directo. Sin halagos innecesarios.
+
+CLARIDAD COMUNICATIVA:
+- Cuando hagas una pregunta de clarificación, primero reconoce lo que el autor ya definió.
+- Nunca repitas como problema algo que ya está en las RESOLUCIONES PREVIAS ACORDADAS.
+- Si el autor señala que algo ya está definido, aplica El Espejo, confirma el entendimiento y avanza.`;
 
 /**
  * Construye el prompt de análisis con modos de enfoque y directivas absolutas.
@@ -476,6 +481,16 @@ function buildAnalysisPrompt(
     } = {}
 ): string {
     const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal } = options;
+
+    // Detectar modo según el implementationGoal
+    const isCreativeBlock = !!(implementationGoal && (
+        implementationGoal.toLowerCase().includes('no sé cómo continuar') ||
+        implementationGoal.toLowerCase().includes('atascado') ||
+        implementationGoal.toLowerCase().includes('no tengo claro') ||
+        implementationGoal.toLowerCase().includes('cómo seguir') ||
+        implementationGoal.toLowerCase().includes('sin dirección') ||
+        implementationGoal.toLowerCase().includes('paraliz')
+    ));
 
     // ── INSTRUCCIONES DE ENFOQUE ──
     let focusInstructions = '';
@@ -526,6 +541,22 @@ ${contextData.resources.substring(0, 10000)}
 ${contextData.worldEntities.substring(0, 10000)}
 `.trim();
 
+    const outputInstructions = isCreativeBlock
+        ? `
+MODO: EXPLORACIÓN SOCRÁTICA (El usuario tiene parálisis creativa, no errores)
+
+En lugar de generar una lista de disonancias formales, genera:
+1. Un "initialMessage" que reconoce lo que el autor ya tiene construido.
+2. Haz 2-3 preguntas socráticas específicas que ayuden al autor a definir su siguiente paso concreto.
+3. El array "items" debe estar VACÍO: [].
+4. "projectSummary" describe el estado actual del proyecto en términos de potencial, no de carencias.
+
+NO generes códigos ARQ ni disonancias. El objetivo es desbloquear, no auditar.`
+        : `
+MODO: AUDITORÍA NARRATIVA (El usuario tiene un objetivo claro o hay inconsistencias)
+
+Genera el análisis completo con disonancias formales según las instrucciones de foco y severidad. El array "items" debe contener los problemas detectados.`;
+
     return `Eres El Arquitecto. Analiza el proyecto "${escapePromptVariable(projectName)}".
 
 ${mainObjective}
@@ -545,6 +576,8 @@ JERARQUÍA DE RESOLUCIÓN (ORDEN OBLIGATORIO):
 - MESO: Estructura de trama principal, facciones, política, arcos de personajes a gran escala.
 - MICRO: Acciones de personajes específicos, diálogos, huecos menores en escenas concretas.
 Las disonancias MACRO van SIEMPRE primero. Si resuelves MACRO, muchos MICRO se resuelven solos.
+
+${outputInstructions}
 
 Genera un "initialMessage" extenso, inmersivo. Diagnóstico brutal pero constructivo del estado de la obra.
 FORMATO: Markdown. Párrafos cortos. Negritas para conceptos clave. Viñetas si listas.
@@ -588,14 +621,14 @@ export const arquitectoInitialize = onCall(
     async (request): Promise<ArquitectoInitResult> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-        const { accessToken, projectId } = request.data;
+        const { accessToken, projectId, focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal = '', culturalDocument } = request.data;
         if (!accessToken) throw new HttpsError("invalid-argument", "Falta accessToken.");
         if (!projectId || projectId === 'unknown') throw new HttpsError("invalid-argument", "El projectId es obligatorio.");
 
         const userId = request.auth.uid;
         const db = getFirestore();
 
-        logger.info(`🏛️ [ARQUITECTO] Inicializando para ${userId} en proyecto ${projectId}`);
+        logger.info(`🏛️ [ARQUITECTO] Inicializando para ${userId} en proyecto ${projectId}. Objetivo: ${implementationGoal}`);
 
         // 1. LEER CONFIG DEL PROYECTO
         const config = await getProjectConfigLocal(userId);
@@ -623,6 +656,68 @@ export const arquitectoInitialize = onCall(
         const apiKey = getAIKey(request.data, googleApiKey.value());
         const genAI = new GoogleGenerativeAI(apiKey);
         const initialContext = await fetchInitialContext(userId, projectId, worldEntitiesCount, genAI, apiKey);
+
+        // 3.5 — PROCESAR DOCUMENTO CULTURAL SI EXISTE
+        let culturalContext = '';
+        if (culturalDocument?.fileData && culturalDocument?.mimeType) {
+            try {
+                logger.info(`📚 [ARQUITECTO] Procesando documento cultural: ${culturalDocument.fileName}`);
+                const culturalPrompt = `
+Eres un historiador y analista cultural. Analiza este documento y extrae:
+1. Los elementos culturales clave (música, arte, tradiciones, valores)
+2. Cómo estos elementos podrían inspirar worldbuilding en una obra de ficción
+3. Tensiones narrativas interesantes que emergen de esta cultura
+
+Responde en 3-5 párrafos concisos. No inventes datos que no estén en el documento.`;
+
+                const culturalResult = await smartGenerateContent(genAI, culturalPrompt, {
+                    useFlash: false,
+                    temperature: TEMP_PRECISION,
+                    contextLabel: 'CulturalDocumentAnalysis',
+                    mediaPayload: {
+                        inlineData: {
+                            mimeType: culturalDocument.mimeType,
+                            data: culturalDocument.fileData
+                        }
+                    }
+                });
+
+                if (culturalResult.text) {
+                    culturalContext = `\n=== DOCUMENTO CULTURAL DE REFERENCIA ===\n${culturalResult.text}\n`;
+                    
+                    // Guardar como RESOURCE en WorldEntities
+                    const resourceId = require('crypto')
+                        .createHash('sha256')
+                        .update(userId + culturalDocument.fileName + Date.now())
+                        .digest('hex')
+                        .substring(0, 20);
+
+                    await db.collection("users").doc(userId)
+                        .collection("WorldEntities").doc(resourceId)
+                        .set({
+                            id: resourceId,
+                            projectId: projectId,
+                            name: culturalDocument.fileName.replace(/\.(pdf|md|docx)$/i, ''),
+                            category: 'RESOURCE',
+                            tier: 'ANCHOR',
+                            status: 'active',
+                            modules: {
+                                forge: {
+                                    summary: `Referencia cultural: ${culturalDocument.fileName}`,
+                                    smartTags: ['REFERENCIA_CULTURAL'],
+                                }
+                            },
+                            sourceType: 'arquitecto_intention_modal',
+                            createdAt: new Date().toISOString(),
+                            updatedAt: new Date().toISOString()
+                        }, { merge: true });
+
+                    logger.info(`✅ [ARQUITECTO] Documento cultural guardado: ${resourceId}`);
+                }
+            } catch (e) {
+                logger.warn('[ARQUITECTO] No se pudo procesar documento cultural:', e);
+            }
+        }
 
         // ============================================================
         // SALTO 1.5: GRAFO DE DEPENDENCIAS NARRATIVAS
@@ -661,10 +756,11 @@ export const arquitectoInitialize = onCall(
         const driveClient = google.drive({ version: "v3", auth });
 
         const contextData = await readCanonContext(userId, projectId, driveClient);
-
-        const focusMode = (request.data.focusMode as any) || 'TRIAGE';
-        const severityMode = (request.data.severityMode as any) || 'ALL';
-        const implementationGoal = request.data.implementationGoal || '';
+        
+        // Inyectar contexto cultural si existe
+        if (culturalContext) {
+            contextData.canon += culturalContext;
+        }
 
         const analysisPrompt = buildAnalysisPrompt(projectName, contextData, {
             focusMode,
@@ -713,6 +809,15 @@ export const arquitectoInitialize = onCall(
             .collection("forge_sessions").doc();
 
         const now = new Date().toISOString();
+        
+        const isCreativeBlockMode = !!(implementationGoal && (
+            implementationGoal.toLowerCase().includes('no sé cómo continuar') ||
+            implementationGoal.toLowerCase().includes('atascado') ||
+            implementationGoal.toLowerCase().includes('no tengo claro') ||
+            implementationGoal.toLowerCase().includes('cómo seguir') ||
+            implementationGoal.toLowerCase().includes('sin dirección') ||
+            implementationGoal.toLowerCase().includes('paraliz')
+        ));
 
         await sessionRef.set({
             name: `Arquitecto ${new Date().toLocaleDateString()}`,
@@ -722,6 +827,10 @@ export const arquitectoInitialize = onCall(
             pendingItems,
             projectSummary,
             lastAnalyzedAt: now,
+            cachedCanonContext: contextData.canon.substring(0, 50000),
+            cachedWorldEntities: contextData.worldEntities.substring(0, 10000),
+            implementationGoal,
+            isCreativeBlockMode,
             // Snapshot de estado para persistencia
             snapshot: {
                 currentState: initialState,
@@ -829,7 +938,8 @@ function buildDebatePrompt(
     activePendingItem: PendingItem | null,
     historyText: string,
     userMessage: string,
-    worldEntitiesContext: string
+    worldEntitiesContext: string,
+    resolvedItems: PendingItem[]
 ): string {
     const disonancia = activePendingItem
         ? `DISONANCIA EN DEBATE:
@@ -838,8 +948,16 @@ Descripción: ${activePendingItem.description}
 Capa: ${activePendingItem.layer || 'MACRO'}`
         : 'Sin disonancia específica activa. El autor está en modo exploración general.';
 
-    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+    // Construir resumen de resoluciones previas
+    const resolvedSummary = resolvedItems.length > 0
+        ? `\n=== RESOLUCIONES PREVIAS ACORDADAS (CANON ESTABLECIDO) ===
+${resolvedItems.map(i => `- [${i.code}] ${i.title}: ${i.resolutionText || 'Resuelto.'}`).join('\n')}
+IMPORTANTE: Estas reglas ya están acordadas con el autor. No las cuestiones ni las repitas como problemas.
+`
+        : '';
 
+    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+${resolvedSummary}
 ${disonancia}
 
 CONTEXTO DE ENTIDADES:
@@ -926,10 +1044,16 @@ function buildResolucionPrompt(
     activePendingItem: PendingItem,
     historyText: string,
     userMessage: string,
-    canonContext: string
+    canonContext: string,
+    resolvedItems: PendingItem[]
 ): string {
-    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+    // Construir resumen de resoluciones previas
+    const resolvedSummary = resolvedItems.length > 0
+        ? `\n=== RESOLUCIONES PREVIAS ACORDADAS (CANON ESTABLECIDO) ===\n${resolvedItems.map(i => `- [${i.code}] ${i.title}: ${i.resolutionText || 'Resuelto.'}`).join('\n')}\nIMPORTANTE: Estas reglas ya están acordadas con el autor. No las cuestiones ni las repitas como problemas.\n`
+        : '';
 
+    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+${resolvedSummary}
 RUTA: RESOLUCIÓN — El autor da una instrucción clara para resolver la disonancia.
 
 DISONANCIA A RESOLVER:
@@ -1141,7 +1265,12 @@ async function updatePendingItemResolution(
             pendingItems,
             updatedAt: new Date().toISOString(),
             // Guardar patches propuestos para que el frontend los muestre
-            pendingDrivePatches: drivePatches.length > 0 ? drivePatches : [],
+            pendingDrivePatches: drivePatches.length > 0 ? drivePatches.map(p => ({
+                ...p,
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+                resolvedItemCode: resolvedItem.code
+            })) : [],
         }, { merge: true });
         
         logger.info(`✅ [ARQUITECTO] Resolución guardada. ${pendingItems.filter(i => i.resolved).length}/${pendingItems.length} items resueltos.`);
@@ -1402,6 +1531,10 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
 
         // 1. Leer el pendingItem activo de la sesión
         let activePendingItem: PendingItem | null = null;
+        let resolvedItems: PendingItem[] = [];
+        let cachedCanonContext = '';
+        let cachedWorldEntities = '';
+
         try {
             const sessionDoc = await db
                 .collection("users").doc(userId)
@@ -1413,13 +1546,20 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
                 const currentPendingItems: PendingItem[] = sessionData?.pendingItems || [];
                 // El item activo es el primero no resuelto, ordenado por jerarquía
                 activePendingItem = currentPendingItems.find(item => !item.resolved) || null;
+                resolvedItems = currentPendingItems.filter(item => item.resolved);
+                cachedCanonContext = sessionData?.cachedCanonContext || '';
+                cachedWorldEntities = sessionData?.cachedWorldEntities || '';
             }
         } catch (e) {
             logger.warn('[ARQUITECTO] No se pudo leer el pending item activo:', e);
         }
 
-        // 2. Leer contexto de WorldEntities para respuestas ricas
-        const contextData = await readCanonContext(userId, projectId, driveClient);
+        // 2. Usar contexto cacheado
+        const contextData = {
+            canon: cachedCanonContext,
+            resources: '',
+            worldEntities: cachedWorldEntities
+        };
 
         // 3. Construir historial de conversación
         const historyMessagesSnap = await db
@@ -1448,7 +1588,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
         if (intent === 'DEBATE' || intent === 'CONSULTA') {
             const prompt = intent === 'CONSULTA'
                 ? buildConsultaPrompt(recentHistoryText, query || '', contextData.canon, contextData.worldEntities)
-                : buildDebatePrompt(activePendingItem, recentHistoryText, query || '', contextData.worldEntities);
+                : buildDebatePrompt(activePendingItem, recentHistoryText, query || '', contextData.worldEntities, resolvedItems);
 
             const result = await smartGenerateContent(genAI, prompt, {
                 useFlash: detectedMode !== 'architect', // Flash para triage/inquisitor, Pro para architect
@@ -1496,7 +1636,7 @@ Máximo 150 palabras. Un solo desafío.`;
             responseText = result.text || 'Entendido. Pasemos al siguiente punto.';
 
         } else if (intent === 'RESOLUCION' && activePendingItem) {
-            const prompt = buildResolucionPrompt(activePendingItem, recentHistoryText, query || '', contextData.canon);
+            const prompt = buildResolucionPrompt(activePendingItem, recentHistoryText, query || '', contextData.canon, resolvedItems);
             const result = await smartGenerateContent(genAI, prompt, {
                 useFlash: false, // Pro para resoluciones — genera parches de canon
                 jsonMode: true,
@@ -2030,6 +2170,171 @@ export const arquitectoResolvePendingItem = onCall(
 );
 
 // ─────────────────────────────────────────────
+// FUNCIÓN: arquitectoApplyPatch
+// ─────────────────────────────────────────────
+export const arquitectoApplyPatch = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        timeoutSeconds: 120,
+        memory: "1GiB",
+        secrets: [googleApiKey],
+    },
+    async (request): Promise<{ success: boolean; updatedFileName?: string }> => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { sessionId, patchIndex, driveFileId, documentName, newRuleStatement, patchInstructions, accessToken } = request.data;
+
+        if (!sessionId) throw new HttpsError("invalid-argument", "Falta sessionId.");
+        if (!driveFileId) throw new HttpsError("invalid-argument", "Falta driveFileId. El archivo debe estar indexado en Drive.");
+        if (!accessToken) throw new HttpsError("invalid-argument", "Falta accessToken.");
+
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        logger.info(`📝 [ARQUITECTO] Aplicando patch a ${documentName} (${driveFileId})`);
+
+        try {
+            const auth = new google.auth.OAuth2();
+            auth.setCredentials({ access_token: accessToken });
+            const drive = google.drive({ version: "v3", auth });
+
+            // Leer el archivo original
+            const getRes = await drive.files.get({
+                fileId: driveFileId,
+                alt: 'media'
+            } as any);
+
+            let originalContent = typeof getRes.data === 'string'
+                ? getRes.data
+                : JSON.stringify(getRes.data);
+
+            // Proteger sovereign areas
+            const { SmartSyncService } = await import('./services/smart_sync');
+            const { protectedContent, map: sovereignMap } = SmartSyncService.protectSovereignAreas(originalContent);
+
+            // IA integra la nueva regla
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+
+            const mergePrompt = `
+ACT AS: Expert Markdown Editor & Canon Archivist for a literary project.
+TASK: Integrate the following new canonical rule into the existing document.
+
+INTEGRATION INSTRUCTIONS: "${escapePromptVariable(patchInstructions || 'Agrega esta regla en la sección más relevante o crea una nueva sección si no existe.')}"
+
+NEW CANONICAL RULE TO INTEGRATE:
+"${escapePromptVariable(newRuleStatement)}"
+
+RULES:
+1. PRESERVE Frontmatter (--- ... ---) exactly as is.
+2. PRESERVE existing content. Only append or insert. Do NOT delete anything.
+3. PRESERVE Sovereign Blocks ({{SOVEREIGN_BLOCK_X}}) exactly as is.
+4. OUTPUT the FULL, VALID Markdown file. Raw text only, no code blocks.
+5. The integration must feel natural — not like an appended note.
+
+EXISTING DOCUMENT:
+"${escapePromptVariable(protectedContent.substring(0, 80000))}"
+`;
+
+            const result = await smartGenerateContent(genAI, mergePrompt, {
+                useFlash: true,
+                temperature: TEMP_PRECISION,
+                contextLabel: 'ArquitectoApplyPatch'
+            });
+
+            if (!result.text) {
+                throw new Error("El motor de integración no generó contenido.");
+            }
+
+            let newContent = result.text;
+
+            // Limpiar code blocks si el LLM los agrega
+            if (newContent.startsWith('\`\`\`markdown')) newContent = newContent.replace(/^\`\`\`markdown\n/, '').replace(/\n\`\`\`$/, '');
+            if (newContent.startsWith('\`\`\`')) newContent = newContent.replace(/^\`\`\`\n/, '').replace(/\n\`\`\`$/, '');
+
+            // Restaurar sovereign areas
+            newContent = SmartSyncService.restoreSovereignAreas(newContent, sovereignMap);
+
+            // 2. Escribir en Drive
+            await drive.files.update({
+                fileId: driveFileId,
+                media: {
+                    mimeType: 'text/markdown',
+                    body: newContent
+                }
+            });
+
+            logger.info(`✅ [ARQUITECTO] Patch aplicado exitosamente a ${documentName}`);
+
+            // 3. Marcar el patch como aprobado en Firestore
+            const sessionRef = db
+                .collection("users").doc(userId)
+                .collection("forge_sessions").doc(sessionId);
+
+            const sessionDoc = await sessionRef.get();
+            if (sessionDoc.exists) {
+                const patches = sessionDoc.data()?.pendingDrivePatches || [];
+                patches[patchIndex] = { ...patches[patchIndex], status: 'approved', appliedAt: new Date().toISOString() };
+                await sessionRef.set({ pendingDrivePatches: patches }, { merge: true });
+            }
+
+            // 4. Auto-indexar el archivo actualizado (fire & forget)
+            db.collection("TDB_Index").doc(userId)
+                .collection("files").doc(driveFileId)
+                .set({
+                    lastModifiedByArchitect: new Date().toISOString(),
+                    pendingReindex: true
+                }, { merge: true })
+                .catch(e => logger.warn("[ARQUITECTO] No se pudo marcar para re-indexar:", e));
+
+            return { success: true, updatedFileName: documentName };
+
+        } catch (error: any) {
+            logger.error("[ARQUITECTO] Error aplicando patch:", error);
+            throw new HttpsError("internal", `Error al aplicar el patch: ${error.message}`);
+        }
+    }
+);
+
+// ─────────────────────────────────────────────
+// FUNCIÓN: arquitectoRejectPatch
+// ─────────────────────────────────────────────
+export const arquitectoRejectPatch = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        timeoutSeconds: 30,
+        memory: "256MiB",
+        secrets: [googleApiKey],
+    },
+    async (request): Promise<{ success: boolean }> => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { sessionId, patchIndex } = request.data;
+        if (!sessionId) throw new HttpsError("invalid-argument", "Falta sessionId.");
+
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        const sessionRef = db
+            .collection("users").doc(userId)
+            .collection("forge_sessions").doc(sessionId);
+
+        const sessionDoc = await sessionRef.get();
+        if (sessionDoc.exists) {
+            const patches = sessionDoc.data()?.pendingDrivePatches || [];
+            patches[patchIndex] = { ...patches[patchIndex], status: 'rejected', rejectedAt: new Date().toISOString() };
+            await sessionRef.set({ pendingDrivePatches: patches }, { merge: true });
+        }
+
+        logger.info(`🚫 [ARQUITECTO] Patch ${patchIndex} rechazado para sesión ${sessionId}`);
+        return { success: true };
+    }
+);
+
+// ─────────────────────────────────────────────
 // FUNCIÓN: arquitectoGenerateRoadmapFinal
 // ─────────────────────────────────────────────
 export const arquitectoGenerateRoadmapFinal = onCall(
@@ -2057,6 +2362,15 @@ export const arquitectoGenerateRoadmapFinal = onCall(
         const pendingItems: PendingItem[] = sessionData.pendingItems || [];
         const resolvedItems = pendingItems.filter(i => i.resolved);
         const pendingStillOpen = pendingItems.filter(i => !i.resolved);
+
+        const appliedPatches = (sessionData.pendingDrivePatches || [])
+            .filter((p: any) => p.status === 'approved')
+            .map((p: any) => `[Archivo modificado: ${p.documentName}] ${p.newRuleStatement}`)
+            .join('\n');
+
+        const appliedPatchesSection = appliedPatches
+            ? `\nARCHIVOS MODIFICADOS EN DRIVE (ya aplicados):\n${appliedPatches}\n`
+            : '';
         
         const messagesSnap = await db.collection("users").doc(userId)
             .collection("forge_sessions").doc(sessionId)
@@ -2075,7 +2389,7 @@ export const arquitectoGenerateRoadmapFinal = onCall(
 
 CONTRADICCIONES RESUELTAS (${resolvedItems.length}):
 ${resolvedItems.map(i => `- [${i.code}] ${i.title}: ${i.resolutionText || 'Resuelta.'}`).join('\n')}
-
+${appliedPatchesSection}
 CONTRADICCIONES AÚN PENDIENTES (${pendingStillOpen.length}):
 ${pendingStillOpen.map(i => `- [${i.code}] ${i.title}`).join('\n')}
 
@@ -2090,7 +2404,7 @@ Genera el Roadmap Final en 3 columnas. Responde SOLO con JSON:
 }
 
 REGLAS:
-- changelog: Lo que se acordó y cambió durante el interrogatorio.
+- changelog: Lo que se acordó y cambió durante el interrogatorio. Si hay archivos modificados, inclúyelos con el formato "[Archivo: nombre.md] descripción del cambio".
 - creationMissions: Documentos o conceptos que AÚN DEBEN CREARSE para sostener lo acordado.
 - researchMissions: Temas del mundo real que el autor debe estudiar para dar verosimilitud.
 - Detecta el idioma y responde en ese idioma.`;

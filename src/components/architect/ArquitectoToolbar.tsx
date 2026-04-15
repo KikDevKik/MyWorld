@@ -1,7 +1,7 @@
 import React from 'react';
-import { Network, Users, Map, Book, Settings } from 'lucide-react';
+import { Network, Users, Map, Book, Settings, GitMerge } from 'lucide-react';
 
-export type ActiveTool = 'none' | 'domino' | 'personajes' | 'map' | 'lore' | 'settings';
+export type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings';
 
 interface ToolbarButton {
     id: ActiveTool;
@@ -13,6 +13,7 @@ interface ToolbarButton {
 interface ArquitectoToolbarProps {
     activeTool: ActiveTool;
     onToolChange: (tool: ActiveTool) => void;
+    pendingPatchesCount?: number;
 }
 
 /**
@@ -20,13 +21,14 @@ interface ArquitectoToolbarProps {
  * Al hacer clic en un botón activo lo cierra (toggle).
  * El botón activo se resalta con glow cyan.
  */
-const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToolChange }) => {
+const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToolChange, pendingPatchesCount }) => {
     const tools: ToolbarButton[] = [
         { id: 'domino', icon: <Network size={20} />, label: 'Efecto Dominó', enabled: true },
         { id: 'personajes', icon: <Users size={20} />, label: 'Personajes', enabled: true },
+        { id: 'patches', icon: <GitMerge size={20} />, label: 'Parches de Canon', enabled: true },
         { id: 'map', icon: <Map size={20} />, label: 'Mapa de Colisiones', enabled: true },
         { id: 'lore', icon: <Book size={20} />, label: 'Roadmap Final', enabled: true },
-        { id: 'settings', icon: <Settings size={20} />, label: 'Ajustes', enabled: true },
+        { id: 'settings', icon: <Settings size={20} />, label: 'Ajustes Socráticos', enabled: true }
     ];
 
     const handleClick = (id: ActiveTool, enabled: boolean) => {
@@ -57,6 +59,14 @@ const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToo
                         aria-pressed={activeTool === tool.id}
                     >
                         {tool.icon}
+                        
+                        {/* Badge para patches */}
+                        {tool.id === 'patches' && pendingPatchesCount !== undefined && pendingPatchesCount > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-black text-[9px] font-bold rounded-full flex items-center justify-center">
+                                {pendingPatchesCount > 9 ? '9+' : pendingPatchesCount}
+                            </span>
+                        )}
+
                         {/* Tooltip */}
                         <span className="
                             absolute left-full ml-4 px-2 py-1

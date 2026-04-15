@@ -164,7 +164,16 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
                                 Esto eliminará todo el progreso del Roadmap de esta sesión, forzando al Arquitecto a reiniciar desde la fase de Triage/Inquisidor.
                             </p>
                             <button
-                                onClick={handlePanic}
+                                onClick={() => {
+                                    if (window.confirm("¿Estás seguro de reiniciar? Esto cerrará la sesión actual y lanzará un nuevo análisis del proyecto.")) {
+                                        if (onReinitialize) {
+                                            onReinitialize();
+                                            onClose();
+                                        } else {
+                                            handlePanic();
+                                        }
+                                    }
+                                }}
                                 disabled={isDeleting}
                                 className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-red-950/50 border border-red-500/50 text-red-400 text-sm font-medium hover:bg-red-900/50 transition-colors disabled:opacity-50"
                             >
