@@ -193,7 +193,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         forcedFocusMode?: ArquitectoFocusMode;
         forcedSeverityMode?: ArquitectoSeverityMode;
     }) => {
-        if (hasInitialized || isInitializing || !folderId) return;
+        if (isInitializing || !folderId) return;
         if (!accessToken) {
             toast.error("Conecta Google Drive primero.");
             return;
@@ -321,14 +321,28 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             if (!data) throw new Error("Sin respuesta del servidor.");
 
             // setMessages PRIMERO para que hasInitialized=true lo encuentre poblado
-            if (data.initialMessage) {
-                setMessages([{
-                    id: 'init-' + Date.now(),
-                    role: 'assistant',
+            const userGoalMessage = options?.implementationGoal?.trim();
+            const now = Date.now();
+            const initialMessages: ArquitectoMessage[] = [
+                ...(userGoalMessage ? [{
+                    id: 'user-goal-' + now,
+                    role: 'user' as const,
+                    text: userGoalMessage,
+                    timestamp: now - 1
+                }] : []),
+                ...(data?.initialMessage ? [{
+                    id: 'init-' + now,
+                    role: 'assistant' as const,
                     text: data.initialMessage,
-                    timestamp: Date.now()
-                }]);
-            }
+                    timestamp: now
+                }] : [])
+            ];
+            setMessages(initialMessages.length > 0 ? initialMessages : [{
+                id: 'fallback-' + now,
+                role: 'assistant' as const,
+                text: 'Sesión iniciada. ¿En qué aspecto de tu proyecto trabajamos hoy?',
+                timestamp: now
+            }]);
 
             setSessionId(data.sessionId);
             setPendingItems(data.pendingItems || []);
@@ -352,7 +366,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         } finally {
             setIsInitializing(false);
         }
-    }, [accessToken, hasInitialized, isInitializing, isGhostMode, folderId, config, updateConfig, setSessionId, setPendingItems, setProjectSummary, setLastAnalyzedAt, setMessages, setRoadmapCards, focusMode, severityMode, implementationGoal]);
+    }, [accessToken, isInitializing, isGhostMode, folderId, config, updateConfig, setSessionId, setPendingItems, setProjectSummary, setLastAnalyzedAt, setMessages, setRoadmapCards, focusMode, severityMode, implementationGoal]);
 
     const resumeSession = useCallback(async () => {
         if (!existingSession) return;
