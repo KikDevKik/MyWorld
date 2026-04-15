@@ -83,15 +83,14 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         }
     }, [pendingItems, onPendingItemsUpdate]);
 
-    // Cambiar a 'chat' cuando la sesión está lista con mensajes.
-    // NO tiene else: los estados 'welcome'/'intention'/'reinitializing' se manejan
-    // por transiciones explícitas. El else causaba que resumeSession() (hasInitialized=true
-    // pero messages.length=0 hasta que carga el onSnapshot) reseteara a 'welcome'.
+    // Cambiar a 'chat' solo cuando el usuario pasó explícitamente por el IntentionModal.
+    // La condición panelView === 'intention' evita que el onSnapshot de messages (que
+    // carga historial al hacer resumeSession) dispare este efecto desde 'welcome'.
     useEffect(() => {
-        if (hasInitialized && messages.length > 0) {
+        if (hasInitialized && messages.length > 0 && panelView === 'intention') {
             setPanelView('chat');
         }
-    }, [hasInitialized, messages.length]);
+    }, [hasInitialized, messages.length, panelView]);
 
     const handleIntentionConfirm = async (goal: string, culturalFile?: {
         fileName: string;
@@ -353,6 +352,45 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 </div>
             )}
 
+            {/* Barra de modo — solo en estado chat */}
+            {panelView === 'chat' && (
+                <div className="flex items-center justify-between px-6 py-2 border-b border-titanium-800/50 bg-titanium-950/50 shrink-0 text-[11px] font-mono">
+                    <div className="flex items-center gap-2">
+                        {pendingItems.length === 0 ? (
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+                                <span className="text-cyan-500 uppercase tracking-wider">Modo Exploración</span>
+                                <span className="text-titanium-700 mx-1">·</span>
+                                <span className="text-titanium-600">Sin análisis formal activo</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                <span className="text-amber-500 uppercase tracking-wider">Modo Auditoría</span>
+                                <span className="text-titanium-700 mx-1">·</span>
+                                <span className="text-titanium-600">
+                                    {pendingItems.filter(i => !i.resolved).length} disonancia(s) activa(s)
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                    {pendingItems.length === 0 && hasInitialized && (
+                        <button
+                            onClick={handleAnalyze}
+                            disabled={isAnalyzing}
+                            className="flex items-center gap-1.5 text-titanium-500 hover:text-cyan-400 transition-colors disabled:opacity-40"
+                            title="Solicitar análisis formal de disonancias"
+                        >
+                            {isAnalyzing
+                                ? <Loader2 size={11} className="animate-spin" />
+                                : <RefreshCw size={11} />
+                            }
+                            <span>Analizar disonancias</span>
+                        </button>
+                    )}
+                </div>
+            )}
+
             {/* Main Workspace Area */}
             <main className={`flex-1 relative flex justify-center w-full overflow-hidden transition-all duration-300 ${activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
 
@@ -422,9 +460,16 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 </div>
                             </div>
                         ) : messages.length === 0 ? (
-                            <div className="flex-1 flex flex-col items-center justify-center text-center pb-20 opacity-60">
-                                <Landmark size={48} className="text-titanium-600 mb-4" />
-                                <p className="text-lg font-medium text-titanium-300">¿Qué estructura construiremos hoy?</p>
+                            <div className="flex-1 flex flex-col items-center justify-center text-center pb-20 opacity-60 gap-3">
+                                <Landmark size={40} className="text-titanium-700" />
+                                <p className="text-sm font-medium text-titanium-400">
+                                    Sesión en modo Exploración
+                                </p>
+                                <p className="text-[12px] text-titanium-600 max-w-[320px] leading-relaxed">
+                                    El Arquitecto está listo para conversar.
+                                    Si quieres un análisis formal de tu proyecto,
+                                    usa el botón "Analizar disonancias" arriba.
+                                </p>
                             </div>
                         ) : (
                             messages.map(msg => (

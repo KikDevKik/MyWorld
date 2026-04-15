@@ -5,7 +5,7 @@ import { callFunction } from '../services/api';
 import { toast } from 'sonner';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { PendingItem, RoadmapCard, RoadmapImpact } from '../types/roadmap';
-import { getFirestore, collection, query, orderBy, onSnapshot, doc } from 'firebase/firestore';
+import { getFirestore, collection, query, orderBy, onSnapshot, doc, limit } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 export interface ArquitectoMessage {
@@ -69,6 +69,10 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
     // Ghost mode simulation
     const isGhostMode = import.meta.env.VITE_JULES_MODE === 'true';
+
+    // Sprint 6.4: El onSnapshot de messages solo alimenta el estado si el usuario
+    // eligió explícitamente retomar. Evita que el WelcomeState desaparezca solo.
+    const userChoseToResume = useRef(false);
 
     // Sprint 6.4: Detectar sesión existente al montar (solo una vez)
     useEffect(() => {
@@ -176,10 +180,39 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             }
         );
 
+        // 4. Snapshot para Mensajes del chat (últimos 50, orden asc)
+        const messagesColRef = collection(db, 'users', userId, 'forge_sessions', sessionId, 'messages');
+        const messagesQuery = query(messagesColRef, orderBy('timestamp', 'asc'), limit(50));
+
+        const unsubscribeMessages = onSnapshot(
+            messagesQuery,
+            (snap) => {
+                if (snap.empty) return;
+                // Solo alimentar el estado si el usuario eligió retomar explícitamente.
+                // Evita que el onSnapshot automático saque al usuario del WelcomeState.
+                if (!userChoseToResume.current) return;
+                const loadedMessages: ArquitectoMessage[] = snap.docs.map(d => ({
+                    id: d.id,
+                    // Backend guarda 'ia', el tipo local usa 'assistant'
+                    role: (d.data().role === 'ia' ? 'assistant' : d.data().role) as ArquitectoMessage['role'],
+                    text: d.data().text || '',
+                    timestamp: d.data().timestamp?.toMillis?.() ?? Date.now(),
+                    mode: d.data().arquitectoMode,
+                }));
+                // Sólo sobreescribir si Firestore tiene igual o más mensajes que
+                // el estado local (evita reemplazar el optimistic UI momentáneamente)
+                setMessages(prev =>
+                    loadedMessages.length >= prev.length ? loadedMessages : prev
+                );
+            },
+            (err) => console.warn('[Arquitecto] onSnapshot messages falló:', err.message)
+        );
+
         return () => {
             unsubscribeSession();
             unsubscribeCards();
             unsubscribeObjective();
+            unsubscribeMessages();
         };
     }, [sessionId, isGhostMode]);
 
@@ -370,6 +403,44 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
     const resumeSession = useCallback(async () => {
         if (!existingSession) return;
+
+        // Activar semáforo para futuros onSnapshot updates
+        userChoseToResume.current = true;
+
+        // Cargar mensajes directamente desde Firestore sin esperar al onSnapshot
+        try {
+            const { getFirestore: getFS2, collection: col2, query: q2,
+                    orderBy: ob2, limit: lim2, getDocs } = await import('firebase/firestore');
+            const { getAuth: getA2 } = await import('firebase/auth');
+            const db2 = getFS2();
+            const userId2 = getA2().currentUser?.uid;
+
+            if (userId2) {
+                const messagesRef = col2(
+                    db2,
+                    'users', userId2,
+                    'forge_sessions', existingSession.id,
+                    'messages'
+                );
+                const messagesQ = q2(messagesRef, ob2('timestamp', 'asc'), lim2(50));
+                const snap = await getDocs(messagesQ);
+
+                if (!snap.empty) {
+                    const loadedMessages: ArquitectoMessage[] = snap.docs.map(d => ({
+                        id: d.id,
+                        role: (d.data().role === 'ia' ? 'assistant' : d.data().role) as ArquitectoMessage['role'],
+                        text: d.data().text || '',
+                        timestamp: d.data().timestamp?.toMillis?.() ?? Date.now(),
+                        mode: d.data().arquitectoMode,
+                    }));
+                    setMessages(loadedMessages);
+                }
+            }
+        } catch (e) {
+            console.warn('[Arquitecto] No se pudieron cargar mensajes al retomar:', e);
+        }
+
+        // Setear sessionId activa el onSnapshot para actualizaciones futuras
         setSessionId(existingSession.id);
         setHasInitialized(true);
     }, [existingSession, setSessionId, setHasInitialized]);
@@ -391,6 +462,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             console.warn('[Arquitecto] No se pudo archivar la sesión:', e);
         }
         // Reset completo del estado local (setSessionId(null) desuscribe el onSnapshot)
+        userChoseToResume.current = false;
         setExistingSession(null);
         setMessages([]);
         setPendingItems([]);
@@ -407,6 +479,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
     const reinitialize = useCallback(async () => {
         // Reset completo del estado local y del store global
+        userChoseToResume.current = false;
         useArquitectoStore.getState().clearArquitectoData();
         setMessages([]);
         setPendingItems([]);
