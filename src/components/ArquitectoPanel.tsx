@@ -185,30 +185,37 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         if (!inputValue.trim() && !attachedFile) return;
         if (isThinking || isUploadingFile) return;
         
-        if (attachedFile) {
+        const currentInput = inputValue.trim();
+        const currentFile = attachedFile;
+
+        // Limpiar inmediatamente para feedback UX
+        setInputValue('');
+        setAttachedFile(null);
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+        }
+
+        if (currentFile) {
             setIsUploadingFile(true);
             try {
                 // Convertir a base64 para enviar al backend
-                const base64 = await fileToBase64(attachedFile);
+                const base64 = await fileToBase64(currentFile);
                 
                 // Enviar mensaje con archivo
-                await sendMessage(inputValue.trim(), {
-                    fileName: attachedFile.name,
+                await sendMessage(currentInput, {
+                    fileName: currentFile.name,
                     fileData: base64,
                     mimeType: 'application/pdf'
                 });
-                
-                setAttachedFile(null);
             } catch (e) {
                 toast.error("Error al procesar el archivo.");
+                // Opcional: restaurar el input si falla, pero el requerimiento pide limpiar
             } finally {
                 setIsUploadingFile(false);
             }
         } else {
-            await sendMessage(inputValue.trim());
+            await sendMessage(currentInput);
         }
-        
-        setInputValue('');
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -285,7 +292,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                             {/* Primera confirmación */}
                             {reinitStep === 1 && (
-                                <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-titanium-700 rounded-xl p-4 w-64 z-50 shadow-2xl">
+                                <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-titanium-700 rounded-xl p-4 w-64 z-[60] shadow-2xl">
                                     <p className="text-[13px] text-titanium-300 mb-3">
                                         ¿Iniciar una nueva sesión? El progreso actual se preserva pero comenzarás desde cero.
                                     </p>
@@ -308,7 +315,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                             {/* Segunda confirmación */}
                             {reinitStep === 2 && (
-                                <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-red-500/30 rounded-xl p-4 w-64 z-50 shadow-2xl">
+                                <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-red-500/30 rounded-xl p-4 w-64 z-[60] shadow-2xl">
                                     <p className="text-[13px] text-titanium-300 mb-1">
                                         ¿Estás seguro?
                                     </p>

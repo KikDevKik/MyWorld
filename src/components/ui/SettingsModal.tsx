@@ -53,6 +53,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const [isReindexing, setIsReindexing] = useState(false);
     const [isRefreshingAuth, setIsRefreshingAuth] = useState(false);
 
+    // 🟢 NUKE STEP: 0=normal, 1=primera confirmacion, 2=segunda confirmacion final
+    const [nukeStep, setNukeStep] = useState<0 | 1 | 2>(0);
+
     // 🟢 NEW: Project Name Local State (for input binding)
     const [localProjectName, setLocalProjectName] = useState('');
 
@@ -138,7 +141,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
             // 🟢 Reset Project Identity (Client Side Mirror)
             if (config) {
-                 await updateConfig({
+                await updateConfig({
                     ...config,
                     projectName: '',
                     styleIdentity: '',
@@ -442,8 +445,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         id="tab-general"
                         onClick={() => setActiveTab('general')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'general'
-                                ? 'border-accent-DEFAULT text-accent-DEFAULT'
-                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            ? 'border-accent-DEFAULT text-accent-DEFAULT'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
                     >
                         <Brain size={16} />
@@ -456,8 +459,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         id="tab-profile"
                         onClick={() => setActiveTab('profile')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'profile'
-                                ? 'border-accent-DEFAULT text-accent-DEFAULT'
-                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            ? 'border-accent-DEFAULT text-accent-DEFAULT'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
                     >
                         <Sparkles size={16} />
@@ -470,8 +473,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         id="tab-ai_config"
                         onClick={() => setActiveTab('ai_config')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'ai_config'
-                                ? 'border-purple-400 text-purple-400'
-                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            ? 'border-purple-400 text-purple-400'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
                     >
                         <Key size={16} />
@@ -484,8 +487,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         id="tab-memory"
                         onClick={() => setActiveTab('memory')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'memory'
-                                ? 'border-red-400 text-red-400'
-                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            ? 'border-red-400 text-red-400'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
                     >
                         <HardDrive size={16} />
@@ -498,8 +501,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         id="tab-info"
                         onClick={() => setActiveTab('info')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'info'
-                                ? 'border-cyan-400 text-cyan-400'
-                                : 'border-transparent text-titanium-400 hover:text-titanium-200'
+                            ? 'border-cyan-400 text-cyan-400'
+                            : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
                     >
                         <Info size={16} />
@@ -576,13 +579,63 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 <p className="text-xs text-titanium-400">
                                     {t.nukeDesc}
                                 </p>
-                                <button
-                                    onClick={handleNukeProject}
-                                    className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2"
-                                >
-                                    <Trash2 size={16} />
-                                    {t.nukeButton}
-                                </button>
+
+                                {/* STEP 0: Botón normal */}
+                                {nukeStep === 0 && (
+                                    <button
+                                        onClick={() => setNukeStep(1)}
+                                        className="w-full py-2 bg-red-900/20 hover:bg-red-900/40 border border-red-900/50 text-red-400 hover:text-red-300 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <Trash2 size={16} />
+                                        {t.nukeButton}
+                                    </button>
+                                )}
+
+                                {/* STEP 1: Primera confirmación */}
+                                {nukeStep === 1 && (
+                                    <div className="flex flex-col gap-3 p-4 border border-red-500/30 rounded-lg bg-red-950/20">
+                                        <p className="text-sm text-red-300 font-medium">
+                                            ⚠️ Esto borrará Drive, toda la memoria de IA y el historial completo. ¿Continuar?
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => setNukeStep(2)}
+                                                className="flex-1 py-2 bg-red-500/20 border border-red-500/40 text-red-400 text-sm rounded-lg hover:bg-red-500/30 transition-colors"
+                                            >
+                                                Sí, entiendo las consecuencias
+                                            </button>
+                                            <button
+                                                onClick={() => setNukeStep(0)}
+                                                className="flex-1 py-2 text-titanium-500 border border-titanium-700 text-sm rounded-lg hover:bg-titanium-800/30 transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* STEP 2: Segunda confirmación final */}
+                                {nukeStep === 2 && (
+                                    <div className="flex flex-col gap-3 p-4 border border-red-500/50 rounded-lg bg-red-950/30">
+                                        <p className="text-sm text-red-200 font-medium">
+                                            Última oportunidad. Esta acción NO se puede deshacer completamente. Los archivos de Drive van a la papelera (recuperables 30 días), pero la memoria de IA se pierde para siempre.
+                                        </p>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => { setNukeStep(0); handleNukeProject(); }}
+                                                className="flex-1 py-2 bg-red-600/30 border border-red-500 text-red-300 text-sm rounded-lg hover:bg-red-600/40 transition-colors font-medium"
+                                            >
+                                                Confirmar — Borrar Todo
+                                            </button>
+                                            <button
+                                                onClick={() => setNukeStep(0)}
+                                                className="flex-1 py-2 text-titanium-500 border border-titanium-700 text-sm rounded-lg hover:bg-titanium-800/30 transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     )}
@@ -639,6 +692,28 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                     {/* TAB: AI CONFIG (BYOK) */}
                     {activeTab === 'ai_config' && (
                         <div role="tabpanel" id="panel-ai_config" aria-labelledby="tab-ai_config" className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            {/* 🟢 CAMBIO 2: Aviso de API Key */}
+                            <div className="flex items-start gap-3 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
+                                <span className="text-cyan-400 text-base shrink-0">🔑</span>
+                                <div>
+                                    <p className="text-[13px] text-cyan-300 font-medium mb-1">
+                                        API Key de Gemini requerida
+                                    </p>
+                                    <p className="text-[11px] text-titanium-500 leading-relaxed">
+                                        MyWorld usa tu propia API Key de Google Gemini (BYOK). Obtén una gratis en{' '}
+                                        <a
+                                            href="https://aistudio.google.com/apikey"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-cyan-500 hover:text-cyan-300 underline underline-offset-2"
+                                        >
+                                            aistudio.google.com/apikey
+                                        </a>
+                                        . Tu clave se guarda solo en esta sesión del navegador — nunca en nuestros servidores.
+                                    </p>
+                                </div>
+                            </div>
+
                             <div className="flex items-center gap-2 mb-2">
                                 <Key size={18} className="text-purple-400" />
                                 <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wider">{t.byok}</h4>

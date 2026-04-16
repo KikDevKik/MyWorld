@@ -85,6 +85,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                         )}
                     </button>
 
+                    {/* INFORMACIÓN DE ACCESO */}
+                    <p className="text-[11px] text-gray-500 leading-relaxed text-center max-w-xs">
+                        Al iniciar sesión autorizas el acceso a <span className="text-gray-400">Google Drive</span> para leer y guardar tus archivos del proyecto. También necesitarás una <span className="text-gray-400">API Key de Google Gemini</span> (gratuita) para las herramientas de IA.
+                    </p>
+
                     {/* MENSAJE DE ERROR */}
                     {error && (
                         <div

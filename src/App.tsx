@@ -284,6 +284,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
+    const [showTrialBanner, setShowTrialBanner] = useState(true);
     const [isAppLoading, setIsAppLoading] = useState(true);
     const hybridEditorRef = useRef<HybridEditorHandle>(null); // 🟢 EDITOR HANDLE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
@@ -294,7 +295,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 BYOK ONBOARDING
     const { customGeminiKey } = useProjectConfig();
     useEffect(() => {
-        if (!isAppLoading && user && !initialByokChecked) {
+        if (!isAppLoading && user && !initialByokChecked && driveStatus === 'connected') {
             setInitialByokChecked(true);
             if (!customGeminiKey) {
                 toast("Falta Clave de IA (BYOK)", {
@@ -307,7 +308,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 });
             }
         }
-    }, [isAppLoading, user, customGeminiKey, initialByokChecked]);
+    }, [isAppLoading, user, customGeminiKey, initialByokChecked, driveStatus]);
 
     // 🟢 FILE LOCKING
     const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);
@@ -1033,35 +1034,51 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 }}
             />
 
-            <SentinelShell
-                isZenMode={isZenMode}
-                // Props removed in SentinelShell refactor are implicitly handled via store
-                sidebar={
-                    <VaultSidebar
-                        folderId={folderId}
-                        onFolderIdChange={setFolderId}
-                        onFileSelect={handleFileSelect}
-                        onOpenConnectModal={() => setIsConnectModalOpen(true)}
-                        onLogout={handleLogout}
-                        onIndexRequest={handleIndex}
-                        onUpdateMemory={handleUpdateMemory}
-                        onOpenSettings={() => setIsSettingsModalOpen(true)}
-                        onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
-                        accessToken={oauthToken}
-                        onRefreshTokens={driveStatus === 'disconnected' || driveStatus === 'error' ? handleDriveLink : handleTokenRefresh}
-                        driveStatus={driveStatus}
-                        onOpenManual={() => setIsFieldManualOpen(true)}
-                        isIndexed={indexStatus.isIndexed}
-                        isSecurityReady={isSecurityReady}
-                        activeFileId={currentFileId}
-                        onCreateFile={() => setIsCreateFileModalOpen(true)}
-                        onGenesis={() => setIsGenesisOpen(true)}
-                        onStartTutorial={startTutorial} // 🟢 PASS TUTORIAL TRIGGER
-                    />
-                }
-                editor={renderZoneBContent()}
-                tools={renderZoneCContent()}
-            />
+            {showTrialBanner && (
+                <div className="fixed top-0 left-0 right-0 z-[45] flex items-center justify-center gap-3 px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-300 text-[12px] font-mono">
+                    <span className="opacity-60">⚠</span>
+                    <span>Período de prueba activo — conecta Google Drive y configura tu API Key de Gemini para desbloquear todas las funciones.</span>
+                    <button
+                        onClick={() => setShowTrialBanner(false)}
+                        className="ml-auto text-amber-500/60 hover:text-amber-300 transition-colors leading-none"
+                        aria-label="Cerrar aviso"
+                    >
+                        ×
+                    </button>
+                </div>
+            )}
+
+            <div className={`flex-1 flex flex-col min-h-0 ${showTrialBanner ? 'pt-7' : ''}`}>
+                <SentinelShell
+                    isZenMode={isZenMode}
+                    // Props removed in SentinelShell refactor are implicitly handled via store
+                    sidebar={
+                        <VaultSidebar
+                            folderId={folderId}
+                            onFolderIdChange={setFolderId}
+                            onFileSelect={handleFileSelect}
+                            onOpenConnectModal={() => setIsConnectModalOpen(true)}
+                            onLogout={handleLogout}
+                            onIndexRequest={handleIndex}
+                            onUpdateMemory={handleUpdateMemory}
+                            onOpenSettings={() => setIsSettingsModalOpen(true)}
+                            onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
+                            accessToken={oauthToken}
+                            onRefreshTokens={driveStatus === 'disconnected' || driveStatus === 'error' ? handleDriveLink : handleTokenRefresh}
+                            driveStatus={driveStatus}
+                            onOpenManual={() => setIsFieldManualOpen(true)}
+                            isIndexed={indexStatus.isIndexed}
+                            isSecurityReady={isSecurityReady}
+                            activeFileId={currentFileId}
+                            onCreateFile={() => setIsCreateFileModalOpen(true)}
+                            onGenesis={() => setIsGenesisOpen(true)}
+                            onStartTutorial={startTutorial} // 🟢 PASS TUTORIAL TRIGGER
+                        />
+                    }
+                    editor={renderZoneBContent()}
+                    tools={renderZoneCContent()}
+                />
+            </div>
         </>
     );
 }
@@ -1233,8 +1250,8 @@ function App() {
             const init = async () => {
                 const token = await handleTokenRefresh();
                 if (!token) {
-                    // No hay refresh token guardado — conectar Drive automáticamente
-                    setTimeout(() => handleDriveLink(), 1500);
+                    // No hay refresh token guardado — marcar como desconectado, el usuario conectará manualmente
+                    setDriveStatus('disconnected');
                 }
             };
             init();
