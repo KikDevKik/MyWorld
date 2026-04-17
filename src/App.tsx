@@ -1096,21 +1096,25 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 }}
             />
 
-            {showTrialBanner && (
-                <div className="fixed top-0 left-0 right-0 z-[45] flex items-center justify-center gap-3 px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-300 text-[12px] font-mono">
-                    <span className="opacity-60">⚠</span>
-                    <span>Período de prueba activo — conecta Google Drive y configura tu API Key de Gemini para desbloquear todas las funciones.</span>
-                    <button
-                        onClick={() => setShowTrialBanner(false)}
-                        className="ml-auto text-amber-500/60 hover:text-amber-300 transition-colors leading-none"
-                        aria-label="Cerrar aviso"
-                    >
-                        ×
-                    </button>
-                </div>
-            )}
-
-            <div className={`flex-1 flex flex-col min-h-0 ${showTrialBanner ? 'pt-7' : ''}`}>
+            <div className="flex flex-col h-screen w-screen overflow-hidden">
+                {showTrialBanner && (
+                    <div className="w-full flex items-center justify-between px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[11px] font-mono shrink-0 z-50">
+                        <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                            <span className="text-amber-400 uppercase tracking-wider">Período de Prueba</span>
+                            <span className="text-amber-600 mx-1">·</span>
+                            <span className="text-amber-700">Usando tu API Key de Gemini (BYOK)</span>
+                        </div>
+                        <button
+                            onClick={() => setShowTrialBanner(false)}
+                            className="text-amber-700 hover:text-amber-500 transition-colors"
+                            aria-label="Cerrar aviso"
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
+                <div className="flex-1 overflow-hidden">
                 <SentinelShell
                     isZenMode={isZenMode}
                     // Props removed in SentinelShell refactor are implicitly handled via store
@@ -1144,6 +1148,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     editor={renderZoneBContent()}
                     tools={renderZoneCContent()}
                 />
+            </div>
             </div>
         </>
     );
@@ -1179,6 +1184,20 @@ function App() {
             }
         };
         init();
+
+        const taxonomyToast = localStorage.getItem('show_taxonomy_toast');
+        if (taxonomyToast === 'true') {
+            localStorage.removeItem('show_taxonomy_toast');
+            setTimeout(() => {
+                toast.success(
+                    'Carpetas categorizadas automáticamente.',
+                    {
+                        description: 'Puedes ajustar la taxonomía en Configuración → Proyecto.',
+                        duration: 6000
+                    }
+                );
+            }, 2000);
+        }
     }, []);
 
     // AUTH LISTENER

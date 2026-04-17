@@ -3,7 +3,7 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, connectFirestoreEmulator } from "firebase/firestore";
+import { initializeFirestore, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 
 // ¡¡¡TU "TESORO" VA AQUÍ!!!
 // (Ahora cargado desde variables de entorno para seguridad)
@@ -58,17 +58,9 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         return { isReady: false, error: "MISSING_SITE_KEY" };
     }
 
-    // 🟢 LOCAL DEVELOPMENT: Skip App Check entirely on localhost (emulator handles auth)
+    // 🟢 LOCAL DEVELOPMENT: Skip App Check on localhost — use production Firebase directly (no emulator)
     if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-        console.log("🛠️ [SECURITY] Localhost detected — connecting to Firestore Emulator (8088).");
-        try {
-            const { getFirestore, connectFirestoreEmulator } = await import("firebase/firestore");
-            const db = getFirestore(app);
-            connectFirestoreEmulator(db, 'localhost', 8088);
-            console.log("✅ [EMULATOR] Firestore connected to localhost:8088");
-        } catch (e) {
-            console.warn("⚠️ [EMULATOR] Firestore emulator already connected or failed:", e);
-        }
+        console.log("🛠️ [SECURITY] Localhost detected — skipping App Check, using production Firebase.");
         return { isReady: true, error: null };
     }
 
@@ -117,5 +109,13 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         return { isReady: false, error: "INIT_FAILED" };
     }
 };
+
+// Inicializar Firestore explícitamente con la app.
+// Esto registra el singleton — todos los getFirestore() posteriores
+// devuelven esta misma instancia ya configurada.
+export const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+});
 
 export default app;

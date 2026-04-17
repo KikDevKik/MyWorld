@@ -80,7 +80,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [isResourcesOpen, setIsResourcesOpen] = useState(true);
 
     // 🟢 CONSUME GLOBAL CONTEXT
-    const { fileTree, isFileTreeLoading, config, updateConfig } = useProjectConfig();
+    const { fileTree, isFileTreeLoading, config, updateConfig, refreshConfig } = useProjectConfig();
     const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
 
     // 🟢 DERIVED STATE
@@ -249,11 +249,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 newProjectName: name
             });
 
-            // Auto-assign taxonomy if no canon paths are already configured
+            console.log('[DEBUG] createTitaniumStructure result:', JSON.stringify(result));
+
+            // Auto-assign taxonomy if no canon paths are already configured.
+            // NO usar ...config: el backend ya guardó folderId/projectName en Firestore.
+            // Solo actualizamos los campos de taxonomía para no sobreescribir con valores stale.
             if (result?.canonPaths?.length > 0 && !(config?.canonPaths?.length > 0)) {
                 try {
                     await updateConfig({
-                        ...config,
                         canonPaths: result.canonPaths,
                         resourcePaths: result.resourcePaths || [],
                         primaryCanonPathId: result.canonPaths[0]?.id || null,
@@ -263,9 +266,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 }
             }
 
-            toast.success("¡Estructura creada y carpetas categorizadas automáticamente!", {
-                description: 'Puedes ajustar la taxonomía en Configuración → Proyecto.'
-            });
+            await refreshConfig();
+
+            localStorage.setItem('show_taxonomy_toast', 'true');
             setTimeout(() => {
                 window.location.reload();
             }, 1500);
@@ -492,6 +495,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         {/* EMPTY STATE */}
                         {isEmptyProject && (
                             <div className="flex flex-col items-center p-6 text-center gap-4 mt-4 mb-auto animate-in fade-in zoom-in duration-300">
+                            {driveStatus !== 'connected' && (
+                                <div className="w-full mx-3 mb-1 p-3 bg-amber-500/8 border border-amber-500/20 rounded-lg">
+                                    <p className="text-[11px] text-amber-600 leading-relaxed">
+                                        Conecta Google Drive desde el botón inferior para acceder a tu proyecto.
+                                    </p>
+                                </div>
+                            )}
                                 <div className="p-4 bg-titanium-800/50 rounded-full border border-titanium-700/50 shadow-lg shadow-black/20">
                                     <FolderCog className="text-titanium-400" size={24} />
                                 </div>

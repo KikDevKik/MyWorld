@@ -235,13 +235,18 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
         const token = accessToken;
         if (!token) return;
 
+        if (!config?.folderId && !config?.canonPaths?.length) {
+            toast.error('Primero crea o conecta una carpeta de proyecto.');
+            setIsAnalyzing(false);
+            return;
+        }
+
         try {
             toast.info("Escaneando estructura de carpetas...");
             const data = await callFunction<any>('discoverFolderRoles', {
                 accessToken: token,
                 rootFolderId: config?.folderId,
-                canonPaths: canonPaths,
-                resourcePaths: resourcePaths
+                canonPaths: config?.canonPaths || [],
             });
 
             if (data.suggestion && Object.keys(data.suggestion).length > 0) {

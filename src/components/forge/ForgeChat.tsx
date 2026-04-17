@@ -182,11 +182,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
         const app = getApp();
         const projectId = app.options.projectId;
         const region = 'us-central1';
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        let functionUrl = `https://${region}-${projectId}.cloudfunctions.net/forgeChatStream`;
-        if (isLocal) {
-            functionUrl = `http://127.0.0.1:5001/${projectId}/${region}/forgeChatStream`;
-        }
+        const functionUrl = `https://${region}-${projectId}.cloudfunctions.net/forgeChatStream`;
 
         try {
             const auth = getAuth();

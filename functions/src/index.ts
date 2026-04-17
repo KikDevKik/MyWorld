@@ -20,6 +20,7 @@ import * as crypto from 'crypto';
 
 
 // --- RE-EXPORTS (Modular Architecture) ---
+export { genesisManifest } from './genesis';
 
 export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from './auth';
 export { auditContent, purgeEcho, scanProjectDrift, rescueEcho, auditGlobal } from './guardian';

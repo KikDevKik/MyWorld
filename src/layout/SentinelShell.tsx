@@ -103,7 +103,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     // The user said: "Director lives in ArsenalDock (right)... ensure... opening logic updates activeView to 'director'".
 
     // Logic for Zone C classes:
-    let zoneCClasses = `flex flex-row relative ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-in-out'}`;
+    let zoneCClasses = `flex flex-row relative overflow-hidden ${isDragging ? 'transition-none' : 'transition-all duration-300 ease-in-out'}`;
     let zoneCStyle: React.CSSProperties = {};
 
     if (isHeavyTool) {
