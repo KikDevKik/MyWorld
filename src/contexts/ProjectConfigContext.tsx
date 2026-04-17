@@ -234,14 +234,21 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       });
     }
 
-    // 3. Fallback to Master Folder if no decentralized paths
+    // 3. Fallback a Carpeta Maestra SOLO si hay taxonomía configurada.
+    // Si canonPaths y resourcePaths están vacíos (ej: después de un nuke),
+    // dejar el árbol vacío para que la UI muestre el estado de proyecto vacío.
     if (newTree.length === 0 && config.folderId) {
-      newTree.push({
-        id: config.folderId,
-        name: 'Carpeta Maestra',
-        mimeType: 'application/vnd.google-apps.folder',
-        driveId: config.folderId
-      });
+      const hasTaxonomy = (config.canonPaths?.length ?? 0) > 0 ||
+                          (config.resourcePaths?.length ?? 0) > 0;
+      if (hasTaxonomy) {
+        newTree.push({
+          id: config.folderId,
+          name: 'Carpeta Maestra',
+          mimeType: 'application/vnd.google-apps.folder',
+          driveId: config.folderId
+        });
+      }
+      // Sin taxonomía → newTree vacío → la UI muestra el estado de proyecto vacío
     }
 
     setFileTree(newTree);

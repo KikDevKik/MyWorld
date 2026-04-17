@@ -48,6 +48,7 @@ import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
 import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
+import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
 import { useLanguageStore } from './stores/useLanguageStore';
 import { TRANSLATIONS } from './i18n/translations';
 
@@ -285,6 +286,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
     const [showTrialBanner, setShowTrialBanner] = useState(true);
+    const [showStartingAssistant, setShowStartingAssistant] = useState(false);
     const [isAppLoading, setIsAppLoading] = useState(true);
     const hybridEditorRef = useRef<HybridEditorHandle>(null); // 🟢 EDITOR HANDLE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
@@ -309,6 +311,16 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
         }
     }, [isAppLoading, user, customGeminiKey, initialByokChecked, driveStatus]);
+
+    // 🟢 STARTING ASSISTANT — show when project is new and empty
+    useEffect(() => {
+        if (!config || configLoading) return;
+        const hasCanon = config?.canonPaths?.length > 0;
+        const isEmpty = !fileTree || fileTree.length === 0 || fileTree.every((f: any) => !f.children?.length);
+        const dismissedKey = `assistant_dismissed_${config?.folderId}`;
+        const dismissed = localStorage.getItem(dismissedKey) === 'true';
+        setShowStartingAssistant(hasCanon && isEmpty && !dismissed);
+    }, [config?.canonPaths?.length, fileTree?.length, config?.folderId]);
 
     // 🟢 FILE LOCKING
     const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);
@@ -815,6 +827,24 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 3. Render Zone B Content (Main Stage)
+    // 🟢 STARTING ASSISTANT GENESIS HANDLER
+    const handleStartGenesis = async (answers: GenesisAnswers) => {
+        try {
+            toast.info("Generando tu proyecto...", { description: 'Creando archivos basados en tus respuestas.' });
+            await callFunction('genesisManifest', {
+                answers,
+                accessToken: oauthToken,
+                // Provide a minimal chatHistory for backwards compat
+                chatHistory: [{ role: 'user', message: answers.premise || 'Inicio del proyecto.' }]
+            });
+            toast.success("¡Proyecto generado!", { description: 'Tus archivos iniciales han sido creados en Drive.' });
+            setShowStartingAssistant(false);
+            localStorage.setItem(`assistant_dismissed_${config?.folderId}`, 'true');
+        } catch (err: any) {
+            toast.error("Error al generar el proyecto: " + err.message);
+        }
+    };
+
     const renderZoneBContent = () => {
         if (activeView === 'forja') {
             return (
@@ -884,11 +914,16 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         // Default: Editor
         if (!currentFileId) {
-            // Un proyecto "vacío" (sin configurar) es el que no tiene árbol NI tiene carpetas configuradas
-            const hasConfiguredFolders = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
-            const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFolders;
-
-            return (
+            return showStartingAssistant ? (
+                <StartingAssistant
+                    projectName={config?.projectName || 'Mi Proyecto'}
+                    onClose={() => {
+                        setShowStartingAssistant(false);
+                        localStorage.setItem(`assistant_dismissed_${config?.folderId}`, 'true');
+                    }}
+                    onStartGenesis={handleStartGenesis}
+                />
+            ) : (
                 <div className="flex-1 flex items-center justify-center bg-titanium-950">
                     <div className="text-titanium-500 font-mono text-sm opacity-50">
                         Selecciona un archivo del canon para comenzar.
@@ -898,54 +933,81 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
 
         return (
-            <div className="flex flex-col h-full overflow-hidden relative group/editor-area">
-                {/* 🟢 READING TOOLBAR (Floating) */}
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover/editor-area:opacity-100 transition-opacity duration-300 pointer-events-none hover:!opacity-100 focus-within:!opacity-100">
-                    <div className="pointer-events-auto">
-                        <ReadingToolbar
-                            fontFamily={fontFamily}
-                            setFontFamily={setFontFamily}
-                            editorWidth={editorWidth}
-                            setEditorWidth={setEditorWidth}
-                            isZenMode={isZenMode}
-                            setIsZenMode={setIsZenMode}
+            <div className="flex h-full overflow-hidden">
+                {/* Main editor column */}
+                <div className="flex flex-col flex-1 overflow-hidden relative group/editor-area">
+                    {/* Drive disconnected overlay */}
+                    {driveStatus !== 'connected' && (
+                        <div className="absolute inset-0 bg-titanium-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-30 gap-4">
+                            <div className="bg-titanium-900 border border-amber-500/30 rounded-xl p-6 max-w-[360px] text-center">
+                                <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-amber-400 text-xl">⚡</span>
+                                </div>
+                                <h3 className="text-[14px] font-medium text-titanium-200 mb-2">
+                                    Google Drive no conectado
+                                </h3>
+                                <p className="text-[12px] text-titanium-500 leading-relaxed mb-4">
+                                    MyWorld guarda tu proyecto directamente en tu Google Drive. Necesitas conectarlo para empezar a escribir.
+                                </p>
+                                <button
+                                    onClick={handleDriveLink}
+                                    className="w-full py-2.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[13px] font-medium rounded-lg hover:bg-cyan-500/25 transition-all"
+                                >
+                                    Conectar Google Drive
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 🟢 READING TOOLBAR (Floating) */}
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover/editor-area:opacity-100 transition-opacity duration-300 pointer-events-none hover:!opacity-100 focus-within:!opacity-100">
+                        <div className="pointer-events-auto">
+                            <ReadingToolbar
+                                fontFamily={fontFamily}
+                                setFontFamily={setFontFamily}
+                                editorWidth={editorWidth}
+                                setEditorWidth={setEditorWidth}
+                                isZenMode={isZenMode}
+                                setIsZenMode={setIsZenMode}
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        className="flex-1 overflow-hidden relative transition-all duration-300"
+                        style={{
+                            '--editor-font-family': fontFamily === 'sans' ? 'var(--font-display)' : 'var(--font-serif)',
+                            '--editor-max-width': editorWidth === 'wide' ? '100%' : '800px'
+                        } as React.CSSProperties}
+                    >
+                        <HybridEditor
+                            ref={hybridEditorRef}
+                            content={selectedFileContent}
+                            onContentChange={handleContentChange}
+                            driftMarkers={driftMarkers}
+                            activeSegment={activeSegment}
+                            className="h-full"
+                            readOnly={isReadOnly}
+                            onReadSelection={handleReadSelection}
+                            narratorState={{
+                                isPlaying: narratorControls.isPlaying,
+                                isLoading: isNarratorLoading,
+                                stop: narratorControls.stop
+                            }}
                         />
                     </div>
-                </div>
-
-                <div
-                    className="flex-1 overflow-hidden relative transition-all duration-300"
-                    style={{
-                        '--editor-font-family': fontFamily === 'sans' ? 'var(--font-display)' : 'var(--font-serif)',
-                        '--editor-max-width': editorWidth === 'wide' ? '100%' : '800px'
-                    } as React.CSSProperties}
-                >
-                    <HybridEditor
-                        ref={hybridEditorRef}
+                    <StatusBar
                         content={selectedFileContent}
-                        onContentChange={handleContentChange}
-                        driftMarkers={driftMarkers}
-                        activeSegment={activeSegment} // 🟢 PASS ACTIVE SEGMENT
-                        className="h-full"
-                        readOnly={isReadOnly}
-                        onReadSelection={handleReadSelection} // 🟢 NEW
-                        narratorState={{
-                            isPlaying: narratorControls.isPlaying,
-                            isLoading: isNarratorLoading,
-                            stop: narratorControls.stop
+                        guardianStatus={guardianStatus}
+                        onGuardianClick={() => setActiveView('guardian')}
+                        className="z-50 shrink-0"
+                        narratorControls={{
+                            ...narratorControls,
+                            isLoading: isNarratorLoading
                         }}
                     />
                 </div>
-                <StatusBar
-                    content={selectedFileContent}
-                    guardianStatus={guardianStatus}
-                    onGuardianClick={() => setActiveView('guardian')}
-                    className="z-50 shrink-0"
-                    narratorControls={{
-                        ...narratorControls,
-                        isLoading: isNarratorLoading
-                    }}
-                />
+
             </div>
         );
     };
@@ -1072,7 +1134,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             activeFileId={currentFileId}
                             onCreateFile={() => setIsCreateFileModalOpen(true)}
                             onGenesis={() => setIsGenesisOpen(true)}
-                            onStartTutorial={startTutorial} // 🟢 PASS TUTORIAL TRIGGER
+                            onStartTutorial={startTutorial}
+                            onOpenStartingAssistant={() => {
+                                setShowStartingAssistant(true);
+                                localStorage.removeItem(`assistant_dismissed_${config?.folderId}`);
+                            }}
                         />
                     }
                     editor={renderZoneBContent()}

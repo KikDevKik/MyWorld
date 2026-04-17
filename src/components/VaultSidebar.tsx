@@ -39,6 +39,7 @@ interface VaultSidebarProps {
     onCreateFile?: () => void; // 👈 New prop for File Creation
     onGenesis?: () => void; // 👈 New prop for Genesis
     onStartTutorial?: () => void; // 🟢 NEW PROP FOR GUIDE
+    onOpenStartingAssistant?: () => void; // 🟢 SPRINT 6.5
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -69,6 +70,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     onCreateFile, // 👈 Destructure
     onGenesis, // 👈 Destructure
     onStartTutorial, // 🟢 Destructure
+    onOpenStartingAssistant, // 🟢 Sprint 6.5
 }) => {
     // STATE
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
@@ -78,11 +80,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [isResourcesOpen, setIsResourcesOpen] = useState(true);
 
     // 🟢 CONSUME GLOBAL CONTEXT
-    const { fileTree, isFileTreeLoading, config } = useProjectConfig();
+    const { fileTree, isFileTreeLoading, config, updateConfig } = useProjectConfig();
     const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
 
     // 🟢 DERIVED STATE
-    const hasConfiguredFoldersGlobal = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
+    // hasConfiguredFoldersGlobal se basa en taxonomía (canonPaths/resourcePaths),
+    // NO en folderId solo. Tener un folderId sin taxonomía = proyecto sin configurar.
+    const hasConfiguredFoldersGlobal = !!(config?.canonPaths?.length || config?.resourcePaths?.length);
     const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFoldersGlobal;
 
     // 🟢 SMART SYNC STATE
@@ -240,22 +244,35 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         try {
             toast.info("Creando estructura del proyecto...");
 
-            await callFunction('createTitaniumStructure', {
+            const result = await callFunction<any>('createTitaniumStructure', {
                 accessToken: accessToken,
                 newProjectName: name
             });
 
-            toast.success("¡Proyecto creado exitosamente!");
-            // Config context should auto-update via Firestore listener
-            // 🟢 FORCE RELOAD (Requested by Commander)
-            // Ensures total cleanup of stale state from previous (deleted) projects.
+            // Auto-assign taxonomy if no canon paths are already configured
+            if (result?.canonPaths?.length > 0 && !(config?.canonPaths?.length > 0)) {
+                try {
+                    await updateConfig({
+                        ...config,
+                        canonPaths: result.canonPaths,
+                        resourcePaths: result.resourcePaths || [],
+                        primaryCanonPathId: result.canonPaths[0]?.id || null,
+                    } as any);
+                } catch (e) {
+                    console.warn('Auto-taxonomy save failed (non-critical):', e);
+                }
+            }
+
+            toast.success("¡Estructura creada y carpetas categorizadas automáticamente!", {
+                description: 'Puedes ajustar la taxonomía en Configuración → Proyecto.'
+            });
             setTimeout(() => {
                 window.location.reload();
-            }, 1000);
+            }, 1500);
         } catch (error: any) {
             console.error("Error creating project:", error);
             toast.error("Error al crear el proyecto: " + error.message);
-            throw error; // Re-throw to let Modal know it failed
+            throw error;
         }
     };
 
@@ -629,7 +646,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 <div className="flex flex-col gap-1">
                     <button
                         onClick={() => {
-                            if (onStartTutorial) {
+                            if (onOpenStartingAssistant) {
+                                onOpenStartingAssistant();
+                            } else if (onStartTutorial) {
                                 onStartTutorial();
                             } else {
                                 onOpenManual();

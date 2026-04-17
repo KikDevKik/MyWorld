@@ -1,4 +1,4 @@
-import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions, connectFunctionsEmulator } from 'firebase/functions';
+import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions } from 'firebase/functions';
 import { toast } from 'sonner';
 
 /**
@@ -8,9 +8,10 @@ import { toast } from 'sonner';
 export const callFunction = async <T>(name: string, data: any = {}, options?: HttpsCallableOptions): Promise<T | null> => {
     const functions = getFunctions();
 
-    if (import.meta.env.DEV && window.location.hostname === 'localhost') {
-        try { connectFunctionsEmulator(functions, 'localhost', 5001); } catch (e) { }
-    }
+    // Emulador desactivado — usar funciones en producción
+    // if (import.meta.env.DEV && window.location.hostname === 'localhost') {
+    //     try { connectFunctionsEmulator(functions, 'localhost', 5001); } catch (e) { }
+    // }
 
     // BYOK: Only inject the user's personal key if they explicitly provided one.
     // The server uses its own Gemini key from Firebase Secret Manager.

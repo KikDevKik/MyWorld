@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Folder, FilePlus, Loader2, Save } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
-import useDrivePicker from 'react-google-drive-picker';
 import { FolderRole } from '../../types/core';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
@@ -23,7 +22,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
     const [fileName, setFileName] = useState("");
     const [selectedFolder, setSelectedFolder] = useState<{ id: string; name: string } | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [openPicker] = useDrivePicker();
+    const [showFolderList, setShowFolderList] = useState(false);
 
     // 🟢 DEFAULT FOLDER LOGIC
     useEffect(() => {
@@ -31,6 +30,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
 
         // Reset state
         setFileName("");
+        setShowFolderList(false);
 
         // Strategy:
         // 1. Try to find SAGA_MAIN (Manuscrito)
@@ -90,32 +90,34 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
 
     }, [isOpen, config, fileTree]);
 
-    const handleOpenPicker = () => {
-        const token = accessToken;
-        if (!token) {
-            toast.error("Error de autenticación. Recarga la página.");
-            return;
-        }
-
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
-
-        openPicker({
-            clientId,
-            developerKey,
-            viewId: "FOLDERS",
-            setSelectFolderEnabled: true,
-            setIncludeFolders: true,
-            token,
-            multiselect: false,
-            callbackFunction: (data) => {
-                if (data.action === 'picked' && data.docs.length > 0) {
-                    const doc = data.docs[0];
-                    setSelectedFolder({ id: doc.id, name: doc.name });
+    // Build flat folder list from canonPaths + resourcePaths + manuscript subfolders
+    const availableFolders = (() => {
+        const folders: { id: string; name: string }[] = [];
+        const seen = new Set<string>();
+        const add = (f: { id: string; name: string }) => {
+            if (!seen.has(f.id)) { seen.add(f.id); folders.push(f); }
+        };
+        (config?.canonPaths || []).forEach(add);
+        (config?.resourcePaths || []).forEach(add);
+        // Include manuscript subfolders (e.g. Libro_01)
+        const manuscriptId = config?.folderMapping?.[FolderRole.SAGA_MAIN];
+        if (manuscriptId && fileTree) {
+            const findNode = (nodes: any[], id: string): any => {
+                for (const n of nodes) {
+                    if (n.id === id) return n;
+                    if (n.children) { const f = findNode(n.children, id); if (f) return f; }
                 }
+                return null;
+            };
+            const mNode = findNode(fileTree, manuscriptId);
+            if (mNode?.children) {
+                mNode.children
+                    .filter((c: any) => c.mimeType === 'application/vnd.google-apps.folder')
+                    .forEach((c: any) => add({ id: c.id, name: `Manuscrito / ${c.name}` }));
             }
-        });
-    };
+        }
+        return folders;
+    })();
 
     const handleSubmit = async () => {
         if (!fileName.trim()) {
@@ -213,7 +215,7 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
 
                 {/* Folder Select */}
                 <div className="space-y-2">
-                        <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
+                    <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider">
                         {t.common.location}
                     </label>
                     <div className="flex items-center justify-between bg-titanium-800/50 border border-titanium-700 rounded-lg p-3">
@@ -226,17 +228,37 @@ const CreateFileModal: React.FC<CreateFileModalProps> = ({ isOpen, onClose, onFi
                                     {selectedFolder ? selectedFolder.name : t.common.loading}
                                 </span>
                                 <span className="text-[10px] text-titanium-500 font-mono truncate">
-                                    {selectedFolder ? (selectedFolder.name.toLowerCase().includes('libro') ? t.common.recommended : t.common.destinationFolder) : t.common.detecting}
+                                    {selectedFolder
+                                        ? (selectedFolder.name.toLowerCase().includes('libro') ? t.common.recommended : t.common.destinationFolder)
+                                        : t.common.detecting}
                                 </span>
                             </div>
                         </div>
                         <button
-                            onClick={handleOpenPicker}
-                            className="text-xs font-medium text-cyan-500 hover:text-cyan-400 hover:underline px-2 py-1"
+                            onClick={() => setShowFolderList(v => !v)}
+                            className="text-xs font-medium text-cyan-500 hover:text-cyan-400 hover:underline px-2 py-1 shrink-0"
                         >
                             {t.common.change}
                         </button>
                     </div>
+                    {showFolderList && availableFolders.length > 0 && (
+                        <div className="flex flex-col gap-1 max-h-[180px] overflow-y-auto bg-titanium-900/60 border border-titanium-700 rounded-lg p-1">
+                            {availableFolders.map(folder => (
+                                <button
+                                    key={folder.id}
+                                    onClick={() => { setSelectedFolder(folder); setShowFolderList(false); }}
+                                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-left text-[12px] transition-colors ${
+                                        selectedFolder?.id === folder.id
+                                            ? 'bg-cyan-500/10 text-cyan-300'
+                                            : 'text-titanium-400 hover:bg-titanium-800/60 hover:text-titanium-200'
+                                    }`}
+                                >
+                                    <Folder size={12} className="shrink-0 opacity-60" />
+                                    {folder.name}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
             </div>
         </Modal>

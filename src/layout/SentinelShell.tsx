@@ -156,8 +156,8 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             {/* ZONA A: MEMORIA (SIDEBAR) */}
             <aside
                 className={`
-                    bg-titanium-800 border-r border-titanium-500/20 flex-shrink-0 transition-all duration-300 ease-in-out flex flex-col
-                    ${showSidebar ? 'w-72 opacity-100' : 'w-0 opacity-0 overflow-hidden border-none hidden'}
+                    bg-titanium-800 border-r border-titanium-500/20 flex-shrink-0 transition-all duration-300 ease-in-out flex flex-col overflow-hidden
+                    ${showSidebar ? 'w-72 opacity-100' : 'w-0 opacity-0 border-none hidden'}
                 `}
             >
                 {sidebar}
@@ -166,7 +166,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
             {/* ZONA B: ACCIÓN (EDITOR / HEAVY TOOLS) */}
             <main
                 id="main-content" // 🎨 PALETTE: Target for SkipToContent
-                className="flex-1 relative flex flex-col min-w-0 bg-titanium-950 transition-all duration-300 outline-none"
+                className="flex-1 relative flex flex-col min-w-0 overflow-hidden bg-titanium-950 transition-all duration-300 outline-none"
                 tabIndex={-1} // Allow programmatic focus
             >
                 {editor}
