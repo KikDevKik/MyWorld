@@ -830,18 +830,23 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 STARTING ASSISTANT GENESIS HANDLER
     const handleStartGenesis = async (answers: GenesisAnswers) => {
         try {
-            toast.info("Generando tu proyecto...", { description: 'Creando archivos basados en tus respuestas.' });
-            await callFunction('genesisManifest', {
+            toast.loading("Generando tu proyecto...", { id: 'genesis' });
+            const result = await callFunction('genesisManifest', {
                 answers,
                 accessToken: oauthToken,
                 // Provide a minimal chatHistory for backwards compat
                 chatHistory: [{ role: 'user', message: answers.premise || 'Inicio del proyecto.' }]
             });
-            toast.success("¡Proyecto generado!", { description: 'Tus archivos iniciales han sido creados en Drive.' });
-            setShowStartingAssistant(false);
-            localStorage.setItem(`assistant_dismissed_${config?.folderId}`, 'true');
+            toast.success('¡Proyecto creado!', {
+                id: 'genesis',
+                description: 'Tu estructura está lista en Google Drive.'
+            });
+            // No cerramos el StartingAssistant aquí — él muestra la pantalla de celebración
+            // y se cierra cuando el usuario hace clic en "Empezar a escribir →"
+            return result;
         } catch (err: any) {
-            toast.error("Error al generar el proyecto: " + err.message);
+            toast.error('Error al crear el proyecto.', { id: 'genesis' });
+            throw err; // Re-lanzar para que StartingAssistant lo detecte
         }
     };
 

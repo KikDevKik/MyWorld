@@ -154,6 +154,8 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
     const [writerProfile, setWriterProfile] = useState<WriterProfile>(null);
     const [answers, setAnswers] = useState<GenesisAnswers>({});
     const [isGenerating, setIsGenerating] = useState(false);
+    const [genesisComplete, setGenesisComplete] = useState(false);
+    const [createdSummary, setCreatedSummary] = useState('');
 
     const handleAnswer = (key: string, value: string) => {
         setAnswers(prev => ({ ...prev, [key]: value }));
@@ -170,6 +172,10 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
             setIsGenerating(true);
             try {
                 await onStartGenesis(answers);
+                setCreatedSummary(answers.premise || 'Tu historia');
+                setGenesisComplete(true);
+            } catch (e) {
+                console.error('Genesis failed:', e);
             } finally {
                 setIsGenerating(false);
             }
@@ -186,6 +192,93 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
         }
         return true;
     };
+
+    if (genesisComplete) {
+        return (
+            <div className="flex-1 flex flex-col items-center justify-center h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
+                <div className="w-full max-w-[520px] flex flex-col gap-6">
+
+                    {/* Celebración */}
+                    <div className="flex flex-col items-center gap-3">
+                        <div className="text-4xl">✦</div>
+                        <h2 className="text-[22px] font-medium text-titanium-100">
+                            Tu proyecto existe.
+                        </h2>
+                        <p className="text-[14px] text-titanium-500 leading-relaxed text-center">
+                            Hemos creado la estructura de tu historia en Google Drive.
+                            Lo que escribiste en estas preguntas ya es el esqueleto
+                            de tu obra.
+                        </p>
+                    </div>
+
+                    {/* Lo que se creó */}
+                    <div className="bg-titanium-900/40 border border-titanium-800 rounded-xl p-4 text-left">
+                        <p className="text-[11px] font-mono text-titanium-600 uppercase tracking-wider mb-3">
+                            Lo que acabas de crear
+                        </p>
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-start gap-2">
+                                <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
+                                <p className="text-[12px] text-titanium-300">
+                                    Un archivo de <strong>Premisa</strong> con todo
+                                    lo que definiste — tu brújula cuando te pierdas.
+                                </p>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
+                                <p className="text-[12px] text-titanium-300">
+                                    Una ficha inicial de tu <strong>protagonista</strong>{' '}
+                                    con su deseo, su obstáculo y su creencia errónea.
+                                </p>
+                            </div>
+                            <div className="flex items-start gap-2">
+                                <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
+                                <p className="text-[12px] text-titanium-300">
+                                    El <strong>Capítulo 01</strong> vacío esperándote
+                                    en MANUSCRITO. Ese es tu siguiente paso.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* La instrucción más importante */}
+                    <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-4">
+                        <p className="text-[13px] text-cyan-300 font-medium mb-1">
+                            ¿Qué hago ahora?
+                        </p>
+                        <p className="text-[12px] text-titanium-500 leading-relaxed">
+                            Abre el{' '}
+                            <strong className="text-titanium-300">Capítulo 01</strong>{' '}
+                            en MANUSCRITO y escribe la primera escena. No tiene que ser
+                            perfecta — el primer borrador nunca lo es. Su único trabajo
+                            es existir.
+                        </p>
+                    </div>
+
+                    {/* Tip pedagógico */}
+                    <div className="flex items-start gap-2 opacity-60">
+                        <span className="text-amber-400 text-[12px] shrink-0">💡</span>
+                        <p className="text-[11px] text-titanium-600 leading-relaxed italic">
+                            "El primer borrador es materia prima, no la obra terminada.
+                            Escribe sin juzgar. La disección crítica viene después."
+                        </p>
+                    </div>
+
+                    {/* Botón de cierre */}
+                    <button
+                        onClick={onClose}
+                        className="w-full py-3 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 font-medium rounded-xl hover:bg-cyan-500/25 transition-all text-[14px]"
+                    >
+                        Empezar a escribir →
+                    </button>
+
+                    <p className="text-center text-[10px] text-titanium-800 font-mono uppercase tracking-widest">
+                        EL ARQUITECTO PROCESA LA LÓGICA · TÚ PONES EL ALMA
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex-1 flex flex-col items-center justify-center h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
