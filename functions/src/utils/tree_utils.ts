@@ -1,3 +1,4 @@
+import '../admin'; // Ensure firebase-admin is initialized
 import { getFirestore } from "firebase-admin/firestore";
 import * as logger from "firebase-functions/logger";
 

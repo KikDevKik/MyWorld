@@ -324,7 +324,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                 }
                             }}
                             placeholder={t.writePlaceholder}
-                            disabled={isThinking}
+                            isLoading={isThinking}
                             autoFocus
                         />
                     </div>

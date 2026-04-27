@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
-import type { ChatMessage, GemId, Gem, DriveFile } from '../types';
+import type { GemId, Gem, DriveFile } from '../types';
+import type { ChatMessage } from '../types/core';
 import { callFunction } from '../services/api';
 import { GEMS } from '../constants';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import { remarkThinking } from '../utils/remarkThinking';
 import { X, FileText, Paperclip, Loader2, Folder, Gem as GemIcon, ChevronDown, ChevronRight, BrainCircuit } from 'lucide-react';
 import { toast } from 'sonner';
 import { useLanguageStore } from '../stores/useLanguageStore';
@@ -13,39 +15,46 @@ import ContextSelectorModal from './ContextSelectorModal';
 import ChatInput from './ui/ChatInput';
 import { fileToGenerativePart } from '../services/geminiService';
 
-const REMARK_PLUGINS = [remarkGfm, remarkBreaks];
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkThinking];
 
+// Helper to remove thinking block for crystallization (saving to file)
 const stripThinking = (text: string) => {
     return text.replace(/<thinking>[\s\S]*?<\/thinking>/, '').trim();
 };
 
 interface ChatPanelProps {
-  activeGemId: GemId | null;
-  initialMessage?: string | null;
-  onMessageSent?: () => void;
-  isOpen: boolean;
-  onClose: () => void;
-  isFullWidth?: boolean;
-  categoryFilter?: 'canon' | 'reference';
-  customGem?: Gem;
-  folderId?: string;
-  accessToken?: string | null; // 🟢 Needed for content fetching
-  activeFileContent?: string;
-  activeFileName?: string;
-  isFallbackContext?: boolean;
-  emptyStateComponent?: React.ReactNode;
+    activeGemId: GemId | null;
+    initialMessage?: string | null;
+    onMessageSent?: () => void;
+    isOpen: boolean;
+    onClose: () => void;
+    isFullWidth?: boolean;
+    categoryFilter?: 'canon' | 'reference';
+    customGem?: Gem;
+    folderId?: string;
+    accessToken?: string | null; // 🟢 Needed for content fetching
+    activeFileContent?: string;
+    activeFileName?: string;
+    isFallbackContext?: boolean;
+    emptyStateComponent?: React.ReactNode;
+    sessionId?: string;
+    onMessagesLoaded?: (messages: ExtendedChatMessage[]) => void;
+    onFirstMessage?: (text: string) => Promise<string>;
+    isCreatingSession?: boolean;
+    messages?: ExtendedChatMessage[];
+    setMessages?: React.Dispatch<React.SetStateAction<ExtendedChatMessage[]>>;
 }
 
 interface Source {
-  text: string;
-  fileName: string;
+    text: string;
+    fileName: string;
 }
 
-interface ExtendedChatMessage extends ChatMessage {
-  sources?: Source[];
-  contextFiles?: DriveFile[]; // 🟢 Context Snapshot for Smart Patch
-  attachmentPreview?: string;
-  attachmentType?: 'image' | 'audio';
+export interface ExtendedChatMessage extends ChatMessage {
+    sources?: Source[];
+    contextFiles?: DriveFile[]; // 🟢 Context Snapshot for Smart Patch
+    attachmentPreview?: string;
+    attachmentType?: 'image' | 'audio';
 }
 
 interface ChatMessageItemProps {
@@ -56,15 +65,6 @@ interface ChatMessageItemProps {
 // ⚡ Bolt Optimization: Memoized component to prevent re-rendering all messages
 // when parent state changes (e.g. typing in input). REMARK_PLUGINS is also constant.
 const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
-    const [isThinkingOpen, setIsThinkingOpen] = useState(false);
-
-    // 🟢 PARSE THINKING BLOCK
-    // Extract <thinking> content if present
-    const thinkingMatch = msg.text.match(/<thinking>([\s\S]*?)<\/thinking>/);
-    const thinkingContent = thinkingMatch ? thinkingMatch[1].trim() : null;
-    // Remove the thinking block from the main display text
-    const cleanText = thinkingMatch ? msg.text.replace(thinkingMatch[0], '').trim() : msg.text;
-
     return (
         <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
             {/* 🟢 ATTACHMENT PREVIEW */}
@@ -79,34 +79,25 @@ const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
             )}
 
             <div
-                className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md ${msg.role === 'user'
+                tabIndex={0} // 🎨 PALETTE: Make message focusable for accessibility
+                role="article"
+                aria-label={msg.role === 'user' ? 'Your message' : 'AI response'}
+                className={`group relative max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-md outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${msg.role === 'user'
                     ? 'bg-titanium-800 text-titanium-100 rounded-br-none border border-titanium-700'
                     : 'bg-titanium-900 text-titanium-200 rounded-bl-none border border-titanium-800'
                     }`}
             >
-                {/* 🟢 THINKING BLOCK (COLLAPSIBLE) */}
-                {thinkingContent && (
-                    <div className="mb-4 rounded-lg overflow-hidden border border-titanium-700/50 bg-titanium-950/30">
-                        <button
-                            onClick={() => setIsThinkingOpen(!isThinkingOpen)}
-                            className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-titanium-400 hover:text-emerald-400 hover:bg-titanium-800/50 transition-colors"
-                        >
-                            {isThinkingOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                            <BrainCircuit size={14} className={isThinkingOpen ? "text-emerald-500" : "text-titanium-500"} />
-                            <span>Proceso de Pensamiento</span>
-                        </button>
-
-                        {isThinkingOpen && (
-                            <div className="px-3 py-2 text-xs text-titanium-400 italic border-t border-titanium-800/50 bg-titanium-950/50 font-mono leading-relaxed whitespace-pre-wrap animate-in slide-in-from-top-2 duration-200">
-                                {thinkingContent}
-                            </div>
-                        )}
-                    </div>
-                )}
-
+                {/* 🟢 MARKDOWN CONTENT (With Collapsible Thinking) */}
                 <div className="prose prose-invert prose-sm max-w-none">
-                    <ReactMarkdown remarkPlugins={REMARK_PLUGINS}>
-                        {cleanText}
+                    <ReactMarkdown
+                        remarkPlugins={REMARK_PLUGINS}
+                        components={{
+                            // Ensure details and summary are rendered correctly if not handled by default
+                            details: ({ node, ...props }) => <details {...props} />,
+                            summary: ({ node, ...props }) => <summary {...props} />
+                        }}
+                    >
+                        {msg.text}
                     </ReactMarkdown>
                 </div>
 
@@ -114,7 +105,8 @@ const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
                 {msg.role === 'model' && (
                     <button
                         onClick={() => onCrystallize(msg)}
-                        className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10"
+                        // 🎨 PALETTE: Improved visibility logic (focus-within)
+                        className="absolute -bottom-3 right-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 group-focus:opacity-100 focus-visible:opacity-100 transition-all duration-300 translate-y-2 group-hover:translate-y-0 group-focus-within:translate-y-0 bg-titanium-950 border border-emerald-500/30 p-1.5 rounded-full text-emerald-400 hover:text-white hover:bg-emerald-600 hover:border-emerald-500 shadow-lg shadow-emerald-900/20 z-10 outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
                         title="Cristalizar esta idea"
                         aria-label="Cristalizar esta idea"
                     >
@@ -137,349 +129,445 @@ const ChatMessageItem = memo(({ msg, onCrystallize }: ChatMessageItemProps) => {
     );
 });
 
+import { MuseSessionService } from '../services/MuseSessionService';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
+
 const ChatPanel: React.FC<ChatPanelProps> = ({
-  activeGemId,
-  initialMessage,
-  onMessageSent,
-  isOpen,
-  onClose,
-  isFullWidth = false,
-  categoryFilter,
-  customGem,
-  folderId,
-  accessToken,
-  activeFileContent,
-  activeFileName,
-  isFallbackContext,
-  emptyStateComponent
+    activeGemId,
+    initialMessage,
+    onMessageSent,
+    isOpen,
+    onClose,
+    isFullWidth = false,
+    categoryFilter,
+    customGem,
+    folderId,
+    accessToken,
+    activeFileContent,
+    activeFileName,
+    isFallbackContext,
+    emptyStateComponent,
+    sessionId,
+    onMessagesLoaded,
+    onFirstMessage,
+    isCreatingSession: externalIsCreatingSession,
+    messages: externalMessages,
+    setMessages: setExternalMessages
 }) => {
-  const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState<DriveFile[]>([]); // 🟢 Context Chips
-  const [isDragging, setIsDragging] = useState(false);
-  const [isContextModalOpen, setIsContextModalOpen] = useState(false);
-  const { currentLanguage } = useLanguageStore();
-  const t = TRANSLATIONS[currentLanguage];
+    const [internalMessages, setInternalMessages] = useState<ExtendedChatMessage[]>([]);
+    const { user } = useProjectConfig();
+    const [internalIsCreatingSession, setInternalIsCreatingSession] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+    const isCreatingSession = externalIsCreatingSession || internalIsCreatingSession;
 
-  const activeGem = customGem || (activeGemId ? GEMS[activeGemId] : null);
+    // Unified message state
+    const messages = externalMessages || internalMessages;
+    const setMessages = setExternalMessages || setInternalMessages;
 
-  const displayGemName = customGem
-      ? customGem.name
-      : (activeGemId && t.tools[activeGemId] ? t.tools[activeGemId] : (activeGem?.name || ""));
+    const [isLoading, setIsLoading] = useState(false);
+    const [attachedFiles, setAttachedFiles] = useState<DriveFile[]>([]); // 🟢 Context Chips
+    const [isDragging, setIsDragging] = useState(false);
+    const [isContextModalOpen, setIsContextModalOpen] = useState(false);
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
 
-  useEffect(() => {
-    if (initialMessage) {
-      handleSendMessage(initialMessage);
-    }
-  }, [initialMessage]);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+    // 🔒 Guard: evita que loadSession sobreescriba el mensaje optimista
+    // cuando el primer mensaje se envía en una sesión nueva (race condition).
+    const isCreatingNewSession = useRef(false);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const activeGem = customGem || (activeGemId ? GEMS[activeGemId] : null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+    const displayGemName = customGem
+        ? customGem.name
+        : (activeGemId && t.tools[activeGemId] ? t.tools[activeGemId] : (activeGem?.name || ""));
 
-  // 🟢 DRAG & DROP HANDLERS
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
+    // 🟢 Load messages if sessionId changes
+    useEffect(() => {
+        const loadSession = async () => {
+            if (user && sessionId) {
+                try {
+                    const history = await MuseSessionService.getMessages(user.uid, sessionId);
 
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) {
-        return;
-    }
-    setIsDragging(false);
-  };
+                    // 🔒 RACE CONDITION GUARD:
+                    // Si se acaba de crear la sesión y Firestore aún devuelve 0 mensajes
+                    // (propagación eventual), no limpiamos el estado optimista de la UI.
+                    if (isCreatingNewSession.current && history.length === 0) {
+                        isCreatingNewSession.current = false;
+                        return;
+                    }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    try {
-        const data = e.dataTransfer.getData("application/json");
-        if (data) {
-            const file = JSON.parse(data) as DriveFile;
-            // Avoid duplicates
-            if (!attachedFiles.some(f => f.id === file.id)) {
-                setAttachedFiles(prev => [...prev, file]);
+                    isCreatingNewSession.current = false;
+                    setMessages(history);
+                    onMessagesLoaded?.(history);
+                } catch (err) {
+                    console.error("Failed to load session history:", err);
+                    toast.error("Error al cargar el historial.");
+                }
+            } else if (!sessionId) {
+                setMessages([]);
             }
+        };
+        loadSession();
+    }, [sessionId, user?.uid]);
+
+    useEffect(() => {
+        if (initialMessage) {
+            handleSendMessage(initialMessage);
         }
-    } catch (err) {
-        console.error("Drop failed:", err);
-    }
-  };
+    }, [initialMessage]);
 
-  const removeAttachedFile = (id: string) => {
-      setAttachedFiles(prev => prev.filter(f => f.id !== id));
-  };
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
-  // ⚡ Bolt Optimization: Stable callback reference for memoized children
-  const handleCrystallize = useCallback(async (msg: ExtendedChatMessage) => {
-      if (!accessToken || !folderId) {
-          toast.error("No hay acceso a Drive configurado.");
-          return;
-      }
-
-      const context = msg.contextFiles || [];
-      const cleanText = stripThinking(msg.text);
-
-      if (context.length === 1) {
-          // Scenario A: Smart Patch
-          const targetFile = context[0];
-          const confirm = window.confirm(`¿Deseas actualizar "${targetFile.name}" con esta información?`);
-          if (!confirm) return;
-
-          const toastId = toast.loading("Cristalizando...");
-          try {
-              await callFunction('scribePatchFile', {
-                  fileId: targetFile.id,
-                  patchContent: cleanText,
-                  accessToken: accessToken,
-                  instructions: "Integra esta información en la sección más relevante o crea una nueva."
-              });
-              toast.success("Archivo actualizado correctamente.", { id: toastId });
-          } catch (e: any) {
-              console.error(e);
-              toast.error("Error al actualizar archivo: " + (e.message || "Desconocido"), { id: toastId });
-          }
-      } else {
-          // Scenario B: Create New
-          const confirm = window.confirm(t.common.createFromChatConfirm);
-          if (confirm) {
-               const name = window.prompt(t.editor.enterFileName);
-               if (!name) return;
-
-               const toastId = toast.loading(t.common.creating);
-               try {
-                   await callFunction('scribeCreateFile', {
-                       entityId: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-                       entityData: { name: name, type: 'concept', tags: ['crystallized'] },
-                       chatContent: cleanText,
-                       folderId: folderId,
-                       accessToken: accessToken
-                   });
-                   toast.success("Archivo creado.", { id: toastId });
-               } catch (e: any) {
-                   console.error(e);
-                   toast.error("Error al crear archivo: " + (e.message || "Desconocido"), { id: toastId });
-               }
-          }
-      }
-  }, [accessToken, folderId, t]);
-
-  const handleSendMessage = async (text: string, attachment: File | null = null) => {
-    if ((!text.trim() && !attachment) || !activeGem) return;
-
-    // 🟢 PREPARE ATTACHMENT
-    let mediaAttachment = undefined;
-    let previewUrl = undefined;
-    if (attachment) {
-         previewUrl = URL.createObjectURL(attachment);
-         try {
-             const part = await fileToGenerativePart(attachment);
-             mediaAttachment = part.inlineData;
-         } catch (e) {
-             toast.error("Error al procesar el adjunto.");
-             return;
-         }
-    }
-
-    // 🟢 Capture context at the moment of sending
-    const currentContext = [...attachedFiles];
-
-    const userMessage: ExtendedChatMessage = {
-        role: 'user',
-        text,
-        contextFiles: currentContext,
-        attachmentPreview: previewUrl,
-        attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
     };
 
-    setMessages(prev => [...prev, userMessage]);
-    setIsLoading(true);
+    // 🟢 DRAG & DROP HANDLERS
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
 
-    try {
-      // 🟢 1. FETCH CONTENT FOR ATTACHED FILES (DRIVE CONTEXT)
-      let enrichedFiles: any[] = [];
-      if (attachedFiles.length > 0 && accessToken) {
-          const promises = attachedFiles.map(async (file) => {
-              try {
-                  // Only fetch text-readable files
-                  if (file.mimeType.includes('pdf') || file.mimeType.includes('image')) {
-                      // Skip content fetching for now, or handle differently
-                      return { name: file.name, content: "[Binary File - Skipped]" };
-                  }
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        if (e.relatedTarget && e.currentTarget.contains(e.relatedTarget as Node)) {
+            return;
+        }
+        setIsDragging(false);
+    };
 
-                  const data = await callFunction<{ content: string }>('getDriveFileContent', { fileId: file.id, accessToken });
-                  return { name: file.name, content: data.content };
-              } catch (e) {
-                  console.error(`Failed to read ${file.name}`, e);
-                  return { name: file.name, content: "Error reading file." };
-              }
-          });
+    const MAX_ATTACHED_FILES = 5;
 
-          enrichedFiles = await Promise.all(promises);
-      }
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
 
-      // 🟢 2. SEND TO CHAT
-      const data = await callFunction<any>('chatWithGem', {
-        query: text,
-        systemInstruction: activeGem.systemInstruction,
-        history: messages.map(m => ({ role: m.role, message: m.text })),
-        categoryFilter: categoryFilter,
-        projectId: folderId || undefined,
-        activeFileContent: activeFileContent || "",
-        activeFileName: activeFileName || "",
-        isFallbackContext: isFallbackContext,
-        attachedFiles: enrichedFiles, // 👈 Pass Enriched Context
-        mediaAttachment: mediaAttachment // 🟢 Pass Multimodal Attachment
-      }, { timeout: 540000 });
+        try {
+            const data = e.dataTransfer.getData("application/json");
+            if (data) {
+                const file = JSON.parse(data) as DriveFile;
 
-      const aiMessage: ExtendedChatMessage = {
-        role: 'model',
-        text: data.response,
-        sources: data.sources,
-        contextFiles: currentContext // 🟢 Persist context in AI response too (for logic linkage)
-      };
+                // MOVE TOAST OUTSIDE OF STATE UPDATER TO PREVENT DOUBLE-TRIGGER IN STRICT MODE
+                if (attachedFiles.some(f => f.id === file.id)) return;
 
-      setMessages(prev => [...prev, aiMessage]);
-      setAttachedFiles([]); // Clear after send
-      onMessageSent?.();
+                if (attachedFiles.length >= MAX_ATTACHED_FILES) {
+                    toast.warning(`Máximo ${MAX_ATTACHED_FILES} archivos por turno.`);
+                    return;
+                }
 
-    } catch (error) {
-      console.error("Error:", error);
-      const errorMessage: ExtendedChatMessage = { role: 'model', text: `Error: ${(error as Error).message}` };
-      setMessages(prev => [...prev.slice(0, -1), errorMessage]);
-      toast.error("Error al procesar mensaje");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+                setAttachedFiles(prev => [...prev, file]);
+            }
+        } catch (err) {
+            console.error("Drop failed:", err);
+        }
+    };
 
-  const baseClasses = "flex flex-col h-full w-full bg-titanium-950 border-l border-titanium-800 transition-all duration-300";
+    const removeAttachedFile = (id: string) => {
+        setAttachedFiles(prev => prev.filter(f => f.id !== id));
+    };
 
-  if (!isOpen && !isFullWidth) return null;
+    // ⚡ Bolt Optimization: Stable callback reference for memoized children
+    const handleCrystallize = useCallback(async (msg: ExtendedChatMessage) => {
+        if (!accessToken || !folderId) {
+            toast.error("No hay acceso a Drive configurado.");
+            return;
+        }
 
-  return (
-    <div
-        className={baseClasses}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-    >
-      {/* DRAG OVERLAY */}
-      {isDragging && (
-          <div className="absolute inset-0 bg-emerald-500/20 z-50 flex items-center justify-center border-2 border-emerald-500 border-dashed backdrop-blur-sm pointer-events-none">
-              <div className="text-emerald-400 font-bold text-xl flex items-center gap-3">
-                  <Paperclip size={32} />
-                  Soltar para adjuntar contexto
-              </div>
-          </div>
-      )}
+        const context = msg.contextFiles || [];
+        const cleanText = stripThinking(msg.text);
 
-      {/* HEADER */}
-      <div className="p-4 border-b border-titanium-800 flex items-center justify-between bg-titanium-900/50 backdrop-blur-sm">
-        <div className="flex items-center gap-3">
-          {activeGem && (
-            <>
-              <div className={`w-2 h-2 rounded-full ${activeGem.color === 'blue' ? 'bg-blue-500' : activeGem.color === 'purple' ? 'bg-purple-500' : activeGem.color === 'emerald' ? 'bg-emerald-500' : 'bg-green-500'} shadow-[0_0_10px_currentColor]`} />
-              <span className="font-bold text-titanium-100 tracking-wide">{displayGemName}</span>
-            </>
-          )}
-          {!activeGem && <span className="text-titanium-500 text-sm">{t.common.selectTool}</span>}
-        </div>
-        <button
-          onClick={onClose}
-          className="text-titanium-500 hover:text-white transition-colors"
-          aria-label="Cerrar chat"
+        if (context.length === 1) {
+            // Scenario A: Smart Patch
+            const targetFile = context[0];
+            const confirm = window.confirm(`¿Deseas actualizar "${targetFile.name}" con esta información?`);
+            if (!confirm) return;
+
+            const toastId = toast.loading("Cristalizando...");
+            try {
+                await callFunction('scribePatchFile', {
+                    fileId: targetFile.id,
+                    patchContent: cleanText,
+                    accessToken: accessToken,
+                    instructions: "Integra esta información en la sección más relevante o crea una nueva."
+                });
+                toast.success("Archivo actualizado correctamente.", { id: toastId });
+            } catch (e: any) {
+                console.error(e);
+                toast.error("Error al actualizar archivo: " + (e.message || "Desconocido"), { id: toastId });
+            }
+        } else {
+            // Scenario B: Create New
+            const confirm = window.confirm(t.common.createFromChatConfirm);
+            if (confirm) {
+                const name = window.prompt(t.editor.enterFileName);
+                if (!name) return;
+
+                const toastId = toast.loading(t.common.creating);
+                try {
+                    await callFunction('scribeCreateFile', {
+                        entityId: name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                        entityData: { name: name, type: 'concept', tags: ['crystallized'] },
+                        chatContent: cleanText,
+                        folderId: folderId,
+                        accessToken: accessToken
+                    });
+                    toast.success("Archivo creado.", { id: toastId });
+                } catch (e: any) {
+                    console.error(e);
+                    toast.error("Error al crear archivo: " + (e.message || "Desconocido"), { id: toastId });
+                }
+            }
+        }
+    }, [accessToken, folderId, t]);
+
+    const handleSendMessage = async (text: string, attachment: File | null = null) => {
+        if ((!text.trim() && !attachment) || !activeGem || isCreatingSession) return;
+
+        // 🟢 PREPARE ATTACHMENT
+        let mediaAttachment = undefined;
+        let previewUrl = undefined;
+        if (attachment) {
+            previewUrl = URL.createObjectURL(attachment);
+            try {
+                const part = await fileToGenerativePart(attachment);
+                mediaAttachment = part.inlineData;
+            } catch (e) {
+                toast.error("Error al procesar el adjunto.");
+                return;
+            }
+        }
+
+        // 🟢 Capture context at the moment of sending
+        const currentContext = [...attachedFiles];
+
+        const userMessage: ExtendedChatMessage = {
+            role: 'user',
+            text,
+            contextFiles: currentContext,
+            attachmentPreview: previewUrl,
+            attachmentType: attachment?.type.startsWith('audio') ? 'audio' : 'image'
+        };
+
+        // 🟢 1. OPTIMISTIC UI: Update state immediately
+        setMessages(prev => [...prev, userMessage]);
+        setAttachedFiles([]); // Clear context after send
+        setIsLoading(true);
+
+        try {
+            // 🟢 2. PERSIST SESSION (If new)
+            let activeSessionId = sessionId;
+            if (user && !activeSessionId && onFirstMessage) {
+                // 🔒 Activar guard: evitar que el useEffect borre el mensaje optimista
+                isCreatingNewSession.current = true;
+                setInternalIsCreatingSession(true);
+                try {
+                    activeSessionId = await onFirstMessage(text);
+                } finally {
+                    setInternalIsCreatingSession(false);
+                }
+            }
+
+            // 🟢 3. PERSIST USER MESSAGE
+            if (user && activeSessionId) {
+                await callFunction('addMuseMessage', { sessionId: activeSessionId, role: 'user', text: text });
+            }
+
+            // 🟢 4. FETCH CONTENT FOR ATTACHED FILES (DRIVE CONTEXT)
+            let enrichedFiles: any[] = [];
+            if (currentContext.length > 0 && accessToken) {
+                const promises = currentContext.map(async (file) => {
+                    try {
+                        if (file.mimeType.includes('pdf') || file.mimeType.includes('image')) {
+                            return { name: file.name, content: "[Binary File - Skipped]" };
+                        }
+                        const data = await callFunction<{ content: string }>('getDriveFileContent', { fileId: file.id, accessToken });
+                        return { name: file.name, content: data.content };
+                    } catch (e) {
+                        console.error(`Failed to read ${file.name}`, e);
+                        return { name: file.name, content: "Error reading file." };
+                    }
+                });
+                enrichedFiles = await Promise.all(promises);
+            }
+
+            // 🟢 5. SEND TO CHAT
+            const data = await callFunction<any>('chatWithGem', {
+                query: text,
+                systemInstruction: activeGem.systemInstruction,
+                history: messages.map(m => ({ role: m.role, message: m.text })), // Note: this uses 'messages' before the optimistic update for the history
+                categoryFilter: categoryFilter,
+                projectId: folderId || undefined,
+                activeFileContent: activeFileContent || "",
+                activeFileName: activeFileName || "",
+                isFallbackContext: isFallbackContext,
+                attachedFiles: enrichedFiles,
+                mediaAttachment: mediaAttachment,
+                sessionId: activeSessionId
+            }, { timeout: 540000 });
+
+            const aiMessage: ExtendedChatMessage = {
+                role: 'model',
+                text: data.response,
+                sources: data.sources,
+                contextFiles: currentContext
+            };
+
+            setMessages(prev => [...prev, aiMessage]);
+
+            // 🟢 6. PERSIST AI MESSAGE
+            if (user && activeSessionId) {
+                await callFunction('addMuseMessage', { sessionId: activeSessionId, role: 'model', text: data.response });
+            }
+
+            onMessageSent?.();
+
+        } catch (error) {
+            console.error("Error:", error);
+            const errorMessage: ExtendedChatMessage = { role: 'model', text: `Error: ${(error as Error).message}` };
+
+            // On error, we keep the user message but show the error
+            setMessages(prev => [...prev, errorMessage]);
+            toast.error("Error al procesar mensaje");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const baseClasses = "flex flex-col h-full w-full bg-titanium-950 border-l border-titanium-800 transition-all duration-300";
+
+    if (!isOpen && !isFullWidth) return null;
+
+    return (
+        <div
+            className={baseClasses}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
         >
-          <X size={20} />
-        </button>
-      </div>
-
-      {/* CHAT AREA */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-titanium-700 scrollbar-track-transparent">
-        {messages.length === 0 && !isLoading && emptyStateComponent ? (
-            <div className="h-full flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
-                {emptyStateComponent}
-            </div>
-        ) : (
-            <>
-                {messages.map((msg, idx) => (
-                  <ChatMessageItem key={idx} msg={msg} onCrystallize={handleCrystallize} />
-                ))}
-                {isLoading && (
-                  <div className="flex justify-start">
-                    <div className="bg-titanium-900 rounded-2xl px-4 py-3 border border-titanium-800">
-                        <Loader2 size={16} className="animate-spin text-titanium-500" />
+            {/* DRAG OVERLAY */}
+            {isDragging && (
+                <div className="absolute inset-0 bg-emerald-500/20 z-50 flex items-center justify-center border-2 border-emerald-500 border-dashed backdrop-blur-sm pointer-events-none">
+                    <div className="text-emerald-400 font-bold text-xl flex items-center gap-3">
+                        <Paperclip size={32} />
+                        Soltar para adjuntar contexto
                     </div>
-                  </div>
+                </div>
+            )}
+
+            {/* HEADER */}
+            <div className="p-4 border-b border-titanium-800 flex items-center justify-between bg-titanium-900/50 backdrop-blur-sm">
+                <div className="flex items-center gap-3">
+                    {activeGem && (
+                        <>
+                            <div className={`w-2 h-2 rounded-full ${activeGem.color === 'blue' ? 'bg-blue-500' : activeGem.color === 'purple' ? 'bg-purple-500' : activeGem.color === 'emerald' ? 'bg-emerald-500' : 'bg-green-500'} shadow-[0_0_10px_currentColor]`} />
+                            <span className="font-bold text-titanium-100 tracking-wide">{displayGemName}</span>
+                        </>
+                    )}
+                    {!activeGem && <span className="text-titanium-500 text-sm">{t.common.selectTool}</span>}
+                </div>
+                <button
+                    onClick={onClose}
+                    className="text-titanium-500 hover:text-white transition-colors"
+                    aria-label="Cerrar chat"
+                >
+                    <X size={20} />
+                </button>
+            </div>
+
+            {/* CHAT AREA */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-thin scrollbar-thumb-titanium-700 scrollbar-track-transparent">
+                {messages.length === 0 && !isLoading && emptyStateComponent ? (
+                    <div className="h-full flex flex-col items-center justify-center animate-in fade-in zoom-in duration-300">
+                        {emptyStateComponent}
+                    </div>
+                ) : (
+                    <>
+                        {messages.map((msg, idx) => (
+                            <ChatMessageItem key={idx} msg={msg} onCrystallize={handleCrystallize} />
+                        ))}
+                        {isLoading && (
+                            <div className="flex justify-start">
+                                <div className="bg-titanium-900 rounded-2xl px-4 py-3 border border-titanium-800">
+                                    <Loader2 size={16} className="animate-spin text-titanium-500" />
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
-            </>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* INPUT AREA */}
-      <div className="p-4 border-t border-titanium-800 bg-titanium-900/30">
-
-        {/* 🟢 CONTEXT CHIPS */}
-        {attachedFiles.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-                {attachedFiles.map(file => (
-                    <div key={file.id} className="flex items-center gap-2 bg-titanium-800 border border-titanium-700 text-titanium-200 px-2 py-1 rounded text-xs animate-in fade-in zoom-in duration-200">
-                        <FileText size={12} className="text-emerald-400" />
-                        <span className="max-w-[100px] truncate">{file.name}</span>
-                        <button onClick={() => removeAttachedFile(file.id)} className="hover:text-red-400" aria-label={`Quitar ${file.name}`}><X size={12}/></button>
-                    </div>
-                ))}
+                <div ref={messagesEndRef} />
             </div>
-        )}
 
-        <div className="flex items-end gap-2">
-            {/* 🟢 PORTAL BUTTON */}
-            <button
-                onClick={() => setIsContextModalOpen(true)}
-                className="p-3 bg-titanium-900 border border-titanium-800 rounded-xl text-titanium-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all mb-[1px]"
-                title="Abrir Portal de Contexto"
-                aria-label="Abrir Portal de Contexto"
-            >
-                <Folder size={20} />
-            </button>
+            {/* INPUT AREA */}
+            <div className="p-4 border-t border-titanium-800 bg-titanium-900/30">
 
-            <ChatInput
-                onSend={handleSendMessage}
-                placeholder={activeGem ? `${t.common.writeTo} ${displayGemName}...` : t.common.selectTool}
-                disabled={!activeGem || isLoading}
-                className="flex-1"
-                textAreaClassName="bg-slate-800 text-white placeholder-gray-400"
+                {/* Loading Overlay for Session Creation */}
+                {isCreatingSession && (
+                    <div className="flex items-center justify-center gap-2 mb-2 text-emerald-400 text-xs font-bold animate-pulse">
+                        <Loader2 size={12} className="animate-spin" />
+                        INICIALIZANDO SESIÓN...
+                    </div>
+                )}
+
+                {/* 🟢 CONTEXT CHIPS */}
+                {attachedFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-3">
+                        {attachedFiles.map(file => (
+                            <div key={file.id} className="flex items-center gap-2 bg-titanium-800 border border-titanium-700 text-titanium-200 px-2 py-1 rounded text-xs animate-in fade-in zoom-in duration-200">
+                                <FileText size={12} className="text-emerald-400" />
+                                <span className="max-w-[100px] truncate">{file.name}</span>
+                                <button onClick={() => removeAttachedFile(file.id)} className="hover:text-red-400" aria-label={`Quitar ${file.name}`}><X size={12} /></button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className="flex items-end gap-2">
+                    {/* 🟢 PORTAL BUTTON */}
+                    <button
+                        disabled={isCreatingSession}
+                        onClick={() => setIsContextModalOpen(true)}
+                        className="p-3 bg-titanium-900 border border-titanium-800 rounded-xl text-titanium-400 hover:text-emerald-400 hover:border-emerald-500/50 transition-all mb-[1px] disabled:opacity-50"
+                        title="Abrir Portal de Contexto"
+                        aria-label="Abrir Portal de Contexto"
+                    >
+                        <Folder size={20} />
+                    </button>
+
+                    <ChatInput
+                        onSend={handleSendMessage}
+                        placeholder={isCreatingSession ? "Espere..." : (activeGem ? `${t.common.writeTo} ${displayGemName}...` : t.common.selectTool)}
+                        disabled={!activeGem || isCreatingSession}
+                        isLoading={isLoading || isCreatingSession}
+                        className="flex-1"
+                        textAreaClassName="bg-slate-800 text-white placeholder-gray-400"
+                    />
+                </div>
+            </div>
+
+            {/* 🟢 CONTEXT MODAL */}
+            <ContextSelectorModal
+                isOpen={isContextModalOpen}
+                onClose={() => setIsContextModalOpen(false)}
+                onConfirm={(files) => {
+                    const existingIds = new Set(attachedFiles.map(f => f.id));
+                    const newFiles = files.filter(f => !existingIds.has(f.id));
+                    const combined = [...attachedFiles, ...newFiles];
+
+                    if (combined.length > MAX_ATTACHED_FILES) {
+                        toast.warning(`Máximo ${MAX_ATTACHED_FILES} archivos por turno. Se tomaron los primeros ${MAX_ATTACHED_FILES}.`);
+                        setAttachedFiles(combined.slice(0, MAX_ATTACHED_FILES));
+                    } else {
+                        setAttachedFiles(combined);
+                    }
+                    setIsContextModalOpen(false);
+                }}
+                initialSelection={attachedFiles.map(f => f.id)}
             />
         </div>
-      </div>
-
-      {/* 🟢 CONTEXT MODAL */}
-      <ContextSelectorModal
-          isOpen={isContextModalOpen}
-          onClose={() => setIsContextModalOpen(false)}
-          onConfirm={(files) => {
-              // Merge with existing avoiding duplicates
-              setAttachedFiles(prev => {
-                  const existingIds = new Set(prev.map(f => f.id));
-                  const newFiles = files.filter(f => !existingIds.has(f.id));
-                  return [...prev, ...newFiles];
-              });
-              setIsContextModalOpen(false);
-          }}
-          initialSelection={attachedFiles.map(f => f.id)}
-      />
-    </div>
-  );
+    );
 };
 
 export default ChatPanel;

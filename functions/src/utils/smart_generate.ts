@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
-import { MODEL_FLASH, MODEL_PRO, SAFETY_SETTINGS_PERMISSIVE } from "../ai_config";
+import { MODEL_FLASH, MODEL_PRO, SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL } from "../ai_config";
 
 export interface SmartResponse {
     text?: string;
@@ -17,6 +17,12 @@ export interface SmartConfig {
     jsonMode?: boolean;
     contextLabel?: string;
     maxOutputTokens?: number;
+    mediaPayload?: {
+        inlineData: {
+            mimeType: string;
+            data: string;
+        }
+    };
 }
 
 /**
@@ -98,9 +104,12 @@ async function _executeGeneration(
 ): Promise<{ success: boolean; text?: string; error?: string; reason?: string; details?: string }> {
 
     try {
+        const finalSystemInstruction = LITERARY_FICTION_PROTOCOL + "\n\n" + (config.systemInstruction || "");
+
         const model = genAI.getGenerativeModel({
             model: modelName,
             safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+            systemInstruction: finalSystemInstruction,
             generationConfig: {
                 temperature: config.temperature ?? 0.7,
                 responseMimeType: config.jsonMode ? "application/json" : "text/plain",

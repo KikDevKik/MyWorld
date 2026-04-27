@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserSessionPersistence } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserLocalPersistence } from 'firebase/auth';
 import { Lock, AlertCircle } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -24,7 +24,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
         try {
             // 🟢 CONFIGURAR PERSISTENCIA DE SESIÓN (SOLO PESTAÑA)
-            await setPersistence(auth, browserSessionPersistence);
+            await setPersistence(auth, browserLocalPersistence);
 
             const result = await signInWithPopup(auth, provider);
             // 🟢 CAPTURAR EL TOKEN AQUÍ
@@ -32,8 +32,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
             const token = credential?.accessToken;
 
             if (token) {
-                // Guardar en localStorage para que sobreviva al F5 (Recarga)
-                localStorage.setItem('google_drive_token', token);
+                // Token captured successfully
+                onLoginSuccess(result.user, token);
+            } else {
+                // Fallback to basic login if drive token is not returned
+                onLoginSuccess(result.user, null);
             }
 
         } catch (error: any) {
@@ -58,7 +61,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
                     {/* LOGO - Image from Assets */}
                     <div className="w-24 h-24 bg-white/5 rounded-full flex items-center justify-center border border-white/10 shadow-lg overflow-hidden">
-                         <img src="/assets/mw-logo-icon.jpeg" alt="MyWorld Logo" className="w-full h-full object-cover drop-shadow-md" />
+                        <img src="/assets/mw-logo-icon.jpeg" alt="MyWorld Logo" className="w-full h-full object-cover drop-shadow-md" />
                     </div>
 
                     <div className="space-y-1">
@@ -81,6 +84,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                             </>
                         )}
                     </button>
+
+                    {/* INFORMACIÓN DE ACCESO */}
+                    <p className="text-[11px] text-gray-500 leading-relaxed text-center max-w-xs">
+                        Al iniciar sesión autorizas el acceso a <span className="text-gray-400">Google Drive</span> para leer y guardar tus archivos del proyecto. También necesitarás una <span className="text-gray-400">API Key de Google Gemini</span> (gratuita) para las herramientas de IA.
+                    </p>
 
                     {/* MENSAJE DE ERROR */}
                     {error && (

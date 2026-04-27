@@ -152,9 +152,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
             const app = getApp();
             const gProjectId = app.options.projectId;
             const region = 'us-central1';
-            const baseUrl = import.meta.env.DEV
-                ? `http://127.0.0.1:5001/${gProjectId}/${region}/builderStream`
-                : `https://${region}-${gProjectId}.cloudfunctions.net/builderStream`;
+            const baseUrl = `https://${region}-${gProjectId}.cloudfunctions.net/builderStream`;
 
             const response = await fetch(baseUrl, {
                 method: 'POST',
@@ -612,7 +610,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                                 <ChatInput
                                     onSend={handleSend}
                                     placeholder="Describe your architecture..."
-                                    disabled={isTyping}
+                                    isLoading={isTyping}
                                     textAreaClassName="bg-transparent text-sm text-white focus:outline-none"
                                     className="border border-white/10 rounded-lg bg-transparent"
                                 />

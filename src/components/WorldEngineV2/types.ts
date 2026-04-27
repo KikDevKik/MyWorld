@@ -57,6 +57,7 @@ export interface AnalysisCandidate {
         target: string;
         type: string;
         context: string;
+        targetId?: string; // 🟢 FIX: Added targetId as optional
     }>;
 
     // Explicitly NO coordinates (fx, fy) - Simulation handles that later

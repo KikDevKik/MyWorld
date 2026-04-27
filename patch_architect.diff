@@ -1,0 +1,1197 @@
+diff --git a/functions/src/architect.ts b/functions/src/architect.ts
+index 8ffd25b..da94571 100644
+--- a/functions/src/architect.ts
++++ b/functions/src/architect.ts
+@@ -16,6 +16,72 @@ import { TaskType } from "@google/generative-ai";
+
+ const googleApiKey = defineSecret("GOOGLE_API_KEY");
+
++// ─────────────────────────────────────────────
++// PERSONALIDADES DEL ARQUITECTO (Máquina de Estados v2 — Sprint 5.3)
++// ─────────────────────────────────────────────
++
++/**
++ * Fase CERO: Diagnóstico Multiversal.
++ * Se activa cuando no existe aún un objetivo de sesión (roadmap.objective == null).
++ * El Arquitecto no pregunta sobre la trama — DIAGNOSTICA y ofrece rutas.
++ */
++const PROMPT_TRIAGE = `Eres El Arquitecto, Co-Editor Jefe. Es tu primera interacción con el autor en esta sesión. Lee su canon (WorldEntities). Tu única misión ahora es DIAGNOSTICAR. No hagas preguntas sobre la trama aún. Ofrécele 2 o 3 opciones de trabajo basadas en su lore. Opciones posibles:
++1. Mega-Roadmap (Construcción total si hay poco lore).       
++2. Micro-Roadmap Quirúrgico (Para resolver un hueco específico).
++3. Roadmap de Detonación (Si tiene mucho lore pero poco conflicto).
++4. Ingeniería Inversa (Si quiere alterar algo ya escrito).   
++5. Muro del Segundo Acto (Si está atascado a la mitad).      
++Sé directo y pregúntale: '¿Qué frente de batalla vamos a atacar hoy? Elige tu enfoque.'`;
++
++/**
++ * Genera el prompt del Inquisidor contextualizado al objetivo de la sesión.
++ */
++function buildInquisitorPrompt(objective: string): string {  
++    const objectiveLine = objective
++        ? `\n\nOBJETIVO DE ESTA SESIÓN: "${objective}". Basa todas tus preguntas socráticas estrictamente en cumplir esta meta.`
++        : '';
++    return `Eres un co-editor de narrativa experto (estilo Truby/Sanderson). El autor carece de lore suficiente. Tu objetivo es identificar los pilares faltantes (Cultura, Política, Economía, Sistemas de Magia).${objectiveLine} REGLAS: 1. Haz UNA sola pregunta desafiante a la vez para acorralarlo a tomar decisiones de alto costo. 2. Si el autor se bloquea, NO le des la respuesta; lee su contexto y ofrécele 2 o 3 opciones divergentes como ejemplo. 3. Tú fuerzas al autor a pensar, no escribes por él.`;
++}
++
++/**
++ * Genera el prompt del Arquitecto contextualizado al objetivo de la sesión.
++ */
++function buildArchitectPrompt(objective: string): string {   
++    const objectiveLine = objective
++        ? `\n\nOBJETIVO DE ESTA SESIÓN: "${objective}". Mantén todas tus sugerencias estructurales orientadas a lograr esta meta.`
++        : '';
++    return `Eres un co-editor experto en la fase de ejecución. El Roadmap ya existe.${objectiveLine} REGLAS: 1. Ayuda a resolver problemas técnicos de la escena actual. 2. Haz sugerencias estructurales pero siempre cierra con una pregunta que devuelva el control al autor. 3. Mantén un tono analítico y directo.`;
++}
++
++const PROMPT_CONSULTANT = `Eres un táctico narrativo actuando como Abogado del Diablo. El autor propone un cambio en su historia. REGLAS: 1. Evalúa las consecuencias de su decisión (Efecto Dominó). 2. Haz UNA pregunta táctica sobre qué se rompe aguas arriba o abajo en la trama. 3. Si genera un agujero de guion, ofrécele un modelo mental claro. 4. Exige confirmación antes de aprobar la alteración.`;
++
++/**
++ * Enrutador de estados del Arquitecto v2.
++ * Determina qué personalidad usar según el contexto del proyecto.
++ * @param sessionObjective - Objetivo persistido en roadmap.objective (null si aún no definido)
++ */
++function selectArquitectoState(
++    worldEntitiesCount: number,
++    userMessage: string,
++    hasActiveRoadmap: boolean,
++    sessionObjective: string | null = null
++): 'triage' | 'inquisitor' | 'consultant' | 'architect' {    
++    // Estado 0: Aún no hay objetivo — diagnóstico multiversal
++    if (!sessionObjective) return 'triage';
++
++    // Estado 1: El proyecto está vacío — entrevista socrática
++    if (worldEntitiesCount < 3) return 'inquisitor';
++
++    // Estado 2: El autor propone un cambio con roadmap activo — abogado del diablo
++    const changeVerbs = ['quiero que', 'y si', 'cambiar', 'agregar', 'matar', 'eliminar', 'modificar'];
++    const msgLower = userMessage.toLowerCase();
++    if (hasActiveRoadmap && changeVerbs.some(v => msgLower.includes(v))) return 'consultant';
++
++    // Estado 3 (default): El roadmap existe y el autor trabaja en ejecución
++    return 'architect';
++}
++
++
+ // ─────────────────────────────────────────────
+ // TIPOS
+ // ─────────────────────────────────────────────
+@@ -29,8 +95,27 @@ interface PendingItem {
+     category: 'continuidad' | 'worldbuilding' | 'personaje' | 'cronologia' | 'estructura';
+ }
+
++// CardStatus y RoadmapCard — se mantienen en functions/ como copia local para evitar
++// dependencias cruzadas con el frontend (functions no consume src/).
++export type CardStatus = 'locked' | 'active' | 'completed';  
++
++interface RoadmapCard {
++    id: string;
++    title: string;
++    description: string;
++    status: CardStatus;
++    order: number;
++    phase: 'fundacion' | 'conflicto' | 'desarrollo' | 'climax' | 'resolucion' | string;
++    missions: PendingItem[]; // Objetos completos, no IDs — evita extra reads.
++    dominoLinks: string[];
++    impactScore: number;
++    createdAt: string;
++    updatedAt: string;
++}
++
+ interface ArquitectoInitResult {
+     pendingItems: PendingItem[];
++    roadmapCards: RoadmapCard[];
+     initialMessage: string;
+     sessionId: string;
+     projectSummary: string;
+@@ -41,6 +126,14 @@ interface ArquitectoChatResult {
+     response: string;
+     pendingItemsUpdated?: PendingItem[];
+     suggestedMode?: 'efecto_domino' | 'cronologia_revelacion' | 'investigacion_cultural' | 'personaje' | 'general';        
++    roadmapImpact?: RoadmapImpact | null; // null si la evaluación de impacto falló
++}
++
++// RoadmapImpact — copia local (misma razón que RoadmapCard: evitar dependencias cruzadas)
++interface RoadmapImpact {
++    hasImpact: boolean;
++    affectedCardIds: string[];
++    impactDescription: string;
+ }
+
+ // ─────────────────────────────────────────────
+@@ -174,6 +267,173 @@ export const arquitectoInitialize = onCall(
+         drive.setCredentials({ access_token: accessToken }); 
+         const driveClient = google.drive({ version: "v3", auth: drive });
+
++        // 2b. Contar WorldEntities para detectar si el proyecto tiene lore suficiente
++        let worldEntitiesCount = 0;
++        try {
++            const weSnap = await db
++                .collection('users').doc(userId)
++                .collection('WorldEntities')
++                .where('category', '!=', 'RESOURCE')
++                .count()
++                .get();
++            worldEntitiesCount = weSnap.data().count ?? 0;   
++        } catch (e) {
++            logger.warn('[ARQUITECTO] No se pudo contar WorldEntities:', e);
++        }
++
++        logger.info(`🏛️ [ARQUITECTO] WorldEntities count: ${wworldEntitiesCount}`);
++
++        // 🎯 MODO TRIAGE: Siempre iniciar con diagnóstico muultiversal.
++        // El Arquitecto nunca lanza el interrogatorio sin saber el objetivo del autor.
++        logger.info('[ARQUITECTO] Activando MODO TRIAGE — Diagnóstico Multiversal Multi-hop.');
++
++        const genAIInit = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
++
++        // ==========================================        
++        // 🟢 FASE 1: SALTO 1 (Exploración de Chunks)        
++        // ==========================================        
++        let baseContext = "";
++        try {
++            // Obtenemos una "biopsia" representativa del manuscrito físico (primeros 15 chunks)
++            const chunksSnap = await db.collectionGroup("chunks")
++                .where("userId", "==", userId)
++                .limit(15)
++                .get();
++
++            if (!chunksSnap.empty) {
++                baseContext = chunksSnap.docs
++                    .map(d => `[Fragmento - ${d.data().fileName || 'Doc'}]:\n${d.data().text?.substring(0, 600)}`)
++                    .join('\n\n');
++            } else {
++                baseContext = "El proyecto no tiene documentos físicos legibles indexados. Es un lienzo en blanco o los archivos no tienen embeddings.";
++            }
++        } catch (e) {
++            logger.warn('[ARQUITECTO] Error en Salto 1 (Exploración):', e);
++            baseContext = "Error al leer la base del manuscrito.";
++        }
++
++        // ==========================================        
++        // 🟢 FASE 1: SALTO 2 (Profundización Agéntica)      
++        // ==========================================        
++        let contextoConsolidado = baseContext;
++
++        if (baseContext.length > 200) {
++            try {
++                // LLM Flash para Reconocimiento de Entidades Nombradas Rápido (NER)
++                const nerPrompt = `
++Analiza el siguiente texto y extrae UNICAMENTE los 3 o 4 conceptos propios más importantes, raros o inusuales (como nombres de facciones, sistemas de magia, deidades, organizaciones o ubicaciones clave).
++Responde **únicamente** con una lista de nombres separados por comas. NADA MÁS.
++TEXTO:
++${baseContext.substring(0, 4000)}
++                `;
++                const nerResult = await smartGenerateContent(genAIInit, nerPrompt, {
++                    useFlash: true,
++                    temperature: 0.1,
++                    contextLabel: 'ArquitectoNER_Bucle'      
++                });
++
++                const keywordsText = nerResult.text || "";   
++                const keywords = keywordsText.split(',').map(k => k.trim()).filter(k => k.length > 2);
++
++                if (keywords.length > 0) {
++                    logger.info(`[ARQUITECTO] Multi-hop NER Claves Detectadas: ${keywords.join(' | ')}`);
++
++                    // Buscamos esas claves en la base cruda de WorldEntities (Lore Estructurado)
++                    const weSnap = await db.collection('users').doc(userId).collection('WorldEntities').limit(30).get();   
++                    let foundExpansions: string[] = [];      
++
++                    for (const doc of weSnap.docs) {
++                        const data = doc.data();
++                        const docStr = JSON.stringify(data).toLowerCase();
++
++                        const isMatch = keywords.some(kw => docStr.includes(kw.toLowerCase()));
++                        if (isMatch && foundExpansions.length < 5) {
++                            const desc = data.modules?.description || "Sin descripción.";
++                            foundExpansions.push(`[Ficha Expandida - ${data.name || 'Desconocido'}]: ${desc}`);
++                        }
++                    }
++
++                    if (foundExpansions.length > 0) {        
++                        contextoConsolidado += "\n\n=== PROFUNDIZACIÓN DE LORE (BÚSQUEDA AUTOMÁTICA DEL ARQUITECTO) ===\n" + foundExpansions.join('\n\n');
++                    } else {
++                        // Si no lo encuentra, lo explicita para el prompt de crítica
++                        contextoConsolidado += `\n\n=== REPORTE DEL SISTEMA ===\nEl Arquitecto intentó buscar información sobre: "${keywords.join(', ')}" pero no encontró fichas estructuradas en el Worldbuilding. Menciónalo como un posible hueco.`;
++                    }
++                }
++            } catch (e) {
++                logger.warn('[ARQUITECTO] Error en Salto 2 (Profundización):', e);
++            }
++        }
++
++        // ==========================================        
++        // 🟢 FASE 2: EL PROMPT DE DIAGNÓSTICO DE ÉLITE      
++        // ==========================================        
++        const triageBootPrompt = `
++Eres El Arquitecto, Co-Editor Jefe. Analiza estos documentos del autor:
++
++${contextoConsolidado.substring(0, 40000)}
++
++Escribe EXACTAMENTE UN PÁRRAFO con una crítica implacable y constructiva. 
++- Destaca los sistemas narrativos fuertes, pero EXPÓN LOS HUECOS de worldbuilding. 
++- PRECAUCIÓN: No asumas que falta información narrativa si no está aquí, pero señala lo que parece estar desconectado o no documentado.
++- Hazle sentir al autor que has leído su obra a profundidad y que tu inteligencia es afilada.
++
++Tras tu crítica (en un párrafo nuevo), ofrécele EXACTAMENTE DOS opciones de enfoque (modos de Roadmap) que solucionen estructuralmente los huecos detectados. 
++Opciones posibles de donde elegir (ESCRIBE EL NOMBRE DE LA OPCIÓN ENTRE CORCHETES EXACTAMENTE ASÍ): 
++[Mega-Roadmap], [Micro-Roadmap Quirúrgico], [Roadmap de Detonación], [Ingeniería Inversa], [Muro del 2do Acto].
++
++Reglas Absolutas:
++1. Detecta el idioma del proyecto. No uses markdown de títulos.
++2. Termina preguntando directamente cuál de los dos frentes atacarán hoy.
++`;
++
++        const triageResult = await smartGenerateContent(genAIInit, triageBootPrompt, {
++            useFlash: false,
++            temperature: TEMP_CREATIVE,
++            contextLabel: 'ArquitectoTriageBoot',
++        });
++
++        const triageMessage = triageResult.text ||
++            'Soy El Arquitecto. Antes de construir el Roadmap necesito saber tu objetivo. ¿Qué frente de batalla vamos a atacar hoy: construcción total del lore, resolver un hueco específico, o detonar un conflicto?';
++
++        // Crear sesión en Firestore con estado triage       
++        const sessionRef = db.collection('users').doc(userId).collection('forge_sessions').doc();
++        const now = new Date().toISOString();
++
++        await sessionRef.set({
++            name: `Arquitecto ${new Date().toLocaleDateString()
++                }`,
++            type: 'arquitecto',
++            arquitectoState: 'triage',
++            createdAt: now,
++            updatedAt: now,
++            pendingItems: [],
++            projectSummary: 'Sesión de diagnóstico en curso.',
++            lastAnalyzedAt: now,
++        });
++
++        // Crear el documento roadmap/objective con objective = null
++        await sessionRef
++            .collection('architect').doc('roadmap')
++            .set({ objective: null, createdAt: now }, { merge: true });
++
++        await sessionRef.collection('messages').add({        
++            role: 'ia',
++            text: triageMessage,
++            timestamp: new Date(),
++        });
++
++        return {
++            pendingItems: [],
++            roadmapCards: [],
++            initialMessage: triageMessage,
++            sessionId: sessionRef.id,
++            projectSummary: 'Sesión de diagnóstico en curso.',
++            lastAnalyzedAt: now,
++        };
++        // Nota: La generación de roadmap completo (para proyectos con lore suficiente)
++        // continúa abajo con el flujo original de la función.
++
+         const [canonContext, resourcesContext] = await Promise.all([
+             readCanonContext(userId, projectId),
+             readResourcesContext(driveClient, resourcePaths),
+@@ -183,9 +443,9 @@ export const arquitectoInitialize = onCall(
+ === CANON DEL PROYECTO ===
+ ${canonContext}
+
+-=== REFERENCIAS E INSPIRACIONES (_RESOURCES) ===
++=== REFERENCIAS E INSPIRACIONES(_RESOURCES) ===
+ ${resourcesContext}
+-        `.trim();
++    `.trim();
+
+         // 3. Generar lista de pendientes con Flash
+         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+@@ -195,50 +455,72 @@ Eres El Arquitecto, un agente de planificación narrativa para escritores épico
+
+ Analiza el siguiente contenido del proyecto "${escapePromptVariable(projectName)}" y genera una lista de pendientes categorizados.
+
+-PROYECTO:
+-${fullContext.substring(0, 50000)}
++    PROYECTO:
++    ${fullContext.substring(0, 50000)}
+
+ INSTRUCCIONES:
+-1. Identifica huecos en el worldbuilding (reglas mágicas sin definir, inconsistencias, etc.)
++    1. Identifica huecos en el worldbuilding(reglas mágicas sin definir, inconsistencias, etc.)
+ 2. Detecta contradicciones entre hechos establecidos
+ 3. Señala arcos de personaje incompletos o sin resolver      
+ 4. Sugiere elementos que mejorarían la cohesión narrativa    
+-5. Detecta preguntas sin responder sobre cronología o causa-efecto
++5. Detecta preguntas sin responder sobre cronología o causa - efecto
+
+ CATEGORÍAS:
+-- continuidad: contradicciones o inconsistencias entre hechos
++    - continuidad: contradicciones o inconsistencias entre hechos
+ - worldbuilding: reglas del mundo sin definir o poco claras  
+ - personaje: arcos incompletos, motivaciones poco claras     
+ - cronologia: orden de eventos confuso o sin establecer      
+ - estructura: elementos de trama sin resolución
+
+ SEVERIDADES:
+-- critical: contradicción directa que rompe la narrativa     
++    - critical: contradicción directa que rompe la narrativa 
+ - warning: elemento ambiguo que puede causar problemas       
+ - suggestion: mejora que haría la historia más sólida        
+
+ CÓDIGOS:
+-- ERR-XXX para critical
+-- WRN-XXX para warning
+-- SUG-XXX para suggestion
++    - ERR - XXX para critical
++    - WRN - XXX para warning
++    - SUG - XXX para suggestion
+
+ Responde SOLO con JSON válido, sin markdown:
+-{
+-  "items": [
+     {
+-      "code": "ERR-001",
+-      "severity": "critical",
+-      "title": "Título corto",
+-      "description": "Descripción clara de 1-2 oraciones",   
+-      "relatedFiles": ["archivo.md"],
+-      "category": "continuidad"
++        "items": [
++            {
++                "code": "ERR-001",
++                "severity": "critical",
++                "title": "Título corto",
++                "description": "Descripción clara de 1-2 oraciones",
++                "relatedFiles": ["archivo.md"],
++                "category": "continuidad"
++            }
++        ],
++        "projectSummary": "Resumen de 2-3 oraciones del estado del proyecto",
++        "roadmapCards": [
++            {
++                "id": "card-001",
++                "title": "Título de la fase",
++                "description": "Descripción breve de los objetivos de esta fase",
++                "order": 0,
++                "phase": "fundacion",
++                "status": "active",
++                "missions": [],
++                "dominoLinks": [],
++                "impactScore": 0
++            }
++        ]
+     }
+-  ],
+-  "projectSummary": "Resumen de 2-3 oraciones del estado del proyecto"
+-}
++
++REGLAS PARA roadmapCards:
++    - Agrupa los items generados en 3 a 5 fases secuenciales de la historia.
++- Cada tarjeta representa una etapa narrativa: fundacion, conflicto, desarrollo, climax, resolucion.
++- Asigna a cada tarjeta un id único(ej: card-001, card-002...).
++- El campo 'missions' de cada tarjeta debe contener los objetos PendingItem completos que corresponden a esa fase.
++- Solo la primera tarjeta(order: 0) tiene status 'active'.Las demás tienen status 'locked'.
++- dominoLinks: array de IDs de otras tarjetas afectadas si esta fase se modifica(puede ser vacío).
++- impactScore: número entre 0 y 100 indicando la criticidad de esta fase para la saga.
+
+ Genera máximo: 3 critical, 5 warning, 7 suggestion.
+-Si no encuentras problemas reales, genera menos. No inventes problemas que no existen.
++Si no encuentras problemas reales, genera menos.No inventes problemas que no existen.
+ Detecta el idioma del contenido y responde en ese mismo idioma.
+         `;
+
+@@ -250,6 +532,7 @@ Detecta el idioma del contenido y responde en ese mismo idioma.
+         });
+
+         let pendingItems: PendingItem[] = [];
++        let roadmapCards: RoadmapCard[] = [];
+         let projectSummary = "Proyecto analizado.";
+
+         if (pendingResult.text) {
+@@ -257,6 +540,22 @@ Detecta el idioma del contenido y responde en ese mismo idioma.
+             if (parsed && !parsed.error) {
+                 pendingItems = parsed.items || [];
+                 projectSummary = parsed.projectSummary || projectSummary;
++
++                // Procesar roadmapCards: añadir timestamps y validar estructura
++                const now = new Date().toISOString();        
++                roadmapCards = (parsed.roadmapCards || []).map((card: any) => ({
++                    id: card.id || `card - ${Math.random().toString(36).substring(2, 7)}`,
++                    title: card.title || "Fase sin título",  
++                    description: card.description || "",     
++                    status: (card.order === 0 ? 'active' : 'locked') as CardStatus,
++                    order: card.order ?? 0,
++                    phase: card.phase || 'fundacion',        
++                    missions: card.missions || [],
++                    dominoLinks: card.dominoLinks || [],     
++                    impactScore: card.impactScore ?? 0,      
++                    createdAt: now,
++                    updatedAt: now,
++                }));
+             }
+         }
+
+@@ -265,27 +564,27 @@ Detecta el idioma del contenido y responde en ese mismo idioma.
+         const warningCount = pendingItems.filter(i => i.severity === 'warning').length;
+
+         const initPrompt = `
+-Eres El Arquitecto, un agente de planificación narrativa para escritores. Tu rol es diferente al Director:
+-- El Director ayuda mientras el autor escribe escena a escena.
++Eres El Arquitecto, un agente de planificación narrativa para escritores.Tu rol es diferente al Director:
++    - El Director ayuda mientras el autor escribe escena a escena.
+ - Tú eres el planificador estratégico: analizas la saga completa, detectas huecos, y guías antes de que el autor escriba.  
+
+ Has analizado el proyecto "${escapePromptVariable(projectName)}" y encontraste:
+-- ${criticalCount} problemas críticos
++    - ${criticalCount} problemas críticos
+ - ${warningCount} advertencias
+ - Resumen: ${escapePromptVariable(projectSummary)}
+
+ PENDIENTES DETECTADOS:
+-${JSON.stringify(pendingItems.slice(0, 5), null, 2)}
++    ${JSON.stringify(pendingItems.slice(0, 5), null, 2)}     
+
+ Genera un mensaje de bienvenida que:
+-1. Se presente brevemente como El Arquitecto (1 oración)     
+-2. Resuma en 1-2 oraciones qué encontraste en el proyecto    
++    1. Se presente brevemente como El Arquitecto(1 oración)  
++2. Resuma en 1 - 2 oraciones qué encontraste en el proyecto  
+ 3. Haga UNA SOLA pregunta al autor para entender dónde necesita ayuda HOY
+
+ REGLAS:
+-- Solo UNA pregunta al final. No más.
+-- No des respuestas ni soluciones todavía. Solo pregunta.    
+-- Tono: profesional pero cálido, como un co-escritor experimentado
++    - Solo UNA pregunta al final.No más.
++- No des respuestas ni soluciones todavía.Solo pregunta.     
++- Tono: profesional pero cálido, como un co - escritor experimentado
+ - Detecta el idioma del contenido del proyecto y responde en ese idioma
+ - Máximo 4 oraciones en total
+
+@@ -302,47 +601,65 @@ Responde SOLO con el texto del mensaje, sin JSON ni markdown.
+             "El Arquitecto en línea. He analizado tu proyecto. ¿En qué área necesitas trabajar hoy: worldbuilding, personajes, o estructura de trama?";
+
+         // 5. Crear sesión en Firestore
+-        const sessionRef = db
++        const sessionRefMain = db
+             .collection("users").doc(userId)
+             .collection("forge_sessions").doc();
+
+-        const now = new Date().toISOString();
++        const nowMain = new Date().toISOString();
+
+-        await sessionRef.set({
++        await sessionRefMain.set({
+             name: `Arquitecto ${new Date().toLocaleDateString()}`,
+             type: 'arquitecto',
+-            createdAt: now,
+-            updatedAt: now,
++            createdAt: nowMain,
++            updatedAt: nowMain,
+             pendingItems: pendingItems,
+             projectSummary: projectSummary,
+-            lastAnalyzedAt: now,
++            lastAnalyzedAt: nowMain,
+         });
+
+         // 6. Guardar mensaje inicial en la sesión
+-        await sessionRef.collection("messages").add({        
++        await sessionRefMain.collection("messages").add({    
+             role: 'ia',
+             text: initialMessage,
+             timestamp: new Date(),
+         });
+
+-        // 7. Actualizar config con timestamp de análisis    
++        // 7. Persistencia aislada de RoadmapCards via WriteBatch (Higiene de BD)
++        // Ruta: users/{uid}/forge_sessions/{sid}/architect/roadmap/cards/{cardId}
++        if (roadmapCards.length > 0) {
++            const batch = db.batch();
++            const roadmapBaseRef = sessionRefMain
++                .collection("architect").doc("roadmap")      
++                .collection("cards");
++
++            for (const card of roadmapCards) {
++                const cardRef = roadmapBaseRef.doc(card.id); 
++                batch.set(cardRef, card);
++            }
++
++            await batch.commit();
++            logger.info(`🗺️[ARQUITECTO] ${roadmapCards.lengthh} tarjetas de Roadmap guardadas en Firestore.`);
++        }
++
++        // 8. Actualizar config con timestamp de análisis    
+         await db
+             .collection("users").doc(userId)
+             .collection("profile").doc("project_config")     
+             .set({
+-                lastArquitectoAnalysis: now,
++                lastArquitectoAnalysis: nowMain,
+                 arquitectoCachedPendingItems: pendingItems,  
+                 arquitectoSummary: projectSummary
+             }, { merge: true });
+
+-        logger.info(`✅ [ARQUITECTO] Inicialización completa.. ${pendingItems.length} pendientes. Sesión: ${sessionRef.id}`);
++        logger.info(`✅[ARQUITECTO] Inicialización completa.$${pendingItems.length} pendientes, ${roadmapCards.length} tarjetas.Sesión: ${sessionRefMain.id}`);
+
+         return {
+             pendingItems,
++            roadmapCards,
+             initialMessage,
+-            sessionId: sessionRef.id,
++            sessionId: sessionRefMain.id,
+             projectSummary,
+-            lastAnalyzedAt: now,
++            lastAnalyzedAt: nowMain,
+         };
+     }
+ );
+@@ -380,16 +697,93 @@ export const arquitectoChat = onCall(   
+         const userId = request.auth.uid;
+         const db = getFirestore();
+
+-        logger.info(`🏛️ [ARQUITECTO] Chat para ${userId}: "${{query.substring(0, 50)}..."`);
++        logger.info(`🏛️[ARQUITECTO] Chat para ${userId}: "${qquery.substring(0, 50)}..."`);
+
+-        // 1. Buscar contexto relevante via RAG
++        // 1. Leer contexto del proyecto
+         const config = await getProjectConfigLocal(userId);  
+         const projectId = (config as any)?.folderId || "unknown";
+         const projectName = (config as any)?.projectName || "Proyecto";
+         const styleIdentity = (config as any)?.styleIdentity || "Narrativa estándar";
+
++        // 1b. Contar WorldEntities para el enrutador de estados
++        let worldEntitiesCount = 0;
++        try {
++            const weSnap = await db
++                .collection('users').doc(userId)
++                .collection('WorldEntities')
++                .where('category', '!=', 'RESOURCE')
++                .count()
++                .get();
++            worldEntitiesCount = weSnap.data().count ?? 0;   
++        } catch (e) {
++            logger.warn('[ARQUITECTO] No se pudo contar WorldEntities en chat:', e);
++        }
++
++        // 1c. Detectar si existe roadmap activo en esta sesión
++        let hasActiveRoadmap = false;
++        try {
++            const cardsCountSnap = await db
++                .collection('users').doc(userId)
++                .collection('forge_sessions').doc(sessionId) 
++                .collection('architect').doc('roadmap')      
++                .collection('cards')
++                .count()
++                .get();
++            hasActiveRoadmap = (cardsCountSnap.data().count ?? 0) > 0;
++        } catch (e) {
++            logger.warn('[ARQUITECTO] No se pudo verificar roadmap activo:', e);
++        }
++
++        // 1d. Leer el objetivo de la sesión desde Firestore (roadmap.objective)
++        let sessionObjective: string | null = null;
++        try {
++            const roadmapDoc = await db
++                .collection('users').doc(userId)
++                .collection('forge_sessions').doc(sessionId) 
++                .collection('architect').doc('roadmap')      
++                .get();
++            sessionObjective = roadmapDoc.exists ? (roadmapDoc.data()?.objective ?? null) : null;
++        } catch (e) {
++            logger.warn('[ARQUITECTO] No se pudo leer roadmap.objective:', e);
++        }
++
++        // 1e. Seleccionar personalidad dinámica con el enrutador v2
++        const arquitectoState = selectArquitectoState(worldEntitiesCount, query, hasActiveRoadmap, sessionObjective);      
++        const activePersonalityPrompt = (() => {
++            switch (arquitectoState) {
++                case 'triage': return PROMPT_TRIAGE;
++                case 'inquisitor': return buildInquisitorPrompt(sessionObjective || '');
++                case 'consultant': return PROMPT_CONSULTANT; 
++                case 'architect': return buildArchitectPrompt(sessionObjective || '');
++            }
++        })();
++        logger.info(`🏛️[ARQUITECTO] Estado activo: ${arquitecctoState}(weCount = ${worldEntitiesCount}, hasRoadmap = ${hasActiveRoadmap}, objective = ${sessionObjective ? '✓' : '✗'})`); 
++
++        // 1f. Si el estado anterior era TRIAGE, el usuario acaba de elegir su objetivo.
++        //     Extraer y persistir el objetivo de forma paralela (fire-and-wait).
+         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+ 
++        if (arquitectoState === 'triage' && query.trim().length > 3) {
++            // Flash extrae una frase corta del mensaje del usuario
++            smartGenerateContent(genAI, `El usuario acaba de elegir su objetivo narrativo: "${escapePromptVariable(query)}".Resume este objetivo en una frase corta de 4 - 8 palabras(ej: 'Micro-Roadmap para el Acto 2').Devuelve SOLO la frase, sin comillas ni markdown.`, {
++                useFlash: true,
++                temperature: 0.1,
++                contextLabel: 'ArquitectoExtractObjective',  
++            }).then(async (res) => {
++                const extracted = (res.text || query).trim().substring(0, 100);
++                try {
++                    await db
++                        .collection('users').doc(userId)     
++                        .collection('forge_sessions').doc(sessionId)
++                        .collection('architect').doc('roadmap')
++                        .set({ objective: extracted }, { merge: true });
++                    logger.info(`🎯[ARQUITECTO] Objetivo perssistido: "${extracted}"`);
++                } catch (e) {
++                    logger.warn('[ARQUITECTO] No se pudo persistir el objetivo:', e);
++                }
++            }).catch(e => logger.warn('[ARQUITECTO] Error extrayendo objetivo:', e));
++        }
++
+         let ragContext = "";
+         try {
+             const embeddings = new GeminiEmbedder({
+@@ -416,7 +810,13 @@ export const arquitectoChat = onCall(    
+                 .map(d => `[${d.data().fileName}]: ${d.data().text.substring(0, 400)}`)
+                 .join("\n\n---\n\n");
+         } catch (e) {
+-            logger.warn("[ARQUITECTO] RAG fallido, continuando sin contexto vectorial:", e);
++            // Fase 3 Sprint 2: RAG no debe fallar silenciosamente. Si la búsqueda vectorial
++            // falla, el contexto canónico es inaccesible y la IA alucinará. Error explícito.
++            logger.error("[ARQUITECTO] RAG_SEARCH_FAILED — búsqueda vectorial fallida:", e);
++            throw new HttpsError(
++                'internal',
++                'RAG_SEARCH_FAILED: No se pudo acceder a la memoria del canon. Verifica que los documentos estén indexados con embeddings.'
++            );
+         }
+
+         // 2. Formatear historial
+@@ -428,15 +828,15 @@ export const arquitectoChat = onCall(   
+         // 3. Detectar modo según el query (auto-detección)  
+         const modeDetectionPrompt = `
+ Clasifica esta pregunta del autor en uno de los modos del Arquitecto:
+-- efecto_domino: preguntas sobre consecuencias de decisiones del mundo
++    - efecto_domino: preguntas sobre consecuencias de decisiones del mundo
+ - cronologia_revelacion: preguntas sobre qué sabe el lector y cuándo
+-- investigacion_cultural: preguntas sobre base histórica/cultural real
++- investigacion_cultural: preguntas sobre base histórica / cultural real
+ - personaje: preguntas sobre psicología, arco o motivación de personajes
+ - general: cualquier otra cosa
+
+ Pregunta: "${escapePromptVariable(query)}"
+
+-Responde SOLO con el nombre del modo (una palabra con guión bajo).
++Responde SOLO con el nombre del modo(una palabra con guión bajo).
+         `;
+
+         const modeResult = await smartGenerateContent(genAI, modeDetectionPrompt, {
+@@ -458,20 +858,20 @@ Siempre pregunta: "¿Qué decisión específica quieres explorar?" si no está c
+             cronologia_revelacion: `
+ MODO ACTIVO: Cronología de Revelación
+ Tu misión es mapear QUÉ sabe el lector en cada punto de la historia.
+-Analiza: qué información existe en el Canon, en qué momento narrativo revelarla tiene más impacto.
+-Siempre pregunta por el libro/capítulo si no está especificado.
++    Analiza: qué información existe en el Canon, en qué momento narrativo revelarla tiene más impacto.
++Siempre pregunta por el libro / capítulo si no está especificado.
+             `,
+             investigacion_cultural: `
+ MODO ACTIVO: Investigación Cultural
+-Tu misión es explicar la base histórica/real que podría inspirar el worldbuilding del autor.
+-IMPORTANTE: Explica el por qué histórico real, pero siempre aclara que el autor decide qué adopta.
+-No impongas nada. Ofrece opciones. Pregunta qué cultura o período específico les interesa explorar.
++Tu misión es explicar la base histórica / real que podría inspirar el worldbuilding del autor.
++    IMPORTANTE: Explica el por qué histórico real, pero siempre aclara que el autor decide qué adopta.
++No impongas nada.Ofrece opciones.Pregunta qué cultura o período específico les interesa explorar.
+             `,
+             personaje: `
+ MODO ACTIVO: Análisis de Personaje
+ Tu misión es detectar huecos en el arco o psicología del personaje.
+ Usa preguntas socráticas: en lugar de decir "le falta motivación", pregunta "¿qué pierde este personaje si fracasa?".      
+-Nunca escribas la motivación por el autor. Guíalo a descubrirla.
++Nunca escribas la motivación por el autor.Guíalo a descubrirla.
+             `,
+             general: `
+ MODO ACTIVO: Consulta General
+@@ -480,15 +880,9 @@ Si la respuesta requiere más contexto, haz UNA pregunta de clarificación antes
+             `,
+         };
+
+-        // 5. Generar respuesta con Pro
++        // 5. Generar respuesta con Pro — usando la personalidad seleccionada por el enrutador
+         const systemPrompt = `
+-Eres El Arquitecto de MyWorld, un agente de planificación narrativa para escritores épicos.
+-
+-TU IDENTIDAD:
+-- Eres diferente al Director (que ayuda durante la escritura escena a escena).
+-- Tu dominio es la PLANIFICACIÓN ESTRATÉGICA: saga completa, worldbuilding profundo, arcos de personaje.
+-- PREGUNTA antes de RESPONDER. Si hay ambigüedad, haz UNA pregunta de clarificación.
+-- Nunca escribas la historia por el autor. Guíalo a descubrirla él mismo.
++${activePersonalityPrompt}
+
+ PROYECTO: "${escapePromptVariable(projectName)}"
+ ESTILO DETECTADO: "${escapePromptVariable(styleIdentity)}"   
+@@ -496,10 +890,10 @@ ESTILO DETECTADO: "${escapePromptVariable(styleIdentity)}"
+ ${modeInstructions[detectedMode] || modeInstructions.general}
+
+ PENDIENTES ACTIVOS DEL PROYECTO:
+-${JSON.stringify(pendingItems.slice(0, 5), null, 2)}
++    ${JSON.stringify(pendingItems.slice(0, 5), null, 2)}     
+
+-CONTEXTO RAG (archivos relevantes del proyecto):
+-${ragContext || "Sin contexto RAG disponible."}
++CONTEXTO RAG(archivos relevantes del proyecto):
++    ${ragContext || "Sin contexto RAG disponible."}
+
+ HISTORIAL DE CONVERSACIÓN:
+ ${historyText || "Primera interacción."}
+@@ -507,12 +901,12 @@ ${historyText || "Primera interacción."}
+ REGLAS ABSOLUTAS:
+ 1. Si hay ambigüedad → UNA pregunta de clarificación PRIMERO, no respondas todavía.
+ 2. Si la pregunta es clara → Responde con profundidad estratégica.
+-3. Nunca escribas diálogos, escenas ni prosa narrativa. Eso es territorio del Director.
++3. Nunca escribas diálogos, escenas ni prosa narrativa.Eso es territorio del Director.
+ 4. Detecta el idioma del autor y responde en ese idioma.     
+ 5. Máximo 300 palabras en la respuesta.
+
+ PREGUNTA DEL AUTOR: "${escapePromptVariable(query)}"
+-        `;
++    `;
+
+         const chatResult = await smartGenerateContent(genAI, systemPrompt, {
+             useFlash: false,
+@@ -522,6 +916,67 @@ PREGUNTA DEL AUTOR: "${escapePromptVariable(query)}"
+
+         const responseText = chatResult.text || "No pude procesar esa consulta. ¿Puedes reformularla?";
+
++        // ★ Sprint 3: Radar de Impacto — llamada paralela a Flash para evaluar si el mensaje
++        //   afecta al Roadmap activo. Falla silenciosamente (no rompe el chat principal).
++        let roadmapImpact: RoadmapImpact | null = null;      
++        try {
++            // Leer tarjetas actuales del Roadmap
++            const cardsSnap = await db
++                .collection("users").doc(userId)
++                .collection("forge_sessions").doc(sessionId) 
++                .collection("architect").doc("roadmap")      
++                .collection("cards")
++                .orderBy("order")
++                .get();
++
++            if (!cardsSnap.empty) {
++                const roadmapSummary = cardsSnap.docs.map(d => {
++                    const c = d.data();
++                    return `[${c.id}] ${c.title} (${c.phase}) — ${c.description?.substring(0, 100) ?? ''} `;
++                }).join("\n");
++
++                const impactPrompt = `
++El usuario ha propuesto una nueva idea narrativa: "${escapePromptVariable(query)}"
++
++Revisa este Roadmap actual del proyecto:
++${roadmapSummary}
++
++¿Esta idea altera, contradice o expande alguna de estas tarjetas ?
++
++    Responde SOLO con JSON válido:
++{
++    "hasImpact": true,
++        "affectedCardIds": ["card-001", "card-002"],
++            "impactDescription": "Descripción breve de cómo la idea impacta las tarjetas afectadas"
++}
++
++Si la idea NO afecta al Roadmap, responde: { "hasImpact": false, "affectedCardIds": [], "impactDescription": "" }
++`;
++
++                const impactResult = await smartGenerateContent(genAI, impactPrompt, {
++                    useFlash: true,
++                    jsonMode: true,
++                    temperature: 0.1,
++                    contextLabel: "ArquitectoImpactRadar",   
++                });
++
++                if (impactResult.text) {
++                    const parsed = parseSecureJSON(impactResult.text, "ArquitectoImpactRadar");
++                    if (parsed && !parsed.error) {
++                        roadmapImpact = {
++                            hasImpact: parsed.hasImpact ?? false,
++                            affectedCardIds: parsed.affectedCardIds ?? [],
++                            impactDescription: parsed.impactDescription ?? "",
++                        };
++                    }
++                }
++            }
++        } catch (e) {
++            // Fallo silencioso: el radar de impacto es no-crítico. El chat principal ya respondió.
++            logger.warn("[ARQUITECTO] Radar de impacto fallido (no-crítico):", e);
++            roadmapImpact = null;
++        }
++
+         // 6. Guardar en Firestore
+         const sessionRef = db
+             .collection("users").doc(userId)
+@@ -547,6 +1002,7 @@ PREGUNTA DEL AUTOR: "${escapePromptVariable(query)}"
+         return {
+             response: responseText,
+             suggestedMode: detectedMode,
++            roadmapImpact,
+         };
+     }
+ );
+@@ -577,7 +1033,7 @@ export const arquitectoAnalyze = onCall( 
+         const userId = request.auth.uid;
+         const db = getFirestore();
+
+-        logger.info(`🏛️ [ARQUITECTO] Re-análisis para ${userIId}, sesión ${sessionId}`);
++        logger.info(`🏛️[ARQUITECTO] Re - análisis para ${userrId}, sesión ${sessionId} `);
+
+         const config = await getProjectConfigLocal(userId);  
+         const projectId = (config as any)?.folderId || "unknown";
+@@ -595,33 +1051,33 @@ export const arquitectoAnalyze = onCall(
+         ]);
+
+         const fullContext = `
+-=== CANON ===
+-${canonContext}
++    === CANON ===
++    ${canonContext}
+
+ === REFERENCIAS ===
+-${resourcesContext}
+-        `.trim();
++    ${resourcesContext}
++`.trim();
+
+         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+
+         const analysisPrompt = `
+-Eres El Arquitecto. Realiza un análisis completo del proyecto "${escapePromptVariable(projectName)}".
++Eres El Arquitecto.Realiza un análisis completo del proyecto "${escapePromptVariable(projectName)}".
+
+-${fullContext.substring(0, 50000)}
++    ${fullContext.substring(0, 50000)}
+
+-Genera una lista actualizada de pendientes. Responde SOLO con JSON:
++Genera una lista actualizada de pendientes.Responde SOLO con JSON:
+ {
+-  "items": [
+-    {
+-      "code": "ERR-001",
+-      "severity": "critical",
+-      "title": "Título",
+-      "description": "Descripción",
+-      "relatedFiles": ["archivo.md"],
+-      "category": "continuidad"
+-    }
+-  ],
+-  "projectSummary": "Estado actual del proyecto en 2-3 oraciones"
++    "items": [
++        {
++            "code": "ERR-001",
++            "severity": "critical",
++            "title": "Título",
++            "description": "Descripción",
++            "relatedFiles": ["archivo.md"],
++            "category": "continuidad"
++        }
++    ],
++        "projectSummary": "Estado actual del proyecto en 2-3 oraciones"
+ }
+
+ Máximo: 3 critical, 5 warning, 7 suggestion.
+@@ -665,8 +1121,308 @@ Detecta idioma y responde en ese idioma.
+             .collection("profile").doc("project_config")     
+             .set({ lastArquitectoAnalysis: analyzedAt }, { merge: true });
+
+-        logger.info(`✅ [ARQUITECTO] Re-análisis completo. ${{pendingItems.length} pendientes.`);
++        logger.info(`✅[ARQUITECTO] Re - análisis completo.${{pendingItems.length} pendientes.`);
+
+         return { pendingItems, projectSummary, analyzedAt }; 
+     }
+ );
++// ─────────────────────────────────────────────
++// FUNCIÓN 4: arquitectoRecalculateCards
++// Motor de Reescritura (Efecto Dominó).
++// Recibe las tarjetas afectadas y las reescribe
++// con la nueva idea del autor via Gemini Flash.
++// ─────────────────────────────────────────────
++
++export const arquitectoRecalculateCards = onCall(
++    {
++        region: FUNCTIONS_REGION,
++        cors: ALLOWED_ORIGINS,
++        enforceAppCheck: false,
++        timeoutSeconds: 120,
++        memory: "512MiB",
++        secrets: [googleApiKey],
++    },
++    async (request): Promise<{ success: boolean; updatedCards: RoadmapCard[] }> => {
++        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
++
++        const { sessionId, affectedCardIds, userMessage } = request.data;
++
++        if (!sessionId) throw new HttpsError("invalid-argument", "Falta sessionId.");
++        if (!affectedCardIds || !Array.isArray(affectedCardIds) || affectedCardIds.length === 0) {
++            throw new HttpsError("invalid-argument", "Falta affectedCardIds (array no vacío).");
++        }
++        if (!userMessage) throw new HttpsError("invalid-argument", "Falta userMessage.");
++
++        const userId = request.auth.uid;
++        const db = getFirestore();
++
++        logger.info(`🖥️[ARQUITECTO] RecalculateCards para ${uuserId}, sesión ${sessionId}. Tarjetas afectadas: ${affectedCardIds.join(", ")} `);
++
++        // 1. Leer SOLO las tarjetas afectadas desde Firestore
++        const roadmapBaseRef = db
++            .collection("users").doc(userId)
++            .collection("forge_sessions").doc(sessionId)     
++            .collection("architect").doc("roadmap")
++            .collection("cards");
++
++        const cardFetches = affectedCardIds.map(id => roadmapBaseRef.doc(id).get());
++        const cardDocs = await Promise.all(cardFetches);     
++
++        const existingCards: RoadmapCard[] = cardDocs        
++            .filter(d => d.exists)
++            .map(d => d.data() as RoadmapCard);
++
++        if (existingCards.length === 0) {
++            throw new HttpsError("not-found", "No se encontraron tarjetas con los IDs proporcionados.");
++        }
++
++        // 2. Enviar tarjetas + nueva idea a Gemini Flash para reescribir
++        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
++
++        const rewritePrompt = `
++Eres El Arquitecto.Un autor te ha propuesto una nueva idea narrativa que altera el plan de la saga.
++
++NUEVA IDEA DEL AUTOR:
++"${escapePromptVariable(userMessage)}"
++
++TARJETAS DEL ROADMAP A ACTUALIZAR:
++${JSON.stringify(existingCards, null, 2)}
++
++INSTRUCCIONES:
++- Actualiza el campo 'description' de cada tarjeta para integrar la nueva idea del autor.
++- Actualiza el campo 'missions'(array de PendingItems) para reflejar las nuevas tareas que surgen de esta idea.
++- NO cambies: id, order, phase, status, dominoLinks, createdAt.
++- Actualiza impactScore si la nueva idea aumenta o reduce la criticidad de la fase.
++- Detecta el idioma de la idea y responde en ese idioma.     
++
++Responde SOLO con JSON válido:
++{
++    "updatedCards": [...array completo de tarjetas actualizadas con los campos originales más los cambios... ]
++}
++`;
++
++        const rewriteResult = await smartGenerateContent(genAI, rewritePrompt, {
++            useFlash: true,
++            jsonMode: true,
++            temperature: 0.3,
++            contextLabel: "ArquitectoRecalculate",
++        });
++
++        if (!rewriteResult.text) {
++            throw new HttpsError("internal", "Gemini no retornó tarjetas actualizadas.");
++        }
++
++        const parsed = parseSecureJSON(rewriteResult.text, "ArquitectoRecalculate");
++        if (!parsed || parsed.error || !Array.isArray(parsed.updatedCards)) {
++            throw new HttpsError("internal", "Formato de respuesta inválido al recalcular tarjetas.");
++        }
++
++        const updatedAt = new Date().toISOString();
++        const updatedCards: RoadmapCard[] = parsed.updatedCards.map((card: any) => ({
++            ...card,
++            updatedAt, // Siempre actualizar el timestamp    
++        }));
++
++        // 3. Persistir cambios via WriteBatch (Higiene de BD aislada)
++        const batch = db.batch();
++        for (const card of updatedCards) {
++            if (!card.id) continue;
++            const cardRef = roadmapBaseRef.doc(card.id);     
++            batch.set(cardRef, card, { merge: true });       
++        }
++        await batch.commit();
++
++        logger.info(`✅[ARQUITECTO] ${updatedCards.length} taarjetas recalculadas y persistidas.Sesión: ${sessionId} `);    
++
++        return { success: true, updatedCards };
++    }
++);
++
++// ─────────────────────────────────────────────
++// FUNCIÓN UNIFICADA: arquitectoGenerateRoadmap
++// Generación unificada del mapa narrativo con 
++// validación (Pre-flight internal) y WriteBatch.
++// ─────────────────────────────────────────────
++
++export const arquitectoGenerateRoadmap = onCall(
++    {
++        region: FUNCTIONS_REGION,
++        cors: ALLOWED_ORIGINS,
++        enforceAppCheck: false,
++        timeoutSeconds: 300,
++        memory: "1GiB",
++        secrets: [googleApiKey],
++    },
++    async (request): Promise<{ ready: boolean; reason?: string; roadmapCards?: RoadmapCard[]; pendingItems?: PendingItem[] }> => {
++        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
++
++        const { sessionId, projectId, objective } = request.data;
++        if (!sessionId) throw new HttpsError("invalid-argument", "Falta sessionId.");
++
++        const userId = request.auth.uid;
++        const db = getFirestore();
++
++        logger.info(`🏛️[ARQUITECTO] GenerateRoadmap(Unified)  para ${userId}, sesión ${sessionId} `);
++
++        // 1. PRE-FLIGHT INTERNO: Validar longitud de la conversación
++        const sessionRef = db.collection('users').doc(userId).collection('forge_sessions').doc(sessionId);
++        const messagesSnap = await sessionRef.collection('messages')
++            .orderBy('timestamp', 'desc')
++            .limit(60)
++            .get();
++
++        const messages = messagesSnap.docs.map(d => d.data());
++        const userMessageCount = messages.filter(m => m.role === 'user').length;
++
++        if (userMessageCount < 3) {
++            logger.info(`[ARQUITECTO] Pre - flight fallido: solo ${userMessageCount} mensajes de usuario.`);
++            return { ready: false, reason: 'conversation_too_short' };
++        }
++
++        // 2. GENERACIÓN LLM: RAG Básico (Top 5 entidades no-assets)
++        let ragContext = "Sin datos RAG disponibles.";       
++        try {
++            const worldEntitiesSnap = await db.collection("users").doc(userId)
++                .collection("WorldEntities")
++                .where("category", "!=", "RESOURCE")
++                .limit(5)
++                .get();
++
++            ragContext = worldEntitiesSnap.docs.map(d => {   
++                const data = d.data();
++                return `[${data.name}]: ${JSON.stringify(data.modules?.description || "Sin descripción")} `;
++            }).join("\n\n---\n\n");
++        } catch (error) {
++            logger.warn("No se pudo extraer WorldEntities en GenerateRoadmap:", error);
++        }
++
++        // Recuperar y ordenar historial ascendente (como se leyó desc, invertimos)
++        const sessionContext = messages.reverse()
++            .filter((m: any) => m.role !== 'system')
++            .map((m: any) => `${m.role === 'user' ? 'AUTOR' : 'ARQUITECTO'}: ${m.text || m.message || ''} `)
++            .join('\n');
++
++        const fullContext = `
++    === OBJETIVO DEL AUTOR ===
++        "${objective || 'Destino general de la historia'}"   
++
++        === CONTEXTO CANÓNICO(WorldEntities RAG) ===
++            ${ragContext}
++
++=== DECISIONES DEL AUTOR(Sesión Socrática) ===
++    ${sessionContext || 'Sin decisiones documentadas.'}      
++`.trim();
++
++        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
++
++        const roadmapPrompt = `
++Eres El Arquitecto.El autor ya terminó su entrevista socrática.Ahora tienes suficiente información para cristalizar el mapa narrativo de su proyecto.
++
++CONTEXTO COMPLETO:
++${fullContext.substring(0, 50000)}
++
++Genera el Roadmap narrativo del proyecto.Responde SOLO con JSON válido en esta estructura exacta:
++{
++    "items": [
++        {
++            "code": "ERR-001",
++            "severity": "critical",
++            "title": "Título del problema",
++            "description": "Descripción clara",
++            "relatedFiles": [],
++            "category": "continuidad"
++        }
++    ],
++        "roadmapCards": [
++            {
++                "id": "card-001",
++                "title": "Título de la fase",
++                "description": "Descripción de los objetivos de esta fase",
++                "order": 0,
++                "phase": "fundacion",
++                "status": "active",
++                "missions": [],
++                "dominoLinks": [],
++                "impactScore": 0
++            }
++        ]
++}
++
++REGLAS ESTRÍCTAS:
++- Genera entre 3 y 5 tarjetas secuenciales(fases posibles: fundacion, conflicto, desarrollo, climax, resolucion).
++- Solo la primera tarjeta(order: 0) tiene status 'active'.Las demás 'locked'.
++- BASA LAS TARJETAS ESTRICTAMENTE EN LA CONVERSACIÓN y las decisiones que acaba de tomar el autor.Mínimo grado de alucinación narrativa.
++- Cada tarjeta representa una etapa narrativa concreta.      
++- En 'items', genera pendingItems(misiones) derivados del progreso del roadmap.
++- Detecta el idioma del contenido y responde en ese mismo idioma.
++        `;
++
++        const result = await smartGenerateContent(genAI, roadmapPrompt, {
++            useFlash: true,
++            jsonMode: true,
++            temperature: 0.3, // Temp baja para anclar al canon
++            contextLabel: 'ArquitectoGenerateRoadmapUnified',
++        });
++
++        let pendingItems: PendingItem[] = [];
++        let roadmapCards: RoadmapCard[] = [];
++
++        if (result.text) {
++            const parsed = parseSecureJSON(result.text, 'ArquitectoGenerateRoadmapUnified');
++            if (parsed && !parsed.error) {
++                pendingItems = parsed.items || [];
++
++                const now = new Date().toISOString();        
++                roadmapCards = (parsed.roadmapCards || []).map((card: any, idx: number) => ({
++                    id: card.id || `card - ${Math.random().toString(36).substring(2, 7)} `,
++                    title: card.title || 'Fase sin título',  
++                    description: card.description || '',     
++                    status: (idx === 0 ? 'active' : 'locked') as CardStatus,
++                    order: idx, // Forzamos serialización ordenada
++                    phase: card.phase || 'fundacion',        
++                    missions: card.missions || [],
++                    dominoLinks: card.dominoLinks || [],     
++                    impactScore: card.impactScore ?? 0,      
++                    createdAt: now,
++                    updatedAt: now,
++                }));
++
++                // 3. WRITE BATCH ATÓMICO: Exorcismo y Persistencia
++                if (roadmapCards.length > 0) {
++                    const batch = db.batch();
++                    const roadmapBaseRef = sessionRef.collection('architect').doc('roadmap').collection('cards');
++
++                    // Borrar tarjetas fantasmas previas     
++                    const existingCardsSnap = await roadmapBaseRef.get();
++                    existingCardsSnap.docs.forEach(doc => {  
++                        batch.delete(doc.ref);
++                    });
++
++                    // Inyectar tarjetas nuevas
++                    for (const card of roadmapCards) {       
++                        batch.set(roadmapBaseRef.doc(card.id), card);
++                    }
++
++                    // Actualizar sesión general
++                    batch.set(sessionRef, {
++                        arquitectoState: 'architect',        
++                        pendingItems,
++                        updatedAt: new Date().toISOString(), 
++                    }, { merge: true });
++
++                    // Sobrescribir project_config con la nueva realidad (elimina fantasmas en UI)
++                    const projectConfigRef = db.collection('users').doc(userId).collection('profile').doc('project_config');
++                    batch.set(projectConfigRef, {
++                        arquitectoCachedPendingItems: pendingItems,
++                        lastArquitectoAnalysis: new Date().toISOString()
++                    }, { merge: true });
++
++                    await batch.commit();
++                    logger.info(`🗺️[ARQUITECTO] Generación Attómica Exitosa.${roadmapCards.length} tarjetas cristalizadas, historial y project_config limpios.`);
++                }
++            }
++        }
++
++        return { ready: true, roadmapCards, pendingItems };  
++    }
++);

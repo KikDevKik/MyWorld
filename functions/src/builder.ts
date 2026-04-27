@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
@@ -81,14 +82,15 @@ export const builderStream = onRequest(
 
       // 🟢 PRE-FETCH CONTEXT (Entities + Canon)
       // A. Entities Roster (Lightweight)
-      const entitiesSnapshot = await db.collection("users").doc(uid).collection("projects").doc(projectId).collection("entities")
-          .select("name", "type", "description")
+      const entitiesSnapshot = await db.collection("users").doc(uid).collection("WorldEntities")
+          .where("projectId", "==", projectId)
           .limit(300) // Reasonable limit for context window
           .get();
 
       const entitiesList = entitiesSnapshot.docs.map(doc => {
           const d = doc.data();
-          return `- ${d.name} (${d.type}) [ID: ${doc.id}]`;
+          const description = d.modules?.forge?.summary || "";
+          return `- ${d.name} (${d.category}) [ID: ${doc.id}]`;
       }).join("\n");
 
       // B. Canon Narrative Context (Semantic Vector Search)
@@ -319,7 +321,7 @@ export const builderStream = onRequest(
                  if (call.name === 'get_entity_context') {
                      const nameQuery = (call.args as any).name;
                      if (nameQuery) {
-                         const entitiesRef = db.collection("users").doc(uid).collection("projects").doc(projectId).collection("entities");
+                         const entitiesRef = db.collection("users").doc(uid).collection("WorldEntities").where("projectId", "==", projectId);
 
                          // 1. METADATA FETCH (Firestore)
                          const q = entitiesRef.where("name", "==", nameQuery).limit(1);
@@ -332,8 +334,8 @@ export const builderStream = onRequest(
                                  found: true,
                                  id: snap.docs[0].id,
                                  name: d.name,
-                                 type: d.type,
-                                 description: d.description,
+                                 type: d.category,
+                                 description: d.modules?.forge?.summary || "",
                                  isAnchor: true
                              };
                          }

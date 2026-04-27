@@ -4,9 +4,10 @@ import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getAIKey } from "./utils/security";
+import { MODEL_FLASH, MODEL_FLASH_2_5 } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
-const TTS_MODEL = 'gemini-2.5-pro-preview-tts';
+const TTS_MODEL = 'gemini-3.1-pro-tts'; // 🟢 Updated to 3.1 Pro TTS
 
 // Local Interface Definitions
 interface VoiceProfile {
@@ -59,7 +60,7 @@ export const generateSpeech = onCall(
         const { text, voiceProfile } = request.data;
 
         if (!text) {
-             throw new HttpsError("invalid-argument", "Falta el texto.");
+            throw new HttpsError("invalid-argument", "Falta el texto.");
         }
 
         // Use default profile if missing
@@ -94,20 +95,110 @@ export const generateSpeech = onCall(
 
             if (!part || !part.inlineData) {
                 if (part?.text) {
-                     logger.warn("TTS Model returned text instead of audio:", part.text);
-                     throw new HttpsError("internal", "Model returned text instead of audio");
+                    logger.warn("TTS Model returned text instead of audio:", part.text);
+                    throw new HttpsError("internal", "Model returned text instead of audio");
                 }
                 throw new HttpsError("internal", "Invalid response structure from TTS model.");
             }
 
-            return {
-                audioData: part.inlineData.data,
-                mimeType: part.inlineData.mimeType || 'audio/wav'
-            };
-
+            return { audioData: part.inlineData.data, mimeType: part.inlineData.mimeType || 'audio/wav' };
         } catch (error: any) {
             logger.error("Error en generateSpeech:", error);
             throw new HttpsError("internal", error.message);
         }
     }
 );
+
+const ANALYZE_MODEL_PRIMARY = MODEL_FLASH;
+const ANALYZE_MODEL_FALLBACK = MODEL_FLASH_2_5;
+const SCENE_ANALYSIS_BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+const ANALYZE_SYSTEM_INSTRUCTION = `
+You are an expert Audiobook Narrator and Director.
+Your task is to analyze the provided text scene and prepare it for a full Text-to-Speech performance.
+
+### CRITICAL RULES:
+1. **STORY COVERAGE**: You MUST include 100% of the *story* text (dialogue, narration, monologue) verbatim.
+2. **METADATA EXCLUSION**: Exclude Timeline markers, notes in brackets, structural markers like "---".
+3. **SEQUENCE**: Return segments in the exact order they appear in the text.
+4. **SEGMENTATION**: NARRATION for descriptive text; DIALOGUE for spoken text; INTERNAL_MONOLOGUE for thoughts.
+5. **ATTRIBUTION**: Identify speakerName and speakerId for DIALOGUE/MONOLOGUE. Narrator for NARRATION.
+6. **VOICE PROFILE**: gender: MALE/FEMALE/NEUTRAL, age: CHILD/TEEN/ADULT/ELDER, tone and emotion descriptors.
+
+### OUTPUT FORMAT:
+Return ONLY a valid JSON array.
+[{ "text": "...", "type": "DIALOGUE", "speakerId": "char_id", "speakerName": "Name", "voiceProfile": { "gender": "FEMALE", "age": "ADULT", "tone": "Sharp", "emotion": "Anger" } }]
+`;
+
+/**
+ * analyzeScene — Narrator service backend
+ * Analyzes a text scene server-side using Gemini and returns AudioSegment[] JSON.
+ * The API key is sourced from Firebase Secret Manager, never exposed to the client.
+ */
+export const analyzeScene = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        secrets: [googleApiKey],
+        memory: "1GiB",
+        timeoutSeconds: 120,
+    },
+    async (request) => {
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Login requerido.");
+        }
+
+        const { text, characterList } = request.data;
+        if (!text) {
+            throw new HttpsError("invalid-argument", "Falta el texto para analizar.");
+        }
+
+        const apiKey = getAIKey(request.data, googleApiKey.value());
+
+        const systemWithCharacters = `${ANALYZE_SYSTEM_INSTRUCTION}\n### CHARACTERS AVAILABLE:\n${characterList || '(None provided)'}`;
+
+        const tryModel = async (model: string): Promise<any[]> => {
+            const url = `${SCENE_ANALYSIS_BASE_URL}/${model}:generateContent?key=${apiKey}`;
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    systemInstruction: { parts: [{ text: systemWithCharacters }] },
+                    contents: [{ parts: [{ text: `Analyze this scene:\n\n"${text}"` }] }],
+                    generationConfig: { responseMimeType: "application/json" }
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Model ${model} error ${response.status}`);
+            }
+
+            const data = await response.json();
+            const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!textResponse) throw new Error("No response text from model.");
+
+            const clean = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
+            return JSON.parse(clean);
+        };
+
+        try {
+            logger.info(`📖 analyzeScene for ${request.auth.uid} (${text.length} chars)`);
+
+            let segments: any[];
+            try {
+                segments = await tryModel(ANALYZE_MODEL_PRIMARY);
+            } catch (primaryError) {
+                logger.warn(`⚠️ Primary model failed, using fallback:`, primaryError);
+                segments = await tryModel(ANALYZE_MODEL_FALLBACK);
+            }
+
+            return { segments };
+
+        } catch (error: any) {
+            logger.error("Error en analyzeScene:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);
+

@@ -42,7 +42,7 @@ export const NodeDetailsSidebar: React.FC<NodeDetailsSidebarProps> = ({ node, is
                         <div className="flex justify-between items-start mb-4">
                             <div className="flex items-center gap-3">
                                 <div className="p-2.5 bg-slate-800 rounded-lg border border-slate-700 shadow-lg">
-                                    {getTypeIcon(node.type)}
+                                    {getTypeIcon(node.type as EntityType)}
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-[10px] uppercase font-mono tracking-widest text-slate-400 mb-0.5">

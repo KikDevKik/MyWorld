@@ -3,6 +3,7 @@
 import { initializeApp, getApp, getApps } from "firebase/app";
 import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check";
 import { getAnalytics } from "firebase/analytics";
+import { initializeFirestore, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 
 // ¡¡¡TU "TESORO" VA AQUÍ!!!
 // (Ahora cargado desde variables de entorno para seguridad)
@@ -47,7 +48,7 @@ export interface SecurityStatus {
     error: string | null;
 }
 
-// 🛡️ SECURITY CENTRALIZATION (Mission 4)
+// 🛡️ SECURITY CENTRALIZATION
 export const initSecurity = async (): Promise<SecurityStatus> => {
     const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
@@ -57,97 +58,49 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         return { isReady: false, error: "MISSING_SITE_KEY" };
     }
 
-    console.log("🛡️ [SECURITY] Initializing ReCaptcha V3...");
-    console.log("🛡️ [SECURITY] Confirming Project ID:", import.meta.env.VITE_FIREBASE_PROJECT_ID);
-
-    // 🟢 DEBUG TOKEN (THROTTLING BYPASS & PRODUCTION OVERRIDE)
-    // Check for URL param 'debug_token' or localStorage key
-    let debugToken: string | boolean | null = null;
-    if (typeof window !== 'undefined') {
-        const urlParams = new URLSearchParams(window.location.search);
-        debugToken = urlParams.get('debug_token') || window.localStorage.getItem('FIREBASE_APPCHECK_DEBUG_TOKEN');
-        if (debugToken === 'true') debugToken = true;
+    // 🟢 LOCAL DEVELOPMENT: Skip App Check on localhost — use production Firebase directly (no emulator)
+    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
+        console.log("🛠️ [SECURITY] Localhost detected — skipping App Check, using production Firebase.");
+        return { isReady: true, error: null };
     }
 
-    // 🟢 MISSION CRITICAL: INJECT OFFICIAL DEBUG TOKEN FOR LOCALHOST
-    // This bypasses the 403 Throttling immediately.
-    if (typeof window !== 'undefined' && window.location.hostname === "localhost") {
-        console.log("💉 [SECURITY] Injecting Master Debug Token for Localhost...");
-        (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = "C2E1F3B5-CB81-43C4-B0F0-D5AE210621C8";
-        debugToken = "C2E1F3B5-CB81-43C4-B0F0-D5AE210621C8";
+    // 🟢 GHOST BYPASS (Jules agent mode)
+    if (import.meta.env.VITE_JULES_MODE === 'true') {
+        console.log("👻 [GHOST PROTOCOL] Skipping AppCheck validation.");
+        return { isReady: true, error: null };
     }
 
-    if (import.meta.env.DEV || debugToken) {
-        // Activate Debug Provider
-        // Note: If we injected above, this line is redundant but harmless as it sets the same value.
-        // We prioritize the explicit injection.
-        if (!((self as any).FIREBASE_APPCHECK_DEBUG_TOKEN)) {
-            (self as any).FIREBASE_APPCHECK_DEBUG_TOKEN = debugToken || true;
-        }
-        console.warn("⚠️ [SECURITY] DEBUG MODE ACTIVE - APP CHECK BYPASS ENABLED");
+    console.log("🛡️ [SECURITY] Initializing App Check (ReCaptcha V3) for production...");
 
-        if (debugToken === true) {
-            console.log("ℹ️ [SECURITY] Generating NEW Debug Token. Check console logs.");
-        } else {
-            console.log("ℹ️ [SECURITY] Using Custom Debug Token.");
-        }
-
-        // 👻 GHOST BYPASS (Legacy flag, kept for backward compat)
-        if (import.meta.env.VITE_JULES_MODE === 'true') {
-            console.log("👻 [GHOST PROTOCOL] Skipping AppCheck validation.");
-            return { isReady: true, error: null };
-        }
-    }
-
-
-
-    // 💀 KILL SWITCH ACTIVADO (PROTOCOLO 403 LOOP)
-    console.warn("💀 KILL SWITCH ACTIVADO: App Check desactivado para prevenir bucle infinito.");
-    return { isReady: true, error: null };
-
-    /*
     try {
         // 🟢 FAIL-OPEN WRAPPER (App Check Throttling Defense)
-        // Wraps the provider to catch 403 Forbidden errors and return a dummy token/null
-        // allowing the request to proceed "naked" to the backend (Unenforced Mode).
         const appCheckProvider = new ReCaptchaV3Provider(siteKey);
-        const originalGetToken = appCheckProvider.getToken.bind(appCheckProvider);
+        const originalGetToken = (appCheckProvider as any).getToken.bind(appCheckProvider);
 
-        appCheckProvider.getToken = async () => {
+        (appCheckProvider as any).getToken = async () => {
             try {
                 return await originalGetToken();
             } catch (error: any) {
-                // ⚠️ DETECT THROTTLING (403) OR NETWORK ERROR
                 console.warn("⚠️ App Check Throttled/Failed - Bypassing...", error);
-
-                // Return a dummy object so the SDK doesn't crash, but the token is invalid.
-                // The backend (Unenforced) will see an invalid/empty token and allow the request.
                 return {
                     token: "",
-                    expireTimeMillis: Date.now() + 3600 * 1000 // Fake 1h expiry
+                    expireTimeMillis: Date.now() + 3600 * 1000
                 };
             }
         };
 
-        // Initialize App Check with ReCAPTCHA V3
         const appCheck = initializeAppCheck(app, {
             provider: appCheckProvider,
             isTokenAutoRefreshEnabled: true
         });
         console.log("✅ [SECURITY] App Check Instance Created.");
 
-        // 🟢 CIRCUIT BREAKER: Force Token Fetch to Confirm Readiness
         try {
             await getToken(appCheck);
             console.log("✅ [SECURITY] Handshake Validated (Token Received).");
             return { isReady: true, error: null };
         } catch (tokenError: any) {
-            // 🟢 FAIL-OPEN PROTOCOL (SUPERVISION MODE)
-            // En lugar de bloquear la app, registramos el fallo y permitimos continuar.
-            // El backend está en modo "Unenforced", así que aceptará peticiones sin token.
-            console.warn("⚠️ App Check falló, intentando bypass...", tokenError);
-
-            // Retornamos éxito simulado para que la UI no muestre errores.
+            console.warn("⚠️ App Check token fetch failed, using fail-open mode...", tokenError);
             return { isReady: true, error: null };
         }
 
@@ -155,8 +108,14 @@ export const initSecurity = async (): Promise<SecurityStatus> => {
         console.error("💥 [SECURITY] App Check Initialization Failed:", error);
         return { isReady: false, error: "INIT_FAILED" };
     }
-    */
-    const analytics = getAnalytics(app);
 };
+
+// Inicializar Firestore explícitamente con la app.
+// Esto registra el singleton — todos los getFirestore() posteriores
+// devuelven esta misma instancia ya configurada.
+export const db = initializeFirestore(app, {
+    experimentalAutoDetectLongPolling: true,
+    cacheSizeBytes: CACHE_SIZE_UNLIMITED,
+});
 
 export default app;

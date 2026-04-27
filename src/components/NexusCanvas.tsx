@@ -22,13 +22,41 @@ import {
     Bug,
     Trash2
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch } from 'firebase/firestore';
+import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { GraphNode, EntityType } from '../types/graph';
+import { WorldEntity } from '../types/entity';
+import { EntityService } from '../services/EntityService';
 import CrystallizeModal from './ui/CrystallizeModal';
 import { callFunction } from '../services/api';
+
+// ── 🔄 ADAPTER: WorldEntity → GraphNode ─────────────────────────────────────────
+// Permite que NexusCanvas reciba WorldEntity del ECS sin tocar el JSX/D3.
+function toGraphNode(e: WorldEntity): GraphNode {
+    return {
+        id: e.id,
+        name: e.name,
+        projectId: e.projectId,
+        type: e.category,          // 'PERSON', 'CREATURE', etc. → type string
+        description: e.modules?.forge?.summary ?? '',
+        relations: e.modules?.nexus?.relations?.map(r => ({
+            targetId: r.targetId,
+            relation: r.relationType,
+            context: r.context,
+        })),
+        traits: e.modules?.forge?.smartTags,
+        aliases: e.modules?.forge?.aliases,
+        isGhost: e.tier === 'GHOST',
+        meta: {
+            tier: e.tier,
+            driveFileId: e.driveFileId,
+            isCrystallized: e.modules?.nexus?.builderMetadata?.isCrystallized,
+            brief: e.modules?.forge?.summary,
+        },
+    };
+}
 
 // 🟢 VISUAL TYPES
 interface VisualNode extends GraphNode {
@@ -36,10 +64,14 @@ interface VisualNode extends GraphNode {
     y?: number;
     vx?: number;
     vy?: number;
+    fx?: number | null;
+    fy?: number | null;
     // UI Flags
     isGhost?: boolean; // True = Local Draft (Idea)
     isRescue?: boolean; // True = Failed Save (Lifeboat)
     meta?: any; // 🟢 Fallback for meta
+    traits?: string[]; // 🟢 V3.0 Traits
+    content?: string; // 🟢 Added content
 }
 
 interface PendingCrystallization {
@@ -128,12 +160,12 @@ const FactionLabel: React.FC<{ name: string, x: number, y: number, count: number
 // 🟢 ENTITY CARD (OPTIMIZED: Memo + Ref + No Internal Drag)
 const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     node: VisualNode;
-    onClick: () => void;
-    onCrystallize?: () => void;
+    onSelect: (node: VisualNode) => void;
+    onCrystallizeAction?: (node: VisualNode) => void;
     onEdit?: (nodeId: string, updates: { name: string, description: string }) => void;
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
-}>(({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId }, ref) => {
+}>(({ node, onSelect, onCrystallizeAction, onEdit, lodTier, setHoveredNodeId }, ref) => {
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(node.name);
     const [editDesc, setEditDesc] = useState(node.description || "");
@@ -141,18 +173,39 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     // Detect Style
     let nodeStyleKey = 'default';
     const type = (node.type || '').toUpperCase();
+    const traits = node.traits || [];
 
-    if (type === 'CHARACTER' || type === 'PERSON') nodeStyleKey = 'character';
-    else if (type === 'LOCATION') nodeStyleKey = 'location';
-    else if (node.meta?.node_type === 'conflict' || type === 'ENEMY') nodeStyleKey = 'conflict';
-    else if (type === 'IDEA' || node.isGhost) nodeStyleKey = 'idea';
-    else if (['FACTION', 'EVENT', 'OBJECT'].includes(type)) nodeStyleKey = 'default';
+    // V3.0 Traits Logic (Priority)
+    if (traits.length > 0) {
+        if (traits.includes('sentient')) nodeStyleKey = 'character';
+        else if (traits.includes('locatable')) nodeStyleKey = 'location';
+        else if (traits.includes('abstract')) nodeStyleKey = 'idea';
+        // Fallback or specific mappings for others
+    } else {
+        // Fallback to legacy type
+        if (type === 'CHARACTER' || type === 'PERSON') nodeStyleKey = 'character';
+        else if (type === 'LOCATION') nodeStyleKey = 'location';
+        else if (node.meta?.node_type === 'conflict' || type === 'ENEMY') nodeStyleKey = 'conflict';
+        else if (type === 'IDEA' || node.isGhost) nodeStyleKey = 'idea';
+    }
 
     const style = NODE_STYLES[nodeStyleKey] || NODE_STYLES.default;
 
     // Icon Mapping
     const getIcon = () => {
         if (node.isRescue) return <AlertTriangle size={12} className="text-red-500 animate-pulse" />;
+        const traits = node.traits || [];
+
+        // V3.0 Traits Icons
+        if (traits.length > 0) {
+            if (traits.includes('sentient')) return <User size={12} />;
+            if (traits.includes('locatable')) return <MapPin size={12} />;
+            if (traits.includes('tangible')) return <Box size={12} />;
+            if (traits.includes('temporal')) return <Zap size={12} />;
+            if (traits.includes('organized')) return <Swords size={12} />;
+            if (traits.includes('abstract')) return <BrainCircuit size={12} />;
+        }
+
         const type = (node.type || '').toUpperCase();
         switch (type) {
             case 'CHARACTER':
@@ -210,12 +263,12 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                     // Prevent drag click from triggering click if moved? D3 handles this usually.
                     // e.stopPropagation(); // We want to allow D3 drag to not trigger this if dragged?
                     // Actually, for pure click:
-                    if (!isEditing) onClick();
+                    if (!isEditing) onSelect(node);
                 }}
             >
                 {isEditing ? (
                     <div className="flex flex-col gap-2 pointer-events-auto" onClick={e => e.stopPropagation()}>
-                         <input
+                        <input
                             className="bg-slate-900/50 border border-slate-700 rounded px-1 text-sm font-bold text-white outline-none focus:border-cyan-500"
                             value={editName}
                             onChange={e => setEditName(e.target.value)}
@@ -231,8 +284,8 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                             placeholder="Descripción..."
                         />
                         <div className="flex gap-1 justify-end mt-1">
-                            <button onClick={() => setIsEditing(false)} className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>
-                            <button onClick={handleSaveEdit} className="text-[10px] text-green-400 hover:text-white px-2 py-0.5 border border-green-500/30 rounded">OK</button>
+                            <button onClick={() => setIsEditing(false)} aria-label="Cancelar edición" className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>
+                            <button onClick={handleSaveEdit} aria-label="Guardar cambios" className="text-[10px] text-green-400 hover:text-white px-2 py-0.5 border border-green-500/30 rounded">OK</button>
                         </div>
                     </div>
                 ) : (
@@ -240,7 +293,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                         <div className="flex items-center justify-between">
                             <div className={`flex items-center gap-1.5 ${style.iconColor} font-mono font-bold text-[10px] uppercase tracking-wider`}>
                                 {getIcon()}
-                                <span className="truncate max-w-[80px]">{node.type}</span>
+                                <span className="truncate max-w-[80px]">{node.traits && node.traits.length > 0 ? node.traits[0] : node.type}</span>
                             </div>
                             {isMicro && node.isGhost && (
                                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -252,9 +305,9 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                                             <FileText size={10} />
                                         </button>
                                     )}
-                                    {onCrystallize && (
+                                    {onCrystallizeAction && (
                                         <button
-                                            onClick={(e) => { e.stopPropagation(); onCrystallize(); }}
+                                            onClick={(e) => { e.stopPropagation(); onCrystallizeAction(node); }}
                                             className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white transition-colors"
                                         >
                                             <Save size={10} />
@@ -286,7 +339,8 @@ export interface GraphSimulationHandle {
     // No methods needed currently, but keeping for future extensibility or D3 control
 }
 
-const GraphSimulation = forwardRef<GraphSimulationHandle, {
+// ⚡ OPTIMIZED: Memoized to prevent re-renders on parent state changes (e.g. hover)
+const GraphSimulation = React.memo(forwardRef<GraphSimulationHandle, {
     nodes: VisualNode[];
     lodTier: 'MACRO' | 'MESO' | 'MICRO';
     setHoveredNodeId: (id: string | null) => void;
@@ -309,7 +363,7 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
         // We want to preserve existing simulation nodes if possible to avoid re-layout?
         // But for now, simple sync.
         // We clone to avoid mutating props
-        const nextNodes = nodes.map(n => ({...n, x: n.x || undefined, y: n.y || undefined }));
+        const nextNodes = nodes.map(n => ({ ...n, x: n.x || undefined, y: n.y || undefined }));
         setSimNodes(nextNodes);
     }, [nodes]);
 
@@ -351,8 +405,17 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
             .force("collide", d3Force.forceCollide().radius(100).strength(0.7))
             .force("radial", d3Force.forceRadial(
                 (d: any) => {
-                    const type = (d.type || 'concept').toUpperCase();
+                    const traits = d.traits || [];
                     if (d.isGhost) return 900;
+
+                    if (traits.length > 0) {
+                        if (traits.includes('sentient')) return 100;
+                        if (traits.includes('organized')) return 300;
+                        if (traits.includes('locatable')) return 500;
+                        return 800;
+                    }
+
+                    const type = (d.type || 'concept').toUpperCase();
                     if (type === 'CHARACTER' || type === 'PERSON') return 100;
                     if (type === 'LOCATION') return 500;
                     if (type === 'FACTION') return 300;
@@ -384,7 +447,7 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
                 if (!event.active) simulation.alphaTarget(0.3).restart(); // Wake up!
                 d.fx = d.x;
                 d.fy = d.y;
-                if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grabbing';
+                if (nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grabbing';
             })
             .on("drag", (event, d) => {
                 d.fx = event.x;
@@ -398,18 +461,18 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
                 if (!event.active) simulation.alphaTarget(0); // Go back to sleep
                 d.fx = null;
                 d.fy = null;
-                if(nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grab';
+                if (nodeRefs.current[d.id]) nodeRefs.current[d.id].style.cursor = 'grab';
             });
 
         // Attach Drag to Refs
         // We use a timeout to ensure refs are populated after render
         setTimeout(() => {
-             simNodes.forEach((node: any) => {
-                 const el = nodeRefs.current[node.id];
-                 if (el) {
-                     d3Select(el).datum(node).call(dragBehavior as any);
-                 }
-             });
+            simNodes.forEach((node: any) => {
+                const el = nodeRefs.current[node.id];
+                if (el) {
+                    d3Select(el).datum(node).call(dragBehavior as any);
+                }
+            });
         }, 0);
 
         simulationRef.current = simulation;
@@ -422,8 +485,8 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
     // 🟢 RENDER
     return (
         <div className="relative w-[4000px] h-[4000px]">
-             {/* Background Grid */}
-             <div
+            {/* Background Grid */}
+            <div
                 className="absolute inset-0 opacity-20 pointer-events-none"
                 style={{
                     backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)',
@@ -435,22 +498,74 @@ const GraphSimulation = forwardRef<GraphSimulationHandle, {
             {simNodes.map((node) => (
                 <EntityCard
                     key={node.id}
-                    ref={(el) => { if(el) nodeRefs.current[node.id] = el; }}
+                    ref={(el) => { if (el) nodeRefs.current[node.id] = el; }}
                     node={node}
                     lodTier={lodTier}
                     setHoveredNodeId={setHoveredNodeId}
-                    onClick={() => onNodeClick(node)}
+                    onSelect={onNodeClick}
                     onEdit={onUpdateGhost}
-                    onCrystallize={() => onCrystallize(node)}
+                    onCrystallizeAction={onCrystallize}
                 />
             ))}
 
         </div>
     );
-});
+}));
 
 
 // 🟢 LINKS OVERLAY (Static Layer - "The Divorce")
+
+// ⚡ Bolt Optimization: Extracted LinkItem into a React.memo component
+// Why: Prevents O(N) re-renders of all Xarrow components when hovering a single node or link.
+// Impact: Reduces React rendering time from O(N) to O(1) on hover state changes.
+interface LinkItemProps {
+    link: any;
+    isFocused: boolean;
+    setHoveredLineId: (id: string | null) => void;
+}
+
+const LinkItem = React.memo(({ link, isFocused, setHoveredLineId }: LinkItemProps) => {
+    return (
+        <Xarrow
+            start={link.start}
+            end={link.end}
+            startAnchor="middle"
+            endAnchor="middle"
+            color={link.color}
+            strokeWidth={1.5}
+            headSize={3}
+            curveness={0.3}
+            path="smooth"
+            zIndex={0}
+            animateDrawing={false}
+            passProps={{
+                onMouseEnter: () => setHoveredLineId(link.key),
+                onMouseLeave: () => setHoveredLineId(null),
+                style: { cursor: 'pointer', pointerEvents: 'auto' }
+            }}
+            labels={{
+                middle: (
+                    <div
+                        className={`
+                            bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
+                            ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
+                        `}
+                        style={{
+                            borderColor: link.color,
+                            color: link.color,
+                            boxShadow: `0 0 5px ${link.color}20`,
+                            pointerEvents: 'auto'
+                        }}
+                        title={`${link.relation}: ${link.context || 'Sin contexto'}`}
+                    >
+                        {link.labelText}
+                    </div>
+                )
+            }}
+        />
+    );
+});
+
 export interface LinksOverlayHandle {
     forceUpdate: () => void;
 }
@@ -468,15 +583,53 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
         forceUpdate: () => updateXarrow()
     }));
 
-    // ⚡ O(N) Maps for O(1) Lookups
-    const { nodeMap, nodeNameMap } = useMemo(() => {
+    // ⚡ PRE-CALCULATE LINKS (Avoid O(N*M) in Render Loop)
+    const renderableLinks = useMemo(() => {
         const nMap = new Map<string, VisualNode>();
         const nameMap = new Map<string, VisualNode>();
+
+        // 1. Build Index O(N)
         nodes.forEach(n => {
             nMap.set(n.id, n);
             if (n.name) nameMap.set(n.name.toLowerCase().trim(), n);
         });
-        return { nodeMap: nMap, nodeNameMap: nameMap };
+
+        const links: any[] = [];
+
+        // 2. Resolve Links O(N*M) - Executed only when nodes change, not on every tick
+        nodes.forEach((node) => {
+            if (!node.relations) return;
+            node.relations.forEach((rel, idx) => {
+                // 🟢 ROBUST TARGET RESOLUTION
+                let targetNode = nMap.get(rel.targetId); // ⚡ O(1) Lookup
+
+                // Fallback: Name Match (Case Insensitive)
+                if (!targetNode && rel.targetName) {
+                    const normTarget = rel.targetName.toLowerCase().trim();
+                    targetNode = nameMap.get(normTarget); // ⚡ O(1) Lookup
+                }
+
+                if (!targetNode) return;
+
+                const lineId = `${node.id}-${targetNode.id}-${idx}`;
+                const relColor = getRelationColor(rel.relation);
+                const labelText = rel.context
+                    ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
+                    : rel.relation;
+
+                links.push({
+                    key: lineId,
+                    start: node.id,
+                    end: targetNode.id,
+                    color: relColor,
+                    relation: rel.relation,
+                    context: rel.context,
+                    labelText
+                });
+            });
+        });
+
+        return links;
     }, [nodes]);
 
     if (lodTier === 'MACRO') return null;
@@ -484,68 +637,17 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
     return (
         <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
             <Xwrapper>
-                {nodes.map((node) => {
-                    if (!node.relations) return null;
-                    return node.relations.map((rel, idx) => {
-                        // 🟢 ROBUST TARGET RESOLUTION
-                        let targetNode = nodeMap.get(rel.targetId); // ⚡ O(1) Lookup
+                {renderableLinks.map((link) => {
+                    const isFocused = hoveredNodeId === link.start || hoveredNodeId === link.end || hoveredLineId === link.key;
 
-                        // Fallback: Name Match (Case Insensitive)
-                        if (!targetNode && rel.target) {
-                            const normTarget = rel.target.toLowerCase().trim();
-                            targetNode = nodeNameMap.get(normTarget); // ⚡ O(1) Lookup
-                        }
-
-                        if (!targetNode) return null;
-
-                        const lineId = `${node.id}-${targetNode.id}-${idx}`;
-                        const isFocused = hoveredNodeId === node.id || hoveredNodeId === targetNode.id || hoveredLineId === lineId;
-                        const relColor = getRelationColor(rel.relation);
-                        const labelText = rel.context
-                            ? (rel.context.length > 30 ? rel.context.substring(0, 27) + "..." : rel.context)
-                            : rel.relation;
-
-                        return (
-                            <Xarrow
-                                key={lineId}
-                                start={node.id}
-                                end={targetNode.id}
-                                startAnchor="middle"
-                                endAnchor="middle"
-                                color={relColor}
-                                strokeWidth={1.5}
-                                headSize={3}
-                                curveness={0.3}
-                                path="smooth"
-                                zIndex={0}
-                                animateDrawing={false}
-                                passProps={{
-                                    onMouseEnter: () => setHoveredLineId(lineId),
-                                    onMouseLeave: () => setHoveredLineId(null),
-                                    style: { cursor: 'pointer', pointerEvents: 'auto' }
-                                }}
-                                labels={{
-                                    middle: (
-                                        <div
-                                            className={`
-                                                bg-black/90 backdrop-blur text-[9px] px-2 py-0.5 rounded-full border max-w-[200px] truncate cursor-help transition-all duration-300
-                                                ${isFocused ? 'opacity-100 scale-100 z-50' : 'opacity-0 scale-90 -z-10'}
-                                            `}
-                                            style={{
-                                                borderColor: relColor,
-                                                color: relColor,
-                                                boxShadow: `0 0 5px ${relColor}20`,
-                                                pointerEvents: 'auto'
-                                            }}
-                                            title={`${rel.relation}: ${rel.context || 'Sin contexto'}`}
-                                        >
-                                            {labelText}
-                                        </div>
-                                    )
-                                }}
-                            />
-                        );
-                    });
+                    return (
+                        <LinkItem
+                            key={link.key}
+                            link={link}
+                            isFocused={isFocused}
+                            setHoveredLineId={setHoveredLineId}
+                        />
+                    );
                 })}
             </Xwrapper>
         </div>
@@ -554,7 +656,7 @@ const LinksOverlay = forwardRef<LinksOverlayHandle, {
 
 
 // 🟢 MAIN COMPONENT
-const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
+const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> = ({ isOpen = true, accessToken }) => {
     const graphRef = useRef<GraphSimulationHandle>(null);
     const linksOverlayRef = useRef<LinksOverlayHandle>(null);
     const { config, user } = useProjectConfig();
@@ -585,7 +687,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 const parsed = JSON.parse(savedRescue) as PendingCrystallization[];
                 setPendingNodes(parsed);
                 initialGhosts = parsed.map(p => ({ ...p.node, isGhost: true, isRescue: true }));
-            } catch (e) {}
+            } catch (e) { }
         }
         const savedDrafts = localStorage.getItem(DRAFTS_KEY);
         if (savedDrafts) {
@@ -594,7 +696,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 const rescueIds = new Set(initialGhosts.map(n => n.id));
                 const uniqueDrafts = parsedDrafts.filter(d => !rescueIds.has(d.id));
                 initialGhosts = [...initialGhosts, ...uniqueDrafts];
-            } catch (e) {}
+            } catch (e) { }
         }
         if (initialGhosts.length > 0) setGhostNodes(prev => [...prev, ...initialGhosts]);
     }, []);
@@ -632,10 +734,9 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         setIsCrystallizing(true);
 
         try {
-            const token = localStorage.getItem('google_drive_token');
-            if (!token) throw new Error("Falta Token.");
+            if (!accessToken) throw new Error("Falta Token. Asegúrate de haber iniciado sesión y concedido permisos.");
             await callFunction('crystallizeNode', {
-                accessToken: token,
+                accessToken: accessToken,
                 folderId: data.folderId,
                 fileName: data.fileName,
                 content: targetNode.content || `# ${targetNode.name}\n\n*Creado via NexusCanvas*`,
@@ -655,20 +756,25 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         }
     };
 
-    // Data Subscription
+    // Data Subscription — Unified Knowledge Graph
     useEffect(() => {
         if (!user || !config?.folderId) {
             setLoading(false);
             return;
         }
-        const db = getFirestore();
-        const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
-        const unsubscribe = onSnapshot(entitiesRef, (snapshot) => {
-            const loaded: GraphNode[] = [];
-            snapshot.forEach(doc => loaded.push(doc.data() as GraphNode));
-            setDbNodes(loaded);
-            setLoading(false);
-        });
+        // 🟢 ECS: query users/{userId}/WorldEntities filtrado por projectId
+        const unsubscribe = EntityService.subscribeToAllEntities(
+            user.uid,
+            config.folderId,
+            (entities: WorldEntity[]) => {
+                setDbNodes(entities.map(toGraphNode));
+                setLoading(false);
+            },
+            (err) => {
+                console.error('[NexusCanvas] WorldEntities subscription error:', err);
+                setLoading(false);
+            }
+        );
         return () => unsubscribe();
     }, [user, config?.folderId]);
 
@@ -679,14 +785,26 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         return combined;
     }, [dbNodes, ghostNodes]);
 
-    // Handlers
-    const handleUpdateGhost = (nodeId: string, updates: any) => {
+    // Handlers (Memoized for Performance)
+    const handleUpdateGhost = useCallback((nodeId: string, updates: any) => {
         setGhostNodes(prev => prev.map(g => g.id === nodeId ? { ...g, ...updates } : g));
-    };
+    }, []);
+
+    const handleNodeClick = useCallback((n: VisualNode) => {
+        console.log("Clicked", n.name);
+    }, []);
+
+    const handleCrystallize = useCallback((n: VisualNode) => {
+        setCrystallizeModal({ isOpen: true, node: n });
+    }, []);
+
+    const handleTick = useCallback(() => {
+        linksOverlayRef.current?.forceUpdate();
+    }, []);
 
     const spawnDebugNodes = (count: number = 50) => {
-         const newGhosts: VisualNode[] = [];
-         for (let i = 0; i < count; i++) {
+        const newGhosts: VisualNode[] = [];
+        for (let i = 0; i < count; i++) {
             const id = `debug-${Date.now()}-${i}`;
             const r = Math.random();
             // Cast to any to bypass strict enum check for debug
@@ -695,7 +813,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
             if (i > 0) {
                 // Link to previous for chain
                 relations.push({
-                    targetId: `debug-${Date.now()}-${i-1}`, // This ID might be slightly off if Date.now changes?
+                    targetId: `debug-${Date.now()}-${i - 1}`, // This ID might be slightly off if Date.now changes?
                     // Wait, Date.now() is constant in the loop? No, loop is fast but Date.now() might be same.
                     // Better to assign IDs first.
                     relation: 'FRIEND',
@@ -709,27 +827,27 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 description: "Test node",
                 projectId: config?.folderId || 'debug',
                 isGhost: true,
-                x: 2000 + (Math.random()-0.5)*1000,
-                y: 2000 + (Math.random()-0.5)*1000,
+                x: 2000 + (Math.random() - 0.5) * 1000,
+                y: 2000 + (Math.random() - 0.5) * 1000,
                 relations: [],
                 meta: {}
             });
-         }
+        }
 
-         // Post-link to avoid ID issues
-         for(let i=1; i<count; i++) {
-             newGhosts[i].relations = [{
-                 targetId: newGhosts[i-1].id,
-                 targetName: newGhosts[i-1].name,
-                 targetType: newGhosts[i-1].type,
-                 relation: 'ALLY',
-                 context: 'Swarm Connection',
-                 sourceFileId: 'debug'
-             }];
-         }
+        // Post-link to avoid ID issues
+        for (let i = 1; i < count; i++) {
+            newGhosts[i].relations = [{
+                targetId: newGhosts[i - 1].id,
+                targetName: newGhosts[i - 1].name,
+                targetType: newGhosts[i - 1].type,
+                relation: 'ALLY',
+                context: 'Swarm Connection',
+                sourceFileId: 'debug'
+            }];
+        }
 
-         setGhostNodes(prev => [...prev, ...newGhosts]);
-         toast.success(`🪲 +${count} Nodos`);
+        setGhostNodes(prev => [...prev, ...newGhosts]);
+        toast.success(`🪲 +${count} Nodos`);
     };
 
     const handleClearAll = async () => {
@@ -741,22 +859,22 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
 
         // 2. Delete Canon Nodes (Firestore)
         if (user && config?.folderId) {
-             const db = getFirestore();
-             const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
-             try {
-                 const snapshot = await getDocs(entitiesRef);
-                 const batch = writeBatch(db);
-                 snapshot.docs.forEach((doc) => {
-                     batch.delete(doc.ref);
-                 });
-                 await batch.commit();
-                 toast.success("🗑️ Todo eliminado (Local + DB).");
-             } catch (e: any) {
-                 console.error(e);
-                 toast.error("Error borrando DB: " + e.message);
-             }
+            const db = getFirestore();
+            const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
+            try {
+                const snapshot = await getDocs(entitiesRef);
+                const batch = writeBatch(db);
+                snapshot.docs.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                await batch.commit();
+                toast.success("🗑️ Todo eliminado (Local + DB).");
+            } catch (e: any) {
+                console.error(e);
+                toast.error("Error borrando DB: " + e.message);
+            }
         } else {
-             toast.success("🗑️ Vista local limpia.");
+            toast.success("🗑️ Vista local limpia.");
         }
     };
 
@@ -769,34 +887,35 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
         // Actually I should preserve the logic.
 
         try {
-             toast.info("🧠 Contactando al Motor...");
-             const data = await callFunction<any>('worldEngine', {
+            toast.info("🧠 Contactando al Motor...");
+            if (!accessToken) throw new Error("Falta Token.");
+            const data = await callFunction<any>('worldEngine', {
                 prompt: inputValue,
                 agentId: 'nexus-terminal',
                 chaosLevel: entropy,
                 context: { canon_dump: "", timeline_dump: "" },
                 currentGraphContext: unifiedNodes.slice(0, 20),
-                accessToken: localStorage.getItem('google_drive_token')
-             });
+                accessToken: accessToken
+            });
 
-             if(data.newNodes) {
-                 const newG = data.newNodes.map((n: any) => ({
-                     id: n.id || `ai-${Date.now()}`,
-                     name: n.title,
-                     type: (n.metadata?.node_type || 'IDEA').toUpperCase(),
-                     description: n.content,
-                     isGhost: true,
-                     x: 2000, y: 2000,
-                     meta: n.metadata
-                 }));
-                 setGhostNodes(p => [...p, ...newG]);
-                 toast.success("✨ Ideas generadas.");
-             }
-             setInputValue("");
-        } catch(e: any) {
+            if (data.newNodes) {
+                const newG: VisualNode[] = data.newNodes.map((n: any) => ({
+                    id: n.id || `ai-${Date.now()}`,
+                    name: n.title,
+                    type: (n.metadata?.node_type || 'IDEA').toUpperCase() as EntityType,
+                    description: n.content,
+                    isGhost: true,
+                    x: 2000, y: 2000,
+                    meta: n.metadata
+                }));
+                setGhostNodes(p => [...p, ...newG]);
+                toast.success("✨ Ideas generadas.");
+            }
+            setInputValue("");
+        } catch (e: any) {
             toast.error("Error: " + e.message);
             // Fallback
-             setGhostNodes(p => [...p, { id: `manual-${Date.now()}`, name: inputValue, type: 'IDEA' as any, isGhost: true, projectId: 'temp', x: 2000, y: 2000, meta: {} }]);
+            setGhostNodes(p => [...p, { id: `manual-${Date.now()}`, name: inputValue, type: 'IDEA' as any, description: '', isGhost: true, projectId: 'temp', x: 2000, y: 2000, meta: {} }]);
         } finally {
             setIsGenerating(false);
         }
@@ -804,17 +923,17 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
 
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
-             {/* WARMUP */}
-             <AnimatePresence>
+            {/* WARMUP */}
+            <AnimatePresence>
                 {loading && (
                     <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-[#141413] z-[100] flex items-center justify-center pointer-events-none">
-                         <div className="text-cyan-500 font-mono">CARGANDO NEXUS...</div>
+                        <div className="text-cyan-500 font-mono">CARGANDO NEXUS...</div>
                     </motion.div>
                 )}
-             </AnimatePresence>
+            </AnimatePresence>
 
-             {/* CANVAS WRAPPER */}
-             <TransformWrapper
+            {/* CANVAS WRAPPER */}
+            <TransformWrapper
                 initialScale={0.8}
                 minScale={0.1}
                 maxScale={3}
@@ -823,7 +942,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                 wheel={{ step: 0.1 }}
                 panning={{ activationKeys: ["Shift"], excluded: ["nodrag"] }} // 🔒 EXCLUDED CLASS
                 onPanning={() => linksOverlayRef.current?.forceUpdate()}
-                onZooming={() => linksOverlayRef.current?.forceUpdate()}
+                onZoom={() => linksOverlayRef.current?.forceUpdate()}
                 onTransformed={(ref) => {
                     linksOverlayRef.current?.forceUpdate();
                     const s = ref.state.scale;
@@ -831,7 +950,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                     else if (s > 2.0) setLodTier('MICRO');
                     else setLodTier('MESO');
                 }}
-             >
+            >
                 {({ zoomIn, zoomOut }) => (
                     <>
                         {/* 🟢 LINKS OVERLAY (Separated Layer) */}
@@ -853,52 +972,53 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                                 nodes={unifiedNodes}
                                 lodTier={lodTier}
                                 setHoveredNodeId={setHoveredNodeId}
-                                onNodeClick={(n) => console.log("Clicked", n.name)}
+                                onNodeClick={handleNodeClick}
                                 onUpdateGhost={handleUpdateGhost}
-                                onCrystallize={(n) => setCrystallizeModal({ isOpen: true, node: n })}
+                                onCrystallize={handleCrystallize}
                                 isLoading={loading}
-                                onTick={() => linksOverlayRef.current?.forceUpdate()}
+                                onTick={handleTick}
                             />
                         </TransformComponent>
 
-                         {/* ZOOM CONTROLS */}
+                        {/* ZOOM CONTROLS */}
                         <div className="absolute bottom-24 right-6 flex flex-col gap-2 pointer-events-auto">
-                            <button onClick={handleClearAll} className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title="Limpiar Todo (DB + Local)"><Trash2 size={16} /></button>
-                            <button onClick={() => spawnDebugNodes(50)} className="p-2 bg-red-900/50 border border-red-700 rounded text-red-500 mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
-                            <button onClick={() => zoomIn()} className="p-2 bg-slate-900 border border-slate-700 rounded"><Plus size={16} /></button>
-                            <button onClick={() => zoomOut()} className="p-2 bg-slate-900 border border-slate-700 rounded"><div className="w-4 h-[2px] bg-white my-2" /></button>
+                            <button onClick={handleClearAll} aria-label="Limpiar Todo (DB + Local)" className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title="Limpiar Todo (DB + Local)"><Trash2 size={16} /></button>
+                            <button onClick={() => spawnDebugNodes(50)} aria-label="Debug: Spawn Swarm" className="p-2 bg-red-900/50 border border-red-700 rounded text-red-500 mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
+                            <button onClick={() => zoomIn()} aria-label="Acercar vista" className="p-2 bg-slate-900 border border-slate-700 rounded"><Plus size={16} /></button>
+                            <button onClick={() => zoomOut()} aria-label="Alejar vista" className="p-2 bg-slate-900 border border-slate-700 rounded"><div className="w-4 h-[2px] bg-white my-2" /></button>
                         </div>
                     </>
                 )}
-             </TransformWrapper>
+            </TransformWrapper>
 
-             {/* TERMINAL (Same as before) */}
-             <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl pointer-events-auto z-50">
+            {/* TERMINAL (Same as before) */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 w-full max-w-xl pointer-events-auto z-50">
                 <div className="bg-slate-950/90 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl p-1 flex flex-col gap-0">
                     <form onSubmit={handleInputEnter} className="flex items-center gap-2 p-2">
                         <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-900 border border-slate-800">
-                             {isGenerating ? <Loader2 size={16} className="animate-spin text-cyan-500" /> : <Globe size={16} className="text-cyan-500" />}
+                            {isGenerating ? <Loader2 size={16} className="animate-spin text-cyan-500" /> : <Globe size={16} className="text-cyan-500" />}
                         </div>
                         <input
                             type="text"
+                            aria-label="Comando para el Nexus"
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
                             placeholder={isGenerating ? "Procesando..." : "Inyectar variable..."}
                             disabled={isGenerating}
                             className="flex-1 bg-transparent outline-none text-sm text-white placeholder-slate-600 font-mono"
                         />
-                        <button type="submit" disabled={isGenerating} className="text-slate-500 hover:text-white"><Plus size={20} /></button>
+                        <button type="submit" aria-label="Ejecutar comando" disabled={isGenerating} className="text-slate-500 hover:text-white"><Plus size={20} /></button>
                     </form>
                     {/* Entropy Slider */}
                     <div className="h-1 w-full bg-slate-900 relative rounded-full overflow-hidden mx-2 mb-2 max-w-[96%] self-center">
                         <div className={`absolute top-0 left-0 h-full ${entropy > 0.6 ? "bg-red-500" : "bg-cyan-500"}`} style={{ width: `${entropy * 100}%` }} />
-                        <input type="range" min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
+                        <input type="range" aria-label="Nivel de Entropía" min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
                     </div>
                 </div>
-             </div>
+            </div>
 
-             {/* MODAL */}
-             <AnimatePresence>
+            {/* MODAL */}
+            <AnimatePresence>
                 {crystallizeModal.isOpen && (
                     <CrystallizeModal
                         isOpen={crystallizeModal.isOpen}
@@ -912,7 +1032,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean }> = ({ isOpen = true }) => {
                         isProcessing={isCrystallizing}
                     />
                 )}
-             </AnimatePresence>
+            </AnimatePresence>
         </div>
     );
 };

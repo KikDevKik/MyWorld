@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, ArrowUpCircle, Loader2, PawPrint, Flower, Zap } from 'lucide-react';
 import { toast } from 'sonner';
-import Editor from '../editor/Editor';
+// import Editor from '../editor/Editor'; // Removido por depreciación
 import { callFunction } from '../../services/api';
 import { Character, EntityCategory } from '../../types';
+import HybridEditor from '../../editor/HybridEditor';
 
 interface ForgeSoulProps {
     activeChar: Character;
@@ -119,10 +120,9 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
             {/* EDITOR AREA */}
             <div className="flex-1 overflow-hidden relative">
                 {activeChar.tier === 'MAIN' ? (
-                    <Editor
+                    <HybridEditor
                         content={content}
-                        fileId={activeChar.masterFileId || ''}
-                        onChange={handleContentChange}
+                        onContentChange={handleContentChange}
                         readOnly={false}
                     />
                 ) : (

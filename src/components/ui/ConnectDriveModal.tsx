@@ -41,9 +41,19 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in">
-            <div className="w-[450px] bg-[#09090b] border border-gray-800 rounded-2xl shadow-2xl p-6 relative animate-slide-up">
+            <div
+                className="w-[450px] bg-[#09090b] border border-gray-800 rounded-2xl shadow-2xl p-6 relative animate-slide-up"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="connect-drive-title"
+                aria-describedby="connect-drive-description"
+            >
 
-                <button onClick={onClose} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors outline-none">
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT rounded-sm"
+                    aria-label="Cerrar modal"
+                >
                     <X size={20} />
                 </button>
 
@@ -53,18 +63,19 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
                             <HardDrive size={24} className="text-gray-200" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-bold text-white">Conexión Neuronal</h2>
-                            <p className="text-xs text-gray-400">Enlaza tu Google Drive</p>
+                            <h2 id="connect-drive-title" className="text-lg font-bold text-white">Conexión Neuronal</h2>
+                            <p id="connect-drive-description" className="text-xs text-gray-400">Enlaza tu Google Drive</p>
                         </div>
                     </div>
 
                     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">
+                            <label htmlFor="drive-id-input" className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">
                                 ID de la Carpeta o Enlace
                             </label>
 
                             <input
+                                id="drive-id-input"
                                 type="text"
                                 autoFocus
                                 value={inputId}

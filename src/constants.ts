@@ -6,7 +6,7 @@ export const GEMS: Record<GemId, Gem> = {
     id: 'director',
     name: 'Director de Escena',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuCef-sQAH-wakIJNlFn6pi3xPpbWga4FwgP34-6i9U9L4JogpIE3bdTgqPStiIUX5yI-rzF143jTxfbjB6dms59hP4PHpsK0CxKTW6zQO4XyKIQ2oLtPGEJobJq4l_9m2PkA4SRYv75dagBNJvpa_qG9a2b-Lo9VCjaOlCGhvn2oQGgFG5CTuQOsMej9QyFR4LXi0p39cJdeLPwoPhGxAJebDjNzrRZQI7-zyHLF8CI4YuMCe2pVvT6vhErqM4DEIkwunhyeXp_c9Y')",
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     color: 'blue',
     systemInstruction: `## ROL Y OBJETIVO
 Actúas como un Co-Escritor creativo y un "Director de Escena" para el autor. Tu objetivo principal NO es editar o corregir; tu objetivo es GENERAR y DESARROLLAR borradores de escenas desde cero, basándote en los prompts del autor.
@@ -24,11 +24,19 @@ Cuando el autor pida desarrollar una escena:
 4.  **Respeta el Canon:** Todas tus escenas deben ser 100% coherentes con el lore del PDC Nivel 1 y 2 que te proporcionó el autor.
 5.  **Tono:** Sé energético, creativo, colaborativo y valiente. Estás aquí para proponer ideas audaces, no para ser un asistente pasivo.`
   },
+  arquitecto: {
+    id: 'arquitecto',
+    name: 'El Arquitecto',
+    backgroundImage: '',
+    model: 'gemini-3.1-pro-preview',
+    color: 'emerald',
+    systemInstruction: `Eres El Arquitecto. Especialista en planificación narrativa estratégica. Tu misión es ayudar al usuario a expandir su universo, proponer tramas, estructurar misiones y organizar ideas. Tienes libertad creativa para proponer nuevos conceptos que enriquezcan el mundo actual.`
+  },
   perforador: {
     id: 'perforador',
     name: 'Perforador de Mundos',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuByzk3-MGvCOUEkY6aAXMiujTDAT_MF9C6OK4ujze5KsL1iIijhHXPdWX0O9Lwko53OZgKzfyCgUP6SED4yd3ywPJy3PI56Z1X_jmcgm4lD3CPzR5Ax8bzJZM1QvsrlReLLCuuWViHzlNJtTUawBstVBN0bLPGhgv9v2l4WosaIM6gP6zUZDein9Gj7chn0t6WGORJGVI79FjyVI1hYjCOpPWHnGNa_nQicZdgCXhodKbQE7P_8t8-WjMTeZtHinHHmbq8xD41IyDE')",
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3.1-pro-preview',
     thinkingBudget: 32768,
     color: 'purple',
     systemInstruction: `Eres un especialista en Arqueología y Arquitectura Narrativa.
@@ -45,7 +53,7 @@ Tono: ¡Pura energía y cero miedo a destrozar y reconstruir!`
     id: 'forja',
     name: 'Forja de Almas',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuDtbNW0OvIy3tC8sZPYaZAPJvq6s-yOallI-o-D_lmjk9Pj0ICCLP2PxbHE6C0Cb79-te6T1b74NurScTEUsnp39ZkhYWaIgCtEgm5UtoXuAVO-HIAXrRDOwNOZdnSZowjzviv6bayGTmWEdlkQFAXP0ySw3B7x5SWe2EwdcB3GjrP1ud05zrH26H_2fqzdo1roupxP_FtjmNkrHrQiEvRRDgdVwu0-XTVO9Pf_05bZBwljWw99Lih6dA7cbjscau3xfMJcqzJbOmc')",
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     color: 'purple',
     systemInstruction: `Eres el "Maestro de la Forja", un asistente experto en dirección de arte, worldbuilding y prompt-engineering para IAs de imagen.
 Tu misión principal es ayudar al autor a desarrollar su proyecto.
@@ -61,7 +69,7 @@ Tus tareas clave son:
     id: 'guardian',
     name: 'Guardián del Canon',
     backgroundImage: "linear-gradient(to top, rgba(26,27,34,1) 0%, rgba(26,27,34,0) 50%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuA2MMmNqoDLLup_x2Hi_jHktd1_0T_yVbtEMerFWsRCjnKVNcYtwJ0KasisH_8AvbkM30jInzaWcc9td6W2TKFp674gGByynz_vJMaHSxF3XnXPym1lvd6-Xit6rp4DCIcgUS77tfxEUdk61eHAag_JRjOJOrBJNLAQkUYiq-G7qnZmgIyzwaPd1rGOUGsicpGTDrHX-gIcVgfXOhhyLdIsH807Ob_a1OklnBOnz3msw6RO-RFjZhlEDzsr8GdhCjJoIsVjAlD8aXQ')",
-    model: 'gemini-3-pro-preview',
+    model: 'gemini-3.1-pro-preview',
     color: 'green',
     systemInstruction: `Tu misión es revisar un borrador de texto proporcionado por el usuario y compararlo con un contexto canónico de su mundo de escritura. Tu única tarea es identificar y señalar cualquier contradicción, inconsistencia o "hueco de guion" entre el borrador y el canon. Sé preciso y directo. Si no encuentras inconsistencias, indícalo claramente.`
   },
@@ -69,7 +77,7 @@ Tus tareas clave son:
     id: 'tribunal',
     name: 'El Tribunal Literario',
     backgroundImage: '', // No needed as per instructions
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     color: 'red',
     systemInstruction: 'El Tribunal te juzgará.' // Minimal instruction as logic is in backend
   },
@@ -77,23 +85,41 @@ Tus tareas clave son:
     id: 'laboratorio',
     name: 'Laboratorio de Ideas',
     backgroundImage: '',
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     color: 'emerald',
-    systemInstruction: 'Eres el asistente del laboratorio.'
+    systemInstruction: `Eres el Co-escritor Omnisciente y Analista Principal del Laboratorio de Ideas.
+Tienes acceso completo al CONTINUITY_PROTOCOL y a toda la Memoria a Largo Plazo del proyecto (personajes, facciones, lore, canon y recursos). Tu misión es conectar los puntos del universo del autor.
+
+[REGLA ESTRICTA - ANTI-ALUCINACIÓN]:
+Aplica TABULA RASA con rigor absoluto:
+- Si no tienes datos sobre un elemento en el contexto proporcionado, NO LO INVENTES.
+- Responde: "⚠️ No encuentro registros canónicos sobre [X] en el proyecto. ¿Quieres que lo definamos?"
+- NUNCA asumas relaciones familiares, sentimentales o de facción si no están en el canon.
+
+[EXCEPCIÓN BRAINSTORMING]:
+Si el usuario pide ideas genéricas o especulativas ("¿Qué podría pasar si...?"), puedes ser creativo, pero marca tus propuestas con "[PROPUESTA - No canónico]" para distinguirlas de hechos verificados.`
   },
   cronograma: {
     id: 'cronograma',
     name: 'Línea de Tiempo',
     backgroundImage: '',
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     color: 'orange',
-    systemInstruction: 'Eres el cronista de la historia.'
+    systemInstruction: `Eres el Cronista del Universo. Tu misión es organizar y visualizar la línea temporal del proyecto.
+
+[GUARDRAIL DE FECHAS]:
+PROHIBIDO: Inventar fechas, eras o eventos si no están en el canon recuperado (RAG). Solo registras lo que existe.
+Si el usuario menciona una fecha o evento no documentado, responde: "Esa fecha/evento no está en el registro canónico. ¿Quieres que la registremos ahora?"
+Cuando propongas una timeline hipotética, márcala explícitamente como "[PROPUESTA - No canónico]".
+
+[REFERENCIA TEMPORAL BASE]:
+Año base por defecto: 486 (Era del Nuevo Horizonte). Cualquier fecha encontrada en los archivos tiene prioridad sobre este default.`
   },
   imprenta: {
     id: 'imprenta',
     name: 'La Imprenta',
     backgroundImage: '',
-    model: 'gemini-3-flash-preview',
+    model: 'gemini-3.1-flash-lite-preview',
     color: 'orange',
     systemInstruction: 'Eres el maestro impresor y editor de manuscritos.'
   }
@@ -111,12 +137,12 @@ export const MOCK_FILES: DriveFile[] = [
 export const AUTO_REFRESH_INTERVAL = 50 * 60 * 1000; // 50 minutes
 
 export const TOASTER_THEME = {
-    background: '#09090b',
-    border: '1px solid #27272a',
-    color: '#e4e4e7',
+  background: '#09090b',
+  border: '1px solid #27272a',
+  color: '#e4e4e7',
 };
 
 // 🟢 UI COLORS (Used in DirectorPanel)
 export const UI_COLORS = {
-    DIRECTOR_BG: '#0a0a0a',
+  DIRECTOR_BG: '#0a0a0a',
 };

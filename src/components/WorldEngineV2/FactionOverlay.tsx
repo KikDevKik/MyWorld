@@ -15,17 +15,23 @@ const stringToColor = (str: string): string => {
     return `hsl(${h}, ${s}%, ${l}%)`;
 };
 
-// 🟢 HELPER: GROUP NODES BY FACTION
-const groupNodesByFaction = (nodes: VisualNode[]) => {
+// ⚡ Bolt Optimization: Define Group Structure Interface
+interface FactionGroup {
+    id: string;
+    name: string;
+    members: VisualNode[]; // Hold references to mutable nodes
+    isAnchor: boolean;
+    color: string; // Calculated once
+}
+
+// 🟢 HELPER: GROUP NODES BY FACTION (Structural - O(N*R))
+// This runs only when graph topology changes (nodes added/removed/edited)
+const getFactionGroups = (nodes: VisualNode[]): FactionGroup[] => {
     // Map of GroupID -> Group Data
     // We strictly follow "One Man, One Empire" policy.
-    const groups: Record<string, { id: string, name: string, points: [number, number][], isAnchor: boolean }> = {};
+    const groups: Record<string, FactionGroup> = {};
 
     nodes.forEach(node => {
-        // 0. Safety Check: Valid Coordinates
-        if (typeof node.x !== 'number' || typeof node.y !== 'number') return;
-        const pt: [number, number] = [node.x, node.y];
-
         let groupId: string | null = null;
         let groupName = "";
         let isAnchor = false;
@@ -60,7 +66,13 @@ const groupNodesByFaction = (nodes: VisualNode[]) => {
         // 4. ADD TO GROUP
         if (groupId) {
              if (!groups[groupId]) {
-                 groups[groupId] = { id: groupId, name: groupName, points: [], isAnchor: false };
+                 groups[groupId] = {
+                     id: groupId,
+                     name: groupName,
+                     members: [],
+                     isAnchor: false,
+                     color: stringToColor(groupName) // Calculate color ONCE
+                 };
              }
 
              // Update name logic:
@@ -69,16 +81,73 @@ const groupNodesByFaction = (nodes: VisualNode[]) => {
              if (isAnchor) {
                  groups[groupId].name = groupName;
                  groups[groupId].isAnchor = true;
+                 // Recalculate color if name changed (rare but possible)
+                 groups[groupId].color = stringToColor(groupName);
              } else if (!groups[groupId].name && groupName) {
                  // If we didn't have a name (e.g. created by ID only?), set it.
                  groups[groupId].name = groupName;
+                 groups[groupId].color = stringToColor(groupName);
              }
 
-             groups[groupId].points.push(pt);
+             groups[groupId].members.push(node);
         }
     });
 
-    return Object.values(groups).filter(g => g.points.length > 0);
+    return Object.values(groups).filter(g => g.members.length > 0);
+};
+
+// 🟢 HELPER: CALCULATE GEOMETRY (Dynamic - O(G*M))
+// This runs every animation frame using updated node positions
+const calculateTerritories = (groups: FactionGroup[]) => {
+    return groups.map(group => {
+        const { members, name, color, id, isAnchor } = group;
+
+        // Extract valid points from current node positions
+        const points: [number, number][] = [];
+        members.forEach(n => {
+            if (typeof n.x === 'number' && typeof n.y === 'number') {
+                points.push([n.x, n.y]);
+            }
+        });
+
+        let pathData = "";
+        let centroid: [number, number] = [0, 0];
+        let isSingle = false;
+
+        // 1. Calculate Hull
+        // d3.polygonHull requires >= 3 points.
+        if (points.length >= 3) {
+            const hull = polygonHull(points);
+            if (hull) {
+                pathData = `M ${hull.map(p => p.join(",")).join(" L ")} Z`;
+                centroid = polygonCentroid(hull);
+            }
+        } else if (points.length > 0) {
+            // 1 or 2 points -> Draw a circle/stadium fallback
+            const cx = points.reduce((sum, p) => sum + p[0], 0) / points.length;
+            const cy = points.reduce((sum, p) => sum + p[1], 0) / points.length;
+            centroid = [cx, cy];
+
+            // Radius Logic
+            isSingle = points.length === 1;
+            const r = points.length === 2
+                ? Math.sqrt(Math.pow(points[0][0] - points[1][0], 2) + Math.pow(points[0][1] - points[1][1], 2)) / 2 + 80
+                : 150; // "Generous Fixed Radius" for Lone Wolf (150px)
+
+            // Draw Circle Path
+            pathData = `M ${cx}, ${cy} m -${r}, 0 a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 -${r * 2},0`;
+        }
+
+        return {
+            id,
+            name,
+            pathData,
+            centroid,
+            color,
+            memberCount: points.length,
+            isSingle // Flag for Debug Rendering
+        };
+    });
 };
 
 interface FactionOverlayProps {
@@ -88,52 +157,17 @@ interface FactionOverlayProps {
 }
 
 export const FactionOverlay: React.FC<FactionOverlayProps> = ({ nodes, lodTier, tick }) => {
-    // 🧠 MEMOIZE CALCULATIONS (Expensive Geometry)
+    // ⚡ Bolt Optimization: Memoize Structure (Expensive O(N*R)) separate from Geometry (Fast O(G*M))
+
+    // 1. Group Membership (Stable across animation frames)
+    const factionGroups = useMemo(() => {
+        return getFactionGroups(nodes);
+    }, [nodes]); // Re-runs only when graph topology changes
+
+    // 2. Geometry Calculation (Dynamic per tick)
     const territories = useMemo(() => {
-        const groups = groupNodesByFaction(nodes);
-
-        return groups.map(group => {
-            const { points, name } = group;
-            const color = stringToColor(name);
-            let pathData = "";
-            let centroid: [number, number] = [0, 0];
-            let isSingle = false;
-
-            // 1. Calculate Hull
-            // d3.polygonHull requires >= 3 points.
-            if (points.length >= 3) {
-                const hull = polygonHull(points);
-                if (hull) {
-                    pathData = `M ${hull.map(p => p.join(",")).join(" L ")} Z`;
-                    centroid = polygonCentroid(hull);
-                }
-            } else if (points.length > 0) {
-                // 1 or 2 points -> Draw a circle/stadium fallback
-                const cx = points.reduce((sum, p) => sum + p[0], 0) / points.length;
-                const cy = points.reduce((sum, p) => sum + p[1], 0) / points.length;
-                centroid = [cx, cy];
-
-                // Radius Logic
-                isSingle = points.length === 1;
-                const r = points.length === 2
-                    ? Math.sqrt(Math.pow(points[0][0] - points[1][0], 2) + Math.pow(points[0][1] - points[1][1], 2)) / 2 + 80
-                    : 150; // "Generous Fixed Radius" for Lone Wolf (150px)
-
-                // Draw Circle Path
-                pathData = `M ${cx}, ${cy} m -${r}, 0 a ${r},${r} 0 1,0 ${r * 2},0 a ${r},${r} 0 1,0 -${r * 2},0`;
-            }
-
-            return {
-                id: group.id,
-                name,
-                pathData,
-                centroid,
-                color,
-                memberCount: points.length,
-                isSingle // Flag for Debug Rendering
-            };
-        });
-    }, [nodes, tick]);
+        return calculateTerritories(factionGroups);
+    }, [factionGroups, tick]); // Re-runs on tick, but uses pre-calculated groups
 
     return <FactionOverlayRenderer territories={territories} lodTier={lodTier} />;
 };

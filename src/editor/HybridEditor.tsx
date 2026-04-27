@@ -128,6 +128,12 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
         }
     }));
 
+    // 🟢 STALE CLOSURE FIX: Keep latest callback in a ref
+    const onContentChangeRef = useRef(onContentChange);
+    useEffect(() => {
+        onContentChangeRef.current = onContentChange;
+    }, [onContentChange]);
+
     // 🟢 THE SPY: AUDIT LOGIC
     const { config, user } = useProjectConfig();
     const folderId = config?.folderId; // Use config folderId as projectId
@@ -230,8 +236,8 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                             }
                         }
 
-                        if (onContentChange) {
-                            onContentChange(update.state.doc.toString());
+                        if (onContentChangeRef.current) {
+                            onContentChangeRef.current(update.state.doc.toString());
                         }
                     }
 

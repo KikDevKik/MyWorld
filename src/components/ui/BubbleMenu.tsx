@@ -114,12 +114,16 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                 e.preventDefault();
                 e.stopPropagation();
             }}
+            role="toolbar"
+            aria-label="Herramientas de formato"
+            aria-orientation="horizontal"
         >
             {/* BOLD */}
             <button
                 onClick={() => toggleWrapper('**')}
                 className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Negrita"
+                aria-label="Aplicar negrita"
             >
                 <Bold size={16} />
             </button>
@@ -129,6 +133,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                 onClick={() => toggleWrapper('*')}
                 className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Cursiva"
+                aria-label="Aplicar cursiva"
             >
                 <Italic size={16} />
             </button>
@@ -138,6 +143,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                 onClick={() => toggleHeading(1)}
                 className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Título 1"
+                aria-label="Convertir en Título 1"
             >
                 <Heading1 size={16} />
             </button>
@@ -147,11 +153,12 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                 onClick={() => toggleHeading(2)}
                 className="p-2 text-titanium-300 hover:text-white hover:bg-titanium-800 rounded-md transition-colors"
                 title="Título 2"
+                aria-label="Convertir en Título 2"
             >
                 <Heading2 size={16} />
             </button>
 
-            <div className="w-px h-4 bg-titanium-700 mx-0.5" />
+            <div className="w-px h-4 bg-titanium-700 mx-0.5" role="separator" />
 
             {/* TTS READ */}
             <button
@@ -162,6 +169,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                     : 'text-cyan-400 hover:text-cyan-200 hover:bg-cyan-900/30'
                 }`}
                 title="Leer selección"
+                aria-label="Leer texto seleccionado"
             >
                 <Mic size={16} />
             </button>
@@ -175,6 +183,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                     }}
                     className="p-2 text-red-400 hover:text-red-200 hover:bg-red-900/30 rounded-md transition-colors flex items-center gap-2"
                     title="Detener Narración"
+                    aria-label="Detener lectura"
                 >
                     <Square size={16} fill="currentColor" />
                 </button>
@@ -184,6 +193,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
             <div
                 className="absolute left-1/2 bottom-[-5px] w-2.5 h-2.5 bg-[#09090b] border-r border-b border-titanium-700 transform -translate-x-1/2 rotate-45"
                 style={{ zIndex: -1 }}
+                aria-hidden="true"
             />
         </div>,
         document.body

@@ -1,12 +1,12 @@
 
-export type GemId = 'perforador' | 'forja' | 'guardian' | 'tribunal' | 'laboratorio' | 'cronograma' | 'imprenta' | 'director';
+export type GemId = 'perforador' | 'forja' | 'guardian' | 'tribunal' | 'laboratorio' | 'cronograma' | 'imprenta' | 'director' | 'arquitecto';
 
 export interface Gem {
   id: GemId;
   name: string;
   backgroundImage: string;
   systemInstruction: string;
-  model: 'gemini-2.5-pro' | 'gemini-2.5-flash' | 'gemini-3-pro-preview' | 'gemini-3-flash-preview' | 'gemini-2.5-pro-preview-tts';
+  model: 'gemini-3.1-pro-preview' | 'gemini-3.1-flash-lite-preview' | 'gemini-2.5-pro-preview-tts';
   thinkingBudget?: number;
   color?: string;
 }
@@ -52,20 +52,20 @@ export type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 
 // 🟢 NEW PROJECT CONFIG INTERFACE (Matches Backend)
 export interface ProjectPath {
-    id: string;
-    name: string;
+  id: string;
+  name: string;
 }
 
 export enum FolderRole {
-    WORLD_CORE = "ROLE_WORLD_CORE",
-    LORE_HISTORY = "ROLE_LORE_HISTORY",
-    ENTITY_PEOPLE = "ROLE_ENTITY_PEOPLE",
-    ENTITY_BESTIARY = "ROLE_ENTITY_BESTIARY",
-    ENTITY_FACTIONS = "ROLE_ENTITY_FACTIONS",
-    SAGA_MAIN = "ROLE_SAGA_MAIN",
-    SAGA_EXTRAS = "ROLE_SAGA_EXTRAS",
-    DRAFTS = "ROLE_DRAFTS",
-    RESOURCES = "ROLE_RESOURCES"
+  WORLD_CORE = "ROLE_WORLD_CORE",
+  LORE_HISTORY = "ROLE_LORE_HISTORY",
+  ENTITY_PEOPLE = "ROLE_ENTITY_PEOPLE",
+  ENTITY_BESTIARY = "ROLE_ENTITY_BESTIARY",
+  ENTITY_FACTIONS = "ROLE_ENTITY_FACTIONS",
+  SAGA_MAIN = "ROLE_SAGA_MAIN",
+  SAGA_EXTRAS = "ROLE_SAGA_EXTRAS",
+  DRAFTS = "ROLE_DRAFTS",
+  RESOURCES = "ROLE_RESOURCES"
 }
 
 export interface ProjectConfig {
@@ -78,7 +78,7 @@ export interface ProjectConfig {
   folderId?: string;
   characterVaultId?: string | null;
   bestiaryVaultId?: string | null; // 🟢 NEW: Bestiary Vault
-    folderMapping?: Partial<Record<FolderRole, string>>; // 👈 Phase 2: Semantic Mapping (Role -> FolderID)
+  folderMapping?: Partial<Record<FolderRole, string>>; // 👈 Phase 2: Semantic Mapping (Role -> FolderID)
   lastIndexed?: string;
   lastForgeScan?: string; // 👈 Timestamp for Incremental Forge Scan
   styleIdentity?: string; // 👈 Auto-detected Style DNA
@@ -99,7 +99,7 @@ export interface CharacterSnippet {
   text: string;
 }
 
-export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'LORE' | 'CONCEPT';
+export type EntityCategory = 'PERSON' | 'CREATURE' | 'FLORA' | 'LOCATION' | 'OBJECT' | 'FACTION' | 'EVENT' | 'LORE' | 'CONCEPT' | 'RESOURCE';
 
 export interface Character {
   id: string; // Slug

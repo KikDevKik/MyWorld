@@ -8,11 +8,11 @@ import {
     Eye,
     EyeOff
 } from 'lucide-react';
-import { getFirestore, collection, onSnapshot, getDocs, writeBatch, doc, setDoc, updateDoc, arrayUnion, getDoc, arrayRemove, query, where, limit, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { callFunction } from '../../services/api';
+import { EntityService } from '../../services/EntityService';
 import { GraphNode, EntityType } from '../../types/graph';
 import CrystallizeModal from '../ui/CrystallizeModal';
 import { VisualNode, AnalysisCandidate, RealityMode } from './types';
@@ -128,32 +128,32 @@ const WorldEnginePageV2: React.FC<{
             setLoading(false);
             return;
         }
-        const db = getFirestore();
-        const entitiesRef = collection(db, "users", user.uid, "projects", config.folderId, "entities");
-        const unsubscribe = onSnapshot(entitiesRef, (snapshot) => {
-            const loaded: GraphNode[] = [];
-            snapshot.forEach(doc => {
-                // 🟢 MANDATORY: Inject ID explicitly to prevent "blind merge" and ensure POJO
-                loaded.push({ ...doc.data(), id: doc.id } as GraphNode);
-            });
-            setDbNodes(loaded);
-            setLoading(false);
-        });
+        const unsubscribe = EntityService.subscribeToAllEntities(
+            user.uid,
+            config.folderId,
+            (entities) => {
+                setDbNodes(entities as any[]); // Temporary cast to match GraphNode interface
+                setLoading(false);
+            },
+            (error) => {
+                console.error("Subscription Error:", error);
+                setLoading(false);
+            }
+        );
         return () => unsubscribe();
     }, [user, config?.folderId]);
 
     // 🟢 DATA SUBSCRIPTION (Blacklist)
     useEffect(() => {
         if (!user || !config?.folderId) return;
-        const db = getFirestore();
-        const settingsRef = doc(db, `users/${user.uid}/projects/${config.folderId}/settings/general`);
-        const unsubscribe = onSnapshot(settingsRef, (doc) => {
-            if (doc.exists()) {
-                setIgnoredTerms(doc.data().ignoredTerms || []);
-            } else {
-                setIgnoredTerms([]);
-            }
-        });
+        const unsubscribe = EntityService.subscribeToProjectSettings(
+            user.uid,
+            config.folderId,
+            (settings) => {
+                setIgnoredTerms(settings?.ignoredTerms || []);
+            },
+            (error) => console.error("Settings Error:", error)
+        );
         return () => unsubscribe();
     }, [user, config?.folderId]);
 
@@ -165,40 +165,41 @@ const WorldEnginePageV2: React.FC<{
         return combined;
     }, [dbNodes, ghostNodes]);
 
-    // 🟢 CAMERA FOCUS EFFECT
+    // 🟢 CAMERA FOCUS EFFECT (Stabilized)
+    const focusedIdsRef = useRef(new Set<string>());
     useEffect(() => {
-        if (lastApprovedIds.length > 0 && unifiedNodes.length > 0 && transformRef.current) {
-            // Find the nodes
-            const targets = unifiedNodes.filter(n => lastApprovedIds.includes(n.id) && typeof n.x === 'number' && typeof n.y === 'number');
+        if (lastApprovedIds.length === 0 || !transformRef.current) return;
 
-            if (targets.length > 0) {
-                // Calculate Centroid
-                const sumX = targets.reduce((acc, n) => acc + (n.x || 0), 0);
-                const sumY = targets.reduce((acc, n) => acc + (n.y || 0), 0);
-                const cx = sumX / targets.length;
-                const cy = sumY / targets.length;
+        // Filter out what we already focused to avoid loops
+        const pendingFocus = lastApprovedIds.filter(id => !focusedIdsRef.current.has(id));
+        if (pendingFocus.length === 0) {
+            setLastApprovedIds([]); // All were already handled or invalid
+            return;
+        }
 
-                // Center View (Inverse Transform)
-                // Viewport Center (Assume 1920/1080 approx or retrieve from container?)
-                // Ideally we use centerView(scale, duration) but we need to pass x,y
-                // zoomToElement is for DOM elements. setTransform is raw.
-                // We want: ViewX = ScreenW/2 - NodeX * Scale
+        const targets = unifiedNodes.filter(n => pendingFocus.includes(n.id) && typeof n.x === 'number' && typeof n.y === 'number');
 
-                // Let's assume viewport center is roughly window/2 or use a safe constant offset since container is 100%
-                const viewportW = window.innerWidth;
-                const viewportH = window.innerHeight;
+        if (targets.length > 0) {
+            // Calculate Centroid
+            const sumX = targets.reduce((acc, n) => acc + (n.x || 0), 0);
+            const sumY = targets.reduce((acc, n) => acc + (n.y || 0), 0);
+            const cx = sumX / targets.length;
+            const cy = sumY / targets.length;
 
-                const targetScale = 1.2; // Zoom in a bit on the new cluster
-                const tx = (viewportW / 2) - (cx * targetScale);
-                const ty = (viewportH / 2) - (cy * targetScale);
+            const viewportW = window.innerWidth;
+            const viewportH = window.innerHeight;
 
-                console.log(`🎥 [Camera] Focusing on ${targets.length} new nodes at (${cx.toFixed(0)}, ${cy.toFixed(0)})`);
+            const targetScale = 1.2;
+            const tx = (viewportW / 2) - (cx * targetScale);
+            const ty = (viewportH / 2) - (cy * targetScale);
 
-                transformRef.current.setTransform(tx, ty, targetScale, 1000, "easeOut");
+            console.log(`🎥 [Camera] Focusing on ${targets.length} new nodes at (${cx.toFixed(0)}, ${cy.toFixed(0)})`);
 
-                // Clear trigger
-                setLastApprovedIds([]);
-            }
+            transformRef.current.setTransform(tx, ty, targetScale, 1000, "easeOut");
+
+            // Mark as focused and clear trigger
+            targets.forEach(t => focusedIdsRef.current.add(t.id));
+            setLastApprovedIds([]);
         }
     }, [lastApprovedIds, unifiedNodes]);
 
@@ -243,6 +244,11 @@ const WorldEnginePageV2: React.FC<{
             return;
         }
 
+        if (!accessToken) {
+            toast.error("Sesión de Drive no válida. Recarga la página.");
+            return;
+        }
+
         setIsScanning(true);
         setCandidates([]);
         setScanStatus("INICIALIZANDO PROTOCOLO TITANIUM...");
@@ -252,6 +258,7 @@ const WorldEnginePageV2: React.FC<{
             // Note: ignoredTerms is now fetched via subscription and available in state
             const results = await scanProjectFiles(
                 config.folderId, // 🟢 NEW: Project Context
+                accessToken, // 🟢 NEW: Auth Token (Secure)
                 fileTree,
                 config.canonPaths,
                 unifiedNodes, // 🟢 FIX: Check against ALL nodes (including Ghosts)
@@ -297,11 +304,9 @@ const WorldEnginePageV2: React.FC<{
 
         // 2. Update DB
         if (!user || !config?.folderId) return;
-        const db = getFirestore();
-        const nodeRef = doc(db, `users/${user.uid}/projects/${config.folderId}/entities`, nodeId);
 
         try {
-             await updateDoc(nodeRef, updates);
+             await EntityService.updateEntity(user.uid, nodeId, updates);
              toast.success("Nodo actualizado en Base de Datos.");
              setSelectedNode(prev => prev ? { ...prev, ...updates } : null);
         } catch (e: any) {
@@ -322,14 +327,12 @@ const WorldEnginePageV2: React.FC<{
 
         // 2. Delete DB
         if (!user || !config?.folderId) return;
-        const db = getFirestore();
-        const nodeRef = doc(db, `users/${user.uid}/projects/${config.folderId}/entities`, nodeId);
 
         try {
              // Optimistic Update
              setDbNodes(prev => prev.filter(n => n.id !== nodeId));
 
-             await deleteDoc(nodeRef);
+             await EntityService.deleteEntity(user.uid, nodeId);
              toast.success("Nodo eliminado permanentemente.");
              setSelectedNode(null);
         } catch (e: any) {
@@ -363,8 +366,8 @@ const WorldEnginePageV2: React.FC<{
         setIsCrystallizing(true);
 
         try {
-            const token = localStorage.getItem('google_drive_token');
-            if (!token) throw new Error("Falta Token.");
+            const token = accessToken;
+            if (!token) throw new Error("Falta Token de Sesión.");
             await callFunction('crystallizeNode', {
                 accessToken: token,
                 folderId: data.folderId,
@@ -411,23 +414,8 @@ const WorldEnginePageV2: React.FC<{
         setDbNodes([]); // Force clear local state immediately to prevent ghosts
         localStorage.removeItem('nexus_drafts_v1');
         if (user && config?.folderId) {
-             const db = getFirestore();
-             const projectPath = `users/${user.uid}/projects/${config.folderId}`;
-             const entitiesRef = collection(db, projectPath, "entities");
-             const edgesRef = collection(db, projectPath, "edges");
-
              try {
-                 const batch = writeBatch(db);
-
-                 // 1. Delete Nodes
-                 const nodeSnap = await getDocs(entitiesRef);
-                 nodeSnap.docs.forEach((doc) => batch.delete(doc.ref));
-
-                 // 2. Delete Edges (Fixed)
-                 const edgeSnap = await getDocs(edgesRef);
-                 edgeSnap.docs.forEach((doc) => batch.delete(doc.ref));
-
-                 await batch.commit();
+                 await EntityService.deleteAllProjectEntities(user.uid, config.folderId);
                  toast.success("🗑️ Todo eliminado (Local + DB).");
              } catch (e: any) {
                  toast.error("Error borrando DB: " + e.message);
@@ -439,8 +427,7 @@ const WorldEnginePageV2: React.FC<{
 
     // 🟢 HELPER: Resolve ID or Name to Real ID
     // UPDATED Phase 2.5: Case Insensitive + Staged/Ghost Awareness
-    const resolveNodeId = async (nameOrId: string, projectId: string, entitiesPath: string): Promise<string | null> => {
-        const db = getFirestore();
+    const resolveNodeId = async (nameOrId: string, projectId: string, userId: string): Promise<string | null> => {
         const normalized = nameOrId.toLowerCase().trim();
 
         // 0. Check Staged/Candidates (Priority: Memory)
@@ -457,19 +444,15 @@ const WorldEnginePageV2: React.FC<{
 
         // 1. Check if valid ID (Firestore Direct) - Fallback
         try {
-            const docRef = doc(db, entitiesPath, nameOrId);
-            const docSnap = await getDoc(docRef);
-            if (docSnap.exists()) return nameOrId;
+            const entity = await EntityService.getEntity(userId, nameOrId);
+            if (entity) return nameOrId;
         } catch (e) {}
 
         // 2. Fallback: Query by Name (Firestore Query)
         // Only if local check failed (case sensitivity might fail here)
         try {
-            const q = query(collection(db, entitiesPath), where("name", "==", nameOrId), limit(1));
-            const querySnap = await getDocs(q);
-            if (!querySnap.empty) {
-                return querySnap.docs[0].id;
-            }
+            const entity = await EntityService.findEntityByName(userId, projectId, nameOrId);
+            if (entity) return entity.id;
         } catch (e) {}
 
         return null;
@@ -483,13 +466,11 @@ const WorldEnginePageV2: React.FC<{
     // 🟢 TRIBUNAL ACTIONS (Phase 2.4/2.5)
     // Updated signature to handle specific REJECT variants
     const handleTribunalAction = async (action: 'APPROVE' | 'REJECT_SOFT' | 'REJECT_HARD', candidate: AnalysisCandidate) => {
-        const db = getFirestore();
         if (!user || !config?.folderId) {
             toast.error("Error de sesión.");
             return;
         }
         const projectId = config.folderId;
-        const projectRoot = `users/${user.uid}/projects/${projectId}`;
 
         // 1. REJECT: Protocolo de Rencor (Blacklist) or Soft Skip
         if (action === 'REJECT_SOFT') {
@@ -499,12 +480,13 @@ const WorldEnginePageV2: React.FC<{
 
         if (action === 'REJECT_HARD') {
             try {
-                const settingsRef = doc(db, `${projectRoot}/settings/general`);
-                // Ensure document exists or set it
-                await setDoc(settingsRef, {
-                    ignoredTerms: arrayUnion(candidate.name.toLowerCase())
-                }, { merge: true });
-
+                const currentSettings = await EntityService.getProjectSettings(user.uid, projectId) || {};
+                const ignoredTerms = currentSettings.ignoredTerms || [];
+                if (!ignoredTerms.includes(candidate.name.toLowerCase())) {
+                    await EntityService.updateProjectSettings(user.uid, projectId, {
+                        ignoredTerms: [...ignoredTerms, candidate.name.toLowerCase()]
+                    });
+                }
                 toast.info(`Descartado y Silenciado: ${candidate.name}`);
             } catch (e) {
                 console.warn(`[Blacklist] Update Failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -517,7 +499,6 @@ const WorldEnginePageV2: React.FC<{
 
         // 2. APPROVE: DB Operations
         if (action === 'APPROVE') {
-            const collectionPath = `${projectRoot}/entities`;
             console.log(`[Tribunal] Approving Candidate: ${candidate.name} (Action: ${candidate.suggestedAction})`);
 
             try {
@@ -535,18 +516,16 @@ const WorldEnginePageV2: React.FC<{
 
                      // 🟢 FIX V3: SMART ID RESOLUTION (Fallback Protocol)
                      let realTargetId = candidate.mergeWithId;
-                     let targetRef = doc(db, collectionPath, realTargetId);
-                     let docSnap = await getDoc(targetRef);
+                     let docSnap = await EntityService.getEntity(user.uid, realTargetId);
 
                      // Fallback: If ID is actually a Name?
-                     if (!docSnap.exists()) {
+                     if (!docSnap) {
                          console.warn(`[Tribunal] Target ID ${realTargetId} not found. Attempting resolution by name...`);
-                         const resolvedId = await resolveNodeId(realTargetId, projectId, collectionPath);
+                         const resolvedId = await resolveNodeId(realTargetId, projectId, user.uid);
 
                          if (resolvedId) {
                              realTargetId = resolvedId;
-                             targetRef = doc(db, collectionPath, realTargetId);
-                             docSnap = await getDoc(targetRef);
+                             docSnap = await EntityService.getEntity(user.uid, realTargetId);
                              console.info(`[Tribunal] Resolved "${candidate.mergeWithId}" to ID: ${realTargetId}`);
                          } else {
                              console.error(`[Tribunal] Resolution failed for "${candidate.mergeWithId}".`);
@@ -560,7 +539,7 @@ const WorldEnginePageV2: React.FC<{
                      // Prepare Updates (Aliases + Description if edited + Relations)
                      // 🟢 Relations Merging (With Smart ID Resolution)
                      const newRelations = await Promise.all((candidate.relations || []).map(async r => {
-                         const resolvedId = await resolveNodeId(r.target, projectId, collectionPath);
+                         const resolvedId = await resolveNodeId(r.target, projectId, user.uid);
                          return {
                              targetId: resolvedId || generateId(projectId, r.target, 'concept'), // Fallback to prediction
                              targetName: r.target,
@@ -571,14 +550,7 @@ const WorldEnginePageV2: React.FC<{
                          };
                      }));
 
-                     // We use arrayUnion for primitives, but relations are objects.
-                     // We need to fetch, merge, update.
-                     // To be safe, we just push new relations.
-                     // Or we can assume the user will clean duplicates visually.
-                     // arrayUnion works for objects if they are EXACTLY same.
-
-                     // Fetch current to avoid duplicates manually?
-                     const existingData = docSnap.data();
+                     const existingData = docSnap as any;
                      const existingRelations = existingData?.relations || [];
 
                      // Simple Merge: Filter out duplicates based on targetId + relation
@@ -589,7 +561,7 @@ const WorldEnginePageV2: React.FC<{
                      });
 
                      // 🟢 MERGE EVIDENCE (With Timestamps)
-                     const existingEvidence = docSnap.data()?.foundInFiles || [];
+                     const existingEvidence = existingData?.foundInFiles || [];
                      const newEvidence = candidate.foundInFiles?.map(f => {
                          const ev: any = {
                              fileId: f.fileId || 'nexus-scan',
@@ -613,9 +585,11 @@ const WorldEnginePageV2: React.FC<{
                              mergedEvidence.push(ne);
                          }
                      });
+                     
+                     const newAliases = Array.from(new Set([...(existingData?.aliases || []), ...(candidate.aliases || [candidate.name])]));
 
                      const updates: any = {
-                         aliases: arrayUnion(...(candidate.aliases || [candidate.name])),
+                         aliases: newAliases,
                          relations: mergedRelations,
                          foundInFiles: mergedEvidence
                      };
@@ -625,7 +599,7 @@ const WorldEnginePageV2: React.FC<{
                          updates.description = candidate.description;
                      }
 
-                     await updateDoc(targetRef, updates);
+                     await EntityService.updateEntity(user.uid, realTargetId, updates);
                      toast.success(`Fusión Completada: ${candidate.name} -> ID: ${realTargetId.substring(0,6)}...`);
                 }
                 // CASE B: CREATE / CONVERT
@@ -638,11 +612,10 @@ const WorldEnginePageV2: React.FC<{
                      // Generate Deterministic ID
                      const newNodeId = generateId(projectId, candidate.name, type);
                      targetId = newNodeId;
-                     const nodeRef = doc(db, collectionPath, newNodeId);
 
                      // 🟢 MAP RELATIONS (With Smart ID Resolution)
                      const mappedRelations = await Promise.all((candidate.relations || []).map(async r => {
-                         const resolvedId = await resolveNodeId(r.target, projectId, collectionPath);
+                         const resolvedId = await resolveNodeId(r.target, projectId, user.uid);
                          return {
                              targetId: resolvedId || generateId(projectId, r.target, 'concept'),
                              targetName: r.target,
@@ -681,7 +654,7 @@ const WorldEnginePageV2: React.FC<{
                          newNode.subtype = (candidate as any).subtype;
                      }
 
-                     await setDoc(nodeRef, newNode);
+                     await EntityService.saveEntity(user.uid, newNodeId, newNode);
                      toast.success(`Nodo Creado: ${candidate.name}`);
                 }
 
@@ -761,10 +734,8 @@ const WorldEnginePageV2: React.FC<{
 
     // 🟢 TRIBUNAL EDIT (Phase 2.4)
     const handleTribunalEdit = async (originalCandidate: AnalysisCandidate, newValues: { name: string, type: string, subtype: string, description?: string }) => {
-         const db = getFirestore();
          if (!user || !config?.folderId) return;
          const projectId = config.folderId;
-         const collectionPath = `users/${user.uid}/projects/${projectId}/entities`;
 
          try {
              const type = newValues.type.toLowerCase();
@@ -773,9 +744,8 @@ const WorldEnginePageV2: React.FC<{
              const newNodeId = generateId(projectId, newValues.name, type);
 
              // 2. Check Collision
-             const nodeRef = doc(db, collectionPath, newNodeId);
-             const snap = await getDoc(nodeRef);
-             if (snap.exists()) {
+             const snap = await EntityService.getEntity(user.uid, newNodeId);
+             if (snap) {
                  toast.error(`¡Error! Ya existe un nodo con ID similar para '${newValues.name}'. Fusiónalo manualmente.`);
                  return;
              }
@@ -783,7 +753,7 @@ const WorldEnginePageV2: React.FC<{
              // 3. Save
              // 🟢 Relations Mapping (Smart)
              const mappedRelations = await Promise.all((originalCandidate.relations || []).map(async r => {
-                 const resolvedId = await resolveNodeId(r.target, projectId, collectionPath);
+                 const resolvedId = await resolveNodeId(r.target, projectId, user.uid);
                  return {
                      targetId: resolvedId || generateId(projectId, r.target, 'concept'),
                      targetName: r.target,
@@ -818,7 +788,7 @@ const WorldEnginePageV2: React.FC<{
                  newNode.subtype = newValues.subtype;
              }
 
-             await setDoc(nodeRef, newNode);
+             await EntityService.saveEntity(user.uid, newNodeId, newNode);
              toast.success(`Nodo Corregido y Creado: ${newValues.name}`);
 
              // 4. Remove Original
@@ -835,11 +805,11 @@ const WorldEnginePageV2: React.FC<{
     // 🟢 RESTORE IGNORED (Phase 2.5)
     const handleRestoreIgnored = async (term: string) => {
         if (!user || !config?.folderId) return;
-        const db = getFirestore();
-        const settingsRef = doc(db, `users/${user.uid}/projects/${config.folderId}/settings/general`);
         try {
-            await updateDoc(settingsRef, {
-                ignoredTerms: arrayRemove(term)
+            const currentSettings = await EntityService.getProjectSettings(user.uid, config.folderId) || {};
+            const ignoredTerms = currentSettings.ignoredTerms || [];
+            await EntityService.updateProjectSettings(user.uid, config.folderId, {
+                ignoredTerms: ignoredTerms.filter((t: string) => t !== term)
             });
             toast.success(`Restaurado: ${term}`);
         } catch (e: any) {

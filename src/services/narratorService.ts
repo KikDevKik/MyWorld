@@ -1,29 +1,21 @@
 import { Character } from '../types/core';
 import { AudioSegment } from '../types/editorTypes';
 import { toast } from 'sonner';
-
-const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
-const BRAIN_MODEL_PRIMARY = 'gemini-3-flash-preview'; // Exact string requested by user
-const BRAIN_MODEL_FALLBACK = 'gemini-2.0-flash'; // Safe fallback
+import { callFunction } from './api';
 
 // Patterns that should NOT be read aloud
 const IGNORE_PATTERNS = [
-    /^-\s*\[TIMELINE/i,       // Timeline markers e.g., "-[TIMELINE..."
-    /^\[TIMELINE/i,           // Timeline markers e.g., "[TIMELINE..."
-    /^\s*[-_*]{3,}\s*$/,      // Horizontal rules e.g., "---", "***"
-    /^\s*#+\s*.*$/,           // Markdown headers e.g., "# Chapter 1" (Optionally ignore headers if desired, usually better to skip reading "Chapter One" if it's just a marker)
-    /^\s*<!--[\s\S]*?-->/     // Markdown comments
+    /^-\s*\[TIMELINE/i,
+    /^\[TIMELINE/i,
+    /^\s*[-_*]{3,}\s*$/,
+    /^\s*#+\s*.*$/,
+    /^\s*<!--[\s\S]*?-->/
 ];
 
 export const NarratorService = {
     /**
      * Analyzes a text scene to determine who is speaking and how.
-     * Uses Gemini to generate a semantic audio script.
-     *
-     * @param text - The raw text of the scene.
-     * @param characters - List of available characters for identification.
-     * @param sessionId - Optional session ID for tracking.
-     * @returns A promise resolving to an ordered list of AudioSegments.
+     * Routes through the backend Cloud Function to keep the Gemini API key server-side.
      */
     analyzeScene: async (
         text: string,
@@ -34,13 +26,10 @@ export const NarratorService = {
         // 🟢 GHOST MODE MOCK
         if (import.meta.env.VITE_JULES_MODE === 'true') {
             console.log("👻 Narrator Mock Mode Active");
-            await new Promise(r => setTimeout(r, 1000)); // Fake latency
+            await new Promise(r => setTimeout(r, 1000));
 
-            // Adaptive Mock: Check for dialogue markers
             const dialogueIndex = text.indexOf('—');
-
             if (dialogueIndex > 5) {
-                // Return Split: Narration + Dialogue
                 return [
                     {
                         text: text.substring(0, dialogueIndex),
@@ -63,107 +52,43 @@ export const NarratorService = {
                 ];
             }
 
-            // Default Mock
-            return [
-                {
-                    text: text.substring(0, Math.min(text.length, 50)),
-                    type: "NARRATION",
-                    speakerId: null,
-                    speakerName: "Narrator",
-                    voiceProfile: { gender: "MALE", age: "ADULT", tone: "Neutral", emotion: "Neutral" },
-                    from: 0,
-                    to: Math.min(text.length, 50)
-                }
-            ];
+            return [{
+                text: text.substring(0, Math.min(text.length, 50)),
+                type: "NARRATION",
+                speakerId: null,
+                speakerName: "Narrator",
+                voiceProfile: { gender: "MALE", age: "ADULT", tone: "Neutral", emotion: "Neutral" },
+                from: 0,
+                to: Math.min(text.length, 50)
+            }];
         }
 
-        // 1. Prepare API Key
-        const apiKey = localStorage.getItem('myworld_custom_gemini_key') || import.meta.env.VITE_GOOGLE_API_KEY;
-        if (!apiKey) {
-            toast.error("Falta la llave de API.");
-            throw new Error("No API Key");
-        }
-
-        // 2. Prepare Context
-        const characterList = characters.map(c => `- ${c.name} (ID: ${c.id})`).join('\n');
-
-        const systemInstruction = `
-You are an expert Audiobook Narrator and Director.
-Your task is to analyze the provided text scene and prepare it for a full Text-to-Speech performance.
-
-### INPUT DATA:
-- Characters available:
-${characterList}
-
-### CRITICAL RULES:
-1. **STORY COVERAGE**: You MUST include 100% of the *story* text (dialogue, narration, monologue) verbatim.
-2. **METADATA EXCLUSION**: You MUST EXCLUDE and IGNORE:
-    - Timeline markers (e.g., "-[TIMELINE...", "[DATE]").
-    - User notes or comments (e.g., lines starting with "**", "//", or notes in brackets).
-    - Structural markers (e.g., "---", "***").
-    - Do NOT generate segments for these lines.
-3. **SEQUENCE**: Return segments in the exact order they appear in the text.
-4. **SEGMENTATION**: Break the text into logical audio chunks.
-    - **NARRATION**: Use this for descriptive text, actions, and unquoted thoughts.
-    - **DIALOGUE**: Use this for spoken text (usually in quotes or starting with dashes '—' for Spanish).
-    - **INTERNAL_MONOLOGUE**: Use this for thoughts (often in italics or specific markers).
-5. **ATTRIBUTION**:
-    - For DIALOGUE/MONOLOGUE: Identify the 'speakerName' and 'speakerId'.
-    - For NARRATION: 'speakerName' must be "Narrator".
-6. **VOICE PROFILE**:
-    - Analyze emotional context for 'voiceProfile'.
-    - 'gender': 'MALE', 'FEMALE', 'NEUTRAL'.
-    - 'age': 'CHILD', 'TEEN', 'ADULT', 'ELDER'.
-    - 'tone': Descriptive (e.g., "Whispering", "Excited").
-    - 'emotion': Descriptive (e.g., "Fear", "Joy").
-
-### OUTPUT FORMAT:
-Return ONLY a valid JSON array.
-Schema:
-[
-  {
-    "text": "The exact text content from the source",
-    "type": "DIALOGUE", // or NARRATION
-    "speakerId": "char_id", // or null for Narrator
-    "speakerName": "Character Name", // or "Narrator"
-    "voiceProfile": {
-      "gender": "FEMALE",
-      "age": "ADULT",
-      "tone": "Sharp",
-      "emotion": "Anger"
-    }
-  }
-]
-`;
-
-        // 3. Call Gemini Direct (Client-Side)
+        // 🟢 BACKEND CALL — Gemini API key lives on the server (Firebase Secret Manager)
+        // No API key is exposed to the browser.
         try {
-            let result: AudioSegment[];
-            try {
-                result = await callGeminiBrain(BRAIN_MODEL_PRIMARY, apiKey, text, systemInstruction);
-            } catch (primaryError) {
-                console.warn(`Brain ${BRAIN_MODEL_PRIMARY} failed. Using fallback ${BRAIN_MODEL_FALLBACK}.`, primaryError);
-                result = await callGeminiBrain(BRAIN_MODEL_FALLBACK, apiKey, text, systemInstruction);
+            const characterList = characters.map(c => `- ${c.name} (ID: ${c.id})`).join('\n');
+
+            const result = await callFunction<{ segments: AudioSegment[] }>('analyzeScene', {
+                text,
+                characterList,
+                sessionId
+            });
+
+            if (!result || !result.segments || result.segments.length === 0) {
+                throw new Error("Empty response from analyzeScene function.");
             }
 
-            // 4. Realign and Fill Gaps
-            return NarratorService.realignSegments(text, result);
+            return NarratorService.realignSegments(text, result.segments);
 
         } catch (error) {
             console.error("NarratorService Analysis Failed:", error);
-            toast.error("Error al analizar la escena. Revisa tu llave o conexión.");
-            // Fallback: Return single segment
+            toast.error("Error al analizar la escena. Intenta de nuevo.");
             return [{
                 text: text,
                 type: 'NARRATION',
                 speakerId: null,
                 speakerName: 'Narrator',
-                voiceProfile: {
-                    gender: 'NEUTRAL',
-                    age: 'ADULT',
-                    tone: 'Neutral',
-                    emotion: 'Neutral'
-                },
+                voiceProfile: { gender: 'NEUTRAL', age: 'ADULT', tone: 'Neutral', emotion: 'Neutral' },
                 from: 0,
                 to: text.length
             }];
@@ -172,7 +97,7 @@ Schema:
 
     /**
      * Maps the AI-generated segments back to the original text to find absolute offsets.
-     * CRITICAL: Automatically fills "gaps" (missed narration) with a default Narrator segment.
+     * Automatically fills "gaps" (missed narration) with a default Narrator segment.
      */
     realignSegments: (originalText: string, segments: AudioSegment[]): AudioSegment[] => {
         let currentIndex = 0;
@@ -185,52 +110,34 @@ Schema:
             const foundIndex = originalText.indexOf(searchStr, currentIndex);
 
             if (foundIndex !== -1) {
-                // DETECT GAP
                 if (foundIndex > currentIndex) {
                     const missedText = originalText.substring(currentIndex, foundIndex).trim();
-
-                    // Check if missed text is actually valid narration or just metadata we should skip
                     const isMetadata = IGNORE_PATTERNS.some(pattern => pattern.test(missedText));
 
                     if (missedText.length > 0 && !isMetadata) {
-                         // Insert Bridge Segment for missed narration
-                         result.push({
-                            text: originalText.substring(currentIndex, foundIndex), // Keep original spacing for audio? Or trim? Better keep raw.
+                        result.push({
+                            text: originalText.substring(currentIndex, foundIndex),
                             type: 'NARRATION',
                             speakerId: null,
                             speakerName: 'Narrator',
-                            voiceProfile: {
-                                gender: 'NEUTRAL',
-                                age: 'ADULT',
-                                tone: 'Neutral',
-                                emotion: 'Neutral'
-                            },
+                            voiceProfile: { gender: 'NEUTRAL', age: 'ADULT', tone: 'Neutral', emotion: 'Neutral' },
                             from: currentIndex,
                             to: foundIndex
-                         });
+                        });
                     } else if (isMetadata) {
                         console.log("Skipping Metadata Segment:", missedText);
                     }
                 }
 
-                // Push Actual Segment
                 const end = foundIndex + searchStr.length;
-                result.push({
-                    ...segment,
-                    from: foundIndex,
-                    to: end
-                });
+                result.push({ ...segment, from: foundIndex, to: end });
                 currentIndex = end;
             } else {
-                 console.warn(`Narrator alignment warning: Could not find segment at index ${currentIndex}`);
-                 // If we can't find it, we skip adding it to maintain the strict timeline,
-                 // OR we just push it without offsets (which might break highlighting).
-                 // Best effort: Push it, but it won't have valid highlighting.
-                 result.push(segment);
+                console.warn(`Narrator alignment warning: Could not find segment at index ${currentIndex}`);
+                result.push(segment);
             }
         }
 
-        // CHECK TAIL
         if (currentIndex < originalText.length) {
             const tailText = originalText.substring(currentIndex);
             const isTailMetadata = IGNORE_PATTERNS.some(pattern => pattern.test(tailText.trim()));
@@ -241,12 +148,7 @@ Schema:
                     type: 'NARRATION',
                     speakerId: null,
                     speakerName: 'Narrator',
-                    voiceProfile: {
-                        gender: 'NEUTRAL',
-                        age: 'ADULT',
-                        tone: 'Neutral',
-                        emotion: 'Neutral'
-                    },
+                    voiceProfile: { gender: 'NEUTRAL', age: 'ADULT', tone: 'Neutral', emotion: 'Neutral' },
                     from: currentIndex,
                     to: originalText.length
                 });
@@ -256,48 +158,3 @@ Schema:
         return result;
     }
 };
-
-/**
- * Helper to call Gemini Text Generation
- */
-async function callGeminiBrain(model: string, apiKey: string, userPrompt: string, systemInstruction: string): Promise<AudioSegment[]> {
-    const url = `${BASE_URL}/${model}:generateContent?key=${apiKey}`;
-
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            systemInstruction: {
-                parts: [{ text: systemInstruction }]
-            },
-            contents: [{
-                parts: [{ text: `Analyze this scene:\n\n"${userPrompt}"` }]
-            }],
-            generationConfig: {
-                responseMimeType: "application/json"
-            }
-        })
-    });
-
-    if (!response.ok) {
-        throw new Error(`Brain API Error ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    if (!textResponse) {
-        throw new Error("No response text from Brain.");
-    }
-
-    // Clean and Parse
-    try {
-        const cleanJson = textResponse.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleanJson);
-    } catch (e) {
-        console.error("Failed to parse JSON from Brain:", textResponse);
-        throw new Error("Invalid JSON format");
-    }
-}

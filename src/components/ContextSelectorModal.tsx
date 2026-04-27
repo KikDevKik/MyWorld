@@ -182,7 +182,11 @@ const ContextSelectorModal: React.FC<ContextSelectorModalProps> = ({ isOpen, onC
                         </h3>
                         <p className="text-[10px] text-titanium-500 mt-0.5">Selecciona archivos del Canon para inyectar en la Forja.</p>
                     </div>
-                    <button onClick={onClose} className="text-titanium-500 hover:text-white transition-colors">
+                    <button
+                        onClick={onClose}
+                        className="text-titanium-500 hover:text-white transition-colors"
+                        aria-label="Cerrar portal de contexto"
+                    >
                         <X size={18} />
                     </button>
                 </div>

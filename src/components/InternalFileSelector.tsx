@@ -1,44 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { getFirestore, doc, onSnapshot } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { ChevronRight, ChevronDown, FileText, Folder, Check, X, File, AlertTriangle, ListChecks } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Folder, Check, X, AlertTriangle, ListChecks } from 'lucide-react';
 import { DriveFile } from '../types';
+import { EntityService } from '../services/EntityService';
+import { useProjectConfig } from '../contexts/ProjectConfigContext';
 
 interface InternalFileSelectorProps {
     onFileSelected: (files: { id: string; name: string; path?: string } | { id: string; name: string; path?: string }[]) => void;
     onCancel: () => void;
     currentFileId?: string | null;
-    multiSelect?: boolean; // 👈 New Prop
+    multiSelect?: boolean;
 }
-
-// 🟢 HELPER: Filter Tree
-const filterTree = (nodes: DriveFile[]): DriveFile[] => {
-    return nodes
-        .map(node => {
-            // If folder, recurse
-            if (node.mimeType === 'application/vnd.google-apps.folder') {
-                const filteredChildren = node.children ? filterTree(node.children) : [];
-                // Return folder if it has children (after filter) or if we want to show empty folders?
-                // Let's show folders so user can navigate, even if empty of valid files?
-                // Better: Only show folders that *contain* valid files or other folders with valid files.
-                // For now, simple recursion:
-                if (filteredChildren.length > 0) {
-                    return { ...node, children: filteredChildren };
-                }
-                // If folder is empty after filter, prune it?
-                // Let's keep it simple first: return folder if it has children.
-                return filteredChildren.length > 0 ? { ...node, children: filteredChildren } : null;
-            }
-
-            // If file, check extension
-            const validExtensions = ['.md', '.doc', '.docx', '.txt'];
-            const lowerName = node.name.toLowerCase();
-            const isValid = validExtensions.some(ext => lowerName.endsWith(ext));
-
-            return isValid ? node : null;
-        })
-        .filter(Boolean) as DriveFile[];
-};
 
 // 🟢 COMPONENT: Tree Node
 const SelectorNode: React.FC<{
@@ -128,36 +100,72 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [selectedFiles, setSelectedFiles] = useState<DriveFile[]>([]);
 
-    // Subscribe to TDB_Index
+    const { config } = useProjectConfig();
+
+    // Subscribe to EntityService (WorldEntities)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
-        if (!user) return;
+        if (!user || !config?.folderId) {
+            setIsLoading(false);
+            return;
+        }
 
-        const db = getFirestore();
-        const docRef = doc(db, "TDB_Index", user.uid, "structure", "tree");
-
-        const unsubscribe = onSnapshot(docRef, (docSnap) => {
-            if (docSnap.exists()) {
-                const data = docSnap.data();
-                if (data && data.tree && Array.isArray(data.tree)) {
-                    // Filter tree immediately
-                    const filtered = filterTree(data.tree);
-                    setTree(filtered);
-                    setIsEmpty(filtered.length === 0);
-                } else {
+        const unsubscribe = EntityService.subscribeToAllEntities(
+            user.uid,
+            config.folderId,
+            (entities) => {
+                if (entities.length === 0) {
                     setTree([]);
                     setIsEmpty(true);
+                    setIsLoading(false);
+                    return;
                 }
-            } else {
+
+                // Group by category to form a tree
+                const categoryMap = new Map<string, DriveFile>();
+                
+                entities.forEach(entity => {
+                    const catId = `cat-${entity.category}`;
+                    if (!categoryMap.has(catId)) {
+                        categoryMap.set(catId, {
+                            id: catId,
+                            name: entity.category,
+                            type: 'folder',
+                            mimeType: 'application/vnd.google-apps.folder',
+                            children: []
+                        });
+                    }
+
+                    categoryMap.get(catId)!.children!.push({
+                        id: entity.id,
+                        name: entity.name,
+                        type: 'file',
+                        mimeType: 'text/markdown', // Fake mimetype to satisfy UI
+                        path: `/${entity.category}/${entity.name}`
+                    });
+                });
+
+                const roots = Array.from(categoryMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+                // Sort children inside categories
+                roots.forEach(root => {
+                    root.children!.sort((a, b) => a.name.localeCompare(b.name));
+                });
+
+                setTree(roots);
+                setIsEmpty(roots.length === 0);
+                setIsLoading(false);
+            },
+            (err) => {
+                console.error("Error fetching WorldEntities:", err);
                 setTree([]);
                 setIsEmpty(true);
+                setIsLoading(false);
             }
-            setIsLoading(false);
-        });
+        );
 
         return () => unsubscribe();
-    }, []);
+    }, [config]);
 
     // Handle Node Selection
     const handleNodeSelect = (node: DriveFile) => {
@@ -200,9 +208,9 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                         </div>
                         <div>
                             <h2 className="font-bold text-lg text-titanium-100">
-                                {multiSelect ? 'Selección Múltiple' : 'Seleccionar Fuente de Verdad'}
+                                {multiSelect ? 'Selección Múltiple' : 'Seleccionar Entidad'}
                             </h2>
-                            <p className="text-[10px] text-titanium-500 font-mono">TDB_INDEX :: READY</p>
+                            <p className="text-[10px] text-titanium-500 font-mono">WORLD_ENTITIES :: READY</p>
                         </div>
                     </div>
                     <button
@@ -226,10 +234,10 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                                 <AlertTriangle size={32} />
                             </div>
                             <div>
-                                <h3 className="text-titanium-200 font-bold mb-1">Sin Archivos Compatibles</h3>
+                                <h3 className="text-titanium-200 font-bold mb-1">Sin Entidades Compatibles</h3>
                                 <p className="text-xs max-w-xs mx-auto">
-                                    No se encontraron archivos .md, .doc o .docx en el índice.
-                                    Asegúrate de haber ejecutado una indexación reciente.
+                                    No se encontraron entidades registradas.
+                                    Asegúrate de haber procesado la información correctamente.
                                 </p>
                             </div>
                         </div>
@@ -255,7 +263,7 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                     {multiSelect ? (
                         <div className="flex items-center justify-between w-full">
                             <span className="text-titanium-400">
-                                {selectedIds.size} archivo(s) seleccionado(s)
+                                {selectedIds.size} entidad(es) seleccionada(s)
                             </span>
                             <button
                                 onClick={handleConfirm}
@@ -268,8 +276,8 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                         </div>
                     ) : (
                         <>
-                            <span>Formatos: .md, .doc, .docx, .txt</span>
-                            <span className="font-mono text-accent-DEFAULT">V2.INTERNAL_SELECTOR</span>
+                            <span>Entidades Registradas en la Forja</span>
+                            <span className="font-mono text-accent-DEFAULT">V2.ENTITY_SELECTOR</span>
                         </>
                     )}
                 </div>

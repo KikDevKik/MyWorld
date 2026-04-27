@@ -1,8 +1,9 @@
+import { ErrorBoundary } from "./components/ErrorBoundary";
 /*
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
@@ -24,6 +25,8 @@ import SettingsModal from './components/ui/SettingsModal';
 import FieldManualModal from './components/ui/FieldManualModal';
 import ProjectSettingsModal from './components/ui/ProjectSettingsModal';
 import { DirectorPanel } from './components/DirectorPanel'; // 👈 IMPORT
+import ArquitectoPanel from './components/ArquitectoPanel';
+import ArquitectoPendingWidget from './components/ArquitectoPendingWidget';
 import NexusCanvas from './components/NexusCanvas'; // 👈 IMPORT NEXUS (V2)
 import WorldEnginePageV2 from './components/WorldEngineV2/WorldEnginePageV2'; // 👈 IMPORT WORLD ENGINE V2 (NEW)
 import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
@@ -36,27 +39,41 @@ import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfi
 import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
-import { useLayoutStore } from './stores/useLayoutStore'; // 🟢 IMPORT STORE
+import { useLayoutStore } from './stores/useLayoutStore';
+import { useArquitectoStore } from './stores/useArquitectoStore'; // 🟢 IMPORT STORE
 import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
 import { CreativeAuditService } from './services/CreativeAuditService';
-import EmptyEditorState from './components/editor/EmptyEditorState';
 import CreateFileModal from './components/ui/CreateFileModal';
 import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
 import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
+import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
 import { useLanguageStore } from './stores/useLanguageStore';
 import { TRANSLATIONS } from './i18n/translations';
 
+interface AppContentProps {
+    user: User | null;
+    setUser: React.Dispatch<React.SetStateAction<User | null>>;
+    setOauthToken: React.Dispatch<React.SetStateAction<string | null>>;
+    oauthToken: string | null;
+    driveStatus: 'connected' | 'refreshing' | 'error' | 'disconnected';
+    setDriveStatus: React.Dispatch<React.SetStateAction<'connected' | 'refreshing' | 'error' | 'disconnected'>>;
+    handleTokenRefresh: () => Promise<string | null>;
+    handleDriveLink: () => void;
+    isSecurityReady: boolean;
+}
+
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
-function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: any) {
+function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: AppContentProps) {
     const { config, updateConfig, refreshConfig, loading: configLoading, technicalError, fileTree } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].toasts;
     const commonT = TRANSLATIONS[currentLanguage].common;
 
     // 🟢 GLOBAL STORE CONSUMPTION
-    const { activeView, setActiveView } = useLayoutStore();
+    const { activeView, setActiveView, arquitectoWidgetVisible } = useLayoutStore();
+    const { arquitectoPendingItems, setArquitectoPendingItems } = useArquitectoStore();
 
     // APP STATE
     const [folderId, setFolderId] = useState<string>("");
@@ -95,6 +112,23 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         analyze: analyzeScene,
         activeSegment
     } = useNarrator();
+
+    // 🟢 ARQUITECTO QUIET RESTORATION
+    // Restore state from config on load to ensure the widget appears if there's an analysis
+    useEffect(() => {
+        if (!config || configLoading) return;
+
+        if (config.lastArquitectoAnalysis && config.arquitectoCachedPendingItems) {
+            const lastAnalysis = config.lastArquitectoAnalysis;
+            const lastUpdate = config.lastSignificantUpdate;
+
+            // Same logic as useArquitecto cache check
+            if (!lastUpdate || lastAnalysis > lastUpdate) {
+                console.log("🏛️ [Arquitecto] Quiet restoring cached pending items:", config.arquitectoCachedPendingItems.length);
+                setArquitectoPendingItems(config.arquitectoCachedPendingItems);
+            }
+        }
+    }, [config, configLoading]);
 
     // 🧪 DRIFT SIMULATION (PHASE 3)
     const [driftMarkers, setDriftMarkers] = useState<DriftMarker[]>([]);
@@ -223,9 +257,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 setIsScanningDrift(true);
                 try {
                     console.log("📡 [SENTINEL] Triggering Deep Drift Scan...");
-                    const data = await callFunction<any>('scanProjectDrift', { projectId: folderId });
+                    const data = await callFunction<{ success: boolean; alerts: any[] }>('scanProjectDrift', { projectId: folderId });
 
-                    if (data.success && data.alerts) {
+                    if (data && data.success && data.alerts) {
                         console.log("📡 [SENTINEL] Scan Results:", data.alerts);
                         setDriftAlerts(data.alerts);
                     }
@@ -251,18 +285,50 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
+    const [showTrialBanner, setShowTrialBanner] = useState(true);
+    const [showStartingAssistant, setShowStartingAssistant] = useState(false);
     const [isAppLoading, setIsAppLoading] = useState(true);
     const hybridEditorRef = useRef<HybridEditorHandle>(null); // 🟢 EDITOR HANDLE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
     const [editorWidth, setEditorWidth] = useState<'narrow' | 'wide'>('narrow');
     const [indexStatus, setIndexStatus] = useState<{ isIndexed: boolean; lastIndexedAt: string | null }>({ isIndexed: false, lastIndexedAt: null });
+    const [initialByokChecked, setInitialByokChecked] = useState(false);
+
+    // 🟢 BYOK ONBOARDING
+    const { customGeminiKey } = useProjectConfig();
+    useEffect(() => {
+        if (!isAppLoading && user && !initialByokChecked && driveStatus === 'connected') {
+            setInitialByokChecked(true);
+            if (!customGeminiKey) {
+                toast("Falta Clave de IA (BYOK)", {
+                    description: "Para usar las herramientas avanzadas, necesitas configurar tu propia API Key de Google Gemini.",
+                    duration: 10000,
+                    action: {
+                        label: "Configurar",
+                        onClick: () => setIsSettingsModalOpen(true)
+                    }
+                });
+            }
+        }
+    }, [isAppLoading, user, customGeminiKey, initialByokChecked, driveStatus]);
+
+    // 🟢 STARTING ASSISTANT — show when project is new and empty
+    useEffect(() => {
+        if (!config || configLoading) return;
+        const hasCanon = config?.canonPaths?.length > 0;
+        const isEmpty = !fileTree || fileTree.length === 0 || fileTree.every((f: any) => !f.children?.length);
+        const dismissedKey = `assistant_dismissed_${config?.folderId}`;
+        const dismissed = localStorage.getItem(dismissedKey) === 'true';
+        setShowStartingAssistant(hasCanon && isEmpty && !dismissed);
+    }, [config?.canonPaths?.length, fileTree?.length, config?.folderId]);
 
     // 🟢 FILE LOCKING
     const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);
     const isReadOnly = isLocked && !isSelfLocked;
 
     // 🟢 TUTORIAL HOOK
-    const isEmptyProject = !fileTree || fileTree.length === 0;
+    const hasConfiguredFoldersGlobal = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
+    const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFoldersGlobal;
     const { startTutorial } = useTutorial({
         setIsProjectSettingsOpen,
         user,
@@ -292,10 +358,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
             // 1. RESTORE TOKEN (Already done in parent)
 
-            // 2. RESTORE PROJECT CONFIG (Folder ID)
-            if (config?.folderId) {
-                console.log("✅ Folder ID recuperado de Cloud Config:", config.folderId);
-                setFolderId(config.folderId);
+            // 2. RESTORE PROJECT CONFIG
+            const hasConfiguredFoldersGlobal = !!(config?.folderId || config?.canonPaths?.length || config?.resourcePaths?.length);
+            if (hasConfiguredFoldersGlobal) {
+                console.log("✅ Configuración de Proyecto (Roots/Paths) recuperada de Cloud Config.");
+                // Si existe un folderId maestro, usarlo. Si no, poner un token genérico para que no sea null
+                setFolderId(config?.folderId || "decentralized-project");
             } else {
                 console.warn("⚠️ No Cloud Config found. Waiting for user input (Drive Connect).");
             }
@@ -310,7 +378,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     if (user) {
                         const status = await callFunction<{ isIndexed: boolean, lastIndexedAt: string | null }>('checkIndexStatus');
                         console.log("🧠 Estado de Memoria:", status);
-                        setIndexStatus(status);
+                        if (status) setIndexStatus(status);
                     }
                 }
             } catch (error: any) {
@@ -363,7 +431,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setCurrentFileId(null);
             setOauthToken(null);
             setDriveStatus('disconnected');
-            localStorage.removeItem('google_drive_token');
 
             toast.dismiss(toastId);
         }
@@ -428,7 +495,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         try {
             console.log("Iniciando indexado estricto...", folderIds);
 
-            const promise = callFunction<any>('indexTDB', {
+            const promise = callFunction<{ success: boolean; message: string }>('indexTDB', {
                 folderIds: folderIds,
                 projectId: config.folderId || folderId,
                 accessToken: oauthToken,
@@ -459,7 +526,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
 
         try {
-            const promise = callFunction<any>('updateLongTermMemory', {
+            const promise = callFunction<{ success: boolean; fileCount?: number; count?: number; files?: number }>('updateLongTermMemory', {
                 accessToken: oauthToken,
                 folderId: folderId
             });
@@ -468,7 +535,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 loading: 'Generando Memoria Profunda (Omnisciencia)...',
                 success: (result: any) => {
                     refreshConfig();
-                    return `¡Memoria Activada! ${result.fileCount} archivos cargados.`;
+                    return `¡Memoria Activada! ${result.fileCount ?? result.count ?? result.files ?? '?'} archivos cargados.`;
                 },
                 error: 'Error al cargar memoria. Revisa que tus archivos Canon sean texto.',
             });
@@ -542,8 +609,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 HANDLE INSERT CONTENT (Director -> Editor)
-    const handleInsertContent = async (text: string) => {
-        if (!selectedFileContent && !currentFileId) {
+    const handleInsertContent = useCallback(async (text: string) => {
+        // Use refs to avoid re-creation on typing
+        const content = selectedFileContentRef.current;
+        const fileId = currentFileIdRef.current;
+
+        if (!content && !fileId) {
             toast.error(t.noFileOpen);
             return;
         }
@@ -598,11 +669,49 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
         } else {
             // Fallback if ref is missing
-            const newContent = selectedFileContent ? (selectedFileContent + "\n\n" + text) : text;
+            const newContent = content ? (content + "\n\n" + text) : text;
             setSelectedFileContent(newContent);
             toast.warning(t.editorDisconnected);
         }
-    };
+    }, [t, folderId, user]);
+
+    const handleFileSelect = useCallback((id: string, content: string, name?: string, isBackgroundUpdate?: boolean) => {
+        // 🟢 LOGIC:
+        // If isBackgroundUpdate is true, we verify against LIVE state (Refs).
+        // If false (User Click), we switch unconditionally.
+
+        if (isBackgroundUpdate) {
+            // 1. Verify we are still on the same file
+            if (id !== currentFileIdRef.current) {
+                // User switched to another file while this one was loading. Ignore.
+                return;
+            }
+
+            // 2. Verify content is actually different
+            if (content === selectedFileContentRef.current) {
+                return;
+            }
+
+            // 3. Check for unsaved changes (Dirty State)
+            const isDirtyRef = selectedFileContentRef.current !== lastSavedContentRef.current;
+            if (isDirtyRef) {
+                // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
+                toast.warning(t.versionConflict, {
+                    description: t.versionConflictDesc
+                });
+            } else {
+                // ✅ SAFE: Upgrade content
+                setSelectedFileContent(content);
+                setLastSavedContent(content);
+            }
+        } else {
+            // 🔴 STANDARD USER SWITCH
+            setCurrentFileId(id);
+            setSelectedFileContent(content);
+            setLastSavedContent(content);
+            setCurrentFileName(name || 'Documento');
+        }
+    }, [t]);
 
     // 🟢 LOADING GATE
     if (isAppLoading) {
@@ -640,35 +749,40 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onClose={() => setActiveView('editor')}
                     isSecurityReady={isSecurityReady}
                     isOffline={!driveStatus || driveStatus === 'disconnected' || driveStatus === 'error' || !isSecurityReady}
+                    accessToken={oauthToken}
                 />
             );
         } else if (activeView === 'director') {
             expandedContent = (
-                <DirectorPanel
-                    isOpen={true}
-                    onClose={() => setActiveView('editor')}
-                    activeSessionId={activeDirectorSessionId}
-                    onSessionSelect={setActiveDirectorSessionId}
-                    pendingMessage={directorPendingMessage}
-                    onClearPendingMessage={() => setDirectorPendingMessage(null)}
-                    activeFileContent={effectiveFileContent}
-                    activeFileName={effectiveFileName}
-                    activeFileId={currentFileId}
-                    isFallbackContext={isFallbackContext}
-                    folderId={folderId}
-                    driftAlerts={driftAlerts}
-                    accessToken={oauthToken}
-                    onInsertContent={handleInsertContent}
-                />
+                <ErrorBoundary>
+                    <DirectorPanel
+                        isOpen={true}
+                        onClose={() => setActiveView('editor')}
+                        activeSessionId={activeDirectorSessionId}
+                        onSessionSelect={setActiveDirectorSessionId}
+                        pendingMessage={directorPendingMessage}
+                        onClearPendingMessage={() => setDirectorPendingMessage(null)}
+                        activeFileContent={effectiveFileContent}
+                        activeFileName={effectiveFileName}
+                        activeFileId={currentFileId}
+                        isFallbackContext={isFallbackContext}
+                        folderId={folderId}
+                        driftAlerts={driftAlerts}
+                        accessToken={oauthToken}
+                        onInsertContent={handleInsertContent}
+                    />
+                </ErrorBoundary>
             );
         } else if (activeView === 'tribunal') {
             expandedContent = (
-                <TribunalPanel
-                    onClose={() => setActiveView('editor')}
-                    initialText={selectedFileContent}
-                    currentFileId={currentFileId}
-                    accessToken={oauthToken}
-                />
+                <ErrorBoundary>
+                    <TribunalPanel
+                        onClose={() => setActiveView('editor')}
+                        initialText={selectedFileContent}
+                        currentFileId={currentFileId}
+                        accessToken={oauthToken}
+                    />
+                </ErrorBoundary>
             );
         } else if (activeView === 'guardian') {
             expandedContent = (
@@ -704,6 +818,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return (
             <>
                 {dock}
+
                 <div className="flex-1 min-w-0 h-full overflow-hidden">
                     {expandedContent}
                 </div>
@@ -712,26 +827,52 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 3. Render Zone B Content (Main Stage)
+    // 🟢 STARTING ASSISTANT GENESIS HANDLER
+    const handleStartGenesis = async (answers: GenesisAnswers) => {
+        try {
+            toast.loading("Generando tu proyecto...", { id: 'genesis' });
+            const result = await callFunction('genesisManifest', {
+                answers,
+                accessToken: oauthToken,
+                // Provide a minimal chatHistory for backwards compat
+                chatHistory: [{ role: 'user', message: answers.premise || 'Inicio del proyecto.' }]
+            });
+            toast.success('¡Proyecto creado!', {
+                id: 'genesis',
+                description: 'Tu estructura está lista en Google Drive.'
+            });
+            // No cerramos el StartingAssistant aquí — él muestra la pantalla de celebración
+            // y se cierra cuando el usuario hace clic en "Empezar a escribir →"
+            return result;
+        } catch (err: any) {
+            toast.error('Error al crear el proyecto.', { id: 'genesis' });
+            throw err; // Re-lanzar para que StartingAssistant lo detecte
+        }
+    };
+
     const renderZoneBContent = () => {
         if (activeView === 'forja') {
             return (
-                <ForgePanel
-                    onClose={() => setActiveView('editor')}
-                    folderId={folderId}
-                    accessToken={oauthToken}
-                    onRefreshTokens={handleTokenRefresh}
-                />
+                <ErrorBoundary>
+                    <ForgePanel
+                        onClose={() => setActiveView('editor')}
+                        folderId={folderId}
+                        accessToken={oauthToken}
+                    />
+                </ErrorBoundary>
             );
         }
         if (activeView === 'perforador') {
             return (
-                <WorldEnginePageV2
-                    isOpen={true}
-                    onClose={() => setActiveView('editor')}
-                    activeGemId={'perforador'}
-                    accessToken={oauthToken}
-                    onRefreshTokens={handleTokenRefresh}
-                />
+                <ErrorBoundary>
+                    <WorldEnginePageV2
+                        isOpen={true}
+                        onClose={() => setActiveView('editor')}
+                        activeGemId={'perforador'}
+                        accessToken={oauthToken}
+                        onRefreshTokens={handleTokenRefresh}
+                    />
+                </ErrorBoundary>
             );
         }
         if (activeView === 'laboratorio') {
@@ -765,70 +906,113 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 />
             );
         }
-
-        // Default: Editor
-        if (!currentFileId) {
-            const isEmptyProject = !fileTree || fileTree.length === 0;
+        if (activeView === 'arquitecto') {
             return (
-                <EmptyEditorState
-                    onCreate={() => setIsCreateFileModalOpen(true)}
-                    onGenesis={() => setIsGenesisOpen(true)}
-                    isEmptyProject={isEmptyProject}
-                    onCreateProject={() => setIsCreateProjectModalOpen(true)}
-                    onConnectDrive={() => setIsProjectSettingsOpen(true)}
+                <ArquitectoPanel
+                    onClose={() => setActiveView('editor')}
+                    accessToken={oauthToken}
+                    folderId={folderId}
+                    onPendingItemsUpdate={setArquitectoPendingItems}
                 />
             );
         }
 
-        return (
-            <div className="flex flex-col h-full overflow-hidden relative group/editor-area">
-                {/* 🟢 READING TOOLBAR (Floating) */}
-                <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover/editor-area:opacity-100 transition-opacity duration-300 pointer-events-none hover:!opacity-100 focus-within:!opacity-100">
-                    <div className="pointer-events-auto">
-                        <ReadingToolbar
-                            fontFamily={fontFamily}
-                            setFontFamily={setFontFamily}
-                            editorWidth={editorWidth}
-                            setEditorWidth={setEditorWidth}
-                            isZenMode={isZenMode}
-                            setIsZenMode={setIsZenMode}
-                        />
+        // Default: Editor
+        if (!currentFileId) {
+            return showStartingAssistant ? (
+                <StartingAssistant
+                    projectName={config?.projectName || 'Mi Proyecto'}
+                    onClose={() => {
+                        setShowStartingAssistant(false);
+                        localStorage.setItem(`assistant_dismissed_${config?.folderId}`, 'true');
+                    }}
+                    onStartGenesis={handleStartGenesis}
+                />
+            ) : (
+                <div className="flex-1 flex items-center justify-center bg-titanium-950">
+                    <div className="text-titanium-500 font-mono text-sm opacity-50">
+                        Selecciona un archivo del canon para comenzar.
                     </div>
                 </div>
+            );
+        }
 
-                <div
-                    className="flex-1 overflow-hidden relative transition-all duration-300"
-                    style={{
-                        '--editor-font-family': fontFamily === 'sans' ? 'var(--font-display)' : 'var(--font-serif)',
-                        '--editor-max-width': editorWidth === 'wide' ? '100%' : '800px'
-                    } as React.CSSProperties}
-                >
-                    <HybridEditor
-                        ref={hybridEditorRef}
+        return (
+            <div className="flex h-full overflow-hidden">
+                {/* Main editor column */}
+                <div className="flex flex-col flex-1 overflow-hidden relative group/editor-area">
+                    {/* Drive disconnected overlay */}
+                    {driveStatus !== 'connected' && (
+                        <div className="absolute inset-0 bg-titanium-950/80 backdrop-blur-sm flex flex-col items-center justify-center z-30 gap-4">
+                            <div className="bg-titanium-900 border border-amber-500/30 rounded-xl p-6 max-w-[360px] text-center">
+                                <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
+                                    <span className="text-amber-400 text-xl">⚡</span>
+                                </div>
+                                <h3 className="text-[14px] font-medium text-titanium-200 mb-2">
+                                    Google Drive no conectado
+                                </h3>
+                                <p className="text-[12px] text-titanium-500 leading-relaxed mb-4">
+                                    MyWorld guarda tu proyecto directamente en tu Google Drive. Necesitas conectarlo para empezar a escribir.
+                                </p>
+                                <button
+                                    onClick={handleDriveLink}
+                                    className="w-full py-2.5 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[13px] font-medium rounded-lg hover:bg-cyan-500/25 transition-all"
+                                >
+                                    Conectar Google Drive
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 🟢 READING TOOLBAR (Floating) */}
+                    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 opacity-0 group-hover/editor-area:opacity-100 transition-opacity duration-300 pointer-events-none hover:!opacity-100 focus-within:!opacity-100">
+                        <div className="pointer-events-auto">
+                            <ReadingToolbar
+                                fontFamily={fontFamily}
+                                setFontFamily={setFontFamily}
+                                editorWidth={editorWidth}
+                                setEditorWidth={setEditorWidth}
+                                isZenMode={isZenMode}
+                                setIsZenMode={setIsZenMode}
+                            />
+                        </div>
+                    </div>
+
+                    <div
+                        className="flex-1 overflow-hidden relative transition-all duration-300"
+                        style={{
+                            '--editor-font-family': fontFamily === 'sans' ? 'var(--font-display)' : 'var(--font-serif)',
+                            '--editor-max-width': editorWidth === 'wide' ? '100%' : '800px'
+                        } as React.CSSProperties}
+                    >
+                        <HybridEditor
+                            ref={hybridEditorRef}
+                            content={selectedFileContent}
+                            onContentChange={handleContentChange}
+                            driftMarkers={driftMarkers}
+                            activeSegment={activeSegment}
+                            className="h-full"
+                            readOnly={isReadOnly}
+                            onReadSelection={handleReadSelection}
+                            narratorState={{
+                                isPlaying: narratorControls.isPlaying,
+                                isLoading: isNarratorLoading,
+                                stop: narratorControls.stop
+                            }}
+                        />
+                    </div>
+                    <StatusBar
                         content={selectedFileContent}
-                        onContentChange={handleContentChange}
-                        driftMarkers={driftMarkers}
-                        activeSegment={activeSegment} // 🟢 PASS ACTIVE SEGMENT
-                        className="h-full"
-                        readOnly={isReadOnly}
-                        onReadSelection={handleReadSelection} // 🟢 NEW
-                        narratorState={{
-                            isPlaying: narratorControls.isPlaying,
-                            isLoading: isNarratorLoading,
-                            stop: narratorControls.stop
+                        guardianStatus={guardianStatus}
+                        onGuardianClick={() => setActiveView('guardian')}
+                        className="z-50 shrink-0"
+                        narratorControls={{
+                            ...narratorControls,
+                            isLoading: isNarratorLoading
                         }}
                     />
                 </div>
-                <StatusBar
-                    content={selectedFileContent}
-                    guardianStatus={guardianStatus}
-                    onGuardianClick={() => setActiveView('guardian')}
-                    className="z-50 shrink-0"
-                    narratorControls={{
-                        ...narratorControls,
-                        isLoading: isNarratorLoading
-                    }}
-                />
+
             </div>
         );
     };
@@ -871,7 +1055,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             )}
 
             {isProjectSettingsOpen && (
-                <ProjectSettingsModal onClose={() => setIsProjectSettingsOpen(false)} />
+                <ProjectSettingsModal
+                    onClose={() => setIsProjectSettingsOpen(false)}
+                    accessToken={oauthToken}
+                />
             )}
 
             {isFieldManualOpen && (
@@ -914,79 +1101,70 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 }}
             />
 
-            <SentinelShell
-                isZenMode={isZenMode}
-                // Props removed in SentinelShell refactor are implicitly handled via store
-                sidebar={
-                    <VaultSidebar
-                        folderId={folderId}
-                        onFolderIdChange={setFolderId}
-                        onFileSelect={(id, content, name, isBackgroundUpdate) => {
-                            // 🟢 LOGIC:
-                            // If isBackgroundUpdate is true, we verify against LIVE state (Refs).
-                            // If false (User Click), we switch unconditionally.
-
-                            if (isBackgroundUpdate) {
-                                // 1. Verify we are still on the same file
-                                if (id !== currentFileIdRef.current) {
-                                    // User switched to another file while this one was loading. Ignore.
-                                    return;
-                                }
-
-                                // 2. Verify content is actually different
-                                if (content === selectedFileContentRef.current) {
-                                    return;
-                                }
-
-                                // 3. Check for unsaved changes (Dirty State)
-                                const isDirtyRef = selectedFileContentRef.current !== lastSavedContentRef.current;
-                                if (isDirtyRef) {
-                                    // 🛑 SAFETY: User has unsaved edits. Do not overwrite.
-                                    toast.warning(t.versionConflict, {
-                                        description: t.versionConflictDesc
-                                    });
-                                } else {
-                                    // ✅ SAFE: Upgrade content
-                                    setSelectedFileContent(content);
-                                    setLastSavedContent(content);
-                                }
-                            } else {
-                                // 🔴 STANDARD USER SWITCH
-                                setCurrentFileId(id);
-                                setSelectedFileContent(content);
-                                setLastSavedContent(content);
-                                setCurrentFileName(name || 'Documento');
-                            }
-                        }}
-                        onOpenConnectModal={() => setIsConnectModalOpen(true)}
-                        onLogout={handleLogout}
-                        onIndexRequest={handleIndex}
-                        onUpdateMemory={handleUpdateMemory}
-                        onOpenSettings={() => setIsSettingsModalOpen(true)}
-                        onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
-                        accessToken={oauthToken}
-                        onRefreshTokens={driveStatus === 'disconnected' || driveStatus === 'error' ? handleDriveLink : handleTokenRefresh}
-                        driveStatus={driveStatus}
-                        onOpenManual={() => setIsFieldManualOpen(true)}
-                        isIndexed={indexStatus.isIndexed}
-                        isSecurityReady={isSecurityReady}
-                        activeFileId={currentFileId}
-                        onCreateFile={() => setIsCreateFileModalOpen(true)}
-                        onGenesis={() => setIsGenesisOpen(true)}
-                        onStartTutorial={startTutorial} // 🟢 PASS TUTORIAL TRIGGER
-                    />
-                }
-                editor={renderZoneBContent()}
-                tools={renderZoneCContent()}
-            />
+            <div className="flex flex-col h-screen w-screen overflow-hidden">
+                {showTrialBanner && (
+                    <div className="w-full flex items-center justify-between px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[11px] font-mono shrink-0 z-50">
+                        <div className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                            <span className="text-amber-400 uppercase tracking-wider">Período de Prueba</span>
+                            <span className="text-amber-600 mx-1">·</span>
+                            <span className="text-amber-700">Usando tu API Key de Gemini (BYOK)</span>
+                        </div>
+                        <button
+                            onClick={() => setShowTrialBanner(false)}
+                            className="text-amber-700 hover:text-amber-500 transition-colors"
+                            aria-label="Cerrar aviso"
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
+                <div className="flex-1 overflow-hidden">
+                <SentinelShell
+                    isZenMode={isZenMode}
+                    // Props removed in SentinelShell refactor are implicitly handled via store
+                    sidebar={
+                        <VaultSidebar
+                            folderId={folderId}
+                            onFolderIdChange={setFolderId}
+                            onFileSelect={handleFileSelect}
+                            onOpenConnectModal={() => setIsConnectModalOpen(true)}
+                            onLogout={handleLogout}
+                            onIndexRequest={handleIndex}
+                            onUpdateMemory={handleUpdateMemory}
+                            onOpenSettings={() => setIsSettingsModalOpen(true)}
+                            onOpenProjectSettings={() => setIsProjectSettingsOpen(true)}
+                            accessToken={oauthToken}
+                            onRefreshTokens={driveStatus === 'disconnected' || driveStatus === 'error' ? handleDriveLink : handleTokenRefresh}
+                            driveStatus={driveStatus}
+                            onOpenManual={() => setIsFieldManualOpen(true)}
+                            isIndexed={indexStatus.isIndexed}
+                            isSecurityReady={isSecurityReady}
+                            activeFileId={currentFileId}
+                            onCreateFile={() => setIsCreateFileModalOpen(true)}
+                            onGenesis={() => setIsGenesisOpen(true)}
+                            onStartTutorial={startTutorial}
+                            onOpenStartingAssistant={() => {
+                                setShowStartingAssistant(true);
+                                localStorage.removeItem(`assistant_dismissed_${config?.folderId}`);
+                            }}
+                        />
+                    }
+                    editor={renderZoneBContent()}
+                    tools={renderZoneCContent()}
+                />
+            </div>
+            </div>
         </>
     );
 }
 
 function App() {
     console.log("🚀 App Mounting...");
-    console.log("👻 JULES MODE:", import.meta.env.VITE_JULES_MODE);
-    console.log("🛠️ DEV MODE:", import.meta.env.DEV);
+    if (import.meta.env.DEV) {
+        console.log("👻 JULES MODE:", import.meta.env.VITE_JULES_MODE);
+        console.log("🛠️ DEV MODE:", import.meta.env.DEV);
+    }
 
     // 1. ALL HOOKS FIRST (Unconditional)
 
@@ -1011,6 +1189,20 @@ function App() {
             }
         };
         init();
+
+        const taxonomyToast = localStorage.getItem('show_taxonomy_toast');
+        if (taxonomyToast === 'true') {
+            localStorage.removeItem('show_taxonomy_toast');
+            setTimeout(() => {
+                toast.success(
+                    'Carpetas categorizadas automáticamente.',
+                    {
+                        description: 'Puedes ajustar la taxonomía en Configuración → Proyecto.',
+                        duration: 6000
+                    }
+                );
+            }, 2000);
+        }
     }, []);
 
     // AUTH LISTENER
@@ -1018,7 +1210,6 @@ function App() {
         // 👻 GHOST ACCESS: BYPASS AUTH IN DEV
         if (import.meta.env.DEV && import.meta.env.VITE_JULES_MODE === 'true') {
             console.warn("👻 GHOST ACCESS ENABLED: Skipping Google Auth");
-            localStorage.setItem('google_drive_token', 'mock-token'); // 🟢 SET MOCK TOKEN FOR NEXUS
             setUser({
                 uid: 'jules-dev',
                 email: 'jules@internal.test',
@@ -1045,15 +1236,7 @@ function App() {
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setAuthLoading(false);
-
-            // 🟢 INTENTO DE RECUPERAR TOKEN GUARDADO
-            const storedToken = localStorage.getItem('google_drive_token');
-            if (storedToken) {
-                setOauthToken(storedToken);
-                setDriveStatus('connected');
-            } else {
-                setDriveStatus('disconnected');
-            }
+            setDriveStatus('disconnected');
         });
         return () => unsubscribe();
     }, []);
@@ -1083,11 +1266,10 @@ function App() {
                 if (response.code) {
                     const toastId = toast.loading("Vinculando Drive permanentemente...");
                     try {
-                        const data = await callFunction<any>('exchangeAuthCode', { code: response.code });
+                        const data = await callFunction<{ success: boolean; accessToken: string }>('exchangeAuthCode', { code: response.code });
 
-                        if (data.success && data.accessToken) {
+                        if (data && data.success && data.accessToken) {
                             setOauthToken(data.accessToken);
-                            localStorage.setItem('google_drive_token', data.accessToken);
                             setDriveStatus('connected');
                             toast.dismiss(toastId);
                             toast.success("¡Drive Vinculado Permanentemente!");
@@ -1108,23 +1290,22 @@ function App() {
     const handleTokenRefresh = async (): Promise<string | null> => {
         // 🟢 AUTH GUARD (Race Condition Fix)
         if (!user) {
-             console.warn("⚠️ Token Refresh Blocked: User not authenticated.");
-             return null;
+            console.warn("⚠️ Token Refresh Blocked: User not authenticated.");
+            return null;
         }
 
         setDriveStatus('refreshing');
         try {
             // 🟢 BACKEND REFRESH (SILENT)
-            const data = await callFunction<any>('refreshDriveToken');
+            const data = await callFunction<{ success: boolean; accessToken?: string; reason?: string }>('refreshDriveToken');
 
-            if (data.success && data.accessToken) {
+            if (data && data.success && data.accessToken) {
                 console.log("✅ Token refrescado silenciosamente (Backend).");
                 setOauthToken(data.accessToken);
-                localStorage.setItem('google_drive_token', data.accessToken);
                 setDriveStatus('connected');
                 return data.accessToken;
             } else {
-                console.warn("⚠️ Fallo refresh silencioso:", data.reason);
+                console.warn("⚠️ Fallo refresh silencioso:", data ? data.reason : "No Response / Network Error");
                 setDriveStatus('disconnected');
                 return null;
             }
@@ -1156,9 +1337,14 @@ function App() {
     // 🟢 INITIAL CHECK (ON LOAD)
     useEffect(() => {
         if (user) {
-            // Always try silent refresh on load to validate token freshness
-            // This prevents "Green but Broken" state (Stale Token)
-            handleTokenRefresh();
+            const init = async () => {
+                const token = await handleTokenRefresh();
+                if (!token) {
+                    // No hay refresh token guardado — marcar como desconectado, el usuario conectará manualmente
+                    setDriveStatus('disconnected');
+                }
+            };
+            init();
         }
     }, [user]);
 

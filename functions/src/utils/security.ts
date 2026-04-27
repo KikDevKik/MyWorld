@@ -3,6 +3,8 @@ import * as logger from "firebase-functions/logger";
 import * as dns from 'dns';
 import { promisify } from 'util';
 import * as net from 'net';
+import * as https from 'https';
+import * as http from 'http';
 
 const lookup = promisify(dns.lookup);
 
@@ -56,6 +58,21 @@ export function getAIKey(requestData: any, systemKeyValue: string): string {
 }
 
 /**
+ * 🛡️ SENTINEL: Escape Google Drive Query String
+ * Escapes single quotes and backslashes to prevent query injection.
+ * Use this when interpolating user input into a Drive 'q' parameter.
+ * Example: `name = '${escapeDriveQuery(userInput)}'`
+ *
+ * @param input The raw string to escape
+ * @returns The escaped string safe for Drive API queries
+ */
+export function escapeDriveQuery(input: string): string {
+    if (!input) return "";
+    // Replace backslash first to avoid double escaping the single quote escape
+    return input.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
+/**
  * 🛡️ SENTINEL: URL Validator
  * Checks if a URL is safe to fetch (prevents SSRF).
  * Blocks private IPs, localhost, and metadata services.
@@ -94,6 +111,139 @@ export function isSafeUrl(url: string): boolean {
 }
 
 /**
+ * 🛡️ SENTINEL: Escape Prompt Variable
+ * Escapes double quotes and backslashes in user input to prevent prompt injection
+ * when interpolating variables into AI prompts.
+ *
+ * @param input The user input string
+ * @returns The escaped string
+ */
+export function escapePromptVariable(input: string | undefined | null): string {
+    if (!input || typeof input !== 'string') return "";
+    // Replace backslash first, then double quotes
+    return input.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
+ * 🛡️ SENTINEL: Safe DNS Lookup
+ * Resolves hostname to IP and blocks private IPs immediately.
+ * Used by safeFetch to prevent DNS Rebinding (TOCTOU).
+ */
+function safeLookup(hostname: string, options: any, callback: (err: NodeJS.ErrnoException | null, address: string | any, family: number) => void): void {
+    dns.lookup(hostname, options, (err, address, family) => {
+        if (err) return callback(err, address as string, family);
+
+        // Handle array result (if all: true)
+        if (Array.isArray(address)) {
+             const anyPrivate = address.some((addr: any) => isPrivateIp(addr.address));
+             if (anyPrivate) {
+                 return callback(new Error(`DNS Blocked: ${hostname} resolves to private IP(s)`), address as any, family);
+             }
+        } else if (address && typeof address === 'string' && isPrivateIp(address)) {
+            // Log warning but return error to block connection
+            return callback(new Error(`DNS Blocked: ${address} is private`), address as string, family);
+        }
+        callback(null, address as string, family);
+    });
+}
+
+/**
+ * 🛡️ SENTINEL: Safe Fetch
+ * Atomic fetch wrapper that prevents TOCTOU/DNS Rebinding attacks.
+ * Uses a custom lookup function to ensure the IP validated is the exact same one used for the connection.
+ * Returns a Promise that resolves to a Response-like object compatible with the Fetch API.
+ */
+export function safeFetch(url: string, options: any = {}): Promise<any> {
+    return new Promise((resolve, reject) => {
+        let parsedUrl: URL;
+        try {
+            parsedUrl = new URL(url);
+        } catch (e) {
+            return reject(new Error(`Invalid URL: ${url}`));
+        }
+
+        // Protocol Check
+        if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
+            return reject(new Error(`Invalid protocol: ${parsedUrl.protocol}`));
+        }
+
+        // 🛡️ SECURITY: Direct IP Check (http.request skips lookup for IPs)
+        if (net.isIP(parsedUrl.hostname) !== 0 && isPrivateIp(parsedUrl.hostname)) {
+            return reject(new Error(`DNS Blocked: ${parsedUrl.hostname} is private`));
+        }
+
+        const lib = parsedUrl.protocol === 'https:' ? https : http;
+
+        const requestOptions = {
+            method: options.method || 'GET',
+            headers: options.headers || {},
+            lookup: safeLookup, // 🛡️ The Critical Fix: Atomic DNS Check
+            signal: options.signal,
+            timeout: 10000, // 10s default timeout
+        };
+
+        const req = lib.request(parsedUrl, requestOptions, (res) => {
+            const chunks: Buffer[] = [];
+            let receivedLength = 0;
+            const maxSizeBytes = options.maxSizeBytes || 10 * 1024 * 1024; // Default 10MB
+
+            res.on('data', (chunk) => {
+                receivedLength += chunk.length;
+                if (receivedLength > maxSizeBytes) {
+                    req.destroy(); // Kill connection
+                    // Log warning only if it's a significant size
+                    if (maxSizeBytes >= 1024 * 1024) {
+                        logger.warn(`🛡️ [SENTINEL] Response too large (${receivedLength} > ${maxSizeBytes}). Aborting ${url}`);
+                    }
+                    return reject(new Error(`Response too large (exceeded ${maxSizeBytes} bytes)`));
+                }
+                chunks.push(chunk);
+            });
+
+            res.on('end', () => {
+                const buffer = Buffer.concat(chunks);
+                const text = buffer.toString('utf-8');
+
+                resolve({
+                    ok: (res.statusCode || 0) >= 200 && (res.statusCode || 0) < 300,
+                    status: res.statusCode,
+                    statusText: res.statusMessage,
+                    headers: res.headers,
+                    // Helper methods to mimic Fetch Response
+                    text: async () => text,
+                    json: async () => {
+                        try {
+                            return JSON.parse(text);
+                        } catch (e) {
+                            throw new Error('Failed to parse JSON');
+                        }
+                    }
+                });
+            });
+        });
+
+        req.on('error', (err) => {
+            reject(err);
+        });
+
+        req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('Request timed out'));
+        });
+
+        // Handle AbortSignal if provided
+        if (options.signal) {
+           options.signal.addEventListener('abort', () => {
+               req.destroy();
+               reject(new Error('Request aborted'));
+           });
+        }
+
+        req.end();
+    });
+}
+
+/**
  * Checks if an IP address is private (IPv4/IPv6).
  */
 export function isPrivateIp(ip: string): boolean {
@@ -109,7 +259,13 @@ export function isPrivateIp(ip: string): boolean {
         return /^(0|10|127)\./.test(ip) ||
                ip.startsWith('169.254.') ||
                ip.startsWith('192.168.') ||
-               /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip);
+               /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip) ||
+               /^100\.(6[4-9]|[7-9][0-9]|1[0-1][0-9]|12[0-7])\./.test(ip) || // CGNAT (100.64.0.0/10)
+               /^192\.0\.0\./.test(ip) ||     // IETF Protocol
+               /^192\.0\.2\./.test(ip) ||     // TEST-NET-1
+               /^198\.51\.100\./.test(ip) ||  // TEST-NET-2
+               /^203\.0\.113\./.test(ip) ||   // TEST-NET-3
+               /^2[4-5][0-9]\./.test(ip);     // Class E / Reserved
     }
 
     if (family === 6) {

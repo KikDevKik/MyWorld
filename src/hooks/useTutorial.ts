@@ -99,7 +99,7 @@ export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading, isEm
         // 🟢 COMBINE STEPS
         // If project is empty, show full tutorial. If not, only show core features.
         // We need to be careful with step indices for navigation logic.
-        const steps = isEmptyProject ? [...welcomeSteps, ...coreSteps] : coreSteps;
+        const steps: any[] = isEmptyProject ? [...welcomeSteps, ...coreSteps] : coreSteps;
 
         // 2. Initialize Driver
         driverObj.current = driver({

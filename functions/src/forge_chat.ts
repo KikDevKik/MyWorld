@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
@@ -227,13 +228,48 @@ ${activeContextSection}
 
                      const snap = await vectorQuery.get();
 
-                     // 3. PROCESS RESULTS
-                     const chunks = snap.docs.map(d => ({
-                         text: d.data().text,
-                         source: d.data().fileName
-                     }));
+                     // 3. PROCESS RESULTS (HYDRATION 💧)
+                     // Fetch parent file metadata to enrich context (solving Metadata Blindness)
+                     const uniqueFileRefs = new Set<string>();
+                     const fileRefMap = new Map<string, FirebaseFirestore.DocumentReference>();
 
-                     const contextText = chunks.map(c => `[SOURCE: ${c.source}]\n${c.text}`).join("\n\n---\n\n");
+                     snap.docs.forEach(d => {
+                         const parentRef = d.ref.parent.parent;
+                         if (parentRef) {
+                             uniqueFileRefs.add(parentRef.path);
+                             fileRefMap.set(parentRef.path, parentRef);
+                         }
+                     });
+
+                     let metadataMap = new Map<string, any>();
+
+                     if (fileRefMap.size > 0) {
+                        const fileDocs = await db.getAll(...Array.from(fileRefMap.values()));
+                        fileDocs.forEach(d => {
+                            if (d.exists) {
+                                metadataMap.set(d.ref.path, d.data());
+                            }
+                        });
+                     }
+
+                     const chunks = snap.docs.map(d => {
+                         const parentPath = d.ref.parent.parent?.path;
+                         const fileData = parentPath ? metadataMap.get(parentPath) : null;
+                         const frontmatter = fileData?.frontmatter || {};
+
+                         // Serialize metadata for AI context
+                         const metaString = Object.keys(frontmatter).length > 0
+                            ? `\n[METADATA]: ${JSON.stringify(frontmatter)}`
+                            : "";
+
+                         return {
+                             text: d.data().text,
+                             source: d.data().fileName,
+                             meta: metaString
+                         };
+                     });
+
+                     const contextText = chunks.map(c => `[SOURCE: ${c.source}]${c.meta}\n${c.text}`).join("\n\n---\n\n");
 
                      const sourcesList = Array.from(new Set(chunks.map(c => c.source)));
                      emit({ type: 'tool_end', tool: 'consult_archives', sources: sourcesList });

@@ -6,6 +6,8 @@ import { AnalysisCard } from './AnalysisCard';
 import { VerdictCard } from './VerdictCard';
 import { callFunction } from '../../../services/api';
 import { ChatMessageData } from '../../../types/director';
+import { parseThinking } from '../../../utils/thinking';
+import { ThinkingBubble } from './ThinkingBubble';
 
 interface ChatMessageProps {
     message: ChatMessageData;
@@ -16,14 +18,14 @@ interface ChatMessageProps {
     purgingIds: Set<string>;
 }
 
-export const ChatMessage: React.FC<ChatMessageProps> = ({
+export const ChatMessage = React.memo(({
     message,
     onRescue,
     onPurge,
     onInsert,
     rescuingIds,
     purgingIds
-}) => {
+}: ChatMessageProps) => {
     // 🟢 State for transformation
     const [isTransforming, setIsTransforming] = useState(false);
 
@@ -79,6 +81,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                                         onClick={() => onRescue(item, `${message.id}-${subIdx}`, message.driftData.category)}
                                         disabled={rescuingIds.has(`${message.id}-${subIdx}`)}
                                         className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                        aria-label={`Rescatar ${item.fileName || 'eco'}`}
                                     >
                                         {rescuingIds.has(`${message.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Rescatar"}
                                     </button>
@@ -86,6 +89,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                                         onClick={() => onPurge(item, `${message.id}-${subIdx}`)}
                                         disabled={purgingIds.has(`${message.id}-${subIdx}`)}
                                         className="flex-1 bg-red-900/30 hover:bg-red-900/50 text-red-300 py-1 rounded text-[9px] uppercase focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                                        aria-label={`Purgar ${item.fileName || 'eco'}`}
                                     >
                                         {purgingIds.has(`${message.id}-${subIdx}`) ? <Loader2 size={9} className="animate-spin mx-auto"/> : "Purgar"}
                                     </button>
@@ -126,6 +130,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                         onClick={() => onRescue(message.driftData, message.id, message.driftCategory || 'General')}
                         disabled={isRescuing}
                         className="flex-1 bg-titanium-800 hover:bg-titanium-700 text-titanium-300 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                        aria-label={`Rescatar eco: ${message.driftCategory || 'General'}`}
                     >
                         {isRescuing ? <Loader2 size={10} className="animate-spin" /> : "Rescatar"}
                     </button>
@@ -133,6 +138,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                         onClick={() => onPurge(message.driftData, message.id)}
                         disabled={isPurging}
                         className="flex-1 bg-red-900/50 hover:bg-red-800 border border-red-700 text-red-200 py-1.5 rounded text-[10px] font-bold uppercase transition-colors flex items-center justify-center gap-1 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none"
+                        aria-label={`Purgar eco: ${message.driftCategory || 'General'}`}
                     >
                         {isPurging ? <Loader2 size={10} className="animate-spin" /> : <AlertTriangle size={10} />}
                         Purgar Eco
@@ -143,6 +149,8 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
     }
 
     // 5. STANDARD MESSAGE (Text with Markdown)
+    const { thinking, content } = React.useMemo(() => parseThinking(message.text), [message.text]);
+
     return (
         <div className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
             <div className={`
@@ -172,19 +180,24 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                 )}
 
                 <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words">
-                <ReactMarkdown
-                    remarkPlugins={[remarkGfm]}
-                    components={{
-                        // Optional: Custom renderer overrides if needed for specific aesthetic
-                        code({node, inline, className, children, ...props}: any) {
-                             return inline
-                               ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
-                               : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>
-                        }
-                    }}
-                >
-                    {message.text}
-                </ReactMarkdown>
+                    {/* 🧠 THINKING BUBBLE (Weaver Protocol) */}
+                    {message.role === 'assistant' && thinking && (
+                        <ThinkingBubble thought={thinking} />
+                    )}
+
+                    <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                            // Optional: Custom renderer overrides if needed for specific aesthetic
+                            code({node, inline, className, children, ...props}: any) {
+                                return inline
+                                ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
+                                : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>
+                            }
+                        }}
+                    >
+                        {content}
+                    </ReactMarkdown>
                 </div>
 
                 {/* 🟢 INSERT BUTTON (Only for Assistant) */}
@@ -207,6 +220,7 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
                             disabled={isTransforming}
                             className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:text-emerald-300 bg-emerald-900/10 hover:bg-emerald-900/30 px-2 py-1.5 rounded transition-all uppercase tracking-wider"
                             title="Transformar en Guía e Insertar (Magia)"
+                            aria-label="Transformar respuesta en guía e insertar"
                         >
                             {isTransforming ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
                             <span>{isTransforming ? 'Transformando...' : 'Insertar (Guía)'}</span>
@@ -216,4 +230,28 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({
             </div>
         </div>
     );
-};
+}, (prev, next) => {
+    // ⚡ Bolt Optimization: Custom Comparator to skip unnecessary re-renders
+    if (prev.message !== next.message) return false;
+    if (prev.onInsert !== next.onInsert) return false;
+
+    // Logic for rescue/purge dependencies
+    // If it's a drift alert (or group), we must check the IDs.
+    const isDrift = next.message.isDriftAlert || next.message.driftData?.isGroup;
+
+    if (!isDrift) {
+        // Standard messages don't care about rescue/purge props
+        return true;
+    }
+
+    // For drift messages, check if relevant IDs changed
+    // Simple reference check on the Sets is sufficient as they are immutable-style updates
+    if (prev.rescuingIds !== next.rescuingIds) return false;
+    if (prev.purgingIds !== next.purgingIds) return false;
+
+    // Check handler stability (should be stable via useCallback, but good to check)
+    if (prev.onRescue !== next.onRescue) return false;
+    if (prev.onPurge !== next.onPurge) return false;
+
+    return true;
+});

@@ -28,6 +28,9 @@ interface LayoutState {
   // 🟢 SENTINEL FILTER (GLOBAL)
   showOnlyHealthy: boolean;
   toggleShowOnlyHealthy: () => void;
+
+  arquitectoWidgetVisible: boolean;
+  setArquitectoWidgetVisible: (v: boolean) => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
@@ -44,10 +47,10 @@ export const useLayoutStore = create<LayoutState>((set) => ({
     // Auto-maximize logic if width > 80% of screen (User Requirement)
     const isMax = width > (window.innerWidth * 0.8);
     return {
-        directorWidth: width,
-        isDirectorMaximized: isMax,
-        // Also sync isArsenalWide for compatibility (if wide enough)
-        isArsenalWide: width > 600
+      directorWidth: width,
+      isDirectorMaximized: isMax,
+      // Also sync isArsenalWide for compatibility (if wide enough)
+      isArsenalWide: width > 600
     };
   }),
 
@@ -62,15 +65,18 @@ export const useLayoutStore = create<LayoutState>((set) => ({
   // Arsenal Width
   isArsenalWide: false,
   toggleArsenalWidth: () => set((state) => {
-     // Toggle Macro: 400px <-> 800px
-     const targetWidth = state.isArsenalWide ? 400 : 800;
-     return {
-        isArsenalWide: !state.isArsenalWide,
-        directorWidth: targetWidth
-     };
+    // Toggle Macro: 400px <-> 800px
+    const targetWidth = state.isArsenalWide ? 400 : 800;
+    return {
+      isArsenalWide: !state.isArsenalWide,
+      directorWidth: targetWidth
+    };
   }),
 
   // Sentinel Filter
   showOnlyHealthy: false,
   toggleShowOnlyHealthy: () => set((state) => ({ showOnlyHealthy: !state.showOnlyHealthy })),
+
+  arquitectoWidgetVisible: true,
+  setArquitectoWidgetVisible: (v) => set({ arquitectoWidgetVisible: v }),
 }));

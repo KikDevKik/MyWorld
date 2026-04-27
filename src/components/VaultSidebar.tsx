@@ -2,7 +2,7 @@
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles, Trash2 } from 'lucide-react';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import CreateProjectModal from './ui/CreateProjectModal';
 import DeleteConfirmationModal from './ui/DeleteConfirmationModal'; // 🟢 NEW
 import { callFunction } from '../services/api';
+import { EntityService } from '../services/EntityService';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
 import { getLocalizedFolderName } from '../utils/folderLocalization';
@@ -38,6 +39,7 @@ interface VaultSidebarProps {
     onCreateFile?: () => void; // 👈 New prop for File Creation
     onGenesis?: () => void; // 👈 New prop for Genesis
     onStartTutorial?: () => void; // 🟢 NEW PROP FOR GUIDE
+    onOpenStartingAssistant?: () => void; // 🟢 SPRINT 6.5
 }
 
 // Interfaz para los archivos que vienen del FileTree
@@ -68,24 +70,24 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     onCreateFile, // 👈 Destructure
     onGenesis, // 👈 Destructure
     onStartTutorial, // 🟢 Destructure
+    onOpenStartingAssistant, // 🟢 Sprint 6.5
 }) => {
     // STATE
-    const [topLevelFolders, setTopLevelFolders] = useState<FileNode[]>([]);
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
 
     // 🟢 NEW: SPLIT TREE STATE
-    const [canonNodes, setCanonNodes] = useState<FileNode[]>([]);
-    const [resourceNodes, setResourceNodes] = useState<FileNode[]>([]);
-    const [unassignedNodes, setUnassignedNodes] = useState<FileNode[]>([]);
     const [isCanonOpen, setIsCanonOpen] = useState(true);
     const [isResourcesOpen, setIsResourcesOpen] = useState(true);
 
     // 🟢 CONSUME GLOBAL CONTEXT
-    const { fileTree, isFileTreeLoading, config } = useProjectConfig();
+    const { fileTree, isFileTreeLoading, config, updateConfig, refreshConfig } = useProjectConfig();
     const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
 
     // 🟢 DERIVED STATE
-    const isEmptyProject = !fileTree || fileTree.length === 0;
+    // hasConfiguredFoldersGlobal se basa en taxonomía (canonPaths/resourcePaths),
+    // NO en folderId solo. Tener un folderId sin taxonomía = proyecto sin configurar.
+    const hasConfiguredFoldersGlobal = !!(config?.canonPaths?.length || config?.resourcePaths?.length);
+    const isEmptyProject = (!fileTree || fileTree.length === 0) && !hasConfiguredFoldersGlobal;
 
     // 🟢 SMART SYNC STATE
     const hasSyncedRef = useRef(false);
@@ -150,79 +152,89 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         };
     }, [indexMenuRef]);
 
-    // 🟢 LISTEN FOR CONFLICTS (Kept Local as it's UI specific, but could be lifted later)
+    // 🟢 LISTEN FOR CONFLICTS (Using EntityService)
     useEffect(() => {
         const auth = getAuth();
         const user = auth.currentUser;
-        if (!user || !isSecurityReady) return;
+        if (!user || !isSecurityReady || !config?.folderId) return;
 
-        const db = getFirestore();
-        // Query TDB_Index/files where isConflicting == true
-        const q = query(
-            collection(db, "TDB_Index", user.uid, "files"),
-            where("isConflicting", "==", true)
-        );
-
-        console.log("📡 Listening for Conflicting Files...");
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const conflictIds = new Set<string>();
-            snapshot.docs.forEach(doc => {
-                const data = doc.data();
-                if (data.driveId) {
-                    conflictIds.add(data.driveId);
-                }
-            });
-            console.log(`⚠️ Updated Conflicts: ${conflictIds.size} files`);
-            setConflictingFileIds(conflictIds);
-        });
-
-        return () => unsubscribe();
-    }, [isSecurityReady]);
-
-
-    // 🟢 UPDATE TREE SPLIT LOGIC
-    useEffect(() => {
-        if (!fileTree) {
-            setTopLevelFolders([]);
-            setCanonNodes([]);
-            setResourceNodes([]);
-            setUnassignedNodes([]);
-            return;
-        }
-
-        if (Array.isArray(fileTree)) {
-            // 1. Saga Selector (Raw Folders)
-            const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
-            setTopLevelFolders(folders);
-
-            // 2. Split Logic (Canon vs Resources)
-            if (config) {
-                const canonIds = new Set(config.canonPaths?.map(p => p.id) || []);
-                const resourceIds = new Set(config.resourcePaths?.map(p => p.id) || []);
-
-                const cNodes: FileNode[] = [];
-                const rNodes: FileNode[] = [];
-                const uNodes: FileNode[] = [];
-
-                fileTree.forEach(node => {
-                    // Check ID (Shortcut ID from config)
-                    // Note: node.id is the Original ID (Shortcut ID) as per backend update.
-                    if (canonIds.has(node.id)) {
-                        cNodes.push(node);
-                    } else if (resourceIds.has(node.id)) {
-                        rNodes.push(node);
-                    } else {
-                        uNodes.push(node);
+        console.log("📡 Listening for Conflicting Entities...");
+        const unsubscribe = EntityService.subscribeToConflicts(
+            user.uid,
+            config.folderId,
+            (entities) => {
+                const conflictIds = new Set<string>();
+                entities.forEach(entity => {
+                    // Si tienes conflictos, típicamente se muestra el error en el archivo, 
+                    // necesitamos mapearlo a id de drive o ID de entidad que el UI usa para resaltar
+                    if (entity.id) { 
+                        conflictIds.add(entity.id);
+                    }
+                    if (entity.driveFileId) {
+                        conflictIds.add(entity.driveFileId);
                     }
                 });
-
-                setCanonNodes(cNodes);
-                setResourceNodes(rNodes);
-                setUnassignedNodes(uNodes);
-            } else {
-                // Fallback if config not loaded yet
-                setUnassignedNodes(fileTree);
+                console.log(`⚠️ Updated Conflicts: ${conflictIds.size} entities`);
+                setConflictingFileIds(conflictIds);
+            },
+            (error) => {
+                console.error("Error listening for conflicts:", error);
             }
+        );
+
+        return () => unsubscribe();
+    }, [isSecurityReady, config?.folderId]);
+
+
+    // 🟢 OPTIMIZED TREE SPLIT LOGIC (useMemo)
+    const { topLevelFolders, canonNodes, resourceNodes, unassignedNodes } = useMemo(() => {
+        if (!fileTree || !Array.isArray(fileTree)) {
+            return {
+                topLevelFolders: [],
+                canonNodes: [],
+                resourceNodes: [],
+                unassignedNodes: []
+            };
+        }
+
+        // 1. Saga Selector (Raw Folders)
+        const folders = fileTree.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder');
+
+        // 2. Split Logic (Canon vs Resources)
+        if (config) {
+            const canonIds = new Set(config.canonPaths?.map(p => p.id) || []);
+            const resourceIds = new Set(config.resourcePaths?.map(p => p.id) || []);
+
+            const cNodes: FileNode[] = [];
+            const rNodes: FileNode[] = [];
+            const uNodes: FileNode[] = [];
+
+            fileTree.forEach(node => {
+                // Check ID (Shortcut ID from config)
+                // Note: node.id is the Original ID (Shortcut ID) as per backend update.
+                if (canonIds.has(node.id)) {
+                    cNodes.push(node);
+                } else if (resourceIds.has(node.id)) {
+                    rNodes.push(node);
+                } else {
+                    uNodes.push(node);
+                }
+            });
+
+            return {
+                topLevelFolders: folders,
+                canonNodes: cNodes,
+                resourceNodes: rNodes,
+                unassignedNodes: uNodes
+            };
+        } else {
+            // Fallback if config not loaded yet
+            return {
+                topLevelFolders: folders,
+                canonNodes: [],
+                resourceNodes: [],
+                unassignedNodes: fileTree
+            };
         }
     }, [fileTree, config]);
 
@@ -232,22 +244,38 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         try {
             toast.info("Creando estructura del proyecto...");
 
-            await callFunction('createTitaniumStructure', {
+            const result = await callFunction<any>('createTitaniumStructure', {
                 accessToken: accessToken,
                 newProjectName: name
             });
 
-            toast.success("¡Proyecto creado exitosamente!");
-            // Config context should auto-update via Firestore listener
-            // 🟢 FORCE RELOAD (Requested by Commander)
-            // Ensures total cleanup of stale state from previous (deleted) projects.
+            console.log('[DEBUG] createTitaniumStructure result:', JSON.stringify(result));
+
+            // Auto-assign taxonomy if no canon paths are already configured.
+            // NO usar ...config: el backend ya guardó folderId/projectName en Firestore.
+            // Solo actualizamos los campos de taxonomía para no sobreescribir con valores stale.
+            if (result?.canonPaths?.length > 0 && !(config?.canonPaths?.length > 0)) {
+                try {
+                    await updateConfig({
+                        canonPaths: result.canonPaths,
+                        resourcePaths: result.resourcePaths || [],
+                        primaryCanonPathId: result.canonPaths[0]?.id || null,
+                    } as any);
+                } catch (e) {
+                    console.warn('Auto-taxonomy save failed (non-critical):', e);
+                }
+            }
+
+            await refreshConfig();
+
+            localStorage.setItem('show_taxonomy_toast', 'true');
             setTimeout(() => {
                 window.location.reload();
-            }, 1000);
+            }, 1500);
         } catch (error: any) {
             console.error("Error creating project:", error);
             toast.error("Error al crear el proyecto: " + error.message);
-            throw error; // Re-throw to let Modal know it failed
+            throw error;
         }
     };
 
@@ -261,15 +289,17 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     };
 
-    const handleToggleDeleteSelect = (id: string) => {
-        const newSet = new Set(selectedDeleteIds);
-        if (newSet.has(id)) {
-            newSet.delete(id);
-        } else {
-            newSet.add(id);
-        }
-        setSelectedDeleteIds(newSet);
-    };
+    const handleToggleDeleteSelect = useCallback((id: string) => {
+        setSelectedDeleteIds(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(id)) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    }, []);
 
     const handleDeleteClick = () => {
         if (selectedDeleteIds.size === 0) return;
@@ -463,8 +493,15 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 ) : (
                     <>
                         {/* EMPTY STATE */}
-                        {(!fileTree || fileTree.length === 0) && (
+                        {isEmptyProject && (
                             <div className="flex flex-col items-center p-6 text-center gap-4 mt-4 mb-auto animate-in fade-in zoom-in duration-300">
+                            {driveStatus !== 'connected' && (
+                                <div className="w-full mx-3 mb-1 p-3 bg-amber-500/8 border border-amber-500/20 rounded-lg">
+                                    <p className="text-[11px] text-amber-600 leading-relaxed">
+                                        Conecta Google Drive desde el botón inferior para acceder a tu proyecto.
+                                    </p>
+                                </div>
+                            )}
                                 <div className="p-4 bg-titanium-800/50 rounded-full border border-titanium-700/50 shadow-lg shadow-black/20">
                                     <FolderCog className="text-titanium-400" size={24} />
                                 </div>
@@ -619,7 +656,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 <div className="flex flex-col gap-1">
                     <button
                         onClick={() => {
-                            if (onStartTutorial) {
+                            if (onOpenStartingAssistant) {
+                                onOpenStartingAssistant();
+                            } else if (onStartTutorial) {
                                 onStartTutorial();
                             } else {
                                 onOpenManual();

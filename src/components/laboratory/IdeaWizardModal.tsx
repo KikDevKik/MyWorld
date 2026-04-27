@@ -7,6 +7,12 @@ import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import InputModal from '../ui/InputModal';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
+import { remarkThinking } from '../../utils/remarkThinking';
+
+const REMARK_PLUGINS = [remarkGfm, remarkBreaks, remarkThinking];
 
 interface IdeaWizardModalProps {
     isOpen: boolean;
@@ -66,18 +72,7 @@ const IdeaWizardModal: React.FC<IdeaWizardModalProps> = ({ isOpen, onClose, fold
 
     if (!isOpen) return null;
 
-    const formatMessage = (text: string) => {
-        const parts = text.split(/(\*\*[^*]+\*\*)/g);
-        return parts.map((part, index) => {
-            if (part.startsWith('**') && part.endsWith('**')) {
-                return <strong key={index} className="font-bold text-emerald-200">{part.slice(2, -2)}</strong>;
-            }
-            return part;
-        });
-    };
-
-    const handleSendMessage = async (e?: React.FormEvent) => {
-        e?.preventDefault();
+    const handleSendMessage = async () => {
         if (!inputValue.trim() || isLoading) return;
 
         const currentInput = inputValue;
@@ -209,7 +204,17 @@ const IdeaWizardModal: React.FC<IdeaWizardModalProps> = ({ isOpen, onClose, fold
                                     : 'bg-gradient-to-br from-emerald-950/30 to-teal-950/20 text-emerald-100 border border-emerald-900/30'
                             }`}>
                                 {msg.role === 'model' && <Sparkles size={14} className="mb-2 text-emerald-500 opacity-70" />}
-                                {formatMessage(msg.message)}
+                                <div className="prose prose-invert prose-sm max-w-none">
+                                    <ReactMarkdown
+                                        remarkPlugins={REMARK_PLUGINS}
+                                        components={{
+                                            details: ({node, ...props}) => <details {...props} />,
+                                            summary: ({node, ...props}) => <summary {...props} />
+                                        }}
+                                    >
+                                        {msg.message}
+                                    </ReactMarkdown>
+                                </div>
                             </div>
                         </div>
                     ))}
@@ -227,8 +232,8 @@ const IdeaWizardModal: React.FC<IdeaWizardModalProps> = ({ isOpen, onClose, fold
                 {/* Footer / Input */}
                 <div className="p-4 bg-titanium-900 border-t border-titanium-800 space-y-4">
 
-                    {/* Materialize Action - Always visible to allow early exit */}
-                    <div className="flex justify-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {/* Materialize Action */}
+                    <div className="flex justify-center">
                         <button
                             onClick={handleMaterializeClick}
                             disabled={isMaterializing || isLoading}
@@ -274,7 +279,6 @@ const IdeaWizardModal: React.FC<IdeaWizardModalProps> = ({ isOpen, onClose, fold
                         </button>
                     </div>
                 </div>
-
             </div>
 
             <InputModal

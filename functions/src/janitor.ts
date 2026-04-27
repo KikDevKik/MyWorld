@@ -1,10 +1,11 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
-import { handleSecureError } from "./utils/security";
+import { handleSecureError, escapeDriveQuery } from "./utils/security";
 import { ProjectConfig } from "./types/project";
 
 // --- JANITOR PROTOCOL (Phase 5) ---
@@ -64,13 +65,22 @@ export const scanVaultHealth = onCall(
     logger.info(`🧹 [JANITOR] Iniciando escaneo de salud para: ${folderId}`);
 
     try {
-        // 🟢 MODO ROBOT: SERVICE ACCOUNT AUTH (Application Default Credentials)
-        // This ensures the "Janitor" process works independently of the user session,
-        // provided the user has shared the folder with the Service Account email.
-        const auth = new google.auth.GoogleAuth({
-            scopes: ['https://www.googleapis.com/auth/drive']
-        });
-        const drive = google.drive({ version: "v3", auth });
+        // 🟢 IDOR FIX: STRICT USER AUTH (AccessToken)
+        // We enforce the user's accessToken to ensure the scan respects their Drive permissions.
+        // The Service Account (Robot Mode) is disabled here to prevent IDOR via project_config manipulation.
+
+        // Extract accessToken from request manually since it wasn't destructured initially
+        const accessToken = request.data.accessToken;
+
+        if (!accessToken) {
+            throw new HttpsError("unauthenticated", "Falta accessToken. El escaneo requiere credenciales de usuario para verificar permisos.");
+        }
+
+        const authClient = new google.auth.OAuth2();
+        authClient.setCredentials({ access_token: accessToken });
+        logger.info("🔑 [JANITOR] Using User Access Token for Drive Scan.");
+
+        const drive = google.drive({ version: "v3", auth: authClient });
 
         // 1. QUERY DRIVE
         // Criteria: Not Trashed, Not Folder, Size < 10 bytes.
@@ -98,7 +108,8 @@ export const scanVaultHealth = onCall(
         // Let's check direct children of the root folder.
 
         // 🟢 FASE 6.8 FIX: Simplify Query (Remove 'size' check to avoid API Error 400)
-        const query = `'${folderId}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
+        // 🛡️ SECURITY: Escape folderId to prevent query injection
+        const query = `'${escapeDriveQuery(folderId)}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`;
 
         const res = await drive.files.list({
             q: query,
@@ -161,6 +172,21 @@ async function deleteFileArtifact(drive: any, db: admin.firestore.Firestore, use
         // So we should do recursive delete on the file doc.
         await db.recursiveDelete(db.collection("TDB_Index").doc(userId).collection("files").doc(fileId));
         logger.info(`   -> Recursive Delete OK (Chunks Cleaned).`);
+
+        // 🟢 PURGE FROM ECS (WorldEntities)
+        // Find any entity that was anchored to this file
+        const entitiesQuery = db.collection("users").doc(userId).collection("WorldEntities")
+            .where("driveFileId", "==", fileId);
+        const entitiesSnap = await entitiesQuery.get();
+
+        if (!entitiesSnap.empty) {
+            let entityBatch = db.batch();
+            entitiesSnap.docs.forEach(d => {
+                entityBatch.delete(d.ref);
+            });
+            await entityBatch.commit();
+            logger.info(`   -> WorldEntities Purged: ${entitiesSnap.size}`);
+        }
 
         return { id: fileId, status: 'purged' };
 
@@ -399,7 +425,8 @@ export const relinkAnchor = onCall(
             // We search for exact name match (with .md extension or without)
             // Ideally we check both or just 'name contains'.
             // Let's try exact match first with .md, as Anchors are usually markdown.
-            let q = `name = '${characterName}.md' and trashed = false`;
+            // 🛡️ SECURITY: Escape characterName to prevent query injection
+            let q = `name = '${escapeDriveQuery(characterName)}.md' and trashed = false`;
 
             // If folderId (Vault) is provided, scope it for safety/speed
             if (folderId) {
@@ -419,7 +446,8 @@ export const relinkAnchor = onCall(
 
             // Fallback: Try without extension if 0 results
             if (!res.data.files || res.data.files.length === 0) {
-                 q = `name = '${characterName}' and trashed = false`;
+                 // 🛡️ SECURITY: Escape characterName to prevent query injection
+                 q = `name = '${escapeDriveQuery(characterName)}' and trashed = false`;
                  res = await drive.files.list({
                     q: q,
                     fields: "files(id, name, modifiedTime, parents)",
@@ -440,17 +468,15 @@ export const relinkAnchor = onCall(
             const bestMatch = candidates[0];
             logger.info(`   ✅ Archivo encontrado: ${bestMatch.name} (${bestMatch.id})`);
 
-            // 3. UPDATE FIRESTORE
-            await db.collection("users").doc(userId).collection("characters").doc(characterId).set({
-                masterFileId: bestMatch.id,
-                lastRelinked: new Date().toISOString(),
-                ...(sourceContext ? { sourceContext } : {}),
+            // 3. UPDATE FIRESTORE ECS (WorldEntities)
+            const { EntityRepository } = await import("./repository/EntityRepository");
+            await EntityRepository.upsertEntity(userId, characterId, {
+                driveFileId: bestMatch.id,
                 name: characterName,
                 category: category || 'PERSON',
                 tier: tier || 'ANCHOR',
-                sourceType: 'MASTER',
-                status: 'EXISTING'
-            }, { merge: true });
+                status: 'active'
+            });
 
             return {
                 success: true,

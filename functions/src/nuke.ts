@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
@@ -77,9 +78,8 @@ export const nukeProject = onCall(
             const collectionsToWipe = [
                 db.collection("TDB_Index").doc(userId), // Vector Index
                 db.collection("users").doc(userId).collection("forge_sessions"), // Chats
-                db.collection("users").doc(userId).collection("characters"), // Characters
-                db.collection("users").doc(userId).collection("projects"), // Entities/Graph
-                db.collection("users").doc(userId).collection("forge_detected_entities"), // Ghosts
+                db.collection("users").doc(userId).collection("WorldEntities"), // Entities/Graph/Ghosts/Characters
+                db.collection("users").doc(userId).collection("projects"), // Keep for legacy settings/configs clean up if any
                 db.collection("users").doc(userId).collection("audit_cache"), // Guardian Cache
                 db.collection("TDB_Timeline").doc(userId) // Timeline
             ];
@@ -146,8 +146,7 @@ export const purgeForgeDatabase = onCall(
             // Collections to wipe (Derived Data Only)
             const collectionsToWipe = [
                 db.collection("TDB_Index").doc(userId), // Vector Index (Derived from Files)
-                db.collection("users").doc(userId).collection("characters"), // Roster (Derived/ synced)
-                db.collection("users").doc(userId).collection("forge_detected_entities"), // Ghosts (Derived)
+                db.collection("users").doc(userId).collection("WorldEntities"), // All ECS Entities
                 db.collection("users").doc(userId).collection("audit_cache"), // Guardian Cache (Derived)
                 db.collection("TDB_Timeline").doc(userId), // Timeline (Derived)
 

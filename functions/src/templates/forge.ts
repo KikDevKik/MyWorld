@@ -48,8 +48,9 @@ const safeYamlArray = (arr?: string[]): string => {
 };
 
 /**
- * Generates the content for a FULL ANCHOR (Official Entity).
- * GUARANTEES: 'Role', 'Type', and standard Frontmatter.
+ * @deprecated - TITANIUM PHASE 1
+ * Replaced by TitaniumFactory.forge() which enforces the Functional Ontology.
+ * Do not use for new entities.
  */
 export function generateAnchorContent(data: AnchorTemplateData): string {
     const now = new Date().toISOString();

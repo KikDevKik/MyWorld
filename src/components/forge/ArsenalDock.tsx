@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clapperboard, Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer } from 'lucide-react';
+import { Clapperboard, Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, Landmark } from 'lucide-react';
 import { GEMS } from '../../constants';
 import { GemId } from '../../types';
 import { useLanguageStore } from '../../stores/useLanguageStore';
@@ -18,12 +18,13 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     const tTools = TRANSLATIONS[currentLanguage].tools;
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
-    const DOCK_GEMS: GemId[] = ['director', 'perforador', 'forja', 'laboratorio', 'tribunal', 'guardian', 'imprenta'];
+    const DOCK_GEMS: GemId[] = ['director', 'arquitecto', 'perforador', 'forja', 'laboratorio', 'tribunal', 'guardian', 'imprenta'];
 
     // Función auxiliar para elegir el icono correcto según la ID de la Gem
     const getIcon = (id: string) => {
         switch (id) {
             case 'director': return <Clapperboard size={20} />;
+            case 'arquitecto': return <Landmark size={20} />;
             case 'perforador': return <Globe2 size={20} />;
             case 'forja': return <Hammer size={20} />;
             case 'guardian': return <ShieldCheck size={20} />;

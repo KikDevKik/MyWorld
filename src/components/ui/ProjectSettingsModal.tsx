@@ -1,33 +1,51 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { X, Plus, Trash2, Save, Folder, Book, Star, Brain, Cpu, LayoutTemplate } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import useDrivePicker from 'react-google-drive-picker';
-import { ProjectPath, FolderRole, ProjectConfig } from '../../types/core';
+import { ProjectPath, FolderRole, ProjectConfig } from '../../types/project'; // Corrected import
 import { callFunction } from '../../services/api';
 
 interface ProjectSettingsModalProps {
     onClose: () => void;
+    accessToken?: string | null;
 }
 
-const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) => {
+const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, accessToken }) => {
     const { config, updateConfig, loading } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
 
     // Local state for form handling
-    const [canonPaths, setCanonPaths] = useState<ProjectPath[]>([]);
-    const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>([]);
-    const [folderMapping, setFolderMapping] = useState<Partial<Record<FolderRole, string>>>({});
+    const [canonPaths, setCanonPaths] = useState<ProjectPath[]>(config?.canonPaths || []);
+    const [resourcePaths, setResourcePaths] = useState<ProjectPath[]>(config?.resourcePaths || []);
+    const [folderMapping, setFolderMapping] = useState<Partial<Record<FolderRole, string>>>(config?.folderMapping || {});
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'paths' | 'taxonomy'>('paths');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [folderNames, setFolderNames] = useState<Record<string, string>>({}); // 🟢 Cache for names
 
+    const modalRef = useRef<HTMLDivElement>(null);
+
     // Google Drive Picker Hook
     const [openPicker] = useDrivePicker();
+
+    // 🎨 PALETTE: Focus trap & Escape key
+    useEffect(() => {
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') onClose();
+        };
+
+        // Focus modal for accessibility
+        if (modalRef.current) {
+            modalRef.current.focus();
+        }
+
+        document.addEventListener('keydown', handleEscape);
+        return () => document.removeEventListener('keydown', handleEscape);
+    }, [onClose]);
 
     // Load initial values from context
     useEffect(() => {
@@ -37,6 +55,13 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
             setFolderMapping(config.folderMapping || {});
         }
     }, [config]);
+
+    // 🟢 Explicit fallback sync for folder mapping
+    useEffect(() => {
+        if (config?.folderMapping) {
+            setFolderMapping(config.folderMapping);
+        }
+    }, [config?.folderMapping]);
 
     // 🟢 FETCH FOLDER NAMES (Metadata)
     useEffect(() => {
@@ -48,7 +73,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
             if (idsToFetch.length === 0) return;
 
-            const token = localStorage.getItem('google_drive_token');
+            const token = accessToken;
             if (!token) return;
 
             try {
@@ -76,6 +101,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     const handleSave = async () => {
         setIsSaving(true);
         try {
+            // Correctly typecast or construct the object to match ProjectConfig
             const newConfig: ProjectConfig = config ? {
                 ...config,
                 canonPaths,
@@ -92,38 +118,48 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
             await updateConfig(newConfig);
 
-            // 🟢 TRIGGER INDEX REFRESH (Lightweight & Strict)
-            const token = localStorage.getItem('google_drive_token');
+            // 🟢 TRIGGER MEMORY INDEX REFRESH (Botón de Indexar Automático)
+            const token = accessToken;
             if (token) {
                 try {
                     const allPaths = [...canonPaths, ...resourcePaths];
                     const folderIds = allPaths.map(p => p.id);
 
-                    // 🟢 STRICT LOGIC: Do NOT append config.folderId fallback.
-                    // If the list is empty, we MUST send empty list to clear the tree.
-
-                    // Fire and forget (or await if critical) - Awaiting to ensure consistency
-                    toast.info(folderIds.length > 0 ? "Actualizando índice de archivos..." : "Limpiando índice...");
-
+                    // 1. Árbol de archivos (Bloqueante para la Bóveda/Sidebar)
+                    toast.info(folderIds.length > 0 ? "Actualizando bóveda de archivos..." : "Limpiando bóveda...");
                     await callFunction('getDriveFiles', {
-                        folderIds, // Can be empty []
+                        folderIds,
                         accessToken: token,
                         recursive: true,
-                        persist: true // 🟢 ENABLE PERSISTENCE (Wipes tree if empty)
+                        persist: true
                     });
 
-                    toast.success("Índice actualizado.");
+                    // 2. Cerebro / Vector Indexing (En segundo plano)
+                    if (folderIds.length > 0) {
+                        toast.info("Iniciando indexado profundo en segundo plano...");
+
+                        // Fire and forget (No await para no bloquear el modal)
+                        callFunction('indexTDB', {
+                            folderIds: folderIds,
+                            projectId: newConfig.folderId || "no-root", // Fallback (Aunque folderId no se use realmente en indexado descentralizado, es de rigor)
+                            accessToken: token,
+                            forceFullReindex: false
+                        }).then((result: any) => {
+                            toast.success(`¡Aprendizaje Completado! ${result?.message || ''}`);
+                        }).catch(err => {
+                            console.error("Auto-index error:", err);
+                            toast.error("Error en indexado automático de memoria. Revisa la consola.");
+                        });
+                    }
 
                 } catch (e) {
                     console.error("Failed to refresh index:", e);
-                    toast.warning("Configuración guardada, pero falló la indexación automática.");
+                    toast.warning("Configuración guardada, pero falló la actualización de la bóveda.");
                 }
             }
 
             onClose();
         } catch (error) {
-            // Error handling is done in context (updateConfig throws?)
-            // updateConfig throws, so we catch here
             toast.error("Error al guardar la configuración.");
         } finally {
             setIsSaving(false);
@@ -135,7 +171,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         currentList: ProjectPath[],
         singleSelect: boolean = false
     ) => {
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) {
             alert("No hay token de acceso. Por favor recarga la página o inicia sesión de nuevo.");
             return;
@@ -196,12 +232,22 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
     // 🟢 AI AUTO-DISCOVERY
     const handleAutoDiscover = async () => {
         setIsAnalyzing(true);
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) return;
+
+        if (!config?.folderId && !config?.canonPaths?.length) {
+            toast.error('Primero crea o conecta una carpeta de proyecto.');
+            setIsAnalyzing(false);
+            return;
+        }
 
         try {
             toast.info("Escaneando estructura de carpetas...");
-            const data = await callFunction<any>('discoverFolderRoles', { accessToken: token });
+            const data = await callFunction<any>('discoverFolderRoles', {
+                accessToken: token,
+                rootFolderId: config?.folderId,
+                canonPaths: config?.canonPaths || [],
+            });
 
             if (data.suggestion && Object.keys(data.suggestion).length > 0) {
                 setFolderMapping(prev => ({ ...prev, ...data.suggestion }));
@@ -222,7 +268,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
         if (!confirm(t.editor.noProjectDesc)) return; // reusing message approx
 
         setIsAnalyzing(true);
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         const rootId = config?.folderId;
 
         if (!token || !rootId) {
@@ -251,7 +297,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     // 🟢 MANUAL FOLDER SELECTOR HELPER
     const selectFolderForRole = (role: FolderRole) => {
-        const token = localStorage.getItem('google_drive_token');
+        const token = accessToken;
         if (!token) return;
 
         // Use standard picker logic but for single folder
@@ -342,11 +388,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                     )}
                     <button
                         onClick={() => selectFolderForRole(role)}
-                        className={`px-3 py-1.5 text-xs rounded border transition-colors ${
-                            currentId
+                        className={`px-3 py-1.5 text-xs rounded border transition-colors ${currentId
                             ? 'bg-titanium-800 border-titanium-700 text-titanium-300 hover:bg-titanium-700'
                             : 'bg-titanium-800/30 border-dashed border-titanium-600 text-titanium-400 hover:text-titanium-200 hover:border-titanium-500'
-                        }`}
+                            }`}
                     >
                         {currentId ? 'Cambiar' : 'Seleccionar'}
                     </button>
@@ -359,16 +404,28 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
 
     return (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
-            <div id="project-settings-modal" className="bg-titanium-900 border border-titanium-700 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div
+                id="project-settings-modal"
+                ref={modalRef}
+                tabIndex={-1}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="project-settings-title"
+                className="bg-titanium-900 border border-titanium-700 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] focus:outline-none"
+            >
 
                 {/* Header */}
                 <div className="p-6 border-b border-titanium-700/50 bg-titanium-800/30">
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <h2 className="text-xl font-bold text-titanium-100">Configuración del Proyecto</h2>
+                            <h2 id="project-settings-title" className="text-xl font-bold text-titanium-100">Configuración del Proyecto</h2>
                             <p className="text-sm text-titanium-400 mt-1">Define la estructura semántica de tu mundo.</p>
                         </div>
-                        <button onClick={onClose} className="text-titanium-400 hover:text-white transition-colors">
+                        <button
+                            onClick={onClose}
+                            className="text-titanium-400 hover:text-white transition-colors"
+                            aria-label="Cerrar configuración"
+                        >
                             <X size={24} />
                         </button>
                     </div>
@@ -380,11 +437,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             role="tab"
                             aria-selected={activeTab === 'paths'}
                             aria-controls="panel-paths"
-                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${
-                                activeTab === 'paths'
+                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'paths'
                                 ? 'bg-titanium-700 text-white shadow-sm'
                                 : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
-                            }`}
+                                }`}
                         >
                             <Folder size={14} /> Rutas de Acceso
                         </button>
@@ -393,11 +449,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             role="tab"
                             aria-selected={activeTab === 'taxonomy'}
                             aria-controls="panel-taxonomy"
-                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${
-                                activeTab === 'taxonomy'
+                            className={`px-4 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-2 ${activeTab === 'taxonomy'
                                 ? 'bg-cyan-900/50 text-cyan-200 shadow-sm border border-cyan-800/50'
                                 : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
-                            }`}
+                                }`}
                         >
                             <Brain size={14} /> Taxonomía (Cerebro)
                         </button>
@@ -431,7 +486,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose }) 
                             <div className="flex items-center justify-between bg-titanium-950/30 p-4 rounded-lg border border-titanium-800">
                                 <div>
                                     <h3 className="text-sm font-bold text-titanium-200 flex items-center gap-2">
-                                        <Cpu size={16} className="text-cyan-500"/> Asistente de Estructura
+                                        <Cpu size={16} className="text-cyan-500" /> Asistente de Estructura
                                     </h3>
                                     <p className="text-xs text-titanium-500 mt-1">
                                         Deja que la IA organice tu proyecto automáticamente.

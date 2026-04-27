@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { getFirestore, collection, onSnapshot, query, where } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle, User, PawPrint, ExternalLink, MapPin, Box } from 'lucide-react';
 import { toast } from 'sonner';
 import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, DragStartEvent } from '@dnd-kit/core';
 
+// 🟢 ECS SYNCHRONIZED DASHBOARD
+// Uses EntityService to listen to unified WorldEntities collection.
 import ForgeChat from './ForgeChat';
 import ForgeCard from './ForgeCard';
 import { Character, DriveFile } from '../../types';
-import { ForgePayload, SoulEntity } from '../../types/forge';
+import { SoulEntity, EntityTier, ForgePayload } from '../../types/forge';
+import { WorldEntity } from '../../types/entity';
+import { toSoulEntity } from './ForgeCard';
 import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
+import { EntityService } from '../../services/EntityService';
 
 interface ForgeDashboardProps {
     folderId: string; // Project Root ID (for global context)
@@ -22,6 +26,25 @@ interface ForgeDashboardProps {
 }
 
 type DashboardState = 'SCANNING' | 'KANBAN';
+
+// ── 🔄 ADAPTER: WorldEntity → Character ────────────────────────────────────────
+function toCharacter(e: WorldEntity): Character {
+    return {
+        id: e.id,
+        name: e.name,
+        tier: (e.tier === 'ANCHOR' ? 'MAIN' : e.tier) as any, // Legacy enum mapping
+        category: e.category,
+        role: e.modules?.forge?.smartTags?.join(', ') || e.modules?.forge?.summary,
+        avatar: '', // Will be resolved via masterFileId logic if needed
+        masterFileId: e.driveFileId,
+        sourceType: 'MASTER',
+        sourceContext: e.projectId,
+        lastUpdated: e.updatedAt,
+        status: 'EXISTING',
+        snippets: [],
+        appearances: []
+    } as Character;
+}
 
 // --- DND WRAPPERS ---
 
@@ -107,63 +130,35 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
         setDetectedEntities([]);
 
         // 🟢 GHOST MODE BYPASS: Allow rendering without saga
-        if (!activeSaga && import.meta.env.VITE_JULES_MODE !== 'true') {
+        if (!folderId && import.meta.env.VITE_JULES_MODE !== 'true') {
             setIsLoading(false);
             return;
         }
 
         const auth = getAuth();
-        if (!auth.currentUser) return;
-        const db = getFirestore();
+        if (!auth.currentUser || !folderId) return;
 
-        console.log(`[ANCHOR_DEBUG] Fetching anchors for context: ${activeSaga.id} (${activeSaga.name})`);
+        console.log(`[ANCHOR_DEBUG] Fetching anchors for project root: ${folderId}`);
 
-        const q = query(
-            collection(db, "users", auth.currentUser.uid, "characters"),
-            where("sourceContext", "==", activeSaga.id)
+        // We subscribe to the ROOT folderId to see all project entities, 
+        // ForgeDashboard will handle filtering by category (PERSON vs CREATURE)
+        const unsubscribe = EntityService.subscribeToAnchors(
+            auth.currentUser.uid,
+            folderId,
+            (entities) => setCharacters(entities.map(toCharacter)),
+            (error) => console.error("Error fetching characters:", error)
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const chars: Character[] = [];
-            snapshot.forEach(doc => {
-                const d = doc.data();
-
-                // 🟢 ROBUST MAPPING: Infer category from legacy fields if missing
-                let derivedCategory = d.category;
-                if (!derivedCategory) {
-                    const rawType = (d.type || d.subtype || '').toLowerCase();
-                    if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna')) derivedCategory = 'CREATURE';
-                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
-                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
-                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
-                    else derivedCategory = 'PERSON';
-                }
-
-                // 🟢 DEBUG: Log if masterFileId is missing for an Anchor
-                if (!d.masterFileId) {
-                    console.warn(`[ANCHOR_DEBUG] Character ${d.name} (${doc.id}) missing masterFileId.`);
-                }
-
-                chars.push({
-                    id: doc.id,
-                    ...d,
-                    category: derivedCategory,
-                    status: 'EXISTING'
-                } as Character);
-            });
-            setCharacters(chars);
-        }, (error) => {
-            console.error("Error fetching characters:", error);
-        });
         return () => unsubscribe();
-    }, [activeSaga?.id]);
+    }, [folderId]);
 
     // --- 2. SOUL SORTER LISTENER (GHOSTS & LIMBOS) ---
     useEffect(() => {
         // 🟢 GHOST MODE BYPASS
-        if (!activeSaga && import.meta.env.VITE_JULES_MODE !== 'true') return;
+        if (!folderId && import.meta.env.VITE_JULES_MODE !== 'true') return;
 
         if (import.meta.env.VITE_JULES_MODE === 'true') {
+            // ... (mock data remains same)
             setState('KANBAN');
             setIsLoading(false);
             setCharacters([
@@ -176,78 +171,38 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     sourceContext: 'GLOBAL',
                     masterFileId: 'mock_file_verify',
                     role: 'Protagonista de Prueba',
-                    appearances: [],
-                    snippets: []
+                    snippets: [],
+                    status: 'EXISTING',
+                    lastUpdated: new Date().toISOString()
                 }
             ]);
             setDetectedEntities([
-                { id: 'g1', name: 'Sombra del Pasillo', tier: 'GHOST', category: 'PERSON', sourceSnippet: '...una figura alta se desvaneció...', occurrences: 3 },
-                { id: 'l1', name: 'Borrador Capitán', tier: 'LIMBO', category: 'PERSON', sourceSnippet: 'Idea: Capitán retirado, cinico.', occurrences: 1, tags: ['Militar', 'Cínico'] },
-                { id: 'g2', name: 'Lobo de Sombras', tier: 'GHOST', category: 'CREATURE', sourceSnippet: '...un aullido gutural resonó en la oscuridad...', occurrences: 2 },
-                { id: 'l2', name: 'Flor Lunar', tier: 'LIMBO', category: 'FLORA', sourceSnippet: 'Florece solo con la luna llena.', occurrences: 1, tags: ['Rara', 'Magica'] },
-                { id: 'l3', name: 'Castillo de Cristal', tier: 'LIMBO', category: 'LOCATION', sourceSnippet: 'Ubicación clave para el final.', occurrences: 1, tags: ['Estructura', 'Magia'] },
-                { id: 'g3', name: 'Espada de Luz', tier: 'GHOST', category: 'OBJECT', sourceSnippet: '...brillaba con una luz cegadora...', occurrences: 1 }
+                { id: 'g1', name: 'Sombra del Pasillo', tier: 'GHOST', category: 'PERSON', sourceSnippet: '...una figura alta se desvaneció...', occurrences: 3, lastDetected: new Date().toISOString() },
+                { id: 'l1', name: 'Borrador Capitán', tier: 'LIMBO', category: 'PERSON', sourceSnippet: 'Idea: Capitán retirado, cinico.', occurrences: 1, tags: ['Militar', 'Cínico'], lastDetected: new Date().toISOString() },
+                { id: 'g2', name: 'Lobo de Sombras', tier: 'GHOST', category: 'CREATURE', sourceSnippet: '...un aullido gutural resonó en la oscuridad...', occurrences: 2, lastDetected: new Date().toISOString() },
+                { id: 'l2', name: 'Flor Lunar', tier: 'LIMBO', category: 'FLORA', sourceSnippet: 'Florece solo con la luna llena.', occurrences: 1, tags: ['Rara', 'Magica'], lastDetected: new Date().toISOString() },
+                { id: 'l3', name: 'Castillo de Cristal', tier: 'LIMBO', category: 'LOCATION', sourceSnippet: 'Ubicación clave para el final.', occurrences: 1, tags: ['Estructura', 'Magia'], lastDetected: new Date().toISOString() },
+                { id: 'g3', name: 'Espada de Luz', tier: 'GHOST', category: 'OBJECT', sourceSnippet: '...brillaba con una luz cegadora...', occurrences: 1, lastDetected: new Date().toISOString() }
             ]);
             return;
         }
 
         const auth = getAuth();
-        if (!auth.currentUser) return;
-        const db = getFirestore();
+        if (!auth.currentUser || !folderId) return;
 
-        // 🟢 SHARED SCOPE: Fetch ghosts for BOTH sagas (Person & Beast) to allow cross-mode visibility
-        const sagaIds = [];
-        if (characterSaga?.id) sagaIds.push(characterSaga.id);
-        if (bestiarySaga?.id) sagaIds.push(bestiarySaga.id);
-
-        // Fallback to active only if both missing (shouldn't happen if loaded)
-        if (sagaIds.length === 0 && activeSaga?.id) sagaIds.push(activeSaga.id);
-
-        const q = query(
-            collection(db, "users", auth.currentUser.uid, "forge_detected_entities"),
-            where("saga", "in", sagaIds.length > 0 ? sagaIds : ['Global'])
+        const unsubscribe = EntityService.subscribeToDetectedEntities(
+            auth.currentUser.uid,
+            folderId,
+            (entities) => {
+                setDetectedEntities(entities.map(toSoulEntity));
+                setState('KANBAN');
+                setIsLoading(false);
+            },
+            (error) => console.error("Error fetching detected entities:", error)
         );
 
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const entities: SoulEntity[] = [];
-            snapshot.forEach(doc => {
-                const d = doc.data();
-
-                // 🟢 ROBUST MAPPING: Infer category for Ghosts/Limbos too
-                let derivedCategory = d.category;
-                if (!derivedCategory) {
-                    const rawType = (d.type || d.tier || d.reasoning || '').toLowerCase();
-                    // 🛡️ EVENT GUARD: Prevent "Year/Event" from becoming "Creature"
-                    if (rawType.includes('event') || rawType.includes('evento') || rawType.includes('año') || rawType.includes('year') || rawType.includes('timeline')) {
-                        derivedCategory = 'OBJECT'; // Map events to Objects/Concepts
-                    }
-                    else if (rawType.includes('creature') || rawType.includes('bestiary') || rawType.includes('fauna') || rawType.includes('bestia') || rawType.includes('monster') || rawType.includes('monstruo')) derivedCategory = 'CREATURE';
-                    else if (rawType.includes('flora') || rawType.includes('plant')) derivedCategory = 'FLORA';
-                    else if (rawType.includes('location') || rawType.includes('place')) derivedCategory = 'LOCATION';
-                    else if (rawType.includes('object') || rawType.includes('item')) derivedCategory = 'OBJECT';
-                    else derivedCategory = 'PERSON';
-                }
-
-                entities.push({
-                    id: doc.id,
-                    name: d.name,
-                    tier: d.tier as 'GHOST' | 'LIMBO' | 'ANCHOR',
-                    category: derivedCategory || 'PERSON',
-                    sourceSnippet: d.sourceSnippet || (d.foundIn || []).join('\n'),
-                    occurrences: d.occurrences || d.confidence || 0,
-                    tags: d.tags,
-                    role: d.reasoning,
-                    mergeSuggestion: d.mergeSuggestion
-                });
-            });
-
-            setDetectedEntities(entities);
-            setState('KANBAN');
-            setIsLoading(false);
-        });
-
         return () => unsubscribe();
-    }, [activeSaga?.id]);
+    }, [folderId]);
 
     // --- ACTIONS ---
 
@@ -341,13 +296,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     const registeredAnchors: SoulEntity[] = characters.map(c => ({
         id: c.id,
         name: c.name,
-        tier: 'ANCHOR',
+        tier: 'ANCHOR' as EntityTier,
         category: c.category || 'PERSON',
         sourceSnippet: c.role || t.registeredCharacter,
         occurrences: 0,
         role: c.role,
         avatar: c.avatar,
-        driveId: c.masterFileId
+        driveId: c.masterFileId,
+        lastDetected: c.lastUpdated
     })).filter(filterByMode);
 
     const registeredNames = new Set(registeredAnchors.map(a => a.name.toLowerCase().trim()));
@@ -368,7 +324,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
                 {/* CYBER BACKGROUND PATTERN */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.03]"
-                     style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}
+                    style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0)', backgroundSize: '24px 24px' }}
                 />
 
                 {/* HEADER */}
@@ -383,22 +339,20 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                             <div className="flex bg-titanium-950 rounded-lg p-1 border border-titanium-800">
                                 <button
                                     onClick={() => setActiveMode('PERSON')}
-                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${
-                                        activeMode === 'PERSON'
-                                        ? 'bg-titanium-800 text-white shadow-sm'
-                                        : 'text-titanium-500 hover:text-titanium-300'
-                                    }`}
+                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${activeMode === 'PERSON'
+                                            ? 'bg-titanium-800 text-white shadow-sm'
+                                            : 'text-titanium-500 hover:text-titanium-300'
+                                        }`}
                                 >
                                     <User size={14} />
                                     {t.people}
                                 </button>
                                 <button
                                     onClick={() => setActiveMode('CREATURE')}
-                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${
-                                        activeMode === 'CREATURE'
-                                        ? 'bg-titanium-800 text-emerald-400 shadow-sm'
-                                        : 'text-titanium-500 hover:text-titanium-300'
-                                    }`}
+                                    className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${activeMode === 'CREATURE'
+                                            ? 'bg-titanium-800 text-emerald-400 shadow-sm'
+                                            : 'text-titanium-500 hover:text-titanium-300'
+                                        }`}
                                 >
                                     <PawPrint size={14} />
                                     {t.bestiary}
@@ -502,7 +456,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                             {activeMode === 'PERSON' ? t.missingVaultPerson : t.missingVaultBestiary}
                         </h2>
                         <p className="max-w-md mb-8">
-                             {t.missingVaultDesc.replace('{type}', activeMode === 'PERSON' ? t.yourCharacters : t.yourCreatures)}
+                            {t.missingVaultDesc.replace('{type}', activeMode === 'PERSON' ? t.yourCharacters : t.yourCreatures)}
                         </p>
                         <button
                             onClick={onOpenSettings}
@@ -585,7 +539,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 <DragOverlay>
                     {activeEntity ? (
                         <div className="opacity-90 scale-105 rotate-2">
-                            <ForgeCard entity={activeEntity} onAction={() => {}} />
+                            <ForgeCard entity={activeEntity} onAction={() => { }} />
                         </div>
                     ) : null}
                 </DragOverlay>

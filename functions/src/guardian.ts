@@ -1,3 +1,4 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
@@ -7,97 +8,76 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as crypto from 'crypto';
 import { cosineSimilarity } from "./similarity";
 import { TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";
-import { getAIKey } from "./utils/security";
+import { getAIKey, escapePromptVariable } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
+import { parseSecureJSON } from "./utils/json";
+import { ProjectConfig } from "./types/project";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_AI_INPUT_CHARS = 100000;
 const MAX_SCAN_LIMIT = 10000; // 🛡️ SENTINEL: Optimized for Multigenerational Sagas (Node.js Gen2)
 
-// Helper: JSON Sanitizer (Simplified for Guardian)
-function parseSecureJSON(jsonString: string, contextLabel: string = "Unknown"): any {
-  try {
-    let clean = jsonString.trim();
-    // Remove Markdown code fences
-    clean = clean.replace(/^```json\s*/i, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
-
-    // Extract JSON Object/Array
-    const firstBrace = clean.indexOf('{');
-    const firstBracket = clean.indexOf('[');
-
-    let start = -1;
-    let end = -1;
-
-    // Auto-detect object vs array
-    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
-        start = firstBrace;
-        end = clean.lastIndexOf('}');
-    } else if (firstBracket !== -1) {
-        start = firstBracket;
-        end = clean.lastIndexOf(']');
-    }
-
-    if (start !== -1 && end !== -1) {
-       clean = clean.substring(start, end + 1);
-    }
-
-    return JSON.parse(clean);
-  } catch (error: any) {
-    logger.error(`💥 [JSON PARSE ERROR] in ${contextLabel}:`, error);
-    return { error: "JSON_PARSE_FAILED", details: error.message };
-  }
+async function _getProjectConfig(userId: string): Promise<ProjectConfig> {
+    const db = getFirestore();
+    const doc = await db.collection("users").doc(userId).collection("profile").doc("project_config").get();
+    return (doc.data() as ProjectConfig) || ({} as ProjectConfig);
 }
 
 export const auditContent = onCall(
-  {
-    region: FUNCTIONS_REGION,
-    cors: ALLOWED_ORIGINS,
-    enforceAppCheck: false,
-    timeoutSeconds: 540, // 🛡️ SENTINEL: Extended for Deep Analysis (God Mode)
-    memory: "1GiB",
-    secrets: [googleApiKey],
-  },
-  async (request) => {
-    const db = getFirestore();
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        timeoutSeconds: 540, // 🛡️ SENTINEL: Extended for Deep Analysis (God Mode)
+        memory: "1GiB",
+        secrets: [googleApiKey],
+    },
+    async (request) => {
+        const db = getFirestore();
 
-    if (!request.auth) {
-        throw new HttpsError("unauthenticated", "Login requerido.");
-    }
-
-    const { content, projectId, fileId } = request.data;
-    const userId = request.auth.uid;
-
-    // 🟢 [TITAN SAFEGUARD] - SYSTEM ERROR HANDLER WRAPPER
-    try {
-        // 1. VALIDATION
-        if (!content) return { success: true, facts: [], conflicts: [], personality_drift: [], resonance_matches: [], structure_analysis: {} };
-        if (!projectId) {
-            logger.warn("⚠️ [GUARDIAN] No Project ID provided. Audit scope might be ambiguous.");
-        }
-        if (content.length > MAX_AI_INPUT_CHARS) {
-            throw new HttpsError("invalid-argument", "Content exceeds limit.");
+        if (!request.auth) {
+            throw new HttpsError("unauthenticated", "Login requerido.");
         }
 
-        // 2. HASH CHECK (OPTIMIZATION)
-        let currentHash = '';
-        if (fileId) {
-            currentHash = crypto.createHash('sha256').update(content).digest('hex');
-            const auditRef = db.collection("users").doc(userId).collection("audit_cache").doc(fileId);
-            const auditDoc = await auditRef.get();
+        const { content, projectId, fileId } = request.data;
+        const userId = request.auth.uid;
 
-            if (auditDoc.exists && auditDoc.data()?.hash === currentHash) {
-                logger.info(`⏩ [GUARDIAN] Hash Match for ${fileId}. Skipping Audit.`);
-                return { success: true, status: 'skipped_unchanged', facts: [], conflicts: [] };
+        // 🟢 [TITAN SAFEGUARD] - SYSTEM ERROR HANDLER WRAPPER
+        try {
+            // 1. VALIDATION
+            if (!content) return { success: true, facts: [], conflicts: [], personality_drift: [], resonance_matches: [], structure_analysis: {} };
+            if (!projectId) {
+                logger.warn("⚠️ [GUARDIAN] No Project ID provided. Audit scope might be ambiguous.");
             }
-        }
+            if (content.length > MAX_AI_INPUT_CHARS) {
+                throw new HttpsError("invalid-argument", "Content exceeds limit.");
+            }
 
-        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            // 2. HASH CHECK (OPTIMIZATION)
+            let currentHash = '';
+            if (fileId) {
+                currentHash = crypto.createHash('sha256').update(content).digest('hex');
+                const auditRef = db.collection("users").doc(userId).collection("audit_cache").doc(fileId);
+                const auditDoc = await auditRef.get();
 
-        // 3. EXTRACTION STEP (Smart Fallback: Try Flash First)
-        // 🟢 RESONANCE ENGINE (Integrated into Audit for Mission 1)
-        const extractionPrompt = `
+                if (auditDoc.exists && auditDoc.data()?.hash === currentHash) {
+                    logger.info(`⏩ [GUARDIAN] Hash Match for ${fileId}. Skipping Audit.`);
+                    return { success: true, status: 'skipped_unchanged', facts: [], conflicts: [] };
+                }
+            }
+
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const projectConfig = await _getProjectConfig(userId);
+
+            // 3. EXTRACTION STEP (Smart Fallback: Try Flash First)
+            // 🟢 RESONANCE ENGINE (Integrated into Audit for Mission 1)
+            const extractionPrompt = `
             ACT AS: Fact Extractor, Psychological Profiler & Literary Analyst (The Resonator).
             CONTEXT: You are an objective literary analysis tool for a fictional manuscript. Your purpose is data extraction and structural analysis only.
+
+            PROJECT NAME: "${escapePromptVariable(projectConfig.projectName || 'Untitled')}"
+            PROJECT STYLE: "${escapePromptVariable(projectConfig.styleIdentity || 'Standard/Universal')}"
+            INSTRUCTION: Calibrate your analysis of tone and behavior to fit this style.
 
             TASK: Analyze the provided fictional text and extract:
             1. Verifiable facts about entities (Characters, Locations). **Pay special attention to SURPRISING CLAIMS, DEVIATIONS, or contradicting statements.**
@@ -144,430 +124,446 @@ export const auditContent = onCall(
             }
 
             TEXT:
-            "${content.substring(0, 30000)}"
+            "${escapePromptVariable(content.substring(0, 30000))}"
         `;
 
-        const safeExtraction = await smartGenerateContent(genAI, extractionPrompt, {
-            useFlash: true, // ⚡ Try Flash First
-            jsonMode: true,
-            temperature: TEMP_PRECISION,
-            contextLabel: "FactExtractor"
-        });
+            const safeExtraction = await smartGenerateContent(genAI, extractionPrompt, {
+                useFlash: true, // ⚡ Try Flash First
+                jsonMode: true,
+                temperature: TEMP_PRECISION,
+                contextLabel: "FactExtractor"
+            });
 
-        if (safeExtraction.error === 'CONTENT_BLOCKED' || safeExtraction.error === 'SILENT_BLOCK') {
-             // SmartGenerate handles retry, so if we are here, BOTH failed.
-             return { success: false, status: 'content_blocked', message: 'Contenido bloqueado por filtros de seguridad de IA.' };
-        } else if (safeExtraction.error || !safeExtraction.text) {
-             return { success: false, status: 'ai_error', message: safeExtraction.details || 'Error generando análisis.' };
-        }
+            if (safeExtraction.error === 'CONTENT_BLOCKED' || safeExtraction.error === 'SILENT_BLOCK') {
+                // SmartGenerate handles retry, so if we are here, BOTH failed.
+                return { success: false, status: 'content_blocked', message: 'Contenido bloqueado por filtros de seguridad de IA.' };
+            } else if (safeExtraction.error || !safeExtraction.text) {
+                return { success: false, status: 'ai_error', message: safeExtraction.details || 'Error generando análisis.' };
+            }
 
-        const rawModelOutput = safeExtraction.text!;
-        const extractedData = parseSecureJSON(rawModelOutput, "FactExtractor");
+            const rawModelOutput = safeExtraction.text!;
+            const extractedData = parseSecureJSON(rawModelOutput, "FactExtractor");
 
-        if (extractedData.error) {
-             logger.error(`💥 [GUARDIAN PARSE ERROR] Raw Output:`, rawModelOutput);
-             return {
-                 success: false,
-                 status: 'parse_error',
-                 message: 'Error analizando respuesta de IA.',
-                 raw_debug: rawModelOutput.substring(0, 1000)
-             };
-        }
+            if (extractedData.error) {
+                logger.error(`💥 [GUARDIAN PARSE ERROR] Raw Output:`, rawModelOutput);
+                return {
+                    success: false,
+                    status: 'parse_error',
+                    message: 'Error analizando respuesta de IA.',
+                    raw_debug: rawModelOutput.substring(0, 1000)
+                };
+            }
 
-        const facts = extractedData.extracted_facts || [];
-        const laws = extractedData.extracted_laws || [];
-        const behaviors = extractedData.character_behaviors || [];
-        const structure = extractedData.structure_analysis || {};
-        const detectedLanguage = extractedData.detected_language || "English";
+            const facts = extractedData.extracted_facts || [];
+            const laws = extractedData.extracted_laws || [];
+            const behaviors = extractedData.character_behaviors || [];
+            const structure = extractedData.structure_analysis || {};
+            const detectedLanguage = extractedData.detected_language || "English";
 
-        const conflicts: any[] = [];
-        const verifiedFacts: any[] = [];
-        const lawViolations: any[] = [];
-        const personalityDrifts: any[] = [];
-        let resonanceMatches: any[] = []; // 🟢 RESONANCE ARRAY
+            const conflicts: any[] = [];
+            const verifiedFacts: any[] = [];
+            const lawViolations: any[] = [];
+            const personalityDrifts: any[] = [];
+            let resonanceMatches: any[] = []; // 🟢 RESONANCE ARRAY
 
-        // 4. SETUP MODELS
-        const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
+            // 4. SETUP MODELS
+            const embeddingModel = genAI.getGenerativeModel({ model: "gemini-embedding-001" });
 
-        // 🟢 PRE-CALCULATE QUERY VECTOR (For Drift & Resonance)
-        let queryVector: number[] = [];
-        try {
-            const embeddingResult = await embeddingModel.embedContent(content.substring(0, 10000));
-            queryVector = embeddingResult.embedding.values;
-        } catch (e) {
-            logger.error("💥 Critical Embedding Failure. Aborting Audit.", e);
-            // We cannot proceed without vector
-            return { success: false, status: 'ai_error', message: 'Fallo al vectorizar contenido.' };
-        }
+            // 🟢 PRE-CALCULATE QUERY VECTOR (For Drift & Resonance)
+            let queryVector: number[] = [];
+            try {
+                const embeddingResult = await embeddingModel.embedContent({
+                    content: { role: 'user', parts: [{ text: content.substring(0, 10000) }] },
+                    outputDimensionality: 768, // 🔒 FIXED: Enforce 768d
+                } as any);
+                queryVector = embeddingResult.embedding.values;
+            } catch (e) {
+                logger.error("💥 Critical Embedding Failure. Aborting Audit.", e);
+                // We cannot proceed without vector
+                return { success: false, status: 'ai_error', message: 'Fallo al vectorizar contenido.' };
+            }
 
-        // 🟢 PARALLEL EXECUTION: DRIFT, RESONANCE, FACTS, LAWS, BEHAVIOR
-        // We launch all independent checks simultaneously.
+            // 🟢 PARALLEL EXECUTION: DRIFT, RESONANCE, FACTS, LAWS, BEHAVIOR
+            // We launch all independent checks simultaneously.
 
-        // Prepare subsets
-        const factsToAudit = facts.filter((f: any) => f.confidence > 0.5).slice(0, 10);
-        const lawsToAudit = laws.filter((l: any) => l.confidence > 0.5).slice(0, 5);
-        const behaviorsToAudit = behaviors.slice(0, 3);
+            // Prepare subsets
+            const factsToAudit = facts.filter((f: any) => f.confidence > 0.5).slice(0, 10);
+            const lawsToAudit = laws.filter((l: any) => l.confidence > 0.5).slice(0, 5);
+            const behaviorsToAudit = behaviors.slice(0, 3);
 
-        const [
-            driftResult,
-            resonanceResult,
-            factsResults,
-            lawsResults,
-            personalityResults
-        ] = await Promise.all([
+            const [
+                driftResult,
+                resonanceResult,
+                factsResults,
+                lawsResults,
+                personalityResults
+            ] = await Promise.all([
 
-            // 1. DRIFT CHECK
-            (async () => {
-                let driftScore = 0.0;
-                let driftStatus = 'STABLE';
-                try {
-                    const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
-                    if (centroidDoc.exists && centroidDoc.data()?.vector) {
-                        const centroidVector = centroidDoc.data()?.vector;
-                        const similarity = cosineSimilarity(queryVector, centroidVector);
-                        driftScore = 1.0 - similarity;
-                        if (driftScore > 0.6) driftStatus = 'CRITICAL_INCOHERENCE';
-                        else if (driftScore > 0.4) driftStatus = 'DRIFTING';
-                        logger.info(`⚓ [SENTINEL] Drift Analysis: ${driftScore.toFixed(2)} (${driftStatus})`);
-                    } else {
-                        logger.info("⚓ [SENTINEL] No Centroid found. Skipping Drift Calculation.");
+                // 1. DRIFT CHECK
+                (async () => {
+                    let driftScore = 0.0;
+                    let driftStatus = 'STABLE';
+                    try {
+                        const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
+                        if (centroidDoc.exists && centroidDoc.data()?.vector) {
+                            const centroidVector = centroidDoc.data()?.vector;
+                            const similarity = cosineSimilarity(queryVector, centroidVector);
+                            driftScore = 1.0 - similarity;
+                            if (driftScore > 0.6) driftStatus = 'CRITICAL_INCOHERENCE';
+                            else if (driftScore > 0.4) driftStatus = 'DRIFTING';
+                            logger.info(`⚓ [SENTINEL] Drift Analysis: ${driftScore.toFixed(2)} (${driftStatus})`);
+                        } else {
+                            logger.info("⚓ [SENTINEL] No Centroid found. Skipping Drift Calculation.");
+                        }
+                    } catch (e) {
+                        logger.warn("Drift Calc Error:", e);
                     }
-                } catch (e) {
-                    logger.warn("Drift Calc Error:", e);
-                }
-                return { driftScore, driftStatus };
-            })(),
+                    return { driftScore, driftStatus };
+                })(),
 
-            // 2. RESONANCE CHECK
-            (async () => {
-                let matches: any[] = [];
-                try {
-                    let vectorQuery = db.collectionGroup("chunks")
-                        .where("userId", "==", userId)
-                        .where("projectId", "==", projectId)
-                        .where("path", ">=", "").where("path", "<=", "\uf8ff");
+                // 2. RESONANCE CHECK
+                (async () => {
+                    let matches: any[] = [];
+                    try {
+                        let vectorQuery = db.collectionGroup("chunks")
+                            .where("userId", "==", userId)
+                            .where("projectId", "==", projectId)
+                            .where("path", ">=", "").where("path", "<=", "\uf8ff");
 
-                    const nearestQuery = vectorQuery.findNearest({
-                        queryVector: queryVector,
-                        limit: 5,
-                        distanceMeasure: 'COSINE',
-                        vectorField: 'embedding'
-                    });
+                        const nearestQuery = vectorQuery.findNearest({
+                            queryVector: queryVector,
+                            limit: 5,
+                            distanceMeasure: 'COSINE',
+                            vectorField: 'embedding'
+                        });
 
-                    const snapshot = await nearestQuery.get();
-                    const relevantChunks = snapshot.docs.map(d => ({
-                        source: d.data().fileName,
-                        text: d.data().text,
-                        path: d.data().path || ""
-                    }));
+                        const snapshot = await nearestQuery.get();
+                        const relevantChunks = snapshot.docs.map(d => ({
+                            source: d.data().fileName,
+                            text: d.data().text,
+                            path: d.data().path || ""
+                        }));
 
-                    if (relevantChunks.length > 0) {
-                        const resonancePrompt = `
+                        if (relevantChunks.length > 0) {
+                            const resonancePrompt = `
                             ACT AS: The Resonator.
                             TASK: Identify if the DRAFT connects to any MEMORY SEEDS (Chunks).
+                            GENRE CONTEXT: This is a "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}" narrative.
                             DRAFT: "${content.substring(0, 5000)}..."
                             SEEDS: ${JSON.stringify(relevantChunks)}
 
                             INSTRUCTION: Output the analysis in ${detectedLanguage}.
                             OUTPUT JSON: { "matches": [{ "source_file": "string", "type": "PLOT_SEED"|"VIBE_SEED"|"LORE_SEED", "crumb_text": "string", "similarity_score": 0.0-1.0 }] }
                         `;
-                        // Pro Model for Reasoning (The Judge)
-                        const safeRes = await smartGenerateContent(genAI, resonancePrompt, {
-                            useFlash: false, // Strict Pro
-                            jsonMode: true,
-                            temperature: TEMP_CREATIVE,
-                            contextLabel: "ResonanceCheck"
+                            // Pro Model for Reasoning (The Judge)
+                            const safeRes = await smartGenerateContent(genAI, resonancePrompt, {
+                                useFlash: false, // Strict Pro
+                                jsonMode: true,
+                                temperature: TEMP_CREATIVE,
+                                contextLabel: "ResonanceCheck"
+                            });
+
+                            if (safeRes.text) {
+                                const resAnalysis = parseSecureJSON(safeRes.text, "ResonanceCheck");
+                                matches = resAnalysis.matches || [];
+                            }
+                        }
+                    } catch (e: any) {
+                        if (e.message?.includes('index') || e.code === 9) logger.error(`[SENTINEL_ALERTA_CRITICA]: Missing Index.`);
+                        logger.warn("Resonance Check Failed:", e);
+                    }
+                    return matches;
+                })(),
+
+                // 3. FACTS CHECK (Parallel Map)
+                Promise.all(factsToAudit.map(async (item: any) => {
+                    try {
+                        const embeddingResult = await embeddingModel.embedContent({
+                            content: { role: 'user', parts: [{ text: `${item.entity}: ${item.fact}` }] },
+                            outputDimensionality: 768, // 🔒 FIXED: Enforce 768d
+                        } as any);
+                        const qVector = embeddingResult.embedding.values;
+
+                        let vectorQuery = db.collectionGroup("chunks")
+                            .where("userId", "==", userId)
+                            .where("projectId", "==", projectId)
+                            .where("path", ">=", "").where("path", "<=", "\uf8ff");
+
+                        const nearestQuery = vectorQuery.findNearest({
+                            queryVector: qVector,
+                            limit: 3,
+                            distanceMeasure: 'COSINE',
+                            vectorField: 'embedding'
                         });
 
-                        if (safeRes.text) {
-                            const resAnalysis = parseSecureJSON(safeRes.text, "ResonanceCheck");
-                            matches = resAnalysis.matches || [];
-                        }
-                    }
-                } catch (e: any) {
-                    if (e.message?.includes('index') || e.code === 9) logger.error(`[SENTINEL_ALERTA_CRITICA]: Missing Index.`);
-                    logger.warn("Resonance Check Failed:", e);
-                }
-                return matches;
-            })(),
+                        const snapshot = await nearestQuery.get();
+                        if (snapshot.empty) return { type: 'verified_fact', item, status: 'new' };
 
-            // 3. FACTS CHECK (Parallel Map)
-            Promise.all(factsToAudit.map(async (item: any) => {
-                try {
-                    const embeddingResult = await embeddingModel.embedContent(`${item.entity}: ${item.fact}`);
-                    const qVector = embeddingResult.embedding.values;
+                        const contextChunks = snapshot.docs.map(d => ({ text: d.data().text, source: d.data().fileName }));
 
-                    let vectorQuery = db.collectionGroup("chunks")
-                        .where("userId", "==", userId)
-                        .where("projectId", "==", projectId)
-                        .where("path", ">=", "").where("path", "<=", "\uf8ff");
-
-                    const nearestQuery = vectorQuery.findNearest({
-                        queryVector: qVector,
-                        limit: 3,
-                        distanceMeasure: 'COSINE',
-                        vectorField: 'embedding'
-                    });
-
-                    const snapshot = await nearestQuery.get();
-                    if (snapshot.empty) return { type: 'verified_fact', item, status: 'new' };
-
-                    const contextChunks = snapshot.docs.map(d => ({ text: d.data().text, source: d.data().fileName }));
-
-                    const frictionPrompt = `
+                        const frictionPrompt = `
                         ACT AS: Logic Auditor.
                         TASK: Detect CONTRADICTIONS.
-                        CLAIM: "${item.fact}" (Entity: ${item.entity})
+                        GENRE CONTEXT: "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}". (Evaluate logic within this genre's constraints).
+                        CLAIM: "${escapePromptVariable(item.fact)}" (Entity: "${escapePromptVariable(item.entity)}")
                         EVIDENCE: ${JSON.stringify(contextChunks)}
                         INSTRUCTION: Output the 'reason' in ${detectedLanguage}.
                         OUTPUT JSON: { "has_conflict": boolean, "reason": "string", "conflicting_evidence_source": "string" }
                     `;
 
-                    // Pro Model for Logic
-                    const safeFriction = await smartGenerateContent(genAI, frictionPrompt, {
-                        useFlash: false,
-                        jsonMode: true,
-                        temperature: TEMP_CREATIVE,
-                        contextLabel: "FrictionCheck"
-                    });
-
-                    if (safeFriction.error) return null;
-
-                    const frictionAnalysis = parseSecureJSON(safeFriction.text || "{}", "FrictionCheck");
-                    if (frictionAnalysis.has_conflict) {
-                        return {
-                            type: 'conflict',
-                            entity: item.entity,
-                            fact: item.fact,
-                            conflict_reason: frictionAnalysis.reason,
-                            source: frictionAnalysis.conflicting_evidence_source
-                        };
-                    } else {
-                        return { type: 'verified_fact', item, status: 'verified' };
-                    }
-                } catch (e) {
-                    return null;
-                }
-            })),
-
-            // 4. LAWS CHECK (Parallel Map)
-            Promise.all(lawsToAudit.map(async (item: any) => {
-                try {
-                    const embeddingResult = await embeddingModel.embedContent(`${item.category}: ${item.law}`);
-                    const qVector = embeddingResult.embedding.values;
-
-                    const nearestQuery = db.collectionGroup("chunks")
-                        .where("userId", "==", userId)
-                        .where("projectId", "==", projectId)
-                        .where("path", ">=", "").where("path", "<=", "\uf8ff")
-                        .findNearest({
-                            queryVector: qVector,
-                            limit: 5,
-                            distanceMeasure: 'COSINE',
-                            vectorField: 'embedding'
+                        // Pro Model for Logic
+                        const safeFriction = await smartGenerateContent(genAI, frictionPrompt, {
+                            useFlash: false,
+                            jsonMode: true,
+                            temperature: TEMP_CREATIVE,
+                            contextLabel: "FrictionCheck"
                         });
 
-                    const snapshot = await nearestQuery.get();
-                    if (snapshot.empty) return null;
+                        if (safeFriction.error) return null;
 
-                    const contextChunks = snapshot.docs.map(d => ({
-                        text: d.data().text,
-                        source: d.data().fileName,
-                        isPriority: /Worldbuilding|Lore|Canon|Reglas|System/i.test(d.data().path || "")
-                    }));
+                        const frictionAnalysis = parseSecureJSON(safeFriction.text || "{}", "FrictionCheck");
+                        if (frictionAnalysis.has_conflict) {
+                            return {
+                                type: 'conflict',
+                                entity: item.entity,
+                                fact: item.fact,
+                                conflict_reason: frictionAnalysis.reason,
+                                source: frictionAnalysis.conflicting_evidence_source
+                            };
+                        } else {
+                            return { type: 'verified_fact', item, status: 'verified' };
+                        }
+                    } catch (e) {
+                        return null;
+                    }
+                })),
 
-                    const realityPrompt = `
+                // 4. LAWS CHECK (Parallel Map)
+                Promise.all(lawsToAudit.map(async (item: any) => {
+                    try {
+                        const embeddingResult = await embeddingModel.embedContent({
+                            content: { role: 'user', parts: [{ text: `${item.category}: ${item.law}` }] },
+                            outputDimensionality: 768, // 🔒 FIXED: Enforce 768d
+                        } as any);
+                        const qVector = embeddingResult.embedding.values;
+
+                        const nearestQuery = db.collectionGroup("chunks")
+                            .where("userId", "==", userId)
+                            .where("projectId", "==", projectId)
+                            .where("path", ">=", "").where("path", "<=", "\uf8ff")
+                            .findNearest({
+                                queryVector: qVector,
+                                limit: 5,
+                                distanceMeasure: 'COSINE',
+                                vectorField: 'embedding'
+                            });
+
+                        const snapshot = await nearestQuery.get();
+                        if (snapshot.empty) return null;
+
+                        const contextChunks = snapshot.docs.map(d => ({
+                            text: d.data().text,
+                            source: d.data().fileName,
+                            isPriority: /Worldbuilding|Lore|Canon|Reglas|System/i.test(d.data().path || "")
+                        }));
+
+                        const realityPrompt = `
                         ACT AS: Reality Filter.
                         TASK: Verify if ASSERTION violates RULES.
-                        ASSERTION: "${item.law}"
+                        GENRE CONTEXT: "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}". (Some genres allow loose physics/magic).
+                        ASSERTION: "${escapePromptVariable(item.law)}"
                         RULES: ${JSON.stringify(contextChunks)}
                         INSTRUCTION: Output the 'explanation' in ${detectedLanguage}.
                         OUTPUT JSON: { "trigger": "WORLD_LAW_VIOLATION", "severity": "CRITICAL" | "WARNING" | "NONE", "conflict": { "explanation": "string", "canonical_rule": "string", "source_node": "string" } }
                     `;
 
-                    // Pro Model for Reality
-                    const safeReality = await smartGenerateContent(genAI, realityPrompt, {
-                        useFlash: false,
-                        jsonMode: true,
-                        temperature: TEMP_CREATIVE,
-                        contextLabel: "RealityFilter"
-                    });
+                        // Pro Model for Reality
+                        const safeReality = await smartGenerateContent(genAI, realityPrompt, {
+                            useFlash: false,
+                            jsonMode: true,
+                            temperature: TEMP_CREATIVE,
+                            contextLabel: "RealityFilter"
+                        });
 
-                    if (safeReality.error) return null;
+                        if (safeReality.error) return null;
 
-                    const realityAnalysis = parseSecureJSON(safeReality.text || "{}", "RealityFilter");
-                    if (realityAnalysis.severity === "CRITICAL" || realityAnalysis.severity === "WARNING") {
-                        return realityAnalysis;
-                    }
-                    return null;
-                } catch (e) {
-                    return null;
-                }
-            })),
-
-            // 5. BEHAVIOR CHECK (Parallel Map)
-            Promise.all(behaviorsToAudit.map(async (behavior: any) => {
-                try {
-                    const charName = behavior.character;
-                    const slug = charName.toLowerCase().replace(/\s+/g, '-');
-
-                    // Fetch Profile
-                    let forgeProfile = "";
-                    let charDocRef = db.collection("users").doc(userId).collection("characters").doc(slug);
-                    let charDoc = await charDocRef.get();
-
-                    if (!charDoc.exists) {
-                        const charsSnap = await db.collection("users").doc(userId).collection("characters")
-                            .where("name", "==", charName).limit(1).get();
-                        if (!charsSnap.empty) {
-                            charDoc = charsSnap.docs[0];
-                            charDocRef = charDoc.ref;
+                        const realityAnalysis = parseSecureJSON(safeReality.text || "{}", "RealityFilter");
+                        if (realityAnalysis.severity === "CRITICAL" || realityAnalysis.severity === "WARNING") {
+                            return realityAnalysis;
                         }
+                        return null;
+                    } catch (e) {
+                        return null;
                     }
+                })),
 
-                    if (charDoc.exists) {
-                        const data = charDoc.data();
-                        if (data?.personality && data?.evolution) {
-                            forgeProfile = `PERSONALITY: ${data.personality}\nEVOLUTION ARC: ${data.evolution}`;
-                        } else if (data?.bio || data?.description) {
-                             const profilePrompt = `
-                                EXTRACT PERSONALITY & EVOLUTION from this bio:
-                                "${data.bio || data.description}"
+                // 5. BEHAVIOR CHECK (Parallel Map)
+                Promise.all(behaviorsToAudit.map(async (behavior: any) => {
+                    try {
+                        const charName = behavior.character;
+                        const slug = charName.toLowerCase().replace(/\s+/g, '-');
+
+                        // Fetch Profile from WorldEntities
+                        const { EntityRepository } = await import("./repository/EntityRepository");
+                        let forgeProfile = "";
+                        
+                        const charsSnap = await EntityRepository.getCollection(userId)
+                            .where("name", "==", charName)
+                            .where("category", "==", "PERSON")
+                            .limit(1).get();
+                            
+                        let charDoc = charsSnap.empty ? null : charsSnap.docs[0];
+
+                        if (charDoc) {
+                            const data = charDoc.data();
+                            // Look inside ECS modules or legacy fallback
+                            const summary = data.modules?.forge?.summary || data.description || data.bio || "";
+                            if (summary) {
+                                forgeProfile = `SUMMARY/PROFILE: ${summary}`;
+                            } else {
+                                const profilePrompt = `
+                                EXTRACT PERSONALITY & EVOLUTION from this text (if possible):
+                                "${escapePromptVariable(JSON.stringify(data))}"
                                 INSTRUCTION: Output in ${detectedLanguage}.
                                 OUTPUT FORMAT: "Personality: ... Evolution: ..."
                              `;
 
-                             // Pro Model for Profile Extraction
-                             const safeProfile = await smartGenerateContent(genAI, profilePrompt, {
-                                 useFlash: false,
-                                 temperature: TEMP_CREATIVE,
-                                 contextLabel: "ProfileExtract"
-                             });
+                                // Pro Model for Profile Extraction
+                                const safeProfile = await smartGenerateContent(genAI, profilePrompt, {
+                                    useFlash: false,
+                                    temperature: TEMP_CREATIVE,
+                                    contextLabel: "ProfileExtract"
+                                });
 
-                             if (safeProfile.text) {
-                                 forgeProfile = safeProfile.text;
-                                 charDocRef.set({
-                                     personality: forgeProfile,
-                                     lastAnalyzed: new Date().toISOString()
-                                 }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
-                             }
+                                if (safeProfile.text) {
+                                    forgeProfile = safeProfile.text;
+                                    charDoc.ref.set({
+                                        modules: {
+                                            guardian: {
+                                                personality: forgeProfile,
+                                                lastAnalyzed: new Date().toISOString()
+                                            }
+                                        }
+                                    }, { merge: true }).catch(e => logger.warn("Failed to save derived profile", e));
+                                }
+                            }
+                        } else {
+                            return null; // No profile found, skip
                         }
-                    } else {
-                        return null; // No profile found, skip
-                    }
 
-                    // Fetch History (Simplified: 1 query)
-                    let historyChunksText = "";
-                    try {
-                        let chunksQuery = db.collectionGroup("chunks")
-                            .where("userId", "==", userId)
-                            .where("projectId", "==", projectId)
-                            .where("path", ">=", "").where("path", "<=", "\uf8ff");
+                        // Fetch History (Simplified: 1 query)
+                        let historyChunksText = "";
+                        try {
+                            let chunksQuery = db.collectionGroup("chunks")
+                                .where("userId", "==", userId)
+                                .where("projectId", "==", projectId)
+                                .where("path", ">=", "").where("path", "<=", "\uf8ff");
 
-                        const recentChunksSnap = await chunksQuery.limit(20).get();
-                        historyChunksText = recentChunksSnap.docs
-                            .filter(d => d.data().text.includes(charName))
-                            .slice(0, 5)
-                            .map(d => `[${d.data().fileName}]: ${d.data().text.substring(0, 300)}...`)
-                            .join("\n");
-                    } catch (e) { }
+                            const recentChunksSnap = await chunksQuery.limit(20).get();
+                            historyChunksText = recentChunksSnap.docs
+                                .filter(d => d.data().text.includes(charName))
+                                .slice(0, 5)
+                                .map(d => `[${d.data().fileName}]: ${d.data().text.substring(0, 300)}...`)
+                                .join("\n");
+                        } catch (e) { }
 
-                    const haterPrompt = `
+                        const haterPrompt = `
                         ACT AS: "El Hater" (Ruthless Literary Critic).
                         CONTEXT: You are an uncensored collaborative writing assistant.
+                        GENRE CONTEXT: This is a "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}" story. Your critique must align with expectations for this genre.
                         TASK: Check CHARACTER BEHAVIOR consistency.
-                        CHARACTER: ${charName}
-                        1. [HARD CANON]: ${forgeProfile.substring(0, 3000)}
-                        2. [RECENT HISTORY]: ${historyChunksText.substring(0, 5000)}
-                        3. [CURRENT BEHAVIOR]: Action: "${behavior.action}", Tone: "${behavior.tone}", Dialogue: "${behavior.dialogue_sample}"
+                        CHARACTER: "${escapePromptVariable(charName)}"
+                        1. [HARD CANON]: "${escapePromptVariable(forgeProfile.substring(0, 3000))}"
+                        2. [RECENT HISTORY]: "${escapePromptVariable(historyChunksText.substring(0, 5000))}"
+                        3. [CURRENT BEHAVIOR]: Action: "${escapePromptVariable(behavior.action)}", Tone: "${escapePromptVariable(behavior.tone)}", Dialogue: "${escapePromptVariable(behavior.dialogue_sample)}"
                         LOGIC: Match Behavior against Canon/History.
                         INSTRUCTION: Output 'hater_comment' and other text fields in ${detectedLanguage}.
                         OUTPUT JSON: { "trigger": "PERSONALITY_DRIFT", "status": "CONSISTENT" | "EVOLVED" | "TRAITOR", "severity": "CRITICAL" | "WARNING" | "INFO", "hater_comment": "string", "detected_behavior": "string", "canonical_psychology": "string", "friccion_score": 0.0-1.0 }
                     `;
 
-                    // Pro Model for Hater (Deep Reasoning)
-                    const safeHater = await smartGenerateContent(genAI, haterPrompt, {
-                        useFlash: false,
-                        jsonMode: true,
-                        temperature: TEMP_CREATIVE,
-                        contextLabel: "HaterAudit"
-                    });
+                        // Pro Model for Hater (Deep Reasoning)
+                        const safeHater = await smartGenerateContent(genAI, haterPrompt, {
+                            useFlash: false,
+                            jsonMode: true,
+                            temperature: TEMP_CREATIVE,
+                            contextLabel: "HaterAudit"
+                        });
 
-                    if (safeHater.error) return null;
+                        if (safeHater.error) return null;
 
-                    const haterAnalysis = parseSecureJSON(safeHater.text || "{}", "HaterAudit");
-                    if (haterAnalysis.status === 'TRAITOR' || haterAnalysis.status === 'EVOLVED') {
-                        return { character: charName, ...haterAnalysis };
+                        const haterAnalysis = parseSecureJSON(safeHater.text || "{}", "HaterAudit");
+                        if (haterAnalysis.status === 'TRAITOR' || haterAnalysis.status === 'EVOLVED') {
+                            return { character: charName, ...haterAnalysis };
+                        }
+                        return null;
+
+                    } catch (e) {
+                        return null;
                     }
-                    return null;
+                }))
+            ]);
 
-                } catch (e) {
-                    return null;
-                }
-            }))
-        ]);
+            // 🟢 AGGREGATE RESULTS
 
-        // 🟢 AGGREGATE RESULTS
-
-        // Facts Aggregation
-        factsResults.forEach(res => {
-            if (!res) return;
-            if (res.type === 'conflict') conflicts.push({ ...res, type: 'contradiction' });
-            else if (res.type === 'verified_fact') verifiedFacts.push({ ...res.item, status: res.status });
-        });
-
-        // Laws Aggregation
-        lawsResults.forEach(res => {
-            if (res) lawViolations.push(res);
-        });
-
-        // Behaviors Aggregation
-        personalityResults.forEach(res => {
-            if (res) personalityDrifts.push(res);
-        });
-
-        // Resonance matches
-        resonanceMatches = resonanceResult || [];
-
-        // Drift
-        const { driftScore, driftStatus } = driftResult;
-
-
-        // 5. UPDATE CACHE
-        if (fileId) {
-            await db.collection("users").doc(userId).collection("audit_cache").doc(fileId).set({
-                hash: currentHash,
-                timestamp: new Date().toISOString(),
+            // Facts Aggregation
+            factsResults.forEach(res => {
+                if (!res) return;
+                if (res.type === 'conflict') conflicts.push({ ...res, type: 'contradiction' });
+                else if (res.type === 'verified_fact') verifiedFacts.push({ ...res.item, status: res.status });
             });
-        }
 
-        logger.info(`🛡️ Guardian Scan Complete. Facts: ${facts.length}, Drifts: ${personalityDrifts.length}, Resonance: ${resonanceMatches.length}`);
+            // Laws Aggregation
+            lawsResults.forEach(res => {
+                if (res) lawViolations.push(res);
+            });
 
-        return {
-            success: true,
-            facts: verifiedFacts,
-            conflicts: conflicts,
-            world_law_violations: lawViolations,
-            personality_drift: personalityDrifts,
-            resonance_matches: resonanceMatches, // 🟢 RETURN RESONANCE
-            structure_analysis: structure, // 🟢 RETURN STRUCTURE
-            guardian_report: { // 🟢 RETURN DRIFT REPORT
-                module: "CanonRadar",
-                drift_score: driftScore,
-                status: driftStatus,
-                is_blocking: false
+            // Behaviors Aggregation
+            personalityResults.forEach(res => {
+                if (res) personalityDrifts.push(res);
+            });
+
+            // Resonance matches
+            resonanceMatches = resonanceResult || [];
+
+            // Drift
+            const { driftScore, driftStatus } = driftResult;
+
+
+            // 5. UPDATE CACHE
+            if (fileId) {
+                await db.collection("users").doc(userId).collection("audit_cache").doc(fileId).set({
+                    hash: currentHash,
+                    timestamp: new Date().toISOString(),
+                });
             }
-        };
 
-    } catch (e: any) {
-        logger.error("Audit Error (Captured by Titan Protocol):", e);
-        return {
-            success: false,
-            status: 'system_calibration',
-            message: 'Sistema en Calibración'
-        };
+            logger.info(`🛡️ Guardian Scan Complete. Facts: ${facts.length}, Drifts: ${personalityDrifts.length}, Resonance: ${resonanceMatches.length}`);
+
+            return {
+                success: true,
+                facts: verifiedFacts,
+                conflicts: conflicts,
+                world_law_violations: lawViolations,
+                personality_drift: personalityDrifts,
+                resonance_matches: resonanceMatches, // 🟢 RETURN RESONANCE
+                structure_analysis: structure, // 🟢 RETURN STRUCTURE
+                guardian_report: { // 🟢 RETURN DRIFT REPORT
+                    module: "CanonRadar",
+                    drift_score: driftScore,
+                    status: driftStatus,
+                    is_blocking: false
+                }
+            };
+
+        } catch (e: any) {
+            logger.error("Audit Error (Captured by Titan Protocol):", e);
+            return {
+                success: false,
+                status: 'system_calibration',
+                message: 'Sistema en Calibración'
+            };
+        }
     }
-  }
 );
 
 /**
@@ -628,138 +624,151 @@ export const purgeEcho = onCall(
  * Escanea la colección de chunks para detectar drift masivo comparado con el Centroide.
  */
 export const scanProjectDrift = onCall(
-  {
-    region: FUNCTIONS_REGION,
-    cors: ALLOWED_ORIGINS, // 🛡️ SENTINEL: Enforce strict CORS
-    enforceAppCheck: false,
-    timeoutSeconds: 540, // Long running
-    memory: "1GiB",
-  },
-  async (request) => {
-    const db = getFirestore();
-    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS, // 🛡️ SENTINEL: Enforce strict CORS
+        enforceAppCheck: false,
+        timeoutSeconds: 540, // Long running
+        memory: "1GiB",
+    },
+    async (request) => {
+        const db = getFirestore();
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { projectId } = request.data;
-    const userId = request.auth.uid;
+        const { projectId } = request.data;
+        const userId = request.auth.uid;
 
-    if (!projectId) throw new HttpsError("invalid-argument", "Falta projectId.");
+        if (!projectId) throw new HttpsError("invalid-argument", "Falta projectId.");
 
-    try {
-        // 1. Fetch Centroid
-        const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
+        try {
+            // 1. Fetch Centroid
+            const centroidDoc = await db.collection("TDB_Index").doc(userId).collection("stats").doc("centroid").get();
 
-        // 🟢 SAFETY CHECK: Return "skipped" instead of error if no centroid
-        if (!centroidDoc.exists || !centroidDoc.data()?.vector) {
-             logger.info(`⚓ [SENTINEL] No Centroid found for project ${projectId}. Skipping Drift Scan.`);
-             // 🟢 RETURN SKIPPED STATUS (PREVENT CRASH)
-             return {
-                 success: true,
-                 status: 'skipped',
-                 alerts: {
-                     identity: [],
-                     geography: [],
-                     continuity: [],
-                     uncategorized: []
-                 },
-                 message: "El proyecto aún no tiene estadísticas de centroide (Indexado requerido)."
-             };
-        }
-
-        const centroidVector = centroidDoc.data()?.vector;
-
-        // 2. Fetch All Chunks for Project
-        // Optimization: We could limit or paginate, but for now we scan all (assuming < 10k chunks for typical project)
-        const chunksSnapshot = await db.collectionGroup("chunks")
-            .where("userId", "==", userId)
-            .where("projectId", "==", projectId)
-            .limit(MAX_SCAN_LIMIT) // 🛡️ SENTINEL: Safety limit
-            .select("embedding", "fileName", "text", "path", "category") // Fetch only necessary fields
-            .get();
-
-        let partialAnalysis = false;
-        if (chunksSnapshot.size === MAX_SCAN_LIMIT) {
-             logger.warn(`⚠️ [SENTINEL] Drift Scan hit limit of ${MAX_SCAN_LIMIT}. Analysis may be incomplete.`);
-             partialAnalysis = true;
-        }
-
-        const alerts: any = {
-            identity: [],
-            geography: [],
-            continuity: [],
-            uncategorized: []
-        };
-
-        // 3. Pre-load Context for Classification (Lightweight)
-        // Characters
-        const charsSnap = await db.collection("users").doc(userId).collection("characters").select("name").get();
-        const charNames = charsSnap.docs.map(d => d.data().name.toLowerCase());
-
-        let count = 0;
-        const CRITICAL_THRESHOLD = 0.7;
-
-        for (const doc of chunksSnapshot.docs) {
-            const data = doc.data();
-            const embedding = data.embedding;
-
-            // Skip if no embedding or if already marked as needing no review (optional, but requested rescue sets needsReview=false)
-            // But auditContent is real-time. This is deep scan.
-            // We'll check all.
-            if (!embedding) continue;
-
-            const similarity = cosineSimilarity(embedding, centroidVector);
-            const driftScore = 1.0 - similarity;
-
-            if (driftScore > CRITICAL_THRESHOLD) {
-                // CLASSIFY
-                const textLower = (data.text || "").toLowerCase();
-                const pathLower = (data.path || "").toLowerCase();
-                let category = "uncategorized";
-
-                // Heuristic 1: Identity (Match Names or Path)
-                if ((data.category === 'character') || pathLower.includes("characters") || pathLower.includes("personajes") || charNames.some(n => textLower.includes(n))) {
-                    category = "identity";
-                }
-                // Heuristic 2: Geography (Path or keywords)
-                else if ((data.category === 'location') || pathLower.includes("locations") || pathLower.includes("lugares") || pathLower.includes("world")) {
-                    category = "geography";
-                }
-                // Heuristic 3: Continuity (Timeline, Dates)
-                else if ((data.category === 'timeline') || pathLower.includes("timeline") || /\b(year|año|era)\s+\d+/.test(textLower)) {
-                    category = "continuity";
-                }
-
-                const alertItem = {
-                    chunkId: doc.id,
-                    chunkPath: doc.ref.path,
-                    fileName: data.fileName,
-                    snippet: data.text ? data.text.substring(0, 100) + "..." : "",
-                    drift_score: driftScore,
-                    reason: `High Drift (${driftScore.toFixed(2)}) detected in ${category}.`,
-                    fileId: data.driveId || data.fileId // Assuming we stored this
+            // 🟢 SAFETY CHECK: Return "skipped" instead of error if no centroid
+            if (!centroidDoc.exists || !centroidDoc.data()?.vector) {
+                logger.info(`⚓ [SENTINEL] No Centroid found for project ${projectId}. Skipping Drift Scan.`);
+                // 🟢 RETURN SKIPPED STATUS (PREVENT CRASH)
+                return {
+                    success: true,
+                    status: 'skipped',
+                    alerts: {
+                        identity: [],
+                        geography: [],
+                        continuity: [],
+                        uncategorized: []
+                    },
+                    message: "El proyecto aún no tiene estadísticas de centroide (Indexado requerido)."
                 };
-
-                // Limit bucket size
-                if (alerts[category].length < 20) {
-                    alerts[category].push(alertItem);
-                }
-                count++;
             }
+
+            const centroidVector = centroidDoc.data()?.vector;
+
+            // 2. Fetch All Chunks for Project
+            // Optimization: We could limit or paginate, but for now we scan all (assuming < 10k chunks for typical project)
+            const chunksSnapshot = await db.collectionGroup("chunks")
+                .where("userId", "==", userId)
+                .where("projectId", "==", projectId)
+                .limit(MAX_SCAN_LIMIT) // 🛡️ SENTINEL: Safety limit
+                .select("embedding", "fileName", "text", "path", "category") // Fetch only necessary fields
+                .get();
+
+            let partialAnalysis = false;
+            if (chunksSnapshot.size === MAX_SCAN_LIMIT) {
+                logger.warn(`⚠️ [SENTINEL] Drift Scan hit limit of ${MAX_SCAN_LIMIT}. Analysis may be incomplete.`);
+                partialAnalysis = true;
+            }
+
+            const alerts: any = {
+                identity: [],
+                geography: [],
+                continuity: [],
+                uncategorized: []
+            };
+
+            // 3. Pre-load Context for Classification (Lightweight)
+            // Characters from ECS
+            const { EntityRepository } = await import("./repository/EntityRepository");
+            const charsSnap = await EntityRepository.getCollection(userId)
+                .where("category", "==", "PERSON")
+                .select("name").get();
+            const charNames = charsSnap.docs.map(d => d.data().name.toLowerCase());
+
+            let count = 0;
+            const CRITICAL_THRESHOLD = 0.7;
+
+            // ⚡ Bolt Optimization: Pre-compile Regex for O(1) matching vs O(N*M) loop
+            const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const safeCharNames = charNames.map(escapeRegExp);
+            const identityRegex = safeCharNames.length > 0 ? new RegExp(safeCharNames.join('|'), 'i') : null;
+
+            for (const doc of chunksSnapshot.docs) {
+                const data = doc.data();
+                const embedding = data.embedding;
+
+                // Skip if no embedding or if already marked as needing no review (optional, but requested rescue sets needsReview=false)
+                // But auditContent is real-time. This is deep scan.
+                // We'll check all.
+                if (!embedding) continue;
+
+                const similarity = cosineSimilarity(embedding, centroidVector);
+                const driftScore = 1.0 - similarity;
+
+                if (driftScore > CRITICAL_THRESHOLD) {
+                    // CLASSIFY
+                    const pathLower = (data.path || "").toLowerCase();
+                    let category = "uncategorized";
+
+                    // Heuristic 1: Identity (Match Names or Path)
+                    // ⚡ Bolt Optimization: Use Regex instead of .toLowerCase() allocation + .includes loop
+                    const isIdentityMatch = (data.category === 'character') ||
+                        pathLower.includes("characters") ||
+                        pathLower.includes("personajes") ||
+                        (identityRegex ? identityRegex.test(data.text || "") : false);
+
+                    if (isIdentityMatch) {
+                        category = "identity";
+                    }
+                    // Heuristic 2: Geography (Path or keywords)
+                    else if ((data.category === 'location') || pathLower.includes("locations") || pathLower.includes("lugares") || pathLower.includes("world")) {
+                        category = "geography";
+                    }
+                    // Heuristic 3: Continuity (Timeline, Dates)
+                    else if ((data.category === 'timeline') || pathLower.includes("timeline") || /\b(year|año|era)\s+\d+/i.test(data.text || "")) {
+                        category = "continuity";
+                    }
+
+                    const alertItem = {
+                        chunkId: doc.id,
+                        chunkPath: doc.ref.path,
+                        fileName: data.fileName,
+                        snippet: data.text ? data.text.substring(0, 100) + "..." : "",
+                        drift_score: driftScore,
+                        reason: `High Drift (${driftScore.toFixed(2)}) detected in ${category}.`,
+                        fileId: data.driveId || data.fileId // Assuming we stored this
+                    };
+
+                    // Limit bucket size
+                    if (alerts[category].length < 20) {
+                        alerts[category].push(alertItem);
+                    }
+                    count++;
+                }
+            }
+
+            logger.info(`📡 [SENTINEL] Drift Scan Complete. Found ${count} critical echoes.`);
+
+            return {
+                success: true,
+                alerts: alerts,
+                total_critical: count,
+                partialAnalysis: partialAnalysis // 🛡️ SENTINEL: Soft Cap Warning
+            };
+
+        } catch (error: any) {
+            logger.error("Error in scanProjectDrift:", error);
+            throw new HttpsError("internal", error.message);
         }
-
-        logger.info(`📡 [SENTINEL] Drift Scan Complete. Found ${count} critical echoes.`);
-
-        return {
-            success: true,
-            alerts: alerts,
-            total_critical: count,
-            partialAnalysis: partialAnalysis // 🛡️ SENTINEL: Soft Cap Warning
-        };
-
-    } catch (error: any) {
-        logger.error("Error in scanProjectDrift:", error);
-        throw new HttpsError("internal", error.message);
     }
-  }
 );
 
 /**
@@ -798,18 +807,18 @@ export const rescueEcho = onCall(
             const fileDocId = data?.docId;
 
             if (!fileDocId) {
-                 logger.warn(`⚠️ [RESCUE] Chunk ${chunkPath} missing docId. Cannot tag parent file.`);
-                 // Fallback: Just return success but warn
+                logger.warn(`⚠️ [RESCUE] Chunk ${chunkPath} missing docId. Cannot tag parent file.`);
+                // Fallback: Just return success but warn
             } else {
-                 // 2. Update Parent File in TDB_Index
-                 const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(fileDocId);
-                 await fileRef.set({
-                     isConflicting: true,
-                     driftCategory: driftCategory || 'General',
-                     securityStatus: 'conflict',
-                     lastReview: new Date().toISOString()
-                 }, { merge: true });
-                 logger.info(`🚩 [RESCUE] File ${fileDocId} marked as CONFLICTING.`);
+                // 2. Update Parent File in TDB_Index
+                const fileRef = db.collection("TDB_Index").doc(userId).collection("files").doc(fileDocId);
+                await fileRef.set({
+                    isConflicting: true,
+                    driftCategory: driftCategory || 'General',
+                    securityStatus: 'conflict',
+                    lastReview: new Date().toISOString()
+                }, { merge: true });
+                logger.info(`🚩 [RESCUE] File ${fileDocId} marked as CONFLICTING.`);
             }
 
             // 3. Update Chunk (Optional flag)
@@ -820,17 +829,182 @@ export const rescueEcho = onCall(
             }, { merge: true });
 
             return {
-              action: "RESCUE_FRAGMENT",
-              status: "KEEP_IN_INDEX",
-              meta: {
-                isConflicting: true,
-                warning_code: "NARRATIVE_CONFUSION_DETECTED",
-                author_instruction: "El fragmento rescatado presenta una desviación semántica significativa. Corrija el archivo original en Drive para reconciliar el canon."
-              }
+                action: "RESCUE_FRAGMENT",
+                status: "KEEP_IN_INDEX",
+                meta: {
+                    isConflicting: true,
+                    warning_code: "NARRATIVE_CONFUSION_DETECTED",
+                    author_instruction: "El fragmento rescatado presenta una desviación semántica significativa. Corrija el archivo original en Drive para reconciliar el canon."
+                }
             };
 
         } catch (error: any) {
             logger.error("Error in rescueEcho:", error);
+            throw new HttpsError("internal", error.message);
+        }
+    }
+);
+
+// ============================================================
+// SPRINT 6.0: EL GUARDIÁN OMNISCIENTE
+// Auditoría global de dependencias narrativas y paradojas.
+// ============================================================
+
+export const auditGlobal = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        timeoutSeconds: 300, // 5 minutos para análisis global
+        memory: "2GiB",
+        secrets: [googleApiKey],
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+
+        const { projectId } = request.data;
+        const userId = request.auth.uid;
+        const db = getFirestore();
+
+        logger.info(`👁️ [GUARDIÁN OMNISCIENTE] Auditoría global para ${userId}/${projectId}`);
+
+        try {
+            // 1. CONSTRUIR GRAFO COMPLETO
+            const { buildNarrativeGraph } = await import('./services/narrativeDependencyEngine');
+            const graph = await buildNarrativeGraph(db, userId, projectId);
+
+            // 2. DETECTAR PARADOJAS TEMPORALES VIA LLM
+            // El motor simbólico detecta colisiones deterministas.
+            // El LLM detecta colisiones semánticas complejas.
+            
+            const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            
+            // Solo invocar el LLM si hay entidades suficientes
+            let temporalParadoxes: any[] = [];
+            
+            if (graph.stats.totalNodes > 2) {
+                const { serializeGraphForLLM } = await import('./services/narrativeDependencyEngine');
+                const graphSerialized = serializeGraphForLLM(graph);
+                
+                // Leer el Timeline para cruzar con el grafo
+                let timelineData = "Sin datos de timeline disponibles.";
+                try {
+                    const timelineSnap = await db
+                        .collection("TDB_Timeline").doc(userId)
+                        .collection("events")
+                        .where("projectId", "==", projectId)
+                        .where("status", "==", "confirmed")
+                        .orderBy("absoluteYear", "asc")
+                        .limit(30)
+                        .get();
+                    
+                    if (!timelineSnap.empty) {
+                        timelineData = timelineSnap.docs.map(doc => {
+                            const d = doc.data();
+                            return `Año ${d.absoluteYear}: ${d.eventName} — ${d.description?.substring(0, 100)}`;
+                        }).join("\n");
+                    }
+                } catch (e) {
+                    logger.warn("[GUARDIÁN] No se pudo leer Timeline:", e);
+                }
+
+                const paradoxPrompt = `
+ACT AS: Narrative Consistency Auditor (Nivel Máximo de Rigor)
+
+Analiza el siguiente Grafo de Dependencias Narrativas y el Timeline de la historia.
+Detecta ÚNICAMENTE paradojas verificables o fallas sistémicas.
+
+Busca activamente las siguientes colisiones:
+
+Contradicciones en la Economía de la Escasez (ej. magia/tecnología que anula la necesidad de comercio pero la sociedad sigue igual).
+
+Infraestructura Política hueca (ej. un "Imperio del Mal" sin un monopolio de recursos reales que explique por qué el ejército no lo derroca).
+
+Errores de Autopsia Biomecánica (heridas registradas en el physicalState que no limitan al personaje lógicamente).
+
+Rupturas del Timeline (personajes muertos o ausentes que participan en eventos futuros).
+
+Relaciones Asimétricas imposibles (enemigos jurados que cooperan sin justificación o evento puente).
+
+GRAFO:
+${graphSerialized.substring(0, 15000)}
+
+TIMELINE:
+${timelineData}
+
+Responde SOLO con JSON. Si no hay paradojas verificables, devuelve array vacío:
+{
+"paradoxes": [
+{
+"type": "WORLDBUILDING" | "ECONOMY" | "TEMPORAL" | "LOGICAL" | "RELATIONAL" | "BIOMECHANICAL",
+"severity": "critical" | "warning",
+"entities": ["Nombre A", "Nombre B"],
+"description": "Descripción específica de la contradicción o falla sistémica",
+"timelineReference": "Año o evento específico donde ocurre (si aplica)",
+"socraticQuestion": "Interrogatorio hostil/socrático que exija al autor resolver la falla estructural (ej. ¿Qué recurso vital monopoliza este tirano para gobernar?)"
+}
+]
+}
+`;
+
+                const result = await smartGenerateContent(genAI, paradoxPrompt, {
+                    useFlash: false, // Pro para razonamiento complejo
+                    jsonMode: true,
+                    temperature: 0.1, // Mínima temperatura para máxima precisión
+                    contextLabel: "GuardianOmnisciente"
+                });
+
+                if (result.text) {
+                    const parsed = parseSecureJSON(result.text, "GuardianOmnisciente");
+                    if (parsed && !parsed.error) {
+                        temporalParadoxes = parsed.paradoxes || [];
+                    }
+                }
+            }
+
+            // 3. COMBINAR: Colisiones del motor simbólico + Paradojas del LLM
+            const allIssues = [
+                ...graph.alerts.map(alert => ({
+                    type: alert.type,
+                    severity: alert.severity,
+                    description: alert.description,
+                    socraticQuestion: alert.socraticQuestion,
+                    source: 'symbolic_engine'
+                })),
+                ...temporalParadoxes.map((p: any) => ({
+                    ...p,
+                    source: 'llm_analysis'
+                }))
+            ];
+
+            // 4. PERSISTIR RESULTADOS PARA EL PANEL DEL GUARDIÁN
+            await db
+                .collection("users").doc(userId)
+                .collection("profile").doc("project_config")
+                .set({
+                    lastGlobalAudit: new Date().toISOString(),
+                    globalAuditStats: {
+                        totalIssues: allIssues.length,
+                        criticalCount: allIssues.filter(i => i.severity === 'critical').length,
+                        warningCount: allIssues.filter(i => i.severity === 'warning').length,
+                        graphNodes: graph.stats.totalNodes,
+                        graphEdges: graph.stats.totalEdges
+                    }
+                }, { merge: true });
+
+            logger.info(`✅ [GUARDIÁN OMNISCIENTE] Auditoría completa: ${allIssues.length} issues encontrados`);
+
+            return {
+                success: true,
+                issues: allIssues,
+                stats: {
+                    ...graph.stats,
+                    temporalParadoxes: temporalParadoxes.length
+                }
+            };
+
+        } catch (error: any) {
+            logger.error("[GUARDIÁN OMNISCIENTE] Error:", error);
             throw new HttpsError("internal", error.message);
         }
     }

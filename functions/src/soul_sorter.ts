@@ -1,15 +1,18 @@
+import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { GoogleGenerativeAI, GenerativeModel } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { TEMP_PRECISION } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
-import { EntityTier, EntityCategory, ForgePayload, SoulEntity, DetectedEntity } from "./types/forge";
+import { EntityCategory, ForgePayload, DetectedEntity } from "./types/forge";
 import { enrichEntitiesParallel } from "./services/enrichment";
 import { getAIKey } from "./utils/security";
+import { EntityRepository } from "./repository/EntityRepository";
+import { smartGenerateContent } from "./utils/smart_generate";
 
 // --- MULTI-ANCHOR HELPERS ---
 const CONTAINER_KEYWORDS = ['lista', 'personajes', 'elenco', 'cast', 'notas', 'saga', 'entidades', 'roster', 'dramatis'];
@@ -35,6 +38,17 @@ export function isGenericName(name: string): boolean {
 // 🟢 IMPROVED: Detect Category by Metadata
 export function detectCategoryByMetadata(content: string): EntityCategory | null {
     const lines = content.split('\n').slice(0, 30);
+
+    // Check for explicit Traits line (V3.0 Body Signal)
+    const traitsLine = lines.find(l => /trait(s?):/i.test(l));
+    if (traitsLine) {
+        const lower = traitsLine.toLowerCase();
+        if (lower.includes('sentient') && lower.includes('tangible')) return 'CREATURE';
+        if (lower.includes('sentient')) return 'PERSON';
+        if (lower.includes('locatable')) return 'LOCATION';
+        if (lower.includes('tangible')) return 'OBJECT';
+        if (lower.includes('organized')) return 'PERSON'; // Factions are people groups
+    }
 
     // Helper to check regex against lines
     const checkKeys = (keys: string[]) => {
@@ -79,19 +93,6 @@ function extractNameFromBlock(text: string): string | null {
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const MAX_BATCH_CHARS = 75000;
 
-// 🟢 RETRY HELPER
-async function generateWithRetry(model: GenerativeModel, prompt: any[], retries = 3) {
-    for (let i = 0; i < retries; i++) {
-        try {
-            return await model.generateContent(prompt);
-        } catch (e: any) {
-            if (i === retries - 1) throw e;
-            await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
-        }
-    }
-    throw new Error("Retry failed");
-}
-
 export interface FileContent {
     id: string;
     name: string;
@@ -107,7 +108,7 @@ interface SorterRequest {
 // 🟢 EXPORTED LOGIC FOR TESTING
 export async function identifyEntities(
     files: FileContent[],
-    aiModel: GenerativeModel,
+    genAI: GoogleGenerativeAI,
     sagaId?: string
 ): Promise<Map<string, DetectedEntity>> {
 
@@ -157,19 +158,31 @@ export async function identifyEntities(
                 const name = (parsed.data.name || parsed.data.Nombre || "").trim();
 
                 // Check category from frontmatter 'type' or 'category'
-                let category: EntityCategory = 'PERSON'; // Default
-                const typeRaw = (parsed.data.type || parsed.data.category || "").toLowerCase();
+                let category: EntityCategory | 'UNKNOWN' = 'UNKNOWN';
 
-                if (typeRaw.includes('creature') || typeRaw.includes('bestiary') || typeRaw.includes('beast')) category = 'CREATURE';
-                else if (typeRaw.includes('flora') || typeRaw.includes('plant')) category = 'FLORA';
-                else if (typeRaw.includes('location') || typeRaw.includes('place') || typeRaw.includes('lugar')) category = 'LOCATION';
-                else if (typeRaw.includes('object') || typeRaw.includes('item')) category = 'OBJECT';
+                // 🟢 NEW: Check Traits (V3.0)
+                const traits = (parsed.data.traits || []) as string[];
+                if (traits.length > 0) {
+                     const t = traits.map((tr: string) => tr.toLowerCase());
+                     if (t.includes('sentient') && t.includes('tangible')) category = 'CREATURE';
+                     else if (t.includes('sentient')) category = 'PERSON';
+                     else if (t.includes('locatable')) category = 'LOCATION';
+                     else if (t.includes('tangible')) category = 'OBJECT';
+                     else if (t.includes('organized')) category = 'PERSON';
+                } else {
+                    // Fallback to legacy type
+                    const typeRaw = (parsed.data.type || parsed.data.category || "").toLowerCase();
+                    if (typeRaw.includes('creature') || typeRaw.includes('bestiary') || typeRaw.includes('beast')) category = 'CREATURE';
+                    else if (typeRaw.includes('flora') || typeRaw.includes('plant')) category = 'FLORA';
+                    else if (typeRaw.includes('location') || typeRaw.includes('place') || typeRaw.includes('lugar')) category = 'LOCATION';
+                    else if (typeRaw.includes('object') || typeRaw.includes('item')) category = 'OBJECT';
+                }
 
-                if (name) {
+                if (name && category !== 'UNKNOWN') {
                     entitiesMap.set(name.toLowerCase(), {
                         name: name,
                         tier: 'ANCHOR',
-                        category: category,
+                        category: category as EntityCategory,
                         confidence: 100,
                         reasoning: "Metadatos Detectados (Frontmatter)",
                         sourceFileId: file.id,
@@ -306,29 +319,44 @@ export async function identifyEntities(
     KNOWN ENTITIES: [${knownEntitiesList}]
 
     RULES:
-    1. Extract Proper Names of People/Beings (e.g. "Thomas", "Megu") -> Category: 'PERSON'.
-    2. Extract Names of MYTHICAL CREATURES or SPECIAL FAUNA (e.g. "Baku-fante", "Shadow Wolf") -> Category: 'CREATURE'.
-    3. Extract Names of SPECIAL FLORA (e.g. "Moon Flower") -> Category: 'FLORA'.
-    4. Extract Names of IMPORTANT LOCATIONS (Cities, Kingdoms, Planets) -> Category: 'LOCATION'.
-    5. Extract Names of LEGENDARY/MAGIC OBJECTS (Swords, Artifacts) -> Category: 'OBJECT'.
+    1. Extract Entities and classify them STRICTLY in one of these categories: 'PERSON', 'LOCATION', 'CREATURE', 'OBJECT', 'CONCEPT'.
+    2. Proper Names of People/Beings -> Category: 'PERSON'.
+    3. MYTHICAL CREATURES or SPECIAL FAUNA -> Category: 'CREATURE'.
+    4. IMPORTANT LOCATIONS (Even if they have proper names like 'Valoria') -> Category: 'LOCATION', NOT 'PERSON'.
+    5. LEGENDARY/MAGIC OBJECTS -> Category: 'OBJECT'.
+    6. Abstract ideas or systems -> Category: 'CONCEPT'.
 
-    6. DEDUPLICATION: Use known names if possible.
-    7. STRICT CLASSIFICATION: Do not label a Place as a Person.
+    7. DEDUPLICATION: Use known names if possible.
+    8. STRICT CLASSIFICATION: Do not label a Place as a Person.
 
     OUTPUT JSON (Array):
     [
       {
         "name": "Name",
-        "category": "PERSON" | "CREATURE" | "FLORA" | "LOCATION" | "OBJECT",
-        "context": "Brief context snippet (max 10 words)"
+        "category": "PERSON" | "CREATURE" | "LOCATION" | "OBJECT" | "CONCEPT",
+        "modules": {
+            "forge": { "summary": "Brief context snippet (max 10 words)" }
+        }
       }
     ]
     `;
 
     for (const batchText of batches) {
         try {
-            const result = await generateWithRetry(aiModel, [extractionPrompt, batchText]);
-            const extracted = parseSecureJSON(result.response.text(), "SoulSorterExtraction");
+            const result = await smartGenerateContent(genAI, batchText, {
+                useFlash: true,
+                systemInstruction: extractionPrompt,
+                contextLabel: "SoulSorterExtraction",
+                jsonMode: true,
+                temperature: 0.2
+            });
+
+            if (result.error || !result.text) {
+                logger.error("Soul Sorter Batch Error:", result.error);
+                continue;
+            }
+
+            const extracted = parseSecureJSON(result.text, "SoulSorterExtraction");
 
             if (Array.isArray(extracted)) {
                 for (const item of extracted) {
@@ -346,15 +374,18 @@ export async function identifyEntities(
                             existing.category = item.category as EntityCategory;
                         }
                     } else {
-                        entitiesMap.set(key, {
-                            name: item.name,
-                            tier: 'GHOST',
-                            category: (item.category as EntityCategory) || 'PERSON',
-                            confidence: 50,
-                            reasoning: "Mención en Narrativa",
-                            saga: sagaId || 'Global',
-                            foundIn: [item.context || "Mentioned"]
-                        });
+                        const detectedCategory = (item.category as EntityCategory) || 'UNKNOWN';
+                        if (detectedCategory !== 'UNKNOWN') {
+                            entitiesMap.set(key, {
+                                name: item.name,
+                                tier: 'GHOST',
+                                category: detectedCategory,
+                                confidence: 50,
+                                reasoning: "Mención en Narrativa",
+                                saga: sagaId || 'Global',
+                                foundIn: [item.context || "Mentioned"]
+                            });
+                        }
                     }
                 }
             }
@@ -480,16 +511,8 @@ export const classifyEntities = onCall(
 
             // --- 2. IDENTIFY ENTITIES (Logic) ---
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            const model = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST,
-                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-                generationConfig: {
-                    responseMimeType: "application/json",
-                    temperature: TEMP_PRECISION
-                } as any
-            });
-
-            const entitiesMap = await identifyEntities(fileContents, model, sagaId);
+            
+            const entitiesMap = await identifyEntities(fileContents, genAI, sagaId);
 
             // --- 3. ENRICHMENT PHASE ---
             const entityList = Array.from(entitiesMap.values());
@@ -502,59 +525,37 @@ export const classifyEntities = onCall(
                 5
             );
 
-            // --- 4. PERSISTENCE ---
-            const detectionRef = db.collection("users").doc(uid).collection("forge_detected_entities");
-            const charactersRef = db.collection("users").doc(uid).collection("characters");
-
-            const BATCH_SIZE = 200; // Reduced to prevent exceeding 500 ops limit
+            // --- 4. PERSISTENCE (ECS) ---
+            const BATCH_SIZE = 100; // Using EntityRepository which resolves its own queries
             const setOperations: Promise<any>[] = [];
-            let currentSetBatch = db.batch();
-            let setCount = 0;
 
             enrichedEntities.forEach(e => {
-                // A. SAVE TO DETECTED ENTITIES (Radar)
-                const ref = detectionRef.doc(e.id);
-
                 const safePayload: any = {
-                    ...e,
-                    role: e.role || null,
-                    avatar: e.avatar || null,
-                    driveId: e.driveId || null,
+                    id: e.id,
+                    projectId: sagaId || 'Global',
+                    name: e.name,
                     category: e.category || 'PERSON',
-                    sourceSnippet: e.sourceSnippet || "No preview available",
-                    mergeSuggestion: e.mergeSuggestion || null,
-                    tags: e.tags || [],
-                    saga: sagaId || 'Global',
-                    lastDetected: new Date().toISOString(),
-                    occurrences: FieldValue.increment(e.occurrences)
+                    tier: e.tier,
+                    status: 'active',
+                    modules: {
+                        forge: {
+                            summary: e.sourceSnippet || "No preview available",
+                            aliases: e.aliases || [],
+                            tags: e.tags || [],
+                        },
+                        guardian: {
+                            occurrences: FieldValue.increment(e.occurrences),
+                            firstMentionedIn: (e as any).sourceFileId || null
+                        }
+                    }
                 };
 
-                currentSetBatch.set(ref, safePayload, { merge: true });
-
-                // 🟢 B. AUTO-HEALING (Sync Anchors to Roster)
                 if (e.tier === 'ANCHOR' && e.driveId) {
-                    const charRef = charactersRef.doc(e.id);
-                    currentSetBatch.set(charRef, {
-                        masterFileId: e.driveId,
-                        lastRelinked: new Date().toISOString(),
-                        sourceContext: sagaId || 'Global',
-                        status: 'EXISTING',
-                        sourceType: 'MASTER',
-                        name: e.name,
-                        category: e.category || 'PERSON',
-                        tier: 'ANCHOR',
-                        isAIEnriched: true
-                    }, { merge: true });
+                    safePayload.driveFileId = e.driveId;
                 }
 
-                setCount++;
-                if (setCount >= BATCH_SIZE) {
-                    setOperations.push(currentSetBatch.commit());
-                    currentSetBatch = db.batch();
-                    setCount = 0;
-                }
+                setOperations.push(EntityRepository.upsertEntity(uid, e.id, safePayload));
             });
-            if (setCount > 0) setOperations.push(currentSetBatch.commit());
 
             // --- 6. UPDATE SOUL HASHES (OPTIMIZATION) ---
             // Update lastSoulSortedHash for processed files
