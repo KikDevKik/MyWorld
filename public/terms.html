@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Terms of Service — MyWorld</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: rgba(129,140,248,0.12);
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #818cf8;
+    --accent2: #67e8f9;
+    --green: #34d399;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Lora', Georgia, serif;
+    font-size: 16px;
+    line-height: 1.8;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(129,140,248,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(129,140,248,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 80px 32px 120px;
+  }
+
+  .header { margin-bottom: 64px; }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 48px;
+    text-decoration: none;
+  }
+
+  .logo-mark { width: 36px; height: 36px; }
+
+  .logo-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .page-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 36px;
+    font-weight: 400;
+    line-height: 1.2;
+    margin-bottom: 16px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 48px 0;
+  }
+
+  section { margin-bottom: 48px; }
+
+  h2 {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  p {
+    color: #94a3b8;
+    margin-bottom: 16px;
+    font-size: 15px;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+
+  ul li {
+    color: #94a3b8;
+    font-size: 15px;
+    padding: 6px 0 6px 20px;
+    position: relative;
+  }
+
+  ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 12px;
+    top: 8px;
+  }
+
+  .highlight-box {
+    background: rgba(129,140,248,0.05);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+
+  .highlight-box p {
+    margin: 0;
+    font-size: 14px;
+    color: #94a3b8;
+  }
+
+  .highlight-box strong { color: var(--accent2); font-weight: 500; }
+
+  a {
+    color: var(--accent2);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(103,232,249,0.3);
+    transition: border-color 0.2s;
+  }
+
+  a:hover { border-color: var(--accent2); }
+
+  .footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .footer-links { display: flex; gap: 24px; }
+
+  .footer-links a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom-color: transparent;
+  }
+
+  .footer-links a:hover {
+    color: var(--accent);
+    border-bottom-color: transparent;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="header">
+    <a href="https://myworldhistory.site" class="logo">
+      <svg class="logo-mark" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="og" cx="35%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#67e8f9"/>
+            <stop offset="60%" stop-color="#818cf8"/>
+            <stop offset="100%" stop-color="#6d28d9"/>
+          </radialGradient>
+          <radialGradient id="dg" cx="30%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#a5f3fc"/>
+            <stop offset="100%" stop-color="#34d399"/>
+          </radialGradient>
+        </defs>
+        <rect width="120" height="120" fill="#111118" rx="20"/>
+        <g transform="translate(60,62)">
+          <circle cx="0" cy="0" r="42" fill="none" stroke="url(#og)" stroke-width="1.5" opacity="0.5"/>
+          <ellipse cx="0" cy="0" rx="32" ry="9" fill="none" stroke="#818cf8" stroke-width="1" opacity="0.3" transform="rotate(-25)"/>
+          <path d="M-17,-11 L-17,13 L0,-4 L17,13 L17,-11" fill="none" stroke="url(#og)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="0" cy="-29" r="5" fill="url(#dg)"/>
+          <circle cx="0" cy="-29" r="9" fill="url(#dg)" opacity="0.15"/>
+          <line x1="0" y1="-24" x2="0" y2="-11" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" opacity="0.5" stroke-dasharray="2,3"/>
+        </g>
+      </svg>
+      <span class="logo-text">MyWorld</span>
+    </a>
+
+    <p class="page-tag">Legal</p>
+    <h1>Terms of Service</h1>
+    <p class="subtitle">Last updated: April 27, 2026</p>
+  </header>
+
+  <div class="highlight-box">
+    <p><strong>The short version:</strong> Your stories are yours. MyWorld is a tool, not a co-author. Use it responsibly and don't misuse the platform. We reserve the right to terminate accounts that violate these terms.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <section>
+    <h2>1. Acceptance of terms</h2>
+    <p>By accessing or using MyWorld at <a href="https://myworldhistory.site">myworldhistory.site</a>, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use MyWorld.</p>
+  </section>
+
+  <section>
+    <h2>2. Description of service</h2>
+    <p>MyWorld is a creative writing IDE that helps writers build, organize, and develop fictional universes. It integrates with Google Drive for file storage and uses Google Gemini AI for writing assistance features.</p>
+    <p>MyWorld is currently in <strong>Beta</strong>. Features may change, be added, or be removed without prior notice.</p>
+  </section>
+
+  <section>
+    <h2>3. Your account</h2>
+    <p>To use MyWorld you must have a Google account. You are responsible for maintaining the security of your account and for all activities that occur under your account.</p>
+    <ul>
+      <li>You must be at least 13 years old to use MyWorld.</li>
+      <li>You must provide accurate information when setting up your account.</li>
+      <li>You are responsible for keeping your API keys secure.</li>
+      <li>You must notify us immediately of any unauthorized use of your account.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. Your content</h2>
+    <p><strong>You own your creative work.</strong> MyWorld does not claim any ownership over the stories, characters, worldbuilding, or any other content you create using the platform.</p>
+    <p>Your content is stored in your own Google Drive and remains under your control at all times. By using MyWorld's AI features, you grant us a limited, temporary license to process your content solely for the purpose of providing those features to you.</p>
+    <p>You are solely responsible for the content you create. You agree not to create content that:</p>
+    <ul>
+      <li>Violates any applicable law or regulation.</li>
+      <li>Infringes on the intellectual property rights of others.</li>
+      <li>Contains illegal material including child sexual abuse material.</li>
+      <li>Is used to harass, threaten, or harm others.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. AI features and BYOK</h2>
+    <p>MyWorld uses Google Gemini to power AI features including The Architect, The Director, The Guardian, and others. These features require a Gemini API key.</p>
+    <p>MyWorld operates on a BYOK (Bring Your Own Key) model — you use your own Google Gemini API key. By using your API key within MyWorld:</p>
+    <ul>
+      <li>You are responsible for your own API usage and any associated costs.</li>
+      <li>Your API key is stored only in your browser session and never on our servers.</li>
+      <li>You must comply with Google's AI usage policies.</li>
+      <li>We are not responsible for any output generated by the AI models.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Acceptable use</h2>
+    <p>You agree to use MyWorld only for lawful purposes. You must not:</p>
+    <ul>
+      <li>Attempt to gain unauthorized access to MyWorld's systems or other users' accounts.</li>
+      <li>Use automated tools to scrape, crawl, or extract data from MyWorld.</li>
+      <li>Interfere with or disrupt the integrity or performance of the service.</li>
+      <li>Attempt to reverse engineer, decompile, or disassemble any part of MyWorld.</li>
+      <li>Use MyWorld to generate or distribute spam, malware, or harmful content.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>7. Availability and changes</h2>
+    <p>MyWorld is provided "as is" during Beta. We do not guarantee uninterrupted or error-free service. We reserve the right to:</p>
+    <ul>
+      <li>Modify, suspend, or discontinue any feature at any time.</li>
+      <li>Update these Terms of Service with reasonable notice.</li>
+      <li>Limit access to certain features or the service as a whole.</li>
+    </ul>
+    <p>Continued use of MyWorld after changes to the Terms constitutes acceptance of those changes.</p>
+  </section>
+
+  <section>
+    <h2>8. Limitation of liability</h2>
+    <p>To the maximum extent permitted by law, MyWorld and its creators shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of data, loss of content, or service interruptions.</p>
+    <p>MyWorld is not responsible for any data loss that may occur in your Google Drive. We strongly recommend maintaining your own backups of important creative work.</p>
+  </section>
+
+  <section>
+    <h2>9. Termination</h2>
+    <p>You may stop using MyWorld at any time and delete your account via Settings → Danger Zone → Delete Everything.</p>
+    <p>We reserve the right to suspend or terminate accounts that violate these Terms of Service, without prior notice in cases of serious violations.</p>
+  </section>
+
+  <section>
+    <h2>10. Governing law</h2>
+    <p>These Terms are governed by the laws of Colombia. Any disputes shall be resolved in the courts of Colombia, unless otherwise required by applicable consumer protection law in your jurisdiction.</p>
+  </section>
+
+  <section>
+    <h2>11. Contact</h2>
+    <p>If you have questions about these Terms of Service, please contact us at <a href="mailto:deinerflot@gmail.com">deinerflot@gmail.com</a>.</p>
+  </section>
+
+  <footer class="footer">
+    <p>© 2026 MyWorld. All rights reserved.</p>
+    <div class="footer-links">
+      <a href="https://myworldhistory.site">Home</a>
+      <a href="/privacy">Privacy Policy</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>

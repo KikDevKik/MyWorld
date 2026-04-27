@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Privacy Policy — MyWorld</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0a0a0f;
+    --surface: #111118;
+    --border: rgba(129,140,248,0.12);
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #818cf8;
+    --accent2: #67e8f9;
+    --green: #34d399;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Lora', Georgia, serif;
+    font-size: 16px;
+    line-height: 1.8;
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(129,140,248,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(129,140,248,0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 80px 32px 120px;
+  }
+
+  .header { margin-bottom: 64px; }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 48px;
+    text-decoration: none;
+  }
+
+  .logo-mark { width: 36px; height: 36px; }
+
+  .logo-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .page-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--green);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 36px;
+    font-weight: 400;
+    color: var(--text);
+    line-height: 1.2;
+    margin-bottom: 16px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 48px 0;
+  }
+
+  section { margin-bottom: 48px; }
+
+  h2 {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: 'JetBrains Mono', monospace;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  p {
+    color: #94a3b8;
+    margin-bottom: 16px;
+    font-size: 15px;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+
+  ul li {
+    color: #94a3b8;
+    font-size: 15px;
+    padding: 6px 0 6px 20px;
+    position: relative;
+  }
+
+  ul li::before {
+    content: '→';
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+    font-size: 12px;
+    top: 8px;
+  }
+
+  .highlight-box {
+    background: rgba(129,140,248,0.05);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    padding: 20px 24px;
+    margin-bottom: 24px;
+  }
+
+  .highlight-box p {
+    margin: 0;
+    font-size: 14px;
+    color: #94a3b8;
+  }
+
+  .highlight-box strong {
+    color: var(--accent2);
+    font-weight: 500;
+  }
+
+  a {
+    color: var(--accent2);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(103,232,249,0.3);
+    transition: border-color 0.2s;
+  }
+
+  a:hover { border-color: var(--accent2); }
+
+  .footer {
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .footer p {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .footer-links { display: flex; gap: 24px; }
+
+  .footer-links a {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom-color: transparent;
+  }
+
+  .footer-links a:hover {
+    color: var(--accent);
+    border-bottom-color: transparent;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header class="header">
+    <a href="https://myworldhistory.site" class="logo">
+      <svg class="logo-mark" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="og" cx="35%" cy="35%" r="65%">
+            <stop offset="0%" stop-color="#67e8f9"/>
+            <stop offset="60%" stop-color="#818cf8"/>
+            <stop offset="100%" stop-color="#6d28d9"/>
+          </radialGradient>
+          <radialGradient id="dg" cx="30%" cy="30%" r="70%">
+            <stop offset="0%" stop-color="#a5f3fc"/>
+            <stop offset="100%" stop-color="#34d399"/>
+          </radialGradient>
+        </defs>
+        <rect width="120" height="120" fill="#111118" rx="20"/>
+        <g transform="translate(60,62)">
+          <circle cx="0" cy="0" r="42" fill="none" stroke="url(#og)" stroke-width="1.5" opacity="0.5"/>
+          <ellipse cx="0" cy="0" rx="32" ry="9" fill="none" stroke="#818cf8" stroke-width="1" opacity="0.3" transform="rotate(-25)"/>
+          <path d="M-17,-11 L-17,13 L0,-4 L17,13 L17,-11" fill="none" stroke="url(#og)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="0" cy="-29" r="5" fill="url(#dg)"/>
+          <circle cx="0" cy="-29" r="9" fill="url(#dg)" opacity="0.15"/>
+          <line x1="0" y1="-24" x2="0" y2="-11" stroke="#34d399" stroke-width="1.5" stroke-linecap="round" opacity="0.5" stroke-dasharray="2,3"/>
+        </g>
+      </svg>
+      <span class="logo-text">MyWorld</span>
+    </a>
+
+    <p class="page-tag">Legal</p>
+    <h1>Privacy Policy</h1>
+    <p class="subtitle">Last updated: April 27, 2026</p>
+  </header>
+
+  <div class="highlight-box">
+    <p><strong>The short version:</strong> MyWorld stores your data in your own Google Drive. We never sell your data. We never read your stories. Your creative work belongs entirely to you.</p>
+  </div>
+
+  <div class="divider"></div>
+
+  <section>
+    <h2>1. Who we are</h2>
+    <p>MyWorld ("we", "us", "our") is a creative writing IDE available at <a href="https://myworldhistory.site">myworldhistory.site</a>. MyWorld is an independent project developed to help writers build, organize, and develop their fictional universes.</p>
+    <p>Contact: <a href="mailto:deinerflot@gmail.com">deinerflot@gmail.com</a></p>
+  </section>
+
+  <section>
+    <h2>2. What data we collect</h2>
+    <p>When you use MyWorld, we collect and process the following:</p>
+    <ul>
+      <li><strong>Google Account information</strong> — your name and email address, used only for authentication via Firebase.</li>
+      <li><strong>Google Drive access</strong> — MyWorld reads and writes files in a dedicated folder in your Google Drive. We only access the folder you authorize. We never access other files in your Drive.</li>
+      <li><strong>Project configuration</strong> — folder paths, project name, and settings stored in Firebase Firestore, linked to your user ID.</li>
+      <li><strong>Usage data</strong> — basic interaction data stored in Firestore to power features like The Architect's session history and narrative analysis.</li>
+      <li><strong>API Key</strong> — if you choose BYOK (Bring Your Own Key), your Gemini API key is stored only in your browser session and is never sent to our servers or stored in any database.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>3. What we do NOT collect</h2>
+    <ul>
+      <li>We do not read the content of your stories or documents beyond what is necessary to provide the AI features you explicitly activate.</li>
+      <li>We do not sell, share, or monetize your personal data or creative content.</li>
+      <li>We do not store your Google Drive files on our servers — they remain in your Drive.</li>
+      <li>We do not use your content to train AI models.</li>
+      <li>We do not use advertising trackers or third-party analytics beyond Firebase.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>4. How we use your data</h2>
+    <p>We use the data we collect solely to:</p>
+    <ul>
+      <li>Authenticate you and maintain your session.</li>
+      <li>Save and sync your project configuration across devices.</li>
+      <li>Power AI features (The Architect, The Director, The Guardian, etc.) when you explicitly use them.</li>
+      <li>Improve the reliability and performance of MyWorld.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>5. Third-party services</h2>
+    <p>MyWorld uses the following third-party services:</p>
+    <ul>
+      <li><strong>Firebase (Google)</strong> — authentication and database. Subject to <a href="https://firebase.google.com/support/privacy" target="_blank">Firebase Privacy Policy</a>.</li>
+      <li><strong>Google Drive API</strong> — file storage. Subject to <a href="https://policies.google.com/privacy" target="_blank">Google Privacy Policy</a>.</li>
+      <li><strong>Google Gemini API</strong> — AI features. When using BYOK, your API key communicates directly with Google's servers. Subject to <a href="https://ai.google.dev/terms" target="_blank">Google AI Terms</a>.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>6. Data retention</h2>
+    <p>Your project configuration and session data in Firestore is retained as long as your account is active. You can delete all your data at any time from <strong>Settings → Danger Zone → Delete Everything</strong>. This permanently removes all data from our databases and sends your Drive folder to trash (recoverable for 30 days from Google Drive).</p>
+  </section>
+
+  <section>
+    <h2>7. Your rights</h2>
+    <p>You have the right to:</p>
+    <ul>
+      <li>Access all data we hold about you.</li>
+      <li>Delete your account and all associated data at any time.</li>
+      <li>Revoke MyWorld's access to your Google Drive at any time from your <a href="https://myaccount.google.com/permissions" target="_blank">Google Account settings</a>.</li>
+      <li>Export your creative content — since it lives in your Google Drive, it is always accessible and portable.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>8. Security</h2>
+    <p>MyWorld uses Firebase Authentication and Google OAuth 2.0 for secure login. All communication is encrypted via HTTPS. Your API key, if provided, never leaves your browser session.</p>
+    <p>We are a small independent project and apply best practices, but no system is 100% secure. We recommend you do not share your Google account credentials with anyone.</p>
+  </section>
+
+  <section>
+    <h2>9. Children's privacy</h2>
+    <p>MyWorld is not directed at children under 13. We do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, please contact us and we will delete it.</p>
+  </section>
+
+  <section>
+    <h2>10. Changes to this policy</h2>
+    <p>We may update this Privacy Policy from time to time. We will notify users of significant changes by updating the date at the top of this page. Continued use of MyWorld after changes constitutes acceptance of the updated policy.</p>
+  </section>
+
+  <section>
+    <h2>11. Contact</h2>
+    <p>If you have questions about this Privacy Policy or how your data is handled, please contact us at <a href="mailto:deinerflot@gmail.com">deinerflot@gmail.com</a>.</p>
+  </section>
+
+  <footer class="footer">
+    <p>© 2026 MyWorld. All rights reserved.</p>
+    <div class="footer-links">
+      <a href="https://myworldhistory.site">Home</a>
+      <a href="/terms">Terms of Service</a>
+    </div>
+  </footer>
+
+</div>
+</body>
+</html>
