@@ -3,7 +3,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getAIKey } from "./utils/security";
+import { getAIKey, getTier } from "./utils/security";
 import { MODEL_FLASH, MODEL_FLASH_2_5 } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -65,6 +65,12 @@ export const generateSpeech = onCall(
 
         // Use default profile if missing
         const profile = voiceProfile || { gender: 'NEUTRAL', age: 'ADULT' };
+
+        // TTS is Ultra-only (requires billing for TTS model access)
+        const tier = getTier(request.data);
+        if (tier === 'normal') {
+            throw new HttpsError("failed-precondition", "TTS_ULTRA_ONLY");
+        }
 
         try {
             const apiKey = getAIKey(request.data, googleApiKey.value());

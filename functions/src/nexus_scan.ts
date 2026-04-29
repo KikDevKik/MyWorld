@@ -9,7 +9,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
-import { getAIKey } from "./utils/security";
+import { getAIKey, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 
 // 🛡️ SENTINEL CONSTANTS
@@ -171,6 +171,7 @@ export const analyzeNexusBatch = onCall(
             }
 
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const tier = getTier(request.data);
 
             // 🟢 STAGE 1: THE HARVESTER (FLASH + SMART FALLBACK)
             logger.info("🤖 STAGE 1: HARVESTER (Flash -> Pro Fallback) Initiated...");
@@ -198,7 +199,7 @@ export const analyzeNexusBatch = onCall(
             // Increased to 300k chars for Flash
 
             const harvesterResult = await smartGenerateContent(genAI, harvesterPrompt, {
-                useFlash: true, // Try Flash first for massive text
+                _tier: tier, taskType: 'high_volume',
                 jsonMode: true,
                 temperature: 0.2,
                 contextLabel: "NexusHarvester"
@@ -297,7 +298,7 @@ export const analyzeNexusBatch = onCall(
             `;
 
             const judgeResult = await smartGenerateContent(genAI, judgePrompt, {
-                useFlash: false, // Strict Pro for Reasoning
+                _tier: tier, taskType: 'deep_analysis',
                 jsonMode: true,
                 temperature: TEMP_PRECISION,
                 contextLabel: "NexusJudge"

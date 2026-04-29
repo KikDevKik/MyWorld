@@ -16,6 +16,11 @@ import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import { EntityService } from '../../services/EntityService';
+import { ToolWelcomeCard } from '../ToolWelcomeCard';
+import { TOOL_WELCOMES } from '../../config/toolWelcomes';
+import { useToolWelcome } from '../../hooks/useToolWelcome';
+import { useTier } from '../../hooks/useTier';
+import { AIMotorBlockedOverlay } from '../ui/AIMotorBlockedOverlay';
 
 interface ForgeDashboardProps {
     folderId: string; // Project Root ID (for global context)
@@ -90,7 +95,9 @@ function DroppableColumn({ id, children, className }: { id: string, children: Re
 
 const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, characterSaga, bestiarySaga, onOpenSettings }) => {
     const { currentLanguage } = useLanguageStore();
+    const { hasByok } = useTier();
     const t = TRANSLATIONS[currentLanguage].forge;
+    const [showWelcome, dismissWelcome] = useToolWelcome('forja', folderId);
 
     // 🟢 MODE SWITCH
     const [activeMode, setActiveMode] = useState<'PERSON' | 'CREATURE'>('PERSON');
@@ -318,6 +325,8 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // --- RENDER ---
 
+    if (!hasByok) return <AIMotorBlockedOverlay toolName="La Forja" />;
+
     return (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
             <div className="w-full h-full flex flex-col bg-titanium-950 overflow-hidden relative selection:bg-accent-900/30 selection:text-accent-200">
@@ -445,6 +454,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         </button>
                     </div>
                 </header>
+
+                {/* Welcome card — primera visita */}
+                {showWelcome && (
+                    <ToolWelcomeCard
+                        {...TOOL_WELCOMES.forja}
+                        onDismiss={dismissWelcome}
+                    />
+                )}
 
                 {/* EMPTY STATE (MISSING VAULT) - Bypass in Ghost Mode */}
                 {!activeSaga && import.meta.env.VITE_JULES_MODE !== 'true' ? (

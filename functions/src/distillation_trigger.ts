@@ -5,10 +5,10 @@ import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { defineSecret } from "firebase-functions/params";
 import { FUNCTIONS_REGION } from "./config";
-import { MODEL_FLASH_2_5 } from "./ai_config";
+import { getModelForTask } from "./ai_config";
 import * as logger from "firebase-functions/logger";
 import { _getDriveFileContentInternal } from "./utils/drive";
-import { getAIKey } from "./utils/security";
+import { getAIKey, getTierFromByok } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -38,6 +38,23 @@ export const distillResourceOnIndex = onDocumentWritten(
         const driveFileId = afterData.driveFileId || entityId;
         const accessToken = (afterData as any).accessToken;
 
+        // Leer preferencia de destilación automática del usuario desde Firestore:
+        const userPrefs = await db
+            .doc(`users/${userId}/profile/preferences`)
+            .get();
+        
+        const autoDistill = userPrefs.data()?.autoDistillResources;
+        
+        // Si el usuario tiene destilación manual: marcar como 'queued' y salir
+        if (autoDistill === false) {
+            await event.data?.after?.ref.update({ 
+                status: 'queued',
+                queuedReason: 'manual_distill_mode'
+            });
+            logger.info(`[Destilador] Resource ${entityId} encolado — modo manual`);
+            return;
+        }
+
         if (!accessToken) {
             logger.warn(`⚠️ [DISTILL] No accessToken found for ${afterData.name} (${entityId}). Cannot fetch content.`);
             return;
@@ -60,8 +77,9 @@ export const distillResourceOnIndex = onDocumentWritten(
 
             // 2. Call Gemini (Using saved BYOK)
             const byok = (afterData as any).byok;
+            const tier = getTierFromByok(byok);
             const genAI = new GoogleGenerativeAI(getAIKey({ _authOverride: byok }, googleApiKey.value()));
-            const model = genAI.getGenerativeModel({ model: MODEL_FLASH_2_5 });
+            const model = genAI.getGenerativeModel({ model: getModelForTask('standard', tier) });
 
             const prompt = `
                 ACT AS: Archivista de Conocimiento y Analista.

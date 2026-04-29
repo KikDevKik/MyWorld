@@ -16,8 +16,20 @@
         "destination": "/terms.html"
       },
       {
+        "source": "/app",
+        "destination": "/app.html"
+      },
+      {
+        "source": "/app/**",
+        "destination": "/app.html"
+      },
+      {
+        "source": "/",
+        "destination": "/landing.html"
+      },
+      {
         "source": "**",
-        "destination": "/index.html"
+        "destination": "/app.html"
       }
     ],
     "headers": [
@@ -35,7 +47,7 @@
         ]
       },
       {
-        "source": "/index.html",
+        "source": "/app.html",
         "headers": [
           {
             "key": "Cache-Control",

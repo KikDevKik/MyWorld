@@ -4,26 +4,33 @@
  */
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info, Globe2 } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info, Globe2, Zap, Leaf } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
 import { callFunction } from '../../services/api';
 import { useLanguageStore, Language } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
+import { useTier, TierMode } from '../../hooks/useTier';
+import { useQuotaTracker } from '../../hooks/useQuotaTracker';
+import { getAuth } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../../lib/firebase';
 
 interface SettingsModalProps {
     onClose: () => void;
     onSave: (url: string) => void;
     accessToken?: string | null;
     onGetFreshToken?: () => Promise<string | null>;
+    initialTab?: 'general' | 'profile' | 'memory' | 'ai_config' | 'info';
 }
 
-const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken }) => {
+const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken, initialTab }) => {
     const { config, updateConfig, customGeminiKey, setCustomGeminiKey, fileTree } = useProjectConfig(); // 🟢 Use Context
     const { currentLanguage, setLanguage } = useLanguageStore(); // 🟢 LANGUAGE STORE
     const t = TRANSLATIONS[currentLanguage].settings; // 🟢 LOCALIZED TEXTS
+    const { tier, tierMode, setTierMode } = useTier();
 
-    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config' | 'info'>('general');
+    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config' | 'info'>(initialTab || 'general');
     const modalRef = React.useRef<HTMLDivElement>(null);
 
     // 🎨 PALETTE: Focus Trap & Escape Key
@@ -62,6 +69,52 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     // 🟢 BYOK: Local State
     const [localGeminiKey, setLocalGeminiKey] = useState('');
     const [showKey, setShowKey] = useState(false);
+
+    // 🟢 NEW: Quota Tracker
+    const { quota, status: quotaStatus, usagePercent, limits, requestsLeft, resetQuota } = useQuotaTracker();
+    const { isNormal, isUltra } = useTier();
+
+    // 🟢 GUARDIAN MODE
+    const guardianModeKey = `guardian_mode_${config?.folderId || 'global'}`;
+    const [guardianMode, setGuardianModeState] = useState<'auto' | 'manual'>(() => {
+        const saved = localStorage.getItem(guardianModeKey);
+        return (saved as 'auto' | 'manual') || (isUltra ? 'auto' : 'manual');
+    });
+
+    const setGuardianMode = (val: 'auto' | 'manual') => {
+        localStorage.setItem(guardianModeKey, val);
+        setGuardianModeState(val);
+    };
+
+    // 🟢 AUTO DISTILL
+    const [autoDistill, setAutoDistill] = useState(() => {
+        const saved = localStorage.getItem('autoDistillResources');
+        return saved === null ? true : saved === 'true';
+    });
+
+    const savePreference = async (key: string, value: any) => {
+        localStorage.setItem(key, value.toString());
+        const userId = getAuth().currentUser?.uid;
+        if (!userId) return;
+        try {
+            await setDoc(doc(db, 'users', userId, 'profile', 'preferences'), { [key]: value }, { merge: true });
+        } catch(e) {
+            console.error("Error saving preference", e);
+        }
+    };
+
+    // 🟢 WELCOME CARDS TOGGLE
+    const [welcomeCardsDisabled, setWelcomeCardsDisabled] = useState(
+        () => localStorage.getItem('welcome_cards_disabled') === 'true'
+    );
+
+    // FIX #6/#7/#8 — Architect awareness toggles
+    const [breakRemindersDisabled, setBreakRemindersDisabled] = useState(
+        () => localStorage.getItem('break_reminders_disabled') === 'true'
+    );
+    const [roadmapRemindersDisabled, setRoadmapRemindersDisabled] = useState(
+        () => localStorage.getItem('roadmap_reminders_disabled') === 'true'
+    );
 
     useEffect(() => {
         if (config) {
@@ -566,6 +619,104 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                             <div className="h-px bg-titanium-800 my-2" />
 
+                            {/* 🟢 EXPERIENCIA — Welcome cards toggle */}
+                            <div className="space-y-3">
+                                <h4 className="text-xs font-medium text-titanium-500 uppercase tracking-wider">
+                                    Experiencia
+                                </h4>
+
+                                <div className="flex items-center justify-between py-2">
+                                    <div>
+                                        <p className="text-sm text-titanium-300">Paneles de bienvenida</p>
+                                        <p className="text-xs text-titanium-500 mt-0.5">
+                                            Mostrar guías al abrir cada herramienta por primera vez
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const next = !welcomeCardsDisabled;
+                                            localStorage.setItem('welcome_cards_disabled', String(next));
+                                            setWelcomeCardsDisabled(next);
+                                            toast.success(next ? 'Paneles de bienvenida desactivados' : 'Paneles de bienvenida activados');
+                                        }}
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                            !welcomeCardsDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                        }`}
+                                        aria-label="Toggle paneles de bienvenida"
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                                            !welcomeCardsDisabled ? 'translate-x-5' : 'translate-x-0.5'
+                                        }`} />
+                                    </button>
+                                </div>
+
+                                {!welcomeCardsDisabled && (
+                                    <button
+                                        onClick={() => {
+                                            Object.keys(localStorage)
+                                                .filter(key => key.startsWith('welcome_dismissed_'))
+                                                .forEach(key => localStorage.removeItem(key));
+                                            toast.success('Guías de bienvenida restablecidas');
+                                        }}
+                                        className="text-xs text-titanium-500 hover:text-titanium-300 transition-colors underline"
+                                    >
+                                        Restablecer todas las guías
+                                    </button>
+                                )}
+
+                                <div className="flex items-center justify-between py-2">
+                                    <div>
+                                        <p className="text-sm text-titanium-300">Recordatorio de pausa (Arquitecto)</p>
+                                        <p className="text-xs text-titanium-500 mt-0.5">
+                                            Notificar al resolver 5 disonancias seguidas
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const next = !breakRemindersDisabled;
+                                            localStorage.setItem('break_reminders_disabled', String(next));
+                                            setBreakRemindersDisabled(next);
+                                            toast.success(next ? 'Recordatorio de pausa desactivado' : 'Recordatorio de pausa activado');
+                                        }}
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                            !breakRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                        }`}
+                                        aria-label="Toggle recordatorio de pausa"
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                                            !breakRemindersDisabled ? 'translate-x-5' : 'translate-x-0.5'
+                                        }`} />
+                                    </button>
+                                </div>
+
+                                <div className="flex items-center justify-between py-2">
+                                    <div>
+                                        <p className="text-sm text-titanium-300">Recordatorio de Roadmap (Arquitecto)</p>
+                                        <p className="text-xs text-titanium-500 mt-0.5">
+                                            Sugerir cristalizar el Roadmap al resolver 7 disonancias
+                                        </p>
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const next = !roadmapRemindersDisabled;
+                                            localStorage.setItem('roadmap_reminders_disabled', String(next));
+                                            setRoadmapRemindersDisabled(next);
+                                            toast.success(next ? 'Recordatorio de Roadmap desactivado' : 'Recordatorio de Roadmap activado');
+                                        }}
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                            !roadmapRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                        }`}
+                                        aria-label="Toggle recordatorio de Roadmap"
+                                    >
+                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                                            !roadmapRemindersDisabled ? 'translate-x-5' : 'translate-x-0.5'
+                                        }`} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="h-px bg-titanium-800 my-2" />
+
                             <p className="text-sm text-titanium-400 italic">
                                 {t.folderConfigMoved}
                             </p>
@@ -689,78 +840,258 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         </div>
                     )}
 
-                    {/* TAB: AI CONFIG (BYOK) */}
+                    {/* TAB: AI CONFIG */}
                     {activeTab === 'ai_config' && (
-                        <div role="tabpanel" id="panel-ai_config" aria-labelledby="tab-ai_config" className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            {/* 🟢 CAMBIO 2: Aviso de API Key */}
-                            <div className="flex items-start gap-3 p-3 bg-cyan-500/5 border border-cyan-500/20 rounded-lg">
-                                <span className="text-cyan-400 text-base shrink-0">🔑</span>
-                                <div>
-                                    <p className="text-[13px] text-cyan-300 font-medium mb-1">
-                                        API Key de Gemini requerida
-                                    </p>
-                                    <p className="text-[11px] text-titanium-500 leading-relaxed">
-                                        MyWorld usa tu propia API Key de Google Gemini (BYOK). Obtén una gratis en{' '}
-                                        <a
-                                            href="https://aistudio.google.com/apikey"
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-cyan-500 hover:text-cyan-300 underline underline-offset-2"
+                        <div role="tabpanel" id="panel-ai_config" aria-labelledby="tab-ai_config" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
+                            <h3 className="text-xs font-medium text-titanium-500 uppercase tracking-wider mb-4">IA &amp; Seguridad</h3>
+
+                            <div className="grid grid-cols-2 gap-6">
+
+                                {/* COLUMNA IZQUIERDA — Nivel de IA */}
+                                <div className="space-y-4">
+                                    <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Nivel de IA</h4>
+
+                                    <div className="space-y-1">
+                                        {[
+                                            { value: 'auto' as TierMode, label: 'Automático', desc: 'Detecta desde tu API Key' },
+                                            { value: 'normal' as TierMode, label: 'Normal (Gratis)', desc: 'Gemini Flash — Free Tier de Google' },
+                                            { value: 'ultra' as TierMode, label: 'Ultra (Pro)', desc: 'Gemini 3.x Premium — requiere billing' },
+                                        ].map(option => (
+                                            <label
+                                                key={option.value}
+                                                className="flex items-start gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-titanium-900 transition-colors"
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="tierMode"
+                                                    value={option.value}
+                                                    checked={tierMode === option.value}
+                                                    onChange={() => setTierMode(option.value)}
+                                                    className="mt-0.5 accent-yellow-400 shrink-0"
+                                                />
+                                                <div>
+                                                    <span className="text-sm text-titanium-100 font-medium">{option.label}</span>
+                                                    <p className="text-xs text-titanium-500 mt-0.5">{option.desc}</p>
+                                                </div>
+                                            </label>
+                                        ))}
+                                    </div>
+
+                                    {/* Estado actual */}
+                                    <div>
+                                        <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Estado actual</h4>
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
+                                            !customGeminiKey
+                                                ? 'bg-red-500/10 text-red-400 border-red-500/30'
+                                                : tier === 'ultra'
+                                                    ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
+                                                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                                        }`}>
+                                            {!customGeminiKey ? (
+                                                <><span>✕</span><span>Sin API Key</span></>
+                                            ) : tier === 'ultra' ? (
+                                                <><Zap size={11} /><span>Ultra — Key conectada</span></>
+                                            ) : (
+                                                <><Leaf size={11} /><span>Normal — Tu key</span></>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Sección de herramientas automáticas */}
+                                    <div className="mt-4 pt-4 border-t border-zinc-800">
+                                        <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
+                                            Herramientas automáticas
+                                        </h4>
+                                        
+                                        {/* Toggle Guardián */}
+                                        <div className="flex items-center justify-between py-2">
+                                            <div>
+                                                <p className="text-sm text-zinc-300">El Guardián del Canon</p>
+                                                <p className="text-xs text-zinc-500 mt-0.5">
+                                                    {isUltra 
+                                                        ? 'Audita mientras escribes (cada 50 palabras)'
+                                                        : 'En Modo Normal: recomendamos Manual para conservar cuota'
+                                                    }
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-zinc-600">
+                                                    {guardianMode === 'auto' ? 'Auto' : 'Manual'}
+                                                </span>
+                                                <button
+                                                    onClick={() => setGuardianMode(guardianMode === 'auto' ? 'manual' : 'auto')}
+                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                                        guardianMode === 'auto' ? 'bg-cyan-500' : 'bg-titanium-700'
+                                                    }`}
+                                                >
+                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                                                        guardianMode === 'auto' ? 'translate-x-5' : 'translate-x-0.5'
+                                                    }`} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Toggle Destilador */}
+                                        <div className="flex items-center justify-between py-2">
+                                            <div>
+                                                <p className="text-sm text-zinc-300">Destilación de recursos</p>
+                                                <p className="text-xs text-zinc-500 mt-0.5">
+                                                    Analiza automáticamente los recursos al indexarlos
+                                                </p>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-zinc-600">
+                                                    {autoDistill ? 'Auto' : 'Manual'}
+                                                </span>
+                                                <button
+                                                    onClick={() => {
+                                                        const next = !autoDistill;
+                                                        savePreference('autoDistillResources', next);
+                                                        setAutoDistill(next);
+                                                    }}
+                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
+                                                        autoDistill ? 'bg-cyan-500' : 'bg-titanium-700'
+                                                    }`}
+                                                >
+                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
+                                                        autoDistill ? 'translate-x-5' : 'translate-x-0.5'
+                                                    }`} />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Aviso Free Tier */}
+                                        {!isUltra && (
+                                            <div className="mt-2 p-2.5 bg-amber-500/5 border border-amber-500/15 rounded-lg">
+                                                <p className="text-xs text-amber-400/80 leading-relaxed">
+                                                    💡 En Modo Normal (Free Tier), tener ambas herramientas en Manual 
+                                                    te da control total sobre tu cuota de 250 RPD.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* COLUMNA DERECHA — API Key */}
+                                <div className="space-y-3">
+                                    <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Tu API Key de Google AI Studio</h4>
+
+                                    <div className="relative">
+                                        <input
+                                            id="api-key-input"
+                                            type={showKey ? "text" : "password"}
+                                            value={localGeminiKey}
+                                            onChange={(e) => setLocalGeminiKey(e.target.value)}
+                                            className="w-full bg-slate-800 text-white placeholder-gray-500 border border-slate-700 p-2.5 pr-10 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none font-mono text-sm"
+                                            placeholder="AIzaSy..."
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowKey(!showKey)}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-titanium-400 hover:text-white transition-colors"
+                                            aria-label={showKey ? "Ocultar clave" : "Mostrar clave"}
                                         >
-                                            aistudio.google.com/apikey
-                                        </a>
-                                        . Tu clave se guarda solo en esta sesión del navegador — nunca en nuestros servidores.
-                                    </p>
-                                </div>
-                            </div>
+                                            {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                                        </button>
+                                    </div>
 
-                            <div className="flex items-center gap-2 mb-2">
-                                <Key size={18} className="text-purple-400" />
-                                <h4 className="text-sm font-bold text-purple-400 uppercase tracking-wider">{t.byok}</h4>
-                            </div>
-
-                            <div className="flex flex-col gap-2">
-                                <label htmlFor="api-key-input" className="text-sm font-medium text-titanium-100">{t.googleKey}</label>
-                                <div className="relative">
-                                    <input
-                                        id="api-key-input"
-                                        type={showKey ? "text" : "password"}
-                                        value={localGeminiKey}
-                                        onChange={(e) => setLocalGeminiKey(e.target.value)}
-                                        className="w-full bg-slate-800 text-white placeholder-gray-500 border border-slate-700 p-3 pr-10 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none font-mono text-sm"
-                                        placeholder="AIzaSy..."
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowKey(!showKey)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-titanium-400 hover:text-white transition-colors"
-                                        aria-label={showKey ? "Ocultar clave" : "Mostrar clave"}
-                                    >
-                                        {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-                                    </button>
-                                </div>
-                                <div className="flex justify-between items-start mt-1 gap-4">
-                                    <p className="text-xs text-titanium-400">
-                                        {t.keyDesc}
-                                    </p>
                                     {localGeminiKey && (
                                         <button
                                             onClick={() => setLocalGeminiKey('')}
-                                            className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1 shrink-0"
+                                            className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1"
                                         >
-                                            <Trash2 size={12} /> {t.clear}
+                                            <Trash2 size={11} /> Eliminar key
                                         </button>
                                     )}
-                                </div>
-                            </div>
 
-                            <div className="p-4 bg-purple-900/10 border border-purple-900/30 rounded-xl flex items-start gap-3">
-                                <ShieldCheck size={18} className="text-purple-400 shrink-0 mt-0.5" />
-                                <div>
-                                    <h5 className="text-sm font-bold text-purple-300">{t.privacyTitle}</h5>
-                                    <p className="text-xs text-titanium-400 mt-1 leading-relaxed">
-                                        {t.privacyDesc}
-                                    </p>
+                                    <div className="p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-lg space-y-1.5">
+                                        <p className="text-xs text-emerald-400 font-medium">Google AI Studio ofrece capa gratuita</p>
+                                        <p className="text-xs text-titanium-500 leading-relaxed">
+                                            No necesitas tarjeta de crédito. El Modo Normal usa Gemini Flash, que es 100% gratuito con límites generosos.
+                                        </p>
+                                        <button
+                                            onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
+                                            className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2 transition-colors"
+                                        >
+                                            Obtener mi API key gratuita →
+                                        </button>
+                                    </div>
+
+                                    <div className="flex items-start gap-1.5">
+                                        <ShieldCheck size={11} className="text-zinc-600 mt-0.5 shrink-0" />
+                                        <p className="text-xs text-zinc-600 leading-relaxed">
+                                            Tu key se guarda solo en tu navegador. Nunca se almacena en nuestros servidores.
+                                        </p>
+                                    </div>
+
+                                    {isNormal && (
+                                        <div className="space-y-3 mt-6 pt-4 border-t border-zinc-800">
+                                            <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
+                                                Cuota diaria (estimada)
+                                            </h4>
+                                            
+                                            {/* Barra de progreso grande */}
+                                            <div className="space-y-1.5">
+                                                <div className="flex justify-between text-xs">
+                                                    <span className={
+                                                        quotaStatus === 'critical' ? 'text-red-400' :
+                                                        quotaStatus === 'warning' ? 'text-amber-400' : 'text-zinc-400'
+                                                    }>
+                                                        {quota.requestCount} / {limits.RPD} requests
+                                                    </span>
+                                                    <span className="text-zinc-600">
+                                                        {requestsLeft} restantes
+                                                    </span>
+                                                </div>
+                                                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
+                                                    <div 
+                                                        className={`h-full rounded-full transition-all duration-700
+                                                            ${quotaStatus === 'critical' ? 'bg-red-500' :
+                                                            quotaStatus === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                                                        style={{ width: `${usagePercent}%` }}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {/* Tokens estimados */}
+                                            <div className="flex justify-between text-xs text-zinc-600">
+                                                <span>Tokens estimados hoy</span>
+                                                <span>{quota.tokenEstimate.toLocaleString()} / 250,000</span>
+                                            </div>
+
+                                            {/* Mensaje según estado */}
+                                            {quotaStatus === 'critical' && (
+                                                <p className="text-xs text-red-400 leading-relaxed">
+                                                    ⚠️ Cerca del límite diario. Las herramientas automáticas 
+                                                    pueden fallar. Considera cambiar el Guardián a Manual.
+                                                </p>
+                                            )}
+                                            {quotaStatus === 'warning' && (
+                                                <p className="text-xs text-amber-400 leading-relaxed">
+                                                    Usando bastante cuota hoy. Si el Guardián está en Auto, 
+                                                    considera cambiarlo a Manual.
+                                                </p>
+                                            )}
+
+                                            {/* Reset manual + aclaración */}
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[10px] text-zinc-600">
+                                                    Se resetea automáticamente a medianoche
+                                                </p>
+                                                <button
+                                                    onClick={resetQuota}
+                                                    className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors underline underline-offset-2"
+                                                >
+                                                    Resetear contador
+                                                </button>
+                                            </div>
+
+                                            {/* Disclaimer */}
+                                            <p className="text-[9px] text-zinc-700 leading-relaxed">
+                                                * Estimación local. El consumo real en Google AI Studio puede variar.
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

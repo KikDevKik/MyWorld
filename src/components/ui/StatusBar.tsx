@@ -1,17 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Clock, Type, RefreshCw, ScanEye, Key, AlertTriangle, Loader2, Pause, Square, Play, Landmark } from 'lucide-react';
+import { Settings, Clock, Type, RefreshCw, ScanEye, Loader2, Pause, Square, Target, X, Check, Zap, Leaf } from 'lucide-react';
 import { toast } from 'sonner';
-import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { useTier } from '../../hooks/useTier';
+import { useQuotaTracker } from '../../hooks/useQuotaTracker';
+import { AlertCircle } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
-import { useLayoutStore } from '../../stores/useLayoutStore';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
 import { TRANSLATIONS } from '../../i18n/translations';
+import { useMisionesEditor } from '../../hooks/useMisionesEditor';
 
 interface StatusBarProps {
     content: string;
     className?: string;
     guardianStatus?: string;
     onGuardianClick?: () => void;
+    onOpenSettings?: () => void;
     narratorControls?: {
         isPlaying: boolean;
         isLoading: boolean;
@@ -33,12 +36,26 @@ const getTodayKey = () => {
     return `myword_daily_${date}`;
 };
 
-const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, narratorControls }) => {
-    const { customGeminiKey } = useProjectConfig();
+const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, narratorControls }) => {
+    const { tier, hasByok, isNormal } = useTier();
+    const { quota, status: quotaStatus, usagePercent, limits } = useQuotaTracker();
     const { currentLanguage } = useLanguageStore();
-    const { setActiveView } = useLayoutStore();
-    const arquitectoPendingItems = useArquitectoStore(state => state.arquitectoPendingItems) ?? [];
+    const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const t = TRANSLATIONS[currentLanguage].statusBar;
+
+    // Escuchar actualizaciones manuales de cuota
+    useEffect(() => {
+        const handleQuotaUpdate = () => {
+            // Forzar re-render leyendo de nuevo desde localStorage o confiando en hook internals
+            // El hook ya tiene su estado interno, pero se actualiza en otra ventana? 
+            // Esto solo es para que los tabs cambien (ya que usamos localstorage manual)
+        };
+        window.addEventListener('quota_updated', handleQuotaUpdate);
+        return () => window.removeEventListener('quota_updated', handleQuotaUpdate);
+    }, []);
+
+    const { misiones, hasRoadmap, toggleMision, resetProgress, pendingCount } = useMisionesEditor(arquitectoSessionId);
+    const [isMisionesExpanded, setIsMisionesExpanded] = useState(false);
 
     // METRICS STATE
     const [wordCount, setWordCount] = useState(() => countWords(content));
@@ -124,62 +141,159 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
 
             {/* LEFT: METRICS & GUARDIAN */}
             <div className="flex items-center gap-4">
-                {/* 🟢 BYOK INDICATOR */}
-                <div
-                    className={`flex items-center gap-1.5 px-2 py-0.5 rounded cursor-help transition-colors ${customGeminiKey
-                        ? 'text-purple-400 bg-purple-900/20 hover:bg-purple-900/30'
-                        : 'text-amber-400 bg-amber-900/20 hover:bg-amber-900/30'
+                {/* Badge de tier — siempre visible */}
+                <button
+                    onClick={onOpenSettings}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded 
+                        transition-colors
+                        ${!hasByok 
+                            ? 'bg-red-500/10 hover:bg-red-500/20' 
+                            : tier === 'ultra'
+                                ? 'hover:bg-zinc-700/50'
+                                : 'hover:bg-zinc-700/50'
                         }`}
-                    title={customGeminiKey ? t.tooltipPro : t.tooltipDemo}
+                    title={
+                        !hasByok 
+                            ? 'Sin API Key — Click para configurar'
+                            : isNormal 
+                                ? `${quota.requestCount}/${limits.RPD} requests hoy` 
+                                : `Modo Ultra — Click para cambiar`
+                    }
                 >
-                    {customGeminiKey ? <Key size={12} /> : <AlertTriangle size={12} />}
-                    <span className="font-bold tracking-wider">
-                        {customGeminiKey ? t.proKey : t.demoMode}
-                    </span>
-                </div>
+                    {!hasByok ? (
+                        // Sin key: ícono de advertencia + texto
+                        <>
+                            <AlertCircle size={11} className="text-red-400" />
+                            <span className="text-[10px] font-medium text-red-400">
+                                Sin API Key
+                            </span>
+                        </>
+                    ) : tier === 'ultra' ? (
+                        // Ultra
+                        <>
+                            <Zap size={11} className="text-violet-400" />
+                            <span className="text-[10px] font-medium text-violet-400">
+                                Ultra
+                            </span>
+                        </>
+                    ) : (
+                        // Normal con mini barra de progreso
+                        <>
+                            {/* Mini barra de progreso */}
+                            <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden shrink-0 shadow-inner">
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-500 shadow-[0_0_8px_currentColor]
+                                        ${quotaStatus === 'critical' ? 'bg-red-500' :
+                                          quotaStatus === 'warning' ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                                    style={{ width: `${usagePercent}%` }}
+                                />
+                            </div>
+                            <span className={`text-[10px] font-bold tracking-wide
+                                ${quotaStatus === 'critical' ? 'text-red-400' :
+                                  quotaStatus === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                                {Math.round(usagePercent)}%
+                            </span>
+                        </>
+                    )}
+                </button>
 
                 <div className="h-3 w-px bg-titanium-800 mx-1" />
 
-                {/* 🏛️ ARQUITECTO INDICATOR */}
-                {arquitectoPendingItems.length > 0 && (
+                {/* 🎯 MISIONES DEL ROADMAP */}
+                {hasRoadmap && (
                     <>
-                        <div className="relative group flex items-center">
+                        <div className="relative flex items-center">
                             <button
-                                onClick={() => setActiveView('arquitecto')}
-                                className="flex items-center gap-1.5 px-2 py-0.5 rounded transition-all duration-300 text-emerald-400 bg-emerald-900/20 hover:bg-emerald-900/40"
-                                aria-label={`${arquitectoPendingItems.length} pendientes del Arquitecto`}
+                                onClick={() => setIsMisionesExpanded(v => !v)}
+                                className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-zinc-700/50 transition-colors"
+                                title={pendingCount > 0
+                                    ? `${pendingCount} misiones pendientes`
+                                    : 'Todas las misiones completadas'}
+                                aria-label={pendingCount > 0
+                                    ? `${pendingCount} misiones pendientes`
+                                    : 'Todas las misiones completadas'}
                             >
-                                <Landmark size={12} />
-                                <span className="font-bold tracking-wider">{arquitectoPendingItems.length}</span>
+                                <Target size={12} className={pendingCount > 0 ? 'text-violet-400' : 'text-emerald-400'} />
+                                {pendingCount > 0 && (
+                                    <span className="font-medium text-violet-400">{pendingCount}</span>
+                                )}
+                                {pendingCount === 0 && misiones.length > 0 && (
+                                    <span className="text-emerald-400">✓</span>
+                                )}
                             </button>
 
-                            {/* POPUP TOOLTIP (Rediseñado Fix B) */}
-                            <div className="absolute bottom-full left-0 mb-2 w-64 bg-titanium-900 border border-titanium-700 rounded-lg shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity duration-200 z-50 overflow-hidden flex flex-col max-w-xs">
-                                <div className="bg-titanium-900 px-3 py-2 border-b border-titanium-700 flex items-center gap-2 shrink-0">
-                                    <Landmark size={12} className="text-emerald-400" />
-                                    <span className="text-[10px] font-bold text-titanium-200 uppercase tracking-wider">
-                                        MISIONES PENDIENTES [{arquitectoPendingItems.length}]
-                                    </span>
-                                </div>
-                                <div className="p-2 flex flex-col gap-3">
-                                    {arquitectoPendingItems.slice(0, 5).map((item: any, idx: number) => (
-                                        <div key={idx} className="flex flex-col gap-1">
-                                            <span className="text-xs font-bold text-cyan-400 leading-tight flex gap-1.5 items-start">
-                                                <span className="text-titanium-500 mt-[1px]">•</span>
-                                                <span className="line-clamp-1">{item.title}</span>
-                                            </span>
-                                            <span className="text-xs text-titanium-400 leading-tight pl-3 line-clamp-2">
-                                                {item.description}
-                                            </span>
+                            {/* Panel flotante */}
+                            {isMisionesExpanded && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-40"
+                                        onClick={() => setIsMisionesExpanded(false)}
+                                        aria-hidden="true"
+                                    />
+                                    <div className="absolute bottom-full left-0 mb-2 w-80 z-50 bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-2xl overflow-hidden">
+                                        {/* Header */}
+                                        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+                                            <div className="flex items-center gap-2">
+                                                <Target size={13} className="text-violet-400" />
+                                                <span className="text-xs font-medium text-zinc-300">Misiones del Roadmap</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-zinc-500">{pendingCount} pendientes</span>
+                                                <button
+                                                    onClick={() => setIsMisionesExpanded(false)}
+                                                    className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                                                    aria-label="Cerrar"
+                                                >
+                                                    <X size={13} />
+                                                </button>
+                                            </div>
                                         </div>
-                                    ))}
-                                    {arquitectoPendingItems.length > 5 && (
-                                        <div className="text-xs text-titanium-400 text-left pl-3 pt-1 font-medium mt-1">
-                                            [+ {arquitectoPendingItems.length - 5} más]
+
+                                        {/* Lista */}
+                                        <div className="overflow-y-auto max-h-72 p-2 space-y-1">
+                                            {misiones.length === 0 && (
+                                                <p className="text-xs text-zinc-600 text-center py-4">
+                                                    No hay misiones en el Roadmap actual.
+                                                </p>
+                                            )}
+                                            {misiones.map(mision => (
+                                                <button
+                                                    key={mision.id}
+                                                    onClick={() => toggleMision(mision.id)}
+                                                    className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
+                                                        mision.completed ? 'opacity-50 hover:opacity-70' : 'hover:bg-zinc-800/60'
+                                                    }`}
+                                                >
+                                                    <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
+                                                        mision.completed
+                                                            ? 'bg-emerald-500/20 border-emerald-500/50'
+                                                            : 'border-zinc-600'
+                                                    }`}>
+                                                        {mision.completed && <Check size={9} className="text-emerald-400" />}
+                                                    </div>
+                                                    <span className={`text-xs leading-relaxed ${
+                                                        mision.completed ? 'line-through text-zinc-600' : 'text-zinc-300'
+                                                    }`}>
+                                                        {mision.text}
+                                                    </span>
+                                                </button>
+                                            ))}
                                         </div>
-                                    )}
-                                </div>
-                            </div>
+
+                                        {/* Footer */}
+                                        {misiones.some(m => m.completed) && (
+                                            <div className="border-t border-zinc-800 px-4 py-2">
+                                                <button
+                                                    onClick={resetProgress}
+                                                    className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                                                >
+                                                    Restablecer progreso
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <div className="h-3 w-px bg-titanium-800 mx-1" />
                     </>

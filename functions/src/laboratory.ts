@@ -7,7 +7,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { TEMP_PRECISION } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
-import { getAIKey, escapePromptVariable } from "./utils/security";
+import { getAIKey, getTier, escapePromptVariable } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -39,7 +39,8 @@ export const classifyResource = onCall(
         try {
             // 1. Prepare AI
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            
+            const tier = getTier(request.data);
+
             // 2. Construct Prompt
             const prompt = `
             TASK: Classify this resource file into ONE category.
@@ -66,7 +67,7 @@ export const classifyResource = onCall(
             `;
 
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: true, // Use Flash for quick classification
+                _tier: tier, taskType: 'high_volume',
                 contextLabel: "ResourceClassification",
                 temperature: TEMP_PRECISION,
                 jsonMode: true

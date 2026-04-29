@@ -5,7 +5,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { TitaniumGenesis } from "./services/genesis";
-import { getAIKey } from "./utils/security";
+import { getAIKey, getTier } from "./utils/security";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { GeminiEmbedder } from "./utils/vector_utils";
@@ -52,6 +52,11 @@ export { backfillResourcesFromDrive } from './backfill'; // 🟢 NEW: Sistema de
 export { distillResource } from './distill'; // 🟢 NEW: Destilación Poco a Poco (Bajo demanda)
 
 export { generateSpeech, analyzeScene } from "./tts";
+export { classifyEntities } from './soul_sorter';
+export { analyzeNexusBatch, analyzeNexusFile } from './nexus_scan';
+export { forgeChatStream } from './forge_chat';
+export { builderStream } from './builder';
+// export { distillResourceOnIndex } from './distillation_trigger'; // Desactivado: backfill hace todo
 
 
 
@@ -335,11 +340,11 @@ export const addMuseMessage = onCall(
 
           const finalKey = getAIKey(request.data, googleApiKey.value());
           const genAI = new GoogleGenerativeAI(finalKey);
-          const model = genAI.getGenerativeModel({ model: MODEL_FLASH });
+          const museTier = getTier(request.data);
 
           const summaryPrompt = `Resume esta conversación de MyWorld en una sola frase técnica que capture la esencia creativa, los personajes discutidos y el tema. Úsalo para búsqueda semántica futura.\n\nCONVERSACIÓN:\n${fullText}`;
-          const summaryResult = await model.generateContent(summaryPrompt);
-          const summary = summaryResult.response.text();
+          const summaryRes = await smartGenerateContent(genAI, summaryPrompt, { _tier: museTier, taskType: 'standard', contextLabel: 'MuseMetaRAG' });
+          const summary = summaryRes.text || "";
 
           const embeddings = new GeminiEmbedder({ apiKey: finalKey, model: "gemini-embedding-001" });
           const vector = await embeddings.embedQuery(summary);
@@ -770,6 +775,7 @@ export const summonTheTribunal = onCall(
     const safeContext = (context || "").substring(0, 5000);
 
     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+    const tier = getTier(request.data);
 
     const JUDGE_PROMPT = (role: string, persona: string, focus: string) => `
 ACT AS: ${persona}
@@ -804,19 +810,19 @@ OUTPUT JSON:
           'THE ARCHITECT',
           'The Architect — Master of Structure & Logic',
           'Narrative structure, plot coherence, pacing, and logical consistency. Find plot holes and structural weaknesses.'
-        ), { useFlash: false, jsonMode: true, temperature: 0.4, contextLabel: 'TribunalArchitect' }),
+        ), { _tier: tier, taskType: 'deep_analysis', jsonMode: true, temperature: 0.4, contextLabel: 'TribunalArchitect' }),
 
         smartGenerateContent(genAI, JUDGE_PROMPT(
           'THE BARD',
           'The Bard — Lover of Voice, Prose & Emotion',
           'Prose quality, voice, emotional resonance, imagery, and dialogue authenticity. Find what sings and what falls flat.'
-        ), { useFlash: false, jsonMode: true, temperature: 0.6, contextLabel: 'TribunalBard' }),
+        ), { _tier: tier, taskType: 'deep_analysis', jsonMode: true, temperature: 0.6, contextLabel: 'TribunalBard' }),
 
         smartGenerateContent(genAI, JUDGE_PROMPT(
           'EL HATER',
           'El Hater — Ruthless Devil\'s Advocate',
           'Everything that is weak, clichéd, confusing, or forgettable. Be specific and unforgiving. Find what would make a reader stop reading.'
-        ), { useFlash: false, jsonMode: true, temperature: 0.8, contextLabel: 'TribunalHater' }),
+        ), { _tier: tier, taskType: 'deep_analysis', jsonMode: true, temperature: 0.8, contextLabel: 'TribunalHater' }),
       ]);
 
       const parseJudge = (result: any, fallbackName: string) => {

@@ -7,7 +7,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { resolveVirtualPath } from "./utils/drive";
 import { parseSecureJSON } from "./utils/json";
 import { smartGenerateContent } from "./utils/smart_generate";
-import { getAIKey, escapePromptVariable } from "./utils/security";
+import { getAIKey, escapePromptVariable, getTier } from "./utils/security";
 import { TitaniumGenesis } from "./services/genesis";
 import { ProjectConfig } from "./types/project";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -101,6 +101,7 @@ export const scribeCreateFile = onCall(
                 try {
                     logger.info(`🧠 SCRIBE INFERENCE: Detecting type for ${entityData.name}`);
                     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+                    const tier = getTier(request.data);
 
                     const inferencePrompt = `
                     TASK: Extrae componentes para una 'WorldEntity' descrita en el texto.
@@ -126,7 +127,7 @@ export const scribeCreateFile = onCall(
                     `;
 
                     const result = await smartGenerateContent(genAI, inferencePrompt, {
-                        useFlash: true, // Inference is simple
+                        _tier: tier, taskType: 'high_volume',
                         jsonMode: true,
                         temperature: 0.2,
                         contextLabel: "ScribeInference"
@@ -155,6 +156,7 @@ export const scribeCreateFile = onCall(
                 try {
                     logger.info(`🧪 SCRIBE SYNTHESIS: Converting chat to Markdown for ${entityData.name}`);
                     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+                    const tier = getTier(request.data);
 
                     const synthesisPrompt = `
                     TASK: Create a rich Markdown document based on the following BRAINSTORMING SESSION.
@@ -181,7 +183,7 @@ export const scribeCreateFile = onCall(
                     `;
 
                     const result = await smartGenerateContent(genAI, synthesisPrompt, {
-                        useFlash: true, // Synthesis is fine with Flash, fallback to Pro if blocked
+                        _tier: tier, taskType: 'standard',
                         temperature: 0.5,
                         contextLabel: "ScribeSynthesis"
                     });
@@ -300,6 +302,7 @@ GENRE INSTRUCTION: Adopt the vocabulary, pacing, and atmosphere of this style.
 `;
 
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const tier = getTier(request.data);
 
             // 🟢 CONSTRUCT PROMPT
             const prompt = `
@@ -326,7 +329,7 @@ GENRE INSTRUCTION: Adopt the vocabulary, pacing, and atmosphere of this style.
             `;
 
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: true, // Flash is great for rewriting
+                _tier: tier, taskType: 'standard',
                 temperature: 0.7,
                 contextLabel: "IntegrateNarrative"
             });
@@ -401,6 +404,7 @@ export const scribePatchFile = onCall(
 
             // 2. AI MERGE
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const tier = getTier(request.data);
 
             const prompt = `
             ACT AS: Expert Markdown Editor & Archivist.
@@ -424,7 +428,7 @@ export const scribePatchFile = onCall(
             `;
 
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: true,
+                _tier: tier, taskType: 'standard',
                 temperature: TEMP_PRECISION,
                 contextLabel: "ScribePatch"
             });
@@ -517,6 +521,7 @@ export const transformToGuide = onCall(
 
         try {
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const tier = getTier(request.data);
 
             const prompt = `
             ACT AS: Expert Writing Coach & Outliner.
@@ -544,7 +549,7 @@ export const transformToGuide = onCall(
             `;
 
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: true, // Flash is great for rewriting
+                _tier: tier, taskType: 'standard',
                 temperature: 0.7,
                 contextLabel: "TransformGuide"
             });

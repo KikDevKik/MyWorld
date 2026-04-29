@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
+import { useTier } from './useTier';
 
 export interface GuardianFact {
     entity: string;
@@ -62,6 +63,7 @@ export type GuardianStatus = 'idle' | 'scanning' | 'clean' | 'conflict' | 'error
 const MAX_AI_INPUT_CHARS = 100000;
 
 export function useGuardian(content: string, projectId: string | null, fileId?: string) {
+    const { isUltra } = useTier();
     const [status, setStatus] = useState<GuardianStatus>('idle');
     const [facts, setFacts] = useState<GuardianFact[]>([]);
     const [conflicts, setConflicts] = useState<GuardianConflict[]>([]);
@@ -69,6 +71,22 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
     const [personalityDrifts, setPersonalityDrifts] = useState<GuardianPersonalityDrift[]>([]);
     const [resonanceMatches, setResonanceMatches] = useState<ResonanceMatch[]>([]); // 🟢
     const [structureAnalysis, setStructureAnalysis] = useState<StructureAnalysis | null>(null); // 🟢
+
+    // Leer preferencia de modo del Guardián desde localStorage:
+    const guardianModeKey = `guardian_mode_${projectId || 'global'}`;
+    const [guardianMode, setGuardianModeState] = useState<'auto' | 'manual'>(() => {
+        const saved = localStorage.getItem(guardianModeKey);
+        if (saved) return saved as 'auto' | 'manual';
+        // Default según tier:
+        // Ultra → automático (comportamiento actual)
+        // Normal → manual (proteger cuota)
+        return isUltra ? 'auto' : 'manual';
+    });
+
+    const setGuardianMode = (mode: 'auto' | 'manual') => {
+        localStorage.setItem(guardianModeKey, mode);
+        setGuardianModeState(mode);
+    };
 
     // Internal State
     const lastHashRef = useRef<string>("");
@@ -218,11 +236,13 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
 
             // 🟢 AUDIT IF:
             // 1. First time for this file (!hasAutoAuditedRef)
-            // 2. Word count changed significantly (> 50 words)
+            // 2. Word count changed significantly (> AUTO_THRESHOLD words)
             const isFirstAudit = !hasAutoAuditedRef.current;
-            const isSignificantChange = wordCountDiff > 50;
+            const AUTO_THRESHOLD = isUltra ? 50 : 200; // 50 palabras Ultra, 200 Normal
+            const isSignificantChange = wordCountDiff > AUTO_THRESHOLD;
+            const shouldAutoAudit = guardianMode === 'auto';
 
-            if (!isFirstAudit && !isSignificantChange) {
+            if (!shouldAutoAudit || (!isFirstAudit && !isSignificantChange)) {
                 return;
             }
 
@@ -245,7 +265,7 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         return () => {
             if (timerRef.current) clearTimeout(timerRef.current);
         };
-    }, [content]);
+    }, [content, guardianMode, isUltra]);
 
     // 🟢 FORCE AUDIT TRIGGER
     const forceAudit = () => {
@@ -268,6 +288,9 @@ export function useGuardian(content: string, projectId: string | null, fileId?: 
         personalityDrifts,
         resonanceMatches, // 🟢
         structureAnalysis, // 🟢
-        forceAudit
+        forceAudit,
+        guardianMode,
+        setGuardianMode,
+        triggerManualAudit: forceAudit
     };
 }

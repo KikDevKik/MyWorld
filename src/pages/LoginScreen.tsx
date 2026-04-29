@@ -103,6 +103,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     )}
                 </div>
             </div>
+        <div style={{
+            position: 'fixed',
+            bottom: '24px',
+            left: '0',
+            right: '0',
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '24px'
+        }}>
+            <a href="/privacy"
+               style={{color: 'rgba(255,255,255,0.3)', fontSize: '12px',
+                       textDecoration: 'none', fontFamily: 'monospace'}}>
+                Privacy Policy
+            </a>
+            <a href="/terms"
+               style={{color: 'rgba(255,255,255,0.3)', fontSize: '12px',
+                       textDecoration: 'none', fontFamily: 'monospace'}}>
+                Terms of Service
+            </a>
+        </div>
         </div>
     );
 };

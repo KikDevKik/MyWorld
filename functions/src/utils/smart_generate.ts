@@ -1,6 +1,11 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
-import { MODEL_FLASH, MODEL_PRO, SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL } from "../ai_config";
+import {
+    MODEL_FLASH, MODEL_PRO, MODEL_FLASH_2_5,
+    SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL,
+    Tier, TaskType,
+    getModelForTask, getThinkingBudgetForTask, getDefaultMaxOutputTokens,
+} from "../ai_config";
 
 export interface SmartResponse {
     text?: string;
@@ -11,7 +16,15 @@ export interface SmartResponse {
 }
 
 export interface SmartConfig {
+    // ── Legacy routing (backward compat) ──
     useFlash?: boolean; // If true, tries Flash first, then Pro. If false, Pro only.
+
+    // ── Tier-aware routing (Fase 2) ──
+    // When both _tier + taskType are provided, useFlash is ignored.
+    _tier?: Tier;              // Injected by Cloud Functions via getTier(request.data)
+    taskType?: TaskType;       // Determines model + thinkingBudget defaults
+    thinkingBudget?: number;   // Explicit override; defaults by taskType+tier if omitted
+
     systemInstruction?: string;
     temperature?: number;
     jsonMode?: boolean;
@@ -38,9 +51,59 @@ export async function smartGenerateContent(
     config: SmartConfig
 ): Promise<SmartResponse> {
     const contextLabel = config.contextLabel || "SmartGenerate";
-    const useFlash = config.useFlash ?? false; // Default to Pro if not specified (Safe default)
 
-    // Determine initial model
+    // ── Tier-aware routing (Fase 2) ──
+    // When _tier + taskType are both provided, use the model routing table.
+    // Otherwise, fall back to legacy useFlash logic (backward compat).
+    const hasTierRouting = config._tier && config.taskType;
+
+    if (hasTierRouting) {
+        const tier = config._tier!;
+        const task = config.taskType!;
+        const modelName = getModelForTask(task, tier);
+
+        // Resolve thinkingBudget: explicit override wins, else use table default
+        const rawBudget = config.thinkingBudget ?? getThinkingBudgetForTask(task, tier);
+        // -1 means "dynamic" (Pro decides) — don't send thinkingConfig in that case
+        const effectiveBudget = rawBudget === -1 ? undefined : rawBudget;
+
+        // maxOutputTokens: explicit wins, else use task default
+        const maxTokens = config.maxOutputTokens ?? getDefaultMaxOutputTokens(task);
+
+        try {
+            const result = await _executeGeneration(
+                genAI, modelName, prompt,
+                { ...config, maxOutputTokens: maxTokens },
+                effectiveBudget
+            );
+            if (result.success) {
+                logger.info(`✅ [SMART_GENERATE] ${contextLabel} | tier=${tier} task=${task} model=${modelName}`);
+                return { text: result.text, modelUsed: modelName };
+            }
+
+            // In Normal tier there is NO Pro fallback — Pro is blocked.
+            // In Ultra tier, fall back from Flash to Pro if needed.
+            if (tier === 'ultra' && modelName !== MODEL_PRO) {
+                logger.warn(`⚠️ [SMART_GENERATE] ${contextLabel} Flash failed → escalating to Pro (Ultra tier)`);
+                const fallback = await _executeGeneration(genAI, MODEL_PRO, prompt, { ...config, maxOutputTokens: maxTokens });
+                if (fallback.success) return { text: fallback.text, modelUsed: MODEL_PRO };
+                return { error: fallback.error || "ALL_MODELS_FAILED", reason: fallback.reason, details: fallback.details, modelUsed: "BOTH" };
+            }
+
+            // Normal tier or already on Pro — no further fallback
+            if (tier === 'normal') {
+                logger.warn(`⚠️ [SMART_GENERATE] ${contextLabel} failed in Normal tier. No Pro fallback available.`);
+            }
+            return { error: result.error, reason: result.reason, details: result.details, modelUsed: modelName };
+
+        } catch (e: any) {
+            logger.error(`💥 [SMART_GENERATE] Critical failure in ${contextLabel}:`, e);
+            return { error: "SYSTEM_ERROR", details: e.message, modelUsed: "UNKNOWN" };
+        }
+    }
+
+    // ── Legacy routing (backward compat) ──
+    const useFlash = config.useFlash ?? false;
     const primaryModelName = useFlash ? MODEL_FLASH : MODEL_PRO;
 
     try {
@@ -48,20 +111,12 @@ export async function smartGenerateContent(
         const result = await _executeGeneration(genAI, primaryModelName, prompt, config);
 
         if (result.success) {
-            return {
-                text: result.text,
-                modelUsed: primaryModelName
-            };
+            return { text: result.text, modelUsed: primaryModelName };
         }
 
         // If we used Pro and failed, we can't fallback (Pro is the last line of defense).
         if (!useFlash) {
-            return {
-                error: result.error,
-                reason: result.reason,
-                details: result.details,
-                modelUsed: primaryModelName
-            };
+            return { error: result.error, reason: result.reason, details: result.details, modelUsed: primaryModelName };
         }
 
         // ATTEMPT 2: FALLBACK TO PRO (The Judge)
@@ -70,27 +125,14 @@ export async function smartGenerateContent(
         const fallbackResult = await _executeGeneration(genAI, MODEL_PRO, prompt, config);
 
         if (fallbackResult.success) {
-            return {
-                text: fallbackResult.text,
-                modelUsed: MODEL_PRO
-            };
+            return { text: fallbackResult.text, modelUsed: MODEL_PRO };
         }
 
-        // Both failed
-        return {
-            error: fallbackResult.error || "ALL_MODELS_FAILED",
-            reason: fallbackResult.reason || "Escalation Failed",
-            details: fallbackResult.details,
-            modelUsed: "BOTH"
-        };
+        return { error: fallbackResult.error || "ALL_MODELS_FAILED", reason: fallbackResult.reason || "Escalation Failed", details: fallbackResult.details, modelUsed: "BOTH" };
 
     } catch (e: any) {
         logger.error(`💥 [SMART_GENERATE] Critical System Failure in ${contextLabel}:`, e);
-        return {
-            error: "SYSTEM_ERROR",
-            details: e.message,
-            modelUsed: "UNKNOWN"
-        };
+        return { error: "SYSTEM_ERROR", details: e.message, modelUsed: "UNKNOWN" };
     }
 }
 
@@ -100,11 +142,18 @@ async function _executeGeneration(
     genAI: GoogleGenerativeAI,
     modelName: string,
     prompt: string,
-    config: SmartConfig
+    config: SmartConfig,
+    thinkingBudget?: number   // undefined = don't set thinkingConfig; 0 = disable thinking; N = budget
 ): Promise<{ success: boolean; text?: string; error?: string; reason?: string; details?: string }> {
 
     try {
         const finalSystemInstruction = LITERARY_FICTION_PROTOCOL + "\n\n" + (config.systemInstruction || "");
+
+        // Build thinkingConfig only when explicitly requested (budget >= 0)
+        // Models that don't support thinking ignore unknown config keys gracefully.
+        const thinkingConfig = thinkingBudget !== undefined
+            ? { thinkingBudget }
+            : undefined;
 
         const model = genAI.getGenerativeModel({
             model: modelName,
@@ -113,7 +162,8 @@ async function _executeGeneration(
             generationConfig: {
                 temperature: config.temperature ?? 0.7,
                 responseMimeType: config.jsonMode ? "application/json" : "text/plain",
-                maxOutputTokens: config.maxOutputTokens
+                maxOutputTokens: config.maxOutputTokens,
+                ...(thinkingConfig ? { thinkingConfig } : {}),
             } as any
         });
 

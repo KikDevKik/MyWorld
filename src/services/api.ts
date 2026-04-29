@@ -1,6 +1,49 @@
 import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions } from 'firebase/functions';
 import { toast } from 'sonner';
 
+// Estimar tokens según el tipo de función:
+const TOKEN_ESTIMATES: Record<string, number> = {
+    arquitectoInitialize: 8000,
+    arquitectoChat: 2000,
+    auditContent: 3000,      // El Guardián — 6 llamadas paralelas
+    forgeToolExecution: 1500,
+    scribeCreateFile: 2000,
+    analyzeStyleDNA: 2000,
+    distillResourceOnIndex: 1000
+};
+
+// Función helper para trackear cuota fuera del ciclo de vida de React
+const trackRequestLocal = (functionName: string) => {
+    try {
+        const estimatedTokens = TOKEN_ESTIMATES[functionName] || 500;
+        const storageKey = 'myworld_quota_today';
+        const today = new Date().toISOString().split('T')[0];
+        
+        let current = { date: today, requestCount: 0, tokenEstimate: 0, lastUpdated: Date.now() };
+        const saved = localStorage.getItem(storageKey);
+        
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            if (parsed.date === today) {
+                current = parsed;
+            }
+        }
+        
+        const updated = {
+            ...current,
+            requestCount: current.requestCount + 1,
+            tokenEstimate: current.tokenEstimate + estimatedTokens,
+            lastUpdated: Date.now(),
+        };
+        
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+        // Dispatch event para que el hook actualice su estado
+        window.dispatchEvent(new Event('quota_updated'));
+    } catch (e) {
+        console.warn("Could not track quota", e);
+    }
+};
+
 /**
  * Wrapper for Firebase Cloud Functions that injects custom BYOK keys.
  * Implements the "Injection Protocol" for secure key transport.
@@ -17,12 +60,20 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
     // The server uses its own Gemini key from Firebase Secret Manager.
     // NEVER inject VITE_GOOGLE_API_KEY here — that would expose the server key from the client bundle.
     const customKey = sessionStorage.getItem('myworld_custom_gemini_key') || localStorage.getItem('myworld_custom_gemini_key');
-    const payload = customKey ? { ...data, _authOverride: customKey } : data;
+    const tierMode = (localStorage.getItem('myworld_tier_mode') as 'auto' | 'normal' | 'ultra') || 'auto';
+    const tier = tierMode === 'ultra' ? 'ultra' : tierMode === 'normal' ? 'normal' : (customKey ? 'ultra' : 'normal');
+    const payload = customKey
+        ? { ...data, _authOverride: customKey, _userTier: tier }
+        : { ...data, _userTier: tier };
 
     const fn = firebaseHttpsCallable(functions, name, options);
 
     try {
         const result = await fn(payload);
+        
+        // Track API quota successful calls
+        trackRequestLocal(name);
+        
         return result.data as T;
     } catch (error: any) {
         // Manejo de Errores (Safety Net)

@@ -5,7 +5,7 @@ import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Readable } from 'stream';
-import { getAIKey } from "./utils/security";
+import { getAIKey, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 
 // --- CONFIG ---
@@ -131,6 +131,7 @@ export const analyzeStyleDNA = onCall(
 
             // 2. AI Analysis
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const tier = getTier(request.data);
             
             const prompt = `
                 Actúa como un analista literario experto.
@@ -147,7 +148,7 @@ export const analyzeStyleDNA = onCall(
             `;
 
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: false, // Use Pro for deep style analysis
+                _tier: tier, taskType: 'deep_analysis',
                 contextLabel: "StyleDNAAnalyst",
                 temperature: 0.7
             });

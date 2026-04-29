@@ -223,14 +223,39 @@ export const genesisManifest = onCall(
             // Los datos ya están estructurados: no llamamos a la IA para extraer
             // lo que el escritor ya respondió explícitamente.
 
-            const protagonistName =
-                extractNameFromPremise(answers.premise) || 'Protagonista';
+            // Nombre del protagonista: campo explícito primero, luego fallback semántico
+            const protagonistName = (answers as any).protagonistName?.trim()
+                || extractNameFromPremise(answers.premise)
+                || 'Protagonista';
 
             const protagonistTraits = [
                 answers.protagonistDesire     && `Deseo: ${answers.protagonistDesire}`,
                 answers.protagonistObstacle   && `Obstáculo: ${answers.protagonistObstacle}`,
                 answers.protagonistMisbelief  && `Creencia errónea: ${answers.protagonistMisbelief}`,
             ].filter(Boolean).join('\n') || '(pendiente de definir por el autor)';
+
+            // Contenido rico del archivo del protagonista
+            const protagonistFileContent = `# ${protagonistName}
+
+**Rol:** Protagonista
+${(answers as any).protagonist ? `**Descripción:** ${(answers as any).protagonist}\n` : ''}
+---
+
+## Deseo
+${answers.protagonistDesire || '*(pendiente de definir)*'}
+
+## Obstáculo
+${answers.protagonistObstacle || '*(pendiente de definir)*'}
+
+## Creencia errónea
+${answers.protagonistMisbelief || '*(pendiente de definir)*'}
+
+## Apariencia
+*(pendiente de definir)*
+
+## Arco de transformación
+*(pendiente de definir)*
+`;
 
             entities = [
                 // Protagonista — siempre presente si hay answers
@@ -240,6 +265,7 @@ export const genesisManifest = onCall(
                     role: 'Protagonista',
                     age: 'Desconocida',
                     traits: protagonistTraits,
+                    content: protagonistFileContent,
                 },
                 // Antagonista — solo si fue definido con suficiente detalle
                 ...(answers.antagonist && answers.antagonist.trim().length > 8 ? [{
@@ -254,7 +280,7 @@ export const genesisManifest = onCall(
                     category: 'CHAPTER',
                     title: 'Capítulo 01',
                     summary: answers.premise || 'El inicio de la historia.',
-                    content: `*La historia comienza aquí.*\n\n${answers.premise ? `> ${answers.premise}` : ''}`,
+                    content: `# Capítulo 01\n\n> *${answers.premise || 'Una historia que está por comenzar.'}*\n\n---\n\n`,
                 },
             ];
 
@@ -362,7 +388,9 @@ export const genesisManifest = onCall(
                 folderId = peopleFolderId;
                 traits = ['sentient'];
                 role = item.role || "NPC";
-                context = `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`;
+                // Usar contenido rico si fue generado explícitamente (modo answers con protagonistName)
+                context = item.content
+                    || `## 📝 Descripción\n${item.traits}\n\n## 🏛️ Historia\nGenerado por el Protocolo Génesis.`;
             } else if (item.category === 'LOCATION') {
                 folderId = worldFolderId;
                 traits = ['locatable'];

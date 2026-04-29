@@ -5,6 +5,8 @@
 export const ALLOWED_ORIGINS = process.env.ALLOWED_CORS_ORIGINS
   ? process.env.ALLOWED_CORS_ORIGINS.split(",").map((o) => o.trim())
   : [
+      "https://myworldhistory.site",
+      "https://www.myworldhistory.site",
       "https://myword-67b03.web.app",
       "https://myword-67b03.firebaseapp.com",
       // Local development (safe: all functions enforce request.auth)

@@ -1,7 +1,7 @@
 // src/lib/firebase.ts
 // ¡¡¡NUESTRA IGNICIÓN!!!
 import { initializeApp, getApp, getApps } from "firebase/app";
-import { initializeAppCheck, ReCaptchaV3Provider, getToken } from "firebase/app-check";
+// firebase/app-check import removido — App Check bypassed hasta configurar dominio en reCAPTCHA Admin
 import { getAnalytics } from "firebase/analytics";
 import { initializeFirestore, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 
@@ -50,64 +50,11 @@ export interface SecurityStatus {
 
 // 🛡️ SECURITY CENTRALIZATION
 export const initSecurity = async (): Promise<SecurityStatus> => {
-    const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-
-    // 🟢 FAIL FAST PROTOCOL
-    if (!siteKey || siteKey === 'process.env.VITE_RECAPTCHA_SITE_KEY') {
-        console.error("🛑 [SECURITY CRITICAL] VITE_RECAPTCHA_SITE_KEY is missing or invalid.");
-        return { isReady: false, error: "MISSING_SITE_KEY" };
-    }
-
-    // 🟢 LOCAL DEVELOPMENT: Skip App Check on localhost — use production Firebase directly (no emulator)
-    if (typeof window !== 'undefined' && window.location.hostname === 'localhost') {
-        console.log("🛠️ [SECURITY] Localhost detected — skipping App Check, using production Firebase.");
-        return { isReady: true, error: null };
-    }
-
-    // 🟢 GHOST BYPASS (Jules agent mode)
-    if (import.meta.env.VITE_JULES_MODE === 'true') {
-        console.log("👻 [GHOST PROTOCOL] Skipping AppCheck validation.");
-        return { isReady: true, error: null };
-    }
-
-    console.log("🛡️ [SECURITY] Initializing App Check (ReCaptcha V3) for production...");
-
-    try {
-        // 🟢 FAIL-OPEN WRAPPER (App Check Throttling Defense)
-        const appCheckProvider = new ReCaptchaV3Provider(siteKey);
-        const originalGetToken = (appCheckProvider as any).getToken.bind(appCheckProvider);
-
-        (appCheckProvider as any).getToken = async () => {
-            try {
-                return await originalGetToken();
-            } catch (error: any) {
-                console.warn("⚠️ App Check Throttled/Failed - Bypassing...", error);
-                return {
-                    token: "",
-                    expireTimeMillis: Date.now() + 3600 * 1000
-                };
-            }
-        };
-
-        const appCheck = initializeAppCheck(app, {
-            provider: appCheckProvider,
-            isTokenAutoRefreshEnabled: true
-        });
-        console.log("✅ [SECURITY] App Check Instance Created.");
-
-        try {
-            await getToken(appCheck);
-            console.log("✅ [SECURITY] Handshake Validated (Token Received).");
-            return { isReady: true, error: null };
-        } catch (tokenError: any) {
-            console.warn("⚠️ App Check token fetch failed, using fail-open mode...", tokenError);
-            return { isReady: true, error: null };
-        }
-
-    } catch (error) {
-        console.error("💥 [SECURITY] App Check Initialization Failed:", error);
-        return { isReady: false, error: "INIT_FAILED" };
-    }
+    // App Check está desactivado (enforceAppCheck: false en todas las Cloud Functions).
+    // Habilitarlo causa error cascada en producción cuando el dominio no está autorizado
+    // en reCAPTCHA Admin. Re-habilitar antes de Product Hunt configurando el dominio.
+    console.log("🛡️ [SECURITY] App Check bypassed (enforceAppCheck: false en backend).");
+    return { isReady: true, error: null };
 };
 
 // Inicializar Firestore explícitamente con la app.

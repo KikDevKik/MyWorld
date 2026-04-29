@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Sparkles } from 'lucide-react';
+import { useTier } from '../../hooks/useTier';
+import { AIMotorBlockedOverlay } from '../ui/AIMotorBlockedOverlay';
 
 type WriterProfile = 'novice' | 'experienced' | null;
 
@@ -8,6 +10,7 @@ export interface GenesisAnswers {
     readerAge?: string;
     readerReads?: string;
     premise?: string;
+    protagonistName?: string;
     protagonistDesire?: string;
     protagonistObstacle?: string;
     protagonistMisbelief?: string;
@@ -76,6 +79,14 @@ const QUESTION_BLOCKS = [
         description: 'Los personajes memorables no son perfectos — son contradictorios y están rotos de formas específicas.',
         type: 'fields' as const,
         fields: [
+            {
+                key: 'protagonistName',
+                label: '¿Cómo se llama?',
+                placeholder: 'Ej: Kael, Ana Lucía, El Herrero sin nombre...',
+                tip: 'Puede ser un nombre, un título, o como lo tienes en la cabeza. Este nombre se usará para el archivo del personaje.',
+                required: true,
+                maxLength: 60,
+            },
             {
                 key: 'protagonistDesire',
                 label: '¿Qué desea más que nada en el mundo?',
@@ -156,6 +167,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
     const [isGenerating, setIsGenerating] = useState(false);
     const [genesisComplete, setGenesisComplete] = useState(false);
     const [createdSummary, setCreatedSummary] = useState('');
+    const { hasByok } = useTier();
 
     const handleAnswer = (key: string, value: string) => {
         setAnswers(prev => ({ ...prev, [key]: value }));
@@ -189,6 +201,10 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
         if (block.type === 'choice') {
             if (block.id === 'profile') return writerProfile !== null;
             if (block.id === 'style') return !!answers.writerStyle;
+        }
+        if (block.type === 'fields') {
+            const requiredFields = block.fields!.filter((f: any) => f.required);
+            return requiredFields.every((f: any) => (answers as any)[f.key]?.trim().length > 0);
         }
         return true;
     };
@@ -280,6 +296,8 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
         );
     }
 
+    if (!hasByok) return <AIMotorBlockedOverlay toolName="El Génesis" />;
+
     return (
         <div className="flex-1 flex flex-col items-center justify-center h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
             <div className="w-full max-w-[520px] flex flex-col gap-6">
@@ -353,10 +371,13 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                     {/* Fields block */}
                     {block.type === 'fields' && (
                         <div className="flex flex-col gap-4">
-                            {block.fields!.map(field => (
+                            {block.fields!.map((field: any) => (
                                 <div key={field.key}>
                                     <label className="text-[12px] text-titanium-400 mb-1.5 block">
                                         {field.label}
+                                        {field.required && (
+                                            <span className="text-red-400 ml-1">*</span>
+                                        )}
                                     </label>
                                     {'multiline' in field && field.multiline ? (
                                         <textarea
@@ -371,6 +392,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                                             value={(answers as any)[field.key] || ''}
                                             onChange={e => handleAnswer(field.key, e.target.value)}
                                             placeholder={field.placeholder}
+                                            maxLength={field.maxLength}
                                             className="w-full bg-titanium-900 border border-titanium-700 rounded-xl px-4 py-3 text-[13px] text-titanium-200 placeholder-titanium-700 focus:outline-none focus:border-cyan-500/50"
                                         />
                                     )}

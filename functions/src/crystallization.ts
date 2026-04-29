@@ -8,12 +8,12 @@ import * as crypto from 'crypto';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE, getModelForTask } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { resolveVirtualPath } from "./utils/drive";
 import { updateFirestoreTree } from "./utils/tree_utils";
 import { ProjectConfig, FolderRole } from "./types/project";
-import { getAIKey, escapeDriveQuery } from "./utils/security";
+import { getAIKey, getTier, escapeDriveQuery } from "./utils/security";
 import { TitaniumFactory } from "./services/factory";
 import { TitaniumEntity, EntityTrait } from "./types/ontology";
 import { legacyTypeToTraits, traitsToLegacyCategory } from "./utils/legacy_adapter";
@@ -261,8 +261,9 @@ export const crystallizeGraph = onCall(
         let projectConfig = await getProjectConfigLocal(userId);
 
         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+        const tier = getTier(request.data);
         const model = genAI.getGenerativeModel({
-            model: MODEL_LOW_COST,
+            model: getModelForTask('standard', tier),
             safetySettings: SAFETY_SETTINGS_PERMISSIVE,
             generationConfig: {
                 temperature: mode === 'RIGOR' ? 0.3 : mode === 'ENTROPIA' ? 0.9 : 0.6,

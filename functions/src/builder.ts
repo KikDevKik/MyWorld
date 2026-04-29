@@ -6,9 +6,9 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, SchemaType, TaskType } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE, getModelForTask } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
-import { getAIKey } from "./utils/security";
+import { getAIKey, getTier } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -150,8 +150,9 @@ export const builderStream = onRequest(
       }
 
       const genAI = new GoogleGenerativeAI(finalKey);
+      const tier = getTier(req.body);
       const model = genAI.getGenerativeModel({
-        model: MODEL_HIGH_REASONING,
+        model: getModelForTask('standard', tier),
         tools: tools,
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {

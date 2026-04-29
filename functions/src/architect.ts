@@ -6,8 +6,8 @@ import { getFirestore } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { defineSecret } from "firebase-functions/params";
-import { MODEL_PRO, MODEL_FLASH, SAFETY_SETTINGS_PERMISSIVE, TEMP_PRECISION, TEMP_CREATIVE } from "./ai_config";
-import { getAIKey, escapePromptVariable } from "./utils/security";
+import { MODEL_PRO, MODEL_FLASH, SAFETY_SETTINGS_PERMISSIVE, TEMP_PRECISION, TEMP_CREATIVE, Tier } from "./ai_config";
+import { getAIKey, escapePromptVariable, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
 import { _getDriveFileContentInternal } from "./utils/drive";
@@ -256,7 +256,7 @@ async function readCanonContext(
 // ─────────────────────────────────────────────
 // PILAR 2: EL "OJO DE CLAUDE" (Preparación Multi-Hop)
 // ─────────────────────────────────────────────
-async function fetchInitialContext(userId: string, projectId: string, worldEntitiesCount: number, genAI: GoogleGenerativeAI, apiKey: string): Promise<string> {
+async function fetchInitialContext(userId: string, projectId: string, worldEntitiesCount: number, genAI: GoogleGenerativeAI, apiKey: string, tier: Tier = 'normal'): Promise<string> {
     const db = getFirestore();
     let baseContext = "";
     try {
@@ -293,7 +293,7 @@ FRAGMENTOS:
 ${chunksText.substring(0, 15000)}
 `;
                     const extractionResult = await smartGenerateContent(genAI, extractionPrompt, {
-                        useFlash: true,
+                        _tier: tier, taskType: 'high_volume',
                         temperature: 0.1,
                         contextLabel: "RawHopExtraction"
                     });
@@ -478,19 +478,10 @@ function buildAnalysisPrompt(
         focusMode?: 'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO';
         severityMode?: 'HIGH' | 'MEDIUM' | 'LOW' | 'ALL';
         implementationGoal?: string;  // Norte Temático del usuario
+        isCreativeBlock?: boolean;    // Pre-clasificado por classifyArquitectoMode (LLM semántico)
     } = {}
 ): string {
-    const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal } = options;
-
-    // Detectar modo según el implementationGoal
-    const isCreativeBlock = !!(implementationGoal && (
-        implementationGoal.toLowerCase().includes('no sé cómo continuar') ||
-        implementationGoal.toLowerCase().includes('atascado') ||
-        implementationGoal.toLowerCase().includes('no tengo claro') ||
-        implementationGoal.toLowerCase().includes('cómo seguir') ||
-        implementationGoal.toLowerCase().includes('sin dirección') ||
-        implementationGoal.toLowerCase().includes('paraliz')
-    ));
+    const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal, isCreativeBlock = false } = options;
 
     // ── INSTRUCCIONES DE ENFOQUE ──
     let focusInstructions = '';
@@ -655,7 +646,8 @@ export const arquitectoInitialize = onCall(
         // 3. OJO DE CLAUDE: FETCH INITIAL CONTEXT
         const apiKey = getAIKey(request.data, googleApiKey.value());
         const genAI = new GoogleGenerativeAI(apiKey);
-        const initialContext = await fetchInitialContext(userId, projectId, worldEntitiesCount, genAI, apiKey);
+        const tier = getTier(request.data);
+        const initialContext = await fetchInitialContext(userId, projectId, worldEntitiesCount, genAI, apiKey, tier);
 
         // 3.5 — PROCESAR DOCUMENTO CULTURAL SI EXISTE
         let culturalContext = '';
@@ -671,7 +663,7 @@ Eres un historiador y analista cultural. Analiza este documento y extrae:
 Responde en 3-5 párrafos concisos. No inventes datos que no estén en el documento.`;
 
                 const culturalResult = await smartGenerateContent(genAI, culturalPrompt, {
-                    useFlash: false,
+                    _tier: tier, taskType: 'deep_analysis',
                     temperature: TEMP_PRECISION,
                     contextLabel: 'CulturalDocumentAnalysis',
                     mediaPayload: {
@@ -762,14 +754,20 @@ Responde en 3-5 párrafos concisos. No inventes datos que no estén en el docume
             contextData.canon += culturalContext;
         }
 
+        // Clasificación semántica del modo (LLM Flash, temp=0) — cubre cualquier redacción del usuario
+        const arquitectoMode = await classifyArquitectoMode(genAI, implementationGoal || '', tier);
+        logger.info(`[arquitectoInitialize] Goal: "${implementationGoal}" → Modo: ${arquitectoMode}`);
+
         const analysisPrompt = buildAnalysisPrompt(projectName, contextData, {
             focusMode,
             severityMode,
-            implementationGoal
+            implementationGoal,
+            isCreativeBlock: arquitectoMode === 'EXPLORACION',
         });
 
         const initResult = await smartGenerateContent(genAI, analysisPrompt, {
-            useFlash: false,
+            _tier: tier,
+            taskType: 'deep_analysis',
             jsonMode: true,
             temperature: TEMP_CREATIVE,
             contextLabel: "ArquitectoInitMessage",
@@ -810,14 +808,8 @@ Responde en 3-5 párrafos concisos. No inventes datos que no estén en el docume
 
         const now = new Date().toISOString();
         
-        const isCreativeBlockMode = !!(implementationGoal && (
-            implementationGoal.toLowerCase().includes('no sé cómo continuar') ||
-            implementationGoal.toLowerCase().includes('atascado') ||
-            implementationGoal.toLowerCase().includes('no tengo claro') ||
-            implementationGoal.toLowerCase().includes('cómo seguir') ||
-            implementationGoal.toLowerCase().includes('sin dirección') ||
-            implementationGoal.toLowerCase().includes('paraliz')
-        ));
+        // isCreativeBlockMode viene del clasificador LLM semántico (ya calculado arriba)
+        const isCreativeBlockMode = arquitectoMode === 'EXPLORACION';
 
         await sessionRef.set({
             name: `Arquitecto ${new Date().toLocaleDateString()}`,
@@ -883,14 +875,91 @@ Responde en 3-5 párrafos concisos. No inventes datos que no estén en el docume
  * CONSULTA: El usuario pide recordar lore específico sin intentar resolver.
  * CONFIRMACION: El usuario da una confirmación corta para continuar.
  */
+
+/**
+ * Clasifica semánticamente si el texto indica EXPLORACIÓN CREATIVA (usuario bloqueado,
+ * sin dirección, quiere ideas) o AUDITORÍA (quiere análisis formal de inconsistencias).
+ * Usa Flash temp=0 para máxima consistencia. Cubre cualquier redacción del usuario.
+ */
+async function classifyArquitectoMode(
+    genAI: GoogleGenerativeAI,
+    text: string,
+    tier: Tier = 'normal'
+): Promise<'EXPLORACION' | 'AUDITORIA'> {
+    if (!text || text.trim().length < 10) return 'EXPLORACION';
+
+    const classificationPrompt = `Eres un clasificador binario. Tu única tarea es determinar si el siguiente texto indica que el usuario quiere EXPLORAR creativamente su historia (no sabe qué hacer, está bloqueado, quiere ideas, quiere preguntas que lo guíen) o quiere una AUDITORÍA formal (quiere que se analicen inconsistencias, errores de continuidad, problemas estructurales).
+
+SEÑALES DE EXPLORACIÓN:
+- No sabe cómo continuar, desarrollar, o avanzar
+- Quiere ideas, sugerencias, o preguntas
+- Está en etapa creativa inicial o sin rumbo
+- Quiere explorar posibilidades o worldbuilding desde cero
+- Se siente bloqueado, paralizado, o sin dirección
+- No tiene claro qué conflictos, personajes, o tramas crear
+- Frases como "no tengo claro", "no sé qué", "ayúdame a pensar", "explorar", "hacia dónde"
+
+SEÑALES DE AUDITORÍA:
+- Quiere revisar errores, inconsistencias, o contradicciones
+- Tiene un mundo definido y quiere diagnóstico
+- Quiere saber qué está mal o qué falta
+- Menciona continuidad, coherencia, o lógica del mundo
+- Quiere una lista de problemas a resolver
+
+TEXTO DEL USUARIO:
+"${text.substring(0, 500)}"
+
+Responde ÚNICAMENTE con una de estas dos palabras, sin explicación:
+EXPLORACION
+AUDITORIA`;
+
+    try {
+        const result = await smartGenerateContent(genAI, classificationPrompt, {
+            _tier: tier, taskType: 'high_volume',
+            temperature: 0.0,
+            contextLabel: 'ClassifyArquitectoMode',
+        });
+        const response = (result.text || '').trim().toUpperCase();
+        if (response.includes('EXPLORACION') || response.includes('EXPLORACIÓN')) return 'EXPLORACION';
+        if (response.includes('AUDITORIA') || response.includes('AUDITORÍA')) return 'AUDITORIA';
+        logger.warn('[classifyArquitectoMode] Respuesta ambigua:', response, '→ AUDITORIA');
+        return 'AUDITORIA';
+    } catch (error) {
+        logger.error('[classifyArquitectoMode] Error:', error);
+        return text.trim().length > 50 ? 'AUDITORIA' : 'EXPLORACION';
+    }
+}
+
 async function routeArquitectoIntent(
     genAI: GoogleGenerativeAI,
     activePendingItem: PendingItem | null,
-    userMessage: string
-): Promise<'DEBATE' | 'RESOLUCION' | 'REFUTACION' | 'CONSULTA' | 'CONFIRMACION'> {
-    
-    // Si no hay un PendingItem activo, todo es un DEBATE general
-    if (!activePendingItem) return 'DEBATE';
+    userMessage: string,
+    tier: Tier = 'normal'
+): Promise<'DEBATE' | 'RESOLUCION' | 'REFUTACION' | 'CONSULTA' | 'CONFIRMACION' | 'EXPLORACION'> {
+
+    // Sin PendingItem activo → clasificar entre DEBATE y EXPLORACION (no hay opciones de auditoría)
+    if (!activePendingItem) {
+        const exploCheckPrompt = `Clasifica si el siguiente mensaje del autor indica BLOQUEO CREATIVO (no sabe qué hacer, está paralizado, necesita ideas o guía) o es una CONSULTA/CONVERSACIÓN GENERAL (pregunta, debate, comentario normal sobre su mundo).
+
+SEÑALES DE BLOQUEO CREATIVO: "no sé qué hacer", "estoy atascado", "no tengo claro", "hacia dónde va", "no sé qué conflictos", "ayúdame a pensar", "no sé cómo desarrollar", "sin dirección", "no sé por dónde empezar".
+
+MENSAJE: "${escapePromptVariable(userMessage)}"
+
+Responde SOLO con: EXPLORACION o DEBATE`;
+        try {
+            const result = await smartGenerateContent(genAI, exploCheckPrompt, {
+                _tier: tier, taskType: 'high_volume',
+                temperature: 0.0,
+                contextLabel: 'ArquitectoExplorationCheck',
+            });
+            const text = (result.text || '').trim().toUpperCase();
+            if (text.includes('EXPLORACION') || text.includes('EXPLORACIÓN')) return 'EXPLORACION';
+            return 'DEBATE';
+        } catch (e) {
+            logger.warn('[ARQUITECTO] ExplorationCheck falló, defaulteando a DEBATE:', e);
+            return 'DEBATE';
+        }
+    }
 
     const classifierPrompt = `Eres un clasificador de intenciones. El usuario está respondiendo a una disonancia narrativa.
 
@@ -898,7 +967,7 @@ DISONANCIA ACTIVA: ${activePendingItem.title}
 DESCRIPCIÓN: ${activePendingItem.description}
 MENSAJE DEL USUARIO: "${escapePromptVariable(userMessage)}"
 
-Clasifica la intención en UNA de estas 5 categorías:
+Clasifica la intención en UNA de estas 6 categorías:
 
 1. DEBATE: El usuario hace una pregunta, pide sugerencias, da respuestas vagas/incompletas, o usa pronombres ambiguos ("ellos", "eso", "su plan") sin especificar. También si explora ideas sin comprometerse.
 
@@ -910,22 +979,24 @@ Clasifica la intención en UNA de estas 5 categorías:
 
 5. CONFIRMACION: Si el mensaje es una confirmación corta ("sí", "continuar", "siguiente", "ok", "adelante").
 
+6. EXPLORACION: El usuario indica explícitamente que está bloqueado, no sabe cómo continuar, quiere explorar posibilidades, o necesita guía creativa en lugar de seguir con la auditoría. Usa esto cuando el autor claramente quiere pausar el análisis y recibir orientación socrática.
+
 IMPORTANTE: Si el mensaje contiene pronombres vagos sin sustantivos claros, ES DEBATE, no RESOLUCION.
 
-Responde SOLO con una de estas palabras exactas: DEBATE, RESOLUCION, REFUTACION, CONSULTA, CONFIRMACION`;
+Responde SOLO con una de estas palabras exactas: DEBATE, RESOLUCION, REFUTACION, CONSULTA, CONFIRMACION, EXPLORACION`;
 
     try {
         const result = await smartGenerateContent(genAI, classifierPrompt, {
-            useFlash: true, // Flash para clasificación rápida — no necesita Pro
-            temperature: 0.0, // Temperatura 0 para máxima determinismo
+            _tier: tier, taskType: 'high_volume',
+            temperature: 0.0,
             contextLabel: 'ArquitectoIntentRouter',
         });
 
         const text = (result.text || '').trim().toUpperCase();
-        if (['DEBATE', 'RESOLUCION', 'REFUTACION', 'CONSULTA', 'CONFIRMACION'].includes(text)) {
-            return text as 'DEBATE' | 'RESOLUCION' | 'REFUTACION' | 'CONSULTA' | 'CONFIRMACION';
+        if (['DEBATE', 'RESOLUCION', 'REFUTACION', 'CONSULTA', 'CONFIRMACION', 'EXPLORACION'].includes(text)) {
+            return text as 'DEBATE' | 'RESOLUCION' | 'REFUTACION' | 'CONSULTA' | 'CONFIRMACION' | 'EXPLORACION';
         }
-        
+
         return 'DEBATE';
     } catch (e) {
         logger.warn('[ARQUITECTO] Clasificador de intenciones falló, defaulteando a DEBATE:', e);
@@ -974,6 +1045,42 @@ INSTRUCCIONES:
 4. Aplica el Filtro de Cámara: ¿esto aparecerá en la historia?
 5. Si llevas más de 3 intercambios sobre la misma disonancia y el autor ha dado respuestas sustanciales (aunque incompletas), aplica El Espejo y cierra el item actual. Los elementos sin definir se convierten en nuevos pendientes. No bloquees el avance indefinidamente.
 6. Máximo 250 palabras. Un solo desafío por respuesta.
+
+MENSAJE DEL AUTOR: "${escapePromptVariable(userMessage)}"`;
+}
+
+/**
+ * Prompt para EXPLORACIÓN SOCRÁTICA durante el chat.
+ * Se activa cuando el usuario indica bloqueo creativo o falta de dirección,
+ * independientemente de si hay o no una disonancia activa.
+ */
+function buildExploracionChatPrompt(
+    historyText: string,
+    userMessage: string,
+    worldEntitiesContext: string,
+    implementationGoal: string
+): string {
+    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+
+RUTA ACTIVA: EXPLORACIÓN SOCRÁTICA
+El autor no necesita auditoría en este momento. Indica bloqueo creativo o falta de dirección.
+
+INSTRUCCIONES PARA ESTA RUTA:
+1. NO generes listas de disonancias ni menciones errores o inconsistencias.
+2. En 1-2 oraciones, reconoce brevemente lo que el autor ya tiene construido según el contexto disponible.
+3. Formula 2-3 preguntas socráticas específicas y concretas que lo ayuden a encontrar su próximo paso.
+4. Si menciona "no sé qué conflictos crear" → pregunta por la motivación central del protagonista.
+5. Si está en etapa inicial → guíalo hacia la "Santísima Trinidad": Reglas del Mundo, Conflicto Central, Defecto del Protagonista.
+6. Si hay un Norte Temático definido, úsalo como brújula para las preguntas.
+7. Máximo 250 palabras. Cierra con UNA sola pregunta clave en negrita.
+
+NORTE TEMÁTICO DEL PROYECTO: ${implementationGoal || 'Sin objetivo definido aún.'}
+
+CONTEXTO DE ENTIDADES (REFERENCIA):
+${worldEntitiesContext.substring(0, 3000)}
+
+HISTORIAL:
+${historyText}
 
 MENSAJE DEL AUTOR: "${escapePromptVariable(userMessage)}"`;
 }
@@ -1089,7 +1196,7 @@ Responde con JSON:
     {
       "documentName": "Nombre del archivo canon",
       "driveFileId": "ID de Drive si se conoce, o null",
-      "proposedChange": "Descripción concisa del cambio a aplicar",
+      "patchInstructions": "instrucciones detalladas de dónde y cómo insertar la nueva regla en el documento",
       "newRuleStatement": "La nueva regla en 1-2 oraciones para guardar en canon"
     }
   ]
@@ -1107,7 +1214,8 @@ Responde con JSON:
 async function evaluateRippleEffect(
     genAI: GoogleGenerativeAI,
     resolvedItem: PendingItem,
-    pendingItems: PendingItem[]
+    pendingItems: PendingItem[],
+    tier: Tier = 'normal'
 ): Promise<{
     autoResolvedIds: string[];
     mutatedItems: Partial<PendingItem>[];
@@ -1165,7 +1273,7 @@ Si no hay impacto, devuelve arrays vacíos. No inventes impactos que no existan.
 
     try {
         const result = await smartGenerateContent(genAI, ripplePrompt, {
-            useFlash: true, // Flash es suficiente para esta evaluación
+            _tier: tier, taskType: 'high_volume',
             jsonMode: true,
             temperature: 0.1,
             contextLabel: 'ArquitectoRippleEffect',
@@ -1199,7 +1307,8 @@ async function updatePendingItemResolution(
     sessionId: string,
     resolvedItem: PendingItem,
     drivePatches: Array<{ documentName: string; driveFileId: string | null; newRuleStatement: string }>,
-    genAI: GoogleGenerativeAI
+    genAI: GoogleGenerativeAI,
+    tier: Tier = 'normal'
 ): Promise<void> {
     try {
         const sessionRef = db
@@ -1223,8 +1332,8 @@ async function updatePendingItemResolution(
         
         if (stillPending.length > 0) {
             try {
-                const rippleResult = await evaluateRippleEffect(genAI, resolvedItem, stillPending);
-                
+                const rippleResult = await evaluateRippleEffect(genAI, resolvedItem, stillPending, tier);
+
                 if (rippleResult.autoResolvedIds.length > 0) {
                     logger.info(`🌊 [RIPPLE] ${rippleResult.autoResolvedIds.length} items auto-resueltos`);
                     pendingItems = pendingItems.map(item => {
@@ -1372,6 +1481,7 @@ No la copies literalmente. Adáptala al flujo de la conversación.
 
         // 1. Buscar contexto relevante via RAG
         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+        const tier = getTier(request.data);
 
         let ragContext = "";
         if (query) {
@@ -1426,7 +1536,7 @@ Responde SOLO con el nombre del modo (una palabra con guión bajo).
         `;
 
         const modeResult = await smartGenerateContent(genAI, modeDetectionPrompt, {
-            useFlash: true,
+            _tier: tier, taskType: 'high_volume',
             temperature: 0.1,
             contextLabel: "ArquitectoModeDetect",
         });
@@ -1534,6 +1644,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
         let resolvedItems: PendingItem[] = [];
         let cachedCanonContext = '';
         let cachedWorldEntities = '';
+        let sessionImplementationGoal = '';
 
         try {
             const sessionDoc = await db
@@ -1549,6 +1660,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
                 resolvedItems = currentPendingItems.filter(item => item.resolved);
                 cachedCanonContext = sessionData?.cachedCanonContext || '';
                 cachedWorldEntities = sessionData?.cachedWorldEntities || '';
+                sessionImplementationGoal = sessionData?.implementationGoal || '';
             }
         } catch (e) {
             logger.warn('[ARQUITECTO] No se pudo leer el pending item activo:', e);
@@ -1577,7 +1689,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
             .join('\n\n');
 
         // 4. Clasificar la intención del mensaje
-        const intent = await routeArquitectoIntent(genAI, activePendingItem, query || '');
+        const intent = await routeArquitectoIntent(genAI, activePendingItem, query || '', tier);
         logger.info(`🧭 [ARQUITECTO] Intención detectada: ${intent} | Item activo: ${activePendingItem?.title || 'ninguno'}`);
 
         // 5. Generar respuesta según la intención
@@ -1585,13 +1697,30 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
         let resolvedItem: PendingItem | null = null;
         let drivePatches: Array<{ documentName: string; driveFileId: string | null; newRuleStatement: string }> = [];
 
-        if (intent === 'DEBATE' || intent === 'CONSULTA') {
+        if (intent === 'EXPLORACION') {
+            // Ruta de Exploración Socrática — el usuario tiene bloqueo creativo
+            const prompt = buildExploracionChatPrompt(
+                recentHistoryText,
+                query || '',
+                contextData.worldEntities,
+                sessionImplementationGoal
+            );
+            const result = await smartGenerateContent(genAI, prompt, {
+                _tier: tier,
+                taskType: 'deep_analysis',
+                temperature: TEMP_CREATIVE,
+                contextLabel: 'ArquitectoChat_EXPLORACION',
+            });
+            responseText = result.text || 'Cuéntame más sobre tu proyecto. ¿Qué tienes construido hasta ahora?';
+
+        } else if (intent === 'DEBATE' || intent === 'CONSULTA') {
             const prompt = intent === 'CONSULTA'
                 ? buildConsultaPrompt(recentHistoryText, query || '', contextData.canon, contextData.worldEntities)
                 : buildDebatePrompt(activePendingItem, recentHistoryText, query || '', contextData.worldEntities, resolvedItems);
 
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: detectedMode !== 'architect', // Flash para triage/inquisitor, Pro para architect
+                _tier: tier,
+                taskType: 'deep_analysis',
                 temperature: TEMP_CREATIVE,
                 contextLabel: `ArquitectoChat_${intent}`,
             });
@@ -1600,7 +1729,8 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
         } else if (intent === 'REFUTACION') {
             const prompt = buildRefutacionPrompt(activePendingItem, recentHistoryText, query || '');
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: false, // Pro para evaluar refutaciones — requiere razonamiento
+                _tier: tier,
+                taskType: 'deep_analysis',
                 temperature: TEMP_PRECISION,
                 contextLabel: 'ArquitectoChat_REFUTACION',
             });
@@ -1629,7 +1759,8 @@ Formula el desafío socrático para la disonancia siguiente. Aborda ÚNICAMENTE 
 Máximo 150 palabras. Un solo desafío.`;
 
             const result = await smartGenerateContent(genAI, confirmacionPrompt, {
-                useFlash: true,
+                _tier: tier,
+                taskType: 'standard',
                 temperature: TEMP_CREATIVE,
                 contextLabel: 'ArquitectoChat_CONFIRMACION',
             });
@@ -1638,7 +1769,8 @@ Máximo 150 palabras. Un solo desafío.`;
         } else if (intent === 'RESOLUCION' && activePendingItem) {
             const prompt = buildResolucionPrompt(activePendingItem, recentHistoryText, query || '', contextData.canon, resolvedItems);
             const result = await smartGenerateContent(genAI, prompt, {
-                useFlash: false, // Pro para resoluciones — genera parches de canon
+                _tier: tier,
+                taskType: 'deep_analysis',
                 jsonMode: true,
                 temperature: TEMP_PRECISION,
                 contextLabel: 'ArquitectoChat_RESOLUCION',
@@ -1668,7 +1800,7 @@ Máximo 150 palabras. Un solo desafío.`;
 
         // 6. Si hubo resolución, actualizar pendingItems y ejecutar Ripple Effect
         if (resolvedItem) {
-            await updatePendingItemResolution(db, userId, sessionId, resolvedItem, drivePatches, genAI);
+            await updatePendingItemResolution(db, userId, sessionId, resolvedItem, drivePatches, genAI, tier);
         }
 
         // Pipeline de guardado del PDF en WorldEntities RESOURCE
@@ -1798,19 +1930,25 @@ export const arquitectoAnalyze = onCall(
         const contextData = await readCanonContext(userId, projectId, driveClient);
 
         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+        const tier = getTier(request.data);
 
         const focusMode = (request.data.focusMode as any) || 'TRIAGE';
         const severityMode = (request.data.severityMode as any) || 'ALL';
         const implementationGoal = request.data.implementationGoal || '';
 
+        const analyzeMode = await classifyArquitectoMode(genAI, implementationGoal, tier);
+        logger.info(`[arquitectoAnalyze] Goal: "${implementationGoal}" → Modo: ${analyzeMode}`);
+
         const analysisPrompt = buildAnalysisPrompt(projectName, contextData, {
             focusMode,
             severityMode,
-            implementationGoal
+            implementationGoal,
+            isCreativeBlock: analyzeMode === 'EXPLORACION',
         });
 
         const result = await smartGenerateContent(genAI, analysisPrompt, {
-            useFlash: true,
+            _tier: tier,
+            taskType: 'deep_analysis',
             jsonMode: true,
             temperature: TEMP_PRECISION,
             contextLabel: "ArquitectoAnalyze",
@@ -1944,6 +2082,7 @@ export const arquitectoGenerateRoadmap = onCall(
         const graph = await buildNarrativeGraph(db, userId, projectId);
         
         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+        const tier = getTier(request.data);
 
         // ═══ GENERACIÓN ═══
         const roadmapPrompt = `
@@ -2005,7 +2144,8 @@ Responde SOLO con JSON:
 `;
 
         const result = await smartGenerateContent(genAI, roadmapPrompt, {
-            useFlash: false,
+            _tier: tier,
+            taskType: 'deep_analysis',
             jsonMode: true,
             temperature: TEMP_PRECISION,
             contextLabel: "ArquitectoGenerateRoadmap"
@@ -2137,13 +2277,15 @@ export const arquitectoResolvePendingItem = onCall(
 
         pendingItems = pendingItems.map(i => i.code === itemCode ? resolvedItem : i);
 
+        const tier = getTier(request.data);
+
         // Ripple Effect (opcional, puede saltarse para resoluciones en lote)
         if (!skipRipple) {
             const stillPending = pendingItems.filter(i => !i.resolved);
             if (stillPending.length > 0) {
                 try {
                     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-                    const rippleResult = await evaluateRippleEffect(genAI, resolvedItem, stillPending);
+                    const rippleResult = await evaluateRippleEffect(genAI, resolvedItem, stillPending, tier);
                     
                     pendingItems = pendingItems.map(item => {
                         if (rippleResult.autoResolvedIds.includes(item.code)) {
@@ -2200,15 +2342,36 @@ export const arquitectoApplyPatch = onCall(
             auth.setCredentials({ access_token: accessToken });
             const drive = google.drive({ version: "v3", auth });
 
-            // Leer el archivo original
-            const getRes = await drive.files.get({
+            // 1. Obtener metadata del archivo para detectar su tipo
+            const metaRes = await drive.files.get({
                 fileId: driveFileId,
-                alt: 'media'
-            } as any);
+                fields: 'id, name, mimeType'
+            });
+            const fileMimeType = metaRes.data.mimeType || 'text/plain';
+            const isGoogleDoc = fileMimeType === 'application/vnd.google-apps.document';
 
-            let originalContent = typeof getRes.data === 'string'
-                ? getRes.data
-                : JSON.stringify(getRes.data);
+            // Leer el archivo original
+            let originalContent: string;
+
+            if (isGoogleDoc) {
+                // Google Docs nativos: exportar como texto plano
+                const exportRes = await drive.files.export({
+                    fileId: driveFileId,
+                    mimeType: 'text/plain'
+                });
+                originalContent = typeof exportRes.data === 'string' 
+                    ? exportRes.data 
+                    : JSON.stringify(exportRes.data);
+            } else {
+                // Archivos .md, .txt, etc.: descarga directa
+                const getRes = await drive.files.get({
+                    fileId: driveFileId,
+                    alt: 'media'
+                } as any);
+                originalContent = typeof getRes.data === 'string' 
+                    ? getRes.data 
+                    : JSON.stringify(getRes.data);
+            }
 
             // Proteger sovereign areas
             const { SmartSyncService } = await import('./services/smart_sync');
@@ -2216,6 +2379,7 @@ export const arquitectoApplyPatch = onCall(
 
             // IA integra la nueva regla
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const tier = getTier(request.data);
 
             const mergePrompt = `
 ACT AS: Expert Markdown Editor & Canon Archivist for a literary project.
@@ -2238,7 +2402,7 @@ EXISTING DOCUMENT:
 `;
 
             const result = await smartGenerateContent(genAI, mergePrompt, {
-                useFlash: true,
+                _tier: tier, taskType: 'standard',
                 temperature: TEMP_PRECISION,
                 contextLabel: 'ArquitectoApplyPatch'
             });
@@ -2257,13 +2421,26 @@ EXISTING DOCUMENT:
             newContent = SmartSyncService.restoreSovereignAreas(newContent, sovereignMap);
 
             // 2. Escribir en Drive
-            await drive.files.update({
-                fileId: driveFileId,
-                media: {
-                    mimeType: 'text/markdown',
-                    body: newContent
-                }
-            });
+            if (isGoogleDoc) {
+                // Google Docs nativos: no podemos sobreescribir con text/markdown
+                // Debemos usar la API de Google Docs para hacer la edición
+                // POR AHORA: mostrar error explicativo en lugar de corromper el documento
+                throw new Error(
+                    `El archivo "${documentName}" es un Google Doc nativo. ` +
+                    `Los patches automáticos solo funcionan con archivos .md o .txt. ` +
+                    `Copia el contenido propuesto manualmente en tu documento.`
+                );
+                // TODO futuro: usar Google Docs API (batchUpdate) para edición nativa
+            } else {
+                // Archivos .md, .txt: subida directa preservando el mimeType original
+                await drive.files.update({
+                    fileId: driveFileId,
+                    media: {
+                        mimeType: fileMimeType, // Preservar el tipo original, no forzar markdown
+                        body: newContent
+                    }
+                });
+            }
 
             logger.info(`✅ [ARQUITECTO] Patch aplicado exitosamente a ${documentName}`);
 
@@ -2384,7 +2561,8 @@ export const arquitectoGenerateRoadmapFinal = onCall(
             .join('\n');
         
         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-        
+        const tier = getTier(request.data);
+
         const prompt = `Eres El Arquitecto. El interrogatorio socrático ha concluido. Genera el documento maestro final.
 
 CONTRADICCIONES RESUELTAS (${resolvedItems.length}):
@@ -2410,7 +2588,7 @@ REGLAS:
 - Detecta el idioma y responde en ese idioma.`;
 
         const result = await smartGenerateContent(genAI, prompt, {
-            useFlash: false, jsonMode: true, temperature: TEMP_PRECISION,
+            _tier: tier, taskType: 'deep_analysis', jsonMode: true, temperature: TEMP_PRECISION,
             contextLabel: 'ArquitectoGenerateRoadmapFinal'
         });
         
@@ -2436,3 +2614,4 @@ REGLAS:
         return roadmapFinal;
     }
 );
+

@@ -8,7 +8,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as crypto from 'crypto';
 import { cosineSimilarity } from "./similarity";
 import { TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";
-import { getAIKey, escapePromptVariable } from "./utils/security";
+import { getAIKey, escapePromptVariable, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
 import { ProjectConfig } from "./types/project";
@@ -67,6 +67,7 @@ export const auditContent = onCall(
             }
 
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+            const tier = getTier(request.data);
             const projectConfig = await _getProjectConfig(userId);
 
             // 3. EXTRACTION STEP (Smart Fallback: Try Flash First)
@@ -128,7 +129,7 @@ export const auditContent = onCall(
         `;
 
             const safeExtraction = await smartGenerateContent(genAI, extractionPrompt, {
-                useFlash: true, // ⚡ Try Flash First
+                _tier: tier, taskType: 'standard',
                 jsonMode: true,
                 temperature: TEMP_PRECISION,
                 contextLabel: "FactExtractor"
@@ -257,7 +258,7 @@ export const auditContent = onCall(
                         `;
                             // Pro Model for Reasoning (The Judge)
                             const safeRes = await smartGenerateContent(genAI, resonancePrompt, {
-                                useFlash: false, // Strict Pro
+                                _tier: tier, taskType: 'standard',
                                 jsonMode: true,
                                 temperature: TEMP_CREATIVE,
                                 contextLabel: "ResonanceCheck"
@@ -313,7 +314,7 @@ export const auditContent = onCall(
 
                         // Pro Model for Logic
                         const safeFriction = await smartGenerateContent(genAI, frictionPrompt, {
-                            useFlash: false,
+                            _tier: tier, taskType: 'standard',
                             jsonMode: true,
                             temperature: TEMP_CREATIVE,
                             contextLabel: "FrictionCheck"
@@ -379,7 +380,7 @@ export const auditContent = onCall(
 
                         // Pro Model for Reality
                         const safeReality = await smartGenerateContent(genAI, realityPrompt, {
-                            useFlash: false,
+                            _tier: tier, taskType: 'standard',
                             jsonMode: true,
                             temperature: TEMP_CREATIVE,
                             contextLabel: "RealityFilter"
@@ -430,7 +431,7 @@ export const auditContent = onCall(
 
                                 // Pro Model for Profile Extraction
                                 const safeProfile = await smartGenerateContent(genAI, profilePrompt, {
-                                    useFlash: false,
+                                    _tier: tier, taskType: 'standard',
                                     temperature: TEMP_CREATIVE,
                                     contextLabel: "ProfileExtract"
                                 });
@@ -483,7 +484,7 @@ export const auditContent = onCall(
 
                         // Pro Model for Hater (Deep Reasoning)
                         const safeHater = await smartGenerateContent(genAI, haterPrompt, {
-                            useFlash: false,
+                            _tier: tier, taskType: 'standard',
                             jsonMode: true,
                             temperature: TEMP_CREATIVE,
                             contextLabel: "HaterAudit"
@@ -878,7 +879,8 @@ export const auditGlobal = onCall(
             // El LLM detecta colisiones semánticas complejas.
             
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            
+            const tier = getTier(request.data);
+
             // Solo invocar el LLM si hay entidades suficientes
             let temporalParadoxes: any[] = [];
             
@@ -948,7 +950,7 @@ Responde SOLO con JSON. Si no hay paradojas verificables, devuelve array vacío:
 `;
 
                 const result = await smartGenerateContent(genAI, paradoxPrompt, {
-                    useFlash: false, // Pro para razonamiento complejo
+                    _tier: tier, taskType: 'standard',
                     jsonMode: true,
                     temperature: 0.1, // Mínima temperatura para máxima precisión
                     contextLabel: "GuardianOmnisciente"

@@ -34,6 +34,7 @@ import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { useNarrator } from './hooks/useNarrator'; // 🟢 IMPORT NARRATOR HOOK
+import { useTier } from './hooks/useTier';
 import { useTutorial } from './hooks/useTutorial'; // 🟢 IMPORT TUTORIAL HOOK
 import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfigContext";
 import { GemId } from './types';
@@ -49,6 +50,8 @@ import StatusBar from './components/ui/StatusBar';
 import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
+import { PostGenesisPanel } from './components/PostGenesisPanel';
+import { APIKeyOnboarding } from './components/APIKeyOnboarding';
 import { useLanguageStore } from './stores/useLanguageStore';
 import { TRANSLATIONS } from './i18n/translations';
 
@@ -276,6 +279,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // MODALES
     const [isConnectModalOpen, setIsConnectModalOpen] = useState(false);
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+    const [settingsInitialTab, setSettingsInitialTab] = useState<'general' | 'ai_config'>('general');
+    const [showApiKeyOnboarding, setShowApiKeyOnboarding] = useState(false);
     const [isProjectSettingsOpen, setIsProjectSettingsOpen] = useState(false);
     const [isFieldManualOpen, setIsFieldManualOpen] = useState(false);
     const [isCreateFileModalOpen, setIsCreateFileModalOpen] = useState(false);
@@ -285,8 +290,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
-    const [showTrialBanner, setShowTrialBanner] = useState(true);
     const [showStartingAssistant, setShowStartingAssistant] = useState(false);
+    const [showPostGenesisPanel, setShowPostGenesisPanel] = useState(false);
+    const [genesisFilesCount, setGenesisFilesCount] = useState(0);
+    const [genesisPremise, setGenesisPremise] = useState<string>('');
     const [isAppLoading, setIsAppLoading] = useState(true);
     const hybridEditorRef = useRef<HybridEditorHandle>(null); // 🟢 EDITOR HANDLE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
@@ -296,6 +303,23 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // 🟢 BYOK ONBOARDING
     const { customGeminiKey } = useProjectConfig();
+    const { isNormal } = useTier();
+
+    // Global settings modal event dispatch (from overlays, TTS gate, etc.)
+    useEffect(() => {
+        const handleOpenSettings = (e: Event) => {
+            const tab = (e as CustomEvent).detail?.tab || 'general';
+            setSettingsInitialTab(tab);
+            setIsSettingsModalOpen(true);
+        };
+        const handleShowOnboarding = () => setShowApiKeyOnboarding(true);
+        window.addEventListener('OPEN_SETTINGS_MODAL', handleOpenSettings);
+        window.addEventListener('SHOW_API_KEY_ONBOARDING', handleShowOnboarding);
+        return () => {
+            window.removeEventListener('OPEN_SETTINGS_MODAL', handleOpenSettings);
+            window.removeEventListener('SHOW_API_KEY_ONBOARDING', handleShowOnboarding);
+        };
+    }, []);
     useEffect(() => {
         if (!isAppLoading && user && !initialByokChecked && driveStatus === 'connected') {
             setInitialByokChecked(true);
@@ -313,14 +337,37 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     }, [isAppLoading, user, customGeminiKey, initialByokChecked, driveStatus]);
 
     // 🟢 STARTING ASSISTANT — show when project is new and empty
+    const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
+    const existingSession = arquitectoSessionId || activeDirectorSessionId;
+
     useEffect(() => {
+        if (existingSession) {
+            setShowStartingAssistant(false);
+            return;
+        }
+
         if (!config || configLoading) return;
         const hasCanon = config?.canonPaths?.length > 0;
-        const isEmpty = !fileTree || fileTree.length === 0 || fileTree.every((f: any) => !f.children?.length);
+        
+        // Contar total de archivos en todo el árbol recursivamente
+        const countFiles = (nodes: any[]): number => {
+            if (!nodes || nodes.length === 0) return 0;
+            return nodes.reduce((total, node) => {
+                // Es un archivo si no tiene children o children vacíos
+                // y tiene un mimeType que no sea carpeta
+                const isFile = node.mimeType !== 'application/vnd.google-apps.folder';
+                const childCount = countFiles(node.children || []);
+                return total + (isFile ? 1 : 0) + childCount;
+            }, 0);
+        };
+
+        const totalFiles = countFiles(fileTree || []);
+        const isEmpty = totalFiles === 0;
+
         const dismissedKey = `assistant_dismissed_${config?.folderId}`;
         const dismissed = localStorage.getItem(dismissedKey) === 'true';
         setShowStartingAssistant(hasCanon && isEmpty && !dismissed);
-    }, [config?.canonPaths?.length, fileTree?.length, config?.folderId]);
+    }, [config?.canonPaths?.length, JSON.stringify((fileTree || []).map((f: any) => ({ id: f.id, childCount: f.children?.length || 0 }))), config?.folderId, existingSession, configLoading, config]);
 
     // 🟢 FILE LOCKING
     const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);
@@ -604,7 +651,19 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 HANDLE TTS SELECTION
     const handleReadSelection = async (text: string) => {
         if (!text) return;
-        // Pass empty characters list for now. NarratorService will infer or default to Narrator.
+        if (isNormal) {
+            toast.warning("Narración con IA requiere el plan Ultra.", {
+                description: "Configura tu API Key de Gemini en Ajustes para activarla.",
+                action: {
+                    label: 'Ajustes',
+                    onClick: () => {
+                        setSettingsInitialTab('ai_config');
+                        setIsSettingsModalOpen(true);
+                    }
+                }
+            });
+            return;
+        }
         await analyzeScene(text, []);
     };
 
@@ -834,19 +893,28 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             const result = await callFunction('genesisManifest', {
                 answers,
                 accessToken: oauthToken,
-                // Provide a minimal chatHistory for backwards compat
                 chatHistory: [{ role: 'user', message: answers.premise || 'Inicio del proyecto.' }]
             });
             toast.success('¡Proyecto creado!', {
                 id: 'genesis',
                 description: 'Tu estructura está lista en Google Drive.'
             });
-            // No cerramos el StartingAssistant aquí — él muestra la pantalla de celebración
-            // y se cierra cuando el usuario hace clic en "Empezar a escribir →"
+
+            // Cerrar StartingAssistant y mostrar PostGenesisPanel
+            setShowStartingAssistant(false);
+            localStorage.setItem(`assistant_dismissed_${config?.folderId}`, 'true');
+
+            const count = (result as any)?.created?.length
+                || (result as any)?.filesCreated?.length
+                || 3;
+            setGenesisFilesCount(count);
+            setGenesisPremise(answers.premise || '');
+            setShowPostGenesisPanel(true);
+
             return result;
         } catch (err: any) {
             toast.error('Error al crear el proyecto.', { id: 'genesis' });
-            throw err; // Re-lanzar para que StartingAssistant lo detecte
+            throw err;
         }
     };
 
@@ -919,16 +987,42 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         // Default: Editor
         if (!currentFileId) {
-            return showStartingAssistant ? (
-                <StartingAssistant
-                    projectName={config?.projectName || 'Mi Proyecto'}
-                    onClose={() => {
-                        setShowStartingAssistant(false);
-                        localStorage.setItem(`assistant_dismissed_${config?.folderId}`, 'true');
-                    }}
-                    onStartGenesis={handleStartGenesis}
-                />
-            ) : (
+            if (showStartingAssistant) {
+                return (
+                    <StartingAssistant
+                        projectName={config?.projectName || 'Mi Proyecto'}
+                        onClose={() => {
+                            setShowStartingAssistant(false);
+                            localStorage.setItem(`assistant_dismissed_${config?.folderId}`, 'true');
+                        }}
+                        onStartGenesis={handleStartGenesis}
+                    />
+                );
+            }
+            if (showPostGenesisPanel) {
+                return (
+                    <PostGenesisPanel
+                        projectName={config?.projectName || 'Mi Proyecto'}
+                        filesCreated={genesisFilesCount}
+                        premise={genesisPremise}
+                        onGoToCapitulo={() => {
+                            setShowPostGenesisPanel(false);
+                            setDirectorPendingMessage(
+                                `Mi proyecto "${config?.projectName || 'Mi Proyecto'}" acaba de nacer.` +
+                                (genesisPremise ? ` La premisa es: "${genesisPremise}".` : '') +
+                                ` Voy a escribir el Capítulo 01. Hazme las 3 preguntas que me ayuden a encontrar mi punto de entrada a la historia.`
+                            );
+                            setActiveView('director');
+                        }}
+                        onGoToArquitecto={() => {
+                            setShowPostGenesisPanel(false);
+                            setActiveView('arquitecto');
+                        }}
+                        onDismiss={() => setShowPostGenesisPanel(false)}
+                    />
+                );
+            }
+            return (
                 <div className="flex-1 flex items-center justify-center bg-titanium-950">
                     <div className="text-titanium-500 font-mono text-sm opacity-50">
                         Selecciona un archivo del canon para comenzar.
@@ -1005,6 +1099,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         content={selectedFileContent}
                         guardianStatus={guardianStatus}
                         onGuardianClick={() => setActiveView('guardian')}
+                        onOpenSettings={() => {
+                            setSettingsInitialTab('ai_config');
+                            setIsSettingsModalOpen(true);
+                        }}
                         className="z-50 shrink-0"
                         narratorControls={{
                             ...narratorControls,
@@ -1051,7 +1149,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     }}
                     accessToken={oauthToken}
                     onGetFreshToken={handleTokenRefresh}
+                    initialTab={settingsInitialTab}
                 />
+            )}
+
+            {showApiKeyOnboarding && (
+                <APIKeyOnboarding onClose={() => setShowApiKeyOnboarding(false)} />
             )}
 
             {isProjectSettingsOpen && (
@@ -1102,23 +1205,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             />
 
             <div className="flex flex-col h-screen w-screen overflow-hidden">
-                {showTrialBanner && (
-                    <div className="w-full flex items-center justify-between px-4 py-1.5 bg-amber-500/10 border-b border-amber-500/20 text-[11px] font-mono shrink-0 z-50">
-                        <div className="flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            <span className="text-amber-400 uppercase tracking-wider">Período de Prueba</span>
-                            <span className="text-amber-600 mx-1">·</span>
-                            <span className="text-amber-700">Usando tu API Key de Gemini (BYOK)</span>
-                        </div>
-                        <button
-                            onClick={() => setShowTrialBanner(false)}
-                            className="text-amber-700 hover:text-amber-500 transition-colors"
-                            aria-label="Cerrar aviso"
-                        >
-                            ×
-                        </button>
-                    </div>
-                )}
                 <div className="flex-1 overflow-hidden">
                 <SentinelShell
                     isZenMode={isZenMode}

@@ -5,12 +5,12 @@ import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { TEMP_PRECISION } from "./ai_config";
+import { TEMP_PRECISION, Tier } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import matter from 'gray-matter';
 import { EntityCategory, ForgePayload, DetectedEntity } from "./types/forge";
 import { enrichEntitiesParallel } from "./services/enrichment";
-import { getAIKey } from "./utils/security";
+import { getAIKey, getTier } from "./utils/security";
 import { EntityRepository } from "./repository/EntityRepository";
 import { smartGenerateContent } from "./utils/smart_generate";
 
@@ -109,7 +109,8 @@ interface SorterRequest {
 export async function identifyEntities(
     files: FileContent[],
     genAI: GoogleGenerativeAI,
-    sagaId?: string
+    sagaId?: string,
+    tier: Tier = 'normal'
 ): Promise<Map<string, DetectedEntity>> {
 
     const entitiesMap = new Map<string, DetectedEntity>();
@@ -344,7 +345,7 @@ export async function identifyEntities(
     for (const batchText of batches) {
         try {
             const result = await smartGenerateContent(genAI, batchText, {
-                useFlash: true,
+                _tier: tier, taskType: 'high_volume',
                 systemInstruction: extractionPrompt,
                 contextLabel: "SoulSorterExtraction",
                 jsonMode: true,
@@ -511,8 +512,9 @@ export const classifyEntities = onCall(
 
             // --- 2. IDENTIFY ENTITIES (Logic) ---
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            
-            const entitiesMap = await identifyEntities(fileContents, genAI, sagaId);
+            const tier = getTier(request.data);
+
+            const entitiesMap = await identifyEntities(fileContents, genAI, sagaId, tier);
 
             // --- 3. ENRICHMENT PHASE ---
             const entityList = Array.from(entitiesMap.values());

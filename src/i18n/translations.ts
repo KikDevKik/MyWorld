@@ -276,7 +276,6 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             errorMaterialize: "Error al materializar: "
         },
         statusBar: {
-            demoMode: "MODO DEMO",
             proKey: "PRO KEY",
             argos: "ARGOS",
             scanning: "ESCANEO...",
@@ -289,7 +288,6 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             resetProgress: "Reiniciar Progreso",
             resetSuccess: "Progreso diario reiniciado",
             tooltipPro: "PRO KEY: Usando tu API Key personal (Sin límites)",
-            tooltipDemo: "MODO DEMO: Usando cuota del sistema (Límites compartidos)",
             tooltipArgosScan: "Escaneando canon",
             tooltipArgosConflict: "Conflicto detectado",
             tooltipArgosClean: "Estado del Guardián: Limpio",
@@ -686,7 +684,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             errorMaterialize: "Error materializing: "
         },
         statusBar: {
-            demoMode: "DEMO MODE",
             proKey: "PRO KEY",
             argos: "ARGOS",
             scanning: "SCANNING...",
@@ -699,7 +696,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             resetProgress: "Reset Progress",
             resetSuccess: "Daily progress reset",
             tooltipPro: "PRO KEY: Using your personal API Key (No limits)",
-            tooltipDemo: "DEMO MODE: Using system quota (Shared limits)",
             tooltipArgosScan: "Scanning canon",
             tooltipArgosConflict: "Conflict detected",
             tooltipArgosClean: "Guardian Status: Clean",
@@ -1097,7 +1093,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             errorMaterialize: "具現化エラー："
         },
         statusBar: {
-            demoMode: "デモモード",
             proKey: "PRO KEY",
             argos: "アルゴス",
             scanning: "スキャン中...",
@@ -1110,7 +1105,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             resetProgress: "進捗をリセット",
             resetSuccess: "一日の進捗をリセットしました",
             tooltipPro: "PRO KEY: 個人APIキーを使用中（制限なし）",
-            tooltipDemo: "デモモード: システムクォータを使用中（制限あり）",
             tooltipArgosScan: "カノンをスキャン中",
             tooltipArgosConflict: "競合が検出されました",
             tooltipArgosClean: "ガーディアンの状態: 正常",
@@ -1490,7 +1484,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             errorMaterialize: "구현 오류: "
         },
         statusBar: {
-            demoMode: "데모 모드",
             proKey: "PRO KEY",
             argos: "아르고스",
             scanning: "스캔 중...",
@@ -1503,7 +1496,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             resetProgress: "진행 상황 초기화",
             resetSuccess: "일일 진행 상황이 초기화되었습니다",
             tooltipPro: "PRO KEY: 개인 API 키 사용 중 (제한 없음)",
-            tooltipDemo: "데모 모드: 시스템 쿼터 사용 중 (공유 제한)",
             tooltipArgosScan: "캐논 스캔 중",
             tooltipArgosConflict: "충돌 감지됨",
             tooltipArgosClean: "가디언 상태: 정상",
@@ -1883,7 +1875,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             errorMaterialize: "具象化错误："
         },
         statusBar: {
-            demoMode: "演示模式",
             proKey: "PRO KEY",
             argos: "阿尔戈斯",
             scanning: "扫描中...",
@@ -1896,7 +1887,6 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             resetProgress: "重置进度",
             resetSuccess: "每日进度已重置",
             tooltipPro: "PRO KEY: 正在使用您的个人 API 密钥（无限制）",
-            tooltipDemo: "演示模式: 使用系统配额（共享限制）",
             tooltipArgosScan: "正在扫描正典",
             tooltipArgosConflict: "检测到冲突",
             tooltipArgosClean: "守护者状态：干净",

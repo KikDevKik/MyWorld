@@ -36,25 +36,55 @@ export function handleSecureError(error: any, contextLabel: string): HttpsError 
 }
 
 /**
- * 🔑 KEYMASTER: AI Key Resolver
- * Prioritizes BYOK (Bring Your Own Key) from client, falls back to System Key.
+ * 🔑 KEYMASTER: AI Key Resolver — BYOK Estricto.
+ * Solo acepta la clave del usuario. Sin BYOK → error inmediato.
  *
  * @param requestData The request.data object from the Callable Function
- * @param systemKeyValue The value of the system-defined secret (googleApiKey.value())
+ * @param systemKeyValue Ignored — kept for signature compatibility only
  */
-export function getAIKey(requestData: any, systemKeyValue: string): string {
+export function getAIKey(requestData: any, _systemKeyValue: string): string {
     const override = requestData?._authOverride;
 
     if (override && typeof override === 'string' && override.startsWith("AIza")) {
-        // Basic validation: Google Keys usually start with AIza
-        // We log (masked) that we are using an override
         logger.info("🔑 [KEYMASTER] Using BYOK (Custom Key) for this request.");
         return override;
     }
 
-    // Fallback to System
-    // logger.info("🔑 [KEYMASTER] Using System Key."); // Too verbose for every call
-    return systemKeyValue;
+    throw new HttpsError(
+        'unauthenticated',
+        'API_KEY_REQUIRED: MyWorld requiere que configures tu propia API key de Google AI Studio.'
+    );
+}
+
+/**
+ * 🏷️ TIER RESOLVER: Determina si el usuario está en Modo Normal o Ultra.
+ *
+ * Regla MVP (Fase 2):
+ *   - _userTier override explícito → respeta el override
+ *   - BYOK presente (starts with AIza) → Ultra (billing activo asumido)
+ *   - Sin BYOK (system key) → Normal (Free Tier)
+ *
+ * @param requestData The request.data object from the Callable Function
+ * @returns 'normal' | 'ultra'
+ */
+/**
+ * 🏷️ TIER FROM BYOK: For Firestore triggers (no request.data available).
+ * Checks if the BYOK string extracted from document data implies billing.
+ */
+export function getTierFromByok(byok: string | null | undefined): 'normal' | 'ultra' {
+    return byok && typeof byok === 'string' && byok.startsWith('AIza') ? 'ultra' : 'normal';
+}
+
+export function getTier(requestData: any): 'normal' | 'ultra' {
+    // Allow explicit client-side override (for testing or forced tier)
+    const tierOverride = requestData?._userTier;
+    if (tierOverride === 'normal') return 'normal';
+    if (tierOverride === 'ultra') return 'ultra';
+
+    // Auto-detect: BYOK = Ultra (user has billing), system key = Normal (Free Tier)
+    const hasByok = typeof requestData?._authOverride === 'string'
+        && requestData._authOverride.startsWith('AIza');
+    return hasByok ? 'ultra' : 'normal';
 }
 
 /**

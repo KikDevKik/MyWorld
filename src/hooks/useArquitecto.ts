@@ -47,6 +47,11 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     const [severityMode, setSeverityMode] = useState<'HIGH' | 'MEDIUM' | 'LOW' | 'ALL'>('ALL');
     const [implementationGoal, setImplementationGoal] = useState<string>('');
 
+    // FIX #6/#7/#8 — Awareness del Arquitecto
+    const [sessionResolved, setSessionResolved] = useState(0);
+    const [breakReminderShown, setBreakReminderShown] = useState(false);
+    const [roadmapReminderShown, setRoadmapReminderShown] = useState(false);
+
     const {
         arquitectoSessionId: sessionId,
         setArquitectoSessionId: setSessionId,
@@ -73,6 +78,34 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     // Sprint 6.4: El onSnapshot de messages solo alimenta el estado si el usuario
     // eligió explícitamente retomar. Evita que el WelcomeState desaparezca solo.
     const userChoseToResume = useRef(false);
+
+    // FIX #6 — Break reminder at 5 resolved items
+    useEffect(() => {
+        if (sessionResolved < 5 || breakReminderShown) return;
+        if (localStorage.getItem('break_reminders_disabled') === 'true') return;
+        setBreakReminderShown(true);
+        setMessages(prev => [...prev, {
+            id: `sys_break_${Date.now()}`,
+            role: 'system' as const,
+            text: '¡Buen trabajo! Llevas 5 disonancias resueltas en esta sesión. Es un buen momento para hacer una pausa, releer lo que escribiste y dejar que las ideas se asienten.',
+            timestamp: Date.now(),
+            mode: 'break_reminder',
+        }]);
+    }, [sessionResolved, breakReminderShown]);
+
+    // FIX #7 — Roadmap reminder at 7 resolved items
+    useEffect(() => {
+        if (sessionResolved < 7 || roadmapReminderShown) return;
+        if (localStorage.getItem('roadmap_reminders_disabled') === 'true') return;
+        setRoadmapReminderShown(true);
+        setMessages(prev => [...prev, {
+            id: `sys_roadmap_${Date.now()}`,
+            role: 'system' as const,
+            text: 'Con 7 o más disonancias resueltas tu mundo tiene suficiente cohesión para cristalizar un Roadmap narrativo. ¿Quieres hacerlo ahora?',
+            timestamp: Date.now(),
+            mode: 'roadmap_reminder',
+        }]);
+    }, [sessionResolved, roadmapReminderShown]);
 
     // Sprint 6.4: Detectar sesión existente al montar (solo una vez)
     useEffect(() => {
@@ -786,6 +819,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 setPendingItems(data.pendingItems);
                 useArquitectoStore.getState().setArquitectoPendingItems(data.pendingItems);
             }
+            setSessionResolved(prev => prev + 1);
             toast.success('Item resuelto.');
         } catch (e) {
             toast.error('Error al resolver el item.');
@@ -836,5 +870,6 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         existingSession,
         resumeSession,
         discardSession,
+        sessionResolved,
     };
 };

@@ -19,6 +19,11 @@ import WelcomeState from './architect/WelcomeState';
 import { useArquitectoStore } from '../stores/useArquitectoStore';
 import ArquitectoFocusSelector, { FOCUS_OPTIONS } from './architect/ArquitectoFocusSelector';
 import { toast } from 'sonner';
+import { ToolWelcomeCard } from './ToolWelcomeCard';
+import { TOOL_WELCOMES } from '../config/toolWelcomes';
+import { useToolWelcome } from '../hooks/useToolWelcome';
+import { useTier } from '../hooks/useTier';
+import { AIMotorBlockedOverlay } from './ui/AIMotorBlockedOverlay';
 
 interface ArquitectoPanelProps {
     onClose: () => void;
@@ -32,6 +37,7 @@ type PanelView = 'welcome' | 'intention' | 'chat' | 'reinitializing';
 
 const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate }) => {
     const { config } = useProjectConfig();
+    const { hasByok } = useTier();
     const projectName = config?.projectName || 'Mi Proyecto';
     
     // Panel View State
@@ -44,6 +50,9 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const [activeTool, setActiveTool] = useState<ActiveTool>('none');
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const isPurging = useArquitectoStore(state => state.isPurging); // 🟢 Fetch isPurging flag
+
+    // Welcome card (primera visita)
+    const [showWelcome, dismissWelcome] = useToolWelcome('arquitecto', folderId);
 
     // File Attachment State
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -74,6 +83,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         existingSession,
         resumeSession,
         discardSession,
+        sessionResolved,
+        generateRoadmap,
     } = useArquitecto({ accessToken, folderId });
 
     // Sincronizar store
@@ -244,6 +255,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         sendMessage(`He elegido: ${opt.label}`);
     };
 
+    if (!hasByok) return <AIMotorBlockedOverlay toolName="El Arquitecto" />;
+
     return (
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
 
@@ -398,6 +411,32 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 </div>
             )}
 
+            {/* Progreso de sesión */}
+            {panelView === 'chat' && hasInitialized && sessionResolved > 0 && (
+                <div className="px-6 py-1.5 border-b border-titanium-800/50 bg-titanium-950/30 shrink-0 flex items-center gap-3">
+                    <span className="text-[10px] font-mono text-titanium-600 whitespace-nowrap">
+                        {sessionResolved} resuelta{sessionResolved !== 1 ? 's' : ''} esta sesión
+                    </span>
+                    <div className="flex-1 h-1 bg-titanium-800 rounded-full overflow-hidden">
+                        <div
+                            className="h-full bg-gradient-to-r from-cyan-700 to-cyan-400 rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min((sessionResolved / 10) * 100, 100)}%` }}
+                        />
+                    </div>
+                    <span className={`text-[10px] font-mono whitespace-nowrap ${sessionResolved >= 10 ? 'text-cyan-500' : 'text-titanium-700'}`}>
+                        {Math.min(sessionResolved, 10)}/10
+                    </span>
+                </div>
+            )}
+
+            {/* Welcome card — primera visita */}
+            {showWelcome && (
+                <ToolWelcomeCard
+                    {...TOOL_WELCOMES.arquitecto}
+                    onDismiss={dismissWelcome}
+                />
+            )}
+
             {/* Main Workspace Area */}
             <main className={`flex-1 relative flex justify-center w-full overflow-hidden transition-all duration-300 ${activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
 
@@ -479,7 +518,30 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 </p>
                             </div>
                         ) : (
-                            messages.map(msg => (
+                            messages.map(msg => {
+                                if (msg.role === 'system') {
+                                    return (
+                                        <div key={msg.id} className="flex justify-center w-full my-1">
+                                            {msg.mode === 'break_reminder' && (
+                                                <div className="max-w-[85%] bg-titanium-900/50 border border-titanium-700/40 rounded-xl px-5 py-3.5 text-center">
+                                                    <p className="text-xs text-titanium-400 leading-relaxed">{msg.text}</p>
+                                                </div>
+                                            )}
+                                            {msg.mode === 'roadmap_reminder' && (
+                                                <div className="max-w-[85%] bg-violet-950/20 border border-violet-800/30 rounded-xl px-5 py-3.5 text-center">
+                                                    <p className="text-xs text-titanium-400 leading-relaxed mb-3">{msg.text}</p>
+                                                    <button
+                                                        onClick={generateRoadmap}
+                                                        className="text-xs px-4 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                                                    >
+                                                        Cristalizar Roadmap
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                }
+                                return (
                                 <div key={msg.id} className={`flex flex-col max-w-[85%] ${msg.role === 'user' ? 'items-end self-end' : 'items-start'}`}>
                                     <div className={`
                                         border px-5 py-4 rounded-xl text-[15px] leading-[1.6]
@@ -497,7 +559,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                     <span className={`text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest ${msg.role === 'user' ? 'mr-1' : 'ml-1'}`}>
                                         {msg.role === 'user' ? 'Tú' : 'Arquitecto'}
                                     </span>
-                                    
+
                                     {msg.role === 'assistant' && lastDetectedIntent && msg.id === messages[messages.length - 1]?.id && (
                                         <div className="flex items-center gap-1.5 mt-1">
                                             {lastDetectedIntent === 'RESOLUCION' && (
@@ -523,7 +585,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                         </div>
                                     )}
                                 </div>
-                            ))
+                                );
+                            })
                         )}
 
                         {/* Architect Message (Thinking/Loading state) */}

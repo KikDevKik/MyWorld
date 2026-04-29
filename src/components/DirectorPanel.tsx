@@ -12,6 +12,8 @@ import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useContextStatus } from '../hooks/useContextStatus';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
+import { useTier } from '../hooks/useTier';
+import { AIMotorBlockedOverlay } from './ui/AIMotorBlockedOverlay';
 import ChatInput from './ui/ChatInput';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
@@ -53,6 +55,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     const { isArsenalWide, toggleArsenalWidth, directorWidth } = useLayoutStore();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].director;
+    const { hasByok } = useTier();
 
     // 🟢 RESPONSIVE LAYOUT MODES
     const isSentinelMode = directorWidth < 500;
@@ -175,6 +178,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     }, [messages, isThinking, isLoadingHistory]);
 
     if (!isOpen) return null;
+    if (!hasByok) return <AIMotorBlockedOverlay toolName="El Director" />;
 
     return (
         <div className="w-full h-full bg-titanium-950/95 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 relative">
