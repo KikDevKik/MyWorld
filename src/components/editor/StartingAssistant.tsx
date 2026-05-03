@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { useTier } from '../../hooks/useTier';
 import { AIMotorBlockedOverlay } from '../ui/AIMotorBlockedOverlay';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 type WriterProfile = 'novice' | 'experienced' | null;
 
@@ -27,147 +29,95 @@ interface Props {
     projectName: string;
 }
 
-const QUESTION_BLOCKS = [
-    {
-        id: 'profile',
-        title: '¿Cuál es tu perfil como escritor?',
-        description: null,
-        type: 'choice' as const,
-        options: [
-            { label: 'Soy nuevo escribiendo', value: 'novice', description: 'Quiero que me guíen paso a paso' },
-            { label: 'Ya tengo experiencia', value: 'experienced', description: 'Prefiero trabajar a mi manera' }
-        ]
-    },
-    {
-        id: 'reader',
-        title: '¿Para quién escribes?',
-        description: 'Conocer a tu lector ideal te ayuda a tomar decisiones de estilo y tono.',
-        type: 'fields' as const,
-        fields: [
-            {
-                key: 'readerAge',
-                label: '¿Qué edad tiene tu lector ideal?',
-                placeholder: 'Ej: Jóvenes adultos de 18-30 años',
-                tip: 'No tienes que ser exacto. "Cualquiera" no funciona — la especificidad es lo que conecta.'
-            },
-            {
-                key: 'readerReads',
-                label: '¿Qué otros libros o sagas le gustan?',
-                placeholder: 'Ej: Harry Potter, The Witcher, Dune...',
-                tip: 'Esto define el género y las convenciones que tu lector espera encontrar.'
-            }
-        ]
-    },
-    {
-        id: 'premise',
-        title: 'La premisa',
-        description: 'Una sola oración que contenga quién es tu protagonista, qué quiere, y qué se lo impide.',
-        type: 'fields' as const,
-        fields: [
-            {
-                key: 'premise',
-                label: 'En una oración: ¿de qué trata tu historia?',
-                placeholder: 'Ej: Una maga sin poderes descubre que su ciudad es una prisión y debe escapar antes de que le borren la memoria.',
-                tip: 'Si no puedes resumirla en una oración, la historia todavía no está clara. No importa si es imperfecta ahora.',
-                multiline: true
-            }
-        ]
-    },
-    {
-        id: 'protagonist',
-        title: 'El protagonista',
-        description: 'Los personajes memorables no son perfectos — son contradictorios y están rotos de formas específicas.',
-        type: 'fields' as const,
-        fields: [
-            {
-                key: 'protagonistName',
-                label: '¿Cómo se llama?',
-                placeholder: 'Ej: Kael, Ana Lucía, El Herrero sin nombre...',
-                tip: 'Puede ser un nombre, un título, o como lo tienes en la cabeza. Este nombre se usará para el archivo del personaje.',
-                required: true,
-                maxLength: 60,
-            },
-            {
-                key: 'protagonistDesire',
-                label: '¿Qué desea más que nada en el mundo?',
-                placeholder: 'Ej: Ser aceptada por su familia, recuperar su reino perdido...',
-                tip: 'El deseo mueve la trama. Sin deseo, no hay historia.'
-            },
-            {
-                key: 'protagonistObstacle',
-                label: '¿Qué le impide obtenerlo?',
-                placeholder: 'Ej: Su propio miedo al fracaso, un enemigo poderoso, una ley injusta...',
-                tip: 'Puede ser externo (un villano, una guerra) o interno (una fobia, una mentira que se cree).'
-            },
-            {
-                key: 'protagonistMisbelief',
-                label: '¿Qué creencia errónea tiene sobre sí mismo o el mundo?',
-                placeholder: 'Ej: Cree que no merece ser amada, que la violencia es la única solución...',
-                tip: 'Esta "mentira" que se cree el protagonista es lo que la historia desmantela. Es el corazón emocional de la obra.'
-            }
-        ]
-    },
-    {
-        id: 'world',
-        title: 'El mundo',
-        description: 'El escenario no es solo telón de fondo — debe presionar al protagonista y reflejar sus conflictos internos.',
-        type: 'fields' as const,
-        fields: [
-            {
-                key: 'worldType',
-                label: '¿En qué tipo de mundo se desarrolla?',
-                placeholder: 'Ej: Fantasía épica medieval, futuro distópico, realidad contemporánea...',
-                tip: 'El género define las convenciones que tu lector espera. Puedes subvertirlas, pero primero debes conocerlas.'
-            },
-            {
-                key: 'worldRule',
-                label: '¿Cuál es la regla más importante de ese mundo?',
-                placeholder: 'Ej: La magia consume la vida del usuario, los viajes en el tiempo crean paradojas...',
-                tip: 'Si tu mundo no tiene reglas claras, la magia puede resolver cualquier problema — y eso mata la tensión.'
-            }
-        ]
-    },
-    {
-        id: 'conflict',
-        title: 'El conflicto y el final',
-        description: 'No necesitas tener el final exacto. Pero sí necesitas saber la dirección emocional.',
-        type: 'fields' as const,
-        fields: [
-            {
-                key: 'antagonist',
-                label: '¿Quién o qué se opone al protagonista?',
-                placeholder: 'Ej: Una facción corrupta, su propio pasado, la naturaleza misma...',
-                tip: 'El mejor antagonista tiene sus propias razones lógicas. No necesita ser malvado — solo querer algo incompatible con tu protagonista.'
-            },
-            {
-                key: 'emotionalEnding',
-                label: '¿Cómo termina emocionalmente la historia?',
-                placeholder: 'Ej: Victoria costosa, tragedia que revela la verdad, ambiguo pero esperanzador...',
-                tip: 'No tienes que saber el final exacto. Solo la dirección: ¿el protagonista crece o cae?'
-            }
-        ]
-    },
-    {
-        id: 'style',
-        title: '¿Cómo escribes?',
-        description: 'Conocer tu estilo te ayuda a planificar sin frustrarte.',
-        type: 'choice' as const,
-        options: [
-            { label: 'Plotter — Necesito planificarlo todo primero', value: 'plotter', description: 'Prefieres tener un mapa antes de empezar a escribir.' },
-            { label: 'Pantser — Descubro la historia escribiendo', value: 'pantser', description: 'Las mejores ideas te llegan mientras escribes, no antes.' },
-            { label: 'Híbrido — Tengo un esqueleto pero improviso', value: 'hybrid', description: 'Planificas los momentos clave pero dejas espacio para sorprenderte.' }
-        ]
-    }
-];
+function getQuestionBlocks(tSA: any) {
+    return [
+        {
+            id: 'profile',
+            title: tSA.profileTitle,
+            description: null,
+            type: 'choice' as const,
+            options: [
+                { label: tSA.profileNoviceLabel, value: 'novice', description: tSA.profileNoviceDesc },
+                { label: tSA.profileExpLabel, value: 'experienced', description: tSA.profileExpDesc }
+            ]
+        },
+        {
+            id: 'reader',
+            title: tSA.readerTitle,
+            description: tSA.readerDesc,
+            type: 'fields' as const,
+            fields: [
+                { key: 'readerAge', label: tSA.readerAgeLabel, placeholder: tSA.readerAgePlaceholder, tip: tSA.readerAgeTip },
+                { key: 'readerReads', label: tSA.readerReadsLabel, placeholder: tSA.readerReadsPlaceholder, tip: tSA.readerReadsTip }
+            ]
+        },
+        {
+            id: 'premise',
+            title: tSA.premiseTitle,
+            description: tSA.premiseDesc,
+            type: 'fields' as const,
+            fields: [
+                { key: 'premise', label: tSA.premiseLabel, placeholder: tSA.premisePlaceholder, tip: tSA.premiseTip, multiline: true }
+            ]
+        },
+        {
+            id: 'protagonist',
+            title: tSA.protagonistTitle,
+            description: tSA.protagonistDesc,
+            type: 'fields' as const,
+            fields: [
+                { key: 'protagonistName', label: tSA.protagonistNameLabel, placeholder: tSA.protagonistNamePlaceholder, tip: tSA.protagonistNameTip, required: true, maxLength: 60 },
+                { key: 'protagonistDesire', label: tSA.protagonistDesireLabel, placeholder: tSA.protagonistDesirePlaceholder, tip: tSA.protagonistDesireTip },
+                { key: 'protagonistObstacle', label: tSA.protagonistObstacleLabel, placeholder: tSA.protagonistObstaclePlaceholder, tip: tSA.protagonistObstacleTip },
+                { key: 'protagonistMisbelief', label: tSA.protagonistMisbeliefLabel, placeholder: tSA.protagonistMisbeliefPlaceholder, tip: tSA.protagonistMisbeliefTip }
+            ]
+        },
+        {
+            id: 'world',
+            title: tSA.worldTitle,
+            description: tSA.worldDesc,
+            type: 'fields' as const,
+            fields: [
+                { key: 'worldType', label: tSA.worldTypeLabel, placeholder: tSA.worldTypePlaceholder, tip: tSA.worldTypeTip },
+                { key: 'worldRule', label: tSA.worldRuleLabel, placeholder: tSA.worldRulePlaceholder, tip: tSA.worldRuleTip }
+            ]
+        },
+        {
+            id: 'conflict',
+            title: tSA.conflictTitle,
+            description: tSA.conflictDesc,
+            type: 'fields' as const,
+            fields: [
+                { key: 'antagonist', label: tSA.antagonistLabel, placeholder: tSA.antagonistPlaceholder, tip: tSA.antagonistTip },
+                { key: 'emotionalEnding', label: tSA.endingLabel, placeholder: tSA.endingPlaceholder, tip: tSA.endingTip }
+            ]
+        },
+        {
+            id: 'style',
+            title: tSA.styleTitle,
+            description: tSA.styleDesc,
+            type: 'choice' as const,
+            options: [
+                { label: tSA.stylePlotterLabel, value: 'plotter', description: tSA.stylePlotterDesc },
+                { label: tSA.stylePantserLabel, value: 'pantser', description: tSA.stylePantserDesc },
+                { label: tSA.styleHybridLabel, value: 'hybrid', description: tSA.styleHybridDesc }
+            ]
+        }
+    ];
+}
 
 export default function StartingAssistant({ onClose, onStartGenesis, projectName }: Props) {
+    const { currentLanguage } = useLanguageStore();
+    const tSA = TRANSLATIONS[currentLanguage].startingAssistant;
+
     const [currentBlock, setCurrentBlock] = useState(0);
     const [writerProfile, setWriterProfile] = useState<WriterProfile>(null);
     const [answers, setAnswers] = useState<GenesisAnswers>({});
     const [isGenerating, setIsGenerating] = useState(false);
     const [genesisComplete, setGenesisComplete] = useState(false);
-    const [createdSummary, setCreatedSummary] = useState('');
     const { hasByok } = useTier();
+
+    const QUESTION_BLOCKS = getQuestionBlocks(tSA);
 
     const handleAnswer = (key: string, value: string) => {
         setAnswers(prev => ({ ...prev, [key]: value }));
@@ -184,7 +134,6 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
             setIsGenerating(true);
             try {
                 await onStartGenesis(answers);
-                setCreatedSummary(answers.premise || 'Tu historia');
                 setGenesisComplete(true);
             } catch (e) {
                 console.error('Genesis failed:', e);
@@ -213,83 +162,55 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
         return (
             <div className="flex-1 flex flex-col items-center justify-center h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
                 <div className="w-full max-w-[520px] flex flex-col gap-6">
-
-                    {/* Celebración */}
                     <div className="flex flex-col items-center gap-3">
                         <div className="text-4xl">✦</div>
                         <h2 className="text-[22px] font-medium text-titanium-100">
-                            Tu proyecto existe.
+                            {tSA.projectExists}
                         </h2>
                         <p className="text-[14px] text-titanium-500 leading-relaxed text-center">
-                            Hemos creado la estructura de tu historia en Google Drive.
-                            Lo que escribiste en estas preguntas ya es el esqueleto
-                            de tu obra.
+                            {tSA.projectCreated}
                         </p>
                     </div>
 
-                    {/* Lo que se creó */}
                     <div className="bg-titanium-900/40 border border-titanium-800 rounded-xl p-4 text-left">
                         <p className="text-[11px] font-mono text-titanium-600 uppercase tracking-wider mb-3">
-                            Lo que acabas de crear
+                            {tSA.whatYouCreated}
                         </p>
                         <div className="flex flex-col gap-2">
                             <div className="flex items-start gap-2">
                                 <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
-                                <p className="text-[12px] text-titanium-300">
-                                    Un archivo de <strong>Premisa</strong> con todo
-                                    lo que definiste — tu brújula cuando te pierdas.
-                                </p>
+                                <p className="text-[12px] text-titanium-300">{tSA.premisaCreated}</p>
                             </div>
                             <div className="flex items-start gap-2">
                                 <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
-                                <p className="text-[12px] text-titanium-300">
-                                    Una ficha inicial de tu <strong>protagonista</strong>{' '}
-                                    con su deseo, su obstáculo y su creencia errónea.
-                                </p>
+                                <p className="text-[12px] text-titanium-300">{tSA.protagonistCreated}</p>
                             </div>
                             <div className="flex items-start gap-2">
                                 <span className="text-cyan-500 text-[12px] mt-0.5">→</span>
-                                <p className="text-[12px] text-titanium-300">
-                                    El <strong>Capítulo 01</strong> vacío esperándote
-                                    en MANUSCRITO. Ese es tu siguiente paso.
-                                </p>
+                                <p className="text-[12px] text-titanium-300">{tSA.chapterCreated}</p>
                             </div>
                         </div>
                     </div>
 
-                    {/* La instrucción más importante */}
                     <div className="bg-cyan-500/5 border border-cyan-500/20 rounded-xl p-4">
-                        <p className="text-[13px] text-cyan-300 font-medium mb-1">
-                            ¿Qué hago ahora?
-                        </p>
-                        <p className="text-[12px] text-titanium-500 leading-relaxed">
-                            Abre el{' '}
-                            <strong className="text-titanium-300">Capítulo 01</strong>{' '}
-                            en MANUSCRITO y escribe la primera escena. No tiene que ser
-                            perfecta — el primer borrador nunca lo es. Su único trabajo
-                            es existir.
-                        </p>
+                        <p className="text-[13px] text-cyan-300 font-medium mb-1">{tSA.whatNow}</p>
+                        <p className="text-[12px] text-titanium-500 leading-relaxed">{tSA.openChapter}</p>
                     </div>
 
-                    {/* Tip pedagógico */}
                     <div className="flex items-start gap-2 opacity-60">
                         <span className="text-amber-400 text-[12px] shrink-0">💡</span>
-                        <p className="text-[11px] text-titanium-600 leading-relaxed italic">
-                            "El primer borrador es materia prima, no la obra terminada.
-                            Escribe sin juzgar. La disección crítica viene después."
-                        </p>
+                        <p className="text-[11px] text-titanium-600 leading-relaxed italic">{tSA.pedagogicTip}</p>
                     </div>
 
-                    {/* Botón de cierre */}
                     <button
                         onClick={onClose}
                         className="w-full py-3 bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 font-medium rounded-xl hover:bg-cyan-500/25 transition-all text-[14px]"
                     >
-                        Empezar a escribir →
+                        {tSA.startWriting}
                     </button>
 
                     <p className="text-center text-[10px] text-titanium-800 font-mono uppercase tracking-widest">
-                        EL ARQUITECTO PROCESA LA LÓGICA · TÚ PONES EL ALMA
+                        {tSA.footer}
                     </p>
                 </div>
             </div>
@@ -302,23 +223,21 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
         <div className="flex-1 flex flex-col items-center justify-center h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
             <div className="w-full max-w-[520px] flex flex-col gap-6">
 
-                {/* Header */}
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                         <Sparkles size={16} className="text-cyan-400" />
                         <span className="text-[11px] font-mono text-titanium-500 uppercase tracking-wider">
-                            Asistente de Inicio
+                            {tSA.header}
                         </span>
                     </div>
                     <button
                         onClick={onClose}
                         className="text-titanium-700 hover:text-titanium-400 transition-colors text-[11px] font-mono"
                     >
-                        Trabajar sin guía →
+                        {tSA.workAlone}
                     </button>
                 </div>
 
-                {/* Progress bar */}
                 <div className="h-0.5 bg-titanium-800 rounded-full">
                     <div
                         className="h-full bg-cyan-500 rounded-full transition-all duration-500"
@@ -326,7 +245,6 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                     />
                 </div>
 
-                {/* Title and description */}
                 <div>
                     <h2 className="text-[20px] font-medium text-titanium-100 mb-2">
                         {block.title}
@@ -338,9 +256,7 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                     )}
                 </div>
 
-                {/* Block content */}
                 <div className="flex flex-col gap-3">
-                    {/* Choice block */}
                     {block.type === 'choice' && block.options!.map(option => {
                         const isSelected = block.id === 'profile'
                             ? writerProfile === option.value
@@ -368,16 +284,13 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                         );
                     })}
 
-                    {/* Fields block */}
                     {block.type === 'fields' && (
                         <div className="flex flex-col gap-4">
                             {block.fields!.map((field: any) => (
                                 <div key={field.key}>
                                     <label className="text-[12px] text-titanium-400 mb-1.5 block">
                                         {field.label}
-                                        {field.required && (
-                                            <span className="text-red-400 ml-1">*</span>
-                                        )}
+                                        {field.required && <span className="text-red-400 ml-1">*</span>}
                                     </label>
                                     {'multiline' in field && field.multiline ? (
                                         <textarea
@@ -407,14 +320,13 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                     )}
                 </div>
 
-                {/* Navigation */}
                 <div className="flex items-center justify-between pt-2">
                     {currentBlock > 0 ? (
                         <button
                             onClick={() => setCurrentBlock(prev => prev - 1)}
                             className="text-[12px] text-titanium-600 hover:text-titanium-400 flex items-center gap-1 transition-colors"
                         >
-                            ← Atrás
+                            {tSA.back}
                         </button>
                     ) : <div />}
 
@@ -426,23 +338,21 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
                         {isGenerating ? (
                             <>
                                 <div className="w-3 h-3 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
-                                Generando...
+                                {tSA.generating}
                             </>
                         ) : currentBlock === 0 && writerProfile === 'experienced' ? (
-                            'Trabajar solo →'
+                            tSA.workSolo
                         ) : isLastBlock ? (
-                            'Crear mi proyecto ✦'
+                            tSA.create
                         ) : (
-                            'Siguiente →'
+                            tSA.next
                         )}
                     </button>
                 </div>
 
-                {/* Footer */}
                 <p className="text-center text-[10px] text-titanium-800 font-mono uppercase tracking-widest">
-                    EL ARQUITECTO PROCESA LA LÓGICA · TÚ PONES EL ALMA
+                    {tSA.footer}
                 </p>
-
             </div>
         </div>
     );

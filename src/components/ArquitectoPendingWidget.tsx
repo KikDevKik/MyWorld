@@ -2,6 +2,8 @@ import React from 'react';
 import { Landmark, AlertCircle, AlertTriangle, Lightbulb, ArrowLeft, X } from 'lucide-react';
 import { PendingItem } from '../types/roadmap';
 import { useLayoutStore } from '../stores/useLayoutStore';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface ArquitectoPendingWidgetProps {
     pendingItems: PendingItem[];
@@ -19,6 +21,8 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
     hideHeader = false,
 }) => {
     const setArquitectoWidgetVisible = useLayoutStore(state => state.setArquitectoWidgetVisible);
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
     const criticals = pendingItems.filter(i => i.severity === 'critical');
     const warnings = pendingItems.filter(i => i.severity === 'warning');
     const suggestions = pendingItems.filter(i => i.severity === 'suggestion');
@@ -34,7 +38,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                             className="flex items-center gap-2 text-titanium-500 hover:text-titanium-300 transition-colors cursor-pointer group"
                         >
                             <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                            <span className="font-medium text-sm">El Arquitecto</span>
+                            <span className="font-medium text-sm">{t?.architect?.toolName || 'El Arquitecto'}</span>
                         </button>
 
                         <div className="text-titanium-500 text-sm font-medium tracking-wide">

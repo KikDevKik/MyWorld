@@ -1,48 +1,8 @@
 import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions } from 'firebase/functions';
 import { toast } from 'sonner';
 
-// Estimar tokens según el tipo de función:
-const TOKEN_ESTIMATES: Record<string, number> = {
-    arquitectoInitialize: 8000,
-    arquitectoChat: 2000,
-    auditContent: 3000,      // El Guardián — 6 llamadas paralelas
-    forgeToolExecution: 1500,
-    scribeCreateFile: 2000,
-    analyzeStyleDNA: 2000,
-    distillResourceOnIndex: 1000
-};
-
-// Función helper para trackear cuota fuera del ciclo de vida de React
-const trackRequestLocal = (functionName: string) => {
-    try {
-        const estimatedTokens = TOKEN_ESTIMATES[functionName] || 500;
-        const storageKey = 'myworld_quota_today';
-        const today = new Date().toISOString().split('T')[0];
-        
-        let current = { date: today, requestCount: 0, tokenEstimate: 0, lastUpdated: Date.now() };
-        const saved = localStorage.getItem(storageKey);
-        
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            if (parsed.date === today) {
-                current = parsed;
-            }
-        }
-        
-        const updated = {
-            ...current,
-            requestCount: current.requestCount + 1,
-            tokenEstimate: current.tokenEstimate + estimatedTokens,
-            lastUpdated: Date.now(),
-        };
-        
-        localStorage.setItem(storageKey, JSON.stringify(updated));
-        // Dispatch event para que el hook actualice su estado
-        window.dispatchEvent(new Event('quota_updated'));
-    } catch (e) {
-        console.warn("Could not track quota", e);
-    }
-};
+// Limpiar keys residuales del sistema de cuota anterior
+try { localStorage.removeItem('myworld_quota_today'); } catch { /* ignore */ }
 
 /**
  * Wrapper for Firebase Cloud Functions that injects custom BYOK keys.
@@ -62,20 +22,32 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
     const customKey = sessionStorage.getItem('myworld_custom_gemini_key') || localStorage.getItem('myworld_custom_gemini_key');
     const tierMode = (localStorage.getItem('myworld_tier_mode') as 'auto' | 'normal' | 'ultra') || 'auto';
     const tier = tierMode === 'ultra' ? 'ultra' : tierMode === 'normal' ? 'normal' : (customKey ? 'ultra' : 'normal');
+    const currentLang = localStorage.getItem('myworld_language_preference') || 'es';
     const payload = customKey
-        ? { ...data, _authOverride: customKey, _userTier: tier }
-        : { ...data, _userTier: tier };
+        ? { ...data, _authOverride: customKey, _userTier: tier, _lang: currentLang }
+        : { ...data, _userTier: tier, _lang: currentLang };
 
     const fn = firebaseHttpsCallable(functions, name, options);
 
     try {
         const result = await fn(payload);
-        
-        // Track API quota successful calls
-        trackRequestLocal(name);
-        
         return result.data as T;
     } catch (error: any) {
+        // Cuota agotada (429 / RESOURCE_EXHAUSTED)
+        const isQuotaError =
+            error?.message?.includes('429') ||
+            error?.message?.includes('RESOURCE_EXHAUSTED') ||
+            error?.message?.toLowerCase().includes('quota') ||
+            error?.code === 'resource-exhausted';
+
+        if (isQuotaError) {
+            toast.error(
+                'Cuota de API agotada. Google AI Studio reinicia los límites cada minuto (RPM) o cada día (RPD). Espera un momento e intenta de nuevo.',
+                { duration: 8000 }
+            );
+            return null;
+        }
+
         // Manejo de Errores (Safety Net)
         // Detectamos el código específico INVALID_CUSTOM_KEY que envía el backend
         if (error.message && (error.message.includes('INVALID_CUSTOM_KEY') || error.message.includes('API key not valid'))) {

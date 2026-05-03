@@ -25,6 +25,8 @@ import { CommandBar } from './CommandBar';
 import { scanProjectFiles } from './utils/NexusScanner';
 import TheBuilder from './TheBuilder';
 import { CreativeAuditService } from '../../services/CreativeAuditService';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 // 🟢 CONFIGURATION
 const PENDING_KEY = 'nexus_pending_crystallization';
@@ -72,6 +74,9 @@ const WorldEnginePageV2: React.FC<{
 
     // CONTEXT
     const { config, user, fileTree } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tNexus = t.nexus;
 
     // STATE: DATA
     const [dbNodes, setDbNodes] = useState<GraphNode[]>([]);
@@ -240,18 +245,18 @@ const WorldEnginePageV2: React.FC<{
 
         // Guard: Check Prerequisites
         if (!fileTree || !config?.canonPaths || !config?.folderId) {
-            toast.error("⚠️ Configuración incompleta. Verifica 'Carpetas Canon'.");
+            toast.error(t.nexus?.incompleteConfig || "⚠️ Configuración incompleta. Verifica 'Carpetas Canon'.");
             return;
         }
 
         if (!accessToken) {
-            toast.error("Sesión de Drive no válida. Recarga la página.");
+            toast.error(t.common?.sessionExpired || "Sesión de Drive no válida. Recarga la página.");
             return;
         }
 
         setIsScanning(true);
         setCandidates([]);
-        setScanStatus("INICIALIZANDO PROTOCOLO TITANIUM...");
+        setScanStatus(t.nexus?.initializingProtocol || "INICIALIZANDO PROTOCOLO TITANIUM...");
 
         try {
             // EXECUTE HYBRID SCAN
@@ -267,13 +272,14 @@ const WorldEnginePageV2: React.FC<{
                     const pct = total > 0 ? Math.round((progress / total) * 100) : 0;
                     setScanStatus(`${status.toUpperCase()} [${pct}%]`);
                 },
-                ignoredTerms // 🟢 PASSING BLACKLIST
+                ignoredTerms, // 🟢 PASSING BLACKLIST
+                t // 🟢 PASSING TRANSLATIONS
             );
 
             setCandidates(results);
 
             // Success Sequence
-            setScanStatus("ANÁLISIS COMPLETADO");
+            setScanStatus(tNexus.analysisComplete || "ANÁLISIS COMPLETADO");
             setTimeout(() => {
                 setIsScanning(false);
                 setScanStatus("");
@@ -283,7 +289,7 @@ const WorldEnginePageV2: React.FC<{
         } catch (error: any) {
             console.error(`[Nexus Scan] Failed: ${error instanceof Error ? error.message : String(error)}`);
             setScanStatus("ERROR EN ESCANEO");
-            toast.error(`Fallo del Sistema: ${error instanceof Error ? error.message : String(error)}`);
+            toast.error(`${t.common.error}: ${error instanceof Error ? error.message : String(error)}`);
             setTimeout(() => setIsScanning(false), 2000);
         }
     };
@@ -298,7 +304,7 @@ const WorldEnginePageV2: React.FC<{
         if (isGhost) {
             handleUpdateGhost(nodeId, updates);
             setSelectedNode(prev => prev ? { ...prev, ...updates } : null);
-            toast.success("Borrador actualizado locally.");
+            toast.success(t.common?.draftUpdated || "Borrador actualizado locally.");
             return;
         }
 
@@ -307,11 +313,11 @@ const WorldEnginePageV2: React.FC<{
 
         try {
              await EntityService.updateEntity(user.uid, nodeId, updates);
-             toast.success("Nodo actualizado en Base de Datos.");
+             toast.success(t.common?.nodeUpdated || "Nodo actualizado en Base de Datos.");
              setSelectedNode(prev => prev ? { ...prev, ...updates } : null);
         } catch (e: any) {
              console.error(`[Save Node] Failed: ${e instanceof Error ? e.message : String(e)}`);
-             toast.error("Error guardando cambios: " + (e instanceof Error ? e.message : String(e)));
+             toast.error(`${t.common?.saveError || "Error guardando cambios"}: ` + (e instanceof Error ? e.message : String(e)));
         }
     };
 
@@ -321,7 +327,7 @@ const WorldEnginePageV2: React.FC<{
         if (isGhost) {
             setGhostNodes(prev => prev.filter(g => g.id !== nodeId));
             setSelectedNode(null);
-            toast.success("Borrador eliminado.");
+            toast.success(t.common?.draftDeleted || "Borrador eliminado.");
             return;
         }
 
@@ -333,11 +339,11 @@ const WorldEnginePageV2: React.FC<{
              setDbNodes(prev => prev.filter(n => n.id !== nodeId));
 
              await EntityService.deleteEntity(user.uid, nodeId);
-             toast.success("Nodo eliminado permanentemente.");
+             toast.success(t.common?.nodeDeleted || "Nodo eliminado permanentemente.");
              setSelectedNode(null);
         } catch (e: any) {
              console.error(`[Delete Node] Failed: ${e instanceof Error ? e.message : String(e)}`);
-             toast.error("Error eliminando: " + (e instanceof Error ? e.message : String(e)));
+             toast.error(`${t.common?.deleteError || "Error eliminando"}: ` + (e instanceof Error ? e.message : String(e)));
         }
     };
 
@@ -377,7 +383,7 @@ const WorldEnginePageV2: React.FC<{
             });
             setGhostNodes(prev => prev.filter(g => g.id !== targetNode.id));
             removeFromLifeboat(targetNode.id);
-            toast.success(`💎 ${data.fileName} cristalizado.`);
+            toast.success(`💎 ${data.fileName} ${t.common?.crystallized || "cristalizado"}.`);
 
             // ⚖️ AUDIT: THE BIRTH
             if (user && config?.folderId) {
@@ -490,7 +496,7 @@ const WorldEnginePageV2: React.FC<{
                 toast.info(`Descartado y Silenciado: ${candidate.name}`);
             } catch (e) {
                 console.warn(`[Blacklist] Update Failed: ${e instanceof Error ? e.message : String(e)}`);
-                toast.info("Candidato Descartado");
+                toast.info(t.nexus?.candidateDiscarded || "Candidato Descartado");
             }
 
             setCandidates(prev => prev.filter(c => c.id !== candidate.id));
@@ -828,7 +834,9 @@ const WorldEnginePageV2: React.FC<{
              <AnimatePresence>
                 {loading && (
                     <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-[#141413] z-[100] flex items-center justify-center pointer-events-none">
-                         <div className="text-cyan-500 font-mono tracking-widest animate-pulse">INICIANDO MOTOR V2...</div>
+                         <div className="text-cyan-500 font-mono tracking-widest animate-pulse">
+                             {TRANSLATIONS[currentLanguage].nexus.loading || "INICIANDO MOTOR V2..."}
+                         </div>
                     </motion.div>
                 )}
              </AnimatePresence>
@@ -888,19 +896,18 @@ const WorldEnginePageV2: React.FC<{
                         {/* 🟢 ZOOM CONTROLS */}
                         {showUI && (
                             <div className="absolute bottom-8 right-8 flex flex-col gap-2 pointer-events-auto z-50">
-                                <button onClick={() => zoomIn()} aria-label="Acercar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
-                                <button onClick={() => zoomOut()} aria-label="Alejar vista" className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
+                                <button onClick={() => zoomIn()} aria-label={tNexus.zoomIn || "Acercar vista"} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"><Plus size={20} /></button>
+                                <button onClick={() => zoomOut()} aria-label={tNexus.zoomOut || "Alejar vista"} className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white flex items-center justify-center"><div className="w-4 h-[2px] bg-current" /></button>
                             </div>
                         )}
                     </>
                 )}
              </TransformWrapper>
 
-             {/* 🟢 UI TOGGLE (Top Left) */}
              <div className="absolute top-8 left-8 pointer-events-auto z-50">
                  <button
                     onClick={() => setShowUI(!showUI)}
-                    aria-label={showUI ? "Ocultar Interfaz" : "Mostrar Interfaz"}
+                    aria-label={showUI ? (t.nexus?.hideUI || "Ocultar Interfaz") : (t.nexus?.showUI || "Mostrar Interfaz")}
                     className="p-3 bg-slate-900/80 backdrop-blur border border-slate-700/50 rounded-xl hover:border-cyan-500/50 transition-colors text-slate-300 hover:text-white"
                  >
                      {showUI ? <EyeOff size={20} /> : <Eye size={20} />}
@@ -913,7 +920,7 @@ const WorldEnginePageV2: React.FC<{
                      <button
                         onClick={handleNexusClick}
                         disabled={isScanning}
-                        aria-label={isScanning ? "Escaneando Nexus..." : "Iniciar Escaneo Nexus"}
+                        aria-label={isScanning ? (t.nexus?.scanning || "Escaneando Nexus...") : (t.nexus?.startScan || "Iniciar Escaneo Nexus")}
                         className={`
                             group relative flex items-center justify-center px-8 py-4
                             bg-cyan-950/20 backdrop-blur-xl border border-cyan-500/30 rounded-full
@@ -929,7 +936,7 @@ const WorldEnginePageV2: React.FC<{
                          ) : (
                              <>
                                 <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
-                                <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">NEXUS</span>
+                                <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">{tNexus.toolName?.toUpperCase() || 'NEXUS'}</span>
                              </>
                          )}
                      </button>
@@ -1014,24 +1021,24 @@ const WorldEnginePageV2: React.FC<{
              {isClearAllOpen && (
                  <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm">
                      <div className="w-[400px] bg-red-950/20 border border-red-500 rounded-xl p-6 text-center shadow-[0_0_50px_rgba(220,38,38,0.2)]">
-                         <h2 className="text-xl font-bold text-red-500 mb-4 tracking-widest">⚠️ ZONA DE PELIGRO</h2>
+                         <h2 className="text-xl font-bold text-red-500 mb-4 tracking-widest">
+                             {t.common?.dangerZone || "⚠️ ZONA DE PELIGRO"}
+                         </h2>
                          <p className="text-sm text-red-200 mb-6 leading-relaxed">
-                             Estás a punto de ejecutar el <strong>Protocolo de Incineración</strong>.
-                             <br/><br/>
-                             Esto eliminará PERMANENTEMENTE todos los nodos y conexiones de este proyecto. No hay vuelta atrás.
+                             {t.nexus?.incinerationWarning || "Estás a punto de ejecutar el Protocolo de Incineración. Esto eliminará PERMANENTEMENTE todos los nodos y conexiones de este proyecto. No hay vuelta atrás."}
                          </p>
                          <div className="flex gap-4 justify-center">
                              <button
                                  onClick={() => setIsClearAllOpen(false)}
                                  className="px-4 py-2 rounded text-sm font-bold text-slate-400 hover:text-white transition-colors"
                              >
-                                 CANCELAR
+                                 {t.common?.cancel?.toUpperCase() || "CANCELAR"}
                              </button>
                              <button
                                  onClick={handleClearAll}
                                  className="px-6 py-2 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-lg transition-all"
                              >
-                                 CONFIRMAR DESTRUCCIÓN
+                                 {t.common?.confirmDestruction || "CONFIRMAR DESTRUCCIÓN"}
                              </button>
                          </div>
                      </div>

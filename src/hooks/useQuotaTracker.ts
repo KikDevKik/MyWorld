@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 
 interface DailyQuota {
     date: string;        // YYYY-MM-DD
@@ -13,55 +13,69 @@ const FREE_TIER_LIMITS = {
     RPM: 10,             // Requests per minute
 };
 
-export function useQuotaTracker() {
-    const storageKey = 'myworld_quota_today';
-    const today = new Date().toISOString().split('T')[0];
+const STORAGE_KEY = 'myworld_quota_today';
 
-    const [quota, setQuota] = useState<DailyQuota>(() => {
-        const saved = localStorage.getItem(storageKey);
+function todayStr() {
+    return new Date().toISOString().split('T')[0];
+}
+
+function loadFromStorage(): DailyQuota {
+    try {
+        const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-            const parsed = JSON.parse(saved);
-            // Si es de otro día, resetear
-            if (parsed.date !== today) {
-                return { date: today, requestCount: 0, tokenEstimate: 0, lastUpdated: Date.now() };
-            }
-            return parsed;
+            const parsed = JSON.parse(saved) as DailyQuota;
+            if (parsed.date === todayStr()) return parsed;
         }
-        return { date: today, requestCount: 0, tokenEstimate: 0, lastUpdated: Date.now() };
-    });
+    } catch { /* ignore */ }
+    return { date: todayStr(), requestCount: 0, tokenEstimate: 0, lastUpdated: Date.now() };
+}
 
-    // Llamar esto después de cada request a Gemini
-    const trackRequest = useCallback((estimatedTokens: number = 500) => {
-        setQuota(prev => {
-            const updated = {
-                ...prev,
-                requestCount: prev.requestCount + 1,
-                tokenEstimate: prev.tokenEstimate + estimatedTokens,
-                lastUpdated: Date.now(),
-            };
-            localStorage.setItem(storageKey, JSON.stringify(updated));
-            return updated;
-        });
+// Standalone function for api.ts (non-hook context)
+export function trackRequest(estimatedTokens: number = 500) {
+    const current = loadFromStorage();
+    const updated: DailyQuota = {
+        ...current,
+        requestCount: current.requestCount + 1,
+        tokenEstimate: current.tokenEstimate + estimatedTokens,
+        lastUpdated: Date.now(),
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new Event('quota_updated'));
+}
+
+export function useQuotaTracker() {
+    const [quota, setQuota] = useState<DailyQuota>(() => loadFromStorage());
+
+    // Sync across components via window event
+    useEffect(() => {
+        const handleUpdate = () => setQuota(loadFromStorage());
+        window.addEventListener('quota_updated', handleUpdate);
+        return () => window.removeEventListener('quota_updated', handleUpdate);
+    }, []);
+
+    const trackRequestHook = useCallback((estimatedTokens: number = 500) => {
+        trackRequest(estimatedTokens);
     }, []);
 
     const resetQuota = useCallback(() => {
-        const fresh = { date: today, requestCount: 0, tokenEstimate: 0, lastUpdated: Date.now() };
-        localStorage.setItem(storageKey, JSON.stringify(fresh));
+        const fresh: DailyQuota = { date: todayStr(), requestCount: 0, tokenEstimate: 0, lastUpdated: Date.now() };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
         setQuota(fresh);
-    }, [today]);
+        window.dispatchEvent(new Event('quota_updated'));
+    }, []);
 
     const usagePercent = Math.min(
-        (quota.requestCount / FREE_TIER_LIMITS.RPD) * 100, 
+        (quota.requestCount / FREE_TIER_LIMITS.RPD) * 100,
         100
     );
 
-    const status: 'ok' | 'warning' | 'critical' = 
+    const status: 'ok' | 'warning' | 'critical' =
         usagePercent >= 90 ? 'critical' :
         usagePercent >= 70 ? 'warning' : 'ok';
 
     return {
         quota,
-        trackRequest,
+        trackRequest: trackRequestHook,
         resetQuota,
         usagePercent,
         status,

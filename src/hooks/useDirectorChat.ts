@@ -4,6 +4,8 @@ import { callFunction } from '../services/api';
 import { ChatMessageData } from '../types/director';
 import { fileToGenerativePart } from '../services/geminiService';
 import { CreativeAuditService } from '../services/CreativeAuditService';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface UseDirectorChatProps {
     activeSessionId: string | null;
@@ -34,6 +36,9 @@ export const useDirectorChat = ({
     const [isLoadingHistory, setIsLoadingHistory] = useState(false);
     const [purgingIds, setPurgingIds] = useState<Set<string>>(new Set());
     const [rescuingIds, setRescuingIds] = useState<Set<string>>(new Set());
+
+    const { currentLanguage } = useLanguageStore();
+    const tDir = TRANSLATIONS[currentLanguage].director;
 
     // 🟢 OPTIMISTIC UI STORE
     // Stores messages that are being processed during session initialization
@@ -112,7 +117,7 @@ export const useDirectorChat = ({
                 setMessages([{
                     id: 'intro',
                     role: 'assistant',
-                    text: 'Director de Escena en línea. ¿En qué puedo ayudarte con la estructura o el tono de la escena actual?',
+                    text: tDir.directorOnline,
                     timestamp: Date.now(),
                     type: 'text'
                 }]);
@@ -132,7 +137,7 @@ export const useDirectorChat = ({
                          newAlertMessages.push({
                             id: `drift-group-${category}-${Date.now()}`,
                             role: 'system',
-                            text: `Se detectaron ${alerts.length} Ecos Críticos en '${category}'.`,
+                            text: `Se detectaron ${alerts.length} ${tDir.ecosCritical} en '${category}'.`,
                             timestamp: Date.now(),
                             isDriftAlert: true,
                             driftCategory: category,
@@ -267,7 +272,28 @@ export const useDirectorChat = ({
                 isFallbackContext,
                 mediaAttachment: mediaPart,
                 history: historyPayload, // 🟢 INJECT HISTORY
-                systemInstruction: "ACT AS: Director of Photography and Narrative Structure. Focus on pacing, tone, and visual composition. Keep responses concise and actionable. If you see a Drift Alert in history, address it professionally."
+                systemInstruction: `Eres El Director de MyWorld, un copiloto narrativo socrático dentro de un IDE de escritura creativa.
+
+QUIÉN ERES:
+- Eres un espejo activo, no un escritor por encargo
+- Tu rol es hacerle preguntas que desbloqueen al escritor
+- Hablas de escenas, personajes, motivaciones y estructura narrativa
+- Tono cálido pero directo — como un editor experimentado que respeta al autor
+
+QUIÉN NO ERES:
+- NO eres director de fotografía ni hablas de "planos", "frames", "diseño sonoro" o terminología cinematográfica/audiovisual
+- NO escribes escenas o diálogos para que el usuario los copie
+- NO das instrucciones técnicas de cine
+- NO generas contenido creativo sin que el usuario lo haya sembrado primero
+
+TU MÉTODO:
+- Si el usuario trae un problema narrativo: haz 1-3 preguntas específicas que lo ayuden a encontrar su propia respuesta
+- Si el usuario pregunta algo concreto: responde concisamente y devuelve la iniciativa con una pregunta
+- Si hay una alerta de Eco (Drift) en el historial: abórdala profesionalmente en términos de coherencia narrativa, no de producción audiovisual
+
+VOCABULARIO CORRECTO: arco, motivación, tensión, ritmo, punto de giro, subtexto, personaje, escena, diálogo, conflicto, tema, voz narrativa, perspectiva
+VOCABULARIO PROHIBIDO: plano, frame, encuadre, iluminación cinematográfica, diseño sonoro, corte, montaje (en sentido fílmico), cámara`
+
             });
 
             // 🟢 AUDIT: TRACK AI GENERATION
@@ -318,7 +344,7 @@ export const useDirectorChat = ({
         const initMsg: ChatMessageData = {
             id: tempId,
             role: 'system',
-            text: import.meta.env.VITE_JULES_MODE === 'true' ? "Analizando Elenco (Modo Fantasma)..." : "Analizando Elenco (Modo Lectura)...",
+            text: import.meta.env.VITE_JULES_MODE === 'true' ? `${tDir.analyzingCast} (Modo Fantasma)...` : `${tDir.analyzingCast} (Modo Lectura)...`,
             timestamp: Date.now(),
             type: 'system_alert'
         };
@@ -437,7 +463,7 @@ export const useDirectorChat = ({
                     if (m.id === tempId) {
                         return {
                             ...m,
-                            text: "Veredicto del Tribunal",
+                            text: tDir.verdict,
                             type: 'verdict_card',
                             verdictData: mockVerdict
                         };
@@ -470,14 +496,14 @@ export const useDirectorChat = ({
             await callFunction('addForgeMessage', {
                 sessionId: sid,
                 role: 'system',
-                text: "Veredicto del Tribunal Emitido",
+                text: `${tDir.verdict} Emitido`,
             });
 
             setMessages(prev => prev.map(m => {
                 if (m.id === tempId) {
                     return {
                         ...m,
-                        text: "Veredicto del Tribunal",
+                        text: tDir.verdict,
                         type: 'verdict_card',
                         verdictData: verdictData
                     };

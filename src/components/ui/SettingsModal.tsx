@@ -11,7 +11,6 @@ import { callFunction } from '../../services/api';
 import { useLanguageStore, Language } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import { useTier, TierMode } from '../../hooks/useTier';
-import { useQuotaTracker } from '../../hooks/useQuotaTracker';
 import { getAuth } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
@@ -70,9 +69,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const [localGeminiKey, setLocalGeminiKey] = useState('');
     const [showKey, setShowKey] = useState(false);
 
-    // 🟢 NEW: Quota Tracker
-    const { quota, status: quotaStatus, usagePercent, limits, requestsLeft, resetQuota } = useQuotaTracker();
-    const { isNormal, isUltra } = useTier();
+    const { isUltra } = useTier();
 
     // 🟢 GUARDIAN MODE
     const guardianModeKey = `guardian_mode_${config?.folderId || 'global'}`;
@@ -98,7 +95,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         if (!userId) return;
         try {
             await setDoc(doc(db, 'users', userId, 'profile', 'preferences'), { [key]: value }, { merge: true });
-        } catch(e) {
+        } catch (e) {
             console.error("Error saving preference", e);
         }
     };
@@ -639,14 +636,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             setWelcomeCardsDisabled(next);
                                             toast.success(next ? 'Paneles de bienvenida desactivados' : 'Paneles de bienvenida activados');
                                         }}
-                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-                                            !welcomeCardsDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
-                                        }`}
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!welcomeCardsDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                            }`}
                                         aria-label="Toggle paneles de bienvenida"
                                     >
-                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                                            !welcomeCardsDisabled ? 'translate-x-5' : 'translate-x-0.5'
-                                        }`} />
+                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${!welcomeCardsDisabled ? 'translate-x-5' : 'translate-x-0.5'
+                                            }`} />
                                     </button>
                                 </div>
 
@@ -678,14 +673,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             setBreakRemindersDisabled(next);
                                             toast.success(next ? 'Recordatorio de pausa desactivado' : 'Recordatorio de pausa activado');
                                         }}
-                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-                                            !breakRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
-                                        }`}
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!breakRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                            }`}
                                         aria-label="Toggle recordatorio de pausa"
                                     >
-                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                                            !breakRemindersDisabled ? 'translate-x-5' : 'translate-x-0.5'
-                                        }`} />
+                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${!breakRemindersDisabled ? 'translate-x-5' : 'translate-x-0.5'
+                                            }`} />
                                     </button>
                                 </div>
 
@@ -703,14 +696,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             setRoadmapRemindersDisabled(next);
                                             toast.success(next ? 'Recordatorio de Roadmap desactivado' : 'Recordatorio de Roadmap activado');
                                         }}
-                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-                                            !roadmapRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
-                                        }`}
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!roadmapRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                            }`}
                                         aria-label="Toggle recordatorio de Roadmap"
                                     >
-                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                                            !roadmapRemindersDisabled ? 'translate-x-5' : 'translate-x-0.5'
-                                        }`} />
+                                        <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${!roadmapRemindersDisabled ? 'translate-x-5' : 'translate-x-0.5'
+                                            }`} />
                                     </button>
                                 </div>
                             </div>
@@ -880,13 +871,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     {/* Estado actual */}
                                     <div>
                                         <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Estado actual</h4>
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${
-                                            !customGeminiKey
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${!customGeminiKey
                                                 ? 'bg-red-500/10 text-red-400 border-red-500/30'
                                                 : tier === 'ultra'
                                                     ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
                                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                        }`}>
+                                            }`}>
                                             {!customGeminiKey ? (
                                                 <><span>✕</span><span>Sin API Key</span></>
                                             ) : tier === 'ultra' ? (
@@ -902,13 +892,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
                                             Herramientas automáticas
                                         </h4>
-                                        
+
                                         {/* Toggle Guardián */}
                                         <div className="flex items-center justify-between py-2">
                                             <div>
                                                 <p className="text-sm text-zinc-300">El Guardián del Canon</p>
                                                 <p className="text-xs text-zinc-500 mt-0.5">
-                                                    {isUltra 
+                                                    {isUltra
                                                         ? 'Audita mientras escribes (cada 50 palabras)'
                                                         : 'En Modo Normal: recomendamos Manual para conservar cuota'
                                                     }
@@ -920,13 +910,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                 </span>
                                                 <button
                                                     onClick={() => setGuardianMode(guardianMode === 'auto' ? 'manual' : 'auto')}
-                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-                                                        guardianMode === 'auto' ? 'bg-cyan-500' : 'bg-titanium-700'
-                                                    }`}
+                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${guardianMode === 'auto' ? 'bg-cyan-500' : 'bg-titanium-700'
+                                                        }`}
                                                 >
-                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                                                        guardianMode === 'auto' ? 'translate-x-5' : 'translate-x-0.5'
-                                                    }`} />
+                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${guardianMode === 'auto' ? 'translate-x-5' : 'translate-x-0.5'
+                                                        }`} />
                                                 </button>
                                             </div>
                                         </div>
@@ -949,13 +937,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                         savePreference('autoDistillResources', next);
                                                         setAutoDistill(next);
                                                     }}
-                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${
-                                                        autoDistill ? 'bg-cyan-500' : 'bg-titanium-700'
-                                                    }`}
+                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${autoDistill ? 'bg-cyan-500' : 'bg-titanium-700'
+                                                        }`}
                                                 >
-                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${
-                                                        autoDistill ? 'translate-x-5' : 'translate-x-0.5'
-                                                    }`} />
+                                                    <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${autoDistill ? 'translate-x-5' : 'translate-x-0.5'
+                                                        }`} />
                                                 </button>
                                             </div>
                                         </div>
@@ -964,7 +950,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         {!isUltra && (
                                             <div className="mt-2 p-2.5 bg-amber-500/5 border border-amber-500/15 rounded-lg">
                                                 <p className="text-xs text-amber-400/80 leading-relaxed">
-                                                    💡 En Modo Normal (Free Tier), tener ambas herramientas en Manual 
+                                                    💡 En Modo Normal (Free Tier), tener ambas herramientas en Manual
                                                     te da control total sobre tu cuota de 250 RPD.
                                                 </p>
                                             </div>
@@ -1024,74 +1010,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         </p>
                                     </div>
 
-                                    {isNormal && (
-                                        <div className="space-y-3 mt-6 pt-4 border-t border-zinc-800">
-                                            <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
-                                                Cuota diaria (estimada)
-                                            </h4>
-                                            
-                                            {/* Barra de progreso grande */}
-                                            <div className="space-y-1.5">
-                                                <div className="flex justify-between text-xs">
-                                                    <span className={
-                                                        quotaStatus === 'critical' ? 'text-red-400' :
-                                                        quotaStatus === 'warning' ? 'text-amber-400' : 'text-zinc-400'
-                                                    }>
-                                                        {quota.requestCount} / {limits.RPD} requests
-                                                    </span>
-                                                    <span className="text-zinc-600">
-                                                        {requestsLeft} restantes
-                                                    </span>
-                                                </div>
-                                                <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                                                    <div 
-                                                        className={`h-full rounded-full transition-all duration-700
-                                                            ${quotaStatus === 'critical' ? 'bg-red-500' :
-                                                            quotaStatus === 'warning' ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                                                        style={{ width: `${usagePercent}%` }}
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            {/* Tokens estimados */}
-                                            <div className="flex justify-between text-xs text-zinc-600">
-                                                <span>Tokens estimados hoy</span>
-                                                <span>{quota.tokenEstimate.toLocaleString()} / 250,000</span>
-                                            </div>
-
-                                            {/* Mensaje según estado */}
-                                            {quotaStatus === 'critical' && (
-                                                <p className="text-xs text-red-400 leading-relaxed">
-                                                    ⚠️ Cerca del límite diario. Las herramientas automáticas 
-                                                    pueden fallar. Considera cambiar el Guardián a Manual.
-                                                </p>
-                                            )}
-                                            {quotaStatus === 'warning' && (
-                                                <p className="text-xs text-amber-400 leading-relaxed">
-                                                    Usando bastante cuota hoy. Si el Guardián está en Auto, 
-                                                    considera cambiarlo a Manual.
-                                                </p>
-                                            )}
-
-                                            {/* Reset manual + aclaración */}
-                                            <div className="flex items-center justify-between">
-                                                <p className="text-[10px] text-zinc-600">
-                                                    Se resetea automáticamente a medianoche
-                                                </p>
-                                                <button
-                                                    onClick={resetQuota}
-                                                    className="text-[10px] text-zinc-600 hover:text-zinc-400 transition-colors underline underline-offset-2"
-                                                >
-                                                    Resetear contador
-                                                </button>
-                                            </div>
-
-                                            {/* Disclaimer */}
-                                            <p className="text-[9px] text-zinc-700 leading-relaxed">
-                                                * Estimación local. El consumo real en Google AI Studio puede variar.
-                                            </p>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1192,7 +1110,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                                 <div className="px-4 py-2 bg-black/40 rounded-full border border-titanium-700/50">
                                     <p className="text-xs font-mono text-cyan-300 font-medium tracking-wide">
-                                        Built for Gemini Hackathon 3 | Powered by Gemini 3.0 Pro & Jules
+                                        Powered by Gemini
+
                                     </p>
                                 </div>
 

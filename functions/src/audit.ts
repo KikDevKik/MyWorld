@@ -4,6 +4,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import * as crypto from 'crypto';
+import { getTranslation } from "./backend_i18n";
 
 interface CreativeLogEntry {
     id?: string;
@@ -32,7 +33,7 @@ export const generateAuditPDF = onCall(
 
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required.");
 
-        const { projectId } = request.data;
+        const { projectId, _lang = 'es' } = request.data;
         const userId = request.auth.uid;
 
         if (!projectId) throw new HttpsError("invalid-argument", "Missing Project ID.");
@@ -92,7 +93,7 @@ export const generateAuditPDF = onCall(
 
                     // 🟢 MAPPING: Human Input Label
                     const isHumanInput = log.actionType === 'INJECTION';
-                    const displayType = isHumanInput ? 'HUMAN INPUT' : log.actionType;
+                    const displayType = isHumanInput ? getTranslation(_lang, 'pdf', 'humanInput') : log.actionType;
 
                     // 🟢 CONTENT EXTRACTION
                     let content = '';
@@ -142,44 +143,44 @@ export const generateAuditPDF = onCall(
             const docDefinition: any = {
                 content: [
                     // HEADER
-                    { text: 'CERTIFICATE OF AUTHORSHIP', style: 'header', alignment: 'center' },
-                    { text: 'OFFICIAL AUDIT RECORD', style: 'subheader', alignment: 'center', margin: [0, 5, 0, 20] },
+                    { text: getTranslation(_lang, 'pdf', 'certificateTitle'), style: 'header', alignment: 'center' },
+                    { text: getTranslation(_lang, 'pdf', 'auditSubtitle'), style: 'subheader', alignment: 'center', margin: [0, 5, 0, 20] },
 
                     // METADATA
                     {
                         columns: [
-                            { width: 'auto', text: 'Project ID:', bold: true },
+                            { width: 'auto', text: getTranslation(_lang, 'pdf', 'projectId'), bold: true },
                             { width: '*', text: projectId, margin: [10, 0, 0, 0] }
                         ],
                         margin: [0, 0, 0, 5]
                     },
                     {
                         columns: [
-                            { width: 'auto', text: 'Author ID:', bold: true },
+                            { width: 'auto', text: getTranslation(_lang, 'pdf', 'authorId'), bold: true },
                             { width: '*', text: userId, margin: [10, 0, 0, 0] }
                         ],
                         margin: [0, 0, 0, 5]
                     },
                     {
                         columns: [
-                            { width: 'auto', text: 'Date Generated:', bold: true },
+                            { width: 'auto', text: getTranslation(_lang, 'pdf', 'dateGenerated'), bold: true },
                             { width: '*', text: generationDate, margin: [10, 0, 0, 0] }
                         ],
                         margin: [0, 0, 0, 20]
                     },
 
                     // METRICS TABLE
-                    { text: 'CREATIVE ACTIVITY METRICS', style: 'sectionHeader', margin: [0, 0, 0, 5] },
+                    { text: getTranslation(_lang, 'pdf', 'metricsTitle'), style: 'sectionHeader', margin: [0, 0, 0, 5] },
                     {
                         table: {
                             widths: ['*', '*', '*', '*', '*'],
                             body: [
                                 [
-                                    { text: 'Total Acts', style: 'tableHeader' },
-                                    { text: 'Injections (Human)', style: 'tableHeader' },
-                                    { text: 'Curation', style: 'tableHeader' },
-                                    { text: 'Structure', style: 'tableHeader' },
-                                    { text: 'Research', style: 'tableHeader' }
+                                    { text: getTranslation(_lang, 'pdf', 'totalActs'), style: 'tableHeader' },
+                                    { text: getTranslation(_lang, 'pdf', 'humanInjections'), style: 'tableHeader' },
+                                    { text: getTranslation(_lang, 'pdf', 'curation'), style: 'tableHeader' },
+                                    { text: getTranslation(_lang, 'pdf', 'structure'), style: 'tableHeader' },
+                                    { text: getTranslation(_lang, 'pdf', 'research'), style: 'tableHeader' }
                                 ],
                                 [
                                     { text: totalEvents.toString(), alignment: 'center' },
@@ -195,11 +196,11 @@ export const generateAuditPDF = onCall(
                     },
 
                     // AUDIT LOG BLOCKS (New Layout)
-                    { text: 'AUDIT TRAIL (IMMUTABLE)', style: 'sectionHeader', margin: [0, 0, 0, 10] },
+                    { text: getTranslation(_lang, 'pdf', 'auditTrailTitle'), style: 'sectionHeader', margin: [0, 0, 0, 10] },
                     ...logBlocks,
 
                     // FOOTER
-                    { text: 'Verified by Titanium Creative Audit Service', style: 'footer', alignment: 'center', margin: [0, 50, 0, 0] }
+                    { text: getTranslation(_lang, 'pdf', 'footer'), style: 'footer', alignment: 'center', margin: [0, 50, 0, 0] }
                 ],
                 styles: {
                     header: {

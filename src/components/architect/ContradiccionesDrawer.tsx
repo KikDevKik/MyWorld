@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronUp, CheckCircle2, Circle, Zap, Layers, MessageSquare, Info, X } from 'lucide-react';
 import { PendingItem } from '../../types/roadmap';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface Props {
     pendingItems: PendingItem[];
@@ -10,10 +12,10 @@ interface Props {
     activeItemCode?: string;
 }
 
-const LAYER_CONFIG = {
+const getLayerConfig = (t: any) => ({
     MACRO: {
         label: 'MACRO',
-        sublabel: 'Worldbuilding · Magia · Economía',
+        sublabel: t.macroDesc || 'Worldbuilding · Magia · Economía',
         color: 'text-red-400',
         bg: 'bg-red-500/10',
         border: 'border-red-500/30',
@@ -22,7 +24,7 @@ const LAYER_CONFIG = {
     },
     MESO: {
         label: 'MESO', 
-        sublabel: 'Estructura · Facciones · Personajes',
+        sublabel: t.mesoDesc || 'Estructura · Facciones · Personajes',
         color: 'text-amber-400',
         bg: 'bg-amber-500/10',
         border: 'border-amber-500/30',
@@ -31,14 +33,14 @@ const LAYER_CONFIG = {
     },
     MICRO: {
         label: 'MICRO',
-        sublabel: 'Escenas · Diálogos · Detalles',
+        sublabel: t.microDesc || 'Escenas · Diálogos · Detalles',
         color: 'text-blue-400',
         bg: 'bg-blue-500/10',
         border: 'border-blue-500/30',
         dot: 'bg-blue-500',
         icon: <MessageSquare size={12} />
     }
-};
+});
 
 export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, onSelectItem, activeItemCode }: Props) {
     const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set(['MACRO']));
@@ -84,7 +86,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                 {resolvedCount > 0 && (
                     <div className="flex items-center gap-1.5 opacity-50">
                         <CheckCircle2 size={11} className="text-emerald-500" />
-                        <span className="text-[11px] text-titanium-600">{resolvedCount} resueltos</span>
+                        <span className="text-[11px] text-titanium-600">{resolvedCount} {t.common?.resolved || 'resueltos'}</span>
                     </div>
                 )}
                 <ChevronDown size={14} className="text-titanium-600 ml-2" />
@@ -101,7 +103,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                     className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-titanium-950/30 sticky top-0 bg-[#0a0a0c] z-10 border-b border-titanium-800/50"
                 >
                     <span className="text-[11px] font-mono text-titanium-500 uppercase tracking-wider">
-                        Disonancias Activas — {pendingOnly.length} pendientes · {resolvedCount} resueltas
+                        {tArch.activeDissonances || "Disonancias Activas"} — {pendingOnly.length} {t.common?.pending || 'pendientes'} · {resolvedCount} {t.common?.resolved || 'resueltas'}
                     </span>
                     <ChevronUp size={14} className="text-titanium-600" />
                 </div>
@@ -180,7 +182,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                 {resolvedCount > 0 && (
                     <div className="px-6 py-3 flex items-center gap-2 opacity-50">
                         <CheckCircle2 size={12} className="text-emerald-500" />
-                        <span className="text-[11px] text-titanium-600">{resolvedCount} contradicción(es) resuelta(s)</span>
+                        <span className="text-[11px] text-titanium-600">{resolvedCount} {tArch.resolvedDissonancesCountDesc?.replace('{count}', String(resolvedCount)) || `${resolvedCount} contradicción(es) resuelta(s)`}</span>
                     </div>
                 )}
             </div>
@@ -218,7 +220,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                                 onClick={() => setDetailItem(null)}
                                 className="px-4 py-2 text-xs font-medium text-titanium-400 hover:text-white transition-colors"
                             >
-                                Cerrar
+                                {t.common?.close || "Cerrar"}
                             </button>
                             <button 
                                 onClick={() => {
@@ -227,7 +229,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                                 }}
                                 className="px-4 py-2 text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
                             >
-                                Enviar al chat
+                                {t.common?.sendToChat || "Enviar al chat"}
                             </button>
                         </div>
                     </div>

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { CheckCircle2, PlusCircle, Search, Download, Loader2 } from 'lucide-react';
-import { collection, query, getFirestore, getDoc, doc } from 'firebase/firestore';
+import { getFirestore, getDoc, doc } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 import { callFunction } from '../../services/api';
 import Markdown from 'react-markdown';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface RoadmapFinal {
     changelog: string[];
@@ -23,6 +25,8 @@ interface Props {
  * o cuando el usuario lo solicita explícitamente.
  */
 export default function RoadmapFinalView({ sessionId }: Props) {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
     const [roadmap, setRoadmap] = useState<RoadmapFinal | null>(null);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -85,7 +89,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                     className="flex items-center gap-2 px-4 py-2 bg-cyan-950/30 border border-cyan-500/30 text-cyan-400 text-sm rounded-lg hover:bg-cyan-950/50 transition-colors disabled:opacity-50"
                 >
                     {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-                    {isGenerating ? 'Generando...' : 'Generar Ahora'}
+                    {isGenerating ? (t.common?.generating || 'Generando...') : (t.common?.generateNow || 'Generar Ahora')}
                 </button>
             </div>
         );
@@ -99,7 +103,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                     className="flex items-center gap-1.5 text-[11px] text-titanium-500 hover:text-titanium-300 transition-colors"
                 >
                     <Download size={12} />
-                    Descargar .md
+                    {t.common?.downloadMd || "Descargar .md"}
                 </button>
             </div>
             <div className="flex-1 grid grid-cols-3 gap-0 overflow-hidden divide-x divide-titanium-800">
@@ -121,7 +125,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                 <div className="flex flex-col overflow-hidden">
                     <div className="px-4 py-3 border-b border-titanium-800 bg-amber-950/10 flex items-center gap-2 shrink-0">
                         <PlusCircle size={14} className="text-amber-500" />
-                        <span className="text-xs font-medium text-amber-300">Misiones de Creación</span>
+                        <span className="text-xs font-medium text-amber-300">{t.architect?.creationMissions || "Misiones de Creación"}</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                         {roadmap.creationMissions.map((item, i) => (
@@ -135,7 +139,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                 <div className="flex flex-col overflow-hidden">
                     <div className="px-4 py-3 border-b border-titanium-800 bg-blue-950/10 flex items-center gap-2 shrink-0">
                         <Search size={14} className="text-blue-500" />
-                        <span className="text-xs font-medium text-blue-300">Investigación</span>
+                        <span className="text-xs font-medium text-blue-300">{t.common?.research || "Investigación"}</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                         {roadmap.researchMissions.map((item, i) => (

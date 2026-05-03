@@ -1,5 +1,7 @@
 import React from 'react';
 import { Sparkles, BookOpen, PenLine, ChevronRight, X } from 'lucide-react';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface PostGenesisPanelProps {
     projectName: string;
@@ -13,32 +15,30 @@ interface PostGenesisPanelProps {
 export function PostGenesisPanel({
     projectName,
     filesCreated,
-    premise,
     onGoToCapitulo,
     onGoToArquitecto,
     onDismiss
 }: PostGenesisPanelProps) {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tPG = t.postGenesis;
+
     return (
         <div className="flex flex-col items-center justify-center h-full px-8 py-12 text-center bg-titanium-950">
-            {/* Ícono celebración */}
             <div className="w-16 h-16 rounded-full bg-cyan-500/10 border border-cyan-500/30
                 flex items-center justify-center mb-6">
                 <Sparkles size={28} className="text-cyan-400" />
             </div>
 
-            {/* Título */}
             <h2 className="text-xl font-semibold text-white mb-2">
-                ¡{projectName} está listo!
+                {tPG.ready.replace('{name}', projectName)}
             </h2>
 
-            {/* Descripción */}
             <p className="text-sm text-zinc-400 mb-8 max-w-xs leading-relaxed">
-                Se crearon {filesCreated} archivos base con el mundo de tu historia.
-                ¿Por dónde quieres empezar?
+                {tPG.filesCreated.replace('{count}', String(filesCreated))}
             </p>
 
             <div className="w-full max-w-xs space-y-3">
-                {/* CTA primario — Comenzar a escribir */}
                 {onGoToCapitulo && (
                     <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl p-4">
                         <div className="flex items-start gap-3 mb-3">
@@ -47,11 +47,8 @@ export function PostGenesisPanel({
                                 <PenLine size={14} className="text-cyan-400" />
                             </div>
                             <div className="text-left">
-                                <p className="text-xs font-medium text-white mb-1">Escribir ahora</p>
-                                <p className="text-xs text-zinc-400 leading-relaxed">
-                                    El Director te hará 3 preguntas para encontrar
-                                    tu punto de entrada al Capítulo 01.
-                                </p>
+                                <p className="text-xs font-medium text-white mb-1">{tPG.writeNowTitle}</p>
+                                <p className="text-xs text-zinc-400 leading-relaxed">{tPG.writeNowDesc}</p>
                             </div>
                         </div>
                         <button
@@ -60,13 +57,12 @@ export function PostGenesisPanel({
                                 bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium
                                 rounded-lg transition-colors"
                         >
-                            Comenzar a escribir
+                            {tPG.startWriting}
                             <ChevronRight size={14} />
                         </button>
                     </div>
                 )}
 
-                {/* CTA secundario — El Arquitecto */}
                 <div className="bg-zinc-800/60 border border-zinc-700/50 rounded-xl p-4">
                     <div className="flex items-start gap-3 mb-3">
                         <div className="w-8 h-8 rounded-lg bg-violet-500/20 border border-violet-500/30
@@ -74,10 +70,9 @@ export function PostGenesisPanel({
                             <BookOpen size={14} className="text-violet-400" />
                         </div>
                         <div className="text-left">
-                            <p className="text-xs font-medium text-white mb-1">Construir el mundo</p>
+                            <p className="text-xs font-medium text-white mb-1">{tPG.buildWorldTitle}</p>
                             <p className="text-xs text-zinc-400 leading-relaxed">
-                                El Arquitecto analizará tu mundo y te ayudará
-                                a detectar inconsistencias antes de escribir.
+                                {t?.architect?.description || ''}
                             </p>
                         </div>
                     </div>
@@ -87,20 +82,19 @@ export function PostGenesisPanel({
                             bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium
                             rounded-lg transition-colors"
                     >
-                        Abrir El Arquitecto
+                        {tPG.openArchitect} {t?.architect?.toolName || 'El Arquitecto'}
                         <ChevronRight size={14} />
                     </button>
                 </div>
             </div>
 
-            {/* Opción terciaria */}
             <button
                 onClick={onDismiss}
                 className="mt-6 text-xs text-zinc-500 hover:text-zinc-300 transition-colors
                     flex items-center gap-1"
             >
                 <X size={12} />
-                Explorar solo por ahora
+                {tPG.exploreLater}
             </button>
         </div>
     );

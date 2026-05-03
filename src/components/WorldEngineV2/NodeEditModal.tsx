@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Save, AlertTriangle, Loader2, Trash2 } from 'lucide-react';
 import { VisualNode } from './types';
 import { EntityType } from '../../types/graph';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface NodeEditModalProps {
     isOpen: boolean;
@@ -15,6 +17,10 @@ interface NodeEditModalProps {
 const ENTITY_TYPES: EntityType[] = ['character', 'location', 'object', 'event', 'faction', 'concept', 'creature', 'race'];
 
 export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, node, onSave, onDelete }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tNexus = t.nexus;
+
     const [name, setName] = useState('');
     const [type, setType] = useState<EntityType>('character');
     const [subtype, setSubtype] = useState('');
@@ -85,7 +91,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                          <div className="flex justify-between items-center p-6 border-b border-slate-800 bg-slate-900/50">
                              <h2 id="node-edit-title" className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
                                  <Edit2Icon className="text-cyan-400" size={20} />
-                                 Editar Nodo
+                                 {tNexus.editNode || "Editar Nodo"}
                              </h2>
                              <button
                                  onClick={onClose}
@@ -101,7 +107,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
 
                              {/* NAME */}
                              <div className="space-y-1.5">
-                                 <label htmlFor="node-name" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Nombre</label>
+                                 <label htmlFor="node-name" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.common?.name || "Nombre"}</label>
                                  <input
                                      id="node-name"
                                      value={name}
@@ -115,7 +121,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                              <div className="grid grid-cols-2 gap-4">
                                  {/* TYPE */}
                                  <div className="space-y-1.5">
-                                     <label htmlFor="node-type" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Tipo</label>
+                                     <label htmlFor="node-type" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.common?.type || "Tipo"}</label>
                                      <select
                                          id="node-type"
                                          value={type}
@@ -130,7 +136,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
 
                                  {/* SUBTYPE */}
                                  <div className="space-y-1.5">
-                                     <label htmlFor="node-subtype" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Subtipo</label>
+                                     <label htmlFor="node-subtype" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.common?.subtype || "Subtipo"}</label>
                                      <input
                                          id="node-subtype"
                                          value={subtype}
@@ -143,7 +149,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
 
                              {/* DESCRIPTION */}
                              <div className="space-y-1.5">
-                                 <label htmlFor="node-description" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Descripción</label>
+                                 <label htmlFor="node-description" className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t.common?.description || "Descripción"}</label>
                                  <textarea
                                      id="node-description"
                                      value={description}
@@ -164,7 +170,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                              className="flex items-center gap-2 px-4 py-2 rounded text-red-500 hover:text-red-400 hover:bg-red-950/20 text-xs font-bold transition-colors disabled:opacity-50"
                                          >
                                              {isDeleting ? <Loader2 size={14} className="animate-spin" /> : <Trash2 size={14} />}
-                                             {isDeleting ? 'ELIMINANDO...' : 'ELIMINAR'}
+                                             {isDeleting ? (t.common?.deleting?.toUpperCase() || 'ELIMINANDO...') : (t.common?.delete?.toUpperCase() || 'ELIMINAR')}
                                          </button>
                                      )}
                                  </div>
@@ -175,7 +181,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                          onClick={onClose}
                                          className="px-4 py-2 rounded text-slate-400 hover:text-white text-xs font-bold transition-colors"
                                      >
-                                         CANCELAR
+                                         {t.common?.cancel?.toUpperCase() || "CANCELAR"}
                                      </button>
                                      <button
                                          type="submit"
@@ -183,7 +189,7 @@ export const NodeEditModal: React.FC<NodeEditModalProps> = ({ isOpen, onClose, n
                                          className="flex items-center gap-2 px-6 py-2 rounded bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold shadow-lg shadow-cyan-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                      >
                                          {isSaving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
-                                         {isSaving ? 'GUARDANDO...' : 'GUARDAR CAMBIOS'}
+                                         {isSaving ? (t.common?.saving?.toUpperCase() || 'GUARDANDO...') : (t.common?.saveChanges?.toUpperCase() || 'GUARDAR CAMBIOS')}
                                      </button>
                                  </div>
                              </div>

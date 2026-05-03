@@ -15,6 +15,8 @@ import InternalFolderSelector from '../InternalFolderSelector';
 import { callFunction } from '../../services/api';
 import ChatInput from '../ui/ChatInput';
 import { fileToGenerativePart } from '../../services/geminiService';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface TheBuilderProps {
     isOpen: boolean;
@@ -33,11 +35,7 @@ interface BuilderMessage {
     attachmentType?: 'image' | 'audio';
 }
 
-const MODES: { id: RealityMode; label: string }[] = [
-    { id: 'RIGOR', label: 'RIGOR' },
-    { id: 'FUSION', label: 'FUSIÓN' },
-    { id: 'ENTROPIA', label: 'ENTROPÍA' },
-];
+// MODES moved inside the component to access translations
 
 // 🟢 SMART SORT HELPER
 const findBestFolderForType = (type: string, tree: any[]): { id: string, name: string } | null => {
@@ -70,6 +68,15 @@ const findBestFolderForType = (type: string, tree: any[]): { id: string, name: s
 
 const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt, initialMode, accessToken, onRefreshTokens, existingNodes = [] }) => {
     const { config, refreshConfig, fileTree } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tNexus = t.nexus;
+    const MODES: { id: RealityMode; label: string }[] = [
+        { id: 'RIGOR', label: tNexus?.rigor || 'RIGOR' },
+        { id: 'FUSION', label: tNexus?.fusion || 'FUSIÓN' },
+        { id: 'ENTROPIA', label: tNexus?.entropy || 'ENTROPÍA' },
+    ];
+
     const projectId = config?.folderId || "unknown_project";
 
     const [mode, setMode] = useState<RealityMode>(initialMode);
@@ -443,7 +450,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                 const failedCount = data.failed || 0;
 
                 if (createdCount > 0) {
-                    toast.success(`✨ Reality Forged: ${createdCount} Entities Created.`);
+                    toast.success(`✨ ${tNexus.realityForged || "Reality Forged"}: ${createdCount} ${tNexus.entitiesCreated || "Entities Created."}`);
                     setGhostNodes([]);
                     setGhostEdges([]);
 
@@ -528,7 +535,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                             `}
                          >
                              {isMaterializing ? <Loader2 size={14} className="animate-spin" /> : <Hammer size={14} />}
-                             {isMaterializing ? "FORGING..." : "MATERIALIZE"}
+                             {isMaterializing ? (tNexus.forging || "FORGING...") : (tNexus.materialize || "MATERIALIZE")}
                          </button>
 
                          {/* REALITY TUNER */}
@@ -609,7 +616,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
                              <div className="p-4 border-t border-white/10 bg-black/40">
                                 <ChatInput
                                     onSend={handleSend}
-                                    placeholder="Describe your architecture..."
+                                    placeholder={tNexus.builderPlaceholder || "Describe your architecture..."}
                                     isLoading={isTyping}
                                     textAreaClassName="bg-transparent text-sm text-white focus:outline-none"
                                     className="border border-white/10 rounded-lg bg-transparent"

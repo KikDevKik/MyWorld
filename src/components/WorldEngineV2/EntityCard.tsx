@@ -14,6 +14,8 @@ import {
     Dna
 } from 'lucide-react';
 import { VisualNode } from './types';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 // 🟢 DUPLICATED STYLES (Refined Cyberpunk Palette)
 const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: string }> = {
@@ -69,6 +71,9 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
     setHoveredNodeId: (id: string | null) => void;
     variant?: 'standard' | 'hologram' | 'anchor' | 'performance';
 }>(({ node, onClick, onCrystallize, onEdit, lodTier, setHoveredNodeId, variant = 'standard' }, ref) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+
     const [isEditing, setIsEditing] = useState(false);
     const [editName, setEditName] = useState(node.name);
     const [editDesc, setEditDesc] = useState(node.description || "");
@@ -160,7 +165,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                             value={editName}
                             onChange={e => setEditName(e.target.value)}
                             onKeyDown={e => e.stopPropagation()}
-                            placeholder="Nombre..."
+                            placeholder={`${t.common?.name || "Nombre"}...`}
                         />
                         <textarea
                             className="bg-slate-900/50 border border-slate-700 rounded px-1 text-[10px] text-slate-300 outline-none resize-none focus:border-cyan-500"
@@ -168,7 +173,7 @@ const EntityCard = React.memo(forwardRef<HTMLDivElement, {
                             value={editDesc}
                             onChange={e => setEditDesc(e.target.value)}
                             onKeyDown={e => e.stopPropagation()}
-                            placeholder="Descripción..."
+                            placeholder={`${t.common?.description || "Descripción"}...`}
                         />
                         <div className="flex gap-1 justify-end mt-1">
                             <button onClick={() => setIsEditing(false)} className="text-[10px] text-red-400 hover:text-white px-2 py-0.5 border border-red-500/30 rounded">X</button>

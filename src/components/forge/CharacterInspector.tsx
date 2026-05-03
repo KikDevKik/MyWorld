@@ -8,6 +8,8 @@ import { toast } from 'sonner';
 import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { motion, AnimatePresence } from 'framer-motion';
 import { callFunction } from '../../services/api';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 // Define a unified interface for display (Now Compatible with Character type)
 interface InspectorData extends Partial<Character> {
@@ -103,7 +105,7 @@ const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, 
             // 1. HARD SYNC: If we have a masterFileId, force update from Drive first
             if (realData?.masterFileId && accessToken) {
                  try {
-                     toast.info("Syncing latest data from Drive...");
+                     toast.info(tForge.syncingDrive || "Syncing latest data from Drive...");
                      await callFunction('syncCharacterManifest', {
                          masterVaultId: null, // Ignored
                          accessToken: accessToken,
@@ -255,7 +257,7 @@ Materialized from Deep Scan.
                         <div className="flex items-center gap-2">
                              {/* Status Badge */}
                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isGhost ? 'bg-purple-900/20 border-purple-500/30 text-purple-300' : 'bg-cyan-900/20 border-cyan-500/30 text-cyan-300'}`}>
-                                {isGhost ? 'Detected' : 'Existing'}
+                                {isGhost ? (tForge.detected || 'Detected') : (tForge.existing || 'Existing')}
                              </span>
 
                              {/* Role Badge (Moved from body) */}
@@ -292,7 +294,7 @@ Materialized from Deep Scan.
                     {isLoadingReal && (
                         <div className="flex flex-col items-center justify-center py-20 text-titanium-500 gap-3">
                             <Loader2 className="animate-spin text-accent-DEFAULT" size={32} />
-                            <span className="text-sm font-mono animate-pulse">Retrieving Vault Data...</span>
+                            <span className="text-sm font-mono animate-pulse">{tForge.retrievingData || "Retrieving Vault Data..."}</span>
                         </div>
                     )}
 
@@ -302,7 +304,7 @@ Materialized from Deep Scan.
                             {realData && (
                                 <div className="mb-6 flex items-center gap-2 text-xs font-bold text-titanium-600 uppercase tracking-widest border-b border-titanium-800/50 pb-2">
                                     <Database size={12} className="text-accent-DEFAULT" />
-                                    <span>Official Database Record</span>
+                                    <span>{tForge.officialRecord || "Official Database Record"}</span>
                                 </div>
                             )}
 
@@ -319,7 +321,7 @@ Materialized from Deep Scan.
                              <div className="flex items-center justify-between mb-4">
                                 <h4 className="text-sm font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2">
                                     <BrainCircuit size={16} />
-                                    📂 ARCHIVOS DE INTELIGENCIA
+                                    📂 {tForge.intelFiles || "ARCHIVOS DE INTELIGENCIA"}
                                 </h4>
                                 {realData.lastAnalyzed && (
                                     <span className="text-[10px] font-mono text-purple-400/50">
@@ -359,8 +361,8 @@ Materialized from Deep Scan.
                 <div className="shrink-0 h-20 px-8 flex items-center justify-between border-t border-titanium-800 bg-titanium-900/90 backdrop-blur">
                     {/* Metadata */}
                      <div className="text-xs text-titanium-600 font-mono flex items-center gap-2">
-                         <span>ID:</span>
-                         <span className="text-titanium-500">{data.id || 'UNREGISTERED_ENTITY'}</span>
+                         <span>{t.common?.id || 'ID'}:</span>
+                         <span className="text-titanium-500">{data.id || (tForge.unregisteredEntity || 'UNREGISTERED_ENTITY')}</span>
                      </div>
 
                     {/* Actions */}
@@ -369,7 +371,7 @@ Materialized from Deep Scan.
                             onClick={onClose}
                             className="px-6 py-2.5 rounded-lg font-bold text-titanium-400 hover:text-white hover:bg-titanium-800 transition-colors"
                          >
-                             Close
+                             {t.common?.close || "Close"}
                          </button>
 
                          {/* 🔮 DEEP ANALYSIS / RE-SCAN BUTTON */}
@@ -385,8 +387,8 @@ Materialized from Deep Scan.
                             {isAnalyzing ? <Loader2 className="animate-spin" size={18} /> : <BrainCircuit size={18} />}
                             <span>
                                 {isAnalyzing
-                                    ? 'Analyzing...'
-                                    : (realData?.contextualAnalysis ? '🔄 Re-Scan Context' : '🔮 Deep Analysis')
+                                    ? (t.common?.analyzing || 'Analyzing...')
+                                    : (realData?.contextualAnalysis ? (tForge.rescanContext || '🔄 Re-Scan Context') : (tForge.deepAnalysis || '🔮 Deep Analysis'))
                                 }
                             </span>
                          </button>

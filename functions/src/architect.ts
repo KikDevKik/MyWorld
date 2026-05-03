@@ -13,6 +13,7 @@ import { parseSecureJSON } from "./utils/json";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { TaskType } from "@google/generative-ai";
+import { getPrompt } from "./prompt_manager";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -286,12 +287,7 @@ async function fetchInitialContext(userId: string, projectId: string, worldEntit
             try {
                 if (worldEntitiesCount === 0) {
                     // RAW HOP MASIVO
-                    const extractionPrompt = `
-Extrae los nombres propios, facciones o conceptos de magia/tecnología más importantes mencionados en estos fragmentos.
-Responde SOLO con una lista separada por comas, sin explicaciones.
-FRAGMENTOS:
-${chunksText.substring(0, 15000)}
-`;
+                    const extractionPrompt = getPrompt('es', 'architectRawHop', chunksText);
                     const extractionResult = await smartGenerateContent(genAI, extractionPrompt, {
                         _tier: tier, taskType: 'high_volume',
                         temperature: 0.1,
@@ -429,171 +425,7 @@ async function commitRoadmapTransaction(db: FirebaseFirestore.Firestore, userId:
     await batch.commit();
 }
 
-// ─────────────────────────────────────────────
-// SYSTEM_INSTRUCTION — El Alma del Arquitecto V3
-// Fusión: AI Studio (probado) + MyWorld (integrado)
-// NUNCA modificar sin consenso del equipo.
-// ─────────────────────────────────────────────
-const ARQUITECTO_SYSTEM_INSTRUCTION = `DIRECTIVA DE NÚCLEO: EL ARQUITECTO SOCRÁTICO
-
-ROL Y FILOSOFÍA:
-Eres "El Arquitecto", el motor de Deep Reasoning de MyWorld IDE. Operas bajo un paradigma estrictamente analítico, estructural y NO generativo. Tienes prohibido el "reemplazamiento": JAMÁS redactarás prosa, diálogos o tramas por el autor. Tu propósito es auditar, desafiar y desarmar el manuscrito hasta sus átomos fundamentales.
-
-DIRECTIVA ANTI-AMBIGÜEDAD (CERO SUPOSICIONES):
-Los autores a menudo escriben con pronombres vagos ("ellos", "eso", "su cometido", "el plan"). Si el usuario propone una solución que contiene ambigüedades, asume que NO ENTIENDES. Tienes PROHIBIDO llenar los huecos con tus propias ideas. En lugar de aceptar, PREGUNTA explícitamente: "¿A qué cometido te refieres exactamente?", "¿Quiénes son 'ellos'?". Exige especificidad antes de dar el visto bueno.
-
-LA TEORÍA DEL ICEBERG Y EL FILTRO DE CÁMARA:
-No sufras del "Síndrome del Constructor de Mundos". Antes de exigirle al autor que desarrolle una regla macroeconómica, pregúntate: ¿Esto va a aparecer en la historia? Si el autor responde "Eso no se va a mostrar" o "No es relevante para la trama", DEBES aceptarlo como REFUTACIÓN VÁLIDA y dejar el tema. El Filtro de Cámara es sagrado: si algo está fuera de pantalla, no es tu negocio.
-
-EL ESPEJO (ANTES DE CERRAR UN DEBATE):
-Si el usuario da una solución clara y estás a punto de aceptarla, DEBES hacer un micro-resumen en tu respuesta: "Entendido. Lo que voy a registrar es: [resumen de la regla acordada]. ¿Es correcto?" Solo tras la confirmación marcas el problema como resuelto.
-
-REGLAS DE INTERACCIÓN SOCRÁTICA:
-1. Clarificación: Detecta terminología ambigua y fuerza al autor a definirla.
-2. Premisas Ocultas: Extrae y desafía las suposiciones subyacentes.
-3. Lógica y Evidencia: Exige que cada "payoff" tenga un "setup" explícito.
-4. Perspectivas: Obliga al autor a observar desde ángulos antagónicos o sistémicos.
-5. Implicaciones: Modela consecuencias económicas, sociológicas y termodinámicas a largo plazo.
-
-RESTRICCIONES ABSOLUTAS:
-- Máximo 300 palabras por respuesta en el chat socrático.
-- NO des sugerencias de trama a menos que el usuario pida explícitamente "una idea" o "ayuda".
-- Detecta el idioma del autor y responde SIEMPRE en ese idioma.
-- Usa Markdown: párrafos cortos, negritas para conceptos clave, viñetas solo cuando listes.
-- Tono: frío, quirúrgico, directo. Sin halagos innecesarios.
-
-CLARIDAD COMUNICATIVA:
-- Cuando hagas una pregunta de clarificación, primero reconoce lo que el autor ya definió.
-- Nunca repitas como problema algo que ya está en las RESOLUCIONES PREVIAS ACORDADAS.
-- Si el autor señala que algo ya está definido, aplica El Espejo, confirma el entendimiento y avanza.`;
-
-/**
- * Construye el prompt de análisis con modos de enfoque y directivas absolutas.
- * Reemplaza los prompts hardcodeados en arquitectoInitialize y arquitectoAnalyze.
- */
-function buildAnalysisPrompt(
-    projectName: string,
-    contextData: { canon: string; resources: string; worldEntities: string },
-    options: {
-        focusMode?: 'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO';
-        severityMode?: 'HIGH' | 'MEDIUM' | 'LOW' | 'ALL';
-        implementationGoal?: string;  // Norte Temático del usuario
-        isCreativeBlock?: boolean;    // Pre-clasificado por classifyArquitectoMode (LLM semántico)
-    } = {}
-): string {
-    const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal, isCreativeBlock = false } = options;
-
-    // ── INSTRUCCIONES DE ENFOQUE ──
-    let focusInstructions = '';
-    if (focusMode === 'TRIAGE') {
-        focusInstructions = `SISTEMA DE TRIAGE (PRIORIDAD ABSOLUTA):
-Eres un cirujano de historias. Límite estricto: máximo 3-5 disonancias en TOTAL.
-Si los cimientos MACRO están rotos, IGNORA MESO y MICRO. Solo reporta MESO si MACRO es estable. Solo MICRO si MESO es perfecto. No inventes problemas menores para llegar a cuotas.`;
-    } else if (focusMode === 'MACRO') {
-        focusInstructions = `MODO MACRO (Worldbuilding y Reglas):
-Ignora COMPLETAMENTE MESO y MICRO. Solo: reglas del mundo, sistemas de magia, física, economía, cosmología, historia y cultura. Genera entre 6-9 disonancias MACRO.`;
-    } else if (focusMode === 'MESO') {
-        focusInstructions = `MODO MESO (Estructura y Personajes):
-Ignora COMPLETAMENTE MACRO y MICRO. Solo: estructura de trama principal, facciones, política general, arcos de personajes a gran escala. Genera entre 6-9 disonancias MESO.`;
-    } else if (focusMode === 'MICRO') {
-        focusInstructions = `MODO MICRO (Tono y Detalles):
-Ignora COMPLETAMENTE MACRO y MESO. Solo: acciones específicas de personajes, diálogos y huecos de escenas concretas. Genera entre 6-9 disonancias MICRO.`;
-    }
-
-    // ── INSTRUCCIONES DE SEVERIDAD ──
-    let severityInstructions = '';
-    if (severityMode !== 'ALL' && focusMode !== 'TRIAGE') {
-        const labels: Record<string, string> = {
-            HIGH: 'ALTA (críticas, rompen la historia). Entre 6-9 problemas.',
-            MEDIUM: 'MEDIA (inconsistencias notables pero no fatales). Entre 6-9 problemas.',
-            LOW: 'BAJA (detalles menores, oportunidades de pulido). Entre 6-9 problemas.'
-        };
-        severityInstructions = `FILTRO DE SEVERIDAD: ${labels[severityMode] || ''}`;
-    }
-
-    // ── OBJETIVO PRINCIPAL ──
-    let mainObjective = `OBJETIVO PRINCIPAL — SIMULADOR DE ESTRÉS NARRATIVO:
-No busques simples "errores lógicos" aburridos. Busca semillas de trama escondidas en las grietas. Tu objetivo es obligar al autor a conectar su mundo con sus personajes y hacer la historia más profunda.`;
-
-    if (implementationGoal?.trim()) {
-        mainObjective = `OBJETIVO PRINCIPAL — NORTE TEMÁTICO:
-El autor quiere implementar: "${implementationGoal}"
-Estrés esta idea contra el Canon. Úsala como BRÚJULA. Evalúa todas las disonancias a través de este Norte. ATENCIÓN: Estás liberado de límites numéricos. Genera TODAS las fricciones necesarias (5, 15 o 50) para abarcar la magnitud de lo que el autor quiere construir.`;
-    }
-
-    const fullContext = `
-=== CANON DEL PROYECTO (${projectName}) ===
-${contextData.canon.substring(0, 25000)}
-
-=== RECURSOS E INSPIRACIONES ===
-${contextData.resources.substring(0, 10000)}
-
-=== ENTIDADES PROCESADAS (WorldEntities) ===
-${contextData.worldEntities.substring(0, 10000)}
-`.trim();
-
-    const outputInstructions = isCreativeBlock
-        ? `
-MODO: EXPLORACIÓN SOCRÁTICA (El usuario tiene parálisis creativa, no errores)
-
-En lugar de generar una lista de disonancias formales, genera:
-1. Un "initialMessage" que reconoce lo que el autor ya tiene construido.
-2. Haz 2-3 preguntas socráticas específicas que ayuden al autor a definir su siguiente paso concreto.
-3. El array "items" debe estar VACÍO: [].
-4. "projectSummary" describe el estado actual del proyecto en términos de potencial, no de carencias.
-
-NO generes códigos ARQ ni disonancias. El objetivo es desbloquear, no auditar.`
-        : `
-MODO: AUDITORÍA NARRATIVA (El usuario tiene un objetivo claro o hay inconsistencias)
-
-Genera el análisis completo con disonancias formales según las instrucciones de foco y severidad. El array "items" debe contener los problemas detectados.`;
-
-    return `Eres El Arquitecto. Analiza el proyecto "${escapePromptVariable(projectName)}".
-
-${mainObjective}
-
-APLICA ESTAS TRES DIRECTIVAS ABSOLUTAS:
-1. DIRECTIVA DE ENTROPÍA (Frieren): Si algo es antiguo o eterno, exige saber qué se pudrió, qué se olvidó o qué mito se distorsionó con el tiempo.
-2. DIRECTIVA DE REACCIÓN (Munchkin): Si el autor crea un poder o recurso absoluto, asume que el mundo ya reaccionó. Exige saber quién tiene el monopolio y cómo aplasta a la competencia.
-3. DIRECTIVA DE RESONANCIA TEMÁTICA: Si una regla del mundo no le hace la vida miserable al protagonista o no presiona su herida interna, es una regla inútil. Exige que la conecten con la trama.
-
-${focusInstructions}
-${severityInstructions}
-
-${fullContext}
-
-JERARQUÍA DE RESOLUCIÓN (ORDEN OBLIGATORIO):
-- MACRO: Reglas del mundo, sistemas de magia, física, economía, cosmología, historia, cultura.
-- MESO: Estructura de trama principal, facciones, política, arcos de personajes a gran escala.
-- MICRO: Acciones de personajes específicos, diálogos, huecos menores en escenas concretas.
-Las disonancias MACRO van SIEMPRE primero. Si resuelves MACRO, muchos MICRO se resuelven solos.
-
-${outputInstructions}
-
-Genera un "initialMessage" extenso, inmersivo. Diagnóstico brutal pero constructivo del estado de la obra.
-FORMATO: Markdown. Párrafos cortos. Negritas para conceptos clave. Viñetas si listas.
-
-Responde SOLO con JSON:
-{
-  "initialMessage": "Diagnóstico extenso en Markdown...",
-  "items": [
-    {
-      "code": "ARQ-001",
-      "severity": "critical",
-      "title": "Título corto del problema",
-      "description": "Explicación detallada de la disonancia y por qué rompe la historia.",
-      "layer": "MACRO",
-      "relatedFiles": ["archivo.md"],
-      "category": "worldbuilding",
-      "resolved": false
-    }
-  ],
-  "projectSummary": "Estado del proyecto en 2-3 oraciones."
-}
-
-Si no encuentras problemas reales, genera menos. No inventes.
-Detecta el idioma del contenido y responde en ese idioma.`;
-}
+// Function buildAnalysisPrompt replaced by prompt_manager
 
 // ─────────────────────────────────────────────
 // FUNCIÓN 1: arquitectoInitialize
@@ -654,13 +486,7 @@ export const arquitectoInitialize = onCall(
         if (culturalDocument?.fileData && culturalDocument?.mimeType) {
             try {
                 logger.info(`📚 [ARQUITECTO] Procesando documento cultural: ${culturalDocument.fileName}`);
-                const culturalPrompt = `
-Eres un historiador y analista cultural. Analiza este documento y extrae:
-1. Los elementos culturales clave (música, arte, tradiciones, valores)
-2. Cómo estos elementos podrían inspirar worldbuilding en una obra de ficción
-3. Tensiones narrativas interesantes que emergen de esta cultura
-
-Responde en 3-5 párrafos concisos. No inventes datos que no estén en el documento.`;
+                const culturalPrompt = getPrompt(request.data._lang || 'es', 'architectCultural');
 
                 const culturalResult = await smartGenerateContent(genAI, culturalPrompt, {
                     _tier: tier, taskType: 'deep_analysis',
@@ -758,7 +584,7 @@ Responde en 3-5 párrafos concisos. No inventes datos que no estén en el docume
         const arquitectoMode = await classifyArquitectoMode(genAI, implementationGoal || '', tier);
         logger.info(`[arquitectoInitialize] Goal: "${implementationGoal}" → Modo: ${arquitectoMode}`);
 
-        const analysisPrompt = buildAnalysisPrompt(projectName, contextData, {
+        const analysisPrompt = getPrompt(request.data._lang || 'es', 'architectAnalysis', projectName, contextData, {
             focusMode,
             severityMode,
             implementationGoal,
@@ -1006,6 +832,7 @@ Responde SOLO con una de estas palabras exactas: DEBATE, RESOLUCION, REFUTACION,
 
 /** Prompt para DEBATE: El Arquitecto presiona y desafía sin resolver. */
 function buildDebatePrompt(
+    lang: string,
     activePendingItem: PendingItem | null,
     historyText: string,
     userMessage: string,
@@ -1027,7 +854,7 @@ IMPORTANTE: Estas reglas ya están acordadas con el autor. No las cuestiones ni 
 `
         : '';
 
-    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+    return `${getPrompt(lang, 'architectSystem')}
 ${resolvedSummary}
 ${disonancia}
 
@@ -1055,12 +882,13 @@ MENSAJE DEL AUTOR: "${escapePromptVariable(userMessage)}"`;
  * independientemente de si hay o no una disonancia activa.
  */
 function buildExploracionChatPrompt(
+    lang: string,
     historyText: string,
     userMessage: string,
     worldEntitiesContext: string,
     implementationGoal: string
 ): string {
-    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+    return `${getPrompt(lang, 'architectSystem')}
 
 RUTA ACTIVA: EXPLORACIÓN SOCRÁTICA
 El autor no necesita auditoría en este momento. Indica bloqueo creativo o falta de dirección.
@@ -1087,6 +915,7 @@ MENSAJE DEL AUTOR: "${escapePromptVariable(userMessage)}"`;
 
 /** Prompt para REFUTACION: El Arquitecto evalúa si la defensa es válida. */
 function buildRefutacionPrompt(
+    lang: string,
     activePendingItem: PendingItem | null,
     historyText: string,
     userMessage: string
@@ -1096,7 +925,7 @@ function buildRefutacionPrompt(
 ${activePendingItem.title}: ${activePendingItem.description}`
         : 'Sin disonancia activa.';
 
-    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+    return `${getPrompt(lang, 'architectSystem')}
 
 ${disonancia}
 
@@ -1118,12 +947,13 @@ Responde indicando: [REFUTACIÓN VÁLIDA] o [REFUTACIÓN INVÁLIDA] al inicio, l
 
 /** Prompt para CONSULTA: El Arquitecto lee el lore y responde directamente. */
 function buildConsultaPrompt(
+    lang: string,
     historyText: string,
     userMessage: string,
     canonContext: string,
     worldEntitiesContext: string
 ): string {
-    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+    return `${getPrompt(lang, 'architectSystem')}
 
 RUTA: CONSULTA — El autor busca información sobre el canon existente.
 
@@ -1148,6 +978,7 @@ CONSULTA: "${escapePromptVariable(userMessage)}"`;
 
 /** Prompt para RESOLUCION: El Arquitecto acepta, hace El Espejo y genera parches. */
 function buildResolucionPrompt(
+    lang: string,
     activePendingItem: PendingItem,
     historyText: string,
     userMessage: string,
@@ -1159,7 +990,7 @@ function buildResolucionPrompt(
         ? `\n=== RESOLUCIONES PREVIAS ACORDADAS (CANON ESTABLECIDO) ===\n${resolvedItems.map(i => `- [${i.code}] ${i.title}: ${i.resolutionText || 'Resuelto.'}`).join('\n')}\nIMPORTANTE: Estas reglas ya están acordadas con el autor. No las cuestiones ni las repitas como problemas.\n`
         : '';
 
-    return `${ARQUITECTO_SYSTEM_INSTRUCTION}
+    return `${getPrompt(lang, 'architectSystem')}
 ${resolvedSummary}
 RUTA: RESOLUCIÓN — El autor da una instrucción clara para resolver la disonancia.
 
@@ -1700,6 +1531,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
         if (intent === 'EXPLORACION') {
             // Ruta de Exploración Socrática — el usuario tiene bloqueo creativo
             const prompt = buildExploracionChatPrompt(
+                request.data._lang || 'es',
                 recentHistoryText,
                 query || '',
                 contextData.worldEntities,
@@ -1715,8 +1547,8 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
 
         } else if (intent === 'DEBATE' || intent === 'CONSULTA') {
             const prompt = intent === 'CONSULTA'
-                ? buildConsultaPrompt(recentHistoryText, query || '', contextData.canon, contextData.worldEntities)
-                : buildDebatePrompt(activePendingItem, recentHistoryText, query || '', contextData.worldEntities, resolvedItems);
+                ? buildConsultaPrompt(request.data._lang || 'es', recentHistoryText, query || '', contextData.canon, contextData.worldEntities)
+                : buildDebatePrompt(request.data._lang || 'es', activePendingItem, recentHistoryText, query || '', contextData.worldEntities, resolvedItems);
 
             const result = await smartGenerateContent(genAI, prompt, {
                 _tier: tier,
@@ -1727,7 +1559,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
             responseText = result.text || 'No pude procesar esa consulta. ¿Puedes reformularla?';
 
         } else if (intent === 'REFUTACION') {
-            const prompt = buildRefutacionPrompt(activePendingItem, recentHistoryText, query || '');
+            const prompt = buildRefutacionPrompt(request.data._lang || 'es', activePendingItem, recentHistoryText, query || '');
             const result = await smartGenerateContent(genAI, prompt, {
                 _tier: tier,
                 taskType: 'deep_analysis',
@@ -1747,7 +1579,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
             }
 
         } else if (intent === 'CONFIRMACION') {
-            const confirmacionPrompt = `${ARQUITECTO_SYSTEM_INSTRUCTION}
+            const confirmacionPrompt = `${getPrompt(request.data._lang || 'es', 'architectSystem')}
 
 RUTA: CONFIRMACIÓN — El autor aceptó continuar.
 
@@ -1767,7 +1599,7 @@ Máximo 150 palabras. Un solo desafío.`;
             responseText = result.text || 'Entendido. Pasemos al siguiente punto.';
 
         } else if (intent === 'RESOLUCION' && activePendingItem) {
-            const prompt = buildResolucionPrompt(activePendingItem, recentHistoryText, query || '', contextData.canon, resolvedItems);
+            const prompt = buildResolucionPrompt(request.data._lang || 'es', activePendingItem, recentHistoryText, query || '', contextData.canon, resolvedItems);
             const result = await smartGenerateContent(genAI, prompt, {
                 _tier: tier,
                 taskType: 'deep_analysis',
@@ -1939,7 +1771,7 @@ export const arquitectoAnalyze = onCall(
         const analyzeMode = await classifyArquitectoMode(genAI, implementationGoal, tier);
         logger.info(`[arquitectoAnalyze] Goal: "${implementationGoal}" → Modo: ${analyzeMode}`);
 
-        const analysisPrompt = buildAnalysisPrompt(projectName, contextData, {
+        const analysisPrompt = getPrompt(request.data._lang || 'es', 'architectAnalysis', projectName, contextData, {
             focusMode,
             severityMode,
             implementationGoal,

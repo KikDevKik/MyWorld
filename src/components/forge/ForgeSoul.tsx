@@ -5,6 +5,8 @@ import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { Character, EntityCategory } from '../../types';
 import HybridEditor from '../../editor/HybridEditor';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ForgeSoulProps {
     activeChar: Character;
@@ -12,6 +14,9 @@ interface ForgeSoulProps {
 }
 
 const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
+    const { currentLanguage } = useLanguageStore();
+    const tForge = TRANSLATIONS[currentLanguage].forgeSoul;
+
     const [content, setContent] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -29,7 +34,7 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
                     setContent(result.content || '');
                 } catch (error) {
                     console.error("Error fetching soul content:", error);
-                    toast.error("Failed to load Master File.");
+                    toast.error(tForge.failedLoad);
                 } finally {
                     setIsLoading(false);
                 }
@@ -90,8 +95,8 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
                     {!isBestiary && <FileText size={16} />}
 
                     <span>
-                        {activeChar.tier === 'SUPPORTING' ? "FRAGMENTO LOCAL (Read Only)" :
-                         (isBestiary ? "REGISTRO DE BESTIARIO" : "ARCHIVO MAESTRO")}
+                        {activeChar.tier === 'SUPPORTING' ? tForge.localFragment :
+                         (isBestiary ? tForge.bestiaryRecord : tForge.masterFile)}
                     </span>
                 </div>
 
@@ -101,7 +106,7 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
                         className="flex items-center gap-2 px-3 py-1.5 bg-accent-DEFAULT/10 hover:bg-accent-DEFAULT/20 text-accent-DEFAULT text-xs font-bold rounded-lg border border-accent-DEFAULT/30 transition-all"
                     >
                         <ArrowUpCircle size={14} />
-                        <span>Promote to Master</span>
+                        <span>{tForge.promoteToMaster}</span>
                     </button>
                 ) : (
                     // Template Injector for Empty Files
@@ -111,7 +116,7 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
                             className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-bold rounded-lg border border-purple-500/30 transition-all"
                         >
                             <Zap size={14} />
-                            <span>Usar Plantilla Bestiario</span>
+                            <span>{tForge.useTemplate}</span>
                         </button>
                     )
                 )}

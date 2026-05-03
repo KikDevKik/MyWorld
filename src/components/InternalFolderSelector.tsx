@@ -4,6 +4,8 @@ import { ChevronRight, ChevronDown, Folder, Check, X, AlertTriangle, Inbox } fro
 import { DriveFile } from '../types';
 import { EntityService } from '../services/EntityService';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface InternalFolderSelectorProps {
     onFolderSelected: (folder: { id: string; name: string; path?: string }) => void;
@@ -84,6 +86,9 @@ const SelectorNode: React.FC<{
 
 // 🟢 MAIN COMPONENT
 const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolderSelected, onCancel, currentFolderId }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+
     const [tree, setTree] = useState<DriveFile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEmpty, setIsEmpty] = useState(false);
@@ -159,7 +164,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                             <Folder size={18} />
                         </div>
                         <div>
-                            <h2 className="font-bold text-base text-zinc-100">Seleccionar Categoría (Carpeta)</h2>
+                            <h2 className="font-bold text-base text-zinc-100">{t.common?.selectCategory || "Seleccionar Categoría (Carpeta)"}</h2>
                             <p className="text-[10px] text-zinc-500 font-mono tracking-wider">WORLD_ENTITIES :: READY</p>
                         </div>
                     </div>
@@ -177,7 +182,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-40 text-zinc-500 gap-3">
                             <div className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin"></div>
-                            <p className="text-xs font-mono">SCANNING ENTITIES...</p>
+                            <p className="text-xs font-mono">{t.common?.scanningEntities || "SCANNING ENTITIES..."}</p>
                         </div>
                     ) : isEmpty ? (
                         <div className="flex flex-col items-center justify-center h-full text-zinc-500 gap-4 p-8 text-center">
@@ -185,9 +190,9 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                                 <AlertTriangle size={24} />
                             </div>
                             <div>
-                                <h3 className="text-zinc-300 font-bold mb-1 text-sm">Sin Categorías</h3>
+                                <h3 className="text-zinc-300 font-bold mb-1 text-sm">{t.common?.noCategories || "Sin Categorías"}</h3>
                                 <p className="text-xs max-w-[200px] mx-auto text-zinc-600">
-                                    No hay entidades indexadas.
+                                    {t.common?.noIndexedEntities || "No hay entidades indexadas."}
                                 </p>
                             </div>
                         </div>
@@ -201,7 +206,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
                                 <div className="shrink-0 text-emerald-500 group-hover:text-emerald-400">
                                     <Inbox size={16} />
                                 </div>
-                                <span className="text-sm truncate font-medium flex-1">Use Default / Create "Inbox"</span>
+                                <span className="text-sm truncate font-medium flex-1">{t.common?.useDefaultInbox || "Use Default / Create 'Inbox'"}</span>
                             </div>
 
                             <div className="h-px bg-white/5 my-2" />

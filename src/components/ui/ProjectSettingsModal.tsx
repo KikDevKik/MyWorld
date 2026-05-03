@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
-import { X, Plus, Trash2, Save, Folder, Book, Star, Brain, Cpu, LayoutTemplate } from 'lucide-react';
+import { X, Plus, Trash2, Save, Folder, Book, Star, Brain, Cpu, LayoutTemplate, Download, Loader2, CheckCircle2, FolderOpen, CheckCircle } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import useDrivePicker from 'react-google-drive-picker';
 import { ProjectPath, FolderRole, ProjectConfig } from '../../types/project'; // Corrected import
 import { callFunction } from '../../services/api';
+import { requestImportScope, getImportToken, clearImportToken } from '../../services/importAuth';
 
 interface ProjectSettingsModalProps {
     onClose: () => void;
@@ -14,7 +15,7 @@ interface ProjectSettingsModalProps {
 }
 
 const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, accessToken }) => {
-    const { config, updateConfig, loading } = useProjectConfig();
+    const { config, updateConfig, refreshConfig, loading } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
 
@@ -25,12 +26,219 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
     const [isSaving, setIsSaving] = useState(false);
     const [activeTab, setActiveTab] = useState<'paths' | 'taxonomy'>('paths');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [importState, setImportState] = useState<'unauthorized' | 'authorized' | 'routing' | 'copying' | 'done'>('unauthorized');
+    const [copiedCount, setCopiedCount] = useState(0);
+    const [totalFiles, setTotalFiles] = useState(0);
+    const [pendingFolders, setPendingFolders] = useState<any[]>([]); // Folders waiting for routing decision
     const [folderNames, setFolderNames] = useState<Record<string, string>>({}); // 🟢 Cache for names
 
     const modalRef = useRef<HTMLDivElement>(null);
 
     // Google Drive Picker Hook
     const [openPicker] = useDrivePicker();
+
+    // 🟢 MIGRACIÓN DE PROYECTO (Incremental Scope)
+    const handleRequestImportScope = async () => {
+        try {
+            await requestImportScope();
+            setImportState('authorized');
+            toast.success("Acceso concedido temporalmente.");
+        } catch (error) {
+            toast.error("No se pudo obtener la autorización.");
+        }
+    };
+
+    const handleOpenFolderPicker = async () => {
+        const importToken = getImportToken();
+        if (!importToken) {
+            toast.error('Token de importación no disponible. Autoriza de nuevo.');
+            setImportState('unauthorized');
+            return;
+        }
+
+        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+        if (!clientId || !developerKey) {
+            toast.error("Falta configuración de Google Drive en las variables de entorno.");
+            return;
+        }
+
+        // 🟢 SOLUCIÓN 1: CREACIÓN JUST-IN-TIME (Frontend Safeguard)
+        if (!config?.folderId) {
+            toast.info("Creando tu Bóveda base en Google Drive para alojar la importación...", { duration: 5000 });
+            try {
+                const token = accessToken;
+                if (!token) {
+                    toast.error("Falta token principal para crear carpetas.");
+                    return;
+                }
+                const data = await callFunction<any>('createTitaniumStructure', { accessToken: token, newProjectName: "MyWorld Import" });
+                if (data.success) {
+                    if (data.mapping) setFolderMapping(data.mapping);
+                    if (data.canonPaths) setCanonPaths(data.canonPaths);
+                    if (data.resourcePaths) setResourcePaths(data.resourcePaths);
+                    await refreshConfig();
+                    toast.success("Bóveda base creada exitosamente.");
+                } else {
+                    toast.error("No se pudo crear la bóveda.");
+                    return;
+                }
+            } catch (e: any) {
+                console.error(e);
+                toast.error("Error crítico al crear la bóveda: " + e.message);
+                return;
+            }
+        }
+
+        let customViews: any[] | undefined;
+        if (window.google && window.google.picker) {
+            const view = new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS);
+            view.setIncludeFolders(true);
+            view.setSelectFolderEnabled(true);
+            view.setMimeTypes("application/vnd.google-apps.folder");
+            view.setQuery("trashed=false");
+            customViews = [view];
+        }
+
+        openPicker({
+            clientId,
+            developerKey,
+            viewId: "FOLDERS",
+            viewMimeTypes: "application/vnd.google-apps.folder",
+            setIncludeFolders: true,
+            setSelectFolderEnabled: true,
+            multiselect: true, // SOLUCIÓN 3: Multiselect activado
+            supportDrives: true,
+            token: importToken,
+            customViews: customViews,
+            callbackFunction: async (data) => {
+                if (data.action === 'picked') {
+                    if (data.docs.length === 0) return;
+                    
+                    // Almacenamos las carpetas seleccionadas y pasamos al paso de enrutamiento
+                    setPendingFolders(data.docs);
+                    setImportState('routing');
+                }
+            }
+        });
+    };
+
+    // Helper para cambiar el rol de una carpeta en la lista de enrutamiento
+    const handleUpdateFolderRoute = (index: number, role: 'canon' | 'resource' | 'root') => {
+        const newFolders = [...pendingFolders];
+        newFolders[index].targetRole = role;
+        setPendingFolders(newFolders);
+    };
+
+    // Ejecuta la copia real después del enrutamiento
+    const handleExecuteImport = async () => {
+        const importToken = getImportToken();
+        const sessionToken = accessToken; // El token principal con permisos de escritura
+        if (!importToken || !sessionToken || !config?.folderId) return;
+
+        // Validar que todas tengan rol asignado
+        const unassigned = pendingFolders.find(f => !f.targetRole);
+        if (unassigned) {
+            toast.warning(`Debes seleccionar el rol para la carpeta "${unassigned.name}"`);
+            return;
+        }
+
+        setImportState('copying');
+        setCopiedCount(0);
+        setTotalFiles(pendingFolders.length); // Representa total de carpetas a procesar
+
+        try {
+            let currentRootId = config.folderId;
+            let totalImportedFiles = 0;
+            let hasErrors = false;
+            let currentFolderIndex = 0;
+
+            const newCanonPaths = [...canonPaths];
+            const newResourcePaths = [...resourcePaths];
+
+            for (const f of pendingFolders) {
+                setCopiedCount(currentFolderIndex); // Actualiza progreso visual (carpetas)
+                
+                try {
+                    const mappedFolder = [{
+                        folderId: f.id,
+                        folderName: f.name,
+                        role: f.targetRole
+                    }];
+
+                    // Llamada independiente al backend POR CADA carpeta (resetea el timeout de 5 min)
+                    const result = await callFunction<any>('importDriveFolder', {
+                        folders: mappedFolder,
+                        projectRootId: currentRootId,
+                        importToken,
+                        sessionToken
+                    });
+
+                    if (result.success) {
+                        totalImportedFiles += result.copied;
+                        
+                        // Si el Ghost Detector creó una raíz de emergencia en la primera iteración,
+                        // la guardamos para que las siguientes carpetas vayan al mismo lugar.
+                        if (result.newFolderId && result.newFolderId !== currentRootId) {
+                            currentRootId = result.newFolderId;
+                        }
+
+                        // Agregar la nueva carpeta (devuelta en result.files) a la lista correspondiente
+                        if (result.createdFolders && result.createdFolders.length > 0) {
+                            const clonedFolder = result.createdFolders[0];
+                            if (clonedFolder.id) {
+                                const newPath: ProjectPath = { id: clonedFolder.id, name: clonedFolder.name || f.name };
+                                if (f.targetRole === 'canon') {
+                                    newCanonPaths.push(newPath);
+                                } else if (f.targetRole === 'resource') {
+                                    newResourcePaths.push(newPath);
+                                }
+                            }
+                        }
+                    }
+                } catch (e: any) {
+                    console.error(`Error importando carpeta ${f.name}:`, e);
+                    toast.error(`Fallo importando "${f.name}": ${e.message}`);
+                    hasErrors = true;
+                }
+                
+                currentFolderIndex++;
+            }
+
+            setCopiedCount(pendingFolders.length); // 100%
+            
+            // Actualizar el estado visual de las rutas
+            setCanonPaths(newCanonPaths);
+            setResourcePaths(newResourcePaths);
+
+            // 🟢 AUTO-GUARDAR LA CONFIGURACIÓN DEL PROYECTO INMEDIATAMENTE
+            try {
+                await callFunction('saveProjectConfig', {
+                    folderId: currentRootId !== config.folderId ? currentRootId : config.folderId,
+                    canonPaths: newCanonPaths,
+                    resourcePaths: newResourcePaths
+                });
+                await refreshConfig();
+            } catch (saveError) {
+                console.error("No se pudo guardar la taxonomía automáticamente", saveError);
+            }
+            
+            if (hasErrors) {
+                toast.warning(`Migración finalizada con algunos errores. ${totalImportedFiles} archivos copiados.`);
+            } else {
+                toast.success(`Migración completada. ${totalImportedFiles} archivos copiados exitosamente.`);
+            }
+            
+            setImportState('done');
+            clearImportToken();
+            
+        } catch (error: any) {
+            console.error("Error crítico en bucle de importación:", error);
+            toast.error(`Error de sistema: ${error.message}`);
+            setImportState('authorized'); // Devolver estado si colapsa todo
+        }
+    };
 
     // 🎨 PALETTE: Focus trap & Escape key
     useEffect(() => {
@@ -166,62 +374,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
         }
     };
 
-    const handleOpenPicker = (
-        setList: (l: ProjectPath[]) => void,
-        currentList: ProjectPath[],
-        singleSelect: boolean = false
-    ) => {
-        const token = accessToken;
-        if (!token) {
-            alert("No hay token de acceso. Por favor recarga la página o inicia sesión de nuevo.");
-            return;
-        }
-
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
-
-        if (!clientId || !developerKey) {
-            alert("Falta configuración de API Key o Client ID en las variables de entorno (VITE_GOOGLE_CLIENT_ID, VITE_GOOGLE_API_KEY).");
-            return;
-        }
-
-        openPicker({
-            clientId: clientId,
-            developerKey: developerKey,
-            viewId: "FOLDERS",
-            viewMimeTypes: "application/vnd.google-apps.folder",
-            setSelectFolderEnabled: true,
-            setIncludeFolders: true,
-            setOrigin: window.location.protocol + '//' + window.location.host,
-            token: token,
-            showUploadView: false,
-            showUploadFolders: false,
-            supportDrives: true,
-            multiselect: !singleSelect,
-            callbackFunction: (data) => {
-                if (data.action === 'picked') {
-                    const newPaths: ProjectPath[] = data.docs.map((doc: any) => ({
-                        id: doc.id,
-                        name: doc.name
-                    }));
-
-                    if (singleSelect) {
-                        // For chronologyPath, we expect a setter for a single object
-                    } else {
-                        // Prevent duplicates
-                        const uniquePaths = [...currentList];
-                        newPaths.forEach(p => {
-                            if (!uniquePaths.find(existing => existing.id === p.id)) {
-                                uniquePaths.push(p);
-                            }
-                        });
-                        setList(uniquePaths);
-                    }
-                }
-            },
-        });
-    };
-
     // Helper to manage list inputs
     const removePath = (list: ProjectPath[], setList: (l: ProjectPath[]) => void, index: number) => {
         const newList = [...list];
@@ -251,9 +403,14 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
 
             if (data.suggestion && Object.keys(data.suggestion).length > 0) {
                 setFolderMapping(prev => ({ ...prev, ...data.suggestion }));
-                toast.success(`Se detectaron ${Object.keys(data.suggestion).length} roles.`);
+                
+                // Update lists if backend provided them
+                if (data.canonPaths) setCanonPaths(data.canonPaths);
+                if (data.resourcePaths) setResourcePaths(data.resourcePaths);
+
+                toast.success(`Se detectaron ${Object.keys(data.suggestion).length} roles y se actualizaron las rutas.`);
             } else {
-                toast.warning("No se pudieron deducir roles automáticamente.");
+                toast.warning(data.message || "No se pudieron deducir roles automáticamente.");
             }
         } catch (e) {
             console.error(e);
@@ -334,33 +491,32 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                 </label>
 
                 <div className="space-y-2">
-                    {paths.map((path, idx) => {
-                        return (
-                            <div key={path.id} className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50 transition-all duration-300">
-                                <div className="flex items-center gap-3">
-                                    <div className="flex flex-col">
-                                        <span className="text-sm font-medium text-titanium-200">
-                                            {path.name}
-                                        </span>
-                                        <span className="text-[10px] text-titanium-500 font-mono">{path.id}</span>
+                    {paths.length === 0 ? (
+                        <div className="flex items-center justify-center p-4 bg-titanium-800/30 border border-dashed border-titanium-700/50 rounded text-titanium-500 text-xs text-center">
+                            Aquí irán tus carpetas importadas o creadas.
+                        </div>
+                    ) : (
+                        paths.map((path, idx) => {
+                            return (
+                                <div key={path.id} className="flex items-center justify-between bg-titanium-800/50 px-3 py-2 rounded border border-titanium-700/50 transition-all duration-300">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex flex-col">
+                                            <span className="text-sm font-medium text-titanium-200">
+                                                {path.name}
+                                            </span>
+                                            <span className="text-[10px] text-titanium-500 font-mono">{path.id}</span>
+                                        </div>
                                     </div>
+                                    <button
+                                        onClick={() => removePath(paths, setPaths, idx)}
+                                        className="text-titanium-500 hover:text-red-400 transition-colors"
+                                    >
+                                        <Trash2 size={14} />
+                                    </button>
                                 </div>
-                                <button
-                                    onClick={() => removePath(paths, setPaths, idx)}
-                                    className="text-titanium-500 hover:text-red-400 transition-colors"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        );
-                    })}
-
-                    <button
-                        onClick={() => handleOpenPicker(setPaths, paths)}
-                        className="w-full flex items-center justify-center gap-2 py-2 bg-titanium-800/30 hover:bg-titanium-800 border border-dashed border-titanium-600 rounded-md text-titanium-400 hover:text-titanium-200 transition-all text-sm"
-                    >
-                        <Plus size={14} /> Añadir Carpeta desde Drive
-                    </button>
+                            );
+                        })
+                    )}
                 </div>
             </div>
         );
@@ -418,8 +574,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                 <div className="p-6 border-b border-titanium-700/50 bg-titanium-800/30">
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <h2 id="project-settings-title" className="text-xl font-bold text-titanium-100">Configuración del Proyecto</h2>
-                            <p className="text-sm text-titanium-400 mt-1">Define la estructura semántica de tu mundo.</p>
+                            <h2 id="project-settings-title" className="text-xl font-bold text-titanium-100">{t.settings.title}</h2>
+                            <p className="text-sm text-titanium-400 mt-1">{t.settings.subtitle}</p>
                         </div>
                         <button
                             onClick={onClose}
@@ -442,7 +598,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                 : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
                                 }`}
                         >
-                            <Folder size={14} /> Rutas de Acceso
+                            <Folder size={14} /> {t.settings.accessPaths}
                         </button>
                         <button
                             onClick={() => setActiveTab('taxonomy')}
@@ -454,7 +610,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                 : 'text-titanium-400 hover:text-titanium-200 hover:bg-titanium-800/50'
                                 }`}
                         >
-                            <Brain size={14} /> Taxonomía (Cerebro)
+                            <Brain size={14} /> {t.settings.taxonomy}
                         </button>
                     </div>
                 </div>
@@ -463,19 +619,166 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                 <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-titanium-700 scrollbar-track-transparent">
 
                     {activeTab === 'paths' && (
-                        <div id="project-settings-paths" className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in slide-in-from-left-4 duration-300">
-                            <PathListInput
-                                label="Rutas Canon (Verdad Absoluta)"
-                                paths={canonPaths}
-                                setPaths={setCanonPaths}
-                                icon={Book}
-                            />
-                            <PathListInput
-                                label="Rutas de Recursos (Inspiración)"
-                                paths={resourcePaths}
-                                setPaths={setResourcePaths}
-                                icon={Star}
-                            />
+                        <div id="project-settings-paths" className="space-y-8 animate-in slide-in-from-left-4 duration-300">
+                            
+                            {/* Import Old Work Header */}
+                            <div className="bg-titanium-950/30 p-4 rounded-lg border border-titanium-800 space-y-4">
+                                
+                                {/* Header Title */}
+                                <div>
+                                    <h3 className="text-sm font-bold text-titanium-200 flex items-center gap-2">
+                                        <Download size={16} className="text-cyan-500" /> {t.settings.migrateDrive}
+                                    </h3>
+                                </div>
+
+                                {/* State 1: Unauthorized */}
+                                {importState === 'unauthorized' && (
+                                    <div className="space-y-4 animate-in fade-in duration-300">
+                                        <p className="text-xs text-titanium-400 leading-relaxed">
+                                            Para importar una carpeta completa, MyWorld necesita acceso 
+                                            temporal de solo-lectura a tu Drive. Este acceso se usa 
+                                            únicamente para copiar tus archivos y luego se descarta.
+                                        </p>
+                                        <button
+                                            onClick={handleRequestImportScope}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/30 text-cyan-400 text-sm font-medium rounded-lg transition-colors"
+                                        >
+                                            <FolderOpen size={15} />
+                                            {t.settings.authorizeImport}
+                                        </button>
+                                        <p className="text-[10px] text-titanium-500 text-center mt-2">
+                                            Google te mostrará una pantalla de consentimiento adicional
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* State 2: Authorized */}
+                                {importState === 'authorized' && (
+                                    <div className="space-y-3 animate-in fade-in duration-300">
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                            <CheckCircle size={13} className="text-emerald-400" />
+                                            <p className="text-xs text-emerald-400">
+                                                Acceso de importación concedido temporalmente
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={handleOpenFolderPicker}
+                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 text-titanium-300 text-sm rounded-lg transition-colors"
+                                        >
+                                            <Folder size={15} className="text-cyan-400" />
+                                            Seleccionar carpeta de mi proyecto
+                                        </button>
+                                    </div>
+                                )}
+
+                                {/* State 3: Routing (Wizard Step) */}
+                                {importState === 'routing' && (
+                                    <div className="space-y-4 animate-in fade-in duration-300">
+                                        <p className="text-xs text-titanium-400">
+                                            Seleccionaste {pendingFolders.length} carpetas. ¿A dónde debería ir cada una?
+                                        </p>
+                                        
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-titanium-700">
+                                            {pendingFolders.map((folder, index) => (
+                                                <div key={folder.id} className="flex flex-col gap-1.5 p-3 bg-titanium-800/50 rounded border border-titanium-700">
+                                                    <div className="flex items-center gap-2 text-sm text-titanium-200 font-medium">
+                                                        <Folder size={14} className="text-cyan-500 shrink-0" />
+                                                        <span className="truncate">{folder.name}</span>
+                                                    </div>
+                                                    
+                                                    <select
+                                                        value={folder.targetRole || ''}
+                                                        onChange={(e) => handleUpdateFolderRoute(index, e.target.value as any)}
+                                                        className="w-full bg-titanium-900 text-xs text-titanium-300 border border-titanium-600 rounded px-2 py-1.5 focus:border-cyan-500 outline-none"
+                                                    >
+                                                        <option value="" disabled>Asignar Rol Funcional...</option>
+                                                        <option value="canon">Canon (Añadir a Rutas Canon)</option>
+                                                        <option value="resource">Recurso (Añadir a Rutas de Recursos)</option>
+                                                        <option value="root">Dejar en la Raíz (Sin organizar)</option>
+                                                    </select>
+                                                </div>
+                                            ))}
+                                        </div>
+
+                                        <div className="flex gap-2 pt-2 border-t border-titanium-700/50">
+                                            <button
+                                                onClick={() => { setImportState('authorized'); setPendingFolders([]); }}
+                                                className="flex-1 py-2 bg-titanium-800 hover:bg-titanium-700 text-xs font-medium text-titanium-300 rounded transition-colors"
+                                            >
+                                                Cancelar
+                                            </button>
+                                            <button
+                                                onClick={handleExecuteImport}
+                                                className="flex-1 py-2 bg-cyan-600 hover:bg-cyan-500 text-xs font-medium text-white rounded transition-colors"
+                                            >
+                                                Iniciar Copia
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* State 4: Copying */}
+                                {importState === 'copying' && (
+                                    <div className="space-y-3 animate-in fade-in duration-300">
+                                        <div className="flex items-center gap-2">
+                                            <Loader2 size={13} className="text-cyan-400 animate-spin" />
+                                            <span className="text-sm text-titanium-400">
+                                                {totalFiles > 0 
+                                                    ? `Importando carpeta ${Math.min(copiedCount + 1, totalFiles)} de ${totalFiles}...` 
+                                                    : 'Copiando archivos recursivamente...'}
+                                            </span>
+                                        </div>
+                                        <div className="h-1.5 bg-titanium-800 rounded-full overflow-hidden">
+                                            <div 
+                                                className={`h-full bg-cyan-500 rounded-full transition-all duration-500 ${totalFiles === 0 ? 'animate-pulse w-full' : ''}`}
+                                                style={totalFiles > 0 ? { width: `${(Math.max(copiedCount, 0.5) / totalFiles) * 100}%` } : {}}
+                                            />
+                                        </div>
+                                        <p className="text-xs text-titanium-500">
+                                            Por favor no cierres esta ventana.
+                                        </p>
+                                    </div>
+                                )}
+
+                                {/* State 4: Done */}
+                                {importState === 'done' && (
+                                    <div className="space-y-3 animate-in fade-in duration-300">
+                                        <div className="flex items-start gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                                            <CheckCircle2 size={16} className="text-emerald-400 mt-0.5 shrink-0" />
+                                            <div>
+                                                <p className="text-sm font-medium text-emerald-400">
+                                                    ¡Migración completada!
+                                                </p>
+                                                <p className="text-xs text-titanium-400 mt-1">
+                                                    {totalFiles} archivos copiados a tu bóveda. 
+                                                    El acceso de importación ha sido revocado automáticamente.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setImportState('authorized')}
+                                            className="w-full py-2 bg-titanium-800 hover:bg-titanium-700 text-xs font-medium text-titanium-300 rounded transition-colors"
+                                        >
+                                            Importar otra carpeta
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <PathListInput
+                                    label="Rutas Canon (Verdad Absoluta)"
+                                    paths={canonPaths}
+                                    setPaths={setCanonPaths}
+                                    icon={Book}
+                                />
+                                <PathListInput
+                                    label="Rutas de Recursos (Inspiración)"
+                                    paths={resourcePaths}
+                                    setPaths={setResourcePaths}
+                                    icon={Star}
+                                />
+                            </div>
                         </div>
                     )}
 

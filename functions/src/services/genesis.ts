@@ -13,6 +13,7 @@ import { updateFirestoreTree } from "../utils/tree_utils";
 import { smartGenerateContent } from "../utils/smart_generate";
 import { parseSecureJSON } from "../utils/json";
 import { legacyTypeToTraits } from "../utils/legacy_adapter";
+import { getPrompt } from "../prompt_manager";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 
@@ -48,13 +49,14 @@ export class TitaniumGenesis {
 
         // AI Config
         aiKey: string;
+        lang?: string;
     }): Promise<{
         fileId: string;
         nexusId: string;
         webViewLink: string;
         rosterId: string;
     }> {
-        const { userId, name, context, targetFolderId, accessToken, projectId, aiKey } = payload;
+        const { userId, name, context, targetFolderId, accessToken, projectId, aiKey, lang = 'es' } = payload;
         const db = getFirestore();
 
         // 1. TRAIT INFERENCE (If not provided)
@@ -68,21 +70,7 @@ export class TitaniumGenesis {
                 } else {
                     // AI Inference
                     const genAI = new GoogleGenerativeAI(aiKey);
-                    const prompt = `
-                        TASK: Classify the Entity based on the name and context.
-                        NAME: "${name}"
-                        CONTEXT: "${context.substring(0, 1000)}"
-
-                        TRAITS (Select all that apply):
-                        - 'sentient': Has agency/dialogue (Character, AI).
-                        - 'tangible': Physical object/being.
-                        - 'locatable': Can be visited (Place).
-                        - 'temporal': Event/Scene.
-                        - 'organized': Group/Faction.
-                        - 'abstract': Concept/Lore.
-
-                        OUTPUT JSON: { "traits": ["trait1", "trait2"] }
-                    `;
+                    const prompt = getPrompt(lang, 'genesisInference', name, context);
 
                     const result = await smartGenerateContent(genAI, prompt, {
                         useFlash: true,
@@ -117,7 +105,7 @@ export class TitaniumGenesis {
         // Construct Body
         const bodyContent = payload.context.startsWith('#')
             ? payload.context // Already formatted?
-            : `## 📝 Descripción\n${payload.summary || payload.context}\n`;
+            : getPrompt(lang, 'genesisDefaultBody', payload.summary || payload.context);
 
         const entity: TitaniumEntity = {
             id: nexusId,

@@ -17,7 +17,7 @@ import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import { EntityService } from '../../services/EntityService';
 import { ToolWelcomeCard } from '../ToolWelcomeCard';
-import { TOOL_WELCOMES } from '../../config/toolWelcomes';
+import { getToolWelcomes } from '../../config/toolWelcomes';
 import { useToolWelcome } from '../../hooks/useToolWelcome';
 import { useTier } from '../../hooks/useTier';
 import { AIMotorBlockedOverlay } from '../ui/AIMotorBlockedOverlay';
@@ -267,7 +267,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     // 🟢 FILTER LOGIC
     const filterByMode = (entity: SoulEntity) => {
         if (activeMode === 'PERSON') {
-            if (personFilter === 'ALL') return !entity.category || entity.category === 'PERSON' || entity.category === 'LOCATION' || entity.category === 'OBJECT';
+            if (personFilter === 'ALL') return !entity.category || entity.category === 'PERSON' || entity.category === 'CREATURE' || entity.category === 'FLORA';
             if (personFilter === 'PERSON') return !entity.category || entity.category === 'PERSON';
             return entity.category === personFilter;
         } else {
@@ -325,7 +325,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // --- RENDER ---
 
-    if (!hasByok) return <AIMotorBlockedOverlay toolName="La Forja" />;
+    if (!hasByok) return <AIMotorBlockedOverlay toolName={t.forge?.toolName || "La Forja"} />;
 
     return (
         <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
@@ -413,7 +413,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                         onClick={() => setBestiaryFilter('BESTIA')}
                                         className={`hover:text-emerald-400 transition-colors ${bestiaryFilter === 'BESTIA' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
                                     >
-                                        Bestias
+                                        {t.bestia || 'Bestias'}
                                     </button>
                                     <button
                                         onClick={() => setBestiaryFilter('CREATURE')}
@@ -458,7 +458,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 {/* Welcome card — primera visita */}
                 {showWelcome && (
                     <ToolWelcomeCard
-                        {...TOOL_WELCOMES.forja}
+                        {...getToolWelcomes(t).forja}
                         onDismiss={dismissWelcome}
                     />
                 )}

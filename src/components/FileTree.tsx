@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
-import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare, MoreHorizontal, FolderInput } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
@@ -29,6 +29,7 @@ interface FileTreeProps {
     isDeleteMode?: boolean; // 👈 NEW: Delete Mode
     selectedDeleteIds?: Set<string>; // 👈 NEW: Selection
     onToggleDeleteSelect?: (id: string) => void; // 👈 NEW: Selection Handler
+    onMoveFile?: (fileId: string, fileName: string, parentId?: string) => void;
 }
 
 // ⚡ PERFORMANCE: Context to avoid Prop Drilling and O(N) re-renders
@@ -39,6 +40,7 @@ interface FileTreeContextValue {
     isDeleteMode?: boolean;
     selectedDeleteIds?: Set<string>;
     onToggleDeleteSelect?: (id: string) => void;
+    onMoveFile?: (fileId: string, fileName: string, parentId?: string) => void;
 }
 
 const FileTreeContext = createContext<FileTreeContextValue>({
@@ -88,11 +90,15 @@ const FileNodeRow = React.memo(({
         showOnlyHealthy,
         isDeleteMode,
         selectedDeleteIds,
-        onToggleDeleteSelect
+        onToggleDeleteSelect,
+        onMoveFile
     } = useContext(FileTreeContext);
 
     // 🟢 RENAME STATE
     const [isEditing, setIsEditing] = useState(false);
+    // 🟢 FILE ACTIONS MENU STATE
+    const [isActionsOpen, setIsActionsOpen] = useState(false);
+    const actionsRef = useRef<HTMLDivElement>(null);
     const [editName, setEditName] = useState(node.name);
     const [isSaving, setIsSaving] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -113,6 +119,18 @@ const FileNodeRow = React.memo(({
             inputRef.current.select();
         }
     }, [isEditing]);
+
+    // Close actions menu on outside click
+    useEffect(() => {
+        if (!isActionsOpen) return;
+        function handleOutside(e: MouseEvent) {
+            if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
+                setIsActionsOpen(false);
+            }
+        }
+        document.addEventListener('mousedown', handleOutside);
+        return () => document.removeEventListener('mousedown', handleOutside);
+    }, [isActionsOpen]);
 
     // 🟢 FILTER LOGIC
     if (showOnlyHealthy && isConflicting) {
@@ -167,7 +185,7 @@ const FileNodeRow = React.memo(({
     return (
         <div
             className={`
-                flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
+                group flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
                 ${isActive && !isEditing && !isDeleteMode
                     ? 'bg-cyan-900/20 text-cyan-400 font-medium'
                     : isConflicting
@@ -243,14 +261,11 @@ const FileNodeRow = React.memo(({
                     className={`text-xs truncate cursor-pointer flex-1 ${isConflicting ? 'font-bold' : ''}`}
                     onClick={(e) => {
                         if (isDeleteMode && onToggleDeleteSelect) {
-                            // In delete mode, clicking name toggles selection
                             e.stopPropagation();
                             onToggleDeleteSelect(node.id);
                             return;
                         }
-
                         if (!isFolder) {
-                            // Files select on click -> Toggle logic handles loading content
                             onToggle();
                         } else {
                             e.stopPropagation();
@@ -263,6 +278,33 @@ const FileNodeRow = React.memo(({
                 >
                     {displayName}
                 </span>
+            )}
+
+            {/* 🟢 FILE ACTIONS MENU (···) — only for files, hidden unless hovered */}
+            {!isFolder && !isDeleteMode && onMoveFile && (
+                <div className="relative shrink-0" ref={actionsRef}>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); setIsActionsOpen(v => !v); }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-titanium-600 hover:text-titanium-300 transition-all"
+                    >
+                        <MoreHorizontal size={12} />
+                    </button>
+                    {isActionsOpen && (
+                        <div className="absolute right-0 top-full mt-1 w-36 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsActionsOpen(false);
+                                    onMoveFile(node.id, node.name, node.parentId);
+                                }}
+                                className="w-full text-left px-3 py-2 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
+                            >
+                                <FolderInput size={12} className="text-amber-400" />
+                                <span>Mover a...</span>
+                            </button>
+                        </div>
+                    )}
+                </div>
             )}
         </div>
     );
@@ -444,7 +486,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     );
 });
 
-const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect }) => {
+const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect, onMoveFile }) => {
     const [rootFiles, setRootFiles] = useState<FileNode[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -502,7 +544,8 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
         showOnlyHealthy,
         isDeleteMode,
         selectedDeleteIds,
-        onToggleDeleteSelect
+        onToggleDeleteSelect,
+        onMoveFile
     };
 
     // 🛡️ BLINDAJE: (displayedFiles || []).map

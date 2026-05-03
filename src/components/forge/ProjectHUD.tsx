@@ -1,5 +1,7 @@
 import React from 'react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 // import { toast } from 'sonner';
 // import { callFunction } from '../../services/api';
 
@@ -13,6 +15,8 @@ import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 
 const ProjectHUD: React.FC = () => {
   const { config, technicalError } = useProjectConfig();
+  const { currentLanguage } = useLanguageStore();
+  const t = TRANSLATIONS[currentLanguage];
   // const [sentinel, setSentinel] = useState<SentinelStatus>({ status: 'LOADING', connection: false });
 
   // 🟢 SENTINEL DISABLED BY ORDER
@@ -81,7 +85,7 @@ const ProjectHUD: React.FC = () => {
       {/* LEFT: Project Identity */}
       <div className="flex flex-col min-w-0 w-full">
         <span className={`text-[10px] font-mono tracking-widest uppercase mb-0.5 ${isCritical ? 'text-orange-400 font-bold' : 'text-titanium-500'}`}>
-          {isCritical ? "⚠️ FALLO CRÍTICO" : "PROYECTO"}
+          {isCritical ? (t.common?.criticalFailure || "⚠️ FALLO CRÍTICO") : (t.common?.project || "PROYECTO")}
         </span>
 
         {/*

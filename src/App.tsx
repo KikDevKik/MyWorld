@@ -72,6 +72,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const { config, updateConfig, refreshConfig, loading: configLoading, technicalError, fileTree } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].toasts;
+    const tApp = TRANSLATIONS[currentLanguage].app;
     const commonT = TRANSLATIONS[currentLanguage].common;
 
     // 🟢 GLOBAL STORE CONSUMPTION
@@ -480,6 +481,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             setDriveStatus('disconnected');
 
             toast.dismiss(toastId);
+            
+            // Redirect to landing page on logout
+            window.location.href = '/';
         }
     };
 
@@ -777,7 +781,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return (
             <div className="h-screen w-screen bg-titanium-950 flex flex-col items-center justify-center text-titanium-200 gap-4">
                 <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
-                <p className="text-sm font-mono tracking-widest opacity-70">CARGANDO SISTEMAS NEURONALES...</p>
+                <p className="text-sm font-mono tracking-widest opacity-70">{tApp.loadingSystems}</p>
             </div>
         );
     }
@@ -1345,7 +1349,7 @@ function App() {
 
         const client = window.google.accounts.oauth2.initCodeClient({
             client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/drive',
+            scope: 'https://www.googleapis.com/auth/drive.file',
             ux_mode: 'popup',
             prompt: 'consent', // 👈 FORCE REFRESH TOKEN GENERATION
             callback: async (response: any) => {
@@ -1455,7 +1459,8 @@ function App() {
     useEffect(() => {
         if (securityError && !isDev) {
             console.warn("⚠️ Security Handshake Failed (Bypassed for User Access):", securityError);
-            toast.error("Advertencia de Seguridad: Conexión no verificada.", {
+            const currentLanguage = useLanguageStore.getState().currentLanguage;
+            toast.error(TRANSLATIONS[currentLanguage].app.securityWarning, {
                 description: "La validación de integridad falló (posible bloqueo de navegador). El sistema puede ser inestable.",
                 duration: 8000,
             });
@@ -1463,13 +1468,15 @@ function App() {
     }, [securityError, isDev]);
 
     if (securityError && !isDev && securityError === 'MISSING_SITE_KEY') {
+        const currentLanguage = useLanguageStore.getState().currentLanguage;
+        const tApp = TRANSLATIONS[currentLanguage].app;
         return (
             <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
                 <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
                     <AlertTriangle className="w-12 h-12" />
                 </div>
                 <div className="text-center max-w-md space-y-2">
-                    <h1 className="text-xl font-bold tracking-widest uppercase">Protocolo de Seguridad Fallido</h1>
+                    <h1 className="text-xl font-bold tracking-widest uppercase">{tApp.securityFailed}</h1>
                     <p className="text-sm text-zinc-400 font-mono">
                         {securityError === 'MISSING_SITE_KEY'
                             ? "Error Code: ENV_VAR_MISSING (VITE_RECAPTCHA_SITE_KEY)"

@@ -177,16 +177,17 @@ export const scanProjectFiles = async (
     canonConfigs: { id: string }[],
     existingNodes: GraphNode[],
     onProgress: ScanProgressCallback,
-    ignoredTerms: string[] = []
+    ignoredTerms: string[] = [],
+    t: any // 🟢 NEW: Translation object
 ): Promise<AnalysisCandidate[]> => {
 
     // 0. PRE-FLIGHT CHECK (TOKEN)
-    if (!accessToken) throw new Error("No hay token de sesión.");
+    if (!accessToken) throw new Error(t.common?.noAuthSession || "No hay token de sesión.");
 
     // Validate connectivity before starting heavy operations
     const isTokenValid = await validateToken(accessToken);
     if (!isTokenValid) {
-        throw new Error("Sesión de Drive caducada. Reconecta en Configuración.");
+        throw new Error(t.common?.sessionExpired || "Sesión de Drive caducada. Reconecta en Configuración.");
     }
 
     // 1. Filter Files (Strict Mode)
@@ -210,7 +211,7 @@ export const scanProjectFiles = async (
     }
 
     // 🟢 1.5. DIFFERENTIAL SCANNING (The Filter)
-    onProgress("Verificando actualizaciones...", 0, targetFiles.length);
+    onProgress(t.nexus?.verifyingUpdates || "Verificando actualizaciones...", 0, targetFiles.length);
     const fileMetadataMap = await fetchFileMetadata(targetFiles.map(f => f.id), accessToken);
 
     const filesToScan = targetFiles.filter(f => {
@@ -269,7 +270,7 @@ export const scanProjectFiles = async (
         const contextType = batchFiles[0].context; // Assume batch shares context type (usually per folder)
 
         // 🟢 UI FEEDBACK: BICAMERAL PROTOCOL
-        onProgress(`ANALIZANDO NOVEDADES... Lote ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} archivos).`, processedCount, batchKeys.length);
+        onProgress(`${t.nexus?.analyzingNews || "ANALIZANDO NOVEDADES"}... ${t.common?.batch || 'Lote'} ${processedCount + 1}/${batchKeys.length} (${batchFiles.length} ${t.common?.files || 'archivos'}).`, processedCount, batchKeys.length);
 
         try {
             const data = await callFunction<{ candidates: AnalysisCandidate[] }>('analyzeNexusFile', {
@@ -394,7 +395,7 @@ export const scanProjectFiles = async (
 
     // 4. Cross-Reference (Local Levenshtein & Fuzzy Matching)
     // ⚡ Bolt Optimization: Logic moved to optimized NexusMatching module
-    onProgress("Integrando conocimientos...", batchKeys.length, batchKeys.length);
+    onProgress(t.nexus?.integratingKnowledge || "Integrando conocimientos...", batchKeys.length, batchKeys.length);
 
     return resolveCandidateMatches(allCandidates, existingNodes);
 };

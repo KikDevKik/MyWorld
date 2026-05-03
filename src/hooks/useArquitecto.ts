@@ -42,6 +42,11 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         documentName: string;
         driveFileId: string | null;
         newRuleStatement: string;
+        patchInstructions: string;
+        status: 'pending' | 'approved' | 'rejected';
+        resolvedItemCode?: string;
+        createdAt?: string;
+        appliedAt?: string;
     }>>([]);
     const [focusMode, setFocusMode] = useState<'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO'>('TRIAGE');
     const [severityMode, setSeverityMode] = useState<'HIGH' | 'MEDIUM' | 'LOW' | 'ALL'>('ALL');
@@ -256,8 +261,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             fileData: string;
             mimeType: string;
         } | null;
-        forcedFocusMode?: ArquitectoFocusMode;
-        forcedSeverityMode?: ArquitectoSeverityMode;
+        forcedFocusMode?: 'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO';
+        forcedSeverityMode?: 'HIGH' | 'MEDIUM' | 'LOW' | 'ALL';
     }) => {
         if (isInitializing || !folderId) return;
         if (!accessToken) {

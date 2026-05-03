@@ -80,34 +80,177 @@ function buildPremisaContent(answers: any): string {
         answers.writerStyle === 'plotter'  ? 'Plotter — planifica antes de escribir' :
         answers.writerStyle === 'pantser'  ? 'Pantser — descubre escribiendo' :
                                              'Híbrido — esqueleto + improvisación';
-    return `# Premisa de la Historia
+    return `# Premisa
 
-## La Historia
-${answers.premise || '(Por definir)'}
+> **La pregunta narrativa de tu historia**
 
-## El Lector Ideal
-${answers.readerAge || '(Por definir)'}
-Referencias: ${answers.readerReads || '(Por definir)'}
+${answers.premise || '*(pendiente de definir)*'}
 
-## El Protagonista
-**Deseo:** ${answers.protagonistDesire || '(Por definir)'}
-**Obstáculo:** ${answers.protagonistObstacle || '(Por definir)'}
-**Creencia errónea:** ${answers.protagonistMisbelief || '(Por definir)'}
+---
 
-## El Mundo
-**Tipo:** ${answers.worldType || '(Por definir)'}
-**Regla fundamental:** ${answers.worldRule || '(Por definir)'}
+## Género y tono
+${answers.worldType || '*(pendiente de definir)*'}
 
-## El Conflicto
-**Fuerza opositora:** ${answers.antagonist || '(Por definir)'}
-**Dirección emocional del final:** ${answers.emotionalEnding || '(Por definir)'}
+## Dirección emocional
+${answers.emotionalEnding || '*(pendiente de definir)*'}
 
-## Estilo del Autor
+## El lector ideal
+**Edad:** ${answers.readerAge || '*(pendiente de definir)*'}
+**Referencias:** ${answers.readerReads || '*(pendiente de definir)*'}
+
+## Estilo del autor
 ${writerStyleLabel}
+
+## Promesa al lector
+*(pendiente de definir — ¿qué experiencia se llevará el lector al cerrar el libro?)*
+
+## Tema central
+*(pendiente de definir — ¿de qué trata realmente esta historia, debajo de la trama?)*
 
 ---
 *Este archivo es tu brújula. Puedes editarlo en cualquier momento.*
 `;
+}
+
+/** Detects whether antagonist description is a group/system rather than an individual */
+function isGroupAntagonist(raw: string): boolean {
+    const lower = raw.toLowerCase();
+    const groupKeywords = ['gobierno', 'sociedad', 'sistema', 'institución', 'institution',
+        'organización', 'organization', 'corporación', 'corporation', 'régimen', 'empire',
+        'imperio', 'church', 'iglesia', 'estado', 'authority', 'autoridad', 'order', 'orden',
+        'guild', 'gremio', 'league', 'liga', 'faction', 'facción', 'cult', 'culto'];
+    if (groupKeywords.some(kw => lower.includes(kw))) return true;
+    return raw.split(' ').length > 4;
+}
+
+/** Returns a display name: short text used directly, long text gets a generic label */
+function getAntagonistDisplayName(raw: string): string {
+    if (!raw) return 'Antagonista';
+    return raw.split(' ').length <= 4 ? raw : 'La Oposición';
+}
+
+/** Genera el contenido del archivo del antagonista con secciones ricas */
+function buildAntagonistContent(answers: any, protagonistName: string): string {
+    const antagonistRaw = (answers.antagonist || '').trim();
+    const protagonistDesire = (answers.protagonistDesire || 'su objetivo').toLowerCase();
+
+    const isGroup = isGroupAntagonist(antagonistRaw);
+    const displayName = getAntagonistDisplayName(antagonistRaw);
+    const roleLabel = isGroup ? 'Fuerza antagonista' : 'Antagonista';
+    const traitLabel = isGroup ? '[COLLECTIVE]' : '[SENTIENT]';
+
+    const groupSections = `
+## Figuras dentro del sistema
+*(pendiente de definir — ¿hay individuos que encarnen o representen esta fuerza?)*
+
+## Cómo se manifiesta en la vida cotidiana
+*(pendiente de definir)*`;
+
+    const individualSections = `
+## Apariencia
+*(pendiente de definir)*`;
+
+    return `# ${displayName}
+
+> **Role:** ${roleLabel}
+> **Traits:** ${traitLabel}
+
+## Naturaleza
+${antagonistRaw || '*(pendiente de definir)*'}
+
+## Motivación
+*(pendiente de definir — ${isGroup
+    ? 'los mejores antagonistas sistémicos tienen una lógica interna coherente. ¿Por qué este sistema existe y se perpetúa?'
+    : `el mejor antagonista tiene sus propias razones lógicas. No necesita ser malvado, solo querer algo incompatible con ${protagonistName}.`})*
+
+## Cómo se opone a ${protagonistName}
+Impide que ${protagonistName} pueda: ${protagonistDesire}.
+${isGroup ? groupSections : individualSections}
+
+## Métodos
+*(pendiente de definir — ¿cómo ejerce su oposición? ¿directamente, indirectamente, sistemáticamente?)*
+
+## Arco
+*(pendiente de definir — ¿cambia, cae, o permanece? ¿puede ser redimido?)*
+`;
+}
+
+/** Genera el contenido del archivo de la regla del mundo */
+function buildRuleContent(answers: any): string {
+    const rule = (answers.worldRule || '').trim();
+    return `# ${rule}
+
+> **Tipo:** Regla fundamental del mundo
+
+## Enunciado
+${rule}
+
+## Origen
+*(pendiente de definir — ¿quién o qué creó esta regla? ¿desde cuándo existe?)*
+
+## Consecuencias de romperla
+*(pendiente de definir — ¿qué le pasa a quien la rompe?)*
+
+## Excepciones conocidas
+*(pendiente de definir — ¿hay grietas en la regla? ¿alguien la ha roto antes?)*
+
+## Cómo afecta al protagonista
+*(pendiente de definir)*
+`;
+}
+
+/** Genera el contenido del archivo Arquitectura del Mundo */
+function buildWorldContent(answers: any): string {
+    return `# Arquitectura del Mundo
+
+## Género
+${answers.worldType || '*(pendiente de definir)*'}
+
+## Estética visual
+*(pendiente de definir — colores predominantes, materiales, sensación general)*
+
+## Sociedad
+*(pendiente de definir — ¿cómo es la gente común en este mundo?)*
+
+## Estructura política
+*(pendiente de definir)*
+
+## Tecnología y época
+*(pendiente de definir — ¿industrial, medieval, futurista, mezcla?)*
+
+## Lugares importantes
+*(pendiente de definir — los crearás en la carpeta de Lugares cuando los descubras)*
+`;
+}
+
+/** Asegura que una subcarpeta existe dentro de un parent, creándola si no existe */
+async function ensureSubFolder(
+    drive: any,
+    parentId: string,
+    folderName: string
+): Promise<string> {
+    try {
+        const res = await drive.files.list({
+            q: `'${parentId}' in parents and name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+            fields: 'files(id)',
+            pageSize: 1,
+        });
+        if (res.data.files?.length) {
+            return res.data.files[0].id!;
+        }
+        const created = await drive.files.create({
+            requestBody: {
+                name: folderName,
+                mimeType: 'application/vnd.google-apps.folder',
+                parents: [parentId],
+            },
+            fields: 'id',
+        });
+        return created.data.id!;
+    } catch (e) {
+        logger.warn(`⚠️ ensureSubFolder: failed to ensure '${folderName}' in ${parentId}`, e);
+        return parentId; // graceful fallback: use parent itself
+    }
 }
 
 /**
@@ -267,14 +410,6 @@ ${answers.protagonistMisbelief || '*(pendiente de definir)*'}
                     traits: protagonistTraits,
                     content: protagonistFileContent,
                 },
-                // Antagonista — solo si fue definido con suficiente detalle
-                ...(answers.antagonist && answers.antagonist.trim().length > 8 ? [{
-                    category: 'PERSON',
-                    name: extractNameFromText(answers.antagonist) || 'Antagonista',
-                    role: 'Antagonista',
-                    age: 'Desconocida',
-                    traits: answers.antagonist,
-                }] : []),
                 // Capítulo inicial
                 {
                     category: 'CHAPTER',
@@ -474,8 +609,10 @@ ${answers.protagonistMisbelief || '*(pendiente de definir)*'}
             }
         }
 
-        // 4. PREMISA.md — solo en modo answers (datos estructurados del escritor)
+        // 4. ARCHIVOS DE MUNDO — solo en modo answers (datos estructurados del escritor)
         if (useAnswersMode && worldFolderId) {
+
+            // 4a. Premisa.md → en UNIVERSE (worldFolderId)
             try {
                 const premisaContent = buildPremisaContent(answers);
                 const premisaRes = await drive.files.create({
@@ -497,10 +634,106 @@ ${answers.protagonistMisbelief || '*(pendiente de definir)*'}
                         category: 'WORLD_FILE',
                         link: premisaRes.data.webViewLink
                     });
-                    logger.info('📄 Genesis: Premisa.md created in UNIVERSO folder.');
+                    logger.info('📄 Genesis: Premisa.md created in UNIVERSE folder.');
                 }
             } catch (e) {
                 logger.warn('⚠️ Genesis: Failed to create Premisa.md (non-critical).', e);
+            }
+
+            // 4b. Arquitectura del Mundo.md → en UNIVERSE (worldFolderId)
+            if (answers.worldType?.trim()) {
+                try {
+                    const worldContent = buildWorldContent(answers);
+                    const worldRes = await drive.files.create({
+                        requestBody: {
+                            name: 'Arquitectura del Mundo.md',
+                            parents: [worldFolderId],
+                            mimeType: 'text/markdown'
+                        },
+                        media: {
+                            mimeType: 'text/markdown',
+                            body: worldContent
+                        },
+                        fields: 'id, name, webViewLink'
+                    });
+                    if (worldRes.data.id) {
+                        createdFiles.push({
+                            id: worldRes.data.id,
+                            name: 'Arquitectura del Mundo.md',
+                            category: 'WORLD_FILE',
+                            link: worldRes.data.webViewLink
+                        });
+                        logger.info('🌍 Genesis: Arquitectura del Mundo.md created in UNIVERSE folder.');
+                    }
+                } catch (e) {
+                    logger.warn('⚠️ Genesis: Failed to create world architecture file (non-critical).', e);
+                }
+            }
+
+            // 4c. Antagonista.md → con contenido rico (usando TitaniumGenesis)
+            if (answers.antagonist?.trim().length > 8) {
+                const protagonistNameForAntagFile = (answers as any).protagonistName?.trim()
+                    || extractNameFromPremise(answers.premise)
+                    || 'el protagonista';
+                try {
+                    const antagonistContent = buildAntagonistContent(answers, protagonistNameForAntagFile);
+                    const antagonistName = getAntagonistDisplayName(answers.antagonist);
+                    const antagonistTraits: any[] = isGroupAntagonist(answers.antagonist) ? ['collective'] : ['sentient'];
+                    const projectId = (config as any).folderId || 'unknown_genesis';
+                    const antagonistResult = await TitaniumGenesis.birth({
+                        userId: userId,
+                        name: antagonistName,
+                        context: antagonistContent,
+                        targetFolderId: peopleFolderId,
+                        accessToken: accessToken,
+                        projectId: projectId,
+                        role: isGroupAntagonist(answers.antagonist) ? 'Fuerza antagonista' : 'Antagonista',
+                        aiKey: getAIKey(request.data, googleApiKey.value()),
+                        inferredTraits: antagonistTraits,
+                        attributes: { category: 'PERSON' }
+                    });
+                    createdFiles.push({
+                        id: antagonistResult.fileId,
+                        name: `${antagonistName}.md`,
+                        category: 'PERSON',
+                        link: antagonistResult.webViewLink
+                    });
+                    logger.info(`🦹 Genesis: Antagonista '${antagonistName}' materializado en CHARACTERS.`);
+                } catch (e) {
+                    logger.warn('⚠️ Genesis: Failed to create antagonist file (non-critical).', e);
+                }
+            }
+
+            // 4d. Regla del mundo → subcarpeta RULES dentro de UNIVERSE (worldFolderId)
+            if (answers.worldRule?.trim()) {
+                try {
+                    const rulesFolderId = await ensureSubFolder(drive, worldFolderId, 'RULES');
+                    const ruleContent = buildRuleContent(answers);
+                    const ruleName = answers.worldRule.trim().slice(0, 60);
+                    const ruleRes = await drive.files.create({
+                        requestBody: {
+                            name: `${ruleName}.md`,
+                            parents: [rulesFolderId],
+                            mimeType: 'text/markdown'
+                        },
+                        media: {
+                            mimeType: 'text/markdown',
+                            body: ruleContent
+                        },
+                        fields: 'id, name, webViewLink'
+                    });
+                    if (ruleRes.data.id) {
+                        createdFiles.push({
+                            id: ruleRes.data.id,
+                            name: `${ruleName}.md`,
+                            category: 'WORLD_RULE',
+                            link: ruleRes.data.webViewLink
+                        });
+                        logger.info(`📜 Genesis: Rule '${ruleName}' created in UNIVERSE/RULES.`);
+                    }
+                } catch (e) {
+                    logger.warn('⚠️ Genesis: Failed to create world rule file (non-critical).', e);
+                }
             }
         }
 

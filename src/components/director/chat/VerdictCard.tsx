@@ -1,5 +1,7 @@
 import React from 'react';
 import { Gavel, Feather, Skull, Target } from 'lucide-react';
+import { useLanguageStore } from '../../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../../i18n/translations';
 
 interface JudgeVerdict {
     verdict: string;
@@ -18,6 +20,10 @@ interface VerdictCardProps {
 }
 
 export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
+    const { currentLanguage } = useLanguageStore();
+    const tDir = TRANSLATIONS[currentLanguage].director;
+    const tTrib = TRANSLATIONS[currentLanguage].tribunal;
+
     // Calculate Average Score
     const avgScore = ((data.architect.score + data.bard.score + data.hater.score) / 3).toFixed(1);
 
@@ -33,7 +39,7 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
             <div className="flex items-center justify-between p-3 bg-red-900/20 border-b border-red-500/30">
                 <div className="flex items-center gap-2 text-red-400 font-bold text-xs uppercase tracking-wider">
                     <Gavel size={16} />
-                    <span>Veredicto del Tribunal</span>
+                    <span>{tDir.verdict}</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] text-purple-300 uppercase opacity-70">Puntuación Global</span>
@@ -48,7 +54,7 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
                 <div className="p-3 bg-titanium-900/30">
                     <div className="flex items-center gap-2 mb-2 text-blue-400">
                         <Target size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">El Arquitecto</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{tTrib.architect}</span>
                         <span className="ml-auto text-xs font-bold text-blue-300">{data.architect.score}/10</span>
                     </div>
                     <div className="min-h-[40px] mb-2">
@@ -63,7 +69,7 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
                 <div className="p-3 bg-titanium-900/30">
                     <div className="flex items-center gap-2 mb-2 text-pink-400">
                         <Feather size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">El Bardo</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{tTrib.bard}</span>
                         <span className="ml-auto text-xs font-bold text-pink-300">{data.bard.score}/10</span>
                     </div>
                     <div className="min-h-[40px] mb-2">
@@ -78,7 +84,7 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
                 <div className="p-3 bg-titanium-900/30">
                     <div className="flex items-center gap-2 mb-2 text-red-400">
                         <Skull size={14} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest">El Crítico</span>
+                        <span className="text-[10px] font-bold uppercase tracking-widest">{tTrib.hater}</span>
                         <span className="ml-auto text-xs font-bold text-red-300">{data.hater.score}/10</span>
                     </div>
                     <div className="min-h-[40px] mb-2">

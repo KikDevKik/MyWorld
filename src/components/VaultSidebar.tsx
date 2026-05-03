@@ -3,7 +3,8 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, Sparkles, Trash2 } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Trash2, Download, Check, X } from 'lucide-react';
+import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
@@ -139,18 +140,30 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [isIndexMenuOpen, setIsIndexMenuOpen] = useState(false);
     const indexMenuRef = useRef<HTMLDivElement>(null);
 
-    // Close menu when clicking outside
+    // 🟢 CREATE MENU STATE (new file / new folder)
+    const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
+    const createMenuRef = useRef<HTMLDivElement>(null);
+    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+    const [newFolderName, setNewFolderName] = useState('');
+    const newFolderInputRef = useRef<HTMLInputElement>(null);
+
+    // Close menus when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (indexMenuRef.current && !indexMenuRef.current.contains(event.target as Node)) {
                 setIsIndexMenuOpen(false);
+            }
+            if (createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
+                setIsCreateMenuOpen(false);
+                setIsCreatingFolder(false);
+                setNewFolderName('');
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [indexMenuRef]);
+    }, [indexMenuRef, createMenuRef]);
 
     // 🟢 LISTEN FOR CONFLICTS (Using EntityService)
     useEffect(() => {
@@ -328,6 +341,49 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     };
 
+    // 🟢 MOVE FILE STATE
+    const [moveTargetFile, setMoveTargetFile] = useState<{ id: string; name: string; parentId?: string } | null>(null);
+
+    const handleMoveFile = (fileId: string, fileName: string, parentId?: string) => {
+        setMoveTargetFile({ id: fileId, name: fileName, parentId });
+    };
+
+    const handleConfirmMove = async (targetFolderId: string) => {
+        if (!moveTargetFile || !accessToken) return;
+        try {
+            await callFunction('moveDriveFile', {
+                accessToken,
+                fileId: moveTargetFile.id,
+                targetParentId: targetFolderId,
+                currentParentId: moveTargetFile.parentId,
+            });
+            toast.success(`"${moveTargetFile.name}" movido correctamente.`);
+            setMoveTargetFile(null);
+        } catch (e: any) {
+            toast.error("Error al mover: " + e.message);
+        }
+    };
+
+    // 🟢 CREATE FOLDER HANDLER
+    const handleCreateFolder = async () => {
+        const name = newFolderName.trim();
+        if (!name) return;
+        const parentId = config?.folderId;
+        if (!parentId || !accessToken) {
+            toast.error(tCommon.noVaultConfig || "Sin carpeta de proyecto configurada.");
+            return;
+        }
+        try {
+            await callFunction('createDriveFolder', { accessToken, parentId, folderName: name });
+            toast.success(`"${name}" creada.`);
+            setIsCreatingFolder(false);
+            setNewFolderName('');
+            setIsCreateMenuOpen(false);
+        } catch (e: any) {
+            toast.error("Error al crear carpeta: " + e.message);
+        }
+    };
+
     // 🟢 STATUS INDICATOR HELPER
     const getStatusConfig = () => {
         switch (driveStatus) {
@@ -350,7 +406,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             {/* HEADER / SAGA SELECTOR */}
             <div className="px-4 py-4 border-b border-titanium-800 bg-titanium-900/50">
 
-                {/* 🟢 GENESIS BUTTON (REPLACES 'MANUAL DE CAMPO' SECTION) */}
+                {/* TODO: Feature "Chispa" — implementar completamente a futuro.
+                    Requiere: generación de idea completa, creación de documentos,
+                    actualización de archivos existentes, integración con Laboratorio.
+                    Por ahora dirigir al usuario al Laboratorio de Ideas.
                 {!isEmptyProject && (
                     <div className="mb-4">
                         <button
@@ -359,14 +418,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             aria-label="Iniciar proceso creativo (Génesis)"
                             className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
                         >
-                            {/* Glow Effect */}
                             <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-
                             <Sparkles size={14} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
                             <span className="text-xs font-medium tracking-wide">{t.spark}</span>
                         </button>
                     </div>
                 )}
+                */}
 
                 <div className="flex items-center gap-2 mb-3">
                     <div className="text-titanium-500">
@@ -401,15 +459,63 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             </button>
                         )}
 
-                        {onCreateFile && !isEmptyProject && (
-                            <button
-                                onClick={onCreateFile}
-                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-colors text-titanium-400 hover:text-cyan-400"
-                                title={t.newFile}
-                                aria-label={t.newFile}
-                            >
-                                <FilePlus size={16} />
-                            </button>
+                        {!isEmptyProject && (
+                            <div className="relative" ref={createMenuRef}>
+                                <button
+                                    onClick={() => setIsCreateMenuOpen(!isCreateMenuOpen)}
+                                    className="p-1.5 rounded-md hover:bg-titanium-700 transition-colors text-titanium-400 hover:text-cyan-400"
+                                    title={t.newFile}
+                                    aria-label={t.newFile}
+                                >
+                                    <FilePlus size={16} />
+                                </button>
+                                {isCreateMenuOpen && (
+                                    <div className="absolute right-0 top-full mt-2 w-52 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                        {onCreateFile && (
+                                            <button
+                                                onClick={() => { onCreateFile(); setIsCreateMenuOpen(false); }}
+                                                className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
+                                            >
+                                                <FilePlus size={13} className="text-cyan-400" />
+                                                <span>{t.newFile}</span>
+                                            </button>
+                                        )}
+                                        {!isCreatingFolder ? (
+                                            <button
+                                                onClick={() => {
+                                                    setIsCreatingFolder(true);
+                                                    setTimeout(() => newFolderInputRef.current?.focus(), 50);
+                                                }}
+                                                className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
+                                            >
+                                                <FolderPlus size={13} className="text-amber-400" />
+                                                <span>{tCommon.newFolder || 'Nueva carpeta'}</span>
+                                            </button>
+                                        ) : (
+                                            <div className="px-3 py-2 flex items-center gap-1.5">
+                                                <input
+                                                    ref={newFolderInputRef}
+                                                    value={newFolderName}
+                                                    onChange={e => setNewFolderName(e.target.value)}
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter') handleCreateFolder();
+                                                        if (e.key === 'Escape') { setIsCreatingFolder(false); setNewFolderName(''); }
+                                                    }}
+                                                    placeholder={tCommon.folderName || 'Nombre de carpeta'}
+                                                    className="flex-1 bg-titanium-950 text-titanium-100 text-xs px-2 py-1.5 rounded border border-titanium-600 focus:outline-none focus:border-cyan-500/50 min-w-0"
+                                                />
+                                                <button
+                                                    onClick={handleCreateFolder}
+                                                    disabled={!newFolderName.trim()}
+                                                    className="p-1 rounded text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
+                                                >
+                                                    <Check size={13} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         )}
 
                         {/* BOTÓN DE INDEXAR (MENU) */}
@@ -436,7 +542,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
                                     >
                                         <BrainCircuit size={14} className="text-cyan-400" />
-                                        <span>Escanear Archivos</span>
+                                        <span>{t.scanFiles}</span>
                                     </button>
                                     <button
                                         onClick={() => {
@@ -446,7 +552,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
                                     >
                                         <Sparkles size={14} className="text-purple-400" />
-                                        <span>Cargar Memoria</span>
+                                        <span>{t.loadMemory}</span>
                                     </button>
                                 </div>
                             )}
@@ -498,7 +604,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             {driveStatus !== 'connected' && (
                                 <div className="w-full mx-3 mb-1 p-3 bg-amber-500/8 border border-amber-500/20 rounded-lg">
                                     <p className="text-[11px] text-amber-600 leading-relaxed">
-                                        Conecta Google Drive desde el botón inferior para acceder a tu proyecto.
+                                        {t.connectDriveHint}
                                     </p>
                                 </div>
                             )}
@@ -566,6 +672,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                             isDeleteMode={isDeleteMode}
                                             selectedDeleteIds={selectedDeleteIds}
                                             onToggleDeleteSelect={handleToggleDeleteSelect}
+                                            onMoveFile={handleMoveFile}
                                         />
                                     </div>
                                 )}
@@ -603,6 +710,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                             isDeleteMode={isDeleteMode}
                                             selectedDeleteIds={selectedDeleteIds}
                                             onToggleDeleteSelect={handleToggleDeleteSelect}
+                                            onMoveFile={handleMoveFile}
                                         />
                                     </div>
                                 )}
@@ -630,6 +738,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     isDeleteMode={isDeleteMode}
                                     selectedDeleteIds={selectedDeleteIds}
                                     onToggleDeleteSelect={handleToggleDeleteSelect}
+                                    onMoveFile={handleMoveFile}
                                 />
                             </div>
                         )}
@@ -644,6 +753,41 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 count={selectedDeleteIds.size}
                 isDeleting={isDeleting}
             />
+
+            {/* 🟢 FOLDER PICKER MODAL — move file */}
+            {moveTargetFile && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
+                    <div className="bg-titanium-900 border border-titanium-700 rounded-xl shadow-2xl w-80 max-h-[70vh] flex flex-col overflow-hidden">
+                        <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800">
+                            <div>
+                                <p className="text-xs font-medium text-titanium-200">Mover a...</p>
+                                <p className="text-[10px] text-titanium-500 truncate max-w-[200px]">{moveTargetFile.name}</p>
+                            </div>
+                            <button onClick={() => setMoveTargetFile(null)} className="text-titanium-500 hover:text-titanium-300">
+                                <X size={14} />
+                            </button>
+                        </div>
+                        <div className="overflow-y-auto flex-1 p-2">
+                            {(fileTree || [])
+                                .filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder' && f.id !== moveTargetFile.parentId)
+                                .map((folder: any) => (
+                                    <button
+                                        key={folder.id}
+                                        onClick={() => handleConfirmMove(folder.id)}
+                                        className="w-full text-left px-3 py-2 rounded-lg text-xs text-titanium-300 hover:bg-titanium-800 hover:text-white transition-colors flex items-center gap-2"
+                                    >
+                                        <FolderPlus size={12} className="text-amber-400 shrink-0" />
+                                        <span className="truncate">{folder.name}</span>
+                                    </button>
+                                ))
+                            }
+                            {(fileTree || []).filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder' && f.id !== moveTargetFile.parentId).length === 0 && (
+                                <p className="text-[11px] text-titanium-600 text-center py-4">No hay carpetas disponibles.</p>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <CreateProjectModal
                 isOpen={isCreateModalOpen}
@@ -687,17 +831,24 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <span>{t.settings}</span>
                     </button>
 
-                    {/* 🟢 STATUS INDICATOR BUTTON */}
-                    <button
-                        onClick={onRefreshTokens}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium group ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
-                        title={tStatus.reconnect}
-                        disabled={driveStatus === 'refreshing'}
-                        aria-label={status.text}
-                    >
-                        <status.icon size={16} className="transition-colors" />
-                        <span>{status.text}</span>
-                    </button>
+                    {/* 🟢 DRIVE STATUS — Only show as action button when reconnect is needed */}
+                    {driveStatus === 'connected' ? (
+                        <div className="flex items-center gap-3 px-3 py-1.5 text-xs text-green-600/70 font-medium select-none">
+                            <status.icon size={14} className="shrink-0" />
+                            <span>{tStatus.connected}</span>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={onRefreshTokens}
+                            className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium group ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
+                            title={tStatus.reconnect}
+                            disabled={driveStatus === 'refreshing'}
+                            aria-label={status.text}
+                        >
+                            <status.icon size={16} className="transition-colors" />
+                            <span>{status.text}</span>
+                        </button>
+                    )}
 
                     <div className="h-px bg-titanium-700/50 my-1 mx-2"></div>
 

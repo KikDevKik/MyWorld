@@ -20,6 +20,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
     const { config, updateConfig, loading } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
+    const tForge = t.forge;
 
     // 🟢 SAGA STATE
     const [characterSaga, setCharacterSaga] = useState<DriveFile | null>(null);
@@ -205,14 +206,14 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                             </button>
                         )}
                         <Settings size={20} className="text-titanium-400" />
-                        <h2 className="font-bold text-lg">Configuración de la Forja</h2>
+                        <h2 className="font-bold text-lg">{tForge.forgeSettings}</h2>
                     </div>
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 p-8 overflow-y-auto">
                     <div className="max-w-3xl mx-auto">
-                        <h3 className="text-xs font-bold text-titanium-500 uppercase tracking-widest mb-6">Nivel 2: Las Entidades (Base de Datos)</h3>
+                        <h3 className="text-xs font-bold text-titanium-500 uppercase tracking-widest mb-6">{tForge.level2Entities || "Nivel 2: Las Entidades (Base de Datos)"}</h3>
 
                         <div className="flex flex-col gap-4">
 
@@ -223,8 +224,8 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                         <User size={24} />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-titanium-100 text-lg">Personajes (Forja)</h4>
-                                        <p className="text-sm text-titanium-500">Humanoides con diálogo y psicología compleja.</p>
+                                        <h4 className="font-bold text-titanium-100 text-lg">{tForge.charactersForge || "Personajes (Forja)"}</h4>
+                                        <p className="text-sm text-titanium-500">{tForge.charactersForgeDesc || "Humanoides con diálogo y psicología compleja."}</p>
                                         {characterSaga ? (
                                             <div className="mt-2 flex items-center gap-2 text-xs text-accent-DEFAULT font-mono">
                                                 <CheckCircleIcon />
@@ -257,8 +258,8 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                         <PawPrint size={24} />
                                     </div>
                                     <div>
-                                        <h4 className="font-bold text-titanium-100 text-lg">Bestiario</h4>
-                                        <p className="text-sm text-titanium-500">Criaturas, Monstruos, Flora y Fauna.</p>
+                                        <h4 className="font-bold text-titanium-100 text-lg">{t.common.bestiary}</h4>
+                                        <p className="text-sm text-titanium-500">{tForge.bestiaryDesc || "Criaturas, Monstruos, Flora y Fauna."}</p>
                                         {bestiarySaga ? (
                                             <div className="mt-2 flex items-center gap-2 text-xs text-emerald-500 font-mono">
                                                 <CheckCircleIcon />
@@ -290,16 +291,16 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                          <div className="mt-8 border-t border-red-900/30 pt-8">
                             <h3 className="text-xs font-bold text-red-500 uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <AlertTriangle size={14} />
-                                Zona de Peligro
+                                {tForge.dangerZone || "Zona de Peligro"}
                             </h3>
 
                             <div className="p-6 bg-red-950/10 border border-red-900/30 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
                                 <div>
-                                    <h4 className="font-bold text-red-400 text-lg">Eliminar Base de Datos</h4>
+                                    <h4 className="font-bold text-red-400 text-lg">{tForge.deleteDatabase || "Eliminar Base de Datos"}</h4>
                                     <p className="text-sm text-red-300/60 max-w-md mt-1">
-                                        Elimina todos los personajes, entidades y vectores derivados para reiniciar la Forja.
+                                        {tForge.deleteDatabaseDesc || "Elimina todos los personajes, entidades y vectores derivados para reiniciar la Forja."}
                                         <br/>
-                                        <span className="font-bold text-red-400">Tus archivos de Drive y Chats NO se eliminarán.</span>
+                                        <span className="font-bold text-red-400">{tForge.noDeleteDriveWarning || "Tus archivos de Drive y Chats NO se eliminarán."}</span>
                                     </p>
                                 </div>
                                 <button
@@ -307,7 +308,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                     className="px-6 py-3 bg-red-950 hover:bg-red-900 border border-red-800 text-red-200 font-bold rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap"
                                 >
                                     <Trash2 size={18} />
-                                    Eliminar Datos
+                                    {tForge.deleteData || "Eliminar Datos"}
                                 </button>
                             </div>
                         </div>
@@ -345,7 +346,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                         <div className="w-full max-w-md bg-titanium-950 border border-red-500/50 rounded-2xl p-6 shadow-2xl shadow-red-900/20">
                             <div className="flex items-center gap-3 mb-4 text-red-500">
                                 <AlertTriangle size={32} />
-                                <h3 className="text-xl font-bold">¿Estás absolutamente seguro?</h3>
+                                <h3 className="text-xl font-bold">{tForge.absolutelySure || "¿Estás absolutamente seguro?"}</h3>
                             </div>
 
                             <p className="text-titanium-300 mb-4 leading-relaxed">
@@ -380,7 +381,7 @@ const ForgePanel: React.FC<ForgePanelProps> = ({ onClose, folderId, accessToken 
                                     ) : (
                                         <>
                                             <Trash2 size={18} />
-                                            Confirmar Eliminación
+                                            {tForge.confirmDeletion || "Confirmar Eliminación"}
                                         </>
                                     )}
                                 </button>

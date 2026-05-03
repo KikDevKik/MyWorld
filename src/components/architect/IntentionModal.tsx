@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Send, Paperclip, X, FileText, Lightbulb } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface Props {
     onConfirm: (goal: string, file?: {
@@ -10,18 +12,22 @@ interface Props {
     isLoading: boolean;
 }
 
-const SUGGESTION_CHIPS = [
-    { label: 'Trazar el camino siguiente', value: 'No tengo claro cómo continuar mi obra. Ayúdame a definir el siguiente paso concreto.' },
-    { label: 'Revisar consistencia', value: 'Quiero revisar si hay inconsistencias en mi worldbuilding y sistemas actuales.' },
-    { label: 'Desarrollar personajes', value: 'Mis personajes necesitan motivaciones y arcos más claros.' },
-    { label: 'Desbloquear el Acto 2', value: 'Estoy atascado en la mitad de mi historia y no sé cómo avanzar.' },
-    { label: 'Auditoría de sistema de magia', value: 'Quiero revisar si mi sistema de magia tiene lagunas lógicas.' },
-    { label: 'Integrar cultura real', value: 'Quiero inspirarme en una cultura real para enriquecer mi obra.' },
-];
-
-const FILTER_CAMERA_TIP = '💡 Si un elemento no aparecerá constantemente en tu obra y es solo un acabado visual o una mención ocasional, no lo desarrolles en profundidad. Primero lo esencial.';
-
 export default function IntentionModal({ onConfirm, isLoading }: Props) {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tArch = t.architect;
+
+    const SUGGESTION_CHIPS = [
+        { label: tArch.traceNextPath || 'Trazar el camino siguiente', value: tArch.traceNextPathVal || 'No tengo claro cómo continuar mi obra. Ayúdame a definir el siguiente paso concreto.' },
+        { label: tArch.checkConsistency || 'Revisar consistencia', value: tArch.checkConsistencyVal || 'Quiero revisar si hay inconsistencias en mi worldbuilding y sistemas actuales.' },
+        { label: tArch.developCharacters || 'Desarrollar personajes', value: tArch.developCharactersVal || 'Mis personajes necesitan motivaciones y arcos más claros.' },
+        { label: tArch.unblockAct2 || 'Desbloquear el Acto 2', value: tArch.unblockAct2Val || 'Estoy atascado en la mitad de mi historia y no sé cómo avanzar.' },
+        { label: tArch.magicAudit || 'Auditoría de sistema de magia', value: tArch.magicAuditVal || 'Quiero revisar si mi sistema de magia tiene lagunas lógicas.' },
+        { label: tArch.integrateCulture || 'Integrar cultura real', value: tArch.integrateCultureVal || 'Quiero inspirarme en una cultura real para enriquecer mi obra.' },
+    ];
+
+    const FILTER_CAMERA_TIP = tArch.filterCameraTip || '💡 Si un elemento no aparecerá constantemente en tu obra y es solo un acabado visual o una mención ocasional, no lo desarrolles en profundidad. Primero lo esencial.';
+
     const [goal, setGoal] = useState('');
     const [attachedFile, setAttachedFile] = useState<{
         fileName: string;
@@ -83,10 +89,10 @@ export default function IntentionModal({ onConfirm, isLoading }: Props) {
             {/* Header */}
             <div className="text-center mb-8">
                 <h2 className="text-xl font-medium text-titanium-100 mb-2">
-                    ¿Qué necesitas resolver hoy?
+                    {tArch.solveToday || '¿Qué necesitas resolver hoy?'}
                 </h2>
                 <p className="text-sm text-titanium-500">
-                    El Arquitecto analizará tu proyecto con ese objetivo en mente.
+                    {tArch.architectGoal || 'El Arquitecto analizará tu proyecto con ese objetivo en mente.'}
                 </p>
             </div>
 
@@ -165,12 +171,12 @@ export default function IntentionModal({ onConfirm, isLoading }: Props) {
                         {isLoading ? (
                             <>
                                 <div className="w-3 h-3 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
-                                Analizando...
+                                {t.common?.analyzing || "Analizando..."}
                             </>
                         ) : (
                             <>
                                 <Send size={13} />
-                                Iniciar sesión
+                                {tArch.startSession || "Iniciar sesión"}
                             </>
                         )}
                     </button>

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Folder, Loader2, Book, AlertTriangle, ChevronRight, Home, ArrowLeft, Hammer } from 'lucide-react';
 import { DriveFile, ProjectPath } from '../../types';
 import { callFunction } from '../../services/api';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ForgeHubProps {
     roots: ProjectPath[]; // 🟢 CHANGED: Multi-root support
@@ -10,6 +12,10 @@ interface ForgeHubProps {
 }
 
 const ForgeHub: React.FC<ForgeHubProps> = ({ roots, accessToken, onSelectSaga }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tForge = t.forge;
+
     // STATE
     const [currentPath, setCurrentPath] = useState<ProjectPath[]>([]); // Breadcrumbs
     const [folders, setFolders] = useState<DriveFile[]>([]);
@@ -101,8 +107,8 @@ const ForgeHub: React.FC<ForgeHubProps> = ({ roots, accessToken, onSelectSaga })
             <div className="w-full h-full flex flex-col items-center justify-center bg-titanium-950 text-titanium-500 gap-4">
                 <Loader2 size={40} className="animate-spin text-accent-DEFAULT" />
                 <div className="text-center">
-                    <p className="text-lg font-bold text-titanium-200">Explorando el Multiverso...</p>
-                    <p className="text-xs font-mono opacity-70">Buscando Sagas</p>
+                    <p className="text-lg font-bold text-titanium-200">{tForge.exploringMultiverse || "Explorando el Multiverso..."}</p>
+                    <p className="text-xs font-mono opacity-70">{tForge.searchingSagas || "Buscando Sagas"}</p>
                 </div>
             </div>
         );
@@ -131,7 +137,7 @@ const ForgeHub: React.FC<ForgeHubProps> = ({ roots, accessToken, onSelectSaga })
                 <button
                     onClick={handleHomeClick}
                     className={`p-2 rounded-lg transition-colors ${currentPath.length === 0 ? 'text-accent-DEFAULT bg-accent-DEFAULT/10' : 'text-titanium-400 hover:text-white hover:bg-titanium-800'}`}
-                    title="Inicio"
+                    title={t.common?.start || "Inicio"}
                 >
                     <Home size={18} />
                 </button>
@@ -162,8 +168,8 @@ const ForgeHub: React.FC<ForgeHubProps> = ({ roots, accessToken, onSelectSaga })
                 {/* HERO (Only on Root) */}
                 {currentPath.length === 0 && (
                     <div className="mb-10 text-center">
-                        <h1 className="text-3xl font-bold text-titanium-100 mb-2 tracking-tight">El Hub</h1>
-                        <p className="text-titanium-400">Navega por tus carpetas Canon hasta encontrar la Saga que deseas despertar.</p>
+                        <h1 className="text-3xl font-bold text-titanium-100 mb-2 tracking-tight">{tForge.theHub || "El Hub"}</h1>
+                        <p className="text-titanium-400">{tForge.hubDesc || "Navega por tus carpetas Canon hasta encontrar la Saga que deseas despertar."}</p>
                     </div>
                 )}
 
@@ -229,7 +235,7 @@ const ForgeHub: React.FC<ForgeHubProps> = ({ roots, accessToken, onSelectSaga })
                                     className="w-full py-2 bg-accent-DEFAULT hover:bg-accent-hover text-titanium-950 font-bold rounded-lg text-xs flex items-center justify-center gap-2 shadow-lg"
                                 >
                                     <Hammer size={14} />
-                                    <span>SELECCIONAR SAGA</span>
+                                    <span>{tForge.selectSaga || "SELECCIONAR SAGA"}</span>
                                 </button>
                             </div>
                         </div>

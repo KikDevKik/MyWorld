@@ -20,10 +20,12 @@ import { useArquitectoStore } from '../stores/useArquitectoStore';
 import ArquitectoFocusSelector, { FOCUS_OPTIONS } from './architect/ArquitectoFocusSelector';
 import { toast } from 'sonner';
 import { ToolWelcomeCard } from './ToolWelcomeCard';
-import { TOOL_WELCOMES } from '../config/toolWelcomes';
+import { getToolWelcomes } from '../config/toolWelcomes';
 import { useToolWelcome } from '../hooks/useToolWelcome';
 import { useTier } from '../hooks/useTier';
 import { AIMotorBlockedOverlay } from './ui/AIMotorBlockedOverlay';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface ArquitectoPanelProps {
     onClose: () => void;
@@ -40,6 +42,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const { hasByok } = useTier();
     const projectName = config?.projectName || 'Mi Proyecto';
     
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tArch = t.architect;
+
     // Panel View State
     const [panelView, setPanelView] = useState<PanelView>('welcome');
     const [reinitStep, setReinitStep] = useState<0 | 1 | 2>(0);
@@ -255,7 +261,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         sendMessage(`He elegido: ${opt.label}`);
     };
 
-    if (!hasByok) return <AIMotorBlockedOverlay toolName="El Arquitecto" />;
+    if (!hasByok) return <AIMotorBlockedOverlay toolName={tArch.toolName || "El Arquitecto"} />;
 
     return (
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
@@ -286,41 +292,41 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     aria-label="Cerrar Arquitecto"
                 >
                     <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-sm font-medium">El Arquitecto</span>
+                    <span className="text-sm font-medium">{tArch.toolName || 'El Arquitecto'}</span>
                 </button>
 
                 <div className="text-titanium-500 text-sm font-medium uppercase tracking-wider font-mono">
-                    Proyecto: {projectName}
+                    {currentLanguage === 'en' ? 'Project' : 'Proyecto'}: {projectName}
                 </div>
 
                 <div className="w-[150px] flex justify-end">
                     {panelView === 'chat' && (
                         <div className="relative">
-                            <button
-                                onClick={handleReinitStart}
-                                className="text-titanium-500 hover:text-titanium-300 text-[12px] font-mono uppercase tracking-wider transition-colors"
-                            >
-                                Nueva Sesión
-                            </button>
+                                <button
+                                    onClick={handleReinitStart}
+                                    className="text-titanium-500 hover:text-titanium-300 text-[12px] font-mono uppercase tracking-wider transition-colors"
+                                >
+                                    {tArch.newSession}
+                                </button>
 
                             {/* Primera confirmación */}
                             {reinitStep === 1 && (
-                                <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-titanium-700 rounded-xl p-4 w-64 z-[60] shadow-2xl">
+                            <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-titanium-700 rounded-xl p-4 w-64 z-[60] shadow-2xl">
                                     <p className="text-[13px] text-titanium-300 mb-3">
-                                        ¿Iniciar una nueva sesión? El progreso actual se preserva pero comenzarás desde cero.
+                                        {tArch.confirmReinit}
                                     </p>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={handleReinitConfirm1}
                                             className="flex-1 py-1.5 bg-amber-500/10 border border-amber-500/30 text-amber-400 text-[12px] rounded-lg hover:bg-amber-500/20 transition-colors"
                                         >
-                                            Continuar
+                                            {t.common.confirm}
                                         </button>
                                         <button
                                             onClick={handleReinitCancel}
                                             className="flex-1 py-1.5 text-titanium-500 border border-titanium-700 text-[12px] rounded-lg hover:bg-titanium-800/30 transition-colors"
                                         >
-                                            Cancelar
+                                            {t.common.cancel}
                                         </button>
                                     </div>
                                 </div>
@@ -330,23 +336,23 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             {reinitStep === 2 && (
                                 <div className="absolute right-0 top-full mt-2 bg-titanium-950 border border-red-500/30 rounded-xl p-4 w-64 z-[60] shadow-2xl">
                                     <p className="text-[13px] text-titanium-300 mb-1">
-                                        ¿Estás seguro?
+                                        {tArch.confirmSure}
                                     </p>
                                     <p className="text-[11px] text-titanium-600 mb-3">
-                                        El chat actual no se puede recuperar.
+                                        {tArch.irrecoverableChat}
                                     </p>
                                     <div className="flex gap-2">
                                         <button
                                             onClick={handleReinitConfirm2}
                                             className="flex-1 py-1.5 bg-red-500/10 border border-red-500/30 text-red-400 text-[12px] rounded-lg hover:bg-red-500/20 transition-colors"
                                         >
-                                            Sí, nueva sesión
+                                            {tArch.yesNewSession}
                                         </button>
                                         <button
                                             onClick={handleReinitCancel}
                                             className="flex-1 py-1.5 text-titanium-500 border border-titanium-700 text-[12px] rounded-lg hover:bg-titanium-800/30 transition-colors"
                                         >
-                                            Cancelar
+                                            {t.common.cancel}
                                         </button>
                                     </div>
                                 </div>
@@ -432,7 +438,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             {/* Welcome card — primera visita */}
             {showWelcome && (
                 <ToolWelcomeCard
-                    {...TOOL_WELCOMES.arquitecto}
+                    {...getToolWelcomes(t).arquitecto}
                     onDismiss={dismissWelcome}
                 />
             )}
@@ -491,12 +497,12 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 </div>
 
                                 <div className="text-xl font-medium text-titanium-100 tracking-wide mb-3">
-                                    Auditoría Estructural en Curso
+                                    {tArch.auditInProgress}
                                 </div>
                                 
                                 <div className="text-xs text-cyan-500/80 font-mono mb-8 animate-pulse flex items-center gap-2">
                                     <span className="inline-block w-2 h-2 bg-cyan-500 rounded-full"></span>
-                                    MINERÍA MULTI-HOP: EXTRAYENDO CANON
+                                    {tArch.mining}: EXTRAYENDO CANON
                                 </div>
                                 {/* Barra de Asimilación (Simulada) */}
                                 <div className="w-72 h-1.5 bg-titanium-900 rounded-full overflow-hidden relative shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
@@ -509,12 +515,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             <div className="flex-1 flex flex-col items-center justify-center text-center pb-20 opacity-60 gap-3">
                                 <Landmark size={40} className="text-titanium-700" />
                                 <p className="text-sm font-medium text-titanium-400">
-                                    Sesión en modo Exploración
-                                </p>
-                                <p className="text-[12px] text-titanium-600 max-w-[320px] leading-relaxed">
-                                    El Arquitecto está listo para conversar.
-                                    Si quieres un análisis formal de tu proyecto,
-                                    usa el botón "Analizar disonancias" arriba.
+                                    {tArch.explorationMode}
+                                </p>                                <p className="text-[12px] text-titanium-600 max-w-[320px] leading-relaxed">
+                                    {tArch.readyToTalk || "El Arquitecto está listo para conversar."}
+                                    {tArch.useFormalAnalysis || "Si quieres un análisis formal de tu proyecto, usa el botón 'Analizar disonancias' arriba."}
                                 </p>
                             </div>
                         ) : (
@@ -598,7 +602,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                         <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                                         <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                                     </div>
-                                    <span className="text-xs text-titanium-400 font-mono">El Arquitecto está procesando la estructura...</span>
+                                    <span className="text-xs text-titanium-400 font-mono">{tArch.processing || 'El Arquitecto está procesando la estructura...'}</span>
                                 </div>
                             </div>
                         )}
@@ -756,7 +760,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     </div>
                     <div className="text-center mt-2">
                         <span className="text-[10px] text-titanium-600 font-mono uppercase tracking-widest">
-                            El Arquitecto procesa la lógica, tú pones el alma.
+                            {tArch.motto}
                         </span>
                     </div>
                 </div>
@@ -834,7 +838,6 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     sessionId={useArquitectoStore.getState().arquitectoSessionId} 
                     onClose={() => setActiveTool('none')} 
                     onPanicResolved={() => setActiveTool('none')} 
-                    onReinitialize={reinitialize}
                 />
             )}
 

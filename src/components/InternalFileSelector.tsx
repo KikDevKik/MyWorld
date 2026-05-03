@@ -4,6 +4,8 @@ import { ChevronRight, ChevronDown, FileText, Folder, Check, X, AlertTriangle, L
 import { DriveFile } from '../types';
 import { EntityService } from '../services/EntityService';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 interface InternalFileSelectorProps {
     onFileSelected: (files: { id: string; name: string; path?: string } | { id: string; name: string; path?: string }[]) => void;
@@ -92,6 +94,10 @@ const SelectorNode: React.FC<{
 
 // 🟢 MAIN COMPONENT
 const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelected, onCancel, currentFileId, multiSelect = false }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tForge = t.forge;
+
     const [tree, setTree] = useState<DriveFile[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isEmpty, setIsEmpty] = useState(false);
@@ -208,7 +214,7 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                         </div>
                         <div>
                             <h2 className="font-bold text-lg text-titanium-100">
-                                {multiSelect ? 'Selección Múltiple' : 'Seleccionar Entidad'}
+                                {multiSelect ? (t.common?.multiSelect || 'Selección Múltiple') : (t.common?.selectEntity || 'Seleccionar Entidad')}
                             </h2>
                             <p className="text-[10px] text-titanium-500 font-mono">WORLD_ENTITIES :: READY</p>
                         </div>
@@ -226,7 +232,7 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-full text-titanium-500 gap-3">
                             <div className="w-8 h-8 border-2 border-accent-DEFAULT border-t-transparent rounded-full animate-spin"></div>
-                            <p className="text-sm">Accediendo a la Memoria...</p>
+                            <p className="text-sm">{t.common?.accessingMemory || "Accediendo a la Memoria..."}</p>
                         </div>
                     ) : isEmpty ? (
                         <div className="flex flex-col items-center justify-center h-full text-titanium-500 gap-4 p-8 text-center">
@@ -234,10 +240,9 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                                 <AlertTriangle size={32} />
                             </div>
                             <div>
-                                <h3 className="text-titanium-200 font-bold mb-1">Sin Entidades Compatibles</h3>
+                                <h3 className="text-titanium-200 font-bold mb-1">{t.common?.noCompatibleEntities || "Sin Entidades Compatibles"}</h3>
                                 <p className="text-xs max-w-xs mx-auto">
-                                    No se encontraron entidades registradas.
-                                    Asegúrate de haber procesado la información correctamente.
+                                    {t.common?.noEntitiesDesc || "No se encontraron entidades registradas. Asegúrate de haber procesado la información correctamente."}
                                 </p>
                             </div>
                         </div>
@@ -271,7 +276,7 @@ const InternalFileSelector: React.FC<InternalFileSelectorProps> = ({ onFileSelec
                                 className="flex items-center gap-2 px-4 py-2 bg-accent-DEFAULT hover:bg-accent-hover disabled:opacity-50 disabled:cursor-not-allowed text-titanium-950 font-bold rounded-lg transition-colors"
                             >
                                 <ListChecks size={16} />
-                                Confirmar Selección
+                                {t.common?.confirmSelection || "Confirmar Selección"}
                             </button>
                         </div>
                     ) : (

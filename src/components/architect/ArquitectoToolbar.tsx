@@ -1,5 +1,7 @@
 import React from 'react';
 import { Network, Users, Map, Book, Settings, GitMerge } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 export type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings';
 
@@ -22,13 +24,17 @@ interface ArquitectoToolbarProps {
  * El botón activo se resalta con glow cyan.
  */
 const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToolChange, pendingPatchesCount }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tArch = t.architect;
+
     const tools: ToolbarButton[] = [
-        { id: 'domino', icon: <Network size={20} />, label: 'Efecto Dominó', enabled: true },
-        { id: 'personajes', icon: <Users size={20} />, label: 'Personajes', enabled: true },
-        { id: 'patches', icon: <GitMerge size={20} />, label: 'Parches de Canon', enabled: true },
-        { id: 'map', icon: <Map size={20} />, label: 'Mapa de Colisiones', enabled: true },
-        { id: 'lore', icon: <Book size={20} />, label: 'Roadmap Final', enabled: true },
-        { id: 'settings', icon: <Settings size={20} />, label: 'Ajustes Socráticos', enabled: true }
+        { id: 'domino', icon: <Network size={20} />, label: tArch.dominoEffect || 'Efecto Dominó', enabled: true },
+        { id: 'personajes', icon: <Users size={20} />, label: tArch.characters || 'Personajes', enabled: true },
+        { id: 'patches', icon: <GitMerge size={20} />, label: tArch.canonPatches || 'Parches de Canon', enabled: true },
+        { id: 'map', icon: <Map size={20} />, label: tArch.worldMap || 'Mapa de Colisiones', enabled: true },
+        { id: 'lore', icon: <Book size={20} />, label: tArch.lore || 'Roadmap Final', enabled: true },
+        { id: 'settings', icon: <Settings size={20} />, label: tArch.settings || 'Ajustes Socráticos', enabled: true }
     ];
 
     const handleClick = (id: ActiveTool, enabled: boolean) => {
@@ -44,7 +50,7 @@ const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToo
                         key={tool.id}
                         onClick={() => handleClick(tool.id, tool.enabled)}
                         disabled={!tool.enabled}
-                        title={tool.enabled ? undefined : `${tool.label} — próximamente`}
+                        title={tool.enabled ? undefined : `${tool.label} — ${t.common?.comingSoon || 'próximamente'}`}
                         className={`
                             w-10 h-10 flex items-center justify-center rounded-full
                             transition-all group relative

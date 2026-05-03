@@ -1,6 +1,8 @@
 import React from 'react';
 import { RoadmapCard } from '../../types/roadmap';
 import { Lock, Zap, CheckCircle2 } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface DominoNodeProps {
     card: RoadmapCard;
@@ -30,6 +32,9 @@ const PHASE_COLORS: Record<string, string> = {
  * calcule las posiciones de las líneas Bezier en el DOM.
  */
 const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+
     const phaseKey = card.phase?.toLowerCase() ?? 'fundacion';
     const phaseLabel = PHASE_LABELS[phaseKey] ?? card.phase;
     const phaseColor = PHASE_COLORS[phaseKey] ?? PHASE_COLORS.fundacion;
@@ -59,7 +64,7 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
                 ${isActive ? 'ring-2 ring-cyan-400/60 ring-offset-2 ring-offset-[#0a0a0a]' : ''}
             `}
             role={card.status !== 'locked' ? 'button' : undefined}
-            aria-label={`Fase ${phaseLabel}: ${card.title}`}
+            aria-label={`${t.common?.phase || 'Fase'} ${phaseLabel}: ${card.title}`}
         >
             {/* Phase Badge */}
             <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full border mb-3 ${phaseColor}`}>
@@ -85,7 +90,7 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
             {card.missions && card.missions.length > 0 && (
                 <div className="mt-3 pt-2.5 border-t border-titanium-800/60 flex items-center justify-between">
                     <span className="text-[10px] font-mono text-titanium-600 uppercase tracking-wider">
-                        Misiones
+                        {t.common?.missions || "Misiones"}
                     </span>
                     <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${card.status === 'active'
                             ? 'text-cyan-400 bg-cyan-900/30'

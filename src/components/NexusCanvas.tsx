@@ -31,6 +31,8 @@ import { WorldEntity } from '../types/entity';
 import { EntityService } from '../services/EntityService';
 import CrystallizeModal from './ui/CrystallizeModal';
 import { callFunction } from '../services/api';
+import { useLanguageStore } from '../stores/useLanguageStore';
+import { TRANSLATIONS } from '../i18n/translations';
 
 // ── 🔄 ADAPTER: WorldEntity → GraphNode ─────────────────────────────────────────
 // Permite que NexusCanvas reciba WorldEntity del ECS sin tocar el JSX/D3.
@@ -664,6 +666,9 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
     const [pendingNodes, setPendingNodes] = useState<PendingCrystallization[]>([]);
 
+    const { currentLanguage } = useLanguageStore();
+    const tNexus = TRANSLATIONS[currentLanguage].nexus;
+
     // UI State
     const [inputValue, setInputValue] = useState("");
     const [entropy, setEntropy] = useState(0.5);
@@ -851,7 +856,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
     };
 
     const handleClearAll = async () => {
-        if (!confirm("⚠️ ¿ELIMINAR TODO? Esto borrará todos los nodos de la base de datos y la vista local.")) return;
+        if (!confirm(tNexus.confirmClear)) return;
 
         // 1. Clear Local Ghosts
         setGhostNodes([]);
@@ -927,7 +932,7 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
             <AnimatePresence>
                 {loading && (
                     <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-[#141413] z-[100] flex items-center justify-center pointer-events-none">
-                        <div className="text-cyan-500 font-mono">CARGANDO NEXUS...</div>
+                        <div className="text-cyan-500 font-mono">{tNexus.loading}</div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -982,10 +987,10 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
 
                         {/* ZOOM CONTROLS */}
                         <div className="absolute bottom-24 right-6 flex flex-col gap-2 pointer-events-auto">
-                            <button onClick={handleClearAll} aria-label="Limpiar Todo (DB + Local)" className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title="Limpiar Todo (DB + Local)"><Trash2 size={16} /></button>
+                            <button onClick={handleClearAll} aria-label={tNexus.clearAll} className="p-2 bg-slate-900/50 border border-slate-700 hover:bg-red-900/80 hover:border-red-500 rounded text-slate-400 hover:text-white transition-colors" title={tNexus.clearAll}><Trash2 size={16} /></button>
                             <button onClick={() => spawnDebugNodes(50)} aria-label="Debug: Spawn Swarm" className="p-2 bg-red-900/50 border border-red-700 rounded text-red-500 mb-2" title="Debug: Spawn Swarm"><Bug size={16} /></button>
-                            <button onClick={() => zoomIn()} aria-label="Acercar vista" className="p-2 bg-slate-900 border border-slate-700 rounded"><Plus size={16} /></button>
-                            <button onClick={() => zoomOut()} aria-label="Alejar vista" className="p-2 bg-slate-900 border border-slate-700 rounded"><div className="w-4 h-[2px] bg-white my-2" /></button>
+                            <button onClick={() => zoomIn()} aria-label={tNexus.zoomIn} className="p-2 bg-slate-900 border border-slate-700 rounded" title={tNexus.zoomIn}><Plus size={16} /></button>
+                            <button onClick={() => zoomOut()} aria-label={tNexus.zoomOut} className="p-2 bg-slate-900 border border-slate-700 rounded" title={tNexus.zoomOut}><div className="w-4 h-[2px] bg-white my-2" /></button>
                         </div>
                     </>
                 )}
@@ -1000,19 +1005,19 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
                         </div>
                         <input
                             type="text"
-                            aria-label="Comando para el Nexus"
+                            aria-label={tNexus.injectVariable}
                             value={inputValue}
                             onChange={(e) => setInputValue(e.target.value)}
-                            placeholder={isGenerating ? "Procesando..." : "Inyectar variable..."}
+                            placeholder={isGenerating ? tNexus.processing : tNexus.injectVariable}
                             disabled={isGenerating}
                             className="flex-1 bg-transparent outline-none text-sm text-white placeholder-slate-600 font-mono"
                         />
-                        <button type="submit" aria-label="Ejecutar comando" disabled={isGenerating} className="text-slate-500 hover:text-white"><Plus size={20} /></button>
+                        <button type="submit" aria-label={tNexus.injectVariable} disabled={isGenerating} className="text-slate-500 hover:text-white"><Plus size={20} /></button>
                     </form>
                     {/* Entropy Slider */}
                     <div className="h-1 w-full bg-slate-900 relative rounded-full overflow-hidden mx-2 mb-2 max-w-[96%] self-center">
                         <div className={`absolute top-0 left-0 h-full ${entropy > 0.6 ? "bg-red-500" : "bg-cyan-500"}`} style={{ width: `${entropy * 100}%` }} />
-                        <input type="range" aria-label="Nivel de Entropía" min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
+                        <input type="range" aria-label={tNexus.chaosLevel || "Chaos Level"} min="0" max="1" step="0.1" value={entropy} onChange={(e) => setEntropy(parseFloat(e.target.value))} className="absolute inset-0 opacity-0 cursor-ew-resize" />
                     </div>
                 </div>
             </div>

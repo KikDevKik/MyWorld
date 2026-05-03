@@ -22,16 +22,19 @@ import * as crypto from 'crypto';
 // --- RE-EXPORTS (Modular Architecture) ---
 export { genesisManifest } from './genesis';
 
-export { exchangeAuthCode, refreshDriveToken, revokeDriveAccess } from './auth';
+export { exchangeAuthCode, loginWithGoogleCode, refreshDriveToken, revokeDriveAccess } from './auth';
 export { auditContent, purgeEcho, scanProjectDrift, rescueEcho, auditGlobal } from './guardian';
 export { scribeCreateFile, integrateNarrative, scribePatchFile, transformToGuide, syncSmart } from './scribe';
+import { getTranslation } from './backend_i18n';
 export {
   discoverFolderRoles,
   createTitaniumStructure,
   renameDriveFolder,
   trashDriveItems,
   getBatchDriveMetadata,
-  getFileSystemNodes
+  getFileSystemNodes,
+  createDriveFolder,
+  moveDriveFile
 } from './folder_manager';
 export { nukeProject, purgeForgeDatabase } from './nuke';
 export {
@@ -256,6 +259,372 @@ export const getDriveFiles = onCall(
 
     } catch (error: any) {
       logger.error("Get Drive Files Failed:", error);
+      throw new HttpsError('internal', error.message);
+    }
+  }
+);
+
+/**
+ * IMPORT DRIVE FILES
+ * Clones existing files from the user's Drive into the MyWorld project folder.
+ * This ensures MyWorld's `drive.file` scope grants full ownership and access to the copies.
+ */
+export const importDriveFiles = onCall(
+  {
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
+    enforceAppCheck: false,
+    timeoutSeconds: 120,
+    memory: "512MiB",
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+
+    const { fileIds, targetFolderId, accessToken } = request.data;
+
+    if (!accessToken) throw new HttpsError("invalid-argument", "Missing accessToken.");
+    if (!targetFolderId) throw new HttpsError("invalid-argument", "Missing targetFolderId.");
+    if (!fileIds || !Array.isArray(fileIds) || fileIds.length === 0) {
+      throw new HttpsError("invalid-argument", "Missing or empty fileIds array.");
+    }
+
+    try {
+      const auth = new google.auth.OAuth2();
+      auth.setCredentials({ access_token: accessToken });
+      const drive = google.drive({ version: "v3", auth });
+
+      const newFileIds: string[] = [];
+
+      // Process copies sequentially or in small batches to avoid rate limits
+      for (const fileId of fileIds) {
+        try {
+          const res = await drive.files.copy({
+            fileId: fileId,
+            requestBody: {
+              parents: [targetFolderId]
+            }
+          });
+          if (res.data.id) {
+             newFileIds.push(res.data.id);
+          }
+        } catch (copyError: any) {
+          logger.error(`Failed to copy file ${fileId}:`, copyError);
+          // Continue copying other files even if one fails
+        }
+      }
+
+      return { success: true, importedCount: newFileIds.length, newFileIds };
+    } catch (error: any) {
+      logger.error("Import Drive Files Failed:", error);
+      throw new HttpsError('internal', error.message);
+    }
+  }
+);
+
+const ALLOWED_MIMETYPES = new Set([
+    // Google Docs nativos
+    'application/vnd.google-apps.document',
+    // Markdown y texto
+    'text/markdown',
+    'text/plain',
+    'text/x-markdown',
+    // Word
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    // PDF
+    'application/pdf',
+    // Imágenes de referencia
+    'image/png',
+    'image/jpeg',
+    'image/jpg',
+    'image/gif',
+    'image/webp',
+]);
+
+const BLOCKED_EXTENSIONS = new Set([
+    '.ds_store',
+    '.ini',
+    '.json',
+    '.yaml',
+    '.yml',
+    '.xml',
+    '.log',
+    '.lock',
+    '.gitignore',
+    '.obsidian',
+    '.scrivx',
+    '.bak',
+    '.tmp',
+    '.exe',
+    '.sh',
+    '.bat',
+    '.zip',
+    '.tar',
+    '.gz',
+]);
+
+function isAllowedFile(fileName: string, mimeType: string): boolean {
+    // Bloquear por extensión primero (más rápido)
+    const ext = '.' + fileName.split('.').pop()?.toLowerCase();
+    if (BLOCKED_EXTENSIONS.has(ext)) return false;
+
+    // Bloquear archivos ocultos (empiezan con punto)
+    if (fileName.startsWith('.')) return false;
+
+    // Permitir por mimeType
+    if (ALLOWED_MIMETYPES.has(mimeType)) return true;
+
+    // Para tipos no reconocidos: bloquear por seguridad
+    // (mejor perder un archivo raro que copiar basura)
+    logger.info(`[Import] Archivo ignorado: ${fileName} (${mimeType})`);
+    return false;
+}
+
+/**
+ * Copia recursivamente una carpeta origen a una carpeta destino,
+ * recreando la estructura jerárquica completa.
+ */
+async function copyFolderRecursive(
+    readDrive: any,
+    writeDrive: any,
+    sourceFolderId: string,
+    targetFolderId: string,
+    stats: { copied: number; skipped: number; errors: string[] }
+): Promise<void> {
+    
+    // Listar contenido de la carpeta origen
+    let pageToken: string | undefined;
+    do {
+        const res = await readDrive.files.list({
+            q: `'${sourceFolderId}' in parents and trashed = false`,
+            fields: 'nextPageToken, files(id, name, mimeType)',
+            pageSize: 100,
+            pageToken,
+            supportsAllDrives: true,
+            includeItemsFromAllDrives: true,
+        });
+
+        for (const file of res.data.files || []) {
+            
+            if (file.mimeType === 'application/vnd.google-apps.folder') {
+                // Es una subcarpeta — crearla en destino y recursar
+                try {
+                    const newFolder = await writeDrive.files.create({
+                        requestBody: {
+                            name: file.name!,
+                            mimeType: 'application/vnd.google-apps.folder',
+                            parents: [targetFolderId],
+                        },
+                        fields: 'id',
+                        supportsAllDrives: true
+                    });
+                    
+                    // Recursar dentro de la subcarpeta recién creada
+                    if (newFolder.data.id) {
+                        await copyFolderRecursive(
+                            readDrive,
+                            writeDrive,
+                            file.id!,
+                            newFolder.data.id,
+                            stats
+                        );
+                    }
+                } catch (err: any) {
+                    logger.error(`[Import] Error creando subcarpeta ${file.name}:`, err.message);
+                    stats.errors.push(file.name!);
+                }
+                
+            } else {
+                // Es un archivo — aplicar filtro y copiar
+                if (!isAllowedFile(file.name!, file.mimeType!)) {
+                    stats.skipped++;
+                    continue;
+                }
+                
+                try {
+                    await writeDrive.files.copy({
+                        fileId: file.id!,
+                        requestBody: {
+                            name: file.name!,
+                            parents: [targetFolderId],
+                        },
+                        supportsAllDrives: true
+                    });
+                    stats.copied++;
+                } catch (err: any) {
+                    logger.error(`[Import] Error copiando ${file.name}:`, err.message);
+                    stats.errors.push(file.name!);
+                }
+            }
+        }
+
+        pageToken = res.data.nextPageToken || undefined;
+    } while (pageToken);
+}
+
+/**
+ * Obtiene o crea la subcarpeta de rol dentro de la raíz del proyecto.
+ * Canon → /CANON, Recurso → /RECURSOS, Raíz → directamente en la raíz
+ */
+async function getOrCreateRoleFolder(
+    writeDrive: any,
+    projectRootId: string,
+    role: 'canon' | 'resource' | 'root',
+    lang: string = 'es'
+): Promise<string> {
+    if (role === 'root') return projectRootId;
+
+    const folderName = role === 'canon' ? getTranslation(lang, 'folders', 'canon') : getTranslation(lang, 'folders', 'resources');
+
+    // Buscar si ya existe la subcarpeta de rol
+    const existing = await writeDrive.files.list({
+        q: `name='${folderName}' and '${projectRootId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        fields: 'files(id)',
+        pageSize: 1,
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+    });
+
+    if (existing.data.files?.length) {
+        return existing.data.files[0].id!;
+    }
+
+    // No existe — crear la subcarpeta de rol
+    const created = await writeDrive.files.create({
+        requestBody: {
+            name: folderName,
+            mimeType: 'application/vnd.google-apps.folder',
+            parents: [projectRootId],
+        },
+        fields: 'id',
+        supportsAllDrives: true,
+    });
+
+    return created.data.id!;
+}
+
+/**
+ * IMPORT DRIVE FOLDER (RECURSIVE)
+ * Imports an entire folder structure recursively using an incremental `drive.readonly` token.
+ */
+export const importDriveFolder = onCall(
+  {
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
+    enforceAppCheck: false,
+    timeoutSeconds: 300, // 5 min for large folders
+    memory: "1GiB",
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+
+    // Recibe arreglo de carpetas desde frontend
+    const { folders, projectRootId, importToken, sessionToken } = request.data;
+    
+    // Fallback de retrocompatibilidad si el frontend aún envía parámetros antiguos temporalmente
+    const folderIdLegacy = request.data.folderId;
+    const targetFolderIdLegacy = request.data.targetFolderId;
+    const createSubfolderNameLegacy = request.data.createSubfolderName;
+    const accessTokenLegacy = request.data.accessToken;
+
+    const finalImportToken = importToken || request.data.importToken; // Should exist in both
+    const finalSessionToken = sessionToken || accessTokenLegacy;
+    const finalRootId = projectRootId || targetFolderIdLegacy;
+    
+    const foldersToProcess = folders || [
+        { folderId: folderIdLegacy, folderName: createSubfolderNameLegacy || "Import", role: 'root' }
+    ];
+
+    if (!finalImportToken) throw new HttpsError("invalid-argument", "Missing importToken.");
+    if (!finalSessionToken) throw new HttpsError("invalid-argument", "Missing sessionToken (Write Token).");
+    if (!finalRootId) throw new HttpsError("invalid-argument", "Missing projectRootId.");
+    if (!foldersToProcess || foldersToProcess.length === 0) throw new HttpsError("invalid-argument", "Missing folders.");
+
+    try {
+      // 1. MOTOR DE LECTURA (Usa el token incremental drive.readonly)
+      const readAuth = new google.auth.OAuth2();
+      readAuth.setCredentials({ access_token: finalImportToken });
+      const readDrive = google.drive({ version: "v3", auth: readAuth });
+
+      // 2. MOTOR DE ESCRITURA (Usa el token principal de sesión con drive.file)
+      const writeAuth = new google.auth.OAuth2();
+      writeAuth.setCredentials({ access_token: finalSessionToken });
+      const writeDrive = google.drive({ version: "v3", auth: writeAuth });
+
+      let actualRootId = finalRootId;
+
+      // 🟢 GHOST DETECTOR: Check if the target root folder actually exists
+      try {
+        await writeDrive.files.get({ fileId: finalRootId, fields: 'id', supportsAllDrives: true });
+      } catch (error: any) {
+        if (error.code === 404 || error.message?.includes('File not found') || error.message?.includes('Insufficient Permission')) {
+            logger.warn(`Ghost root folder detected or permission lost: ${finalRootId}. Creating emergency root.`);
+            const emergencyMeta = {
+                name: `MyWorld_Project_Recovery_${new Date().toISOString().split('T')[0]}`,
+                mimeType: 'application/vnd.google-apps.folder',
+            };
+            const emergencyRes = await writeDrive.files.create({
+                requestBody: emergencyMeta,
+                fields: 'id',
+            });
+            if (emergencyRes.data.id) {
+                actualRootId = emergencyRes.data.id;
+            } else {
+                throw new HttpsError('internal', 'Failed to create emergency root folder.');
+            }
+        } else {
+            throw error;
+        }
+      }
+
+      const stats = { copied: 0, skipped: 0, errors: [] as string[] };
+      const createdFolders: { id: string, name: string }[] = [];
+
+      for (const folder of foldersToProcess) {
+          const targetId = await getOrCreateRoleFolder(
+              writeDrive,
+              actualRootId,
+              folder.role || folder.targetRole || 'root', // Soporta retrocompatibilidad de nombre de propiedad
+              request.data._lang || 'es'
+          );
+
+          const folderName = folder.folderName || folder.name || "Imported Folder";
+
+          // Crear una subcarpeta con el nombre original de la carpeta del usuario
+          const importedFolder = await writeDrive.files.create({
+              requestBody: {
+                  name: folderName,
+                  mimeType: 'application/vnd.google-apps.folder',
+                  parents: [targetId],
+              },
+              fields: 'id',
+              supportsAllDrives: true
+          });
+
+          // Copiar recursivamente preservando la estructura interna
+          if (importedFolder.data.id) {
+              createdFolders.push({ id: importedFolder.data.id, name: folderName });
+              await copyFolderRecursive(
+                  readDrive,
+                  writeDrive,
+                  folder.folderId || folder.id,
+                  importedFolder.data.id,
+                  stats
+              );
+          }
+      }
+
+      return { 
+          success: true, 
+          copied: stats.copied,
+          skipped: stats.skipped,
+          errors: stats.errors,
+          imported: stats.copied, // Para mantener compatibilidad con el frontend antiguo si es necesario
+          createdFolders: createdFolders,
+          newFolderId: actualRootId !== finalRootId ? actualRootId : undefined
+      };
+    } catch (error: any) {
+      logger.error("Import Drive Folder Failed:", error);
       throw new HttpsError('internal', error.message);
     }
   }

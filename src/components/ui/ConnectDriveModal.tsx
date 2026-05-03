@@ -32,10 +32,10 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
 
         if (cleanId) {
             onSubmit(cleanId);
-            toast.success("Carpeta conectada");
+            toast.success(t.connectDrive.connectedSuccess);
             onClose();
         } else {
-            toast.warning("ID o enlace inválido");
+            toast.warning(t.connectDrive.invalidFolder);
         }
     };
 
@@ -63,15 +63,15 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
                             <HardDrive size={24} className="text-gray-200" />
                         </div>
                         <div>
-                            <h2 id="connect-drive-title" className="text-lg font-bold text-white">Conexión Neuronal</h2>
-                            <p id="connect-drive-description" className="text-xs text-gray-400">Enlaza tu Google Drive</p>
+                            <h2 id="connect-drive-title" className="text-lg font-bold text-white">{t.connectDrive.title}</h2>
+                            <p id="connect-drive-description" className="text-xs text-gray-400">{t.connectDrive.subtitle}</p>
                         </div>
                     </div>
 
                     <form onSubmit={handleSubmit} className="flex flex-col gap-4">
                         <div className="space-y-2">
                             <label htmlFor="drive-id-input" className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">
-                                ID de la Carpeta o Enlace
+                                {t.connectDrive.folderIdLabel}
                             </label>
 
                             <input
@@ -80,7 +80,7 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
                                 autoFocus
                                 value={inputId}
                                 onChange={(e) => setInputId(e.target.value)}
-                                placeholder="Pega el enlace o el ID aquí..."
+                                placeholder={t.connectDrive.pastePlaceholder}
                                 className="w-full appearance-none bg-slate-800 text-white placeholder:text-gray-400 border border-slate-700 px-4 py-3 rounded-xl outline-none focus:outline-none focus:border-accent-DEFAULT focus:ring-1 focus:ring-accent-DEFAULT transition-all font-mono text-sm"
                                 style={{ colorScheme: 'dark' }}
                             />
@@ -89,7 +89,7 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
                             <div className="flex gap-2 items-start bg-gray-900/50 p-2 rounded-lg border border-gray-800">
                                 <AlertTriangle size={12} className="text-yellow-500 mt-0.5 shrink-0" />
                                 <p className="text-[10px] text-gray-500 leading-tight">
-                                    Asegúrate de haber compartido la carpeta con el correo del robot (Service Account) o dará error 404.
+                                    {t.connectDrive.serviceAccountHint}
                                 </p>
                             </div>
                         </div>
@@ -107,7 +107,7 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
                                 className="flex-1 py-3 bg-white hover:bg-gray-200 text-black rounded-xl text-sm font-bold transition-colors flex items-center justify-center gap-2 outline-none shadow-[0_0_15px_rgba(255,255,255,0.1)]"
                             >
                                 <Check size={16} />
-                                {t.status.connect}
+                                {t.connectDrive.connect}
                             </button>
                         </div>
                     </form>

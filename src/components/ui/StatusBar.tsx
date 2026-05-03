@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Clock, Type, RefreshCw, ScanEye, Loader2, Pause, Square, Target, X, Check, Zap, Leaf } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTier } from '../../hooks/useTier';
-import { useQuotaTracker } from '../../hooks/useQuotaTracker';
 import { AlertCircle } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
@@ -38,21 +37,9 @@ const getTodayKey = () => {
 
 const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, narratorControls }) => {
     const { tier, hasByok, isNormal } = useTier();
-    const { quota, status: quotaStatus, usagePercent, limits } = useQuotaTracker();
     const { currentLanguage } = useLanguageStore();
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const t = TRANSLATIONS[currentLanguage].statusBar;
-
-    // Escuchar actualizaciones manuales de cuota
-    useEffect(() => {
-        const handleQuotaUpdate = () => {
-            // Forzar re-render leyendo de nuevo desde localStorage o confiando en hook internals
-            // El hook ya tiene su estado interno, pero se actualiza en otra ventana? 
-            // Esto solo es para que los tabs cambien (ya que usamos localstorage manual)
-        };
-        window.addEventListener('quota_updated', handleQuotaUpdate);
-        return () => window.removeEventListener('quota_updated', handleQuotaUpdate);
-    }, []);
 
     const { misiones, hasRoadmap, toggleMision, resetProgress, pendingCount } = useMisionesEditor(arquitectoSessionId);
     const [isMisionesExpanded, setIsMisionesExpanded] = useState(false);
@@ -144,55 +131,24 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 {/* Badge de tier — siempre visible */}
                 <button
                     onClick={onOpenSettings}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded 
-                        transition-colors
-                        ${!hasByok 
-                            ? 'bg-red-500/10 hover:bg-red-500/20' 
-                            : tier === 'ultra'
-                                ? 'hover:bg-zinc-700/50'
-                                : 'hover:bg-zinc-700/50'
-                        }`}
-                    title={
-                        !hasByok 
-                            ? 'Sin API Key — Click para configurar'
-                            : isNormal 
-                                ? `${quota.requestCount}/${limits.RPD} requests hoy` 
-                                : `Modo Ultra — Click para cambiar`
-                    }
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors
+                        ${!hasByok ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-zinc-700/50'}`}
+                    title={!hasByok ? t.noApiKeyTooltip : tier === 'ultra' ? t.ultraModeTooltip : t.normalModeTooltip}
                 >
                     {!hasByok ? (
-                        // Sin key: ícono de advertencia + texto
                         <>
                             <AlertCircle size={11} className="text-red-400" />
-                            <span className="text-[10px] font-medium text-red-400">
-                                Sin API Key
-                            </span>
+                            <span className="text-[10px] font-medium text-red-400">{t.noApiKey}</span>
                         </>
                     ) : tier === 'ultra' ? (
-                        // Ultra
                         <>
                             <Zap size={11} className="text-violet-400" />
-                            <span className="text-[10px] font-medium text-violet-400">
-                                Ultra
-                            </span>
+                            <span className="text-[10px] font-medium text-violet-400">Ultra</span>
                         </>
                     ) : (
-                        // Normal con mini barra de progreso
                         <>
-                            {/* Mini barra de progreso */}
-                            <div className="w-16 h-1.5 bg-zinc-800 rounded-full overflow-hidden shrink-0 shadow-inner">
-                                <div 
-                                    className={`h-full rounded-full transition-all duration-500 shadow-[0_0_8px_currentColor]
-                                        ${quotaStatus === 'critical' ? 'bg-red-500' :
-                                          quotaStatus === 'warning' ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                                    style={{ width: `${usagePercent}%` }}
-                                />
-                            </div>
-                            <span className={`text-[10px] font-bold tracking-wide
-                                ${quotaStatus === 'critical' ? 'text-red-400' :
-                                  quotaStatus === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
-                                {Math.round(usagePercent)}%
-                            </span>
+                            <Leaf size={11} className="text-emerald-400" />
+                            <span className="text-[10px] font-medium text-emerald-400">Normal</span>
                         </>
                     )}
                 </button>
@@ -207,11 +163,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                 onClick={() => setIsMisionesExpanded(v => !v)}
                                 className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-zinc-700/50 transition-colors"
                                 title={pendingCount > 0
-                                    ? `${pendingCount} misiones pendientes`
-                                    : 'Todas las misiones completadas'}
+                                    ? `${pendingCount} ${t.pendingMissionsCount}`
+                                    : t.allMissionsCompleted}
                                 aria-label={pendingCount > 0
-                                    ? `${pendingCount} misiones pendientes`
-                                    : 'Todas las misiones completadas'}
+                                    ? `${pendingCount} ${t.pendingMissionsCount}`
+                                    : t.allMissionsCompleted}
                             >
                                 <Target size={12} className={pendingCount > 0 ? 'text-violet-400' : 'text-emerald-400'} />
                                 {pendingCount > 0 && (
@@ -235,14 +191,14 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
                                             <div className="flex items-center gap-2">
                                                 <Target size={13} className="text-violet-400" />
-                                                <span className="text-xs font-medium text-zinc-300">Misiones del Roadmap</span>
+                                                <span className="text-xs font-medium text-zinc-300">{t.roadmapMissions}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs text-zinc-500">{pendingCount} pendientes</span>
+                                                <span className="text-xs text-zinc-500">{pendingCount} {t.pending}</span>
                                                 <button
                                                     onClick={() => setIsMisionesExpanded(false)}
                                                     className="text-zinc-600 hover:text-zinc-300 transition-colors"
-                                                    aria-label="Cerrar"
+                                                    aria-label={t.close}
                                                 >
                                                     <X size={13} />
                                                 </button>
@@ -253,7 +209,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                         <div className="overflow-y-auto max-h-72 p-2 space-y-1">
                                             {misiones.length === 0 && (
                                                 <p className="text-xs text-zinc-600 text-center py-4">
-                                                    No hay misiones en el Roadmap actual.
+                                                    {t.noMissions}
                                                 </p>
                                             )}
                                             {misiones.map(mision => (
@@ -287,7 +243,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                                     onClick={resetProgress}
                                                     className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
                                                 >
-                                                    Restablecer progreso
+                                                    {t.resetProgress}
                                                 </button>
                                             </div>
                                         )}
@@ -336,7 +292,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                             )}
 
                             <span className="text-cyan-200 font-bold tracking-wide">
-                                {narratorControls.isLoading ? "Analizando..." : "Narrando"}
+                                {narratorControls.isLoading ? t.analyzing : t.narrating}
                             </span>
 
                             {!narratorControls.isLoading && (
@@ -344,16 +300,16 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                                     <button
                                         onClick={narratorControls.pause}
                                         className="hover:text-cyan-400 hover:bg-cyan-900/50 rounded p-0.5 transition-colors"
-                                        title="Pausar"
-                                        aria-label="Pausar"
+                                        title={t.pause}
+                                        aria-label={t.pause}
                                     >
                                         <Pause size={10} fill="currentColor" />
                                     </button>
                                     <button
                                         onClick={narratorControls.stop}
                                         className="hover:text-red-400 hover:bg-red-900/50 rounded p-0.5 transition-colors"
-                                        title="Detener"
-                                        aria-label="Detener"
+                                        title={t.stop}
+                                        aria-label={t.stop}
                                     >
                                         <Square size={10} fill="currentColor" />
                                     </button>

@@ -22,6 +22,8 @@ import {
 import { AnalysisCandidate, AnalysisAmbiguityType, VisualNode } from './types';
 import { CreativeAuditService } from '../../services/CreativeAuditService';
 import { useProjectConfig } from '../../contexts/ProjectConfigContext';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface NexusTribunalModalProps {
     isOpen: boolean;
@@ -65,6 +67,9 @@ const cleanName = (name: string) => {
 
 const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose, candidates, onAction, onEditApprove, onBatchMerge, ignoredTerms = [], onRestoreIgnored, existingNodes = [], onUpdateCandidate }) => {
     const { user, config } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tNexus = t.nexus;
 
     // STATE: FILTER
     const [filterMode, setFilterMode] = useState<'ALL' | 'CONFLICT' | 'NEW' | 'TRASH'>('ALL');
@@ -322,8 +327,8 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         <div className="flex items-center gap-3">
                             <ShieldAlert className="text-cyan-500" size={20} />
                             <div>
-                                <h2 className="text-sm font-bold text-slate-200 tracking-wider">NEXUS TRIBUNAL</h2>
-                                <div className="text-[10px] text-cyan-500/80 font-mono">ANALYSIS PROTOCOL ACTIVE</div>
+                                <h2 className="text-sm font-bold text-slate-200 tracking-wider">{tNexus.nexusTribunal?.toUpperCase() || 'NEXUS TRIBUNAL'}</h2>
+                                <div className="text-[10px] text-cyan-500/80 font-mono">{tNexus.analysisProtocolActive || "ANALYSIS PROTOCOL ACTIVE"}</div>
                             </div>
                         </div>
 
@@ -357,13 +362,12 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         <div className="relative group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-500 transition-colors" size={14} />
                             <input
-                                type="text"
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Buscar en Nexus..."
-                                className="w-full bg-slate-900/50 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-300 placeholder:text-slate-600 outline-none focus:border-cyan-500/50 focus:bg-slate-900 transition-all"
-                            />
-                        </div>
+                            type="text"
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            placeholder={tNexus.searchInNexus || "Buscar en Nexus..."}
+                            className="w-full bg-slate-900/50 border border-slate-800 rounded-lg pl-9 pr-3 py-2 text-xs font-mono text-slate-300 placeholder:text-slate-600 outline-none focus:border-cyan-500/50 focus:bg-slate-900 transition-all"
+                            />                        </div>
                     </div>
 
                     {/* Filters/Tabs */}
@@ -401,7 +405,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                             ignoredTerms.length === 0 ? (
                                 <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
                                     <Trash2 size={24} className="text-slate-800" />
-                                    <span className="text-xs font-mono">PAPER BIN EMPTY</span>
+                                    <span className="text-xs font-mono">{tNexus.paperBinEmpty || "PAPER BIN EMPTY"}</span>
                                 </div>
                             ) : (
                                 ignoredTerms.map((term, idx) => (
@@ -423,7 +427,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                 <div className="h-full flex flex-col items-center justify-center text-slate-600 gap-2">
                                     <Check size={32} className="text-green-900" />
                                     <span className="text-xs font-mono">
-                                        {candidates.length === 0 ? "NO ISSUES FOUND" : "NO MATCHES"}
+                                        {candidates.length === 0 ? (tNexus.noIssuesFound || "NO ISSUES FOUND") : (tNexus.noMatches || "NO MATCHES")}
                                     </span>
                                 </div>
                             ) : (
@@ -470,7 +474,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                     <div className="flex justify-between items-start">
                                                         <span className={`text-sm font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'} ${isStaged ? 'text-[#ddbf61]' : ''}`}>
                                                             {cleanName(candidate.name)}
-                                                            {isStaged && <span className="ml-2 text-[9px] bg-[#ddbf61] text-black px-1.5 py-0.5 rounded font-black tracking-wider">FUSIONADO</span>}
+                                                            {isStaged && <span className="ml-2 text-[9px] bg-[#ddbf61] text-black px-1.5 py-0.5 rounded font-black tracking-wider">{tNexus.mergedTag || "FUSIONADO"}</span>}
                                                         </span>
                                                         <span className={`text-[10px] px-1.5 py-0.5 rounded border whitespace-nowrap ${getTypeColor(candidate.ambiguityType)}`}>
                                                             {candidate.category}
@@ -504,7 +508,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                     className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg shadow-xl shadow-indigo-900/30 font-bold text-sm flex items-center justify-center gap-2"
                                 >
                                     <GitMerge size={16} />
-                                    FUSIONAR SELECCIONADOS ({checkedIds.size})
+                                    {tNexus.mergeSelected || "FUSIONAR SELECCIONADOS"} ({checkedIds.size})
                                 </button>
                             </motion.div>
                         )}
@@ -527,8 +531,8 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                              <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mb-4">
                                 <Trash2 size={24} className="text-red-900" />
                              </div>
-                             <p className="text-sm font-mono">IGNORED ENTITIES ARCHIVE</p>
-                             <p className="text-xs text-slate-500 mt-2">Restoring an item allows Nexus to detect it again in the next scan.</p>
+                             <p className="text-sm font-mono">{tNexus.ignoredEntitiesArchive || "IGNORED ENTITIES ARCHIVE"}</p>
+                             <p className="text-xs text-slate-500 mt-2">{tNexus.restoreDesc || "Restoring an item allows Nexus to detect it again in the next scan."}</p>
                         </div>
                     ) : selectedCandidate ? (
                         <>
@@ -710,7 +714,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                             disabled={isProcessing}
                                             className={`px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 transition-all text-sm font-bold ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:text-white'}`}
                                         >
-                                            CANCELAR
+                                            {t.common?.cancel?.toUpperCase() || "CANCELAR"}
                                         </button>
                                         <button
                                             onClick={handleSaveEdit}
@@ -718,7 +722,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                             className={`px-8 py-2.5 rounded-lg bg-green-600 hover:bg-green-500 text-white shadow-lg shadow-green-900/20 transition-all text-sm font-bold flex items-center gap-2 group ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                                         >
                                             {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                                            {isProcessing ? 'PROCESANDO...' : 'GUARDAR Y APROBAR'}
+                                            {isProcessing ? (t.common?.processing?.toUpperCase() || "PROCESANDO...") : (t.common?.saveAndApprove?.toUpperCase() || "GUARDAR Y APROBAR")}
                                         </button>
                                     </>
                                 ) : (
@@ -737,8 +741,8 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                             onClick={() => handleAction('REJECT_SOFT')}
                                                             className="text-left px-3 py-2 rounded hover:bg-slate-800 text-slate-300 text-sm font-bold"
                                                         >
-                                                            Descartar Instancia
-                                                            <div className="text-[10px] font-normal text-slate-500">Solo quitar de la lista (Skip)</div>
+                                                            {tNexus.discardInstance || "Descartar Instancia"}
+                                                            <div className="text-[10px] font-normal text-slate-500">{tNexus.justRemoveFromList || "Solo quitar de la lista (Skip)"}</div>
                                                         </button>
                                                         <div className="h-[1px] bg-slate-800 my-1" />
                                                         <button
@@ -746,7 +750,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                             className="text-left px-3 py-2 rounded hover:bg-red-950/30 text-red-400 hover:text-red-300 text-sm font-bold flex items-center gap-2"
                                                         >
                                                             <ShieldAlert size={14} />
-                                                            Banear Término
+                                                            {tNexus.banTerm || "Banear Término"}
                                                             <div className="text-[10px] font-normal text-red-500/50 absolute bottom-2 right-2">BLACKLIST</div>
                                                         </button>
                                                     </motion.div>
@@ -757,7 +761,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                 disabled={isProcessing}
                                                 className={`px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 transition-all text-sm font-bold ${isProcessing ? 'opacity-50 cursor-not-allowed' : 'hover:bg-slate-800 hover:text-white'} ${showRejectPopover ? 'bg-slate-800 text-white' : ''}`}
                                             >
-                                                REJECT...
+                                                {t.common?.reject || "REJECT"}...
                                             </button>
                                         </div>
 
@@ -803,7 +807,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                              <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mb-4">
                                 <Sparkles size={24} className="text-slate-700" />
                              </div>
-                             <p className="text-sm font-mono">NO ACTIVE CANDIDATE SELECTED</p>
+                             <p className="text-sm font-mono">{tNexus.noActiveCandidate || "NO ACTIVE CANDIDATE SELECTED"}</p>
                         </div>
                     )}
                 </div>
@@ -823,8 +827,8 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         <GitMerge size={24} />
                                     </div>
                                     <div>
-                                        <h2 className="text-lg font-bold text-white">The Unifier Protocol</h2>
-                                        <p className="text-xs text-slate-400">Selecciona la versión maestra para la fusión.</p>
+                                        <h2 className="text-lg font-bold text-white">{tNexus.unifierProtocol || "The Unifier Protocol"}</h2>
+                                        <p className="text-xs text-slate-400">{tNexus.selectMasterVersion || "Selecciona la versión maestra para la fusión."}</p>
                                     </div>
                                 </div>
 
@@ -867,7 +871,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         className="px-6 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm shadow-lg flex items-center gap-2"
                                     >
                                         {isProcessing ? <Loader2 size={16} className="animate-spin" /> : <GitMerge size={16} />}
-                                        CONFIRMAR FUSIÓN
+                                        {t.common?.confirmMerge?.toUpperCase() || "CONFIRMAR FUSIÓN"}
                                     </button>
                                 </div>
                             </motion.div>

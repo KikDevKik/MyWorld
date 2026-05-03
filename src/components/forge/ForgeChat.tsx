@@ -12,6 +12,9 @@ import { callFunction } from '../../services/api';
 import ChatInput from '../ui/ChatInput';
 import { fileToGenerativePart } from '../../services/geminiService';
 
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
+
 interface Message {
     id?: string;
     role: 'user' | 'model';
@@ -54,6 +57,9 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
     activeContextFile
 }) => {
     const { config, user } = useProjectConfig();
+    const { currentLanguage } = useLanguageStore();
+    const tForge = TRANSLATIONS[currentLanguage].forge;
+
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(false); // Initial load
     const [isSending, setIsSending] = useState(false);
@@ -123,7 +129,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
                  const part = await fileToGenerativePart(options.attachment);
                  mediaAttachment = part.inlineData;
              } catch (e) {
-                 toast.error("Error al procesar el adjunto.");
+                 toast.error(tForge.attachmentError || "Error al procesar el adjunto.");
                  return;
              }
         }
@@ -131,7 +137,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
         setIsSending(true);
         // If hidden (Injection), set state to ANALYZING to show special loader
         setThinkingState(options.hidden ? 'ANALYZING' : 'THINKING');
-        setStreamStatus(options.hidden ? `Analizando expediente de ${activeEntity?.name}...` : 'Pensando...');
+        setStreamStatus(options.hidden ? `${tForge.analyzingFile} ${activeEntity?.name}...` : tForge.thinking);
 
         // 1. Optimistic Update & Local State
         const tempUserMsg: Message = {
@@ -398,10 +404,9 @@ Hazme una pregunta provocadora sobre su motivación oculta.
         }
     };
 
-    // 🟢 AUTO-HEALING HANDLER
     const handleRelink = async () => {
         if (!activeEntity) return;
-        const toastId = toast.loading(`Buscando archivo '${activeEntity.name}.md'...`);
+        const toastId = toast.loading(`${tForge.searchingFile} '${activeEntity.name}.md'...`);
 
         try {
             const result = await callFunction<any>('relinkAnchor', {
@@ -458,7 +463,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
         }
 
         setIsCrystallizing(true);
-        const toastId = toast.loading("Forjando Archivo de Alma...");
+        const toastId = toast.loading(tForge.crystallizing);
 
         try {
             // Gather Intelligence
@@ -500,7 +505,7 @@ Hazme una pregunta provocadora sobre su motivación oculta.
                     <h2 className="font-bold text-titanium-100 truncate max-w-[300px]">{sessionName}</h2>
                     <p className="text-[10px] text-titanium-400 uppercase tracking-wider flex items-center gap-1">
                         <span className={`w-1.5 h-1.5 rounded-full ${activeEntity ? 'bg-accent-DEFAULT' : 'bg-green-500'}`}></span>
-                        {activeEntity ? `Enfoque: ${activeEntity.tier}` : 'Sesión Activa'}
+                        {activeEntity ? `${tForge.focus}: ${activeEntity.tier}` : tForge.activeSession}
                     </p>
                 </div>
                 <div className="ml-auto flex items-center gap-2">

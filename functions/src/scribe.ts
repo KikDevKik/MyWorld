@@ -16,6 +16,7 @@ import { GeminiEmbedder } from "./utils/vector_utils";
 import { TaskType } from "@google/generative-ai";
 import { ingestFile } from "./ingestion";
 import { google } from "googleapis";
+import { getPrompt } from "./prompt_manager";
 import { TEMP_PRECISION } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -103,28 +104,7 @@ export const scribeCreateFile = onCall(
                     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
                     const tier = getTier(request.data);
 
-                    const inferencePrompt = `
-                    TASK: Extrae componentes para una 'WorldEntity' descrita en el texto.
-                    ENTITY NAME: "${escapePromptVariable(entityData.name)}"
-                    CONTEXT: "${escapePromptVariable(chatContent.substring(0, 5000))}"
-
-                    REGLAS STRICTAS:
-                    - NO devuelvas "tipos" monolíticos (ej. character, location).
-                    - Devuelve ÚNICAMENTE un JSON con los siguientes módulos de datos:
-                    
-                    OUTPUT JSON FORMAT:
-                    {
-                      "forge": {
-                         "tags": ["Array de tags de 1 palabra para la Forja"],
-                         "summary": "Resumen de 1-2 oraciones del rol de la entidad"
-                      },
-                      "nexus": {
-                         "relations": [
-                             { "targetId": "Nombre de otra entidad", "relationType": "ALLY | ENEMY | FAMILY | NEUTRAL", "context": "Por qué están relacionados" }
-                         ]
-                      }
-                    }
-                    `;
+                    const inferencePrompt = getPrompt(request.data._lang || 'es', 'scribeInference', entityData.name, chatContent.substring(0, 5000));
 
                     const result = await smartGenerateContent(genAI, inferencePrompt, {
                         _tier: tier, taskType: 'high_volume',
@@ -158,29 +138,7 @@ export const scribeCreateFile = onCall(
                     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
                     const tier = getTier(request.data);
 
-                    const synthesisPrompt = `
-                    TASK: Create a rich Markdown document based on the following BRAINSTORMING SESSION.
-                    SUBJECT: "${escapePromptVariable(entityData.name)}"
-                    TYPE: "${escapePromptVariable(entityData.type || 'Concept')}"
-
-                    INSTRUCTIONS:
-                    1. Analyze the conversation history (CHAT CONTENT).
-                    2. Extract all key ideas, details, sensory descriptions, and emotional beats discussed.
-                    3. Organize them into a beautiful, structured Markdown body (Use H2 ##, H3 ###, Lists, Blockquotes).
-                    4. SECTIONS TO INCLUDE (Adjust based on type):
-                       - Core Concept / Hook
-                       - Sensory Details / Atmosphere
-                       - Narrative Potential / Use Cases
-                       - Key Questions Raised
-                    5. TONE: Professional, evocative, inspiring (like a high-quality wiki entry or design document).
-                    6. DO NOT include the raw chat log. Synthesize it.
-                    7. DO NOT include Frontmatter (it is added automatically).
-
-                    CHAT CONTENT:
-                    "${escapePromptVariable(chatContent.substring(0, 10000))}"
-
-                    OUTPUT:
-                    `;
+                    const synthesisPrompt = getPrompt(request.data._lang || 'es', 'scribeSynthesis', entityData.name, entityData.type || 'Concept', chatContent.substring(0, 10000));
 
                     const result = await smartGenerateContent(genAI, synthesisPrompt, {
                         _tier: tier, taskType: 'standard',
@@ -230,6 +188,7 @@ export const scribeCreateFile = onCall(
                 projectId: sagaId || 'Global',
                 role: entityData.role,
                 aiKey: getAIKey(request.data, googleApiKey.value()),
+                lang: request.data._lang || 'es',
                 attributes: {
                     type: entityData.type, // Legacy support
                     aliases: entityData.aliases,
@@ -304,29 +263,7 @@ GENRE INSTRUCTION: Adopt the vocabulary, pacing, and atmosphere of this style.
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const tier = getTier(request.data);
 
-            // 🟢 CONSTRUCT PROMPT
-            const prompt = `
-            ACT AS: Expert Ghostwriter & Narrative Editor.
-            TASK: Transform the "SUGGESTION" into seamless narrative prose that fits the "CONTEXT".
-
-            ${projectIdentityContext}
-
-            INPUT DATA:
-            - CONTEXT (Preceding): "...${escapePromptVariable((precedingContext || '').slice(-2000))}..."
-            - CONTEXT (Following): "...${escapePromptVariable((followingContext || '').slice(0, 500))}..."
-            - USER STYLE PREFERENCE: "${escapePromptVariable(userStyle || 'Neutral/Standard')}"
-            - SUGGESTION (Raw Idea): "${escapePromptVariable(suggestion)}"
-
-            INSTRUCTIONS:
-            1. **Rewrite** the SUGGESTION into high-quality prose.
-            2. **Match the Tone** of the Preceding Context AND the Project Style (Style DNA).
-            3. **Remove Meta-Talk**: Strip out phrases like "Option 1:", "Sure, here is...", "I suggest...", or quotes around the whole block unless it's dialogue.
-            4. **Seamless Flow**: The output should start naturally where the Preceding Context ends.
-            5. **Do not repeat** the Preceding Context. Only output the NEW text to be inserted.
-            6. **Strict Output**: Return ONLY the narrative text. No markdown fences. No "Here is the rewritten text".
-
-            OUTPUT:
-            `;
+            const prompt = getPrompt(request.data._lang || 'es', 'scribeIntegrate', projectIdentityContext, (precedingContext || '').slice(-2000), (followingContext || '').slice(0, 500), userStyle || 'Neutral/Standard', suggestion);
 
             const result = await smartGenerateContent(genAI, prompt, {
                 _tier: tier, taskType: 'standard',
@@ -406,26 +343,7 @@ export const scribePatchFile = onCall(
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const tier = getTier(request.data);
 
-            const prompt = `
-            ACT AS: Expert Markdown Editor & Archivist.
-            TASK: Integrate the "New Patch" into the "Existing File" intelligently.
-
-            INSTRUCTIONS:
-            "${escapePromptVariable(instructions || "Find the most relevant section for this new information and append it. If no relevant section exists, create a new H2 header.")}"
-
-            RULES:
-            1. PRESERVE Frontmatter (--- ... ---) exactly as is.
-            2. PRESERVE existing content. Only append or insert. Do not delete.
-            3. PRESERVE Sovereign Blocks ({{SOVEREIGN_BLOCK_X}}) exactly as is.
-            4. OUTPUT the FULL, VALID Markdown file content.
-            5. Do NOT wrap output in \`\`\`markdown code blocks. Return RAW text.
-
-            EXISTING FILE:
-            "${escapePromptVariable(contextForAI)}"
-
-            NEW PATCH:
-            "${escapePromptVariable(patchContent)}"
-            `;
+            const prompt = getPrompt(request.data._lang || 'es', 'scribePatch', instructions, contextForAI, patchContent);
 
             const result = await smartGenerateContent(genAI, prompt, {
                 _tier: tier, taskType: 'standard',
@@ -523,30 +441,7 @@ export const transformToGuide = onCall(
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const tier = getTier(request.data);
 
-            const prompt = `
-            ACT AS: Expert Writing Coach & Outliner.
-            TASK: Transform the following NARRATIVE SCENE into a set of INSTRUCTIONS (Beats/Guide) for the author to write it themselves.
-
-            OBJECTIVE:
-            - The author does NOT want the AI to write the scene.
-            - The author wants a STEP-BY-STEP GUIDE on what to write.
-            - Summarize the key actions, dialogue ideas, and emotional beats from the text.
-            - Format each point as a directive (e.g., "(Here describe X...)", "(Make the character feel Y...)").
-
-            PERSPECTIVE CONTEXT: "${escapePromptVariable(perspective || 'Unknown')}"
-
-            INPUT NARRATIVE:
-            "${escapePromptVariable(text)}"
-
-            OUTPUT FORMAT:
-            - A list of short, parenthetical instructions.
-            - Example:
-              (Describe the cold wind hitting their face.)
-              (Have them notice the strange mark on the door.)
-              (Dialogue: They argue about the map.)
-
-            STRICT OUTPUT: Return ONLY the list of instructions. No intro/outro.
-            `;
+            const prompt = getPrompt(request.data._lang || 'es', 'scribeGuide', perspective, text);
 
             const result = await smartGenerateContent(genAI, prompt, {
                 _tier: tier, taskType: 'standard',

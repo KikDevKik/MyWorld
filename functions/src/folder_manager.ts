@@ -52,7 +52,7 @@ export const discoverFolderRoles = onCall(
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-        const { accessToken, rootFolderId, canonPaths, resourcePaths } = request.data;
+        const { accessToken, rootFolderId } = request.data;
         if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
         const userId = request.auth.uid;
@@ -61,7 +61,9 @@ export const discoverFolderRoles = onCall(
         // 🟢 Robust fallback for Root ID
         const targetRootId = rootFolderId || config.folderId;
 
-        let folders: { id?: string | null; name?: string | null }[] = [];
+        let canonPaths: { id: string; name: string }[] = [];
+        let resourcePaths: { id: string; name: string }[] = [];
+        let allTaxonomyFolders: { id: string; name: string }[] = [];
 
         try {
             if (targetRootId) {
@@ -69,33 +71,78 @@ export const discoverFolderRoles = onCall(
                 auth.setCredentials({ access_token: accessToken });
                 const drive = google.drive({ version: "v3", auth });
 
-                // 1. Scan Top-Level Folders
-                const q = `'${escapeDriveQuery(targetRootId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-                const res = await drive.files.list({
-                    q,
+                // 1. List Top-Level Folders (Look for CANON and RECURSOS)
+                const qRoot = `'${escapeDriveQuery(targetRootId)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
+                const rootRes = await drive.files.list({
+                    q: qRoot,
                     fields: "files(id, name)",
-                    pageSize: 50 // Enough for top level
+                    pageSize: 50
                 });
 
-                folders = res.data.files || [];
+                const rootChildren = rootRes.data.files || [];
+
+                // 2. Identify CANON and RECURSOS by name
+                const canonFolder = rootChildren.find(f =>
+                    f.name?.toUpperCase().includes('CANON') ||
+                    f.name?.toUpperCase().includes('LA VERDAD') ||
+                    f.name?.toUpperCase().includes('TRUTH')
+                );
+
+                const resourceFolder = rootChildren.find(f =>
+                    f.name?.toUpperCase().includes('RECURS') ||
+                    f.name?.toUpperCase().includes('RESOURCE') ||
+                    f.name?.toUpperCase().includes('INSPIRACI')
+                );
+
+                // 3. Read INSIDE CANON for taxonomy entries
+                if (canonFolder?.id) {
+                    const canonRes = await drive.files.list({
+                        q: `'${escapeDriveQuery(canonFolder.id)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                        fields: "files(id, name)",
+                        pageSize: 100
+                    });
+                    canonPaths = (canonRes.data.files || []).map(f => ({
+                        id: f.id!,
+                        name: f.name!
+                    }));
+                }
+
+                // 4. Read INSIDE RECURSOS for taxonomy entries
+                if (resourceFolder?.id) {
+                    const resourceRes = await drive.files.list({
+                        q: `'${escapeDriveQuery(resourceFolder.id)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                        fields: "files(id, name)",
+                        pageSize: 100
+                    });
+                    resourcePaths = (resourceRes.data.files || []).map(f => ({
+                        id: f.id!,
+                        name: f.name!
+                    }));
+                }
+
+                allTaxonomyFolders = [...canonPaths, ...resourcePaths];
             } else {
                 // Decentralized structure: use user-selected paths if no root folder is set
-                const targetCanonPaths = canonPaths || config.canonPaths || [];
-                const targetResourcePaths = resourcePaths || config.resourcePaths || [];
+                const targetCanonPaths = request.data.canonPaths || config.canonPaths || [];
+                const targetResourcePaths = request.data.resourcePaths || config.resourcePaths || [];
 
-                folders = [
-                    ...targetCanonPaths,
-                    ...targetResourcePaths
-                ].map(p => ({ id: p.id, name: p.name }));
+                canonPaths = targetCanonPaths.map((p: any) => ({ id: p.id, name: p.name }));
+                resourcePaths = targetResourcePaths.map((p: any) => ({ id: p.id, name: p.name }));
+                allTaxonomyFolders = [...canonPaths, ...resourcePaths];
             }
 
-            if (folders.length === 0) {
-                throw new HttpsError("failed-precondition", "No hay carpeta raíz configurada ni rutas de acceso.");
+            if (allTaxonomyFolders.length === 0) {
+                return {
+                    suggestion: {},
+                    canonPaths: [],
+                    resourcePaths: [],
+                    message: "No se encontraron subcarpetas dentro de Canon o Recursos para analizar."
+                };
             }
 
-            const folderNames = folders.map(f => f.name).filter(Boolean);
+            const folderNames = allTaxonomyFolders.map(f => f.name).filter(Boolean);
 
-            // 2. AI Mapping (Gemini Flash)
+            // 5. AI Mapping (Gemini Flash)
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const model = genAI.getGenerativeModel({
                 model: MODEL_LOW_COST,
@@ -141,7 +188,7 @@ export const discoverFolderRoles = onCall(
 
             if (mappingNames && typeof mappingNames === 'object') {
                 for (const [role, folderName] of Object.entries(mappingNames)) {
-                    const match = folders.find(f => f.name === folderName);
+                    const match = allTaxonomyFolders.find(f => f.name === folderName);
                     if (match && match.id) {
                         const cleanRole = role.replace(/^ROLE_/, '');
                         finalMapping[cleanRole] = match.id;
@@ -153,7 +200,9 @@ export const discoverFolderRoles = onCall(
 
             return {
                 suggestion: finalMapping,
-                folderList: folders,
+                canonPaths,
+                resourcePaths,
+                folderList: allTaxonomyFolders,
                 message: "Análisis completado."
             };
 
@@ -649,6 +698,95 @@ export const getBatchDriveMetadata = onCall(
  * 2.6. GET FILE SYSTEM NODES (Lazy Loader)
  * Queries the 'files' collection by parentId.
  */
+export const createDriveFolder = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        memory: "512MiB",
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+        const { accessToken, parentId, folderName } = request.data;
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+        if (!parentId || !folderName?.trim()) throw new HttpsError("invalid-argument", "parentId y folderName requeridos.");
+
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+        const drive = google.drive({ version: "v3", auth });
+
+        try {
+            const res = await drive.files.create({
+                requestBody: {
+                    name: folderName.trim(),
+                    mimeType: 'application/vnd.google-apps.folder',
+                    parents: [parentId],
+                },
+                fields: 'id, name',
+            });
+
+            if (res.data.id) {
+                await updateFirestoreTree(request.auth.uid, 'add', res.data.id, {
+                    parentId: parentId,
+                    newNode: {
+                        id: res.data.id,
+                        name: folderName.trim(),
+                        mimeType: 'application/vnd.google-apps.folder',
+                        parentId: parentId,
+                        isFolder: true,
+                    },
+                });
+            }
+
+            return { id: res.data.id, name: folderName.trim(), success: true };
+        } catch (e: any) {
+            logger.error('createDriveFolder error:', e);
+            throw new HttpsError('internal', e.message);
+        }
+    }
+);
+
+export const moveDriveFile = onCall(
+    {
+        region: FUNCTIONS_REGION,
+        cors: ALLOWED_ORIGINS,
+        enforceAppCheck: false,
+        memory: "512MiB",
+    },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+        const { accessToken, fileId, targetParentId, currentParentId } = request.data;
+        if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
+        if (!fileId || !targetParentId) throw new HttpsError("invalid-argument", "fileId y targetParentId requeridos.");
+
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+        const drive = google.drive({ version: "v3", auth });
+
+        try {
+            const params: any = {
+                fileId,
+                addParents: targetParentId,
+                fields: 'id, parents, name',
+            };
+            if (currentParentId) params.removeParents = currentParentId;
+
+            const res = await drive.files.update(params);
+
+            if (res.data.id) {
+                const db = getFirestore();
+                const fileRef = db.collection("TDB_Index").doc(request.auth.uid).collection("files").doc(fileId);
+                await fileRef.update({ parentId: targetParentId });
+            }
+
+            return { success: true, id: res.data.id };
+        } catch (e: any) {
+            logger.error('moveDriveFile error:', e);
+            throw new HttpsError('internal', e.message);
+        }
+    }
+);
+
 export const getFileSystemNodes = onCall(
     {
         region: FUNCTIONS_REGION,

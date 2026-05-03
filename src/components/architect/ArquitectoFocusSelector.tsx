@@ -2,6 +2,8 @@ import React from 'react';
 import { Target, ChevronUp, ChevronDown, Check } from 'lucide-react';
 import { doc, setDoc, getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 export type FocusOption = {
     id: string;
@@ -28,12 +30,25 @@ interface ArquitectoFocusSelectorProps {
     disabled?: boolean;
 }
 
+export const getFocusOptions = (t: any): FocusOption[] => [
+    { id: 'mega', label: t.megaRoadmap || 'Mega-Roadmap', shortName: t.totalConstruction || 'Construcción Total', description: t.totalConstructionDesc || 'Construcción total del universo y la trama.' },
+    { id: 'micro', label: t.microRoadmap || 'Micro-Roadmap Quirúrgico', shortName: t.holeResolution || 'Resolución de Hueco', description: t.holeResolutionDesc || 'Para resolver un hueco de guion específico.' },
+    { id: 'detonacion', label: t.detonationRoadmap || 'Roadmap de Detonación', shortName: t.createConflict || 'Crear Conflicto', description: t.createConflictDesc || 'Si tienes lore, pero la trama está estancada.' },
+    { id: 'inversa', label: t.reverseEngineering || 'Ingeniería Inversa', shortName: t.alterCanon || 'Alterar Canon', description: t.alterCanonDesc || 'Si quieres cambiar algo que ya está escrito.' },
+    { id: 'muro', label: t.act2Wall || 'Muro del 2do Acto', shortName: t.unblock || 'Desbloqueo', description: t.unblockDesc || 'Si estás atascado a la mitad de la historia.' },
+];
+
 const ArquitectoFocusSelector: React.FC<ArquitectoFocusSelectorProps> = ({
     sessionId,
     currentObjective,
     setCurrentObjective,
     disabled = false
 }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tArch = t.architect;
+    const FOCUS_OPTIONS = getFocusOptions(tArch);
+
     const [isOpen, setIsOpen] = React.useState(false);
 
     const handleSelect = async (opt: FocusOption) => {
@@ -67,7 +82,7 @@ const ArquitectoFocusSelector: React.FC<ArquitectoFocusSelectorProps> = ({
                     ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-titanium-800/50 hover:border-titanium-500'}
                     ${activeOption ? 'text-cyan-400' : 'text-titanium-500'}
                 `}
-                title="Selector de Foco Narrativo"
+                title={tArch.focusSelectorTitle || "Selector de Foco Narrativo"}
             >
                 <Target size={18} />
                 {isOpen ? <ChevronUp size={12} className="opacity-70" /> : <ChevronDown size={12} className="opacity-70" />}
@@ -76,7 +91,7 @@ const ArquitectoFocusSelector: React.FC<ArquitectoFocusSelectorProps> = ({
             {isOpen && !disabled && (
                 <div className="absolute bottom-[calc(100%+12px)] left-0 w-64 bg-titanium-950 border border-titanium-800 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <div className="px-3 py-2 mb-1 border-b border-titanium-800/50">
-                        <span className="text-xs font-mono text-titanium-500 tracking-wider uppercase">Frente de Batalla</span>
+                        <span className="text-xs font-mono text-titanium-500 tracking-wider uppercase">{tArch.battleFront || "Frente de Batalla"}</span>
                     </div>
                     <div className="flex flex-col gap-1 max-h-60 overflow-y-auto custom-scrollbar">
                         {FOCUS_OPTIONS.map(opt => {

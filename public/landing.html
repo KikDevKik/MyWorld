@@ -1,24 +1,1459 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MyWorld — Creative Writing IDE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0f;
+  --surface: #111118;
+  --surface-hi: #161620;
+  --border: rgba(129,140,248,0.12);
+  --border-hi: rgba(103,232,249,0.2);
+  --text: #e2e8f0;
+  --muted: #64748b;
+  --muted-hi: #94a3b8;
+  --cyan: #67e8f9;
+  --violet: #818cf8;
+  --green: #34d399;
+  --violet-deep: #6d28d9;
+  --cyan-dim: rgba(103,232,249,0.15);
+  --violet-dim: rgba(129,140,248,0.15);
+  --green-dim: rgba(52,211,153,0.15);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  overflow-x: hidden;
+}
+
+/* ─── INTRO ─────────────────────────────────────────── */
+#intro {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intro-stage {
+  position: relative;
+  width: 320px;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.i-orb {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(52,211,153,0.25), 0 0 24px rgba(52,211,153,0.5);
+  opacity: 0;
+  transform: translateY(40px);
+  transition: none;
+}
+
+.i-ring {
+  position: absolute;
+  width: 130px;
+  height: 36px;
+  border: 1.5px solid var(--violet);
+  border-radius: 50%;
+  opacity: 0;
+  transform: translateY(50px) rotate(-30deg);
+  box-shadow: 0 0 12px rgba(129,140,248,0.3);
+}
+
+.i-w {
+  position: absolute;
+  font-family: 'Newsreader', serif;
+  font-size: 90px;
+  font-weight: 400;
+  background: linear-gradient(135deg, var(--violet), #a78bfa, var(--cyan));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  opacity: 0;
+  transform: scale(0.85);
+  line-height: 1;
+}
+
+.i-brand {
+  position: absolute;
+  display: flex;
+  align-items: baseline;
+  gap: 0;
+  opacity: 0;
+}
+
+.i-brand-my {
+  font-family: 'Newsreader', serif;
+  font-size: 80px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--cyan);
+  overflow: hidden;
+  max-width: 0;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.i-brand-w {
+  font-family: 'Newsreader', serif;
+  font-size: 80px;
+  font-weight: 400;
+  background: linear-gradient(135deg, var(--violet), #a78bfa);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  line-height: 1;
+}
+
+.i-brand-orld {
+  font-family: 'Newsreader', serif;
+  font-size: 80px;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--cyan);
+  overflow: hidden;
+  max-width: 0;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* ─── BG GRID ────────────────────────────────────────── */
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(129,140,248,0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(129,140,248,0.035) 1px, transparent 1px);
+  background-size: 48px 48px;
+  opacity: 0;
+}
+
+/* ─── PAGE WRAPPER ───────────────────────────────────── */
+#page {
+  position: relative;
+  z-index: 1;
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+/* ─── NAV ────────────────────────────────────────────── */
+nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 40px;
+  height: 60px;
+  background: rgba(10,10,15,0.8);
+  backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(129,140,248,0.08);
+}
+
+.nav-logo {
+  font-family: 'Newsreader', serif;
+  font-size: 22px;
+  font-style: italic;
+  color: var(--cyan);
+  text-decoration: none;
+  letter-spacing: -0.02em;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.nav-links a {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--cyan); }
+
+.nav-cta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 20px;
+  border: 1px solid rgba(129,140,248,0.3);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--violet);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+}
+.nav-cta:hover {
+  background: rgba(129,140,248,0.12);
+  border-color: var(--violet);
+  color: #c7d2fe;
+}
+
+/* ─── HERO ───────────────────────────────────────────── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding: 100px 40px 60px;
+  max-width: 1200px;
+  margin: 0 auto;
+  gap: 60px;
+}
+
+.hero-left {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.hero-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 1px solid var(--green-dim);
+  border-radius: 4px;
+  background: rgba(52,211,153,0.05);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--green);
+  width: fit-content;
+}
+
+.hero-tag-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.7); }
+}
+
+.hero-h1 {
+  font-family: 'Newsreader', serif;
+  font-size: clamp(44px, 6vw, 72px);
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  color: var(--text);
+}
+
+.hero-h1 em {
+  font-style: italic;
+  color: var(--cyan);
+}
+
+.hero-sub {
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--muted-hi);
+  max-width: 480px;
+  font-family: 'Newsreader', serif;
+  font-weight: 400;
+}
+
+.hero-cta {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  background: linear-gradient(135deg, rgba(103,232,249,0.2), rgba(129,140,248,0.2));
+  border: 1px solid rgba(103,232,249,0.35);
+  border-radius: 8px;
+  color: var(--cyan);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.25s;
+  text-decoration: none;
+  box-shadow: 0 0 20px rgba(103,232,249,0.08);
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, rgba(103,232,249,0.3), rgba(129,140,248,0.3));
+  box-shadow: 0 0 30px rgba(103,232,249,0.2);
+  transform: translateY(-1px);
+}
+.btn-primary svg { width: 16px; height: 16px; transition: transform 0.2s; }
+.btn-primary:hover svg { transform: translateX(3px); }
+
+.btn-ghost {
+  font-size: 12px;
+  color: var(--muted-hi);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  padding-bottom: 1px;
+  transition: all 0.2s;
+}
+.btn-ghost:hover {
+  color: var(--text);
+  border-bottom-color: var(--muted-hi);
+}
+
+/* ─── HERO RIGHT (IDE Panel) ─────────────────────────── */
+.hero-right {
+  flex: 0 0 420px;
+}
+
+.ide-panel {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(103,232,249,0.15);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(129,140,248,0.05), 0 40px 80px rgba(0,0,0,0.5);
+}
+
+.ide-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: rgba(0,0,0,0.25);
+  border-bottom: 1px solid rgba(103,232,249,0.1);
+}
+
+.ide-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.ide-dot:nth-child(1) { background: rgba(255,100,100,0.4); }
+.ide-dot:nth-child(2) { background: rgba(255,200,0,0.4); }
+.ide-dot:nth-child(3) { background: rgba(52,211,153,0.4); }
+
+.ide-label {
+  margin-left: 8px;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(148,163,184,0.4);
+}
+
+.ide-body {
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.ide-agent-tag {
+  font-size: 9px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--green);
+}
+
+.ide-question {
+  font-family: 'Newsreader', serif;
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.ide-divider {
+  height: 1px;
+  background: rgba(103,232,249,0.1);
+}
+
+.ide-cursor-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted-hi);
+  font-size: 13px;
+}
+
+.ide-cursor-arrow {
+  color: var(--violet);
+}
+
+.cursor-block {
+  display: inline-block;
+  width: 8px;
+  height: 16px;
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(52,211,153,0.5);
+  animation: blink 1.1s step-end infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ─── SECTION GENERIC ────────────────────────────────── */
+section {
+  padding: 100px 40px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-label {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 16px;
+}
+
+.section-h2 {
+  font-family: 'Newsreader', serif;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 400;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.section-sub {
+  font-family: 'Newsreader', serif;
+  font-size: 17px;
+  line-height: 1.7;
+  color: var(--muted-hi);
+  max-width: 600px;
+  margin-bottom: 60px;
+}
+
+/* ─── FEATURE GRID ───────────────────────────────────── */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: rgba(129,140,248,0.1);
+  border: 1px solid rgba(129,140,248,0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.feature-card {
+  background: var(--bg);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: background 0.2s;
+  cursor: default;
+}
+.feature-card:hover {
+  background: rgba(129,140,248,0.04);
+}
+
+.feature-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.feature-icon.cyan { background: rgba(103,232,249,0.1); }
+.feature-icon.violet { background: rgba(129,140,248,0.1); }
+.feature-icon.green { background: rgba(52,211,153,0.1); }
+.feature-icon.amber { background: rgba(251,191,36,0.1); }
+.feature-icon.red { background: rgba(252,100,100,0.1); }
+.feature-icon.pink { background: rgba(232,121,249,0.1); }
+
+.feature-icon svg { width: 18px; height: 18px; }
+
+.feature-name {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+.feature-sub {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: -8px;
+}
+
+.feature-desc {
+  font-family: 'Newsreader', serif;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--muted-hi);
+}
+
+/* ─── DIRECTOR SHOWCASE ──────────────────────────────── */
+.showcase {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: start;
+}
+
+.showcase-panel {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(129,140,248,0.12);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(129,140,248,0.08);
+  background: rgba(0,0,0,0.2);
+}
+
+.panel-title {
+  font-size: 10px;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--muted-hi);
+}
+
+.panel-badge {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 3px;
+}
+
+.badge-active { background: rgba(52,211,153,0.12); color: var(--green); }
+.badge-stable { background: rgba(103,232,249,0.1); color: var(--cyan); }
+
+.panel-body {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.msg-user {
+  align-self: flex-end;
+  max-width: 80%;
+  background: rgba(103,232,249,0.08);
+  border: 1px solid rgba(103,232,249,0.15);
+  border-radius: 10px 10px 2px 10px;
+  padding: 10px 14px;
+  color: var(--text);
+}
+
+.msg-agent {
+  align-self: flex-start;
+  max-width: 90%;
+}
+
+.msg-agent-tag {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--green);
+  margin-bottom: 6px;
+}
+
+.msg-agent-body {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(129,140,248,0.1);
+  border-radius: 2px 10px 10px 10px;
+  padding: 12px 16px;
+  color: var(--muted-hi);
+  font-family: 'Newsreader', serif;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.msg-agent-body strong { color: var(--text); font-weight: 500; }
+.msg-agent-body em { font-style: italic; color: var(--cyan); }
+
+/* ─── ROADMAP SHOWCASE ───────────────────────────────── */
+.roadmap-cols {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: rgba(129,140,248,0.08);
+  border: 1px solid rgba(129,140,248,0.1);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.roadmap-col {
+  background: var(--bg);
+  padding: 0;
+}
+
+.roadmap-col-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(129,140,248,0.08);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.roadmap-col-header.changelog { color: var(--green); }
+.roadmap-col-header.missions { color: #fbbf24; }
+.roadmap-col-header.research { color: var(--violet); }
+
+.roadmap-card {
+  margin: 12px;
+  padding: 14px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(129,140,248,0.08);
+  border-radius: 6px;
+  font-family: 'Newsreader', serif;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--muted-hi);
+}
+
+.roadmap-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.roadmap-tag.defined { color: var(--green); }
+.roadmap-tag.quest { color: #fbbf24; }
+.roadmap-tag.investigate { color: var(--violet); }
+
+/* ─── TRIBUNAL SHOWCASE ──────────────────────────────── */
+.tribunal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.judge-card {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(129,140,248,0.1);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.judge-header {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid rgba(129,140,248,0.06);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.judge-name {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.judge-role {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.judge-score {
+  font-family: 'Newsreader', serif;
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.judge-body {
+  padding: 16px 20px;
+  font-family: 'Newsreader', serif;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--muted-hi);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.judge-verdict {
+  font-style: italic;
+  color: var(--muted-hi);
+  font-size: 12px;
+  border-left: 2px solid rgba(129,140,248,0.2);
+  padding-left: 10px;
+}
+
+/* ─── CTA SECTION ────────────────────────────────────── */
+.cta-section {
+  padding: 120px 40px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  position: relative;
+}
+
+.cta-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(109,40,217,0.08) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.cta-h2 {
+  font-family: 'Newsreader', serif;
+  font-size: clamp(36px, 5vw, 60px);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.cta-h2 em { font-style: italic; color: var(--cyan); }
+
+.cta-sub {
+  font-family: 'Newsreader', serif;
+  font-size: 18px;
+  color: var(--muted-hi);
+  max-width: 520px;
+  line-height: 1.7;
+}
+
+/* ─── FOOTER ─────────────────────────────────────────── */
+footer {
+  border-top: 1px solid rgba(129,140,248,0.08);
+  padding: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+footer a {
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+footer a:hover { color: var(--text); }
+
+.footer-links {
+  display: flex;
+  gap: 24px;
+}
+
+/* ─── FULL WIDTH WRAPPERS ────────────────────────────── */
+.full-section {
+  border-top: 1px solid rgba(129,140,248,0.06);
+  border-bottom: 1px solid rgba(129,140,248,0.06);
+}
+
+/* ─── SCROLL REVEALS ─────────────────────────────────── */
+.reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal.visible {
+  opacity: 1;
+  transform: none;
+}
+
+/* ─── ABOUT MODAL ────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(8px);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s;
+}
+.modal-backdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid rgba(129,140,248,0.2);
+  border-radius: 14px;
+  padding: 48px;
+  max-width: 560px;
+  width: 90%;
+  transform: translateY(20px);
+  transition: transform 0.3s;
+}
+.modal-backdrop.open .modal {
+  transform: none;
+}
+
+.modal h2 {
+  font-family: 'Newsreader', serif;
+  font-size: 28px;
+  font-weight: 400;
+  margin-bottom: 20px;
+  color: var(--text);
+}
+
+.modal p {
+  font-family: 'Newsreader', serif;
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--muted-hi);
+  margin-bottom: 16px;
+}
+
+.modal p a {
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+.modal-close {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 20px;
+  padding: 4px;
+  line-height: 1;
+}
+
+/* ─── RESPONSIVE ─────────────────────────────────────── */
+@media (max-width: 900px) {
+  .hero { flex-direction: column; padding-top: 90px; }
+  .hero-right { flex: none; width: 100%; }
+  .feature-grid { grid-template-columns: repeat(2, 1fr); }
+  .showcase { grid-template-columns: 1fr; }
+  .tribunal-grid { grid-template-columns: 1fr; }
+  .roadmap-cols { grid-template-columns: 1fr; }
+  footer { flex-direction: column; gap: 16px; }
+}
+
+@media (max-width: 600px) {
+  nav { padding: 0 20px; }
+  .nav-links a:not(.nav-cta) { display: none; }
+  .feature-grid { grid-template-columns: 1fr; }
+  section, .hero { padding-left: 20px; padding-right: 20px; }
+}
+</style>
 </head>
-<body style="background:#0a0a0f;color:#e2e8f0;font-family:Georgia,serif;
-display:flex;flex-direction:column;align-items:center;
-justify-content:center;min-height:100vh;margin:0;gap:24px;text-align:center;padding:32px">
-  <h1 style="font-size:32px;font-weight:400">MyWorld</h1>
-  <p style="color:#64748b;max-width:480px;line-height:1.7">
-    A creative IDE for writers. Build your fictional universe,
-    develop your characters, and never lose track of your story.
-  </p>
-  <a href="/app" style="background:#818cf8;color:#0a0a0f;padding:12px 32px;
-     border-radius:8px;text-decoration:none;font-family:monospace;font-size:14px">
-    Open App
-  </a>
-  <div style="display:flex;gap:24px;margin-top:48px">
-    <a href="/privacy" style="color:#475569;font-size:12px;font-family:monospace;text-decoration:none">Privacy Policy</a>
-    <a href="/terms" style="color:#475569;font-size:12px;font-family:monospace;text-decoration:none">Terms of Service</a>
+<body>
+
+<!-- INTRO OVERLAY -->
+<div id="intro">
+  <div class="intro-stage">
+    <div class="i-ring" id="ring"></div>
+    <div class="i-orb" id="orb"></div>
+    <div class="i-w" id="iw">W</div>
+    <div class="i-brand" id="brand">
+      <span class="i-brand-my" id="bmy">My</span>
+      <span class="i-brand-w">W</span>
+      <span class="i-brand-orld" id="borld">orld</span>
+    </div>
   </div>
+</div>
+
+<!-- BG GRID -->
+<div class="bg-grid" id="bgGrid"></div>
+
+<!-- ABOUT MODAL -->
+<div class="modal-backdrop" id="aboutModal">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="closeAbout()">✕</button>
+    <h2>About MyWorld</h2>
+    <p>MyWorld is a creative IDE for writers building fictional worlds. It maps your story, watches for contradictions, and asks the questions you haven't thought to ask yourself.</p>
+    <p>Built by an indie developer in Medellín, Colombia — for storytellers who think in universes, not just chapters.</p>
+    <p>Currently in Beta. All your files live in <strong>your</strong> Google Drive. We never read your stories.</p>
+    <p>Questions? <a href="mailto:deinerflot@gmail.com">deinerflot@gmail.com</a></p>
+  </div>
+</div>
+
+<!-- PAGE -->
+<div id="page">
+
+  <!-- NAV -->
+  <nav>
+    <a href="#" class="nav-logo">MyWorld</a>
+    <div class="nav-links">
+      <a href="#" onclick="openAbout(); return false;">About Us</a>
+      <a href="mailto:deinerflot@gmail.com">Support</a>
+      <a href="#features">Features</a>
+      <a href="#" class="nav-cta">
+        <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M8 1.5a.5.5 0 0 1 .5.5v4.5h4.5a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V7.5H3a.5.5 0 0 1 0-1h4.5V2a.5.5 0 0 1 .5-.5z"/></svg>
+        Donate
+      </a>
+    </div>
+  </nav>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="hero-left">
+      <div class="hero-tag">
+        <span class="hero-tag-dot"></span>
+        Beta · Open Access
+      </div>
+      <h1 class="hero-h1">
+        Build the world<br>
+        <em>only you can see.</em>
+      </h1>
+      <p class="hero-sub">
+        MyWorld is a creative IDE that maps your story, watches for contradictions, and asks the questions you haven't thought to ask yourself. Your worldbuilding partner.
+      </p>
+      <div class="hero-cta">
+        <a href="/app" class="btn-primary">
+          Open MyWorld
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 8h10M9 4l4 4-4 4"/>
+          </svg>
+        </a>
+        <a href="#features" class="btn-ghost">See how it works</a>
+      </div>
+    </div>
+
+    <div class="hero-right">
+      <div class="ide-panel">
+        <div class="ide-bar">
+          <div class="ide-dot"></div>
+          <div class="ide-dot"></div>
+          <div class="ide-dot"></div>
+          <span class="ide-label">IDE // Architect_Chat</span>
+        </div>
+        <div class="ide-body">
+          <span class="ide-agent-tag">The Architect</span>
+          <p class="ide-question">
+            If your world had a heartbeat, what rhythm would it keep?
+          </p>
+          <div class="ide-divider"></div>
+          <div class="ide-cursor-line">
+            <span class="ide-cursor-arrow">&gt;</span>
+            <span>It beats in </span>
+            <span class="cursor-block"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <div class="full-section">
+    <section id="features">
+      <p class="section-label reveal">What lives inside</p>
+      <h2 class="section-h2 reveal">Six agents.<br>One universe.</h2>
+      <p class="section-sub reveal">Each tool in MyWorld has a role. Together they cover every dimension of your creative process.</p>
+      
+      <div class="feature-grid reveal">
+        <!-- Architect -->
+        <div class="feature-card">
+          <div class="feature-icon cyan">
+            <svg viewBox="0 0 18 18" fill="none" stroke="#67e8f9" stroke-width="1.5">
+              <rect x="3" y="3" width="12" height="12" rx="1"/>
+              <path d="M6 9h2l1.5-3 1.5 6 1.5-2.5H12"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-name">The Architect</div>
+            <div class="feature-sub">Story Structure</div>
+          </div>
+          <p class="feature-desc">Your narrative strategist. It reads your entire world, identifies the gaps, and asks the exact question that unlocks your next scene.</p>
+        </div>
+
+        <!-- Director -->
+        <div class="feature-card">
+          <div class="feature-icon violet">
+            <svg viewBox="0 0 18 18" fill="none" stroke="#818cf8" stroke-width="1.5">
+              <path d="M3 4h12M3 9h8M3 14h5"/>
+              <circle cx="14" cy="12" r="2.5"/>
+              <path d="M14 9.5V7"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-name">The Director</div>
+            <div class="feature-sub">Scene & Cast</div>
+          </div>
+          <p class="feature-desc">Manages your cast, analyzes character arcs, and helps you direct each scene with precision. The creative engine in your sidebar.</p>
+        </div>
+
+        <!-- Canon Guardian -->
+        <div class="feature-card">
+          <div class="feature-icon green">
+            <svg viewBox="0 0 18 18" fill="none" stroke="#34d399" stroke-width="1.5">
+              <path d="M9 2L4 5v5c0 3.3 2.2 5.8 5 6.5 2.8-.7 5-3.2 5-6.5V5L9 2z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-name">Canon Guardian</div>
+            <div class="feature-sub">Consistency Radar</div>
+          </div>
+          <p class="feature-desc">Watches your manuscript in real time, flags contradictions, and maintains a verified fact database for every element in your world.</p>
+        </div>
+
+        <!-- Tribunal -->
+        <div class="feature-card">
+          <div class="feature-icon amber">
+            <svg viewBox="0 0 18 18" fill="none" stroke="#fbbf24" stroke-width="1.5">
+              <path d="M5 15h8M9 2v13"/>
+              <path d="M4 8l5-6 5 6"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-name">The Tribunal</div>
+            <div class="feature-sub">Critical Judges</div>
+          </div>
+          <p class="feature-desc">Three judges — The Architect (logic), The Bard (emotion), The Hater (market) — give brutally honest scores with actionable feedback.</p>
+        </div>
+
+        <!-- Chemist -->
+        <div class="feature-card">
+          <div class="feature-icon pink">
+            <svg viewBox="0 0 18 18" fill="none" stroke="#e879f9" stroke-width="1.5">
+              <path d="M7 3v6l-3 6h10L11 9V3"/>
+              <path d="M6 3h6"/>
+              <circle cx="7.5" cy="12" r="0.8" fill="#e879f9" stroke="none"/>
+              <circle cx="10.5" cy="13.5" r="0.6" fill="#e879f9" stroke="none"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-name">The Chemist</div>
+            <div class="feature-sub">Magic & Systems</div>
+          </div>
+          <p class="feature-desc">Builds and audits your magic systems, power structures, and world rules for internal consistency. Science-fiction and fantasy ready.</p>
+        </div>
+
+        <!-- Editor -->
+        <div class="feature-card">
+          <div class="feature-icon cyan" style="background: rgba(103,232,249,0.06);">
+            <svg viewBox="0 0 18 18" fill="none" stroke="#67e8f9" stroke-width="1.5">
+              <path d="M3 14l2.5-1L14 5l-1.5-1.5L4 12 3 14z"/>
+              <path d="M11.5 4.5L13 6"/>
+            </svg>
+          </div>
+          <div>
+            <div class="feature-name">Markdown IDE</div>
+            <div class="feature-sub">Focused Writing</div>
+          </div>
+          <p class="feature-desc">A distraction-free editor with Zen Mode, daily writing goals, syntax highlighting, and full context of your world attached to every file.</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- DIRECTOR SHOWCASE -->
+  <section>
+    <p class="section-label reveal">The Director in action</p>
+    <h2 class="section-h2 reveal">Your creative<br>co-author.</h2>
+    <p class="section-sub reveal">Ask the Director about any character, scene, or story problem. It already knows your world.</p>
+
+    <div class="showcase reveal">
+      <div class="showcase-panel">
+        <div class="panel-header">
+          <span class="panel-title">Director // Active Session</span>
+          <span class="panel-badge badge-active">Active</span>
+        </div>
+        <div class="panel-body">
+          <div class="msg-user">What do I need to define to begin creating my protagonist's arc?</div>
+          <div class="msg-agent">
+            <div class="msg-agent-tag">The Director</div>
+            <div class="msg-agent-body">
+              To begin creating Saeya's arc, you need to establish the gap between <em>who she is</em> at the beginning and <em>who she must become</em> to achieve her goal.
+              <br><br>
+              Since her main conflict is against the <strong>Society</strong>—which opposes her desire to listen and share music freely—her arc will be deeply tied to how she responds to that oppression.
+              <br><br>
+              We need to define three foundational pillars: <strong>The Starting Point (The Lie)</strong>, <strong>The Catalyst (The Push)</strong>, and <strong>The Want vs. The Need</strong>.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="showcase-panel">
+          <div class="panel-header">
+            <span class="panel-title">Tools</span>
+          </div>
+          <div class="panel-body" style="gap: 10px;">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.12);border-radius:6px;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fbbf24" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><path d="M8 5v3.5l2 1.5"/></svg>
+              <div>
+                <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#fbbf24">Inspector</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px">Analyze Cast</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(129,140,248,0.05);border:1px solid rgba(129,140,248,0.12);border-radius:6px;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#818cf8" stroke-width="1.5"><path d="M5 13h6M8 2v11"/><path d="M4 7l4-5 4 5"/></svg>
+              <div>
+                <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#818cf8">Tribunal</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px">Summon Judges</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(52,211,153,0.05);border:1px solid rgba(52,211,153,0.12);border-radius:6px;">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#34d399" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M8 9v7M5 13h6"/></svg>
+              <div>
+                <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#34d399">Memory</div>
+                <div style="font-size:10px;color:var(--muted);margin-top:2px">Force Read</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="showcase-panel">
+          <div class="panel-header">
+            <span class="panel-title">Archives</span>
+          </div>
+          <div class="panel-body">
+            <div style="padding:10px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:6px;font-size:12px;color:var(--cyan)">
+              Director... <span style="color:var(--muted);font-size:10px;float:right">Now</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ROADMAP SHOWCASE -->
+  <div class="full-section">
+    <section>
+      <p class="section-label reveal">The Architect's Roadmap</p>
+      <h2 class="section-h2 reveal">Know exactly what<br>to build next.</h2>
+      <p class="section-sub reveal">After each session, the Architect generates a structured roadmap: what changed, what quests remain, and what to research.</p>
+
+      <div class="roadmap-cols reveal">
+        <div class="roadmap-col">
+          <div class="roadmap-col-header changelog">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M6 4v2.5l1.5 1"/></svg>
+            Changelog
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag defined">Defined</div>
+            Key Emotional Direction: The world burns in flames as the protagonist achieves what she wanted most.
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag defined">Established</div>
+            The premise of 'innocent destruction' is the beating heart of the story.
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag defined">Established</div>
+            World Design Requirement: music must be more than just 'music', prohibition more than just 'censorship'.
+          </div>
+        </div>
+
+        <div class="roadmap-col">
+          <div class="roadmap-col-header missions">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M4 6l1.5 1.5L8 4"/></svg>
+            Creation Missions
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag quest">Quest</div>
+            Develop 'The Monopoly of Sound': define how the government bans and controls music, and how the world has adapted.
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag quest">Quest</div>
+            Define the deep logical motivation of the Society beyond a 'closed mind', justifying its catastrophic reaction.
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag quest">Quest</div>
+            Develop 'The Mechanism of Doom': explain how music relates to the destruction of the world thematically.
+          </div>
+        </div>
+
+        <div class="roadmap-col">
+          <div class="roadmap-col-header research">
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="3.5"/><path d="M7.5 7.5L10 10"/></svg>
+            Research
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag investigate">Investigate</div>
+            Methods of social control, maintenance of power, and consequences of oppressive regimes on the collective psyche.
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag investigate">Investigate</div>
+            Mythological or philosophical concepts about the inherent power of music, sound, or vibration as a creative or destructive force.
+          </div>
+          <div class="roadmap-card">
+            <div class="roadmap-tag investigate">Study</div>
+            Narrative examples where the pursuit of an innocent desire leads to catastrophic consequences (Shakespearean tragedies, creation/destruction myths).
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- TRIBUNAL SHOWCASE -->
+  <section>
+    <p class="section-label reveal">The Tribunal</p>
+    <h2 class="section-h2 reveal">Three perspectives.<br>No mercy.</h2>
+    <p class="section-sub reveal">Submit your draft to the Tribunal. Three judges evaluate logic, emotion, and market appeal — independently.</p>
+
+    <div class="tribunal-grid reveal">
+      <!-- Architect Judge -->
+      <div class="judge-card">
+        <div class="judge-header">
+          <div>
+            <div class="judge-name">The Architect</div>
+            <div class="judge-role">Logic & Structure</div>
+          </div>
+          <div class="judge-score" style="color: #fbbf24;">7<span style="font-size:14px;color:var(--muted)">/10</span></div>
+        </div>
+        <div class="judge-body">
+          <p class="judge-verdict">"A promising narrative with solid foundations, but with cracks in the coherence of motivation and rhythm."</p>
+          <p>The Prologue lays a potent emotional hook, however Anna's motivation for her altruism remains an undeveloped "mystery." The reveal of "Anime Fusion" emerges without preamble — functioning as a convenient solution rather than organic world integration.</p>
+        </div>
+      </div>
+
+      <!-- Bard Judge -->
+      <div class="judge-card">
+        <div class="judge-header">
+          <div>
+            <div class="judge-name">The Bard</div>
+            <div class="judge-role">Aesthetics & Emotion</div>
+          </div>
+          <div class="judge-score" style="color: var(--cyan);">7<span style="font-size:14px;color:var(--muted)">/10</span></div>
+        </div>
+        <div class="judge-body">
+          <p class="judge-verdict">"A symphony of voices, where the initial devastation gives way to a melody of connection and discovery, albeit with changes of rhythm that demand attention."</p>
+          <p>The emotional journey is the strongest point of the text. The imagery is consistently vivid. However, the abrupt tonal shift between the prologue and the first chapter is a bold leap that can be disorienting.</p>
+        </div>
+      </div>
+
+      <!-- Hater Judge -->
+      <div class="judge-card">
+        <div class="judge-header">
+          <div>
+            <div class="judge-name">The Hater</div>
+            <div class="judge-role">Market & Cynicism</div>
+          </div>
+          <div class="judge-score" style="color: #fc6464;">3<span style="font-size:14px;color:var(--muted)">/10</span></div>
+        </div>
+        <div class="judge-body">
+          <p class="judge-verdict">"Narrative confusion and clumsy introduction of key elements stifle any hint of initial interest."</p>
+          <p>The prologue dissociates itself from Megu in Chapter 1, leaving the reader wondering about the main character. The reveal of "Anime Fusion" is a blatant deus ex machina without any preparation.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="full-section">
+    <div class="cta-section">
+      <div class="cta-glow"></div>
+      <p class="section-label" style="position:relative">Start building</p>
+      <h2 class="cta-h2" style="position:relative">Your world is waiting<br>to be <em>written.</em></h2>
+      <p class="cta-sub" style="position:relative">Sign in with Google. Your stories live in your Drive. No subscriptions during Beta.</p>
+      <a href="/app" class="btn-primary" style="position:relative">
+        Open MyWorld
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M3 8h10M9 4l4 4-4 4"/>
+        </svg>
+      </a>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="border-top: 1px solid rgba(129,140,248,0.08);">
+    <footer>
+      <span style="font-family: 'Newsreader', serif; font-style: italic; color: var(--cyan); font-size: 16px;">MyWorld</span>
+      <span>© 2026 MyWorld. Made in Medellín.</span>
+      <div class="footer-links">
+        <a href="/privacy">Privacy</a>
+        <a href="/terms">Terms</a>
+        <a href="mailto:deinerflot@gmail.com">Contact</a>
+      </div>
+    </footer>
+  </div>
+
+</div><!-- #page -->
+
+<script>
+// ── INTRO ANIMATION ─────────────────────────────────────────────────────────
+(function() {
+  const orb = document.getElementById('orb');
+  const ring = document.getElementById('ring');
+  const iw = document.getElementById('iw');
+  const brand = document.getElementById('brand');
+  const bmy = document.getElementById('bmy');
+  const borld = document.getElementById('borld');
+  const intro = document.getElementById('intro');
+  const bgGrid = document.getElementById('bgGrid');
+  const page = document.getElementById('page');
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  let startTime = null;
+  const DUR = {
+    orbIn: 0,     orbInEnd: 900,
+    ringIn: 300,  ringInEnd: 1200,
+    wIn: 800,     wInEnd: 1500,
+    wHold: 1500,  wHoldEnd: 2200,
+    brandIn: 2000, brandInEnd: 2600,
+    fadeOut: 2800, fadeOutEnd: 3400,
+    pageIn: 3200
+  };
+
+  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+  function easeInOut(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
+  function easeBack(t) {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  }
+
+  function clamp01(t, s, e) { return Math.max(0, Math.min(1, (t - s) / (e - s))); }
+
+  function tick(ts) {
+    if (!startTime) startTime = ts;
+    const t = ts - startTime;
+
+    // ORB: rises from y=40 to y=-70
+    let orbT = clamp01(t, DUR.orbIn, DUR.orbInEnd);
+    if (orbT > 0) {
+      orb.style.opacity = Math.min(orbT * 2, 1);
+      orb.style.transform = `translateY(${lerp(40, -70, easeOut(orbT))}px)`;
+    }
+
+    // RING: rises from y=50 and rotates to -15deg
+    let ringT = clamp01(t, DUR.ringIn, DUR.ringInEnd);
+    if (ringT > 0) {
+      orb.style.opacity = Math.min(orbT * 2, 1);
+      ring.style.opacity = easeOut(ringT) * 0.85;
+      const ry = lerp(50, -14, easeOut(ringT));
+      const rrot = lerp(-30, -15, easeOut(ringT));
+      const rscale = lerp(0.8, 1, easeOut(ringT));
+      ring.style.transform = `translateY(${ry}px) rotate(${rrot}deg) scale(${rscale})`;
+    }
+
+    // W: appears at center
+    let wT = clamp01(t, DUR.wIn, DUR.wInEnd);
+    if (wT > 0) {
+      iw.style.opacity = easeBack(wT);
+      iw.style.transform = `scale(${lerp(0.85, 1, easeBack(wT))})`;
+    }
+
+    // PHASE OUT orb+ring+w → brand appears
+    let phaseT = clamp01(t, DUR.wHold, DUR.wHoldEnd);
+    if (phaseT > 0) {
+      const fade = 1 - easeInOut(phaseT);
+      orb.style.opacity = fade * Math.min(clamp01(t, DUR.orbIn, DUR.orbInEnd) * 2, 1);
+      ring.style.opacity = fade * 0.85;
+      iw.style.opacity = fade;
+    }
+
+    // BRAND AUTOCOMPLETE
+    let brandT = clamp01(t, DUR.brandIn, DUR.brandInEnd);
+    if (brandT > 0) {
+      brand.style.opacity = 1;
+      const myW = Math.round(lerp(0, 96, easeOut(Math.min(brandT * 2, 1))));
+      const orldW = Math.round(lerp(0, 132, easeOut(Math.max(0, brandT * 2 - 0.7))));
+      bmy.style.maxWidth = myW + 'px';
+      borld.style.maxWidth = orldW + 'px';
+    }
+
+    // FADE OUT INTRO
+    let fadeT = clamp01(t, DUR.fadeOut, DUR.fadeOutEnd);
+    if (fadeT > 0) {
+      intro.style.opacity = 1 - easeInOut(fadeT);
+    }
+
+    if (t >= DUR.pageIn) {
+      // Reveal page
+      intro.style.display = 'none';
+      bgGrid.style.transition = 'opacity 1.5s ease';
+      bgGrid.style.opacity = '1';
+      page.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
+      page.style.opacity = '1';
+      page.style.transform = 'none';
+
+      // Trigger scroll reveals
+      setTimeout(setupReveal, 100);
+      return;
+    }
+
+    requestAnimationFrame(tick);
+  }
+
+  requestAnimationFrame(tick);
+})();
+
+// ── SCROLL REVEAL ────────────────────────────────────────────────────────────
+function setupReveal() {
+  const items = document.querySelectorAll('.reveal');
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+        obs.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.12 });
+  items.forEach(el => obs.observe(el));
+}
+
+// ── ABOUT MODAL ──────────────────────────────────────────────────────────────
+function openAbout() {
+  document.getElementById('aboutModal').classList.add('open');
+}
+function closeAbout() {
+  document.getElementById('aboutModal').classList.remove('open');
+}
+document.getElementById('aboutModal').addEventListener('click', function(e) {
+  if (e.target === this) closeAbout();
+});
+</script>
 </body>
 </html>

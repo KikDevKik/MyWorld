@@ -1,5 +1,7 @@
 import React from 'react';
 import { AlertTriangle, X, ShieldAlert, Sparkles } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface ReadinessModalProps {
     isOpen: boolean;
@@ -28,7 +30,7 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
                 <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-500/20 bg-amber-950/20">
                     <ShieldAlert size={20} className="text-amber-400 shrink-0" />
                     <h2 className="text-amber-300 font-semibold font-mono tracking-wide flex-1">
-                        El Guardián ha detectado pilares faltantes
+                        {tArch.guardianDetectedMissing || "El Guardián ha detectado pilares faltantes"}
                     </h2>
                     <button
                         onClick={onClose}
@@ -51,7 +53,7 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
                     {missingElements.length > 0 && (
                         <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl px-4 py-3 flex flex-col gap-2">
                             <p className="text-amber-400/70 text-xs font-mono uppercase tracking-wider mb-1">
-                                Pilares sin definir:
+                                {tArch.undefinedPillars || "Pilares sin definir"}:
                             </p>
                             {missingElements.map((el, i) => (
                                 <div key={i} className="flex items-start gap-2">
@@ -69,7 +71,7 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
                         onClick={onClose}
                         className="flex-1 py-2.5 rounded-xl border border-titanium-700/50 text-titanium-400 text-sm font-medium hover:bg-titanium-800/30 transition-colors"
                     >
-                        Volver al Interrogatorio
+                        {tArch.backToInterrogation || "Volver al Interrogatorio"}
                     </button>
                     <button
                         onClick={onForce}
@@ -79,12 +81,12 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
                         {isCrystallizing ? (
                             <>
                                 <span className="w-3.5 h-3.5 rounded-full border-2 border-red-400/40 border-t-red-400 animate-spin" />
-                                Cristalizando...
+                                {t.common?.crystallizing || "Cristalizando..."}
                             </>
                         ) : (
                             <>
                                 <Sparkles size={14} />
-                                Forzar Cristalización
+                                {tArch.forceCrystallization || "Forzar Cristalización"}
                             </>
                         )}
                     </button>

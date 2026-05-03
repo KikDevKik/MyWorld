@@ -262,16 +262,16 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     const handleExportAudit = async () => {
         if (!folderId) return;
         if (!user || !user.uid) {
-            toast.error("Error de identidad: No se puede firmar el certificado.");
+            toast.error(t.certError);
             return;
         }
 
         setIsExportingAudit(true);
-        const toastId = toast.loading("Generando Certificado Legal...");
+        const toastId = toast.loading(t.waitMessage);
 
         try {
             if (auditFormat === 'pdf') {
-                toast.loading("Compilando PDF oficial...", { id: toastId });
+                toast.loading(t.compiling, { id: toastId });
                 const pdfBase64 = await CreativeAuditService.fetchAuditPDF(folderId);
 
                 if (!pdfBase64) throw new Error("PDF generation failed.");
@@ -311,10 +311,10 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                 URL.revokeObjectURL(url);
             }
 
-            toast.success(`Certificado de Autoría (${auditFormat.toUpperCase()}) descargado.`, { id: toastId });
+            toast.success(t.success, { id: toastId });
         } catch (error) {
             console.error("Audit Export Error:", error);
-            toast.error("Error al generar certificado.", { id: toastId });
+            toast.error(t.certError, { id: toastId });
         } finally {
             setIsExportingAudit(false);
         }
@@ -325,12 +325,12 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
         if (!folderId || !user) return;
 
         setIsGeneratingCert(true);
-        const toastId = toast.loading("Notariando Certificado en la Blockchain (Simulada)...");
+        const toastId = toast.loading(t.waitMessage);
 
         try {
             const result = await callFunction<any>('generateCertificate', {
                 projectId: folderId,
-                projectTitle: title || 'Proyecto Sin Título'
+                projectTitle: title || t.bookTitlePlaceholder
             });
 
             if (result.success && result.certificateId) {

@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Trash2 } from 'lucide-react';
 import { RealityMode } from './types';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 // Types
-const MODES: { id: RealityMode; label: string }[] = [
-    { id: 'RIGOR', label: 'RIGOR' },
-    { id: 'FUSION', label: 'FUSIÓN' },
-    { id: 'ENTROPIA', label: 'ENTROPÍA' },
+const getModes = (t: any): { id: RealityMode; label: string }[] => [
+    { id: 'RIGOR', label: t.rigor || 'RIGOR' },
+    { id: 'FUSION', label: t.fusion || 'FUSIÓN' },
+    { id: 'ENTROPIA', label: t.entropy || 'ENTROPÍA' },
 ];
 
 interface CommandBarProps {
@@ -18,6 +20,11 @@ interface CommandBarProps {
 }
 
 export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mode, onModeChange }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tNexus = t.nexus;
+    const MODES = getModes(tNexus);
+
     const [focused, setFocused] = useState(false);
     const [input, setInput] = useState("");
 
@@ -39,7 +46,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mo
                 <button
                     onClick={onClearAll}
                     className="mb-2 p-3 rounded-full bg-red-950/20 border border-red-500/20 text-red-700 hover:bg-red-900/40 hover:text-red-400 hover:border-red-500/50 transition-all shadow-lg hover:shadow-red-900/20 group"
-                    title="ELIMINAR TODO"
+                    title={tNexus.clearAll || "ELIMINAR TODO"}
                 >
                     <Trash2 size={20} className="group-hover:scale-110 transition-transform" />
                 </button>
@@ -60,8 +67,8 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mo
 
                     <input
                         type="text"
-                        aria-label="Comando para el motor"
-                        placeholder="¿Qué quieres crear o consultar?"
+                        aria-label={tNexus.commandAria || "Comando para el motor"}
+                        placeholder={tNexus.commandPlaceholder || "¿Qué quieres crear o consultar?"}
                         className={`relative w-full bg-transparent px-6 py-4 text-lg font-light placeholder-slate-600 outline-none rounded-t-xl text-center font-mono transition-colors duration-300 ${
                             mode === 'RIGOR' ? 'text-sky-100 selection:bg-sky-500/30' :
                             mode === 'ENTROPIA' ? 'text-violet-100 selection:bg-violet-500/30' :
@@ -79,7 +86,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mo
                 <div
                     className="relative w-full h-12 bg-[#0a0a0a] border border-t-0 border-white/10 rounded-b-xl flex items-center p-1 z-10"
                     role="radiogroup"
-                    aria-label="Modo de Realidad"
+                    aria-label={tNexus.realityModeAria || "Modo de Realidad"}
                 >
 
                     {/* Background Track (Clickable Areas) */}
@@ -89,7 +96,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mo
                                 key={m.id}
                                 role="radio"
                                 aria-checked={mode === m.id}
-                                aria-label={`Modo ${m.label}`}
+                                aria-label={`${tNexus.realityModePrefix || 'Modo'} ${m.label}`}
                                 tabIndex={0}
                                 onClick={() => onModeChange(m.id)}
                                 onKeyDown={(e) => {

@@ -5,6 +5,7 @@ import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { google } from "googleapis";
 import { getFirestore } from "firebase-admin/firestore";
+import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import { handleSecureError } from "./utils/security";
 
 const googleClientId = defineSecret("GOOGLE_CLIENT_ID");
@@ -48,9 +49,6 @@ export const exchangeAuthCode = onCall(
 
       if (!tokens.refresh_token) {
         logger.warn("⚠️ No Refresh Token returned! User might have already granted access without 'prompt=consent'.");
-        // We can still return the access token, but we can't save permanent access.
-        // Usually, we should force prompt='consent' on client to ensure we get a refresh token.
-        // But if we don't get it, we can't save it.
       }
 
       // 🔒 SECURE STORAGE: Save Refresh Token to a protected path
@@ -71,6 +69,103 @@ export const exchangeAuthCode = onCall(
 
     } catch (error: any) {
       throw handleSecureError(error, "exchangeAuthCode");
+    }
+  }
+);
+
+/**
+ * 1b. LOGIN WITH GOOGLE CODE (Unified Login — No prior auth required)
+ * Exchanges an OAuth authorization code server-side, links/creates the Firebase
+ * user account, saves the Drive refresh token, and returns a custom Firebase token.
+ * This allows a single popup to handle both Firebase Auth and Drive connection.
+ */
+export const loginWithGoogleCode = onCall(
+  {
+    region: FUNCTIONS_REGION,
+    cors: ALLOWED_ORIGINS,
+    enforceAppCheck: false,
+    secrets: [googleClientId, googleClientSecret],
+    memory: "1GiB",
+  },
+  async (request) => {
+    // NOTE: This function intentionally does NOT require request.auth.
+    // It is the entry point for first-time authentication.
+
+    const { code } = request.data;
+    if (!code) throw new HttpsError("invalid-argument", "Authorization Code missing.");
+
+    const db = getFirestore();
+
+    try {
+      logger.info("🔐 [loginWithGoogleCode] Exchanging auth code server-side...");
+
+      // Step 1 — Exchange code for tokens (backend has the client_secret)
+      const oauth2Client = getOAuth2Client();
+      const { tokens } = await oauth2Client.getToken(code);
+
+      if (!tokens.access_token) {
+        throw new Error("Google did not return an access token.");
+      }
+
+      // Step 2 — Get user info from Google using the access token
+      oauth2Client.setCredentials(tokens);
+      const oauth2 = google.oauth2({ version: "v2", auth: oauth2Client });
+      const userInfoRes = await oauth2.userinfo.get();
+      const userInfo = userInfoRes.data;
+
+      if (!userInfo.email) {
+        throw new Error("Could not retrieve user email from Google.");
+      }
+
+      // Step 3 — Get or create Firebase user
+      const adminAuth = getAdminAuth();
+      let firebaseUid: string;
+
+      try {
+        const existingUser = await adminAuth.getUserByEmail(userInfo.email);
+        firebaseUid = existingUser.uid;
+        logger.info(`✅ [loginWithGoogleCode] Found existing user: ${firebaseUid}`);
+      } catch (err: any) {
+        if (err.code === 'auth/user-not-found') {
+          // Create a new Firebase user
+          const newUser = await adminAuth.createUser({
+            email: userInfo.email,
+            displayName: userInfo.name || undefined,
+            photoURL: userInfo.picture || undefined,
+            emailVerified: true,
+          });
+          firebaseUid = newUser.uid;
+          logger.info(`✨ [loginWithGoogleCode] Created new Firebase user: ${firebaseUid}`);
+        } else {
+          throw err;
+        }
+      }
+
+      // Step 4 — Save refresh token to the vault
+      if (tokens.refresh_token) {
+        await db.collection("users").doc(firebaseUid).collection("system_secrets").doc("drive").set({
+          refreshToken: tokens.refresh_token,
+          updatedAt: new Date().toISOString()
+        });
+        logger.info("✅ [loginWithGoogleCode] Refresh Token secured in Vault.");
+      } else {
+        logger.warn("⚠️ [loginWithGoogleCode] No refresh token returned. User may need to reconnect Drive later.");
+      }
+
+      // Step 5 — Create a Firebase custom token for the client to sign in with
+      const customToken = await adminAuth.createCustomToken(firebaseUid);
+
+      logger.info(`🚀 [loginWithGoogleCode] Custom token issued for: ${firebaseUid}`);
+
+      return {
+        success: true,
+        customToken,
+        accessToken: tokens.access_token,
+        hasRefreshToken: !!tokens.refresh_token,
+      };
+
+    } catch (error: any) {
+      throw handleSecureError(error, "loginWithGoogleCode");
     }
   }
 );

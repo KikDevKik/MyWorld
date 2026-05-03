@@ -1,5 +1,7 @@
 import React from 'react';
 import { X } from 'lucide-react';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 interface SlideUpPanelProps {
     isOpen: boolean;
@@ -15,6 +17,9 @@ interface SlideUpPanelProps {
  * z-50 garantiza que queda sobre el chat (z-20) y la toolbar (z-20).
  */
 const SlideUpPanel: React.FC<SlideUpPanelProps> = ({ isOpen, title, icon, onClose, children }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+
     return (
         <>
             {/* Backdrop blur cuando está abierto (HERMANO, NO HIJO) */}
@@ -55,7 +60,7 @@ const SlideUpPanel: React.FC<SlideUpPanelProps> = ({ isOpen, title, icon, onClos
                         <button
                             onClick={onClose}
                             className="w-7 h-7 flex items-center justify-center rounded-full text-titanium-500 hover:text-titanium-300 hover:bg-titanium-800/50 transition-colors"
-                            aria-label="Cerrar panel"
+                            aria-label={t.common?.close || "Cerrar panel"}
                         >
                             <X size={15} />
                         </button>

@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Sparkles, ArrowUp, Clapperboard, ShieldCheck } from 'lucide-react';
 import { GemId } from '../../types';
+import { useLanguageStore } from '../../stores/useLanguageStore';
+import { TRANSLATIONS } from '../../i18n/translations';
 
 // Interfaz de props para comunicarse con App.tsx
 interface CommandBarProps {
@@ -8,6 +10,8 @@ interface CommandBarProps {
 }
 
 const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
+    const { currentLanguage } = useLanguageStore();
+    const tTools = TRANSLATIONS[currentLanguage].tools;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     // Usamos los IDs en minúscula para que coincidan con GemId
     const [selectedTool, setSelectedTool] = useState<GemId>('director');
@@ -70,14 +74,14 @@ const CommandBar: React.FC<CommandBarProps> = ({ onExecute }) => {
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-titanium-700 rounded-lg text-xs text-titanium-300 hover:text-titanium-100 text-left transition-colors group outline-none"
                     >
                         <Clapperboard size={16} className="text-titanium-500 group-hover:text-accent-DEFAULT transition-colors" />
-                        <span className="font-medium tracking-wide">Director de Escena</span>
+                        <span className="font-medium tracking-wide">{tTools.director}</span>
                     </button>
                     <button
                         onClick={() => selectTool('guardian')}
                         className="flex items-center gap-3 px-3 py-2.5 hover:bg-titanium-700 rounded-lg text-xs text-titanium-300 hover:text-titanium-100 text-left transition-colors group outline-none"
                     >
                         <ShieldCheck size={16} className="text-titanium-500 group-hover:text-accent-DEFAULT transition-colors" />
-                        <span className="font-medium tracking-wide">Guardián (Local)</span>
+                        <span className="font-medium tracking-wide">{tTools.guardian}</span>
                     </button>
                 </div>
             )}
