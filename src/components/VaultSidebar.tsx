@@ -4,6 +4,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Trash2, Download, Check, X } from 'lucide-react';
+import GuidePanel from './ui/GuidePanel';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -75,6 +76,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 }) => {
     // STATE
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
+    const [isGuidePanelOpen, setIsGuidePanelOpen] = useState(false);
 
     // 🟢 NEW: SPLIT TREE STATE
     const [isCanonOpen, setIsCanonOpen] = useState(true);
@@ -799,20 +801,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             <div className="p-3 border-t border-titanium-800 bg-titanium-900 mt-auto">
                 <div className="flex flex-col gap-1">
                     <button
-                        onClick={() => {
-                            if (onOpenStartingAssistant) {
-                                onOpenStartingAssistant();
-                            } else if (onStartTutorial) {
-                                onStartTutorial();
-                            } else {
-                                onOpenManual();
-                            }
-                        }}
+                        onClick={() => setIsGuidePanelOpen(true)}
                         className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
                     >
                         <HelpCircle size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
                         <span>{t.guide}</span>
                     </button>
+
+                    {isGuidePanelOpen && <GuidePanel onClose={() => setIsGuidePanelOpen(false)} />}
 
                     <button
                         id="sidebar-project-settings"
