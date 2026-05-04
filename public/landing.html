@@ -510,6 +510,7 @@ section {
   letter-spacing: 0.05em;
   color: var(--text);
   text-transform: uppercase;
+  line-height: 1.3;
 }
 
 .feature-sub {
@@ -517,7 +518,8 @@ section {
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-top: -8px;
+  margin-top: 3px;
+  line-height: 1.2;
 }
 
 .feature-desc {
@@ -923,9 +925,30 @@ footer a:hover { color: var(--text); }
     <button class="modal-close" onclick="closeAbout()">✕</button>
     <h2>About MyWorld</h2>
     <p>MyWorld is a creative IDE for writers building fictional worlds. It maps your story, watches for contradictions, and asks the questions you haven't thought to ask yourself.</p>
-    <p>Built by an indie developer in Medellín, Colombia — for storytellers who think in universes, not just chapters.</p>
+    <p>Built by an indie developer — for storytellers who think in universes, not just chapters.</p>
     <p>Currently in Beta. All your files live in <strong>your</strong> Google Drive. We never read your stories.</p>
-    <p>Questions? <a href="mailto:deinerflot@gmail.com">deinerflot@gmail.com</a></p>
+    <p>Questions? <a href="#" onclick="closeAbout(); openSupport(); return false;">Contact us</a></p>
+  </div>
+</div>
+
+<!-- SUPPORT MODAL -->
+<div class="modal-backdrop" id="supportModal">
+  <div class="modal" style="position:relative">
+    <button class="modal-close" onclick="closeSupport()">✕</button>
+    <h2>Get in touch</h2>
+    <p>Send us an email and we'll get back to you as soon as possible.</p>
+    <div style="background:rgba(103,232,249,0.05);border:1px solid rgba(103,232,249,0.15);border-radius:8px;padding:20px;margin-bottom:20px;">
+      <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Support email</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
+        <span style="font-size:15px;color:var(--cyan);font-family:'JetBrains Mono',monospace;">deidev180@gmail.com</span>
+        <button onclick="copyEmail()" id="copyBtn" style="background:rgba(103,232,249,0.1);border:1px solid rgba(103,232,249,0.2);border-radius:5px;padding:6px 14px;color:var(--cyan);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;">Copy</button>
+      </div>
+    </div>
+    <p style="font-size:13px;color:var(--muted);">You can also open your email client directly:</p>
+    <a href="mailto:deidev180@gmail.com?subject=MyWorld%20Support" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:10px 20px;background:rgba(129,140,248,0.1);border:1px solid rgba(129,140,248,0.2);border-radius:6px;color:var(--violet);font-size:12px;letter-spacing:0.06em;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(129,140,248,0.18)'" onmouseout="this.style.background='rgba(129,140,248,0.1)'">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="8" rx="1"/><path d="M1 4l6 4.5L13 4"/></svg>
+      Open email client
+    </a>
   </div>
 </div>
 
@@ -937,10 +960,10 @@ footer a:hover { color: var(--text); }
     <a href="#" class="nav-logo">MyWorld</a>
     <div class="nav-links">
       <a href="#" onclick="openAbout(); return false;">About Us</a>
-      <a href="mailto:deinerflot@gmail.com">Support</a>
+      <a href="#" onclick="openSupport(); return false;">Support</a>
       <a href="#features">Features</a>
-      <a href="#" class="nav-cta">
-        <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M8 1.5a.5.5 0 0 1 .5.5v4.5h4.5a.5.5 0 0 1 0 1H8.5V12a.5.5 0 0 1-1 0V7.5H3a.5.5 0 0 1 0-1h4.5V2a.5.5 0 0 1 .5-.5z"/></svg>
+      <a href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener" class="nav-cta">
+        <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M8 14.4C7.6 14.4 2 10.6 2 6.4a3.6 3.6 0 0 1 6-2.7A3.6 3.6 0 0 1 14 6.4c0 4.2-5.6 8-6 8z"/></svg>
         Donate
       </a>
     </div>
@@ -1029,7 +1052,7 @@ footer a:hover { color: var(--text); }
           </div>
           <div>
             <div class="feature-name">The Director</div>
-            <div class="feature-sub">Scene & Cast</div>
+            <div class="feature-sub">Scene &amp; Cast</div>
           </div>
           <p class="feature-desc">Manages your cast, analyzes character arcs, and helps you direct each scene with precision. The creative engine in your sidebar.</p>
         </div>
@@ -1063,21 +1086,22 @@ footer a:hover { color: var(--text); }
           <p class="feature-desc">Three judges — The Architect (logic), The Bard (emotion), The Hater (market) — give brutally honest scores with actionable feedback.</p>
         </div>
 
-        <!-- Chemist -->
+        <!-- Ideas Lab -->
         <div class="feature-card">
           <div class="feature-icon pink">
             <svg viewBox="0 0 18 18" fill="none" stroke="#e879f9" stroke-width="1.5">
-              <path d="M7 3v6l-3 6h10L11 9V3"/>
-              <path d="M6 3h6"/>
-              <circle cx="7.5" cy="12" r="0.8" fill="#e879f9" stroke="none"/>
-              <circle cx="10.5" cy="13.5" r="0.6" fill="#e879f9" stroke="none"/>
+              <path d="M7 3v5.5l-3 5.5h10l-3-5.5V3"/>
+              <path d="M6.5 3h5"/>
+              <circle cx="8" cy="12" r="0.75" fill="#e879f9" stroke="none"/>
+              <circle cx="11" cy="13.5" r="0.6" fill="#e879f9" stroke="none"/>
+              <circle cx="9.5" cy="11" r="0.5" fill="#e879f9" stroke="none"/>
             </svg>
           </div>
           <div>
-            <div class="feature-name">The Chemist</div>
-            <div class="feature-sub">Magic & Systems</div>
+            <div class="feature-name">Ideas Lab</div>
+            <div class="feature-sub">References &amp; Inspiration</div>
           </div>
-          <p class="feature-desc">Builds and audits your magic systems, power structures, and world rules for internal consistency. Science-fiction and fantasy ready.</p>
+          <p class="feature-desc">Your inspiration vault. Add cultural references, images, and research. The Lab synthesizes them into ideas tailored to your world.</p>
         </div>
 
         <!-- Editor -->
@@ -1290,6 +1314,60 @@ footer a:hover { color: var(--text); }
     </div>
   </section>
 
+  <!-- ABOUT / NORTHFORGE -->
+  <section style="padding: 80px 40px; max-width: 1200px; margin: 0 auto;">
+    <div style="display:flex;align-items:center;gap:48px;flex-wrap:wrap;" class="reveal">
+      <div style="flex:1;min-width:280px;">
+        <p class="section-label">About MyWorld</p>
+        <h2 class="section-h2" style="font-size:clamp(24px,3vw,36px);margin-bottom:16px;">Built by NorthForge Studios.</h2>
+        <p style="font-family:'Newsreader',serif;font-size:16px;line-height:1.8;color:var(--muted-hi);margin-bottom:20px;">
+          MyWorld is an independent product developed and maintained by <a href="https://northforgestudios.tech" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(103,232,249,0.3);">NorthForge Studios</a> — an AI-focused technology studio building tools for creators and developers.
+        </p>
+        <p style="font-family:'Newsreader',serif;font-size:16px;line-height:1.8;color:var(--muted-hi);">
+          Questions, feedback, or just want to say hello?
+        </p>
+        <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
+          <a href="#" onclick="openSupport(); return false;"
+            style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em;padding:9px 18px;border-radius:6px;background:rgba(103,232,249,0.06);border:1px solid rgba(103,232,249,0.15);color:var(--cyan);text-decoration:none;transition:all 0.2s;"
+            onmouseover="this.style.background='rgba(103,232,249,0.12)'"
+            onmouseout="this.style.background='rgba(103,232,249,0.06)'">
+            Contact us
+          </a>
+          <a href="https://northforgestudios.tech" target="_blank" rel="noopener"
+            style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em;padding:9px 18px;border-radius:6px;background:transparent;border:1px solid rgba(59,130,246,0.2);color:#60a5fa;text-decoration:none;transition:all 0.2s;display:flex;align-items:center;gap:7px;"
+            onmouseover="this.style.background='rgba(59,130,246,0.08)'"
+            onmouseout="this.style.background='transparent'">
+            <!-- Mini razorbill -->
+            <img src="data:image/png;base64,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" alt="NorthForge Studios" style="width:13px;height:13px;object-fit:contain;border-radius:2px;">
+            NorthForge Studios →
+          </a>
+        </div>
+      </div>
+      <!-- Right: NorthForge card -->
+      <div style="flex:0 0 300px;">
+        <a href="https://northforgestudios.tech" target="_blank" rel="noopener" style="text-decoration:none;display:block;">
+          <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(59,130,246,0.15);border-radius:12px;padding:28px;transition:all 0.25s;cursor:pointer;"
+            onmouseover="this.style.background='rgba(59,130,246,0.04)';this.style.borderColor='rgba(59,130,246,0.3)'"
+            onmouseout="this.style.background='rgba(255,255,255,0.02)';this.style.borderColor='rgba(59,130,246,0.15)'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+              <img src="data:image/png;base64,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" alt="NorthForge Studios" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">
+              <div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:#e2e8f0;">NorthForge<span style="color:#3b82f6;">Studios</span></div>
+                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:#374151;margin-top:2px;">Technology Studio</div>
+              </div>
+            </div>
+            <p style="font-family:'Newsreader',serif;font-size:13px;line-height:1.7;color:#4b5563;margin-bottom:16px;">
+              We build. We publish. We amplify. AI-focused products and a publishing platform for developers worldwide.
+            </p>
+            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#3b82f6;">
+              northforgestudios.tech →
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
   <!-- CTA -->
   <div class="full-section">
     <div class="cta-section">
@@ -1297,24 +1375,49 @@ footer a:hover { color: var(--text); }
       <p class="section-label" style="position:relative">Start building</p>
       <h2 class="cta-h2" style="position:relative">Your world is waiting<br>to be <em>written.</em></h2>
       <p class="cta-sub" style="position:relative">Sign in with Google. Your stories live in your Drive. No subscriptions during Beta.</p>
-      <a href="/app" class="btn-primary" style="position:relative">
-        Open MyWorld
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-          <path d="M3 8h10M9 4l4 4-4 4"/>
-        </svg>
-      </a>
+      <div style="position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;">
+        <a href="/app" class="btn-primary">
+          Open MyWorld
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 8h10M9 4l4 4-4 4"/>
+          </svg>
+        </a>
+        <a href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener"
+          style="display:flex;align-items:center;gap:8px;padding:14px 24px;border-radius:8px;border:1px solid rgba(129,140,248,0.25);background:transparent;color:var(--violet);font-family:'JetBrains Mono',monospace;font-size:13px;text-decoration:none;transition:all 0.2s;"
+          onmouseover="this.style.background='rgba(129,140,248,0.08)';this.style.borderColor='rgba(129,140,248,0.4)'"
+          onmouseout="this.style.background='transparent';this.style.borderColor='rgba(129,140,248,0.25)'">
+          <svg viewBox="0 0 16 16" fill="currentColor" style="width:14px;height:14px;color:#e879f9"><path d="M8 14.4C7.6 14.4 2 10.6 2 6.4a3.6 3.6 0 0 1 6-2.7A3.6 3.6 0 0 1 14 6.4c0 4.2-5.6 8-6 8z"/></svg>
+          Support MyWorld
+        </a>
+      </div>
     </div>
   </div>
 
   <!-- FOOTER -->
   <div style="border-top: 1px solid rgba(129,140,248,0.08);">
-    <footer>
-      <span style="font-family: 'Newsreader', serif; font-style: italic; color: var(--cyan); font-size: 16px;">MyWorld</span>
-      <span>© 2026 MyWorld. Made in Medellín.</span>
-      <div class="footer-links">
-        <a href="/privacy">Privacy</a>
-        <a href="/terms">Terms</a>
-        <a href="mailto:deinerflot@gmail.com">Contact</a>
+    <footer style="flex-direction: column; gap: 20px; align-items: center; text-align: center;">
+      <!-- Top row -->
+      <div style="display:flex;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap;gap:16px;">
+        <span style="font-family: 'Newsreader', serif; font-style: italic; color: var(--cyan); font-size: 16px;">MyWorld</span>
+        <span>© 2026 MyWorld.</span>
+        <div class="footer-links">
+          <a href="/privacy">Privacy</a>
+          <a href="/terms">Terms</a>
+          <a href="#" onclick="openSupport(); return false;">Contact</a>
+        </div>
+      </div>
+      <!-- NorthForge credit -->
+      <div style="width:100%;padding-top:16px;border-top:1px solid rgba(129,140,248,0.06);display:flex;align-items:center;justify-content:center;gap:10px;">
+        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">A product by</span>
+        <a href="https://northforgestudios.tech" target="_blank" rel="noopener"
+          style="display:flex;align-items:center;gap:7px;text-decoration:none;transition:opacity 0.2s;opacity:0.7;"
+          onmouseover="this.style.opacity='1'"
+          onmouseout="this.style.opacity='0.7'">
+          <img src="data:image/png;base64,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" alt="NorthForge Studios" style="width:16px;height:16px;object-fit:contain;">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#64748b;">
+            NorthForge<span style="color:#3b82f6;">Studios</span>
+          </span>
+        </a>
       </div>
     </footer>
   </div>
@@ -1454,6 +1557,33 @@ function closeAbout() {
 document.getElementById('aboutModal').addEventListener('click', function(e) {
   if (e.target === this) closeAbout();
 });
+
+// ── SUPPORT MODAL ─────────────────────────────────────────────────────────────
+function openSupport() {
+  document.getElementById('supportModal').classList.add('open');
+}
+function closeSupport() {
+  document.getElementById('supportModal').classList.remove('open');
+}
+document.getElementById('supportModal').addEventListener('click', function(e) {
+  if (e.target === this) closeSupport();
+});
+
+function copyEmail() {
+  navigator.clipboard.writeText('deidev180@gmail.com').then(() => {
+    const btn = document.getElementById('copyBtn');
+    btn.textContent = 'Copied!';
+    btn.style.background = 'rgba(52,211,153,0.15)';
+    btn.style.borderColor = 'rgba(52,211,153,0.3)';
+    btn.style.color = '#34d399';
+    setTimeout(() => {
+      btn.textContent = 'Copy';
+      btn.style.background = 'rgba(103,232,249,0.1)';
+      btn.style.borderColor = 'rgba(103,232,249,0.2)';
+      btn.style.color = 'var(--cyan)';
+    }, 2000);
+  });
+}
 </script>
 </body>
 </html>

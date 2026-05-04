@@ -1,183 +1,337 @@
-import React, { useState, useCallback } from 'react';
-import { getAuth, signInWithCustomToken, User } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { Lock, AlertCircle } from 'lucide-react';
-import { useLanguageStore } from '../stores/useLanguageStore';
-import { TRANSLATIONS } from '../i18n/translations';
+import React, { useState, useEffect, useRef } from 'react';
+import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { AlertCircle } from 'lucide-react';
 
 interface LoginScreenProps {
     onLoginSuccess: (user: User, token: string | null) => void;
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
-    const { currentLanguage } = useLanguageStore();
-    const t = TRANSLATIONS[currentLanguage].login;
-
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    const [mounted, setMounted] = useState(false);
+    const orbRef = useRef<HTMLDivElement>(null);
 
-    const handleLogin = useCallback(() => {
-        if (isLoading) return;
+    useEffect(() => {
+        // Staggered mount reveal
+        const t = setTimeout(() => setMounted(true), 80);
+        return () => clearTimeout(t);
+    }, []);
+
+    // Subtle orb parallax on mouse move
+    useEffect(() => {
+        const handleMove = (e: MouseEvent) => {
+            if (!orbRef.current) return;
+            const cx = window.innerWidth / 2;
+            const cy = window.innerHeight / 2;
+            const dx = (e.clientX - cx) / cx;
+            const dy = (e.clientY - cy) / cy;
+            orbRef.current.style.transform = `translate(${dx * 18}px, ${dy * 12}px)`;
+        };
+        window.addEventListener('mousemove', handleMove);
+        return () => window.removeEventListener('mousemove', handleMove);
+    }, []);
+
+    const handleLogin = async () => {
         setIsLoading(true);
         setError(null);
 
-        const clientId = (import.meta as any).env.VITE_GOOGLE_CLIENT_ID;
+        const auth = getAuth();
+        const provider = new GoogleAuthProvider();
+        provider.addScope('https://www.googleapis.com/auth/drive.file');
+        provider.setCustomParameters({ prompt: 'consent' });
 
-        if (!clientId) {
-            setError(t.errorConfig);
+        try {
+            await setPersistence(auth, browserLocalPersistence);
+            const result = await signInWithPopup(auth, provider);
+            const credential = GoogleAuthProvider.credentialFromResult(result);
+            const token = credential?.accessToken ?? null;
+            onLoginSuccess(result.user, token);
+        } catch (err: any) {
+            if (err.code === 'auth/popup-closed-by-user') {
+                setError('Inicio de sesión cancelado.');
+            } else {
+                setError('Error al iniciar sesión. Intenta nuevamente.');
+            }
+        } finally {
             setIsLoading(false);
-            return;
         }
-
-        if (!(window as any).google?.accounts?.oauth2) {
-            setError(t.errorGIS);
-            setIsLoading(false);
-            return;
-        }
-
-        const client = (window as any).google.accounts.oauth2.initCodeClient({
-            client_id: clientId,
-            // Request identity AND Drive in a single consent screen
-            scope: [
-                'openid',
-                'email',
-                'profile',
-                'https://www.googleapis.com/auth/drive.file',
-            ].join(' '),
-            ux_mode: 'popup',
-            prompt: 'consent', // Always show consent to guarantee refresh_token
-            callback: async (response: { code?: string; error?: string }) => {
-                if (!response.code) {
-                    setIsLoading(false);
-                    if (response.error && response.error !== 'popup_closed_by_user') {
-                        setError(t.errorConnect);
-                    }
-                    return;
-                }
-
-                try {
-                    // Step 1 — Send the code to the backend.
-                    // loginWithGoogleCode exchanges the code server-side (where client_secret lives),
-                    // creates/links the Firebase user, saves the refresh token, and returns a custom token.
-                    const functions = getFunctions();
-                    const loginFn = httpsCallable<
-                        { code: string },
-                        { success: boolean; customToken: string; accessToken: string; hasRefreshToken: boolean }
-                    >(functions, 'loginWithGoogleCode');
-
-                    const result = await loginFn({ code: response.code });
-                    const data = result.data;
-
-                    if (!data?.success || !data.customToken) {
-                        throw new Error(t.errorToken);
-                    }
-
-                    // Step 2 — Sign into Firebase client-side using the custom token
-                    const auth = getAuth();
-                    const userCredential = await signInWithCustomToken(auth, data.customToken);
-
-                    // Step 3 — Signal success with the Drive access token
-                    onLoginSuccess(userCredential.user, data.accessToken || null);
-
-                } catch (err: any) {
-                    console.error('[Login] Unified login error:', err);
-                    const msg = err?.message || t.errorGeneric;
-                    if (msg.includes('popup_closed') || msg.includes('cancelled')) {
-                        setError(t.errorCancelled);
-                    } else {
-                        setError(t.errorGeneric);
-                    }
-                    setIsLoading(false);
-                }
-            },
-            error_callback: (err: any) => {
-                console.error('[Login] GIS error:', err);
-                setIsLoading(false);
-                if (err?.type !== 'popup_closed') {
-                    setError(t.errorConnect);
-                }
-            },
-        });
-
-        client.requestCode();
-    }, [isLoading, onLoginSuccess]);
+    };
 
     return (
-        <div className="h-screen w-screen bg-[#0a0a0a] flex items-center justify-center relative overflow-hidden">
-            {/* FONDO ANIMADO SUTIL - Radial Gradient */}
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-indigo-900/20 via-[#0a0a0a] to-[#0a0a0a] pointer-events-none" />
+        <div
+            style={{ background: '#0a0a0f' }}
+            className="h-screen w-screen flex items-center justify-center relative overflow-hidden"
+        >
+            {/* ── BG GRID ── */}
+            <div
+                className="absolute inset-0 pointer-events-none"
+                style={{
+                    backgroundImage: `
+                        linear-gradient(rgba(129,140,248,0.04) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(129,140,248,0.04) 1px, transparent 1px)
+                    `,
+                    backgroundSize: '48px 48px',
+                }}
+            />
 
-            <div className="w-full max-w-md p-8 relative z-10 bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl">
-                <div className="flex flex-col items-center gap-6 text-center">
+            {/* ── AMBIENT GLOW ── */}
+            <div
+                ref={orbRef}
+                className="absolute pointer-events-none"
+                style={{
+                    width: '600px',
+                    height: '600px',
+                    borderRadius: '50%',
+                    background: 'radial-gradient(circle, rgba(109,40,217,0.07) 0%, rgba(103,232,249,0.04) 45%, transparent 70%)',
+                    top: '50%',
+                    left: '50%',
+                    marginTop: '-300px',
+                    marginLeft: '-300px',
+                    transition: 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                }}
+            />
 
-                    {/* LOGO */}
-                    <div className="w-24 h-24 flex items-center justify-center">
-                        <img src="/assets/myworld-logo.svg" alt="MyWorld Logo" className="w-full h-full" />
-                    </div>
+            {/* ── CARD ── */}
+            <div
+                className="relative z-10 w-full flex flex-col items-center"
+                style={{
+                    maxWidth: '400px',
+                    padding: '0 24px',
+                    opacity: mounted ? 1 : 0,
+                    transform: mounted ? 'translateY(0)' : 'translateY(16px)',
+                    transition: 'opacity 0.7s ease, transform 0.7s ease',
+                }}
+            >
+                {/* Logo */}
+                <div
+                    className="flex items-center justify-center mb-8"
+                    style={{
+                        width: '72px',
+                        height: '72px',
+                        borderRadius: '18px',
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid rgba(103,232,249,0.2)',
+                        boxShadow: '0 0 32px rgba(103,232,249,0.06)',
+                        overflow: 'hidden',
+                        opacity: mounted ? 1 : 0,
+                        transform: mounted ? 'scale(1)' : 'scale(0.92)',
+                        transition: 'opacity 0.7s ease 0.1s, transform 0.7s ease 0.1s',
+                    }}
+                >
+                    <img
+                        src="/assets/myworld-logo.svg"
+                        alt="MyWorld"
+                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                    />
+                </div>
 
-                    <div className="space-y-1">
-                        <h1 className="text-4xl font-extrabold text-white tracking-tight">MyWorld</h1>
-                        <p className="text-xs font-mono text-gray-500 uppercase tracking-widest">Creative IDE</p>
-                    </div>
+                {/* Title */}
+                <div
+                    className="text-center mb-10"
+                    style={{
+                        opacity: mounted ? 1 : 0,
+                        transform: mounted ? 'translateY(0)' : 'translateY(8px)',
+                        transition: 'opacity 0.7s ease 0.15s, transform 0.7s ease 0.15s',
+                    }}
+                >
+                    <h1
+                        style={{
+                            fontFamily: "'Newsreader', Georgia, serif",
+                            fontSize: '40px',
+                            fontWeight: '400',
+                            letterSpacing: '-0.025em',
+                            color: '#e2e8f0',
+                            lineHeight: '1',
+                            marginBottom: '8px',
+                        }}
+                    >
+                        MyWorld
+                    </h1>
+                    <p
+                        style={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '10px',
+                            letterSpacing: '0.2em',
+                            textTransform: 'uppercase',
+                            color: '#475569',
+                        }}
+                    >
+                        Creative IDE
+                    </p>
+                </div>
 
-                    {/* BOTÓN DE LOGIN */}
+                {/* Login button */}
+                <div
+                    className="w-full"
+                    style={{
+                        opacity: mounted ? 1 : 0,
+                        transform: mounted ? 'translateY(0)' : 'translateY(8px)',
+                        transition: 'opacity 0.7s ease 0.22s, transform 0.7s ease 0.22s',
+                    }}
+                >
                     <button
                         onClick={handleLogin}
                         disabled={isLoading}
-                        className="group relative w-full py-3 bg-white hover:bg-gray-200 text-black rounded-lg font-medium transition-all shadow-lg flex items-center justify-center gap-3 mt-4"
+                        className="w-full group relative flex items-center justify-center gap-3"
+                        style={{
+                            padding: '14px 24px',
+                            borderRadius: '10px',
+                            background: isLoading
+                                ? 'rgba(103,232,249,0.05)'
+                                : 'linear-gradient(135deg, rgba(103,232,249,0.12), rgba(129,140,248,0.12))',
+                            border: '1px solid rgba(103,232,249,0.25)',
+                            color: '#67e8f9',
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            letterSpacing: '0.02em',
+                            cursor: isLoading ? 'not-allowed' : 'pointer',
+                            boxShadow: '0 0 24px rgba(103,232,249,0.06)',
+                            transition: 'all 0.2s ease',
+                        }}
+                        onMouseEnter={e => {
+                            if (!isLoading) {
+                                (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(103,232,249,0.2), rgba(129,140,248,0.2))';
+                                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 32px rgba(103,232,249,0.15)';
+                                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
+                            }
+                        }}
+                        onMouseLeave={e => {
+                            (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(103,232,249,0.12), rgba(129,140,248,0.12))';
+                            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 24px rgba(103,232,249,0.06)';
+                            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
+                        }}
                     >
                         {isLoading ? (
-                            <span className="animate-pulse">{t.authenticating}</span>
+                            <>
+                                <span
+                                    style={{
+                                        width: '14px',
+                                        height: '14px',
+                                        border: '1.5px solid rgba(103,232,249,0.3)',
+                                        borderTopColor: '#67e8f9',
+                                        borderRadius: '50%',
+                                        animation: 'spin 0.8s linear infinite',
+                                        display: 'inline-block',
+                                        flexShrink: 0,
+                                    }}
+                                />
+                                <span style={{ color: 'rgba(103,232,249,0.6)' }}>Autenticando...</span>
+                            </>
                         ) : (
                             <>
-                                <Lock size={16} className="text-gray-600 group-hover:text-black transition-colors" />
-                                <span>{t.connectWithGoogle}</span>
+                                {/* Google G icon */}
+                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
+                                    <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 0 1-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#67e8f9" opacity="0.9"/>
+                                    <path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 0 1-7.15-2.53H.96v2.06A8 8 0 0 0 8 16z" fill="#818cf8" opacity="0.9"/>
+                                    <path d="M3.57 9.53A4.83 4.83 0 0 1 3.32 8c0-.53.09-1.04.25-1.53V4.41H.96A8.01 8.01 0 0 0 0 8c0 1.29.31 2.51.96 3.59l2.61-2.06z" fill="#34d399" opacity="0.9"/>
+                                    <path d="M8 3.18c1.22 0 2.3.42 3.16 1.24l2.37-2.37A7.96 7.96 0 0 0 8 0 8 8 0 0 0 .96 4.41L3.57 6.47A4.77 4.77 0 0 1 8 3.18z" fill="#fbbf24" opacity="0.9"/>
+                                </svg>
+                                Iniciar sesión con Google
                             </>
                         )}
                     </button>
+                </div>
 
-                    {/* INFORMACIÓN DE ACCESO */}
-                    <div className="flex flex-col gap-3 text-[11px] text-gray-500 leading-relaxed text-center max-w-sm mt-2">
-                        <p>{t.ideDesc}</p>
-                        <p className="bg-white/5 p-3 rounded-lg border border-white/5 text-gray-400">
-                            {t.authWarning}
-                        </p>
-                        <p>{t.apiKeyNeeded}</p>
+                {/* Error */}
+                {error && (
+                    <div
+                        className="w-full flex items-center gap-2 mt-4"
+                        style={{
+                            padding: '10px 14px',
+                            borderRadius: '8px',
+                            background: 'rgba(252,100,100,0.06)',
+                            border: '1px solid rgba(252,100,100,0.2)',
+                            color: '#fc6464',
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '12px',
+                            animation: 'fadeIn 0.3s ease',
+                        }}
+                        role="alert"
+                    >
+                        <AlertCircle size={13} style={{ flexShrink: 0 }} />
+                        {error}
                     </div>
+                )}
 
-                    {/* MENSAJE DE ERROR */}
-                    {error && (
-                        <div
-                            role="alert"
-                            aria-live="assertive"
-                            className="flex items-center gap-2 text-red-400 text-xs bg-red-900/10 p-3 rounded-lg border border-red-900/20 w-full justify-center animate-fade-in mt-2"
+                {/* Disclaimer */}
+                <div
+                    style={{
+                        marginTop: '32px',
+                        padding: '16px',
+                        borderRadius: '8px',
+                        background: 'rgba(255,255,255,0.02)',
+                        border: '1px solid rgba(129,140,248,0.08)',
+                        opacity: mounted ? 1 : 0,
+                        transition: 'opacity 0.7s ease 0.35s',
+                    }}
+                >
+                    <p
+                        style={{
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '11px',
+                            lineHeight: '1.7',
+                            color: '#475569',
+                            textAlign: 'center',
+                        }}
+                    >
+                        Al iniciar sesión autorizas a MyWorld a crear carpetas y documentos en tu Drive.{' '}
+                        <span style={{ color: '#64748b' }}>Nosotros no guardamos ni una sola letra de tu obra en nuestros servidores.</span>
+                    </p>
+                </div>
+
+                {/* Gemini note */}
+                <p
+                    style={{
+                        marginTop: '16px',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: '10px',
+                        letterSpacing: '0.02em',
+                        color: '#334155',
+                        textAlign: 'center',
+                        opacity: mounted ? 1 : 0,
+                        transition: 'opacity 0.7s ease 0.4s',
+                    }}
+                >
+                    También necesitarás una API Key de Google Gemini (gratuita) para activar la IA.
+                </p>
+
+                {/* Footer links */}
+                <div
+                    className="flex gap-6 mt-10"
+                    style={{
+                        opacity: mounted ? 0.4 : 0,
+                        transition: 'opacity 0.7s ease 0.5s',
+                    }}
+                >
+                    {['Privacy Policy', 'Terms of Service'].map(label => (
+                        <a
+                            key={label}
+                            href={label === 'Privacy Policy' ? '/privacy' : '/terms'}
+                            style={{
+                                fontFamily: "'JetBrains Mono', monospace",
+                                fontSize: '10px',
+                                letterSpacing: '0.08em',
+                                color: '#475569',
+                                textDecoration: 'none',
+                                textTransform: 'uppercase',
+                                transition: 'color 0.2s',
+                            }}
+                            onMouseEnter={e => (e.currentTarget.style.color = '#94a3b8')}
+                            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
                         >
-                            <AlertCircle size={14} />
-                            <span>{error}</span>
-                        </div>
-                    )}
+                            {label}
+                        </a>
+                    ))}
                 </div>
             </div>
-            <div style={{
-                position: 'fixed',
-                bottom: '24px',
-                left: '0',
-                right: '0',
-                display: 'flex',
-                justifyContent: 'center',
-                gap: '24px'
-            }}>
-                <a href="/privacy"
-                   style={{color: 'rgba(255,255,255,0.3)', fontSize: '12px',
-                           textDecoration: 'none', fontFamily: 'monospace'}}>
-                    Privacy Policy
-                </a>
-                <a href="/terms"
-                   style={{color: 'rgba(255,255,255,0.3)', fontSize: '12px',
-                           textDecoration: 'none', fontFamily: 'monospace'}}>
-                    Terms of Service
-                </a>
-            </div>
+
+            <style>{`
+                @import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+            `}</style>
         </div>
     );
 };
