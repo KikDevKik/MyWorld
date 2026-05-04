@@ -655,6 +655,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         setSelectedFileContent(content);
         setLastSavedContent(content);
         setCurrentFileName(name);
+        refreshConfig();
     };
 
     // 🟢 HANDLE TTS SELECTION

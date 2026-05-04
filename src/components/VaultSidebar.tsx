@@ -3,7 +3,7 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Trash2, Download, Check, X } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, Check, X } from 'lucide-react';
 import GuidePanel from './ui/GuidePanel';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
@@ -328,14 +328,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 accessToken,
                 fileIds: Array.from(selectedDeleteIds)
             });
-            toast.success(`${selectedDeleteIds.size} elementos movidos a la papelera.`);
+            toast.success(`${selectedDeleteIds.size} elemento${selectedDeleteIds.size > 1 ? 's' : ''} movido${selectedDeleteIds.size > 1 ? 's' : ''} a la papelera.`);
 
-            // Cleanup
             setIsDeleteMode(false);
             setSelectedDeleteIds(new Set());
             setIsDeleteModalOpen(false);
 
-            // Note: Firestore listener will auto-refresh the tree
+            await refreshConfig();
         } catch (error: any) {
             toast.error("Error al borrar: " + error.message);
         } finally {
@@ -343,8 +342,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     };
 
+    const handleDeleteSingle = useCallback((fileId: string, _fileName: string) => {
+        setSelectedDeleteIds(new Set([fileId]));
+        setIsDeleteModalOpen(true);
+    }, []);
+
     // 🟢 MOVE FILE STATE
     const [moveTargetFile, setMoveTargetFile] = useState<{ id: string; name: string; parentId?: string } | null>(null);
+    const [isMovingFileId, setIsMovingFileId] = useState<string | null>(null);
 
     const handleMoveFile = (fileId: string, fileName: string, parentId?: string) => {
         setMoveTargetFile({ id: fileId, name: fileName, parentId });
@@ -352,17 +357,24 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
     const handleConfirmMove = async (targetFolderId: string) => {
         if (!moveTargetFile || !accessToken) return;
+        const fileId = moveTargetFile.id;
+        const fileName = moveTargetFile.name;
+        const currentParentId = moveTargetFile.parentId;
+        setIsMovingFileId(fileId);
         try {
             await callFunction('moveDriveFile', {
                 accessToken,
-                fileId: moveTargetFile.id,
+                fileId,
                 targetParentId: targetFolderId,
-                currentParentId: moveTargetFile.parentId,
+                currentParentId,
             });
-            toast.success(`"${moveTargetFile.name}" movido correctamente.`);
+            toast.success(`"${fileName}" movido correctamente.`);
             setMoveTargetFile(null);
+            await refreshConfig();
         } catch (e: any) {
             toast.error("Error al mover: " + e.message);
+        } finally {
+            setIsMovingFileId(null);
         }
     };
 
@@ -381,6 +393,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             setIsCreatingFolder(false);
             setNewFolderName('');
             setIsCreateMenuOpen(false);
+            await refreshConfig();
         } catch (e: any) {
             toast.error("Error al crear carpeta: " + e.message);
         }
@@ -439,33 +452,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
                     {/* ACTION BUTTONS (DISTRIBUTED) */}
                     <div className="ml-auto flex items-center gap-2">
-                        {/* 🟢 DELETE TOGGLE */}
-                        <button
-                            onClick={handleToggleDeleteMode}
-                            className={`p-1.5 rounded-md transition-colors shrink-0 ${isDeleteMode ? 'text-red-500 bg-titanium-800' : 'text-titanium-400 hover:text-red-400 hover:bg-titanium-700'}`}
-                            title={isDeleteMode ? t.deleteMode : t.deleteMode} // Toggle msg is dynamic enough
-                            aria-label={t.deleteMode}
-                            aria-pressed={isDeleteMode}
-                        >
-                            <Trash2 size={16} />
-                        </button>
-
-                        {/* 🟢 EXECUTE DELETE */}
-                        {isDeleteMode && selectedDeleteIds.size > 0 && (
-                            <button
-                                onClick={handleDeleteClick}
-                                className="px-2 py-1 rounded-md bg-red-900/50 text-red-400 hover:bg-red-900/80 hover:text-white text-xs font-bold transition-all animate-in fade-in zoom-in"
-                                title={tCommon.confirm}
-                            >
-                                {t.delete} ({selectedDeleteIds.size})
-                            </button>
-                        )}
-
                         {!isEmptyProject && (
                             <div className="relative" ref={createMenuRef}>
                                 <button
                                     onClick={() => setIsCreateMenuOpen(!isCreateMenuOpen)}
-                                    className="p-1.5 rounded-md hover:bg-titanium-700 transition-colors text-titanium-400 hover:text-cyan-400"
+                                    className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-cyan-400"
                                     title={t.newFile}
                                     aria-label={t.newFile}
                                 >
@@ -525,7 +516,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             <button
                                 id="sidebar-brain-button"
                                 onClick={() => setIsIndexMenuOpen(!isIndexMenuOpen)}
-                                className={`p-1.5 rounded-md hover:bg-titanium-700 transition-colors shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
+                                className={`p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 shrink-0 ${isIndexed ? 'text-green-500 hover:text-green-400' : 'text-titanium-400 hover:text-accent-DEFAULT'}`}
                                 title={t.index}
                                 aria-label={t.index}
                                 aria-expanded={isIndexMenuOpen}
@@ -675,6 +666,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                             selectedDeleteIds={selectedDeleteIds}
                                             onToggleDeleteSelect={handleToggleDeleteSelect}
                                             onMoveFile={handleMoveFile}
+                                            onDeleteFile={handleDeleteSingle}
+                                            movingFileId={isMovingFileId}
                                         />
                                     </div>
                                 )}
@@ -713,6 +706,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                             selectedDeleteIds={selectedDeleteIds}
                                             onToggleDeleteSelect={handleToggleDeleteSelect}
                                             onMoveFile={handleMoveFile}
+                                            onDeleteFile={handleDeleteSingle}
+                                            movingFileId={isMovingFileId}
                                         />
                                     </div>
                                 )}
@@ -741,6 +736,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     selectedDeleteIds={selectedDeleteIds}
                                     onToggleDeleteSelect={handleToggleDeleteSelect}
                                     onMoveFile={handleMoveFile}
+                                    onDeleteFile={handleDeleteSingle}
+                                    movingFileId={isMovingFileId}
                                 />
                             </div>
                         )}

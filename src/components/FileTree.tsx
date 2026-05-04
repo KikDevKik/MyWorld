@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
-import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare, MoreHorizontal, FolderInput } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare, MoreHorizontal, FolderInput, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
@@ -30,6 +30,8 @@ interface FileTreeProps {
     selectedDeleteIds?: Set<string>; // 👈 NEW: Selection
     onToggleDeleteSelect?: (id: string) => void; // 👈 NEW: Selection Handler
     onMoveFile?: (fileId: string, fileName: string, parentId?: string) => void;
+    onDeleteFile?: (fileId: string, fileName: string) => void;
+    movingFileId?: string | null;
 }
 
 // ⚡ PERFORMANCE: Context to avoid Prop Drilling and O(N) re-renders
@@ -41,6 +43,8 @@ interface FileTreeContextValue {
     selectedDeleteIds?: Set<string>;
     onToggleDeleteSelect?: (id: string) => void;
     onMoveFile?: (fileId: string, fileName: string, parentId?: string) => void;
+    onDeleteFile?: (fileId: string, fileName: string) => void;
+    movingFileId?: string | null;
 }
 
 const FileTreeContext = createContext<FileTreeContextValue>({
@@ -91,7 +95,9 @@ const FileNodeRow = React.memo(({
         isDeleteMode,
         selectedDeleteIds,
         onToggleDeleteSelect,
-        onMoveFile
+        onMoveFile,
+        onDeleteFile,
+        movingFileId,
     } = useContext(FileTreeContext);
 
     // 🟢 RENAME STATE
@@ -111,6 +117,7 @@ const FileNodeRow = React.memo(({
     const isActive = node.id === activeFileId;
     const isConflicting = conflictingFileIds?.has(node.id) || (node.driveId && conflictingFileIds?.has(node.driveId));
     const isDeleteSelected = selectedDeleteIds?.has(node.id);
+    const isMoving = movingFileId === node.id;
 
     // Focus input on edit
     useEffect(() => {
@@ -231,7 +238,7 @@ const FileNodeRow = React.memo(({
                     onToggle(e);
                 }}
             >
-                {isLoading || isSaving ? (
+                {isLoading || isSaving || isMoving ? (
                     <Loader2 size={14} className="animate-spin text-cyan-500" />
                 ) : isConflicting ? (
                     <AlertTriangle size={14} className="animate-pulse" />
@@ -281,7 +288,7 @@ const FileNodeRow = React.memo(({
             )}
 
             {/* 🟢 FILE ACTIONS MENU (···) — only for files, hidden unless hovered */}
-            {!isFolder && !isDeleteMode && onMoveFile && (
+            {!isFolder && !isDeleteMode && !isMoving && (onMoveFile || onDeleteFile) && (
                 <div className="relative shrink-0" ref={actionsRef}>
                     <button
                         onClick={(e) => { e.stopPropagation(); setIsActionsOpen(v => !v); }}
@@ -291,17 +298,32 @@ const FileNodeRow = React.memo(({
                     </button>
                     {isActionsOpen && (
                         <div className="absolute right-0 top-full mt-1 w-36 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsActionsOpen(false);
-                                    onMoveFile(node.id, node.name, node.parentId);
-                                }}
-                                className="w-full text-left px-3 py-2 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
-                            >
-                                <FolderInput size={12} className="text-amber-400" />
-                                <span>Mover a...</span>
-                            </button>
+                            {onMoveFile && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsActionsOpen(false);
+                                        onMoveFile(node.id, node.name, node.parentId);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
+                                >
+                                    <FolderInput size={12} className="text-amber-400" />
+                                    <span>Mover a...</span>
+                                </button>
+                            )}
+                            {onDeleteFile && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setIsActionsOpen(false);
+                                        onDeleteFile(node.id, node.name);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-red-300 hover:bg-red-900/30 hover:text-red-200 flex items-center gap-2 transition-colors"
+                                >
+                                    <Trash2 size={12} className="text-red-400" />
+                                    <span>Borrar</span>
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -486,7 +508,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
     );
 });
 
-const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect, onMoveFile }) => {
+const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken, rootFilterId, onLoad, preloadedTree, conflictingFileIds, showOnlyHealthy, activeFileId, isDeleteMode, selectedDeleteIds, onToggleDeleteSelect, onMoveFile, onDeleteFile, movingFileId }) => {
     const [rootFiles, setRootFiles] = useState<FileNode[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -545,7 +567,9 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
         isDeleteMode,
         selectedDeleteIds,
         onToggleDeleteSelect,
-        onMoveFile
+        onMoveFile,
+        onDeleteFile,
+        movingFileId,
     };
 
     // 🛡️ BLINDAJE: (displayedFiles || []).map
