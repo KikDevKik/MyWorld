@@ -937,6 +937,7 @@ const WorldEnginePageV2: React.FC<{
                              <>
                                 <Globe className="w-6 h-6 text-cyan-400 group-hover:scale-110 transition-transform duration-300" />
                                 <span className="ml-3 font-mono font-bold text-cyan-300 tracking-[0.2em] group-hover:text-cyan-100 transition-colors">{tNexus.toolName?.toUpperCase() || 'NEXUS'}</span>
+                                <span className="ml-3 px-2 py-0.5 bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9px] font-mono tracking-[0.12em] uppercase rounded-md cursor-help" title="Esta herramienta está en desarrollo activo. Tu feedback ayuda a mejorarla.">ALPHA</span>
                              </>
                          )}
                      </button>

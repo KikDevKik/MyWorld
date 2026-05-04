@@ -341,6 +341,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                         <h1 className="text-xl font-bold text-titanium-100 uppercase tracking-widest flex items-center gap-2">
                             {t.title}
+                            <span className="ml-2 px-2 py-0.5 bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9px] font-mono tracking-[0.12em] uppercase rounded-md cursor-help" title="Esta herramienta está en desarrollo activo. Tu feedback ayuda a mejorarla.">ALPHA</span>
                         </h1>
 
                         {/* 🟢 SWITCH MODE */}
