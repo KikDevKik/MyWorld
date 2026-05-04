@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
-import { callFunction } from '../services/api';
+import { callFunction, QuotaExceededError, getQuotaMessage } from '../services/api';
 import { ChatMessageData } from '../types/director';
 import { fileToGenerativePart } from '../services/geminiService';
 import { CreativeAuditService } from '../services/CreativeAuditService';
@@ -312,21 +312,32 @@ VOCABULARIO PROHIBIDO: plano, frame, encuadre, iluminación cinematográfica, di
             }]);
 
         } catch (error: any) {
-            console.error("Director Error:", error);
-            if (!error.message?.includes('INVALID_CUSTOM_KEY')) {
-                toast.error("Error del Director.");
+            if (error instanceof QuotaExceededError) {
+                setMessages(prev => [...prev, {
+                    id: `quota-${Date.now()}`,
+                    role: 'system',
+                    text: getQuotaMessage(),
+                    timestamp: Date.now(),
+                    isError: false,
+                    isQuota: true,
+                    type: 'text'
+                }]);
+            } else {
+                console.error("Director Error:", error);
+                if (!error.message?.includes('INVALID_CUSTOM_KEY')) {
+                    toast.error("Error del Director.");
+                }
+                setMessages(prev => [...prev, {
+                    id: 'err-' + Date.now(),
+                    role: 'system',
+                    text: 'Error de conexión con el Director.',
+                    timestamp: Date.now(),
+                    isError: true,
+                    type: 'text'
+                }]);
             }
-            setMessages(prev => [...prev, {
-                id: 'err-' + Date.now(),
-                role: 'system',
-                text: 'Error de conexión con el Director.',
-                timestamp: Date.now(),
-                isError: true,
-                type: 'text'
-            }]);
         } finally {
             setIsThinking(false);
-            // 🟢 CLEANUP: Remove from pending now that flow is complete
             pendingOptimisticUpdates.current = pendingOptimisticUpdates.current.filter(m => m.id !== tempId);
         }
     };

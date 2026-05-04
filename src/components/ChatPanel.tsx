@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import type { GemId, Gem, DriveFile } from '../types';
 import type { ChatMessage } from '../types/core';
-import { callFunction } from '../services/api';
+import { callFunction, QuotaExceededError, getQuotaMessage } from '../services/api';
 import { GEMS } from '../constants';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -425,12 +425,13 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             onMessageSent?.();
 
         } catch (error) {
-            console.error("Error:", error);
-            const errorMessage: ExtendedChatMessage = { role: 'model', text: `Error: ${(error as Error).message}` };
-
-            // On error, we keep the user message but show the error
-            setMessages(prev => [...prev, errorMessage]);
-            toast.error("Error al procesar mensaje");
+            if (error instanceof QuotaExceededError) {
+                setMessages(prev => [...prev, { role: 'model', text: getQuotaMessage() } as ExtendedChatMessage]);
+            } else {
+                console.error("Error:", error);
+                setMessages(prev => [...prev, { role: 'model', text: 'Error al procesar el mensaje.' } as ExtendedChatMessage]);
+                toast.error("Error al procesar mensaje");
+            }
         } finally {
             setIsLoading(false);
         }

@@ -8,7 +8,7 @@ import MarkdownRenderer from '../ui/MarkdownRenderer';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import { SoulEntity } from '../../types/forge';
 import { CreativeAuditService } from '../../services/CreativeAuditService';
-import { callFunction } from '../../services/api';
+import { callFunction, QuotaExceededError, getQuotaMessage } from '../../services/api';
 import ChatInput from '../ui/ChatInput';
 import { fileToGenerativePart } from '../../services/geminiService';
 
@@ -211,6 +211,7 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
                 })
             });
 
+            if (response.status === 429) throw new QuotaExceededError();
             if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
             if (!response.body) throw new Error("No response body");
 
@@ -278,11 +279,14 @@ const ForgeChat: React.FC<ForgeChatProps> = ({
             }
 
         } catch (error: any) {
-            console.error("Stream failed:", error);
-            setThinkingState('ERROR');
-            toast.error("Error de conexión con la Forja.");
-            const errorText = "⚠️ Error de Conexión.";
-            setMessages(prev => [...prev, { role: 'model', text: errorText }]);
+            if (error instanceof QuotaExceededError) {
+                setMessages(prev => [...prev, { role: 'model', text: getQuotaMessage() }]);
+            } else {
+                console.error("Stream failed:", error);
+                setThinkingState('ERROR');
+                toast.error("Error de conexión con la Forja.");
+                setMessages(prev => [...prev, { role: 'model', text: "⚠️ Error de Conexión." }]);
+            }
         } finally {
             setIsSending(false);
             setThinkingState('IDLE');

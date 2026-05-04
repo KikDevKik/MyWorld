@@ -16,6 +16,7 @@ export interface ChatMessageData {
 
     // 🟢 FLAGS (Legacy/Aux)
     isError?: boolean;
+    isQuota?: boolean;
     isDriftAlert?: boolean;
     attachmentPreview?: string; // 🟢 Base64/Url preview of attachment
     attachmentType?: 'image' | 'audio';

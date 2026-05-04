@@ -4,6 +4,25 @@ import { toast } from 'sonner';
 // Limpiar keys residuales del sistema de cuota anterior
 try { localStorage.removeItem('myworld_quota_today'); } catch { /* ignore */ }
 
+export class QuotaExceededError extends Error {
+    constructor() {
+        super('QUOTA_EXCEEDED');
+        this.name = 'QuotaExceededError';
+    }
+}
+
+export function getQuotaMessage(): string {
+    const lang = localStorage.getItem('myworld_language_preference') || 'es';
+    const messages: Record<string, string> = {
+        es: `⚠️ **Tu API key de Gemini ha alcanzado su límite por ahora.**\n\nGoogle AI Studio restablece las cuotas automáticamente. Puedes continuar escribiendo en el editor mientras tanto.\n\n[→ Revisar cuota en AI Studio](https://aistudio.google.com)`,
+        en: `⚠️ **Your Gemini API key has reached its limit for now.**\n\nGoogle AI Studio resets quotas automatically. You can keep writing in the editor in the meantime.\n\n[→ Check quota on AI Studio](https://aistudio.google.com)`,
+        ja: `⚠️ **Gemini APIキーの上限に達しました。**\n\nGoogle AI Studioはクォータを自動的にリセットします。それまでの間、エディターで書き続けることができます。\n\n[→ AI Studioでクォータを確認](https://aistudio.google.com)`,
+        ko: `⚠️ **Gemini API 키가 한도에 도달했습니다.**\n\nGoogle AI Studio는 할당량을 자동으로 재설정합니다. 그 동안 편집기에서 계속 쓸 수 있습니다.\n\n[→ AI Studio에서 할당량 확인](https://aistudio.google.com)`,
+        zh: `⚠️ **您的 Gemini API 密钥已达到限制。**\n\nGoogle AI Studio 会自动重置配额。与此同时，您可以继续在编辑器中写作。\n\n[→ 在 AI Studio 查看配额](https://aistudio.google.com)`,
+    };
+    return messages[lang] ?? messages.es;
+}
+
 /**
  * Wrapper for Firebase Cloud Functions that injects custom BYOK keys.
  * Implements the "Injection Protocol" for secure key transport.
@@ -41,11 +60,7 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
             error?.code === 'resource-exhausted';
 
         if (isQuotaError) {
-            toast.error(
-                'Cuota de API agotada. Google AI Studio reinicia los límites cada minuto (RPM) o cada día (RPD). Espera un momento e intenta de nuevo.',
-                { duration: 8000 }
-            );
-            return null;
+            throw new QuotaExceededError();
         }
 
         // Manejo de Errores (Safety Net)

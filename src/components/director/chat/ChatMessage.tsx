@@ -148,7 +148,18 @@ export const ChatMessage = React.memo(({
         );
     }
 
-    // 5. STANDARD MESSAGE (Text with Markdown)
+    // 5. QUOTA ERROR MESSAGE
+    if (message.isQuota) {
+        return (
+            <div className="mx-auto w-[90%] bg-amber-950/20 border border-amber-500/30 rounded-xl p-4 animate-in fade-in slide-in-from-bottom-2">
+                <div className="prose prose-invert prose-xs max-w-none prose-p:my-1 prose-a:text-amber-400 prose-strong:text-amber-200 text-amber-200 text-xs leading-relaxed">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                </div>
+            </div>
+        );
+    }
+
+    // 6. STANDARD MESSAGE (Text with Markdown)
     const { thinking, content } = React.useMemo(() => parseThinking(message.text), [message.text]);
 
     return (

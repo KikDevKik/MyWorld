@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { useArquitectoStore } from '../stores/useArquitectoStore';
-import { callFunction } from '../services/api';
+import { callFunction, QuotaExceededError, getQuotaMessage } from '../services/api';
 import { toast } from 'sonner';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { PendingItem, RoadmapCard, RoadmapImpact } from '../types/roadmap';
@@ -637,8 +637,20 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             }
 
         } catch (error) {
-            console.error("Arquitecto chat error:", error);
-            toast.error("Error al comunicarse con El Arquitecto.");
+            if (error instanceof QuotaExceededError) {
+                const quotaId = `quota-${Date.now()}`;
+                setMessages(prev => [...prev, {
+                    id: quotaId,
+                    role: 'assistant',
+                    text: getQuotaMessage(),
+                    timestamp: Date.now(),
+                }]);
+            } else {
+                console.error("Arquitecto chat error:", error);
+                if (!(error as any)?.message?.includes('INVALID_CUSTOM_KEY')) {
+                    toast.error("Error al comunicarse con El Arquitecto.");
+                }
+            }
         } finally {
             setIsThinking(false);
         }
