@@ -40,6 +40,7 @@ import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfi
 import { GemId } from './types';
 import { Loader2, AlertTriangle } from 'lucide-react';
 import SentinelShell from './layout/SentinelShell'; // 👈 IMPORT SHELL
+import DonateButton from './components/DonateButton'; // 👈 IMPORT DONATE BUTTON
 import { useLayoutStore } from './stores/useLayoutStore';
 import { useArquitectoStore } from './stores/useArquitectoStore'; // 🟢 IMPORT STORE
 import { useFileLock } from './hooks/useFileLock'; // 🟢 IMPORT LOCK HOOK
@@ -51,6 +52,7 @@ import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
 import { PostGenesisPanel } from './components/PostGenesisPanel';
+import ContinueCard from './components/ui/ContinueCard';
 import { APIKeyOnboarding } from './components/APIKeyOnboarding';
 import { useLanguageStore } from './stores/useLanguageStore';
 import { TRANSLATIONS } from './i18n/translations';
@@ -293,6 +295,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isZenMode, setIsZenMode] = useState(false);
     const [showStartingAssistant, setShowStartingAssistant] = useState(false);
     const [showPostGenesisPanel, setShowPostGenesisPanel] = useState(false);
+    const [showContinueCard, setShowContinueCard] = useState(false);
     const [genesisFilesCount, setGenesisFilesCount] = useState(0);
     const [genesisPremise, setGenesisPremise] = useState<string>('');
     const [isAppLoading, setIsAppLoading] = useState(true);
@@ -344,6 +347,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     useEffect(() => {
         if (existingSession) {
             setShowStartingAssistant(false);
+            setShowContinueCard(false);
             return;
         }
 
@@ -368,6 +372,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const dismissedKey = `assistant_dismissed_${config?.folderId}`;
         const dismissed = localStorage.getItem(dismissedKey) === 'true';
         setShowStartingAssistant(hasCanon && isEmpty && !dismissed);
+        setShowContinueCard(hasCanon && !isEmpty);
     }, [config?.canonPaths?.length, JSON.stringify((fileTree || []).map((f: any) => ({ id: f.id, childCount: f.children?.length || 0 }))), config?.folderId, existingSession, configLoading, config]);
 
     // 🟢 FILE LOCKING
@@ -1023,6 +1028,15 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             setActiveView('arquitecto');
                         }}
                         onDismiss={() => setShowPostGenesisPanel(false)}
+                    />
+                );
+            }
+            if (showContinueCard) {
+                return (
+                    <ContinueCard
+                        projectName={config?.projectName || ''}
+                        onGoToArquitecto={() => setActiveView('arquitecto')}
+                        onGoToDirector={() => setActiveView('director')}
                     />
                 );
             }
