@@ -4,7 +4,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info, Globe2, Zap, Leaf } from 'lucide-react';
+import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info, Globe2, Zap, Leaf, ExternalLink, Copy } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
 import { callFunction } from '../../services/api';
@@ -20,7 +20,7 @@ interface SettingsModalProps {
     onSave: (url: string) => void;
     accessToken?: string | null;
     onGetFreshToken?: () => Promise<string | null>;
-    initialTab?: 'general' | 'profile' | 'memory' | 'ai_config' | 'info';
+    initialTab?: 'general' | 'profile' | 'ai_config' | 'info';
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken, initialTab }) => {
@@ -29,7 +29,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const t = TRANSLATIONS[currentLanguage].settings; // 🟢 LOCALIZED TEXTS
     const { tier, tierMode, setTierMode } = useTier();
 
-    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'memory' | 'ai_config' | 'info'>(initialTab || 'general');
+    const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'ai_config' | 'info'>(initialTab || 'general');
     const modalRef = React.useRef<HTMLDivElement>(null);
 
     // 🎨 PALETTE: Focus Trap & Escape Key
@@ -530,6 +530,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <Key size={16} />
                         {t.tabAi}
                     </button>
+                    {/*
                     <button
                         role="tab"
                         aria-selected={activeTab === 'memory'}
@@ -544,6 +545,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <HardDrive size={16} />
                         {t.tabMemory}
                     </button>
+                    */}
                     <button
                         role="tab"
                         aria-selected={activeTab === 'info'}
@@ -1015,6 +1017,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                     )}
 
                     {/* TAB: MEMORY (DEBUG) */}
+                    {/*
                     {activeTab === 'memory' && (
                         <div role="tabpanel" id="panel-memory" aria-labelledby="tab-memory" className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <div className="flex items-center gap-2 mb-2">
@@ -1089,45 +1092,97 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             </div>
                         </div>
                     )}
+                    */}
 
                     {/* TAB: INFO (ABOUT) */}
                     {activeTab === 'info' && (
-                        <div role="tabpanel" id="panel-info" aria-labelledby="tab-info" className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Info size={18} className="text-cyan-400" />
-                                <h4 className="text-sm font-bold text-cyan-400 uppercase tracking-wider">{t.about}</h4>
-                            </div>
-
-                            <div className="p-6 bg-gradient-to-br from-titanium-900 to-titanium-950 border border-titanium-800 rounded-xl flex flex-col items-center text-center space-y-4 shadow-xl">
-                                <div className="w-16 h-16 bg-cyan-900/20 rounded-full flex items-center justify-center border border-cyan-500/30 mb-2">
-                                    <Sparkles size={32} className="text-cyan-400" />
+                        <div role="tabpanel" id="panel-info" aria-labelledby="tab-info" className="flex flex-col gap-8 animate-in fade-in slide-in-from-bottom-2 duration-200 pb-4">
+                            
+                            {/* Header Section */}
+                            <div className="flex flex-col items-center justify-center text-center space-y-4 pt-4">
+                                <div className="relative">
+                                    <img src="/assets/myworld-logo.svg" alt="MyWorld Logo" className="w-20 h-20 drop-shadow-[0_0_15px_rgba(103,232,249,0.3)]" />
+                                    <span className="absolute -bottom-2 -right-4 bg-violet-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-violet-400/50 shadow-lg">
+                                        BETA
+                                    </span>
                                 </div>
-
-                                <h3 className="text-xl font-bold text-white tracking-tight">
-                                    MyWorld <span className="text-cyan-500"></span>
-                                </h3>
-
-                                <div className="px-4 py-2 bg-black/40 rounded-full border border-titanium-700/50">
+                                <div className="space-y-1">
+                                    <h3 className="text-3xl font-display text-white tracking-tight">
+                                        MyWorld <span className="text-cyan-400 font-light"></span>
+                                    </h3>
                                     <p className="text-xs font-mono text-cyan-300 font-medium tracking-wide">
-                                        Powered by Gemini
-
+                                        v0.0.0
                                     </p>
                                 </div>
-
-                                <p className="text-sm text-titanium-400 max-w-sm leading-relaxed">
-                                    Plataforma de escritura creativa de próxima generación, diseñada para orquestar universos narrativos complejos con la ayuda de Inteligencia Artificial.
+                                <p className="text-sm text-titanium-300 max-w-md leading-relaxed mt-2">
+                                    MyWorld is a creative writing environment that helps you build, maintain and explore every universes in your head. 
                                 </p>
                             </div>
 
-                            <div className="p-4 border-l-2 border-titanium-600 pl-4 space-y-2">
-                                <h5 className="text-xs font-bold text-titanium-300 uppercase tracking-widest">{t.legal}</h5>
-                                <p className="text-xs text-titanium-500 leading-relaxed font-mono">
-                                    Este software y su código fuente son propiedad intelectual de <strong className="text-titanium-300">Deiner David Trelles Renteria</strong>.
-                                    Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+                            {/* Credits & Ownership */}
+                            <div className="bg-titanium-900/40 border border-titanium-800 rounded-xl p-5 flex flex-col gap-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-lg bg-black/40 border border-titanium-700/50 flex items-center justify-center overflow-hidden p-1.5">
+                                            <img src="/logo-mark-northforge.png" alt="NorthForge Studios" className="w-full h-auto object-contain opacity-80 hover:opacity-100 transition-opacity" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-titanium-400">A product by</p>
+                                            <a href="https://northforgestudios.tech" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-white hover:text-cyan-400 transition-colors flex items-center gap-1">
+                                                NorthForge Studios <ExternalLink size={12} />
+                                            </a>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="px-3 py-1.5 bg-gradient-to-r from-violet-900/40 to-cyan-900/40 rounded-full border border-titanium-700/50 flex items-center gap-2">
+                                        <Sparkles size={14} className="text-cyan-400" />
+                                        <span className="text-[11px] font-mono text-cyan-100">Powered by Gemini</span>
+                                    </div>
+                                </div>
+
+                                <div className="h-px bg-titanium-800/50 w-full" />
+
+                                <div className="flex items-center gap-2">
+                                    <User size={16} className="text-titanium-400" />
+                                    <p className="text-sm text-titanium-300">
+                                        Created and maintained by <strong className="text-white">Deiner David Trelles Renteria</strong>
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Legal Notice */}
+                            <div className="p-4 border-l-2 border-violet-500/50 bg-violet-950/10 rounded-r-xl space-y-2">
+                                <h5 className="text-xs font-bold text-violet-300 uppercase tracking-widest">{t.legal}</h5>
+                                <p className="text-xs text-titanium-400 leading-relaxed font-mono">
+                                    This software is licensed under the <a href="https://github.com/KikDevKik/myworld-creative-writing-ide/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">Business Source License 1.1</a>.<br/>
+                                    © 2026 Deiner David Trelles Renteria. All rights reserved.
                                 </p>
-                                <p className="text-[10px] text-titanium-600 pt-2">
-                                    Licensed under Apache License 2.0
-                                </p>
+                            </div>
+
+                            {/* Quick Links Footer */}
+                            <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                                <div className="flex gap-4">
+                                    <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5">
+                                        <ShieldCheck size={14} /> Privacy Policy
+                                    </a>
+                                    <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5">
+                                        <Info size={14} /> Terms of Service
+                                    </a>
+                                </div>
+                                <div className="flex gap-3">
+                                    <a href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
+                                        ♥ Sponsor
+                                    </a>
+                                    <button 
+                                        onClick={() => {
+                                            navigator.clipboard.writeText('deidev180@gmail.com');
+                                            toast.success('Email copied to clipboard!');
+                                        }}
+                                        className="px-3 py-1.5 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
+                                    >
+                                        <Copy size={14} /> Support
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
