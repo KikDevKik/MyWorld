@@ -844,7 +844,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                                     <div className="space-y-1">
                                         {[
-                                            { value: 'auto' as TierMode, label: 'Automático', desc: 'Detecta desde tu API Key' },
                                             { value: 'normal' as TierMode, label: 'Normal (Gratis)', desc: 'Gemini Flash — Free Tier de Google' },
                                             { value: 'ultra' as TierMode, label: 'Ultra (Pro)', desc: 'Gemini 3.x Premium — requiere billing' },
                                         ].map(option => (

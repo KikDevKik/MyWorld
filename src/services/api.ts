@@ -20,8 +20,8 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
     // The server uses its own Gemini key from Firebase Secret Manager.
     // NEVER inject VITE_GOOGLE_API_KEY here — that would expose the server key from the client bundle.
     const customKey = sessionStorage.getItem('myworld_custom_gemini_key') || localStorage.getItem('myworld_custom_gemini_key');
-    const tierMode = (localStorage.getItem('myworld_tier_mode') as 'auto' | 'normal' | 'ultra') || 'auto';
-    const tier = tierMode === 'ultra' ? 'ultra' : tierMode === 'normal' ? 'normal' : (customKey ? 'ultra' : 'normal');
+    const tierMode = localStorage.getItem('myworld_tier_mode');
+    const tier: 'normal' | 'ultra' = tierMode === 'ultra' ? 'ultra' : 'normal';
     const currentLang = localStorage.getItem('myworld_language_preference') || 'es';
     const payload = customKey
         ? { ...data, _authOverride: customKey, _userTier: tier, _lang: currentLang }
