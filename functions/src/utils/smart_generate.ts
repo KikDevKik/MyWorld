@@ -217,14 +217,26 @@ async function _executeGeneration(
         return { success: false, error: 'GENERATION_FAILED', reason: 'Text extraction returned empty string.' };
 
     } catch (e: any) {
-        // Handle Specific API Errors
+        // Check for API quota / rate-limit errors FIRST
+        if (
+            e.status === 429 ||
+            e.message?.includes('429') ||
+            e.message?.includes('RESOURCE_EXHAUSTED') ||
+            e.message?.toLowerCase().includes('quota') ||
+            e.message?.includes('Too Many Requests')
+        ) {
+            logger.warn(`⚠️ [QUOTA] Cuota API agotada en ${config.contextLabel}:`, e.message);
+            return { success: false, error: 'QUOTA_EXCEEDED', reason: 'FREE_TIER_LIMIT', modelUsed: '' };
+        }
+
+        // Handle other specific API errors
         if (e.message?.includes('RECITATION') || e.response?.promptFeedback?.blockReason === 'RECITATION') {
              return { success: false, error: 'RECITATION_DETECTED', reason: 'COPYRIGHT' };
         }
         if (e.message?.includes('PROHIBITED_CONTENT') || e.message?.includes('Text not available')) {
              logger.warn(`🛡️ [GUARDIAN] Bloqueo PROHIBITED_CONTENT en ${config.contextLabel}.`, {
                  details: e.message,
-                 response: e.response // Often contains safety details in API error
+                 response: e.response
              });
              return { success: false, error: 'CONTENT_BLOCKED', reason: 'PROHIBITED_CONTENT' };
         }

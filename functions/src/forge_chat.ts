@@ -301,7 +301,16 @@ ${activeContextSection}
 
     } catch (e: any) {
       logger.error("Forge Chat Stream Error", e);
-      res.write(JSON.stringify({ type: 'error', message: e.message }) + '\n');
+      const isQuota =
+        e?.status === 429 ||
+        e?.message?.includes('429') ||
+        e?.message?.includes('RESOURCE_EXHAUSTED') ||
+        e?.message?.toLowerCase().includes('quota') ||
+        e?.message?.includes('Too Many Requests');
+      const message = isQuota
+        ? "⚠️ Cuota de API Agotada: Tu plan gratuito de Google AI Studio alcanzó el límite diario. Las cuotas se restablecen automáticamente cada 24 horas. Mientras tanto, configura tu propia API Key en Preferencias → Configuración de IA para continuar sin interrupciones."
+        : e.message;
+      res.write(JSON.stringify({ type: 'error', message }) + '\n');
       res.end();
     }
   }

@@ -19,6 +19,18 @@ import * as crypto from 'crypto';
 
 
 
+// --- QUOTA ERROR DETECTION ---
+function isQuotaError(e: any): boolean {
+    return (
+        e?.status === 429 ||
+        e?.message?.includes('429') ||
+        e?.message?.includes('RESOURCE_EXHAUSTED') ||
+        e?.message?.toLowerCase().includes('quota') ||
+        e?.message?.includes('Too Many Requests')
+    );
+}
+const QUOTA_USER_MESSAGE = "⚠️ Cuota de API Agotada: Tu plan gratuito de Google AI Studio alcanzó el límite diario. Las cuotas se restablecen automáticamente cada 24 horas. Mientras tanto, configura tu propia API Key en Preferencias → Configuración de IA para continuar sin interrupciones.";
+
 // --- RE-EXPORTS (Modular Architecture) ---
 export { genesisManifest } from './genesis';
 
@@ -1195,6 +1207,9 @@ OUTPUT JSON:
       ]);
 
       const parseJudge = (result: any, fallbackName: string) => {
+        if (result.error === 'QUOTA_EXCEEDED') {
+          return { verdict: 'Cuota API agotada.', critique: QUOTA_USER_MESSAGE, score: 0 };
+        }
         if (result.error || !result.text) {
           return { verdict: 'El Juez se negó a hablar.', critique: result.error || 'Sin respuesta.', score: 5 };
         }
@@ -1242,6 +1257,10 @@ OUTPUT JSON:
       return finalVerdict;
 
     } catch (error: any) {
+      if (isQuotaError(error)) {
+        logger.warn("⚠️ [QUOTA] Cuota API agotada en summonTheTribunal:", error?.message);
+        throw new HttpsError("resource-exhausted", QUOTA_USER_MESSAGE);
+      }
       logger.error("[TRIBUNAL] Session failed:", error);
       throw new HttpsError("internal", error.message || "El Tribunal colapsó.");
     }
@@ -2103,43 +2122,48 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
       } catch (invokeError: any) {
         if (invokeError.message === "EMPTY_FRAGMENT_ERROR") {
           logger.error("💥 [BYPASS] CRITICAL: Gemini returned empty fragment after retries.");
-          // 🟢 RETURN CONTROLLED ERROR OBJECT (DO NOT THROW)
           return {
             response: "La Forja recibió un fragmento vacío de Gemini. Reintentando con parámetros de seguridad reducidos...",
             sources: []
           };
         }
-        logger.error("💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG) [CATCH-ALL]:", invokeError?.message || invokeError);
 
-        // 🟢 PROTOCOLO DE FALLO: Romper el bucle de UI
+        // Detect API quota / rate-limit errors and surface them clearly
+        const errorText = isQuotaError(invokeError)
+            ? QUOTA_USER_MESSAGE
+            : "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.";
+
+        logger.error(
+          isQuotaError(invokeError) ? "⚠️ [QUOTA] Cuota API agotada en forgeRagChat:" : "💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG) [CATCH-ALL]:",
+          invokeError?.message || invokeError
+        );
+
         if (sessionId) {
           try {
             await db.collection("users").doc(userId)
               .collection("forge_sessions").doc(sessionId)
               .collection("messages").add({
                 role: 'system',
-                text: "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.",
+                text: errorText,
                 timestamp: new Date().toISOString(),
                 type: 'error',
-                isError: true // Optional flag for UI
+                isError: true,
+                isQuota: isQuotaError(invokeError)
               });
-            logger.info(`🚨 Error inyectado en sesión ${sessionId} para liberar UI.`);
           } catch (persistError: any) {
             logger.error("Error al persistir mensaje de fallo:", persistError?.message);
           }
         }
 
-        // 🟢 UI RECOVERY PROTOCOL: Return a valid object with the error message
-        // This ensures ForgeChat.tsx saves it to the history instead of crashing.
-        return {
-          response: "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.",
-          sources: []
-        };
+        return { response: errorText, sources: [] };
       }
 
     } catch (error: any) {
+      if (isQuotaError(error)) {
+        logger.warn("⚠️ [QUOTA] Cuota API agotada en forgeRagChat (setup):", error?.message);
+        return { response: QUOTA_USER_MESSAGE, sources: [] };
+      }
       logger.error("Error General en Chat RAG (Setup):", error);
-      // Catch-all for errors before the invoke (e.g. Vector Search failure)
       return {
         response: `⚠️ Error del Sistema: Fallo en la memoria a largo plazo. (${error.message || 'Unknown Error'})`,
         sources: []
