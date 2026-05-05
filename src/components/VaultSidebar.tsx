@@ -5,7 +5,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X } from 'lucide-react';
 import GuidePanel from './ui/GuidePanel';
-import NewFolderWizardModal from './ui/NewFolderWizardModal';
+import CreateItemModal from './ui/CreateItemModal';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -15,7 +15,6 @@ import { getFirestore, onSnapshot, collection, query, where } from "firebase/fir
 import { getAuth } from "firebase/auth";
 import { toast } from 'sonner';
 import CreateProjectModal from './ui/CreateProjectModal';
-import DeleteConfirmationModal from './ui/DeleteConfirmationModal'; // 🟢 NEW
 import { callFunction } from '../services/api';
 import { EntityService } from '../services/EntityService';
 import { useLanguageStore } from '../stores/useLanguageStore';
@@ -39,7 +38,8 @@ interface VaultSidebarProps {
     isIndexed?: boolean; // 👈 New prop for Index State
     isSecurityReady?: boolean; // 👈 New prop for Circuit Breaker
     activeFileId?: string | null; // 👈 New prop
-    onCreateFile?: () => void; // 👈 New prop for File Creation
+    onCreateFile?: () => void;
+    onFileCreated?: (id: string, content: string, name: string) => void;
     onGenesis?: () => void; // 👈 New prop for Genesis
     onStartTutorial?: () => void; // 🟢 NEW PROP FOR GUIDE
     onOpenStartingAssistant?: () => void; // 🟢 SPRINT 6.5
@@ -70,10 +70,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     isIndexed = false, // 👈 Default to false
     isSecurityReady = false, // 👈 Default false for safety
     activeFileId, // 👈 Destructure
-    onCreateFile, // 👈 Destructure
-    onGenesis, // 👈 Destructure
-    onStartTutorial, // 🟢 Destructure
-    onOpenStartingAssistant, // 🟢 Sprint 6.5
+    onCreateFile,
+    onFileCreated,
+    onGenesis,
+    onStartTutorial,
+    onOpenStartingAssistant,
 }) => {
     // STATE
     const [selectedSagaId, setSelectedSagaId] = useState<string | null>(null);
@@ -130,23 +131,19 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
     // 🟢 CONFLICT STATE & FILTER
     const [conflictingFileIds, setConflictingFileIds] = useState<Set<string>>(new Set());
-    // const [showOnlyHealthy, setShowOnlyHealthy] = useState(false); // REMOVED LOCAL STATE
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-    // 🟢 DELETE MODE STATE
-    const [isDeleteMode, setIsDeleteMode] = useState(false);
-    const [selectedDeleteIds, setSelectedDeleteIds] = useState<Set<string>>(new Set());
-    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
-    const [isDeleting, setIsDeleting] = useState(false);
+    // Delete mode (legacy — kept for checkbox API compat, always false)
+    const isDeleteMode = false;
+    const selectedDeleteIds = new Set<string>();
+    const handleToggleDeleteSelect = useCallback((_id: string) => {}, []);
 
     // 🟢 INDEX MENU STATE
     const [isIndexMenuOpen, setIsIndexMenuOpen] = useState(false);
     const indexMenuRef = useRef<HTMLDivElement>(null);
 
-    // 🟢 CREATE MENU STATE (new file / new folder)
-    const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
-    const createMenuRef = useRef<HTMLDivElement>(null);
-    const [isNewFolderWizardOpen, setIsNewFolderWizardOpen] = useState(false);
+    // 🟢 CREATE ITEM MODAL
+    const [isCreateItemOpen, setIsCreateItemOpen] = useState(false);
 
     // Close menus when clicking outside
     useEffect(() => {
@@ -154,15 +151,12 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             if (indexMenuRef.current && !indexMenuRef.current.contains(event.target as Node)) {
                 setIsIndexMenuOpen(false);
             }
-            if (createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
-                setIsCreateMenuOpen(false);
-            }
         }
         document.addEventListener("mousedown", handleClickOutside);
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
-    }, [indexMenuRef, createMenuRef]);
+    }, [indexMenuRef]);
 
     // 🟢 LISTEN FOR CONFLICTS (Using EntityService)
     useEffect(() => {
@@ -291,58 +285,16 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     };
 
-    // 🟢 DELETE LOGIC
-    const handleToggleDeleteMode = () => {
-        if (isDeleteMode) {
-            setIsDeleteMode(false);
-            setSelectedDeleteIds(new Set());
-        } else {
-            setIsDeleteMode(true);
-        }
-    };
-
-    const handleToggleDeleteSelect = useCallback((id: string) => {
-        setSelectedDeleteIds(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(id)) {
-                newSet.delete(id);
-            } else {
-                newSet.add(id);
-            }
-            return newSet;
-        });
-    }, []);
-
-    const handleDeleteClick = () => {
-        if (selectedDeleteIds.size === 0) return;
-        setIsDeleteModalOpen(true);
-    };
-
-    const handleConfirmDelete = async () => {
-        setIsDeleting(true);
+    // 🟢 DELETE: Direct API call, no modal needed (files go to Drive trash = recoverable)
+    const handleDeleteSingle = useCallback(async (fileId: string, fileName: string) => {
         try {
-            await callFunction('trashDriveItems', {
-                accessToken,
-                fileIds: Array.from(selectedDeleteIds)
-            });
-            toast.success(`${selectedDeleteIds.size} elemento${selectedDeleteIds.size > 1 ? 's' : ''} movido${selectedDeleteIds.size > 1 ? 's' : ''} a la papelera.`);
-
-            setIsDeleteMode(false);
-            setSelectedDeleteIds(new Set());
-            setIsDeleteModalOpen(false);
-
+            await callFunction('trashDriveItems', { accessToken, fileIds: [fileId] });
+            toast.success(`"${fileName}" movido a la papelera.`);
             await refreshConfig();
-        } catch (error: any) {
-            toast.error("Error al borrar: " + error.message);
-        } finally {
-            setIsDeleting(false);
+        } catch (e: any) {
+            toast.error('Error al eliminar: ' + e.message);
         }
-    };
-
-    const handleDeleteSingle = useCallback((fileId: string, _fileName: string) => {
-        setSelectedDeleteIds(new Set([fileId]));
-        setIsDeleteModalOpen(true);
-    }, []);
+    }, [accessToken, refreshConfig]);
 
     // 🟢 MOVE FILE STATE
     const [moveTargetFile, setMoveTargetFile] = useState<{ id: string; name: string; parentId?: string } | null>(null);
@@ -430,39 +382,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     {/* ACTION BUTTONS (DISTRIBUTED) */}
                     <div className="ml-auto flex items-center gap-2">
                         {!isEmptyProject && (
-                            <div className="relative" ref={createMenuRef}>
-                                <button
-                                    onClick={() => setIsCreateMenuOpen(!isCreateMenuOpen)}
-                                    className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-cyan-400"
-                                    title={t.newFile}
-                                    aria-label={t.newFile}
-                                >
-                                    <FilePlus size={16} />
-                                </button>
-                                {isCreateMenuOpen && (
-                                    <div className="absolute right-0 top-full mt-2 w-52 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                                        {onCreateFile && (
-                                            <button
-                                                onClick={() => { onCreateFile(); setIsCreateMenuOpen(false); }}
-                                                className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
-                                            >
-                                                <FilePlus size={13} className="text-cyan-400" />
-                                                <span>{t.newFile}</span>
-                                            </button>
-                                        )}
-                                        <button
-                                            onClick={() => {
-                                                setIsCreateMenuOpen(false);
-                                                setIsNewFolderWizardOpen(true);
-                                            }}
-                                            className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
-                                        >
-                                            <FolderPlus size={13} className="text-amber-400" />
-                                            <span>{tCommon.newFolder || 'Nueva carpeta'}</span>
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
+                            <button
+                                onClick={() => setIsCreateItemOpen(true)}
+                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-cyan-400"
+                                title="Crear archivo o carpeta"
+                                aria-label="Crear archivo o carpeta"
+                            >
+                                <FilePlus size={16} />
+                            </button>
                         )}
 
                         {/* BOTÓN DE INDEXAR (MENU) */}
@@ -702,13 +629,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 )}
             </div>
 
-            <DeleteConfirmationModal
-                isOpen={isDeleteModalOpen}
-                onClose={() => setIsDeleteModalOpen(false)}
-                onConfirm={handleConfirmDelete}
-                count={selectedDeleteIds.size}
-                isDeleting={isDeleting}
-            />
 
             {/* 🟢 FOLDER PICKER MODAL — move file */}
             {moveTargetFile && (
@@ -751,10 +671,11 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 onSubmit={handleCreateProject}
             />
 
-            <NewFolderWizardModal
-                isOpen={isNewFolderWizardOpen}
-                onClose={() => setIsNewFolderWizardOpen(false)}
+            <CreateItemModal
+                isOpen={isCreateItemOpen}
+                onClose={() => setIsCreateItemOpen(false)}
                 accessToken={accessToken}
+                onFileCreated={onFileCreated || (() => {})}
                 onFolderCreated={refreshConfig}
             />
 

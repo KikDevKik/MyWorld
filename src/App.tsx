@@ -1247,6 +1247,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             isSecurityReady={isSecurityReady}
                             activeFileId={currentFileId}
                             onCreateFile={() => setIsCreateFileModalOpen(true)}
+                            onFileCreated={handleFileCreated}
                             onGenesis={() => setIsGenesisOpen(true)}
                             onStartTutorial={startTutorial}
                             onOpenStartingAssistant={() => {

@@ -104,6 +104,7 @@ const FileNodeRow = React.memo(({
     const [isEditing, setIsEditing] = useState(false);
     // 🟢 FILE ACTIONS MENU STATE
     const [isActionsOpen, setIsActionsOpen] = useState(false);
+    const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
     const actionsRef = useRef<HTMLDivElement>(null);
     const [editName, setEditName] = useState(node.name);
     const [isSaving, setIsSaving] = useState(false);
@@ -127,9 +128,12 @@ const FileNodeRow = React.memo(({
         }
     }, [isEditing]);
 
-    // Close actions menu on outside click
+    // Close actions menu on outside click; reset confirmation state when menu closes
     useEffect(() => {
-        if (!isActionsOpen) return;
+        if (!isActionsOpen) {
+            setIsConfirmingDelete(false);
+            return;
+        }
         function handleOutside(e: MouseEvent) {
             if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
                 setIsActionsOpen(false);
@@ -297,32 +301,59 @@ const FileNodeRow = React.memo(({
                         <MoreHorizontal size={12} />
                     </button>
                     {isActionsOpen && (
-                        <div className="absolute right-0 top-full mt-1 w-36 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                            {onMoveFile && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsActionsOpen(false);
-                                        onMoveFile(node.id, node.name, node.parentId);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
-                                >
-                                    <FolderInput size={12} className="text-amber-400" />
-                                    <span>Mover a...</span>
-                                </button>
-                            )}
-                            {onDeleteFile && (
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setIsActionsOpen(false);
-                                        onDeleteFile(node.id, node.name);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs text-red-300 hover:bg-red-900/30 hover:text-red-200 flex items-center gap-2 transition-colors"
-                                >
-                                    <Trash2 size={12} className="text-red-400" />
-                                    <span>Borrar</span>
-                                </button>
+                        <div className="absolute right-0 top-full mt-1 w-40 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                            {!isConfirmingDelete ? (
+                                <>
+                                    {onMoveFile && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsActionsOpen(false);
+                                                onMoveFile(node.id, node.name, node.parentId);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
+                                        >
+                                            <FolderInput size={12} className="text-amber-400" />
+                                            <span>Mover a...</span>
+                                        </button>
+                                    )}
+                                    {onDeleteFile && (
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setIsConfirmingDelete(true);
+                                            }}
+                                            className="w-full text-left px-3 py-2 text-xs text-red-300 hover:bg-red-900/30 hover:text-red-200 flex items-center gap-2 transition-colors"
+                                        >
+                                            <Trash2 size={12} className="text-red-400" />
+                                            <span>Borrar</span>
+                                        </button>
+                                    )}
+                                </>
+                            ) : (
+                                <div className="p-2.5">
+                                    <p className="text-[10px] text-red-300 text-center mb-2 leading-tight">
+                                        ¿Mover a la papelera?
+                                    </p>
+                                    <div className="flex gap-1.5">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (onDeleteFile) onDeleteFile(node.id, node.name);
+                                                setIsActionsOpen(false);
+                                            }}
+                                            className="flex-1 py-1.5 rounded bg-red-800/70 hover:bg-red-700 text-red-100 text-[10px] font-bold uppercase transition-colors"
+                                        >
+                                            Sí
+                                        </button>
+                                        <button
+                                            onClick={(e) => { e.stopPropagation(); setIsConfirmingDelete(false); }}
+                                            className="flex-1 py-1.5 rounded bg-titanium-700 hover:bg-titanium-600 text-titanium-300 text-[10px] uppercase transition-colors"
+                                        >
+                                            No
+                                        </button>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     )}
