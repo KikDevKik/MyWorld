@@ -226,7 +226,7 @@ async function _executeGeneration(
             e.message?.includes('Too Many Requests')
         ) {
             logger.warn(`⚠️ [QUOTA] Cuota API agotada en ${config.contextLabel}:`, e.message);
-            return { success: false, error: 'QUOTA_EXCEEDED', reason: 'FREE_TIER_LIMIT', modelUsed: '' };
+            return { success: false, error: 'QUOTA_EXCEEDED', reason: 'FREE_TIER_LIMIT' };
         }
 
         // Handle other specific API errors
