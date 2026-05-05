@@ -32,12 +32,14 @@ interface ArquitectoPanelProps {
     accessToken: string | null;
     folderId: string;
     onPendingItemsUpdate?: (items: PendingItem[]) => void;
+    genesisContext?: string | null;
+    onGenesisContextConsumed?: () => void;
 }
 
 type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings';
 type PanelView = 'welcome' | 'intention' | 'chat' | 'reinitializing';
 
-const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate }) => {
+const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate, genesisContext, onGenesisContextConsumed }) => {
     const { config } = useProjectConfig();
     const { hasByok } = useTier();
     const projectName = config?.projectName || 'Mi Proyecto';
@@ -139,6 +141,24 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             setPanelView('chat');
         }
     }, [hasInitialized, messages.length, panelView]);
+
+    // Auto-initialize from Genesis context — skips welcome/intention screens entirely
+    useEffect(() => {
+        if (!genesisContext || panelView !== 'welcome') return;
+        const run = async () => {
+            setPanelView('intention');
+            try {
+                await initialize({ implementationGoal: genesisContext });
+                setPanelView('chat');
+            } catch {
+                setPanelView('welcome');
+                toast.error('Error al iniciar la sesión con el contexto del Génesis.');
+            } finally {
+                onGenesisContextConsumed?.();
+            }
+        };
+        run();
+    }, [genesisContext]);
 
     const handleIntentionConfirm = async (goal: string, culturalFile?: {
         fileName: string;

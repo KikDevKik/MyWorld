@@ -298,6 +298,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [showContinueCard, setShowContinueCard] = useState(false);
     const [genesisFilesCount, setGenesisFilesCount] = useState(0);
     const [genesisPremise, setGenesisPremise] = useState<string>('');
+    const [arquitectoGenesisContext, setArquitectoGenesisContext] = useState<string | null>(null);
     const [isAppLoading, setIsAppLoading] = useState(true);
     const hybridEditorRef = useRef<HybridEditorHandle>(null); // 🟢 EDITOR HANDLE
     const [fontFamily, setFontFamily] = useState<'serif' | 'sans'>('serif');
@@ -991,6 +992,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     accessToken={oauthToken}
                     folderId={folderId}
                     onPendingItemsUpdate={setArquitectoPendingItems}
+                    genesisContext={arquitectoGenesisContext}
+                    onGenesisContextConsumed={() => setArquitectoGenesisContext(null)}
                 />
             );
         }
@@ -1026,6 +1029,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         }}
                         onGoToArquitecto={() => {
                             setShowPostGenesisPanel(false);
+                            setArquitectoGenesisContext(
+                                `Mi proyecto "${config?.projectName || 'Mi Proyecto'}" acaba de nacer del Génesis.` +
+                                (genesisPremise ? ` La premisa central es: "${genesisPremise}".` : '') +
+                                ` Analiza esta premisa, identifica sus fortalezas y tensiones narrativas, y dame un diagnóstico inicial del estado estructural del proyecto para comenzar a construirlo.`
+                            );
                             setActiveView('arquitecto');
                         }}
                         onDismiss={() => setShowPostGenesisPanel(false)}
