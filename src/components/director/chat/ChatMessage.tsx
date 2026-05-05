@@ -16,6 +16,9 @@ interface ChatMessageProps {
     onInsert?: (text: string) => void;
     rescuingIds: Set<string>;
     purgingIds: Set<string>;
+    isOld?: boolean;
+    isExpanded?: boolean;
+    onToggleExpand?: (id: string) => void;
 }
 
 export const ChatMessage = React.memo(({
@@ -24,7 +27,10 @@ export const ChatMessage = React.memo(({
     onPurge,
     onInsert,
     rescuingIds,
-    purgingIds
+    purgingIds,
+    isOld = false,
+    isExpanded = false,
+    onToggleExpand,
 }: ChatMessageProps) => {
     // 🟢 State for transformation
     const [isTransforming, setIsTransforming] = useState(false);
@@ -162,24 +168,51 @@ export const ChatMessage = React.memo(({
     // 6. STANDARD MESSAGE (Text with Markdown)
     const { thinking, content } = React.useMemo(() => parseThinking(message.text), [message.text]);
 
+    const isAssistant = message.role === 'assistant';
+    const isUser = message.role === 'user';
+
+    const codeComponents = {
+        code({node, inline, className, children, ...props}: any) {
+            return inline
+                ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
+                : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>;
+        }
+    };
+
+    const proseBlock = (
+        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words"
+            style={isAssistant ? { fontFamily: "'Newsreader', Georgia, serif", fontSize: '16px', lineHeight: '1.75' } : {}}>
+            {isAssistant && thinking && <ThinkingBubble thought={thinking} />}
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeComponents}>
+                {content}
+            </ReactMarkdown>
+        </div>
+    );
+
     return (
-        <div className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+        <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} ${isAssistant ? 'mb-5' : isUser ? 'mb-1' : ''}`}>
             <div className={`
                 w-8 h-8 rounded-full flex items-center justify-center shrink-0
-                ${message.role === 'user' ? 'bg-cyan-900/50 text-cyan-400' :
+                ${isUser ? 'bg-cyan-900/50 text-cyan-400' :
                 message.role === 'system' ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/50 text-emerald-400'}
             `}>
-                {message.role === 'user' ? <User size={14} /> : message.role === 'system' ? <X size={14} /> : <Bot size={14} />}
+                {isUser ? <User size={14} /> : message.role === 'system' ? <X size={14} /> : <Bot size={14} />}
             </div>
             <div className={`
-                p-3 rounded-xl text-sm max-w-[85%] leading-relaxed overflow-hidden
-                ${message.role === 'user'
-                    ? 'bg-cyan-950/30 border border-cyan-900/50 text-cyan-100'
+                p-3 text-sm max-w-[85%] leading-relaxed
+                ${isUser
+                    ? 'rounded-xl bg-cyan-950/30 border border-cyan-900/50 text-cyan-100 overflow-hidden'
                     : message.role === 'system'
-                    ? 'bg-red-950/30 border border-red-900/50 text-red-200'
-                    : 'bg-titanium-900/50 border border-titanium-800 text-titanium-200'}
-            `}>
-                {/* 🟢 ATTACHMENT PREVIEW */}
+                    ? 'rounded-xl bg-red-950/30 border border-red-900/50 text-red-200 overflow-hidden'
+                    : 'text-titanium-200'}
+            `}
+            style={isAssistant ? {
+                background: 'rgba(129, 140, 248, 0.02)',
+                borderLeft: '2px solid rgba(129, 140, 248, 0.08)',
+                borderRadius: '0 8px 8px 0',
+                paddingLeft: '16px',
+            } : {}}>
+                {/* Attachment preview */}
                 {message.attachmentPreview && (
                     <div className="mb-2 rounded-lg overflow-hidden border border-white/10">
                         {message.attachmentType === 'audio' ? (
@@ -190,43 +223,39 @@ export const ChatMessage = React.memo(({
                     </div>
                 )}
 
-                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words">
-                    {/* 🧠 THINKING BUBBLE (Weaver Protocol) */}
-                    {message.role === 'assistant' && thinking && (
-                        <ThinkingBubble thought={thinking} />
-                    )}
+                {/* Collapsed view for old assistant messages */}
+                {isAssistant && isOld && !isExpanded ? (
+                    <div className="relative">
+                        <div className="overflow-hidden" style={{ maxHeight: '84px' }}>
+                            {proseBlock}
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
+                            style={{ background: 'linear-gradient(to top, rgba(28,28,30,0.97), transparent)' }} />
+                    </div>
+                ) : (
+                    proseBlock
+                )}
 
-                    <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                            // Optional: Custom renderer overrides if needed for specific aesthetic
-                            code({node, inline, className, children, ...props}: any) {
-                                return inline
-                                ? <code className="bg-titanium-800 px-1 py-0.5 rounded text-xs font-mono text-cyan-300" {...props}>{children}</code>
-                                : <code className="block bg-titanium-950 p-2 rounded text-xs font-mono my-2 overflow-x-auto text-cyan-100" {...props}>{children}</code>
-                            }
-                        }}
-                    >
-                        {content}
-                    </ReactMarkdown>
-                </div>
+                {/* Expand/collapse toggle for old assistant messages */}
+                {isAssistant && isOld && (
+                    <button
+                        onClick={() => onToggleExpand?.(message.id)}
+                        className="mt-2 text-[11px] font-mono uppercase tracking-wider transition-colors text-left"
+                        style={{ color: 'rgba(129, 140, 248, 0.6)' }}>
+                        {isExpanded ? 'Colapsar ↑' : 'Leer respuesta completa ↓'}
+                    </button>
+                )}
 
-                {/* 🟢 INSERT BUTTON (Only for Assistant) */}
-                {message.role === 'assistant' && onInsert && message.id !== 'intro' && (
+                {/* Insert button — only when content is visible */}
+                {isAssistant && onInsert && message.id !== 'intro' && (!isOld || isExpanded) && (
                     <div className="mt-3 pt-2 border-t border-titanium-800/50 flex justify-end gap-2">
                         <button
                             onClick={() => {
                                 setIsTransforming(true);
-                                callFunction<{text: string}>('transformToGuide', {
-                                    text: message.text
-                                }).then((res) => {
-                                    if (onInsert) onInsert(res.text);
-                                }).catch((err) => {
-                                    console.error("Transform failed", err);
-                                    if (onInsert) onInsert(message.text); // Fallback to raw text
-                                }).finally(() => {
-                                    setIsTransforming(false);
-                                });
+                                callFunction<{text: string}>('transformToGuide', { text: message.text })
+                                    .then((res) => { if (onInsert) onInsert(res.text); })
+                                    .catch(() => { if (onInsert) onInsert(message.text); })
+                                    .finally(() => setIsTransforming(false));
                             }}
                             disabled={isTransforming}
                             className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:text-emerald-300 bg-emerald-900/10 hover:bg-emerald-900/30 px-2 py-1.5 rounded transition-all uppercase tracking-wider"
@@ -242,25 +271,17 @@ export const ChatMessage = React.memo(({
         </div>
     );
 }, (prev, next) => {
-    // ⚡ Bolt Optimization: Custom Comparator to skip unnecessary re-renders
     if (prev.message !== next.message) return false;
     if (prev.onInsert !== next.onInsert) return false;
+    if (prev.isOld !== next.isOld) return false;
+    if (prev.isExpanded !== next.isExpanded) return false;
+    if (prev.onToggleExpand !== next.onToggleExpand) return false;
 
-    // Logic for rescue/purge dependencies
-    // If it's a drift alert (or group), we must check the IDs.
     const isDrift = next.message.isDriftAlert || next.message.driftData?.isGroup;
+    if (!isDrift) return true;
 
-    if (!isDrift) {
-        // Standard messages don't care about rescue/purge props
-        return true;
-    }
-
-    // For drift messages, check if relevant IDs changed
-    // Simple reference check on the Sets is sufficient as they are immutable-style updates
     if (prev.rescuingIds !== next.rescuingIds) return false;
     if (prev.purgingIds !== next.purgingIds) return false;
-
-    // Check handler stability (should be stable via useCallback, but good to check)
     if (prev.onRescue !== next.onRescue) return false;
     if (prev.onPurge !== next.onPurge) return false;
 
