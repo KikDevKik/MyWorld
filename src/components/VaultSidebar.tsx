@@ -83,7 +83,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     const [isResourcesOpen, setIsResourcesOpen] = useState(true);
 
     // 🟢 CONSUME GLOBAL CONTEXT
-    const { fileTree, isFileTreeLoading, config, updateConfig, refreshConfig } = useProjectConfig();
+    const { fileTree, isFileTreeLoading, config, updateConfig, refreshConfig, fileTreeRefreshKey } = useProjectConfig();
     const { showOnlyHealthy } = useLayoutStore(); // 🟢 READ FROM STORE
 
     // 🟢 DERIVED STATE
@@ -654,6 +654,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 {isCanonOpen && (
                                     <div id="canon-tree">
                                         <FileTree
+                                            key={`canon-${fileTreeRefreshKey}`}
                                             folderId={folderId}
                                             onFileSelect={onFileSelect}
                                             accessToken={accessToken}
@@ -694,6 +695,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 {isResourcesOpen && (
                                     <div id="resources-tree">
                                         <FileTree
+                                            key={`resources-${fileTreeRefreshKey}`}
                                             folderId={folderId}
                                             onFileSelect={onFileSelect}
                                             accessToken={accessToken}
@@ -724,6 +726,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     <div className="h-px flex-1 bg-titanium-800"></div>
                                 </div>
                                 <FileTree
+                                    key={`unassigned-${fileTreeRefreshKey}`}
                                     folderId={folderId}
                                     onFileSelect={onFileSelect}
                                     accessToken={accessToken}

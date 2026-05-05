@@ -23,6 +23,7 @@ interface ProjectConfigContextType {
   // 🟢 NEW: Global File Tree State
   fileTree: FileNode[] | null;
   isFileTreeLoading: boolean;
+  fileTreeRefreshKey: number;
   // 🟢 GHOST MODE: Global User
   user: User | { uid: string; displayName: string; email: string } | null;
   // 🟢 BYOK: Custom Gemini Key (Local Only)
@@ -69,6 +70,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   // 🟢 NEW: File Tree State
   const [fileTree, setFileTree] = useState<FileNode[] | null>(null);
   const [isFileTreeLoading, setIsFileTreeLoading] = useState(true);
+  const [fileTreeRefreshKey, setFileTreeRefreshKey] = useState(0);
 
   // 🟢 GHOST MODE: User State
   const [user, setUser] = useState<User | typeof GHOST_USER | null>(null);
@@ -165,8 +167,8 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [user]); // Re-run when user changes
 
   const refreshConfig = async () => {
-    // No-op for snapshot, but kept for compatibility
-    console.log("🔄 Config refresh triggered (handled via Snapshot)");
+    setFileTreeRefreshKey(prev => prev + 1);
+    console.log("🔄 File tree refresh triggered");
   };
 
   const updateConfig = async (newConfig: ProjectConfig) => {
@@ -266,6 +268,7 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       setTechnicalError,
       fileTree,
       isFileTreeLoading,
+      fileTreeRefreshKey,
       user,
       customGeminiKey,
       setCustomGeminiKey
