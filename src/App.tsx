@@ -346,21 +346,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const existingSession = arquitectoSessionId || activeDirectorSessionId;
 
     useEffect(() => {
-        if (existingSession) {
-            setShowStartingAssistant(false);
-            setShowContinueCard(false);
-            return;
-        }
-
         if (!config || configLoading) return;
         const hasCanon = config?.canonPaths?.length > 0;
-        
+
         // Contar total de archivos en todo el árbol recursivamente
         const countFiles = (nodes: any[]): number => {
             if (!nodes || nodes.length === 0) return 0;
             return nodes.reduce((total, node) => {
-                // Es un archivo si no tiene children o children vacíos
-                // y tiene un mimeType que no sea carpeta
                 const isFile = node.mimeType !== 'application/vnd.google-apps.folder';
                 const childCount = countFiles(node.children || []);
                 return total + (isFile ? 1 : 0) + childCount;
@@ -370,10 +362,24 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const totalFiles = countFiles(fileTree || []);
         const isEmpty = totalFiles === 0;
 
-        const dismissedKey = `assistant_dismissed_${config?.folderId}`;
-        const dismissed = localStorage.getItem(dismissedKey) === 'true';
-        setShowStartingAssistant(hasCanon && isEmpty && !dismissed);
-        setShowContinueCard(hasCanon && !isEmpty);
+        // Si el proyecto está vacío, Genesis debe aparecer siempre —
+        // ignorar sesiones viejas del Arquitecto/Director y el flag de dismiss,
+        // ya que el usuario puede haber borrado todo para empezar de nuevo.
+        if (isEmpty) {
+            setShowStartingAssistant(hasCanon);
+            setShowContinueCard(false);
+            return;
+        }
+
+        // Proyecto con archivos: respetar sesiones activas y el dismiss
+        if (existingSession) {
+            setShowStartingAssistant(false);
+            setShowContinueCard(false);
+            return;
+        }
+
+        setShowStartingAssistant(false);
+        setShowContinueCard(hasCanon);
     }, [config?.canonPaths?.length, JSON.stringify((fileTree || []).map((f: any) => ({ id: f.id, childCount: f.children?.length || 0 }))), config?.folderId, existingSession, configLoading, config]);
 
     // 🟢 FILE LOCKING
