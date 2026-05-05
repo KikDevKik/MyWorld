@@ -3,8 +3,9 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, Check, X } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X } from 'lucide-react';
 import GuidePanel from './ui/GuidePanel';
+import NewFolderWizardModal from './ui/NewFolderWizardModal';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -145,9 +146,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // 🟢 CREATE MENU STATE (new file / new folder)
     const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
     const createMenuRef = useRef<HTMLDivElement>(null);
-    const [isCreatingFolder, setIsCreatingFolder] = useState(false);
-    const [newFolderName, setNewFolderName] = useState('');
-    const newFolderInputRef = useRef<HTMLInputElement>(null);
+    const [isNewFolderWizardOpen, setIsNewFolderWizardOpen] = useState(false);
 
     // Close menus when clicking outside
     useEffect(() => {
@@ -157,8 +156,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             }
             if (createMenuRef.current && !createMenuRef.current.contains(event.target as Node)) {
                 setIsCreateMenuOpen(false);
-                setIsCreatingFolder(false);
-                setNewFolderName('');
             }
         }
         document.addEventListener("mousedown", handleClickOutside);
@@ -378,26 +375,6 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     };
 
-    // 🟢 CREATE FOLDER HANDLER
-    const handleCreateFolder = async () => {
-        const name = newFolderName.trim();
-        if (!name) return;
-        const parentId = config?.folderId;
-        if (!parentId || !accessToken) {
-            toast.error(tCommon.noVaultConfig || "Sin carpeta de proyecto configurada.");
-            return;
-        }
-        try {
-            await callFunction('createDriveFolder', { accessToken, parentId, folderName: name });
-            toast.success(`"${name}" creada.`);
-            setIsCreatingFolder(false);
-            setNewFolderName('');
-            setIsCreateMenuOpen(false);
-            await refreshConfig();
-        } catch (e: any) {
-            toast.error("Error al crear carpeta: " + e.message);
-        }
-    };
 
     // 🟢 STATUS INDICATOR HELPER
     const getStatusConfig = () => {
@@ -473,39 +450,16 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                                 <span>{t.newFile}</span>
                                             </button>
                                         )}
-                                        {!isCreatingFolder ? (
-                                            <button
-                                                onClick={() => {
-                                                    setIsCreatingFolder(true);
-                                                    setTimeout(() => newFolderInputRef.current?.focus(), 50);
-                                                }}
-                                                className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
-                                            >
-                                                <FolderPlus size={13} className="text-amber-400" />
-                                                <span>{tCommon.newFolder || 'Nueva carpeta'}</span>
-                                            </button>
-                                        ) : (
-                                            <div className="px-3 py-2 flex items-center gap-1.5">
-                                                <input
-                                                    ref={newFolderInputRef}
-                                                    value={newFolderName}
-                                                    onChange={e => setNewFolderName(e.target.value)}
-                                                    onKeyDown={e => {
-                                                        if (e.key === 'Enter') handleCreateFolder();
-                                                        if (e.key === 'Escape') { setIsCreatingFolder(false); setNewFolderName(''); }
-                                                    }}
-                                                    placeholder={tCommon.folderName || 'Nombre de carpeta'}
-                                                    className="flex-1 bg-titanium-950 text-titanium-100 text-xs px-2 py-1.5 rounded border border-titanium-600 focus:outline-none focus:border-cyan-500/50 min-w-0"
-                                                />
-                                                <button
-                                                    onClick={handleCreateFolder}
-                                                    disabled={!newFolderName.trim()}
-                                                    className="p-1 rounded text-cyan-400 hover:text-cyan-300 disabled:opacity-40"
-                                                >
-                                                    <Check size={13} />
-                                                </button>
-                                            </div>
-                                        )}
+                                        <button
+                                            onClick={() => {
+                                                setIsCreateMenuOpen(false);
+                                                setIsNewFolderWizardOpen(true);
+                                            }}
+                                            className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
+                                        >
+                                            <FolderPlus size={13} className="text-amber-400" />
+                                            <span>{tCommon.newFolder || 'Nueva carpeta'}</span>
+                                        </button>
                                     </div>
                                 )}
                             </div>
@@ -795,6 +749,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 isOpen={isCreateModalOpen}
                 onClose={() => setIsCreateModalOpen(false)}
                 onSubmit={handleCreateProject}
+            />
+
+            <NewFolderWizardModal
+                isOpen={isNewFolderWizardOpen}
+                onClose={() => setIsNewFolderWizardOpen(false)}
+                accessToken={accessToken}
+                onFolderCreated={refreshConfig}
             />
 
             {/* FOOTER */}
