@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, Loader2, Archive, LayoutTemplate, RefreshCcw, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { X, Send, Loader2, LayoutTemplate, RefreshCcw, AlertCircle } from 'lucide-react';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { SessionManagerModal } from './SessionManagerModal';
 // 🟢 LAZY LOAD: Break Circular Dependency
@@ -92,6 +92,34 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
+
+    // Auto-collapse old assistant messages (2+ exchanges behind latest)
+    const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+
+    const oldAssistantMessageIds = useMemo(() => {
+        const exchangeMessages = messages.filter(m =>
+            (m.role === 'user' || m.role === 'assistant') &&
+            !m.isDriftAlert &&
+            m.type !== 'analysis_card' &&
+            m.type !== 'verdict_card' &&
+            m.type !== 'system_alert'
+        );
+        const ids = new Set<string>();
+        exchangeMessages.forEach((m, i) => {
+            if (m.role === 'assistant' && i < exchangeMessages.length - 4) {
+                ids.add(m.id);
+            }
+        });
+        return ids;
+    }, [messages]);
+
+    const toggleMessageExpanded = useCallback((id: string) => {
+        setExpandedMessages(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    }, []);
 
     // 🟢 LOAD WAR ROOM SESSIONS
     const [embeddedSessions, setEmbeddedSessions] = useState<any[]>([]);
@@ -222,11 +250,16 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 <div className="flex gap-1">
                     <button
                         onClick={() => setIsSessionManagerOpen(true)}
-                        className="p-1.5 text-titanium-300 hover:text-cyan-400 transition-colors rounded hover:bg-titanium-800"
-                        title={t.sessionFiles}
-                        aria-label={t.sessionFiles}
+                        className="p-1.5 text-titanium-300 hover:text-violet-400 transition-colors rounded hover:bg-titanium-800"
+                        title="Historial de sesiones"
+                        aria-label="Historial de sesiones"
                     >
-                        <Archive size={16} />
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
+                            width="18" height="18">
+                            <circle cx="12" cy="12" r="9"/>
+                            <polyline points="12 7 12 12 15.5 14"/>
+                        </svg>
                     </button>
                     <button
                         onClick={toggleArsenalWidth}
@@ -273,7 +306,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 {/* COL 2: CHAT STREAM (CENTER) */}
                 <div className="flex-1 h-full flex flex-col min-w-0 overflow-hidden relative">
 
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+                    <div className="director-chat-container flex-1 overflow-y-auto p-4 space-y-2">
                         {isLoadingHistory ? (
                             <div className="flex justify-center items-center h-full text-titanium-500">
                                 <Loader2 className="animate-spin" />
@@ -288,6 +321,9 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                     rescuingIds={rescuingIds}
                                     purgingIds={purgingIds}
                                     onInsert={onInsertContent}
+                                    isOld={oldAssistantMessageIds.has(msg.id)}
+                                    isExpanded={expandedMessages.has(msg.id)}
+                                    onToggleExpand={toggleMessageExpanded}
                                 />
                             ))
                         )}
@@ -305,7 +341,8 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         <div ref={messagesEndRef} />
                     </div>
 
-                    <div className="pt-4 px-4 pb-10 border-t border-titanium-800 bg-titanium-900/30 shrink-0">
+                    <div className="pt-4 px-4 pb-10 shrink-0"
+                        style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(129, 140, 248, 0.08)' }}>
                         <ChatInput
                             onSend={(text, attachment) => {
                                 handleSendMessage(text, attachment || undefined);
