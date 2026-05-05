@@ -150,6 +150,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             try {
                 await initialize({ implementationGoal: genesisContext });
                 setPanelView('chat');
+                // Send genesis context as first user message so the Arquitecto
+                // analyzes it directly. initialize() may have restored an existing
+                // session (ignoring implementationGoal), so we always send explicitly.
+                await sendMessage(genesisContext);
             } catch {
                 setPanelView('welcome');
                 toast.error('Error al iniciar la sesión con el contexto del Génesis.');
