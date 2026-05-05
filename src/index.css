@@ -61,6 +61,21 @@ body {
     animation: tribunal-expand 250ms ease-out forwards;
 }
 
+/* --- DIRECTOR CHAT SCROLLBAR --- */
+.director-chat-container::-webkit-scrollbar {
+    width: 4px;
+}
+.director-chat-container::-webkit-scrollbar-thumb {
+    background: rgba(129, 140, 248, 0.12);
+    border-radius: 2px;
+}
+.director-chat-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(129, 140, 248, 0.25);
+}
+.director-chat-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
 /* --- ARCHITECT CHAT SCROLLBAR --- */
 .architect-chat-container::-webkit-scrollbar {
     width: 4px;
