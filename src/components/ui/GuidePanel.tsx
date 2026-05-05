@@ -61,7 +61,7 @@ const GUIDE_STRINGS: Record<string, Record<string, string>> = {
         architect: 'El Arquitecto',
         architectDesc: 'Analiza tu narrativa, detecta inconsistencias y genera un roadmap de misiones.',
         director: 'Director de Escena',
-        directorDesc: 'Gestiona personajes, entidades y la lógica interna de tu mundo.',
+        directorDesc: 'Tu co-piloto para los momentos de bloqueo. El Director conoce tu mundo completo y responde dudas puntuales sobre personajes, escenas o decisiones narrativas — como tener al Arquitecto siempre disponible para una consulta rápida.',
         guardian: 'Canon Guardian',
         guardianDesc: 'Detecta contradicciones entre lo que escribes y el canon establecido.',
         tribunal: 'El Tribunal',
