@@ -25,7 +25,7 @@ export interface GenesisAnswers {
 
 interface Props {
     onClose: () => void;
-    onStartGenesis: (answers: GenesisAnswers) => Promise<void>;
+    onStartGenesis: (answers: GenesisAnswers) => Promise<any>;
     projectName: string;
 }
 

@@ -92,8 +92,9 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
         }
 
         let customViews: any[] | undefined;
-        if (window.google && window.google.picker) {
-            const view = new window.google.picker.DocsView(window.google.picker.ViewId.FOLDERS);
+        const googleAny = window as any;
+        if (googleAny.google && googleAny.google.picker) {
+            const view = new googleAny.google.picker.DocsView(googleAny.google.picker.ViewId.FOLDERS);
             view.setIncludeFolders(true);
             view.setSelectFolderEnabled(true);
             view.setMimeTypes("application/vnd.google-apps.folder");

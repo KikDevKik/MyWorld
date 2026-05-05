@@ -11,11 +11,15 @@ interface ArquitectoConfigModalProps {
     sessionId: string | null;
     onClose: () => void;
     onPanicResolved: () => void; // Para resetear la vista completa
+    onReinitialize?: () => void;
 }
 
-const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId, onClose, onPanicResolved }) => {
+const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId, onClose, onPanicResolved, onReinitialize }) => {
     const { implacableMode, setImplacableMode, ragFilters, setRagFilters, setIsPurging } = useArquitectoStore();
     const [isDeleting, setIsDeleting] = useState(false);
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tArch = t.architect;
 
     const handlePanic = async () => {
         const userId = getAuth().currentUser?.uid;

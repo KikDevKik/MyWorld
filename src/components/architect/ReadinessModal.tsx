@@ -20,6 +20,10 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
     onClose,
     onForce,
 }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tArch = t.architect;
+
     if (!isOpen) return null;
 
     return (

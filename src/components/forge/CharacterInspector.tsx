@@ -49,6 +49,9 @@ const RoleModalOverlay: React.FC<{ content: string; onClose: () => void }> = ({ 
 };
 
 const CharacterInspector: React.FC<CharacterInspectorProps> = ({ data, onClose, onMaterialize, folderId, accessToken }) => {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tForge = t.forge;
     const [isSaving, setIsSaving] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false); // 🔮 Deep Analysis State
     const [realData, setRealData] = useState<any | null>(null);

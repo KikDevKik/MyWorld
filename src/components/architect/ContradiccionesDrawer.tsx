@@ -43,6 +43,11 @@ const getLayerConfig = (t: any) => ({
 });
 
 export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, onSelectItem, activeItemCode }: Props) {
+    const { currentLanguage } = useLanguageStore();
+    const t = TRANSLATIONS[currentLanguage];
+    const tArch = t.architect;
+    const LAYER_CONFIG = getLayerConfig(t);
+
     const [expandedLayers, setExpandedLayers] = useState<Set<string>>(new Set(['MACRO']));
     const [detailItem, setDetailItem] = useState<PendingItem | null>(null);
     
