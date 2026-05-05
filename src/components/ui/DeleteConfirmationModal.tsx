@@ -46,6 +46,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({ isOpe
         <Modal
             isOpen={isOpen}
             onClose={onClose}
+            closeOnBackdropClick={false}
             className="max-w-md border-red-900/30"
             title={
                 <span className="flex items-center gap-2 text-red-100">
