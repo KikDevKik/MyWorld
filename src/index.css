@@ -52,6 +52,15 @@ body {
     scrollbar-width: none;
 }
 
+/* --- TRIBUNAL EXPAND ANIMATION --- */
+@keyframes tribunal-expand {
+    from { transform: scale(0.94); opacity: 0.6; }
+    to { transform: scale(1); opacity: 1; }
+}
+.tribunal-expand-anim {
+    animation: tribunal-expand 250ms ease-out forwards;
+}
+
 /* --- ARCHITECT CHAT SCROLLBAR --- */
 .architect-chat-container::-webkit-scrollbar {
     width: 4px;
