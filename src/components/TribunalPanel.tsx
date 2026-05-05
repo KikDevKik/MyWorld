@@ -158,7 +158,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
 
     // Input panel — stacks vertically in normal mode, fixed sidebar in expanded mode
     const inputSection = (
-        <div className={`flex flex-col p-6 gap-4 bg-titanium-950/50 overflow-y-auto shrink-0 ${
+        <div style={{ background: '#111114' }} className={`flex flex-col p-6 gap-4 overflow-y-auto shrink-0 ${
             isExpanded
                 ? 'w-[340px] border-r border-titanium-800'
                 : 'border-b border-titanium-800'
@@ -253,8 +253,8 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
 
     // Verdicts — stacked in normal mode, 3-column grid in expanded mode
     const verdictsSection = (
-        <div className="flex-1 p-6 overflow-y-auto bg-titanium-900/30"
-            style={{ overflowX: 'hidden', minWidth: 0 }}
+        <div className="flex-1 p-6 overflow-y-auto"
+            style={{ overflowX: 'hidden', minWidth: 0, background: '#111114' }}
             aria-live="polite">
             {!result ? (
                 <div className="h-full flex flex-col items-center justify-center text-titanium-600 opacity-50">
@@ -276,8 +276,8 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
     );
 
     const panelContent = (
-        <div className="w-full h-full flex flex-col bg-titanium-950 text-titanium-100"
-            style={{ overflow: 'hidden', maxWidth: '100%' }}>
+        <div className="w-full h-full flex flex-col text-titanium-100"
+            style={{ overflow: 'hidden', maxWidth: '100%', background: '#0c0c0e' }}>
             {/* Header */}
             <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shadow-md z-10 shrink-0">
                 <div className="flex items-center gap-3 text-red-500">
@@ -314,9 +314,9 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
         return (
             <div
                 className="fixed inset-0 z-[200] flex items-center justify-center"
-                style={{ background: 'rgba(0,0,0,0.7)' }}
+                style={{ background: 'rgba(0,0,0,0.88)' }}
                 onClick={(e) => { if (e.target === e.currentTarget) setIsExpanded(false); }}>
-                <div className="w-[92vw] h-[92vh] rounded-xl shadow-2xl overflow-hidden tribunal-expand-anim">
+                <div className="w-[92vw] h-[92vh] rounded-xl shadow-2xl overflow-hidden tribunal-expand-anim" style={{ background: '#0c0c0e' }}>
                     {panelContent}
                 </div>
             </div>

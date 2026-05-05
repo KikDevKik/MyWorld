@@ -495,29 +495,33 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             )}
 
             {/* Main Workspace Area */}
-            <main className={`flex-1 relative flex justify-center w-full overflow-hidden transition-all duration-300 ${activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
+            <main className={`flex-1 relative flex flex-col w-full overflow-hidden transition-all duration-300 ${activeTool !== 'none' ? 'opacity-70 blur-[1px]' : 'opacity-100'}`}>
 
                 {/* ESTADO: BIENVENIDA */}
                 {panelView === 'welcome' && (
-                    <WelcomeState
-                        projectName={projectName}
-                        onStart={() => setPanelView('intention')}
-                        onResume={handleResume}
-                        onDiscard={handleDiscard}
-                        lastSessionDate={lastAnalyzedAt
-                            ? new Date(lastAnalyzedAt).toLocaleDateString()
-                            : undefined
-                        }
-                        existingSession={existingSession}
-                    />
+                    <div className="flex-1 flex items-center justify-center w-full">
+                        <WelcomeState
+                            projectName={projectName}
+                            onStart={() => setPanelView('intention')}
+                            onResume={handleResume}
+                            onDiscard={handleDiscard}
+                            lastSessionDate={lastAnalyzedAt
+                                ? new Date(lastAnalyzedAt).toLocaleDateString()
+                                : undefined
+                            }
+                            existingSession={existingSession}
+                        />
+                    </div>
                 )}
 
                 {/* ESTADO: MODAL DE INTENCIÓN */}
                 {panelView === 'intention' && (
-                    <IntentionModal
-                        onConfirm={handleIntentionConfirm}
-                        isLoading={isInitializing}
-                    />
+                    <div className="flex-1 flex items-center justify-center w-full">
+                        <IntentionModal
+                            onConfirm={handleIntentionConfirm}
+                            isLoading={isInitializing}
+                        />
+                    </div>
                 )}
 
                 {/* ESTADO: REINICIALIZANDO */}
@@ -531,9 +535,12 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 {/* ESTADO: CHAT */}
                 {panelView === 'chat' && (
                 <>
+                {/* Scrollable content area — full width so scrollbar sits at page edge */}
+                <div className="flex-1 relative overflow-hidden">
+                <div className="architect-chat-container h-full w-full overflow-y-auto scroll-smooth">
 
-                {/* Chat Feed Container */}
-                <div className="architect-chat-container w-full max-w-[720px] h-full flex flex-col pt-8 pb-[140px] px-4 overflow-y-auto z-10 scroll-smooth">
+                    {/* Centered content with breathing room */}
+                    <div className="max-w-[800px] mx-auto px-10 pt-8 pb-6 flex flex-col min-h-full">
 
                     {/* Messages List */}
                     <div className="flex flex-col gap-0 w-full mt-auto">
@@ -735,10 +742,12 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         )}
                         <div ref={messagesEndRef} />
                     </div>
-                </div>
 
-                {/* Floating Toolbar (Left) */}
-                <div className="absolute left-8 bottom-8 z-20">
+                    </div>{/* end centered content */}
+                </div>{/* end architect-chat-container */}
+
+                {/* Floating Toolbar — absolute inside the outer wrapper, never scrolls */}
+                <div className="absolute left-6 bottom-4 z-20">
                     <div className="bg-titanium-900/70 backdrop-blur-xl border border-titanium-800 rounded-full p-2 flex flex-col gap-3 shadow-2xl">
 
                         <button
@@ -811,11 +820,13 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                     </div>
                 </div>
+                </div>{/* end outer scroll wrapper */}
 
-                {/* Chat Input Area */}
-                <div className="absolute bottom-0 w-full max-w-[720px] z-20 flex flex-col gap-2"
-                    style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(103, 232, 249, 0.08)', padding: '16px 20px' }}>
-                    <div className="relative flex flex-col w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-hidden shadow-2xl">
+                {/* Chat Input Area — flex sibling, never scrolls */}
+                <div className="shrink-0 w-full"
+                    style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(103, 232, 249, 0.08)' }}>
+                    <div className="max-w-[800px] mx-auto px-6 py-4">
+                    <div className="relative flex flex-col w-full bg-[#141416] border border-titanium-800 rounded-xl overflow-hidden shadow-2xl">
                         {/* Indicador de archivo adjunto */}
                         {attachedFile && (
                             <div className="flex items-center gap-2 bg-titanium-900 border-b border-titanium-800 px-3 py-2 text-xs text-cyan-400">
@@ -871,7 +882,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </div>
                         </div>
                     </div>
-                    <div className="text-center mt-2">
+                    </div>{/* end max-w input centering */}
+                    <div className="text-center pb-2">
                         <span className="text-[10px] text-titanium-600 font-mono uppercase tracking-widest">
                             {tArch.motto}
                         </span>

@@ -44,7 +44,7 @@ const SlideUpPanel: React.FC<SlideUpPanelProps> = ({ isOpen, title, icon, onClos
                 aria-hidden={!isOpen}
             >
                 {/* Panel principal */}
-                <div className="relative bg-[#0f0f11] border-t border-titanium-800 rounded-t-2xl shadow-2xl flex flex-col pointer-events-auto" style={{ height: '460px' }}>
+                <div className="relative bg-[#0f0f11] border-t border-titanium-800 rounded-t-2xl shadow-2xl flex flex-col pointer-events-auto" style={{ height: 'clamp(460px, 72vh, 860px)' }}>
 
                     {/* Handle visual */}
                     <div className="flex justify-center pt-3 pb-1 shrink-0">
