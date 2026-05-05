@@ -52,6 +52,21 @@ body {
     scrollbar-width: none;
 }
 
+/* --- ARCHITECT CHAT SCROLLBAR --- */
+.architect-chat-container::-webkit-scrollbar {
+    width: 4px;
+}
+.architect-chat-container::-webkit-scrollbar-thumb {
+    background: rgba(103, 232, 249, 0.12);
+    border-radius: 2px;
+}
+.architect-chat-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(103, 232, 249, 0.25);
+}
+.architect-chat-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
 /* --- DRIFT PROTOCOL (CODE MIRROR) --- */
 .cm-drift-high {
     background-color: rgba(127, 29, 29, 0.2) !important; /* Red 900 / 20% */
