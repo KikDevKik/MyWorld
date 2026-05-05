@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
@@ -65,6 +65,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const [isUploadingFile, setIsUploadingFile] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Message collapse & accordion state (changes 1 & 4)
+    const [expandedMessages, setExpandedMessages] = useState<Set<string>>(new Set());
+    const [expandedAccordions, setExpandedAccordions] = useState<Set<string>>(new Set());
+
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -92,6 +96,33 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         sessionResolved,
         generateRoadmap,
     } = useArquitecto({ accessToken, folderId });
+
+    // Compute which assistant messages are "old" (2+ exchanges from the latest)
+    const oldAssistantMessageIds = useMemo(() => {
+        const nonSystem = messages.filter(m => m.role !== 'system');
+        const ids = new Set<string>();
+        nonSystem.forEach((m, i) => {
+            if (m.role === 'assistant' && i < nonSystem.length - 4) {
+                ids.add(m.id);
+            }
+        });
+        return ids;
+    }, [messages]);
+
+    const toggleMessageExpanded = (id: string) => {
+        setExpandedMessages(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+    const toggleAccordion = (id: string) => {
+        setExpandedAccordions(prev => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
 
     // Sincronizar store
     useEffect(() => {
@@ -482,10 +513,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 <>
 
                 {/* Chat Feed Container */}
-                <div className="w-full max-w-[720px] h-full flex flex-col pt-8 pb-[100px] px-4 overflow-y-auto z-10 scroll-smooth">
+                <div className="architect-chat-container w-full max-w-[720px] h-full flex flex-col pt-8 pb-[140px] px-4 overflow-y-auto z-10 scroll-smooth">
 
                     {/* Messages List */}
-                    <div className="flex flex-col gap-6 w-full mt-auto">
+                    <div className="flex flex-col gap-0 w-full mt-auto">
 
                         {(!hasInitialized && isInitializing) ? (
                             <div className="flex flex-col items-center justify-center py-24 opacity-90 w-full">
@@ -525,7 +556,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             messages.map(msg => {
                                 if (msg.role === 'system') {
                                     return (
-                                        <div key={msg.id} className="flex justify-center w-full my-1">
+                                        <div key={msg.id} className="flex justify-center w-full my-3">
                                             {msg.mode === 'break_reminder' && (
                                                 <div className="max-w-[85%] bg-titanium-900/50 border border-titanium-700/40 rounded-xl px-5 py-3.5 text-center">
                                                     <p className="text-xs text-titanium-400 leading-relaxed">{msg.text}</p>
@@ -545,26 +576,87 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                         </div>
                                     );
                                 }
-                                return (
-                                <div key={msg.id} className={`flex flex-col max-w-[85%] ${msg.role === 'user' ? 'items-end self-end' : 'items-start'}`}>
-                                    <div className={`
-                                        border px-5 py-4 rounded-xl text-[15px] leading-[1.6]
-                                        ${msg.role === 'user'
-                                            ? 'bg-emerald-950/20 border-titanium-800/50 rounded-br-none text-titanium-300 shadow-sm'
-                                            : 'bg-titanium-900 border-titanium-800 rounded-bl-none text-titanium-200 shadow-sm'
-                                        }
-                                    `}>
-                                        <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500">
-                                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                                {msg.text}
-                                            </ReactMarkdown>
+                                // USER message
+                                if (msg.role === 'user') {
+                                    return (
+                                        <div key={msg.id} className="flex flex-col max-w-[85%] items-end self-end mb-1">
+                                            <div className="border px-5 py-4 rounded-xl rounded-br-none text-[15px] leading-[1.6] bg-emerald-950/20 border-titanium-800/50 text-titanium-300 shadow-sm">
+                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500">
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                                </div>
+                                            </div>
+                                            <span className="text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest mr-1">Tú</span>
                                         </div>
+                                    );
+                                }
+                                // ASSISTANT message — changes 1, 2, 3, 4
+                                const isOld = oldAssistantMessageIds.has(msg.id);
+                                const isExpanded = expandedMessages.has(msg.id);
+                                const wordCount = msg.text.split(/\s+/).filter(Boolean).length;
+                                const isLong = !isOld && wordCount > 350;
+                                const isAccordionExpanded = expandedAccordions.has(msg.id);
+                                const paragraphs = msg.text.split(/\n\n+/);
+                                const firstTwoParagraphs = paragraphs.slice(0, 2).join('\n\n');
+                                const restParagraphs = paragraphs.slice(2).join('\n\n');
+                                const restWordCount = restParagraphs.split(/\s+/).filter(Boolean).length;
+                                const newsreaderStyle: React.CSSProperties = { fontFamily: "'Newsreader', Georgia, serif", fontSize: '16px', lineHeight: '1.75' };
+                                return (
+                                <div key={msg.id} className="flex flex-col max-w-[85%] items-start mb-7"
+                                    style={{ background: 'rgba(103, 232, 249, 0.02)', borderLeft: '2px solid rgba(103, 232, 249, 0.08)', paddingLeft: '16px', borderRadius: '0 8px 8px 0' }}>
+                                    <div className="py-4 text-titanium-200 w-full">
+                                        {isOld && !isExpanded ? (
+                                            // Change 1: collapsed old message — show first 3 lines
+                                            <div className="relative">
+                                                <div className="overflow-hidden" style={{ maxHeight: '84px' }}>
+                                                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                                    </div>
+                                                </div>
+                                                <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
+                                                    style={{ background: 'linear-gradient(to top, rgba(28,28,30,0.97), transparent)' }} />
+                                            </div>
+                                        ) : isLong && !isAccordionExpanded ? (
+                                            // Change 4: accordion for long recent messages — show first 2 paragraphs
+                                            <div>
+                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{firstTwoParagraphs}</ReactMarkdown>
+                                                </div>
+                                                <button onClick={() => toggleAccordion(msg.id)}
+                                                    className="mt-3 text-[11px] font-mono text-cyan-600 hover:text-cyan-400 transition-colors uppercase tracking-wider">
+                                                    Ver análisis completo ({restWordCount} palabras más) ↓
+                                                </button>
+                                            </div>
+                                        ) : isLong && isAccordionExpanded ? (
+                                            // Change 4: accordion expanded
+                                            <div>
+                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{firstTwoParagraphs}</ReactMarkdown>
+                                                </div>
+                                                <div style={{ maxHeight: '5000px', overflow: 'hidden', transition: 'max-height 300ms ease' }}>
+                                                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{restParagraphs}</ReactMarkdown>
+                                                    </div>
+                                                </div>
+                                                <button onClick={() => toggleAccordion(msg.id)}
+                                                    className="mt-3 text-[11px] font-mono text-cyan-600 hover:text-cyan-400 transition-colors uppercase tracking-wider">
+                                                    Colapsar ↑
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            // Normal full display
+                                            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                            </div>
+                                        )}
                                     </div>
-                                    <span className={`text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest ${msg.role === 'user' ? 'mr-1' : 'ml-1'}`}>
-                                        {msg.role === 'user' ? 'Tú' : 'Arquitecto'}
-                                    </span>
-
-                                    {msg.role === 'assistant' && lastDetectedIntent && msg.id === messages[messages.length - 1]?.id && (
+                                    {isOld && (
+                                        <button onClick={() => toggleMessageExpanded(msg.id)}
+                                            className="mb-2 text-[11px] font-mono text-cyan-600 hover:text-cyan-400 transition-colors uppercase tracking-wider">
+                                            {isExpanded ? 'Colapsar ↑' : 'Leer respuesta completa ↓'}
+                                        </button>
+                                    )}
+                                    <span className="text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest ml-1">Arquitecto</span>
+                                    {lastDetectedIntent && msg.id === messages[messages.length - 1]?.id && (
                                         <div className="flex items-center gap-1.5 mt-1">
                                             {lastDetectedIntent === 'RESOLUCION' && (
                                                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
@@ -701,7 +793,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 </div>
 
                 {/* Chat Input Area */}
-                <div className="absolute bottom-6 w-full max-w-[720px] px-4 z-20 flex flex-col gap-2">
+                <div className="absolute bottom-0 w-full max-w-[720px] z-20 flex flex-col gap-2"
+                    style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(103, 232, 249, 0.08)', padding: '16px 20px' }}>
                     <div className="relative flex flex-col w-full bg-titanium-950 border border-titanium-600 rounded-xl overflow-hidden shadow-2xl">
                         {/* Indicador de archivo adjunto */}
                         {attachedFile && (
