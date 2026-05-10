@@ -1,0 +1,9 @@
+repos:
+  - repo: local
+    hooks:
+      - id: repowise-sync
+        name: Repowise Incremental Update
+        entry: D:/Dev/VibeCodingThings/Tools/repowise/venv/Scripts/repowise.exe update
+        language: system
+        pass_filenames: false
+        always_run: true

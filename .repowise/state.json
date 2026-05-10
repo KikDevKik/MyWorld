@@ -1,0 +1,8 @@
+{
+  "last_sync_commit": "d7fdd93498f23c8d3717d09bd51cd02b584c1067",
+  "total_pages": 100,
+  "provider": "gemini",
+  "model": "gemini-3.1-flash-lite-preview",
+  "docs_enabled": true,
+  "total_tokens": 536080
+}

@@ -32,3 +32,6 @@ functions/lib
 # Testing
 playwright-report/
 test-results/
+
+# repowise API keys (local)
+.repowise/.env
