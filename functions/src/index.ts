@@ -1321,7 +1321,7 @@ export const chatWithGem = onCall(
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId, attachedFiles, mediaAttachment } = request.data;
+    const { query, systemInstruction, history, categoryFilter, activeFileContent, activeFileName, isFallbackContext, filterScopePath, sessionId, attachedFiles, mediaAttachment, maxOutputTokens: requestedMaxTokens } = request.data;
 
     // 🟢 ALLOW EMPTY QUERY IF ATTACHMENT IS PRESENT
     if (!query && !mediaAttachment) {
@@ -1877,11 +1877,8 @@ ${contextText || "No se encontraron datos relevantes en la memoria."}
 [INSTRUCCIÓN]:
 Eres el co-autor de esta obra. Usa el Contexto Inmediato para continuidad, pero basa tus sugerencias profundas en la Memoria a Largo Plazo. Si el usuario pregunta algo, verifica si ya existe en la Memoria antes de inventar.
 
-[PROTOCOLO DE REDACCIÓN]:
-Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o párrafos completos:
-1. Redacta el contenido claramente.
-2. Invita al usuario a utilizar la herramienta de inserción (Botón "Insertar") para agregarlo al documento.
-3. EJEMPLO: "Aquí tienes una propuesta para la escena. Puedes usar el botón de insertar para agregarla directamente."
+[NOTA DE INTERFAZ]:
+Si el usuario quiere insertar texto en su documento, puede usar el botón 'Insertar' disponible en la interfaz.
       `;
 
       const promptFinal = `
@@ -1941,7 +1938,7 @@ Tu objetivo es ayudar al usuario a escribir. Cuando generes escenas, diálogos o
 
         const generationConfig = {
           temperature: TEMP_CREATIVE,
-          maxOutputTokens: 8192,
+          maxOutputTokens: requestedMaxTokens ?? 8192,
         };
 
         // --- 2. ATTEMPT 1: STANDARD CALL WITH TOOLS ---
