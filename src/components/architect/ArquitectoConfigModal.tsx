@@ -99,27 +99,14 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
                     {/* Sección Personalidad */}
                     <div className="flex flex-col gap-3">
                         <h3 className="text-[11px] font-mono tracking-wider uppercase text-titanium-500">{tArch.architectPersonality || "Personalidad del Arquitecto"}</h3>
-
-                        <label className="flex items-start justify-between cursor-pointer group">
-                            <div className="flex flex-col pr-4">
-                                <span className={`text-[14px] font-medium transition-colors ${implacableMode ? 'text-cyan-300' : 'text-titanium-300'}`}>
-                                    {tArch.implacableMode || "Modo Implacable"}
-                                </span>
-                                <span className="text-[12px] text-titanium-500 mt-1 leading-snug">
-                                    {tArch.implacableModeDesc || "Si se activa, el Arquitecto será extremadamente rígido con la continuidad y exigirá altos estándares de escritura en el interrogatorio."}
-                                </span>
-                            </div>
-                            <div className="relative inline-flex items-center h-5 w-10 shrink-0">
-                                <input
-                                    type="checkbox"
-                                    className="sr-only"
-                                    checked={implacableMode}
-                                    onChange={(e) => setImplacableMode(e.target.checked)}
-                                />
-                                <div className={`block w-10 h-6 rounded-full transition-colors ${implacableMode ? 'bg-cyan-600' : 'bg-titanium-800'}`}></div>
-                                <div className={`dot absolute left-1 top-1 bg-white w-4 h-4 rounded-full transition-transform ${implacableMode ? 'translate-x-4' : ''}`}></div>
-                            </div>
-                        </label>
+                        
+                        {/* 
+                            TODO: Implementar como temperature=0.0 + prompt de crítico literario cuando esté activo 
+                            Se oculta de la UI por falta de implementación en el backend.
+                        */}
+                        <p className="text-[12px] text-titanium-600 italic">
+                            Ajustes avanzados de personalidad se habilitarán en futuras actualizaciones.
+                        </p>
                     </div>
 
                     <div className="h-px bg-titanium-800/50 w-full" />
@@ -127,36 +114,11 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
                     {/* Sección Filtros RAG */}
                     <div className="flex flex-col gap-3">
                         <h3 className="text-[11px] font-mono tracking-wider uppercase text-titanium-500">{tArch.ragFilters || "Filtros de Conocimiento (RAG)"}</h3>
-                        <p className="text-[12px] text-titanium-500 mb-1 leading-snug">
-                            {tArch.ragFiltersDesc || "Define qué parte del canon será visible para el Arquitecto."}
+                        
+                        {/* TODO: Implementar filtrado RAG real antes de mostrar */}
+                        <p className="text-[12px] text-titanium-600 italic leading-snug">
+                            El Arquitecto actualmente utiliza todo el canon disponible para garantizar la máxima coherencia.
                         </p>
-
-                        <label className="flex items-center justify-between cursor-pointer group p-2 hover:bg-titanium-900 overflow-hidden rounded-lg transition-colors">
-                            <div className="flex items-center gap-3">
-                                <Users size={16} className={ragFilters.personajes ? "text-cyan-400" : "text-titanium-600"} />
-                                <span className={`text-[13px] ${ragFilters.personajes ? 'text-titanium-200' : 'text-titanium-500'}`}>{t.common?.charactersAndFactions || "Personajes y Facciones"}</span>
-                            </div>
-                            <input type="checkbox" className="w-4 h-4 rounded border-titanium-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-titanium-950 bg-titanium-900"
-                                checked={ragFilters.personajes} onChange={(e) => setRagFilters({ ...ragFilters, personajes: e.target.checked })} />
-                        </label>
-
-                        <label className="flex items-center justify-between cursor-pointer group p-2 hover:bg-titanium-900 overflow-hidden rounded-lg transition-colors">
-                            <div className="flex items-center gap-3">
-                                <BookOpen size={16} className={ragFilters.lore ? "text-cyan-400" : "text-titanium-600"} />
-                                <span className={`text-[13px] ${ragFilters.lore ? 'text-titanium-200' : 'text-titanium-500'}`}>{t.common?.worldAndLore || "Mundo y Lore"}</span>
-                            </div>
-                            <input type="checkbox" className="w-4 h-4 rounded border-titanium-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-titanium-950 bg-titanium-900"
-                                checked={ragFilters.lore} onChange={(e) => setRagFilters({ ...ragFilters, lore: e.target.checked })} />
-                        </label>
-
-                        <label className="flex items-center justify-between cursor-pointer group p-2 hover:bg-titanium-900 overflow-hidden rounded-lg transition-colors">
-                            <div className="flex items-center gap-3">
-                                <LayoutDashboard size={16} className={ragFilters.recursos ? "text-cyan-400" : "text-titanium-600"} />
-                                <span className={`text-[13px] ${ragFilters.recursos ? 'text-titanium-200' : 'text-titanium-500'}`}>{t.common?.resources || "Recursos (Inspiración)"}</span>
-                            </div>
-                            <input type="checkbox" className="w-4 h-4 rounded border-titanium-700 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-titanium-950 bg-titanium-900"
-                                checked={ragFilters.recursos} onChange={(e) => setRagFilters({ ...ragFilters, recursos: e.target.checked })} />
-                        </label>
                     </div>
 
                     <div className="h-px bg-titanium-800/50 w-full" />
@@ -167,7 +129,7 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
 
                         <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-4 flex flex-col gap-3">
                             <p className="text-[12px] text-red-300/80 leading-snug">
-                                {tArch.purgeRoadmapWarning || "Esto eliminará todo el progreso del Roadmap de esta sesión, forzando al Arquitecto a reiniciar desde la fase de Triage/Inquisidor."}
+                                Elimina todo el progreso de esta sesión y reinicia el Arquitecto desde cero. Esta acción no se puede deshacer.
                             </p>
                             <button
                                 onClick={() => {
@@ -186,7 +148,7 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
                                 {isDeleting ? (
                                     <><Loader2 size={14} className="animate-spin" /> {t.common?.purgingData || "Purgando datos..."}</>
                                 ) : (
-                                    <><Flame size={14} /> {tArch.reinitInitiation || "Reiniciar Rito de Inicialización"}</>
+                                    <><Flame size={14} /> {"Reiniciar Sesión del Arquitecto"}</>
                                 )}
                             </button>
                         </div>
