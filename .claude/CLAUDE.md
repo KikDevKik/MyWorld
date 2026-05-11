@@ -1,12 +1,29 @@
 # CLAUDE.md
 
-## 🚩 Protocolo de Comando Nanika
-Cuando detectes que el usuario pide una tarea de implementación, refactorización o corrección compleja:
-1. **NO** intentes ejecutar el código tú mismo.
-2. **Analiza** el contexto usando Repowise y ECC.
-3. **Redacta** una orden para Nanika usando este formato exacto:
-   `nanika run "mision: [Instrucción técnica detallada usando skills de ECC y rutas de Repowise]"`
-4. **Indica** al usuario que copie y pegue ese comando en su terminal para iniciar la misión.
+## 🚩 Protocolo de Operación y Gestión de Recursos
+Este ecosistema está diseñado para maximizar la eficiencia de tokens y la capacidad de ejecución, alternando entre **Claude Code (Motor Principal)** y **Gemini CLI (Reserva Táctica y Consultor)**.
+
+### 1. Claude Code / Nanika (Motor de Ejecución Primario):
+- **Rol:** Encargado principal de todo lo relacionado con el código, desde la planeación hasta la implementación masiva.
+- **Uso Preferente:** Tareas complejas, misiones multi-agente (vía Nanika) y flujos de trabajo que requieran alta razonamiento de ingeniería.
+- **Nanika:** Se utiliza para orquestar múltiples instancias de Claude Code cuando la tarea requiere una estructura de "misión" (fases, personas, validación).
+
+### 2. Gemini CLI (Reserva Táctica y Eficiencia):
+- **Rol:** Actúa como el soporte estratégico y ejecutor de bajo consumo.
+- **Cuándo invocar:**
+    - **Tareas Breves/Sencillas:** Cambios quirúrgicos o consultas rápidas que no justifican el gasto de tokens de Claude.
+    - **Agotamiento de Recursos:** Cuando Claude Code alcanza su límite de tokens o cuotas, Gemini CLI asume el control para dar continuidad al desarrollo.
+    - **Arquitecto de Herramientas:** Configuración y mantenimiento del ecosistema (Repowise, ECC, Traceplane).
+
+**Protocolo de Decisión:**
+1. Si la tarea es compleja → Usar **Claude Code** (o `nanika run` para orquestación).
+2. Si los tokens de Claude son escasos o la tarea es simple → Usar **Gemini CLI**.
+3. Gemini CLI debe estar preparado para recibir el contexto de una tarea iniciada en Claude para finalizarla si es necesario.
+
+### 🧠 Telemetría y Memoria (Traceplane)
+- **Estado:** Traceplane está desplegado en Docker (http://localhost:3000) como una plataforma de observación standalone (Caja Negra).
+- **Limitación Arquitectónica:** **NO** está configurado como servidor MCP. No intentes invocar herramientas de Traceplane ni leer su base de datos directamente.
+- **Uso:** Sirve exclusivamente como un dashboard visual para el usuario humano. Si sugieres una misión a Nanika, asume que la telemetría se manejará por fuera de tu contexto directo.
 
 <!-- Add your custom instructions below. Repowise will never modify anything outside the REPOWISE markers. -->
 
@@ -14,6 +31,7 @@ Cuando detectes que el usuario pide una tarea de implementación, refactorizaci�
 Este proyecto está vinculado al núcleo de inteligencia **Everything Claude Code (ECC)**. Para ejecutar flujos de trabajo avanzados, consulta las siguientes librerías de agentes y habilidades:
 
 - **Skills Library:** `D:\Dev\VibeCodingThings\Tools\everything-claude-code\skills`
+- **Google Cloud/Firebase Skills:** `D:\Dev\VibeCodingThings\Tools\everything-claude-code\skills\google-cloud`
 - **Commands Library:** `D:\Dev\VibeCodingThings\Tools\everything-claude-code\commands`
 - **Agents Definition:** `D:\Dev\VibeCodingThings\Tools\everything-claude-code\agents`
 
