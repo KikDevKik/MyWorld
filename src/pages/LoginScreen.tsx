@@ -38,12 +38,23 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
         const auth = getAuth();
         const provider = new GoogleAuthProvider();
+        
+        const stateToken = crypto.randomUUID();
+        sessionStorage.setItem('oauth_state', stateToken);
+        
         provider.addScope('https://www.googleapis.com/auth/drive.file');
-        provider.setCustomParameters({ prompt: 'consent' });
+        provider.setCustomParameters({ 
+            prompt: 'consent',
+            state: stateToken
+        });
 
         try {
             await setPersistence(auth, browserLocalPersistence);
             const result = await signInWithPopup(auth, provider);
+            
+            const savedState = sessionStorage.getItem('oauth_state');
+            sessionStorage.removeItem('oauth_state');
+            
             const credential = GoogleAuthProvider.credentialFromResult(result);
             const token = credential?.accessToken ?? null;
             onLoginSuccess(result.user, token);
