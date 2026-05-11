@@ -1,29 +1,33 @@
 # CLAUDE.md
 
 ## 🚩 Protocolo de Operación y Gestión de Recursos
-Este ecosistema está diseñado para maximizar la eficiencia de tokens y la capacidad de ejecución, alternando entre **Claude Code (Motor Principal)** y **Gemini CLI (Reserva Táctica y Consultor)**.
+Este ecosistema está diseñado para maximizar la eficiencia de tokens y la capacidad de ejecución, alternando entre **Claude Code (Motor de Ingeniería)** y **Gemini CLI (Soporte Estratégico y Ejecución)**.
 
-### 1. Claude Code / Nanika (Motor de Ejecución Primario):
-- **Rol:** Encargado principal de todo lo relacionado con el código, desde la planeación hasta la implementación masiva.
-- **Uso Preferente:** Tareas complejas, misiones multi-agente (vía Nanika) y flujos de trabajo que requieran alta razonamiento de ingeniería.
-- **Nanika:** Se utiliza para orquestar múltiples instancias de Claude Code cuando la tarea requiere una estructura de "misión" (fases, personas, validación).
+### 1. Claude Code (Ejecución y Razonamiento Complejo):
+- **Rol:** Encargado de la implementación de lógica compleja, refactorizaciones masivas y resolución de problemas que requieran un razonamiento de ingeniería profundo.
+- **Uso Preferente:** Desarrollo de nuevas funcionalidades, depuración de lógica de negocio y arquitectura de sistemas.
 
-### 2. Gemini CLI (Reserva Táctica y Eficiencia):
-- **Rol:** Actúa como el soporte estratégico y ejecutor de bajo consumo.
+### 2. Gemini CLI (Orquestación, Soporte y Eficiencia):
+- **Rol:** Actúa como el soporte estratégico, ejecutor de bajo consumo y orquestador del entorno.
 - **Cuándo invocar:**
-    - **Tareas Breves/Sencillas:** Cambios quirúrgicos o consultas rápidas que no justifican el gasto de tokens de Claude.
-    - **Agotamiento de Recursos:** Cuando Claude Code alcanza su límite de tokens o cuotas, Gemini CLI asume el control para dar continuidad al desarrollo.
-    - **Arquitecto de Herramientas:** Configuración y mantenimiento del ecosistema (Repowise, ECC, Traceplane).
+    - **Tareas Quirúrgicas:** Cambios específicos en 1-2 archivos, correcciones menores de estilo o sintaxis.
+    - **Gestión del Entorno:** Configuración de herramientas (Repowise, Firebase), mantenimiento de documentación y auditorías de seguridad.
+    - **Reserva Táctica:** Cuando Claude Code alcanza límites de cuota, Gemini CLI asume el control para dar continuidad al flujo de trabajo.
+
+### 3. Protocolo de Ejecución Directa:
+1. **Evaluación de Complejidad:** El usuario o el agente inicial determina si la tarea requiere el razonamiento profundo de Claude Code o la agilidad de Gemini CLI.
+2. **Transferencia de Contexto:** Gemini CLI puede preparar el terreno (investigación, lectura de archivos) para que Claude Code entre a ejecutar, o viceversa, Gemini CLI puede finalizar y validar tareas iniciadas por Claude.
+3. **Validación:** Independientemente del agente, toda ejecución debe terminar con una fase de validación (tests, linting, build) antes de considerarse completa.
 
 **Protocolo de Decisión:**
-1. Si la tarea es compleja → Usar **Claude Code** (o `nanika run` para orquestación).
-2. Si los tokens de Claude son escasos o la tarea es simple → Usar **Gemini CLI**.
-3. Gemini CLI debe estar preparado para recibir el contexto de una tarea iniciada en Claude para finalizarla si es necesario.
+1. Si la tarea es de alta complejidad técnica o estructural → Usar **Claude Code**.
+2. Si la tarea es simple, administrativa o de soporte → Usar **Gemini CLI**.
+3. Si los tokens de Claude son escasos → Usar **Gemini CLI** como relevo táctico.
 
 ### 🧠 Telemetría y Memoria (Traceplane)
 - **Estado:** Traceplane está desplegado en Docker (http://localhost:3000) como una plataforma de observación standalone (Caja Negra).
 - **Limitación Arquitectónica:** **NO** está configurado como servidor MCP. No intentes invocar herramientas de Traceplane ni leer su base de datos directamente.
-- **Uso:** Sirve exclusivamente como un dashboard visual para el usuario humano. Si sugieres una misión a Nanika, asume que la telemetría se manejará por fuera de tu contexto directo.
+- **Uso:** Sirve exclusivamente como un dashboard visual para el usuario humano. La telemetría se maneja por fuera del contexto directo de los agentes.
 
 <!-- Add your custom instructions below. Repowise will never modify anything outside the REPOWISE markers. -->
 
