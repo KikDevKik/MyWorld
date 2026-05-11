@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge } from 'lucide-react';
+import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
 import { PendingItem } from '../types/roadmap';
@@ -60,6 +60,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
     // Welcome card (primera visita)
     const [showWelcome, dismissWelcome] = useToolWelcome('arquitecto', folderId);
+    const [forceShowOverlay, setForceShowOverlay] = useState(false);
 
     // File Attachment State
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -321,8 +322,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
 
             {/* First-visit overlay — upper right, non-blocking */}
-            {showWelcome && (
-                <ArquitectoWelcomeOverlay onDismiss={dismissWelcome} />
+            {(showWelcome || forceShowOverlay) && (
+                <ArquitectoWelcomeOverlay onDismiss={() => { dismissWelcome(); setForceShowOverlay(false); }} />
             )}
 
             {/* Top Drawer: Pendientes — solo en estado chat */}
@@ -808,13 +809,25 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </span>
                         </button>
 
-                        <button 
+                        <button
                             onClick={() => setActiveTool(activeTool === 'settings' ? 'none' : 'settings')}
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
                         >
                             <Settings size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
                                 Ajustes
+                            </span>
+                        </button>
+
+                        <div className="w-full h-px bg-titanium-800/60 mx-auto" style={{ width: '60%', marginLeft: '20%' }} />
+
+                        <button
+                            onClick={() => setForceShowOverlay(true)}
+                            className="w-10 h-10 flex items-center justify-center rounded-full transition-all group relative text-titanium-600 hover:text-cyan-400 hover:bg-titanium-800/50"
+                        >
+                            <HelpCircle size={18} />
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+                                Tour del panel
                             </span>
                         </button>
 
