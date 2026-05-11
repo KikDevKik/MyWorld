@@ -358,8 +358,10 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                     <div className="p-2 bg-cyan-500/10 rounded-lg">
                         <Printer className="text-cyan-400" size={20} />
                     </div>
-                    <div>
-                        <h2 className="text-lg font-bold text-white tracking-wide">{t.title} <span className="text-xs text-titanium-500 font-normal ml-2">{t.version}</span></h2>
+                    <div className="flex items-center gap-3">
+                        <h2 className="text-lg font-bold text-white tracking-wide">{t.title}</h2>
+                        <span className="px-2 py-0.5 bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9px] font-mono tracking-[0.12em] uppercase rounded-md cursor-help" title="Esta herramienta está en desarrollo activo. Tu feedback ayuda a mejorarla.">ALPHA</span>
+                        <span className="text-xs text-titanium-500 font-normal">{t.version}</span>
                     </div>
                 </div>
             </div>
