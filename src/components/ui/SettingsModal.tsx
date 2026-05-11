@@ -1150,6 +1150,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 </div>
                             </div>
 
+                            {/* Sponsors Hall of Fame */}
+                            <Credits />
+
                             {/* Legal Notice */}
                             <div className="p-4 border-l-2 border-violet-500/50 bg-violet-950/10 rounded-r-xl space-y-2">
                                 <h5 className="text-xs font-bold text-violet-300 uppercase tracking-widest">{t.legal}</h5>

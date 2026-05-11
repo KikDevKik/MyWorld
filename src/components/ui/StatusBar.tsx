@@ -419,6 +419,14 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 </div>
 
                 <button
+                    onClick={() => window.dispatchEvent(new CustomEvent('OPEN_SETTINGS_MODAL', { detail: { tab: 'info' } }))}
+                    className="text-[9px] uppercase tracking-wider font-bold text-titanium-600 hover:text-cyan-400 transition-colors mx-2"
+                    title="Créditos y Sponsors"
+                >
+                    Sponsors
+                </button>
+
+                <button
                     ref={settingsButtonRef}
                     onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                     className="p-1 hover:bg-titanium-800 rounded text-titanium-500 hover:text-white transition-colors focus-visible:ring-2 focus-visible:ring-emerald-500/50 outline-none"
