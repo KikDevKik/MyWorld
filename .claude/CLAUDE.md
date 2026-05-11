@@ -17,7 +17,8 @@ Este ecosistema está diseñado para maximizar la eficiencia de tokens y la capa
 ### 3. Protocolo de Ejecución Directa:
 1. **Evaluación de Complejidad:** El usuario o el agente inicial determina si la tarea requiere el razonamiento profundo de Claude Code o la agilidad de Gemini CLI.
 2. **Transferencia de Contexto:** Gemini CLI puede preparar el terreno (investigación, lectura de archivos) para que Claude Code entre a ejecutar, o viceversa, Gemini CLI puede finalizar y validar tareas iniciadas por Claude.
-3. **Validación:** Independientemente del agente, toda ejecución debe terminar con una fase de validación (tests, linting, build) antes de considerarse completa.
+3. **Análisis de Fiabilidad (Pre-mortem):** `D:\Dev\VibeCodingThings\Tools\everything-claude-code\skills\pre-mortem-control.md`. Cuando el operador solicite evaluar riesgos, puntos ciegos o realizar un pre-mortem, redacta el comando de Claude Code ordenándole asimilar explícitamente este archivo.
+4. **Validación:** Independientemente del agente, toda ejecución debe terminar con una fase de validación (tests, linting, build) antes de considerarse completa.
 
 **Protocolo de Decisión:**
 1. Si la tarea es de alta complejidad técnica o estructural → Usar **Claude Code**.
