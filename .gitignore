@@ -11,6 +11,11 @@ lerna-debug.log*
 .env.*
 firebase-debug.log
 
+# Agent & Orchestration
+ECC_INDEX.md
+.gemini_session.md
+.gemini/
+
 node_modules
 dist
 dist-ssr

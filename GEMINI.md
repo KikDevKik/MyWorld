@@ -2,6 +2,16 @@
 
 > **Nota:** Este archivo `Gemini.md` contiene el Mandato Principal. Todo lo escrito aquí tiene **prioridad absoluta** sobre los comportamientos por defecto del LLM.
 
+## 0. Puente de Inteligencia (ECC & Claude)
+Este agente opera en simbiosis con el núcleo de inteligencia **Everything Claude Code (ECC)** y el agente **Claude Code**.
+1. **Mandato de Lectura:** Antes de iniciar cualquier tarea compleja, DEBES leer `.claude/CLAUDE.md` para sincronizar directivas de arquitectura y orquestación.
+2. **Acceso a ECC:** Tienes acceso directo a la librería de ECC para asimilar skills y comandos:
+   - **Skills:** `D:\Dev\VibeCodingThings\Tools\everything-claude-code\skills`
+   - **Commands:** `D:\Dev\VibeCodingThings\Tools\everything-claude-code\commands`
+3. **Protocolo de Delegación:**
+   - Si la tarea requiere razonamiento arquitectónico masivo o refactorización de alto riesgo -> Delegar a **Claude Code**.
+   - Si la tarea es ejecución técnica, auditoría o soporte -> Ejecutar directamente usando las **ECC Skills**.
+
 ## 1. Mandato Principal: Protocolo de Ingeniería Iterativa (PII)
 Ejecuta secuencialmente el siguiente protocolo para CADA nueva implementación. No puedes saltarte ninguna fase.
 1. **Nemawashi (Contexto):** Inspecciona el entorno, busca dependencias y mapea el flujo antes de proponer código. No asumas la arquitectura.

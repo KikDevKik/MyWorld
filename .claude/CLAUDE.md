@@ -116,4 +116,123 @@ This project has a Repowise MCP server configured. These tools provide documenta
 - Build: `pnpm build`
 - Dev: `pnpm dev`
 
+
+
+
+
+
 <!-- REPOWISE:END -->
+
+
+Perfecto. Veo que ya tienes un CLAUDE.md en .repowise/CLAUDE.md. Voy a crear una sección nueva y modular que se integre limpiamente con lo existente.
+Aquí está el bloque exacto para insertar en tu CLAUDE.md del proyecto:
+
+📍 DÓNDE GUARDARLO
+Ubicación: En .repowise/CLAUDE.md (que es donde vive el contexto de tu proyecto)
+Posición exacta: Después de la sección ## 🤖 External Intelligence Orchestration (ECC) (después de los comandos /plan y /tdd)
+
+📝 EL BLOQUE A INSERTAR
+markdown---
+
+## 🧠 INTEGRACIÓN AUTOMÁTICA CON EVERYTHING CLAUDE CODE (ECC)
+
+### Sistema de Consulta Automática — NotebookLM MCP Integration
+
+**Activación:** Este sistema se ejecuta automáticamente en TODAS las interacciones. No requiere solicitud explícita del usuario.
+
+### Cuándo activarse (SIEMPRE que el usuario pida algo que implique):
+- Implementar una feature o funcionalidad
+- Resolver un problema o debugging
+- Crear un workflow o automatización
+- Investigar o entender un sistema
+- Tomar una decisión técnica o arquitectónica
+- Optimizar o refactorizar código
+- Documentar o estructurar un proceso
+
+### El flujo automático:
+
+**Paso 1: Detección silenciosa**
+Cuando el usuario pida algo, antes de responder, pregúntate internamente:
+- "¿Hay un skill en ECC que acelere esto?"
+- "¿Hay un agent que ya maneje esto?"
+- "¿Hay un pattern documentado en ECC para esto?"
+
+**Paso 2: Consulta NotebookLM (transparente)**
+Si la respuesta es "posiblemente", llama automáticamente:
+notebook_query("¿Qué skills, agents o commands en ECC podrían ayudar con [descripción breve de lo que usuario pide]?")
+
+**Paso 3: Enriquecimiento de contexto**
+Basándote en la respuesta de NotebookLM:
+- Si existen skills/agents relevantes: **inclúyelos en tu plan**
+- Si existen patterns relevantes: **refierenciálos en tu análisis**
+- Si existen commands: **menciónálos como opciones de ejecución**
+- Si NADA existe: **sugiere crear uno nuevo** (con especificación basada en CLAUDE.md)
+
+**Paso 4: Respuesta integrada**
+Tu respuesta debe incluir siempre:
+1. **Análisis del problema** (tu comprensión)
+2. **Lo que existe en ECC** (skills/agents/commands relevantes)
+3. **Cómo ECC acelera la solución** (mapeo específico)
+4. **Pasos de ejecución** (via Claude Code, chat, o CLI)
+5. **Alternativas si ECC no cubre todo** (qué más se necesita)
+
+### Ejemplos de activación:
+
+**Escenario 1: Usuario dice "Necesito un análisis de premortem para mi plan"**
+- Detección: "Esto suena a evaluación de riesgos"
+- Consulta: `notebook_query("¿Qué skills existen para análisis de premortem o evaluación de riesgos?")`
+- NotebookLM responde: "Existe premortem_skill.md que..."
+- Tu respuesta incluye: El skill de ECC como opción principal + instrucción de ejecución
+
+**Escenario 2: Usuario dice "Estoy rediseñando mi BD, cómo la estructuro"**
+- Detección: "Esto es decisión arquitectónica"
+- Consulta: `notebook_query("¿Qué agents o skills existen para análisis/diseño de base de datos?")`
+- NotebookLM responde: "Existe architect_agent que..." o "No hay nada específico"
+- Tu respuesta: Propone el architect_agent si existe, o sugiere crear uno + explicación
+
+**Escenario 3: Usuario dice "¿Cómo debugging esto?" o "¿Por qué esto no funciona?"**
+- Detección: "Esto es troubleshooting"
+- Consulta: `notebook_query("¿Qué skills o commands en ECC ayudan con debugging o análisis de código?")`
+- NotebookLM responde: "Existe debug_skill..." o "No hay"
+- Tu respuesta: Integra la herramienta si existe, o haz debugging manual + sugiere crear skill
+
+### Regla de oro:
+
+**NUNCA inventar ni ofrecer algo como solución si NO lo has confirmado en NotebookLM.**
+
+Si NotebookLM dice "no existe", entonces:
+- Ofrece la solución manual/general
+- O sugiere crear el skill/agent (con spec basada en CLAUDE.md)
+- O pregunta al usuario si quiere que cree uno
+
+### Transparencia:
+
+Es OK decir al usuario:
+- "Dejame revisar qué tienes en ECC para esto..."
+- "Revisé ECC y encontré que [skill] encaja perfectamente"
+- "En ECC no existe nada para [cosa], así que aquí va la solución manual..."
+- "¿Quieres que cree un skill específico para [tarea recurrente]?"
+
+### Lo que esto NO es:
+
+- NO es: "Siempre pregunta al usuario si quiere usar ECC"
+- SÍ es: "Automáticamente reviso ECC antes de responder, integro lo que encuentro sin mencionarlo a menos que sea relevante"
+
+- NO es: "Ralentiza todas las respuestas"
+- SÍ es: "Es una consulta rápida, paralela a mi pensamiento normal"
+
+- NO es: "Fuerza el uso de ECC"
+- SÍ es: "Si ECC tiene algo que acelera la solución, lo incluyo; si no, doy la mejor solución igual"
+
+---
+
+### NotebookLM Notebooks Disponibles:
+
+**Estos son tus notebooks con la documentación de ECC:**
+- `Everything-Claude-Code` — Documentación completa de skills, agents, commands
+- (Actualiza esta lista si agregas más notebooks)
+
+**Sintaxis para queries:**
+notebook_query("[pregunta específica sobre lo que buscas]", "Everything-Claude-Code")
+
+---
