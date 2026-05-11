@@ -14,6 +14,7 @@ import { useTier, TierMode } from '../../hooks/useTier';
 import { getAuth } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
+import Credits from './Credits';
 
 interface SettingsModalProps {
     onClose: () => void;

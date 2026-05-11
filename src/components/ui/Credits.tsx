@@ -9,7 +9,7 @@ const sponsors = {
     lector: []
 };
 
-export const Credits: React.FC = () => {
+const Credits: React.FC = () => {
     const renderSponsorList = (list: { name: string, url: string }[], emptyText: string) => {
         if (list.length === 0) {
             return (
@@ -51,3 +51,5 @@ export const Credits: React.FC = () => {
         </div>
     );
 };
+
+export default Credits;
