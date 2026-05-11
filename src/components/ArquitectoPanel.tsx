@@ -19,9 +19,8 @@ import WelcomeState from './architect/WelcomeState';
 import { useArquitectoStore } from '../stores/useArquitectoStore';
 import ArquitectoFocusSelector, { FOCUS_OPTIONS } from './architect/ArquitectoFocusSelector';
 import { toast } from 'sonner';
-import { ToolWelcomeCard } from './ToolWelcomeCard';
-import { getToolWelcomes } from '../config/toolWelcomes';
 import { useToolWelcome } from '../hooks/useToolWelcome';
+import { ArquitectoWelcomeOverlay } from './architect/ArquitectoWelcomeOverlay';
 import { useTier } from '../hooks/useTier';
 import { AIMotorBlockedOverlay } from './ui/AIMotorBlockedOverlay';
 import { useLanguageStore } from '../stores/useLanguageStore';
@@ -321,6 +320,11 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     return (
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
 
+            {/* First-visit overlay — upper right, non-blocking */}
+            {showWelcome && (
+                <ArquitectoWelcomeOverlay onDismiss={dismissWelcome} />
+            )}
+
             {/* Top Drawer: Pendientes — solo en estado chat */}
             {panelView === 'chat' && (
                 <div className={`w-full shrink-0 z-30 overflow-y-auto custom-scrollbar transition-all duration-300 ease-in-out ${isPendingDrawerOpen ? 'max-h-[55vh] opacity-100' : 'max-h-0 opacity-0 pointer-events-none'}`}>
@@ -488,14 +492,6 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         {Math.min(sessionResolved, 10)}/10
                     </span>
                 </div>
-            )}
-
-            {/* Welcome card — primera visita */}
-            {showWelcome && (
-                <ToolWelcomeCard
-                    {...getToolWelcomes(t).arquitecto}
-                    onDismiss={dismissWelcome}
-                />
             )}
 
             {/* Main Workspace Area */}
