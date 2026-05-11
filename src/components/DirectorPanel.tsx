@@ -15,6 +15,8 @@ import { callFunction } from '../services/api';
 import { useTier } from '../hooks/useTier';
 import { AIMotorBlockedOverlay } from './ui/AIMotorBlockedOverlay';
 import ChatInput from './ui/ChatInput';
+import { DirectorWelcomeOverlay } from './director/DirectorWelcomeOverlay';
+import { useToolWelcome } from '../hooks/useToolWelcome';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
 
@@ -89,6 +91,8 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
         folderId,
         userId: user?.uid
     });
+
+    const [showWelcome, dismissWelcome] = useToolWelcome('director', folderId);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
@@ -305,6 +309,11 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
 
                 {/* COL 2: CHAT STREAM (CENTER) */}
                 <div className="flex-1 h-full flex flex-col min-w-0 overflow-hidden relative">
+
+                    {/* First-visit overlay — upper right, non-blocking */}
+                    {showWelcome && (
+                        <DirectorWelcomeOverlay onDismiss={dismissWelcome} />
+                    )}
 
                     <div className="director-chat-container flex-1 overflow-y-auto p-4 space-y-2">
                         {isLoadingHistory ? (
