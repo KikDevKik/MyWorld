@@ -1,0 +1,86 @@
+# MyWorld
+
+> MyWorld is a Creative IDE for writers and worldbuilders building fictional universes.
+> It is a web application powered by Google Gemini AI, available at https://myworldhistory.site/
+
+## What MyWorld Does
+
+MyWorld is an all-in-one creative writing platform designed for fiction writers, worldbuilders,
+lore creators, and fanfic writers. It combines an intelligent editor with AI-powered tools that
+understand your fictional universe and help you maintain consistency across your stories.
+
+## Core Tools
+
+- **El Arquitecto (The Architect)**: An AI writing assistant that knows your world's canon.
+  Offers panels for character notes, world patches, maps, lore, and settings.
+
+- **La Forja de Almas (The Soul Forge)**: Entity management system that scans your files and
+  organizes characters, creatures, and flora into three tiers:
+  - Ecos (Echoes): mentioned characters without a profile yet
+  - Limbos (Limbo): entities flagged for profile creation
+  - Anclas (Anchors): fully profiled entities that anchor your universe
+
+- **El Director (The Director)**: A Socratic AI that asks questions to help you develop your
+  narrative, characters, and plot structure.
+
+- **El Nexus (The Nexus)**: An interactive knowledge graph that visualizes entities and their
+  relationships across your fictional world.
+
+- **Guardián del Cánon (Canon Guardian)**: Real-time consistency checker that detects
+  contradictions, character drift, and logic fractures as you write.
+
+- **Tribunal Literario (Literary Tribunal)**: Three independent AI judges — the Architect
+  (structure), the Bard (emotion), and the Hater (brutal critique) — score and analyze your writing.
+
+- **Laboratorio de Ideas (Idea Lab)**: A chat interface that indexes your resource files and
+  lets you discuss, develop, and crystallize ideas into your project.
+
+- **La Imprenta (The Press)**: Compiles your project into a publication-ready PDF with cover,
+  table of contents, and public authorship certificates.
+
+- **Radar de Cánon (Canon Radar)**: Audits your entire project for cross-file paradoxes and
+  narrative inconsistencies.
+
+## Target Users
+
+- Fiction writers (short stories, novels, series)
+- Worldbuilders creating fictional universes, magic systems, and lore
+- Fanfic writers building on existing universes
+- Game designers creating narrative settings (TTRPG, video games)
+- Screenwriters developing characters and story bibles
+
+## Languages & Markets
+
+- Primary: Spanish (LATAM), English (US)
+- Secondary: Japanese
+
+## Technology
+
+- Frontend: React + TypeScript + Vite + Tailwind CSS
+- AI: Google Gemini (gemini-2.0-flash, gemini-1.5-pro)
+- Backend: Firebase Functions (Node.js)
+- Storage: Google Drive (user files), Firestore (metadata)
+- Authentication: Google OAuth
+
+## Key Differentiators
+
+1. **Universe-aware AI**: The AI always has context from your canon files — it doesn't just
+   write generic prose, it writes IN your world.
+2. **Canon enforcement**: The guardian system actively prevents plot holes and character
+   inconsistencies.
+3. **Manuscript export**: Full publishing pipeline from raw markdown to formatted PDF with
+   public authorship certificate.
+4. **No lock-in**: Your files live in Google Drive. MyWorld reads and writes to your Drive;
+   you own everything.
+
+## URLs
+
+- App: https://myworldhistory.site/
+- Privacy: https://myworldhistory.site/privacy.html
+- Terms: https://myworldhistory.site/terms.html
+- Certificate verification: https://myworldhistory.site/verify/{certificateId}
+
+## Optional Resources
+
+- Sitemap: https://myworldhistory.site/sitemap.xml
+- Robots: https://myworldhistory.site/robots.txt

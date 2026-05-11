@@ -12,6 +12,8 @@ import {
     BookOpen,
     Shield
 } from 'lucide-react';
+import { ExportWelcomeOverlay } from './export/ExportWelcomeOverlay';
+import { useToolWelcome } from '../hooks/useToolWelcome';
 import { toast } from 'sonner';
 import { useProjectConfig } from "../contexts/ProjectConfigContext";
 import { CreativeAuditService } from '../services/CreativeAuditService';
@@ -167,6 +169,8 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     const [auditFormat, setAuditFormat] = useState<'txt' | 'md' | 'pdf'>('txt');
     const [certificateLink, setCertificateLink] = useState<string | null>(null);
     const [isGeneratingCert, setIsGeneratingCert] = useState(false);
+    const [tourHighlight, setTourHighlight] = useState<string | null>(null);
+    const [showExportTour, dismissExportTour] = useToolWelcome('imprenta', folderId);
 
     // OPTIONS STATE
     const [options, setOptions] = useState<ExportOptions>({
@@ -347,7 +351,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
     };
 
     return (
-        <div className="w-full h-full bg-titanium-950 flex flex-col animate-fade-in overflow-hidden">
+        <div className="w-full h-full bg-titanium-950 flex flex-col animate-fade-in overflow-hidden relative">
             {/* HEADER */}
             <div className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 bg-titanium-900/50">
                 <div className="flex items-center gap-3">
@@ -362,7 +366,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
 
             <div className="flex-1 flex overflow-hidden">
                 {/* ZONE A: COMPOSITION (LEFT 60%) */}
-                <div className="w-[60%] border-r border-titanium-800 flex flex-col bg-titanium-900/20">
+                <div className={`w-[60%] border-r flex flex-col bg-titanium-900/20 transition-all ${tourHighlight === 'files' ? 'border-cyan-500/50 shadow-[inset_0_0_20px_rgba(6,182,212,0.07)]' : 'border-titanium-800'}`}>
                     <div className="p-4 border-b border-titanium-800 bg-titanium-900/30 flex justify-between items-center">
                         <h3 className="text-xs font-bold text-titanium-400 uppercase tracking-wider">{t.composition}</h3>
                         <span className="text-xs text-cyan-500 font-mono">{selectedFileIds.size} {t.files}</span>
@@ -396,7 +400,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                 </div>
 
                 {/* ZONE B: SETTINGS (RIGHT 40%) */}
-                <div className="w-[40%] flex flex-col bg-titanium-800/10">
+                <div className={`w-[40%] flex flex-col bg-titanium-800/10 transition-all ${tourHighlight === 'meta' ? 'shadow-[inset_0_0_20px_rgba(6,182,212,0.05)]' : ''}`}>
                     <div className="p-4 border-b border-titanium-800 bg-titanium-900/30">
                         <h3 className="text-xs font-bold text-titanium-400 uppercase tracking-wider">{t.settings}</h3>
                     </div>
@@ -501,6 +505,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                                         ? 'bg-titanium-700 cursor-not-allowed opacity-70'
                                         : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 shadow-red-900/20 hover:shadow-red-900/40 hover:scale-[1.02]'
                                     }
+                                    ${tourHighlight === 'compile' ? 'ring-2 ring-red-400/60 ring-offset-1 ring-offset-titanium-950 shadow-[0_0_20px_rgba(239,68,68,0.3)]' : ''}
                                 `}
                             >
                                 {isCompiling ? (
@@ -532,7 +537,7 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                         )}
 
                         {/* LEGAL AUDIT & PUBLIC CERTIFICATE */}
-                        <div className="mt-4 p-3 bg-titanium-900/40 rounded-lg border border-titanium-800 space-y-3">
+                        <div className={`mt-4 p-3 bg-titanium-900/40 rounded-lg border space-y-3 transition-all ${tourHighlight === 'cert' ? 'border-cyan-500/40 shadow-[0_0_14px_rgba(6,182,212,0.15)]' : 'border-titanium-800'}`}>
                             <div>
                                 <label className="text-[10px] text-titanium-500 font-bold uppercase mb-2 block">{t.reportFormat}</label>
                                 <div className="flex gap-2">
@@ -612,6 +617,13 @@ const ExportPanel: React.FC<ExportPanelProps> = ({ onClose, folderId, accessToke
                     </div>
                 </div>
             </div>
+
+            {showExportTour && (
+                <ExportWelcomeOverlay
+                    onDismiss={dismissExportTour}
+                    onHighlight={setTourHighlight}
+                />
+            )}
         </div>
     );
 };

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { X, Scale, Gavel, Feather, Skull, Loader2, FileText, Type, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Scale, Gavel, Feather, Skull, Loader2, FileText, Type, Maximize2, Minimize2, HelpCircle } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { callFunction } from '../services/api';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
+import { TribunalWelcomeOverlay } from './tribunal/TribunalWelcomeOverlay';
+import { useToolWelcome } from '../hooks/useToolWelcome';
 
 interface TribunalPanelProps {
     onClose: () => void;
@@ -45,6 +47,9 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
     const [mode, setMode] = useState<'manual' | 'file'>('manual');
     const [isExpanded, setIsExpanded] = useState(false);
     const [expandedCritiques, setExpandedCritiques] = useState<Set<string>>(new Set());
+    const [tourHighlight, setTourHighlight] = useState<string | null>(null);
+    const [showTribunalTour, dismissTribunalTour] = useToolWelcome('tribunal');
+    const [forceShowTour, setForceShowTour] = useState(false);
 
     // ESC collapses expanded mode
     useEffect(() => {
@@ -164,7 +169,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 : 'border-b border-titanium-800'
         }`}>
             {/* Mode toggle */}
-            <div className="flex bg-titanium-900 p-1 rounded-lg border border-titanium-800"
+            <div className={`flex bg-titanium-900 p-1 rounded-lg border transition-all ${tourHighlight === 'tabs' ? 'border-red-500/50 shadow-[0_0_14px_rgba(239,68,68,0.2)]' : 'border-titanium-800'}`}
                 role="radiogroup" aria-label="Selector de modo de entrada">
                 <button
                     onClick={() => setMode('manual')}
@@ -189,7 +194,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
             </div>
 
             {/* Main input area */}
-            <div className="flex flex-col gap-2" style={{ minHeight: isExpanded ? '200px' : '180px' }}>
+            <div className={`flex flex-col gap-2 rounded-lg transition-all ${tourHighlight === 'text' ? 'ring-1 ring-red-500/40' : ''}`} style={{ minHeight: isExpanded ? '200px' : '180px' }}>
                 <label className="text-xs font-bold text-titanium-400 uppercase tracking-widest">
                     {mode === 'manual' ? t.textLabel : t.fileLabel}
                 </label>
@@ -229,7 +234,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
             </div>
 
             {/* Context field */}
-            <div className="flex flex-col gap-2">
+            <div className={`flex flex-col gap-2 rounded-lg transition-all ${tourHighlight === 'context' ? 'ring-1 ring-red-500/40' : ''}`}>
                 <label className="text-xs font-bold text-titanium-400 uppercase tracking-widest">{t.contextLabel}</label>
                 <textarea
                     value={context}
@@ -244,7 +249,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
             <button
                 onClick={handleSummon}
                 disabled={isLoading || (mode === 'manual' && !text.trim()) || (mode === 'file' && !currentFileId)}
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-900/20 hover:shadow-red-900/40 transform hover:-translate-y-0.5">
+                className={`bg-red-600 hover:bg-red-700 text-white px-6 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-900/20 hover:shadow-red-900/40 transform hover:-translate-y-0.5 ${tourHighlight === 'summon' ? 'ring-2 ring-red-400/70 ring-offset-1 ring-offset-[#111114] shadow-[0_0_18px_rgba(239,68,68,0.4)]' : ''}`}>
                 {isLoading ? <Loader2 className="animate-spin" /> : <Gavel size={20} />}
                 <span className="tracking-widest">{isLoading ? t.deliberating : t.summonButton}</span>
             </button>
@@ -276,7 +281,7 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
     );
 
     const panelContent = (
-        <div className="w-full h-full flex flex-col text-titanium-100"
+        <div className="w-full h-full flex flex-col text-titanium-100 relative"
             style={{ overflow: 'hidden', maxWidth: '100%', background: '#0c0c0e' }}>
             {/* Header */}
             <div className="h-16 flex items-center justify-between px-6 border-b border-titanium-800 bg-titanium-900 shadow-md z-10 shrink-0">
@@ -285,6 +290,13 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                     <h2 className="font-bold text-xl text-titanium-100 tracking-wider">{t.title}</h2>
                 </div>
                 <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => { setForceShowTour(true); setTourHighlight(null); }}
+                        className="p-2 hover:bg-titanium-800 rounded-full text-titanium-600 hover:text-titanium-300 transition-colors"
+                        aria-label="Ver tour"
+                        title="Ver tour">
+                        <HelpCircle size={16} />
+                    </button>
                     <button
                         onClick={() => setIsExpanded(v => !v)}
                         className="p-2 hover:bg-titanium-800 rounded-full text-titanium-400 hover:text-white transition-colors"
@@ -306,6 +318,14 @@ const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = ''
                 {inputSection}
                 {verdictsSection}
             </div>
+
+            {/* Tour overlay */}
+            {(showTribunalTour || forceShowTour) && (
+                <TribunalWelcomeOverlay
+                    onDismiss={() => { dismissTribunalTour(); setForceShowTour(false); setTourHighlight(null); }}
+                    onHighlight={setTourHighlight}
+                />
+            )}
         </div>
     );
 

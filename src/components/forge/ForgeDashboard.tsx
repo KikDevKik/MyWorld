@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAuth } from 'firebase/auth';
-import { Loader2, RefreshCw, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle, User, PawPrint, ExternalLink, MapPin, Box } from 'lucide-react';
+import { Loader2, FlaskConical, Settings, Ghost, FileEdit, Anchor, Trash2, AlertTriangle, User, PawPrint, ExternalLink, MapPin, Box } from 'lucide-react';
 import { toast } from 'sonner';
 import { DndContext, DragEndEvent, DragOverlay, useDraggable, useDroppable, useSensor, useSensors, PointerSensor, DragStartEvent } from '@dnd-kit/core';
 
@@ -16,9 +16,8 @@ import { callFunction } from '../../services/api';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import { EntityService } from '../../services/EntityService';
-import { ToolWelcomeCard } from '../ToolWelcomeCard';
-import { getToolWelcomes } from '../../config/toolWelcomes';
 import { useToolWelcome } from '../../hooks/useToolWelcome';
+import { ForgeWelcomeOverlay } from './ForgeWelcomeOverlay';
 import { useTier } from '../../hooks/useTier';
 import { AIMotorBlockedOverlay } from '../ui/AIMotorBlockedOverlay';
 
@@ -101,8 +100,9 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
 
     // 🟢 MODE SWITCH
     const [activeMode, setActiveMode] = useState<'PERSON' | 'CREATURE'>('PERSON');
-    const [bestiaryFilter, setBestiaryFilter] = useState<'ALL' | 'CREATURE' | 'BESTIA' | 'FLORA'>('ALL'); // 🟢 Sub-filter (Added BESTIA)
-    const [personFilter, setPersonFilter] = useState<'ALL' | 'PERSON' | 'LOCATION' | 'OBJECT'>('ALL'); // 🟢 Sub-filter
+    const [bestiaryFilter, setBestiaryFilter] = useState<'ALL' | 'CREATURE' | 'BESTIA' | 'FLORA'>('ALL');
+    const [personFilter, setPersonFilter] = useState<'ALL' | 'PERSON'>('ALL');
+    const [tourHighlightedColumn, setTourHighlightedColumn] = useState<string | null>(null);
     const activeSaga = activeMode === 'PERSON' ? characterSaga : bestiarySaga;
 
     const [state, setState] = useState<DashboardState>('SCANNING');
@@ -267,9 +267,9 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
     // 🟢 FILTER LOGIC
     const filterByMode = (entity: SoulEntity) => {
         if (activeMode === 'PERSON') {
-            if (personFilter === 'ALL') return !entity.category || entity.category === 'PERSON' || entity.category === 'CREATURE' || entity.category === 'FLORA';
-            if (personFilter === 'PERSON') return !entity.category || entity.category === 'PERSON';
-            return entity.category === personFilter;
+            const isPerson = !entity.category || entity.category === 'PERSON';
+            if (personFilter === 'ALL') return isPerson;
+            return isPerson; // PERSON sub-filter is same scope
         } else {
             // Bestiary Mode
             if (bestiaryFilter === 'ALL') return entity.category === 'CREATURE' || entity.category === 'FLORA';
@@ -340,13 +340,13 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                 <header className="h-16 shrink-0 flex items-center justify-between px-8 border-b border-titanium-800 bg-titanium-900/80 backdrop-blur z-20">
                     <div className="flex flex-col md:flex-row md:items-center gap-4">
                         <h1 className="text-xl font-bold text-titanium-100 uppercase tracking-widest flex items-center gap-2">
-                            {t.title}
+                            {t.title || 'LA FORJA'}
                             <span className="ml-2 px-2 py-0.5 bg-amber-400/10 border border-amber-400/30 text-amber-400 text-[9px] font-mono tracking-[0.12em] uppercase rounded-md cursor-help" title="Esta herramienta está en desarrollo activo. Tu feedback ayuda a mejorarla.">ALPHA</span>
                         </h1>
 
                         {/* 🟢 SWITCH MODE */}
                         <div className="flex items-center gap-4">
-                            <div className="flex bg-titanium-950 rounded-lg p-1 border border-titanium-800">
+                            <div className={`flex bg-titanium-950 rounded-lg p-1 border transition-all ${tourHighlightedColumn === 'tabs' ? 'border-emerald-500/50 shadow-[0_0_12px_rgba(52,211,153,0.2)]' : 'border-titanium-800'}`}>
                                 <button
                                     onClick={() => setActiveMode('PERSON')}
                                     className={`px-4 py-1.5 rounded text-xs font-bold flex items-center gap-2 transition-all ${activeMode === 'PERSON'
@@ -369,7 +369,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                 </button>
                             </div>
 
-                            {/* 🟢 PERSON SUB-FILTER */}
+                            {/* PERSON SUB-FILTER (Personajes only) */}
                             {activeMode === 'PERSON' && (
                                 <div className="flex items-center gap-2 text-xs font-mono text-titanium-500 animate-in fade-in slide-in-from-left-2">
                                     <span className="opacity-50">|</span>
@@ -384,18 +384,6 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                                         className={`hover:text-emerald-400 transition-colors ${personFilter === 'PERSON' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
                                     >
                                         {t.people}
-                                    </button>
-                                    <button
-                                        onClick={() => setPersonFilter('LOCATION')}
-                                        className={`hover:text-emerald-400 transition-colors ${personFilter === 'LOCATION' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
-                                    >
-                                        {t.locations}
-                                    </button>
-                                    <button
-                                        onClick={() => setPersonFilter('OBJECT')}
-                                        className={`hover:text-emerald-400 transition-colors ${personFilter === 'OBJECT' ? 'text-emerald-400 font-bold underline decoration-emerald-500/50' : ''}`}
-                                    >
-                                        {t.objects}
                                     </button>
                                 </div>
                             )}
@@ -438,10 +426,14 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                             <button
                                 onClick={handleForceAnalysis}
                                 disabled={isSorting}
-                                className="group p-2.5 rounded-xl bg-titanium-800/50 border border-titanium-700 hover:border-accent-DEFAULT/50 hover:bg-titanium-800 text-titanium-400 hover:text-accent-DEFAULT transition-all shadow-sm"
+                                className={`group flex items-center gap-2 px-4 py-2 rounded-xl border font-mono text-xs font-bold tracking-wider uppercase transition-all shadow-sm ${tourHighlightedColumn === 'analyze' ? 'bg-emerald-500/20 border-emerald-400/60 text-emerald-300 shadow-[0_0_16px_rgba(52,211,153,0.3)]' : 'bg-emerald-500/10 border-emerald-500/30 hover:border-emerald-400/60 hover:bg-emerald-500/20 text-emerald-400 hover:text-emerald-300'}`}
                                 title={t.rescan}
                             >
-                                <RefreshCw size={18} className={`transition-transform duration-700 ${isSorting ? "animate-spin" : "group-hover:rotate-180"}`} />
+                                {isSorting
+                                    ? <Loader2 size={15} className="animate-spin" />
+                                    : <FlaskConical size={15} className="group-hover:scale-110 transition-transform" />
+                                }
+                                <span>{isSorting ? '...' : (t.analyze || 'Analizar')}</span>
                             </button>
                         )}
 
@@ -456,11 +448,11 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     </div>
                 </header>
 
-                {/* Welcome card — primera visita */}
+                {/* First-visit step tour */}
                 {showWelcome && (
-                    <ToolWelcomeCard
-                        {...getToolWelcomes(t).forja}
+                    <ForgeWelcomeOverlay
                         onDismiss={dismissWelcome}
+                        onHighlight={setTourHighlightedColumn}
                     />
                 )}
 
@@ -489,7 +481,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                     <div className="flex-1 overflow-hidden p-4 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 z-10">
 
                         {/* COLUMN 1: ECOS (Radar) */}
-                        <DroppableColumn id="ECO" className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
+                        <DroppableColumn id="ECO" className={`flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border transition-all ${tourHighlightedColumn === 'ecos' ? 'border-cyan-500/60 shadow-[0_0_20px_rgba(6,182,212,0.15)]' : 'border-titanium-800/50'}`}>
                             <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
                                 <Ghost size={16} className="text-cyan-500" />
                                 <h2 className="text-sm font-bold text-cyan-500 uppercase tracking-wider">{t.echoes}</h2>
@@ -510,7 +502,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         </DroppableColumn>
 
                         {/* COLUMN 2: LIMBOS (Workshop) */}
-                        <DroppableColumn id="LIMBO" className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
+                        <DroppableColumn id="LIMBO" className={`flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border transition-all ${tourHighlightedColumn === 'limbos' ? 'border-amber-500/60 shadow-[0_0_20px_rgba(245,158,11,0.15)]' : 'border-titanium-800/50'}`}>
                             <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
                                 <FileEdit size={16} className="text-amber-500" />
                                 <h2 className="text-sm font-bold text-amber-500 uppercase tracking-wider">{t.limbos}</h2>
@@ -531,7 +523,7 @@ const ForgeDashboard: React.FC<ForgeDashboardProps> = ({ folderId, accessToken, 
                         </DroppableColumn>
 
                         {/* COLUMN 3: ANCHORS (Library) */}
-                        <DroppableColumn id="ANCHOR" className="flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border border-titanium-800/50">
+                        <DroppableColumn id="ANCHOR" className={`flex flex-col min-h-0 bg-titanium-900/20 rounded-2xl border transition-all ${tourHighlightedColumn === 'anclas' ? 'border-emerald-500/60 shadow-[0_0_20px_rgba(52,211,153,0.15)]' : 'border-titanium-800/50'}`}>
                             <div className="p-4 flex items-center gap-2 border-b border-titanium-800/50">
                                 <Anchor size={16} className="text-emerald-500" />
                                 <h2 className="text-sm font-bold text-emerald-500 uppercase tracking-wider">{t.anchors}</h2>

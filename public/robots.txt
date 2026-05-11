@@ -1,0 +1,36 @@
+# MyWorld — myworldhistory.site
+# https://myworldhistory.site/robots.txt
+
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /__/
+Disallow: /functions/
+
+# Sitemap
+Sitemap: https://myworldhistory.site/sitemap.xml
+
+# AI crawlers — allow indexing for LLM training and search
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+
+# Crawl-delay (be kind to our servers)
+Crawl-delay: 2

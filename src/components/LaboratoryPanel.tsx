@@ -8,7 +8,9 @@ import { callFunction } from '../services/api';
 import { EntityService } from '../services/EntityService';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
-import IdeaWizardModal from './laboratory/IdeaWizardModal';
+import IdeaGenesisModal from './laboratory/IdeaGenesisModal';
+import { LaboratoryWelcomeOverlay } from './laboratory/LaboratoryWelcomeOverlay';
+import { useToolWelcome } from '../hooks/useToolWelcome';
 import { MuseSessionService, MuseSession } from '../services/MuseSessionService';
 
 interface LaboratoryPanelProps {
@@ -37,8 +39,12 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
     const [showHistory, setShowHistory] = useState(false);
     const [isCreatingSession, setIsCreatingSession] = useState(false);
 
-    // 🟢 IDEA WIZARD STATE
+    // 🟢 IDEA GENESIS STATE
     const [isIdeaWizardOpen, setIsIdeaWizardOpen] = useState(false);
+
+    // 🟢 TOUR STATE
+    const [showLabTour, dismissLabTour] = useToolWelcome('laboratorio', folderId);
+    const [tourHighlight, setTourHighlight] = useState<string | null>(null);
 
     // 🟢 BACKFILL STATE
     const [isSyncing, setIsSyncing] = useState(false);
@@ -279,10 +285,10 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
     const hasBlockedFiles = useMemo(() => indexedFiles.some(f => fileStatus[f.id] === 'blocked_by_safety'), [indexedFiles, fileStatus]);
 
     return (
-        <div className="w-full h-full flex bg-titanium-950 animate-fade-in overflow-hidden">
+        <div className="w-full h-full flex bg-titanium-950 animate-fade-in overflow-hidden relative">
 
             {/* SIDEBAR */}
-            <div className="w-80 flex-shrink-0 border-r border-titanium-800 bg-titanium-950 flex flex-col">
+            <div className={`w-80 flex-shrink-0 border-r bg-titanium-950 flex flex-col transition-all ${tourHighlight === 'recursos' ? 'border-emerald-500/50 shadow-[0_0_20px_rgba(52,211,153,0.12)]' : 'border-titanium-800'}`}>
                 <div className="p-4 border-b border-titanium-800">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2 text-emerald-500">
@@ -301,11 +307,14 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
 
                             <button
                                 onClick={() => setShowHistory(!showHistory)}
-                                className={`p-1.5 rounded-md transition-colors ${showHistory ? 'bg-emerald-500/20 text-emerald-400' : 'hover:bg-titanium-800 text-titanium-400'}`}
+                                className={`p-1.5 rounded-md transition-colors ${showHistory ? 'bg-emerald-500/20 text-emerald-400' : 'hover:bg-titanium-800 text-titanium-400'} ${tourHighlight === 'history' ? 'ring-2 ring-emerald-400/70 ring-offset-1 ring-offset-[#0a0c10] shadow-[0_0_14px_rgba(52,211,153,0.4)]' : ''}`}
                             >
                                 <History size={16} />
                             </button>
-                            <button onClick={handleCreateResource} className="p-1.5 rounded-md hover:bg-titanium-800 text-titanium-400 hover:text-emerald-400">
+                            <button
+                                onClick={handleCreateResource}
+                                className={`p-1.5 rounded-md hover:bg-titanium-800 text-titanium-400 hover:text-emerald-400 transition-all ${tourHighlight === 'crear' ? 'ring-2 ring-emerald-400/70 ring-offset-1 ring-offset-[#0a0c10] shadow-[0_0_14px_rgba(52,211,153,0.4)]' : ''}`}
+                            >
                                 <FilePlus size={16} />
                             </button>
                         </div>
@@ -442,7 +451,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
             </div>
 
             {/* MAIN CHAT AREA */}
-            <div className="flex-1 h-full relative">
+            <div className={`flex-1 h-full relative transition-all ${tourHighlight === 'chat' ? 'ring-2 ring-inset ring-emerald-500/30' : ''}`}>
                 <ChatPanel
                     isOpen={true} onClose={() => { }} activeGemId={null} customGem={librarianGem} isFullWidth={true}
                     categoryFilter="reference" folderId={folderId} accessToken={accessToken} sessionId={currentSessionId}
@@ -450,7 +459,15 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
                 />
             </div>
 
-            <IdeaWizardModal
+            {/* TOUR OVERLAY */}
+            {showLabTour && (
+                <LaboratoryWelcomeOverlay
+                    onDismiss={dismissLabTour}
+                    onHighlight={setTourHighlight}
+                />
+            )}
+
+            <IdeaGenesisModal
                 isOpen={isIdeaWizardOpen} onClose={() => setIsIdeaWizardOpen(false)}
                 folderId={config?.resourcePaths?.[0]?.id || folderId} accessToken={accessToken} onRefreshTokens={onRefreshTokens}
             />

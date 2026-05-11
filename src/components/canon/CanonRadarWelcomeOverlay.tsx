@@ -1,75 +1,50 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Network, Users, GitMerge, Map, Book, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ScanEye, Zap, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 
-interface ArquitectoWelcomeOverlayProps {
+interface CanonRadarWelcomeOverlayProps {
     onDismiss: () => void;
-    onHighlight: (tool: string | null) => void;
+    onHighlight: (element: string | null) => void;
 }
 
-type Step = {
-    tool: string | null;
+type CanonStep = {
+    highlight: string | null;
     icon: React.ReactNode;
     title: string;
-    subtitle?: string;
     content: string;
     tip?: string;
 };
 
-const STEPS: Step[] = [
+const STEPS: CanonStep[] = [
     {
-        tool: null,
-        icon: <span className="text-xl">🏛️</span>,
-        title: 'El Arquitecto',
-        subtitle: 'Estratega narrativo socrático',
-        content: 'Analiza tu mundo completo, detecta contradicciones y te hace las preguntas que desbloquean tu próxima decisión. No te da respuestas — te ayuda a encontrarlas.',
-        tip: 'Usa "Analizar disonancias" en la barra superior para un escaneo formal de 3 capas: MACRO, MESO y MICRO.',
+        highlight: null,
+        icon: <ScanEye size={20} />,
+        title: 'Guardián del Cánon',
+        content: 'Vigila la coherencia narrativa de tu proyecto en tiempo real. Cada vez que escribes, el motor escanea tu texto en busca de contradicciones, fracturas de realidad y personajes que actúan fuera de su perfil establecido.',
+        tip: 'El Guardián se activa automáticamente mientras editas. Pulsa el icono ↗ para expandir y ver todos los resultados en pantalla completa.',
     },
     {
-        tool: 'domino',
-        icon: <Network size={20} />,
-        title: 'Efecto Dominó',
-        content: 'Cuando resuelves una disonancia, otras partes de tu mundo pueden verse afectadas. Visualiza esas conexiones en cascada para que ningún cambio te tome por sorpresa.',
+        highlight: 'force',
+        icon: <Zap size={20} />,
+        title: 'Forzar Auditoría',
+        content: 'Lanza un análisis inmediato del archivo que estás editando. Útil cuando el Guardián aún no ha procesado los últimos cambios o cuando quieres revisar un fragmento específico a demanda.',
     },
     {
-        tool: 'personajes',
-        icon: <Users size={20} />,
-        title: 'Personajes',
-        content: 'Elenco discutido en esta sesión. Rastrea qué personajes fueron mencionados, modificados o cuestionados durante el análisis.',
-    },
-    {
-        tool: 'patches',
-        icon: <GitMerge size={20} />,
-        title: 'Parches de Canon',
-        content: 'Cambios propuestos a tus archivos .md y .txt. Los documentos en Drive requieren copia manual. Los parches quedan registrados hasta que los apliques.',
-    },
-    {
-        tool: 'map',
-        icon: <Map size={20} />,
-        title: 'Mapa de Colisiones',
-        content: 'Vista topográfica de todas las disonancias activas. Entiende qué tan interconectados están los conflictos de tu canon de un vistazo.',
-    },
-    {
-        tool: 'lore',
-        icon: <Book size={20} />,
-        title: 'Roadmap Final',
-        content: 'Cristaliza lo acordado en la sesión en un documento estructurado. Usa el modelo más potente — reserva esta herramienta para cuando tengas varias resoluciones listas.',
-    },
-    {
-        tool: 'settings',
-        icon: <Settings size={20} />,
-        title: 'Ajustes',
-        content: 'Personaliza el comportamiento del Arquitecto: tono, profundidad de análisis y cómo interactúa con tu estilo de trabajo.',
+        highlight: 'global',
+        icon: <Globe size={20} />,
+        title: 'Auditoría Global',
+        content: 'Analiza todos los archivos canon del proyecto de una vez. Detecta paradojas entre diferentes capítulos o carpetas — contradicciones que el análisis local no puede ver porque span múltiples archivos.',
+        tip: 'La auditoría global puede tardar varios minutos en proyectos grandes. Ejecutala cuando termines una sesión de escritura importante.',
     },
 ];
 
-export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoWelcomeOverlayProps) {
+export function CanonRadarWelcomeOverlay({ onDismiss, onHighlight }: CanonRadarWelcomeOverlayProps) {
     const [step, setStep] = useState(0);
     const [paused, setPaused] = useState(false);
     const callbacksRef = useRef({ onDismiss, onHighlight });
     useEffect(() => { callbacksRef.current = { onDismiss, onHighlight }; });
 
     useEffect(() => {
-        callbacksRef.current.onHighlight(STEPS[0].tool);
+        callbacksRef.current.onHighlight(STEPS[0].highlight);
         return () => { callbacksRef.current.onHighlight(null); };
     }, []);
 
@@ -83,7 +58,7 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                     callbacksRef.current.onDismiss();
                     return prev;
                 }
-                callbacksRef.current.onHighlight(STEPS[next].tool);
+                callbacksRef.current.onHighlight(STEPS[next].highlight);
                 return next;
             });
         }, 5000);
@@ -93,7 +68,8 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
     const goTo = (s: number) => {
         const next = Math.max(0, Math.min(s, STEPS.length - 1));
         setStep(next);
-        onHighlight(STEPS[next].tool);
+        onHighlight(STEPS[next].highlight);
+        setPaused(true);
     };
 
     const current = STEPS[step];
@@ -101,28 +77,16 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
 
     return (
         <div
-            className="absolute left-[88px] bottom-4 z-50"
-            style={{ width: '256px' }}
+            className="absolute bottom-20 left-1/2 -translate-x-1/2 z-50"
+            style={{ width: '268px' }}
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
         >
-            {/* Left-pointing caret connecting to toolbar */}
-            <div
-                className="absolute -left-[7px] top-8"
-                style={{
-                    width: 0,
-                    height: 0,
-                    borderTop: '6px solid transparent',
-                    borderBottom: '6px solid transparent',
-                    borderRight: '7px solid rgba(34,211,238,0.22)',
-                }}
-            />
-
             <div
                 className="rounded-xl shadow-2xl shadow-black/60"
                 style={{
-                    background: 'rgba(8, 14, 18, 0.97)',
-                    border: '1px solid rgba(34, 211, 238, 0.22)',
+                    background: 'rgba(8, 12, 16, 0.97)',
+                    border: '1px solid rgba(6,182,212,0.22)',
                     backdropFilter: 'blur(16px)',
                 }}
             >
@@ -132,16 +96,16 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                         {STEPS.map((_, i) => (
                             <button
                                 key={i}
-                                onClick={() => { setPaused(true); goTo(i); }}
-                                aria-label={`Ir al paso ${i + 1}`}
+                                onClick={() => goTo(i)}
+                                aria-label={`Paso ${i + 1}`}
                                 style={{
                                     width: i === step ? '14px' : '6px',
                                     height: '6px',
                                     borderRadius: '9999px',
                                     background: i === step
-                                        ? 'rgba(34,211,238,0.9)'
+                                        ? 'rgba(6,182,212,0.9)'
                                         : i < step
-                                            ? 'rgba(34,211,238,0.3)'
+                                            ? 'rgba(6,182,212,0.28)'
                                             : 'rgba(255,255,255,0.1)',
                                     transition: 'width 200ms ease, background 200ms ease',
                                     border: 'none',
@@ -161,14 +125,13 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                 </div>
 
                 <div className="px-4 pt-3 pb-4">
-                    {/* Icon + title */}
                     <div className="flex items-center gap-2.5 mb-3">
                         <div
                             className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: 'rgba(34,211,238,0.08)',
-                                border: '1px solid rgba(34,211,238,0.18)',
-                                color: 'rgba(34,211,238,0.8)',
+                                background: 'rgba(6,182,212,0.08)',
+                                border: '1px solid rgba(6,182,212,0.18)',
+                                color: 'rgba(6,182,212,0.8)',
                             }}
                         >
                             {current.icon}
@@ -177,18 +140,16 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                             <p className="text-[13px] font-semibold text-white leading-none mb-0.5">
                                 {current.title}
                             </p>
-                            <p className="text-[10px]" style={{ color: 'rgba(34,211,238,0.55)' }}>
-                                {current.subtitle ?? `${step + 1} de ${STEPS.length}`}
+                            <p className="text-[10px] font-mono" style={{ color: 'rgba(6,182,212,0.5)' }}>
+                                {step + 1} de {STEPS.length}
                             </p>
                         </div>
                     </div>
 
-                    {/* Description */}
                     <p className="text-[12px] text-zinc-400 leading-relaxed mb-3">
                         {current.content}
                     </p>
 
-                    {/* Tip */}
                     {current.tip && (
                         <div
                             className="rounded-lg px-2.5 py-2 mb-3"
@@ -201,11 +162,10 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                         </div>
                     )}
 
-                    {/* Navigation */}
                     <div className="flex gap-1.5">
                         {step > 0 && (
                             <button
-                                onClick={() => { setPaused(true); goTo(step - 1); }}
+                                onClick={() => goTo(step - 1)}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors"
                                 style={{
                                     background: 'rgba(255,255,255,0.04)',
@@ -219,18 +179,15 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                             </button>
                         )}
                         <button
-                            onClick={() => {
-                                if (isLast) { onDismiss(); }
-                                else { setPaused(true); goTo(step + 1); }
-                            }}
+                            onClick={() => { if (isLast) { onDismiss(); } else { goTo(step + 1); } }}
                             className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium transition-colors"
                             style={{
-                                background: 'rgba(34,211,238,0.1)',
-                                border: '1px solid rgba(34,211,238,0.22)',
-                                color: 'rgba(34,211,238,0.9)',
+                                background: 'rgba(6,182,212,0.1)',
+                                border: '1px solid rgba(6,182,212,0.22)',
+                                color: 'rgba(6,182,212,0.9)',
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,211,238,0.18)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,211,238,0.1)'; }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.18)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(6,182,212,0.1)'; }}
                         >
                             {isLast ? 'Entendido' : <><span>Siguiente</span><ChevronRight size={11} /></>}
                         </button>

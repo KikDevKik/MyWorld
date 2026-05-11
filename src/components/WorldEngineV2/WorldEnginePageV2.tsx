@@ -15,16 +15,16 @@ import { callFunction } from '../../services/api';
 import { EntityService } from '../../services/EntityService';
 import { GraphNode, EntityType } from '../../types/graph';
 import CrystallizeModal from '../ui/CrystallizeModal';
-import { VisualNode, AnalysisCandidate, RealityMode } from './types';
+import { VisualNode, AnalysisCandidate } from './types';
 import LinksOverlayV2, { LinksOverlayHandle } from './LinksOverlayV2';
 import GraphSimulationV2, { GraphSimulationHandle } from './GraphSimulationV2';
 import NexusTribunalModal from './NexusTribunalModal';
 import { NodeDetailsSidebar } from './NodeDetailsSidebar';
 import { NodeEditModal } from './NodeEditModal';
-import { CommandBar } from './CommandBar';
 import { scanProjectFiles } from './utils/NexusScanner';
-import TheBuilder from './TheBuilder';
 import { CreativeAuditService } from '../../services/CreativeAuditService';
+import { NexusWelcomeOverlay } from './NexusWelcomeOverlay';
+import { useToolWelcome } from '../../hooks/useToolWelcome';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 
@@ -83,8 +83,7 @@ const WorldEnginePageV2: React.FC<{
     const [ghostNodes, setGhostNodes] = useState<VisualNode[]>([]);
     const [pendingNodes, setPendingNodes] = useState<PendingCrystallization[]>([]);
     const [candidates, setCandidates] = useState<AnalysisCandidate[]>([]);
-    const [ignoredTerms, setIgnoredTerms] = useState<string[]>([]); // 🟢 BLACKLIST STATE
-    const [realityMode, setRealityMode] = useState<RealityMode>('FUSION');
+    const [ignoredTerms, setIgnoredTerms] = useState<string[]>([]);
 
     // STATE: UI
     const [loading, setLoading] = useState(true);
@@ -99,28 +98,8 @@ const WorldEnginePageV2: React.FC<{
     // STATE: CAMERA FOCUS
     const [lastApprovedIds, setLastApprovedIds] = useState<string[]>([]);
 
-    // STATE: CONFIRMATION MODALS
-    const [isClearAllOpen, setIsClearAllOpen] = useState(false);
-
-    // STATE: THE BUILDER
-    const [isBuilderOpen, setIsBuilderOpen] = useState(false);
-    const [builderInitialPrompt, setBuilderInitialPrompt] = useState("");
     const [showUI, setShowUI] = useState(true);
-
-    // ⚖️ AUDIT: THE DIRECTION (Reality Mode)
-    const handleModeChange = (newMode: RealityMode) => {
-        setRealityMode(newMode);
-        if (user && config?.folderId) {
-            CreativeAuditService.logCreativeEvent({
-                projectId: config.folderId,
-                userId: user.uid,
-                component: 'CommandBar',
-                actionType: 'CURATION',
-                description: 'Director changed Reality Mode',
-                payload: { newMode }
-            });
-        }
-    };
+    const [showNexusTour, dismissNexusTour] = useToolWelcome('nexus', config?.folderId);
 
     // STATE: NEXUS TRIBUNAL (Scanning)
     const [isScanning, setIsScanning] = useState(false);
@@ -409,25 +388,6 @@ const WorldEnginePageV2: React.FC<{
             if (!overrideNode) setCrystallizeModal({ isOpen: false, node: null });
         } finally {
             setIsCrystallizing(false);
-        }
-    };
-
-    const handleClearAll = async () => {
-        // if (!confirm("⚠️ ¿ELIMINAR TODO? Esto borrará todos los nodos de la base de datos y la vista local.")) return;
-        setIsClearAllOpen(false); // Close modal
-
-        setGhostNodes([]);
-        setDbNodes([]); // Force clear local state immediately to prevent ghosts
-        localStorage.removeItem('nexus_drafts_v1');
-        if (user && config?.folderId) {
-             try {
-                 await EntityService.deleteAllProjectEntities(user.uid, config.folderId);
-                 toast.success("🗑️ Todo eliminado (Local + DB).");
-             } catch (e: any) {
-                 toast.error("Error borrando DB: " + e.message);
-             }
-        } else {
-             toast.success("🗑️ Vista local limpia.");
         }
     };
 
@@ -823,11 +783,6 @@ const WorldEnginePageV2: React.FC<{
         }
     };
 
-    const handleBuilderTrigger = (text: string) => {
-        setBuilderInitialPrompt(text);
-        setIsBuilderOpen(true);
-    };
-
     return (
         <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
              {/* WARMUP LOADER */}
@@ -944,29 +899,6 @@ const WorldEnginePageV2: React.FC<{
                  </div>
              )}
 
-             {/* 🟢 COMMAND BAR (The Mouth - Bottom Center) */}
-             {showUI && (
-                 <div className="absolute bottom-12 left-1/2 -translate-x-1/2 pointer-events-auto z-50">
-                    <CommandBar
-                        onClearAll={() => setIsClearAllOpen(true)}
-                        onCommit={handleBuilderTrigger}
-                        mode={realityMode}
-                        onModeChange={handleModeChange}
-                    />
-                 </div>
-             )}
-
-             {/* THE BUILDER */}
-             <TheBuilder
-                isOpen={isBuilderOpen}
-                onClose={() => setIsBuilderOpen(false)}
-                initialPrompt={builderInitialPrompt}
-                initialMode={realityMode}
-                accessToken={accessToken}
-                onRefreshTokens={onRefreshTokens}
-                existingNodes={dbNodes}
-             />
-
              {/* MODAL */}
              <AnimatePresence>
                 {crystallizeModal.isOpen && (
@@ -1018,32 +950,9 @@ const WorldEnginePageV2: React.FC<{
                 onDelete={handleDeleteNode}
              />
 
-             {/* CONFIRMATION MODAL (NUCLEAR) */}
-             {isClearAllOpen && (
-                 <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm">
-                     <div className="w-[400px] bg-red-950/20 border border-red-500 rounded-xl p-6 text-center shadow-[0_0_50px_rgba(220,38,38,0.2)]">
-                         <h2 className="text-xl font-bold text-red-500 mb-4 tracking-widest">
-                             {t.common?.dangerZone || "⚠️ ZONA DE PELIGRO"}
-                         </h2>
-                         <p className="text-sm text-red-200 mb-6 leading-relaxed">
-                             {t.nexus?.incinerationWarning || "Estás a punto de ejecutar el Protocolo de Incineración. Esto eliminará PERMANENTEMENTE todos los nodos y conexiones de este proyecto. No hay vuelta atrás."}
-                         </p>
-                         <div className="flex gap-4 justify-center">
-                             <button
-                                 onClick={() => setIsClearAllOpen(false)}
-                                 className="px-4 py-2 rounded text-sm font-bold text-slate-400 hover:text-white transition-colors"
-                             >
-                                 {t.common?.cancel?.toUpperCase() || "CANCELAR"}
-                             </button>
-                             <button
-                                 onClick={handleClearAll}
-                                 className="px-6 py-2 rounded bg-red-600 hover:bg-red-500 text-white text-sm font-bold shadow-lg transition-all"
-                             >
-                                 {t.common?.confirmDestruction || "CONFIRMAR DESTRUCCIÓN"}
-                             </button>
-                         </div>
-                     </div>
-                 </div>
+             {/* First-visit tour */}
+             {showNexusTour && (
+                 <NexusWelcomeOverlay onDismiss={dismissNexusTour} />
              )}
         </div>
     );

@@ -61,6 +61,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     // Welcome card (primera visita)
     const [showWelcome, dismissWelcome] = useToolWelcome('arquitecto', folderId);
     const [forceShowOverlay, setForceShowOverlay] = useState(false);
+    const [tourHighlightedTool, setTourHighlightedTool] = useState<string | null>(null);
 
     // File Attachment State
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -320,11 +321,6 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
     return (
         <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
-
-            {/* First-visit overlay — upper right, non-blocking */}
-            {(showWelcome || forceShowOverlay) && (
-                <ArquitectoWelcomeOverlay onDismiss={() => { dismissWelcome(); setForceShowOverlay(false); }} />
-            )}
 
             {/* Top Drawer: Pendientes — solo en estado chat */}
             {panelView === 'chat' && (
@@ -747,13 +743,21 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     </div>{/* end centered content */}
                 </div>{/* end architect-chat-container */}
 
+                {/* Step tour overlay — positioned to the right of the toolbar */}
+                {(showWelcome || forceShowOverlay) && (
+                    <ArquitectoWelcomeOverlay
+                        onDismiss={() => { dismissWelcome(); setForceShowOverlay(false); setTourHighlightedTool(null); }}
+                        onHighlight={setTourHighlightedTool}
+                    />
+                )}
+
                 {/* Floating Toolbar — absolute inside the outer wrapper, never scrolls */}
                 <div className="absolute left-6 bottom-4 z-20">
                     <div className="bg-titanium-900/70 backdrop-blur-xl border border-titanium-800 rounded-full p-2 flex flex-col gap-3 shadow-2xl">
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'domino' ? 'none' : 'domino')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'domino' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Network size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -763,7 +767,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'personajes' ? 'none' : 'personajes')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'personajes' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'personajes' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'personajes' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Users size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
@@ -773,7 +777,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'patches' ? 'none' : 'patches')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'patches' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'patches' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'patches' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <GitMerge size={20} />
                             
@@ -789,9 +793,9 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </span>
                         </button>
 
-                        <button 
+                        <button
                             onClick={() => setActiveTool(activeTool === 'map' ? 'none' : 'map')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'map' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Map size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -799,9 +803,9 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </span>
                         </button>
 
-                        <button 
+                        <button
                             onClick={() => setActiveTool(activeTool === 'lore' ? 'none' : 'lore')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'lore' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Book size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -811,7 +815,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'settings' ? 'none' : 'settings')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'settings' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Settings size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">

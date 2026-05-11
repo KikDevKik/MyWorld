@@ -1,75 +1,73 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Network, Users, GitMerge, Map, Book, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Ghost, FileEdit, Anchor, User, PawPrint, FlaskConical, ChevronLeft, ChevronRight } from 'lucide-react';
 
-interface ArquitectoWelcomeOverlayProps {
+interface ForgeWelcomeOverlayProps {
     onDismiss: () => void;
-    onHighlight: (tool: string | null) => void;
+    onHighlight: (column: string | null) => void;
 }
 
-type Step = {
-    tool: string | null;
+type ForgeStep = {
+    highlight: string | null;
     icon: React.ReactNode;
     title: string;
-    subtitle?: string;
     content: string;
     tip?: string;
 };
 
-const STEPS: Step[] = [
+const STEPS: ForgeStep[] = [
     {
-        tool: null,
-        icon: <span className="text-xl">🏛️</span>,
-        title: 'El Arquitecto',
-        subtitle: 'Estratega narrativo socrático',
-        content: 'Analiza tu mundo completo, detecta contradicciones y te hace las preguntas que desbloquean tu próxima decisión. No te da respuestas — te ayuda a encontrarlas.',
-        tip: 'Usa "Analizar disonancias" en la barra superior para un escaneo formal de 3 capas: MACRO, MESO y MICRO.',
+        highlight: null,
+        icon: <FlaskConical size={20} />,
+        title: 'La Forja de Almas',
+        content: 'Extrae y organiza las entidades de tu mundo. El análisis escanea tus archivos y clasifica personajes, criaturas y flora en tres niveles según su presencia en la narrativa.',
+        tip: 'Pulsa "Analizar" en la cabecera para iniciar el escaneo. Cada entidad detectada aparece en la columna que le corresponde.',
     },
     {
-        tool: 'domino',
-        icon: <Network size={20} />,
-        title: 'Efecto Dominó',
-        content: 'Cuando resuelves una disonancia, otras partes de tu mundo pueden verse afectadas. Visualiza esas conexiones en cascada para que ningún cambio te tome por sorpresa.',
+        highlight: 'ecos',
+        icon: <Ghost size={20} />,
+        title: 'Ecos (Radar)',
+        content: 'Personajes detectados en tus archivos que aún NO tienen ficha. Son menciones únicas o poco frecuentes — figuras de fondo, nombres de pasada, referencias secundarias que tal vez no necesiten desarrollo.',
     },
     {
-        tool: 'personajes',
-        icon: <Users size={20} />,
-        title: 'Personajes',
-        content: 'Elenco discutido en esta sesión. Rastrea qué personajes fueron mencionados, modificados o cuestionados durante el análisis.',
+        highlight: 'limbos',
+        icon: <FileEdit size={20} />,
+        title: 'Limbos (Taller)',
+        content: 'Entidades que aparecen en múltiples obras o con alta frecuencia en una sola. El motor recomienda crearles ficha. Aquí es donde un eco pasa a ser un personaje real: la mesa de trabajo antes de cristalizarlo.',
     },
     {
-        tool: 'patches',
-        icon: <GitMerge size={20} />,
-        title: 'Parches de Canon',
-        content: 'Cambios propuestos a tus archivos .md y .txt. Los documentos en Drive requieren copia manual. Los parches quedan registrados hasta que los apliques.',
+        highlight: 'anclas',
+        icon: <Anchor size={20} />,
+        title: 'Anclas (Bóveda)',
+        content: 'Personajes que ya tienen su ficha completa. Son las entidades cristalizadas — el núcleo estable de tu universo. Cada ancla alimenta el contexto de todas las demás herramientas.',
     },
     {
-        tool: 'map',
-        icon: <Map size={20} />,
-        title: 'Mapa de Colisiones',
-        content: 'Vista topográfica de todas las disonancias activas. Entiende qué tan interconectados están los conflictos de tu canon de un vistazo.',
+        highlight: 'tabs',
+        icon: (
+            <span className="flex items-center gap-1">
+                <User size={14} />
+                <PawPrint size={14} />
+            </span>
+        ),
+        title: 'Personajes / Bestiario',
+        content: 'Cambia entre los dos modos de la Forja. Personajes gestiona personas y figuras humanas. Bestiario gestiona animales, criaturas y flora — con sub-filtros para Fauna y Flora por separado.',
     },
     {
-        tool: 'lore',
-        icon: <Book size={20} />,
-        title: 'Roadmap Final',
-        content: 'Cristaliza lo acordado en la sesión en un documento estructurado. Usa el modelo más potente — reserva esta herramienta para cuando tengas varias resoluciones listas.',
-    },
-    {
-        tool: 'settings',
-        icon: <Settings size={20} />,
-        title: 'Ajustes',
-        content: 'Personaliza el comportamiento del Arquitecto: tono, profundidad de análisis y cómo interactúa con tu estilo de trabajo.',
+        highlight: 'analyze',
+        icon: <FlaskConical size={20} />,
+        title: 'Botón Analizar',
+        content: 'Lanza el escaneo de tus archivos canon. El motor detecta entidades nuevas, actualiza las existentes y redistribuye todo en Ecos, Limbos y Anclas. Ejecútalo cada vez que actualices tus archivos.',
+        tip: 'El análisis puede tardar según el tamaño de tu proyecto. Puedes volver a ejecutarlo las veces que necesites.',
     },
 ];
 
-export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoWelcomeOverlayProps) {
+export function ForgeWelcomeOverlay({ onDismiss, onHighlight }: ForgeWelcomeOverlayProps) {
     const [step, setStep] = useState(0);
     const [paused, setPaused] = useState(false);
     const callbacksRef = useRef({ onDismiss, onHighlight });
     useEffect(() => { callbacksRef.current = { onDismiss, onHighlight }; });
 
     useEffect(() => {
-        callbacksRef.current.onHighlight(STEPS[0].tool);
+        callbacksRef.current.onHighlight(STEPS[0].highlight);
         return () => { callbacksRef.current.onHighlight(null); };
     }, []);
 
@@ -83,7 +81,7 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                     callbacksRef.current.onDismiss();
                     return prev;
                 }
-                callbacksRef.current.onHighlight(STEPS[next].tool);
+                callbacksRef.current.onHighlight(STEPS[next].highlight);
                 return next;
             });
         }, 5000);
@@ -93,7 +91,8 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
     const goTo = (s: number) => {
         const next = Math.max(0, Math.min(s, STEPS.length - 1));
         setStep(next);
-        onHighlight(STEPS[next].tool);
+        onHighlight(STEPS[next].highlight);
+        setPaused(true);
     };
 
     const current = STEPS[step];
@@ -101,28 +100,16 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
 
     return (
         <div
-            className="absolute left-[88px] bottom-4 z-50"
-            style={{ width: '256px' }}
+            className="absolute top-20 right-4 z-50"
+            style={{ width: '268px' }}
             onMouseEnter={() => setPaused(true)}
             onMouseLeave={() => setPaused(false)}
         >
-            {/* Left-pointing caret connecting to toolbar */}
-            <div
-                className="absolute -left-[7px] top-8"
-                style={{
-                    width: 0,
-                    height: 0,
-                    borderTop: '6px solid transparent',
-                    borderBottom: '6px solid transparent',
-                    borderRight: '7px solid rgba(34,211,238,0.22)',
-                }}
-            />
-
             <div
                 className="rounded-xl shadow-2xl shadow-black/60"
                 style={{
-                    background: 'rgba(8, 14, 18, 0.97)',
-                    border: '1px solid rgba(34, 211, 238, 0.22)',
+                    background: 'rgba(8, 12, 16, 0.97)',
+                    border: '1px solid rgba(52,211,153,0.2)',
                     backdropFilter: 'blur(16px)',
                 }}
             >
@@ -132,16 +119,16 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                         {STEPS.map((_, i) => (
                             <button
                                 key={i}
-                                onClick={() => { setPaused(true); goTo(i); }}
-                                aria-label={`Ir al paso ${i + 1}`}
+                                onClick={() => goTo(i)}
+                                aria-label={`Paso ${i + 1}`}
                                 style={{
                                     width: i === step ? '14px' : '6px',
                                     height: '6px',
                                     borderRadius: '9999px',
                                     background: i === step
-                                        ? 'rgba(34,211,238,0.9)'
+                                        ? 'rgba(52,211,153,0.9)'
                                         : i < step
-                                            ? 'rgba(34,211,238,0.3)'
+                                            ? 'rgba(52,211,153,0.28)'
                                             : 'rgba(255,255,255,0.1)',
                                     transition: 'width 200ms ease, background 200ms ease',
                                     border: 'none',
@@ -166,9 +153,9 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                         <div
                             className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                             style={{
-                                background: 'rgba(34,211,238,0.08)',
-                                border: '1px solid rgba(34,211,238,0.18)',
-                                color: 'rgba(34,211,238,0.8)',
+                                background: 'rgba(52,211,153,0.08)',
+                                border: '1px solid rgba(52,211,153,0.18)',
+                                color: 'rgba(52,211,153,0.8)',
                             }}
                         >
                             {current.icon}
@@ -177,13 +164,13 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                             <p className="text-[13px] font-semibold text-white leading-none mb-0.5">
                                 {current.title}
                             </p>
-                            <p className="text-[10px]" style={{ color: 'rgba(34,211,238,0.55)' }}>
-                                {current.subtitle ?? `${step + 1} de ${STEPS.length}`}
+                            <p className="text-[10px] font-mono" style={{ color: 'rgba(52,211,153,0.5)' }}>
+                                {step + 1} de {STEPS.length}
                             </p>
                         </div>
                     </div>
 
-                    {/* Description */}
+                    {/* Content */}
                     <p className="text-[12px] text-zinc-400 leading-relaxed mb-3">
                         {current.content}
                     </p>
@@ -205,7 +192,7 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                     <div className="flex gap-1.5">
                         {step > 0 && (
                             <button
-                                onClick={() => { setPaused(true); goTo(step - 1); }}
+                                onClick={() => goTo(step - 1)}
                                 className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors"
                                 style={{
                                     background: 'rgba(255,255,255,0.04)',
@@ -219,18 +206,15 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
                             </button>
                         )}
                         <button
-                            onClick={() => {
-                                if (isLast) { onDismiss(); }
-                                else { setPaused(true); goTo(step + 1); }
-                            }}
+                            onClick={() => { if (isLast) { onDismiss(); } else { goTo(step + 1); } }}
                             className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium transition-colors"
                             style={{
-                                background: 'rgba(34,211,238,0.1)',
-                                border: '1px solid rgba(34,211,238,0.22)',
-                                color: 'rgba(34,211,238,0.9)',
+                                background: 'rgba(52,211,153,0.1)',
+                                border: '1px solid rgba(52,211,153,0.22)',
+                                color: 'rgba(52,211,153,0.9)',
                             }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,211,238,0.18)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,211,238,0.1)'; }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.18)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(52,211,153,0.1)'; }}
                         >
                             {isLast ? 'Entendido' : <><span>Siguiente</span><ChevronRight size={11} /></>}
                         </button>
