@@ -2,6 +2,15 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
 /*
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
+ *
+ * ⚠️ ADVERTENCIA DE ARQUITECTURA (CO-CHANGES)
+ * ---------------------------------------------------------
+ * App.tsx es el orquestador principal. Si modificas su estado, 
+ * es altamente probable que rompas o debas actualizar también:
+ * - src/components/VaultSidebar.tsx
+ * - functions/src/index.ts
+ * - src/components/ArquitectoPanel.tsx
+ * - src/services/api.ts
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
