@@ -1,0 +1,7 @@
+Flujo de trabajo para código generado por agentes
+
+El código producido por agentes autónomos como Jules, Gemini o Claude Code requiere una supervisión estricta antes de integrarse a la rama principal. Todo pull request originado por una IA debe ser asignado a un desarrollador humano para su revisión exhaustiva. El revisor humano tiene la responsabilidad de leer el código línea por línea, comprobando que las lógicas de negocio no hayan sido alteradas inadvertidamente y que el código cumpla con los estándares arquitectónicos del proyecto. 
+
+Durante la inspección, el revisor debe poner especial atención en buscar dependencias huérfanas introducidas accidentalmente, verificar la presencia de pruebas unitarias o de integración relevantes y comprobar que la compilación se realiza sin arrojar errores. Es fundamental que la intención de la IA coincida exactamente con la directiva original y que no existan refactorizaciones colaterales no deseadas.
+
+Existen circunstancias muy limitadas en las cuales es aceptable aprobar y fusionar directamente los cambios sin una revisión exhaustiva de un segundo humano. Estas excepciones se aplican exclusivamente a modificaciones triviales que no impactan la lógica del sistema, como correcciones tipográficas en la documentación, actualizaciones automáticas de versiones en archivos de dependencias manejadas por herramientas de seguridad, o la adición de archivos de configuración estáticos estrictamente requeridos para las herramientas del repositorio. En todos los demás casos, la revisión humana es innegociable.
