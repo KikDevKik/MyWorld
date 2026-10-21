@@ -1928,8 +1928,20 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
       if (claudeEnabledForCurrentUser()) {
         const labIdx = finalSystemInstruction.indexOf('[MODO LABORATORIO');
         const labExtra = labIdx >= 0 ? finalSystemInstruction.slice(labIdx) : '';
-        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${CONTINUITY_PROTOCOL}\n\n${coAuthorInstruction}`;
-        const userText = `${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${longTermMemorySection}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyText}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
+        // Oct 2026 (costos): razonamiento visible corto y sin el rol de "espejo" (choca con el tono nuevo);
+        // canon limitado a los 8 fragmentos más relevantes (~9.000 caracteres).
+        const thinkStart = CONTINUITY_PROTOCOL.indexOf('[THINKING MODE ACTIVATED]');
+        const thinkEnd = CONTINUITY_PROTOCOL.indexOf('[PROTOCOLO DE MIMETISMO');
+        const continuityForClaude = (thinkStart >= 0 && thinkEnd > thinkStart)
+          ? CONTINUITY_PROTOCOL.slice(0, thinkStart)
+            + "[RAZONAMIENTO VISIBLE]\nAntes de responder, escribe tu razonamiento dentro de <thinking> ... </thinking> en MÁXIMO 100 palabras (qué fragmentos del canon usas y por qué). El autor puede desplegarlo si quiere. Luego da la respuesta.\n\n"
+            + CONTINUITY_PROTOCOL.slice(thinkEnd)
+          : CONTINUITY_PROTOCOL;
+        let memChars = 0;
+        const claudeChunks = relevantanys.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
+        const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
+        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
+        const userText = `${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${claudeMemory}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyText}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
         const totalChars = staticSystem.length + activeContextSection.length + userText.length;
         const claudeModel = pickClaudeModel('Director', totalChars, true);
         const content: any[] = [];
@@ -1944,8 +1956,7 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
             ...(activeContextSection.trim() ? [{ text: activeContextSection, cache: true }] : []),
           ],
           content,
-          maxTokens: requestedMaxTokens ?? 2048,
-          temperature: TEMP_CREATIVE,
+          maxTokens: Math.min(requestedMaxTokens ?? 1400, 1400), // razonamiento corto + respuesta breve
           label: 'Director',
         });
         if (r.ok && r.text) {
