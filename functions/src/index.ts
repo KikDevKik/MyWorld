@@ -2012,7 +2012,10 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         let response = result.response;
 
         // 🟢 TOOL HANDLING (FUNCTION CALLING)
-        const calls = response.functionCalls();
+        // Oct 2026: functionCalls() lanza excepción si la respuesta fue bloqueada (PROHIBITED_CONTENT),
+        // lo que saltaba el intento 2 (sin fragmentos del canon). Ahora el bloqueo sigue al intento 2.
+        let calls: any;
+        try { calls = response.functionCalls(); } catch { calls = undefined; }
         if (calls && calls.length > 0) {
           const call = calls[0];
           if (call.name === "fetchPastSessions") {
@@ -2091,7 +2094,7 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
 
         // --- 3. RETRY LOGIC (SANITIZATION FALLBACK) ---
         // REVISION 00130: If Attempt 1 is blocked, Attempt 2 must STRIP RAG chunks.
-        const isBlocked = finishReason === FinishReason.SAFETY || finishReason === (FinishReason as any).OTHER || (response.promptFeedback?.blockReason);
+        const isBlocked = finishReason === FinishReason.SAFETY || finishReason === (FinishReason as any).OTHER || String(finishReason) === 'PROHIBITED_CONTENT' || (response.promptFeedback?.blockReason);
         const isEmpty = !response.candidates || response.candidates.length === 0 || !response.text;
 
         if (isBlocked || isEmpty) {
@@ -2177,7 +2180,9 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
             ? QUOTA_USER_MESSAGE
             : isOverloaded
               ? "⏳ Los servidores gratuitos de Gemini están saturados en este momento. Tu mensaje no se perdió: vuelve a enviarlo en un minuto."
-              : "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.";
+              : /PROHIBITED_CONTENT|blocked/i.test(String(invokeError?.message || ''))
+                ? "🛡️ Gemini bloqueó esta respuesta con su filtro de contenido, que MyWorld no puede desactivar. Suele saltar con escenas duras que involucran a menores (acoso, violencia, muerte). Tu texto no tiene nada malo: prueba a reformular la pregunta de forma más general o cierra el archivo abierto y vuelve a preguntar."
+                : "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.";
 
         logger.error(
           isQuotaError(invokeError) ? "⚠️ [QUOTA] Cuota API agotada en forgeRagChat:" : "💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG) [CATCH-ALL]:",
