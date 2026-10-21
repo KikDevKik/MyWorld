@@ -1,3 +1,4 @@
+import { rememberExchange } from '../services/memoryService';
 import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import type { GemId, Gem, DriveFile } from '../types';
 import type { ChatMessage } from '../types/core';
@@ -416,6 +417,8 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
             };
 
             setMessages(prev => [...prev, aiMessage]);
+            // Memoria de MyWorld: el Laboratorio y los demás chats también recuerdan decisiones
+            rememberExchange({ userMessage: text, assistantMessage: data.response, tool: 'laboratorio', accessToken, activeFileName });
 
             // 🟢 6. PERSIST AI MESSAGE
             if (user && activeSessionId) {

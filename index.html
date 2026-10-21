@@ -123,7 +123,13 @@
 </head>
 
 <body class="bg-background-dark text-text-primary-dark font-display">
-  <div id="root"></div>
+  <div id="root">
+    <div id="mw-boot" style="position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#0b0c0f;color:#8b8f99;font:13px system-ui,sans-serif">
+      <div style="width:28px;height:28px;border:2px solid #2a2d35;border-top-color:#a855f7;border-radius:50%;animation:mwspin .8s linear infinite"></div>
+      <div>Cargando MyWorld…</div>
+    </div>
+    <style>@keyframes mwspin{to{transform:rotate(360deg)}}</style>
+  </div>
   <script type="module" src="/src/index.tsx"></script>
 </body>
 

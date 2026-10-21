@@ -113,7 +113,7 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
                         onClick={() => { act({ action: 'add', slug: 'preferencias-del-autor', name: 'Preferencias del autor', kind: 'preferencias', text: newText }, 'Guardado en la memoria.'); setNewText(''); }}
                         className="px-3 py-2 rounded-lg bg-purple-700/70 hover:bg-purple-600 text-white text-xs disabled:opacity-40 flex items-center gap-1"
                     >
-                        <Plus size={12} /> Añadir
+                        {busy ? <><Loader2 size={12} className="animate-spin" /> Guardando…</> : <><Plus size={12} /> Añadir</>}
                     </button>
                 </div>
                 <p className="px-5 pb-3 text-[10px] text-titanium-600">Hay una copia en la carpeta “_Memoria MyWorld” de tu proyecto (la ves en Obsidian). Edita aquí: los cambios hechos en Obsidian no vuelven a MyWorld.</p>

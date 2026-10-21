@@ -40,3 +40,7 @@ test-results/
 
 # repowise API keys (local)
 .repowise/.env
+
+# Oct 2026: caches locales, no versionar
+.repowise/
+.firebase/

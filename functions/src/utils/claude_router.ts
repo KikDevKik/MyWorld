@@ -46,7 +46,42 @@ export function claudeEnabledForCurrentUser(): boolean {
     return allowed.includes(uid);
 }
 
+// Oct 2026: tope de gasto mensual por usuario (estimado). Al pasar el 80% todo va a Haiku;
+// al llegar al 100% se deja de usar Claude ese mes (MyWorld sigue con Gemini). Valor en .env (CLAUDE_MONTHLY_CAP_USD).
+const spendCache = new Map<string, { at: number; cost: number }>();
+export async function getMonthSpend(uid?: string): Promise<number> {
+    if (!uid) return 0;
+    const hit = spendCache.get(uid);
+    if (hit && Date.now() - hit.at < 60_000) return hit.cost;
+    let cost = 0;
+    try {
+        const month = new Date().toISOString().slice(0, 7);
+        const snap = await getFirestore().collection("users").doc(uid).collection("ai_usage").doc(month).get();
+        cost = snap.data()?.costUsd || 0;
+    } catch { /* sin datos: 0 */ }
+    spendCache.set(uid, { at: Date.now(), cost });
+    return cost;
+}
+export function monthlyCapUsd(): number {
+    const v = parseFloat(process.env.CLAUDE_MONTHLY_CAP_USD || "8");
+    return isFinite(v) && v > 0 ? v : 8;
+}
+/** Verifica el tope antes de cada llamada. true = puede usar Claude. */
+export async function claudeWithinBudget(): Promise<boolean> {
+    const uid = getRequestUid();
+    const spent = await getMonthSpend(uid);
+    if (spent >= monthlyCapUsd()) {
+        logger.warn(`💸 [CLAUDE] Tope mensual alcanzado (US$ ${spent.toFixed(2)} / ${monthlyCapUsd()}). Se usa Gemini.`);
+        return false;
+    }
+    lastSpendRatio = spent / monthlyCapUsd();
+    return true;
+}
+let lastSpendRatio = 0;
+
 export function pickClaudeModel(contextLabel: string, promptChars: number, conversational?: boolean): string {
+    // Pasado el 80% del tope mensual, todo con Haiku para estirar el saldo.
+    if (lastSpendRatio >= 0.8) return CLAUDE_HAIKU;
     const isConversation = conversational ?? /^(ArquitectoChat_|Director|ChatRAG)/.test(contextLabel || "");
     // Modo Económico (Config IA): todo con Haiku, ~20 veces más barato.
     if (isConversation && getClaudeQuality() !== 'economico' && promptChars <= SONNET_MAX_PROMPT_CHARS) return CLAUDE_SONNET;
@@ -85,6 +120,7 @@ function stripReasoningRequests(text: string): string {
 
 export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallResult> {
     const label = opts.label || "Claude";
+    if (!(await claudeWithinBudget())) return { ok: false, error: "MONTHLY_CAP" };
     opts = {
         ...opts,
         system: (opts.system || []).map(b => ({ ...b, text: stripReasoningRequests(b.text) })),

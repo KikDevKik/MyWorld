@@ -14,7 +14,7 @@ import { GeminiEmbedder } from "./utils/vector_utils";
 import { GoogleGenerativeAI, TaskType, SchemaType } from "@google/generative-ai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { smartGenerateContent } from "./utils/smart_generate";
-import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE } from "./utils/claude_router";
+import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, monthlyCapUsd } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
@@ -4274,6 +4274,6 @@ export const getAIStatus = onCall(
       monthCostUsd = snap.data()?.costUsd || 0;
       calls = snap.data()?.calls || 0;
     }
-    return { claudeActive, monthCostUsd, calls, conversationModel: "Claude Sonnet 5.5", taskModel: "Claude Haiku 5.5" };
+    return { claudeActive, monthCostUsd, calls, capUsd: monthlyCapUsd(), conversationModel: "Claude Sonnet 5.5", taskModel: "Claude Haiku 5.5" };
   }
 );

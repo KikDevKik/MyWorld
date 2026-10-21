@@ -35,7 +35,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         try { return localStorage.getItem('myworld_claude_quality') === 'economico' ? 'economico' : 'calidad'; } catch { return 'calidad'; }
     });
     // Oct 2026: estado de Claude (pagado por MyWorld) y gasto del mes
-    const [aiStatus, setAiStatus] = useState<{ claudeActive: boolean; monthCostUsd: number; calls: number; conversationModel: string; taskModel: string } | null>(null);
+    const [aiStatus, setAiStatus] = useState<{ claudeActive: boolean; monthCostUsd: number; calls: number; capUsd?: number; conversationModel: string; taskModel: string } | null>(null);
     useEffect(() => {
         if (activeTab !== 'ai_config') return;
         callFunction<any>('getAIStatus', {}).then(r => { if (r) setAiStatus(r); }).catch(() => {});
@@ -858,7 +858,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 <div className="mb-5 p-3 rounded-lg border border-purple-500/30 bg-purple-900/10 text-xs text-titanium-300 space-y-1">
                                     <p className="font-medium text-purple-300">Claude activo en tu cuenta (lo paga MyWorld)</p>
                                     <p>Director y Arquitecto: {aiStatus.conversationModel}. Tareas automáticas: {aiStatus.taskModel}. La indexación del canon sigue con Gemini.</p>
-                                    <p>Gasto estimado este mes: <span className="text-titanium-100 font-medium">US$ {aiStatus.monthCostUsd.toFixed(3)}</span> en {aiStatus.calls} llamadas. Si Claude no responde, MyWorld usa Gemini automáticamente.</p>
+                                    <p>Gasto estimado este mes: <span className="text-titanium-100 font-medium">US$ {aiStatus.monthCostUsd.toFixed(3)}</span> en {aiStatus.calls} llamadas{aiStatus.capUsd ? ` (tope mensual: US$ ${aiStatus.capUsd}; al 80% todo pasa a Haiku y al llegar al tope se usa Gemini hasta el mes siguiente)` : ''}. Si Claude no responde, MyWorld usa Gemini automáticamente.</p>
                                     <p className="text-titanium-500">La clave de Gemini de abajo solo se usa como respaldo y para buscar en tu canon. No la borres.</p>
                                     <div className="pt-2 flex items-center gap-2">
                                         <span className="text-titanium-400">Director y Arquitecto:</span>

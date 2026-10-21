@@ -664,75 +664,49 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 onFolderCreated={refreshConfig}
             />
 
-            {/* FOOTER */}
-            <div className="p-3 border-t border-titanium-800 bg-titanium-900 mt-auto">
-                <div className="flex flex-col gap-1">
+            {/* FOOTER — Oct 2026: una sola fila de iconos para no aplastar el explorador */}
+            <div className="px-2 py-2 border-t border-titanium-800 bg-titanium-900 mt-auto">
+                {driveStatus !== 'connected' && (
                     <button
-                        onClick={() => setIsGuidePanelOpen(true)}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
+                        onClick={onRefreshTokens}
+                        className={`w-full mb-1.5 flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        title={tStatus.reconnect}
+                        disabled={driveStatus === 'refreshing'}
+                        aria-label={status.text}
                     >
-                        <HelpCircle size={16} className="group-hover:text-accent-DEFAULT transition-colors" />
-                        <span>{t.guide}</span>
+                        <status.icon size={14} />
+                        <span>{status.text}</span>
                     </button>
-
-                    {isGuidePanelOpen && <GuidePanel onClose={() => setIsGuidePanelOpen(false)} />}
-
-                    {/* Oct 2026: Memoria de MyWorld */}
-                    <button
-                        onClick={() => setIsMemoryOpen(true)}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
-                    >
-                        <Brain size={16} className="group-hover:text-purple-400 transition-colors" />
-                        <span>Memoria</span>
+                )}
+                <div className="flex items-center justify-between">
+                    <button onClick={() => setIsGuidePanelOpen(true)} title={t.guide} aria-label={t.guide}
+                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">
+                        <HelpCircle size={16} />
                     </button>
-                    {isMemoryOpen && <MemoryPanel onClose={() => setIsMemoryOpen(false)} accessToken={accessToken} />}
-
-                    <button
-                        id="sidebar-project-settings"
-                        onClick={onOpenProjectSettings}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
-                    >
-                        <FolderCog size={16} className="group-hover:text-cyan-500 transition-colors" />
-                        <span>{t.project}</span>
+                    <button onClick={() => setIsMemoryOpen(true)} title="Memoria" aria-label="Memoria"
+                        className="p-2 rounded-md text-titanium-400 hover:text-purple-300 hover:bg-purple-900/20 transition-all">
+                        <Brain size={16} />
                     </button>
-
-                    <button
-                        onClick={onOpenSettings}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
-                    >
-                        <Settings size={16} className="group-hover:text-cyan-500 transition-colors" />
-                        <span>{t.settings}</span>
+                    <button id="sidebar-project-settings" onClick={onOpenProjectSettings} title={t.project} aria-label={t.project}
+                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">
+                        <FolderCog size={16} />
                     </button>
-
-                    {/* 🟢 DRIVE STATUS — Only show as action button when reconnect is needed */}
-                    {driveStatus === 'connected' ? (
-                        <div className="flex items-center gap-3 px-3 py-1.5 text-xs text-green-600/70 font-medium select-none">
-                            <status.icon size={14} className="shrink-0" />
-                            <span>{tStatus.connected}</span>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={onRefreshTokens}
-                            className={`flex items-center gap-3 px-3 py-2 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium group ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
-                            title={tStatus.reconnect}
-                            disabled={driveStatus === 'refreshing'}
-                            aria-label={status.text}
-                        >
-                            <status.icon size={16} className="transition-colors" />
-                            <span>{status.text}</span>
-                        </button>
+                    <button onClick={onOpenSettings} title={t.settings} aria-label={t.settings}
+                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">
+                        <Settings size={16} />
+                    </button>
+                    {driveStatus === 'connected' && (
+                        <span className="p-2 text-green-600/70" title={tStatus.connected} aria-label={tStatus.connected}>
+                            <status.icon size={14} />
+                        </span>
                     )}
-
-                    <div className="h-px bg-titanium-700/50 my-1 mx-2"></div>
-
-                    <button
-                        onClick={onLogout}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-red-400 hover:bg-red-900/10 transition-all text-xs font-medium group"
-                    >
+                    <button onClick={onLogout} title={t.logout} aria-label={t.logout}
+                        className="p-2 rounded-md text-titanium-400 hover:text-red-400 hover:bg-red-900/10 transition-all">
                         <LogOut size={16} />
-                        <span>{t.logout}</span>
                     </button>
                 </div>
+                {isGuidePanelOpen && <GuidePanel onClose={() => setIsGuidePanelOpen(false)} />}
+                {isMemoryOpen && <MemoryPanel onClose={() => setIsMemoryOpen(false)} accessToken={accessToken} />}
             </div>
         </div>
     );

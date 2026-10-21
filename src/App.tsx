@@ -1597,7 +1597,12 @@ function App() {
         );
     }
 
-    if (authLoading) return <div className="h-screen w-screen bg-titanium-950" />;
+    if (authLoading) return (
+        <div className="h-screen w-screen bg-titanium-950 flex flex-col items-center justify-center gap-3 text-titanium-500 text-xs">
+            <div className="w-7 h-7 border-2 border-titanium-800 border-t-purple-500 rounded-full animate-spin" />
+            Cargando MyWorld…
+        </div>
+    );
     if (!user) return <LoginScreen onLoginSuccess={(u, t) => { setUser(u); setOauthToken(t); }} />;
 
     return (
