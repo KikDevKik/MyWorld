@@ -50,6 +50,7 @@ export interface ClaudeCallOptions {
     maxTokens?: number;
     temperature?: number;
     label?: string;
+    effort?: 'low' | 'medium' | 'high';
 }
 
 export interface ClaudeCallResult { ok: boolean; text?: string; error?: string; noCredit?: boolean; refusal?: boolean; stopReason?: string; }
@@ -87,8 +88,11 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
     try {
         const res: any = await getClient().messages.create({
             model: opts.model,
-            max_tokens: Math.min(opts.maxTokens ?? 4096, 16000),
+            max_tokens: Math.min(Math.max(opts.maxTokens ?? 4096, 2500), 16000),
             // Oct 2026: Sonnet 5.5 / Haiku 5.5 rechazan `temperature` (deprecated): no se envía.
+            // Oct 2026: los modelos 5.5 piensan por su cuenta y ese pensamiento cuenta en max_tokens.
+            // Esfuerzo bajo = piensan poco y les queda espacio para responder (y cuesta menos).
+            output_config: { effort: opts.effort || 'low' },
             ...(system.length ? { system } : {}),
             messages: [{ role: "user", content: opts.content }],
         } as any);
