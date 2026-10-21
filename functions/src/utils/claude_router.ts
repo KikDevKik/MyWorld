@@ -74,7 +74,7 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
         const res: any = await getClient().messages.create({
             model: opts.model,
             max_tokens: Math.min(opts.maxTokens ?? 4096, 16000),
-            temperature: opts.temperature ?? 0.7,
+            // Oct 2026: Sonnet 5.5 / Haiku 5.5 rechazan `temperature` (deprecated): no se envía.
             ...(system.length ? { system } : {}),
             messages: [{ role: "user", content: opts.content }],
         } as any);

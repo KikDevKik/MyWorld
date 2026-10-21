@@ -116,7 +116,6 @@ export async function smartGenerateContentClaude(
             const response = await client.messages.create({
                 model:       modelId,
                 max_tokens:  maxTokens,
-                temperature: 1,
                 thinking: {
                     type:         'enabled',
                     budget_tokens: thinkingBudget,
@@ -135,7 +134,6 @@ export async function smartGenerateContentClaude(
             const response = await client.messages.create({
                 model:       modelId,
                 max_tokens:  maxTokens,
-                temperature,
                 messages: [{ role: 'user', content: safePrompt }],
             });
 
@@ -174,7 +172,6 @@ export async function smartGenerateContentClaude(
                 const fallbackResponse = await client.messages.create({
                     model:       fallbackId,
                     max_tokens:  4096,
-                    temperature: options.temperature ?? 0.7,
                     messages:    [{ role: 'user', content: safePrompt }],
                 });
 
