@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { toast } from 'sonner';
 import { callFunction, QuotaExceededError, getQuotaMessage } from '../services/api';
+import { rememberExchange } from '../services/memoryService';
 import { ChatMessageData } from '../types/director';
 import { fileToGenerativePart } from '../services/geminiService';
 import { CreativeAuditService } from '../services/CreativeAuditService';
@@ -302,6 +303,9 @@ VOCABULARIO: habla de narrativa (arco, motivación, tensión, ritmo, punto de gi
             }
 
             await callFunction('addForgeMessage', { sessionId: currentSessionId, role: 'ia', text: data.response });
+
+            // Memoria de MyWorld (en segundo plano; muestra aviso con "Deshacer" si guarda algo)
+            rememberExchange({ userMessage: text, assistantMessage: data.response, tool: 'director', accessToken, activeFileName });
 
             setMessages(prev => [...prev, {
                 id: (Date.now() + 1).toString(),

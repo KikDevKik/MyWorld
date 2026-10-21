@@ -1,3 +1,4 @@
+import { rememberExchange } from '../services/memoryService';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { useArquitectoStore } from '../stores/useArquitectoStore';
@@ -629,6 +630,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             };
 
             setMessages(prev => [...prev, assistantMsg]);
+            rememberExchange({ userMessage: text, assistantMessage: data.response, tool: 'arquitecto', accessToken });
 
             if (data?.detectedIntent) {
                 setLastDetectedIntent(data.detectedIntent);

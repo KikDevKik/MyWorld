@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
-import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, CACHE_SPLIT } from "./claude_router";
+import { getMemoryContext } from "./memory_store";
+import { getRequestUid } from "./request_context";
+import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, CACHE_SPLIT, MYWORLD_VOICE } from "./claude_router";
 import {
     MODEL_FLASH, MODEL_PRO, MODEL_FLASH_2_5, MODEL_FLASH_2_5_LITE,
     SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL,
@@ -66,8 +68,11 @@ export async function smartGenerateContent(
         const splitIdx = prompt.indexOf(CACHE_SPLIT);
         const fixedPart = splitIdx >= 0 ? prompt.slice(0, splitIdx) : "";
         const variablePart = splitIdx >= 0 ? prompt.slice(splitIdx + CACHE_SPLIT.length) : prompt;
-        content.push({ type: "text", text: variablePart + jsonRule });
-        const sysText = CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + config.systemInstruction : "");
+        // Memoria de MyWorld en la conversación del Arquitecto (en la parte variable, para no romper la caché)
+        const memCtx = /^ArquitectoChat_/.test(contextLabel) ? await getMemoryContext(getRequestUid(), prompt.slice(-4000)) : "";
+        content.push({ type: "text", text: (memCtx ? memCtx + "\n\n" : "") + variablePart + jsonRule });
+        // Memoria del autor: solo en la conversación del Arquitecto (no en tareas automáticas)
+const sysText = CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + config.systemInstruction : "") + (config.jsonMode ? "" : "\n\n" + MYWORLD_VOICE);
         const r = await callClaude({
             model,
             system: [

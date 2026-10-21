@@ -9,9 +9,9 @@ export function onCall<T = any, R = any>(optsOrHandler: CallableOptions | Handle
     if (typeof optsOrHandler === 'function') {
         const h = optsOrHandler;
         return baseOnCall<T, R>(((req: CallableRequest<T>, res?: any) =>
-            requestContext.run({ uid: req.auth?.uid }, () => h(req, res))) as any);
+            requestContext.run({ uid: req.auth?.uid, claudeQuality: (req.data as any)?._claudeQuality }, () => h(req, res))) as any);
     }
     const h = maybeHandler!;
     return baseOnCall<T, R>(optsOrHandler, ((req: CallableRequest<T>, res?: any) =>
-        requestContext.run({ uid: req.auth?.uid }, () => h(req, res))) as any);
+        requestContext.run({ uid: req.auth?.uid, claudeQuality: (req.data as any)?._claudeQuality }, () => h(req, res))) as any);
 }

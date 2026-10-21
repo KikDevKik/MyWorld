@@ -3,10 +3,11 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X, Brain } from 'lucide-react';
 import GuidePanel from './ui/GuidePanel';
 import CreateItemModal from './ui/CreateItemModal';
 import FolderPickerModal from './ui/FolderPickerModal';
+import MemoryPanel from './ui/MemoryPanel';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -298,6 +299,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     }, [accessToken, refreshConfig]);
 
     // 🟢 MOVE FILE STATE
+    const [isMemoryOpen, setIsMemoryOpen] = useState(false);
     const [moveTargetFile, setMoveTargetFile] = useState<{ id: string; name: string; parentId?: string } | null>(null);
     const [isMovingFileId, setIsMovingFileId] = useState<string | null>(null);
 
@@ -674,6 +676,16 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                     </button>
 
                     {isGuidePanelOpen && <GuidePanel onClose={() => setIsGuidePanelOpen(false)} />}
+
+                    {/* Oct 2026: Memoria de MyWorld */}
+                    <button
+                        onClick={() => setIsMemoryOpen(true)}
+                        className="flex items-center gap-3 px-3 py-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all text-xs font-medium group"
+                    >
+                        <Brain size={16} className="group-hover:text-purple-400 transition-colors" />
+                        <span>Memoria</span>
+                    </button>
+                    {isMemoryOpen && <MemoryPanel onClose={() => setIsMemoryOpen(false)} accessToken={accessToken} />}
 
                     <button
                         id="sidebar-project-settings"

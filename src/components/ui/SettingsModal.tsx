@@ -31,6 +31,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const { tier, tierMode, setTierMode } = useTier();
 
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'ai_config' | 'info'>(initialTab || 'general');
+    const [claudeQuality, setClaudeQuality] = useState<'calidad' | 'economico'>(() => {
+        try { return localStorage.getItem('myworld_claude_quality') === 'economico' ? 'economico' : 'calidad'; } catch { return 'calidad'; }
+    });
     // Oct 2026: estado de Claude (pagado por MyWorld) y gasto del mes
     const [aiStatus, setAiStatus] = useState<{ claudeActive: boolean; monthCostUsd: number; calls: number; conversationModel: string; taskModel: string } | null>(null);
     useEffect(() => {
@@ -856,7 +859,23 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     <p className="font-medium text-purple-300">Claude activo en tu cuenta (lo paga MyWorld)</p>
                                     <p>Director y Arquitecto: {aiStatus.conversationModel}. Tareas automáticas: {aiStatus.taskModel}. La indexación del canon sigue con Gemini.</p>
                                     <p>Gasto estimado este mes: <span className="text-titanium-100 font-medium">US$ {aiStatus.monthCostUsd.toFixed(3)}</span> en {aiStatus.calls} llamadas. Si Claude no responde, MyWorld usa Gemini automáticamente.</p>
-                                    <p className="text-titanium-500">La clave de Gemini de abajo solo se usa como respaldo y para indexar.</p>
+                                    <p className="text-titanium-500">La clave de Gemini de abajo solo se usa como respaldo y para buscar en tu canon. No la borres.</p>
+                                    <div className="pt-2 flex items-center gap-2">
+                                        <span className="text-titanium-400">Director y Arquitecto:</span>
+                                        {([
+                                            { v: 'calidad', label: 'Calidad (Sonnet)', hint: '≈ US$ 0,02–0,04 por mensaje' },
+                                            { v: 'economico', label: 'Económico (Haiku)', hint: '≈ US$ 0,002 por mensaje' },
+                                        ] as const).map(opt => (
+                                            <button
+                                                key={opt.v}
+                                                title={opt.hint}
+                                                onClick={() => { try { localStorage.setItem('myworld_claude_quality', opt.v); } catch { /* */ } setClaudeQuality(opt.v); toast.success(`Modo ${opt.label} activado`); }}
+                                                className={`px-2.5 py-1 rounded-md border text-[11px] transition-colors ${claudeQuality === opt.v ? 'border-purple-400 text-purple-200 bg-purple-900/30' : 'border-titanium-700 text-titanium-400 hover:text-titanium-200'}`}
+                                            >
+                                                {opt.label}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
                             )}
 

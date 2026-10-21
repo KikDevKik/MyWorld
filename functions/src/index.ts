@@ -14,7 +14,8 @@ import { GeminiEmbedder } from "./utils/vector_utils";
 import { GoogleGenerativeAI, TaskType, SchemaType } from "@google/generative-ai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { smartGenerateContent } from "./utils/smart_generate";
-import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM } from "./utils/claude_router";
+import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE } from "./utils/claude_router";
+import { getMemoryContext } from "./utils/memory_store";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
 import * as crypto from 'crypto';
@@ -74,6 +75,7 @@ export { classifyEntities } from './soul_sorter';
 export { analyzeNexusBatch, analyzeNexusFile } from './nexus_scan';
 export { forgeChatStream } from './forge_chat';
 export { builderStream } from './builder';
+export { updateMemory, undoMemory, getMemory, editMemory } from './memory'; // Oct 2026: Memoria de MyWorld
 // export { distillResourceOnIndex } from './distillation_trigger'; // Desactivado: backfill hace todo
 
 
@@ -152,6 +154,7 @@ export const saveDriveFile = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     memory: "512MiB",
+    secrets: [googleApiKey],
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
@@ -174,6 +177,37 @@ export const saveDriveFile = onCall(
       });
 
       logger.info(`💾 [SAVE] File updated: ${fileId}`);
+
+      // Oct 2026: re-indexar el archivo guardado para que el Director/Arquitecto lean la versión
+      // actual (antes solo se actualizaba al pulsar "Indexar"). Como mucho cada 10 min por archivo
+      // para no gastar la cuota de embeddings con el autoguardado; "Memoria del autor" siempre.
+      try {
+        const db = getFirestore();
+        const fileRef = db.collection("TDB_Index").doc(request.auth.uid).collection("files").doc(fileId);
+        const fSnap = await fileRef.get();
+        if (fSnap.exists) {
+          const f: any = fSnap.data();
+          const isAuthorMemory = /^memoria del autor\.md$/i.test(f.name || '');
+          const last = f.lastIndexed ? new Date(f.lastIndexed).getTime() : 0;
+          if (isAuthorMemory || Date.now() - last > 10 * 60 * 1000) {
+            const embedder = new GeminiEmbedder({
+              apiKey: getAIKey(request.data, googleApiKey.value()),
+              model: "gemini-embedding-001",
+              taskType: TaskType.RETRIEVAL_DOCUMENT,
+            });
+            const cfg = await db.collection("users").doc(request.auth.uid).collection("profile").doc("project_config").get();
+            const res = await ingestFile(db, request.auth.uid, cfg.data()?.folderId || "unknown_project", {
+              id: fileId, name: f.name, path: f.path || f.name, saga: f.saga, parentId: f.parentId,
+              category: f.category, mimeType: f.mimeType || 'text/markdown',
+            }, content, embedder);
+            await fileRef.set({ lastIndexed: new Date().toISOString() }, { merge: true });
+            logger.info(`🔄 [SAVE] Re-indexado ${f.name}: ${res.status}`);
+          }
+        }
+      } catch (reindexErr: any) {
+        logger.warn(`[SAVE] Guardado OK, pero no se pudo re-indexar: ${reindexErr?.message}`);
+      }
+
       return { success: true };
     } catch (error: any) {
       logger.error("Save Drive File Failed:", error);
@@ -1939,12 +1973,29 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
             + CONTINUITY_PROTOCOL.slice(thinkEnd)
           : CONTINUITY_PROTOCOL;
         let memChars = 0;
-        const claudeChunks = relevantanys.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
+        // Máx. 2 fragmentos por archivo: la búsqueda solía devolver el mismo borrador 4-5 veces.
+        const perFile: Record<string, number> = {};
+        const diverse = relevantanys.filter(c => { const k = c.fileName || '?'; perFile[k] = (perFile[k] || 0) + 1; return perFile[k] <= 2; });
+        // Prioridad a fragmentos de la misma carpeta (mismo libro) que el archivo abierto.
+        let activeFolder = '';
+        try {
+          if (activeFileName) {
+            const fq = await getFirestore().collection('TDB_Index').doc(userId).collection('files').where('name', '==', activeFileName).limit(1).get();
+            const ap: string = fq.docs[0]?.data()?.path || '';
+            activeFolder = ap.includes('/') ? ap.slice(0, ap.lastIndexOf('/')) : '';
+          }
+        } catch { /* sin prioridad */ }
+        const inFolder = (c: any) => (activeFolder && String(c.path || '').startsWith(activeFolder)) ? 1 : 0;
+        const ranked = activeFolder ? [...diverse].sort((a, b) => inFolder(b) - inFolder(a)) : diverse;
+        if (activeFolder) logger.info(`📂 [DIRECTOR] Prioridad a la carpeta "${activeFolder}": ${ranked.filter(inFolder).length} fragmentos`);
+        const claudeChunks = ranked.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
         const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
-        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
+        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
+        // Memoria de MyWorld: fuera de la caché (cambia cuando se guarda algo nuevo)
+        const myworldMemory = await getMemoryContext(userId, `${finalQuery} ${activeFileName || ''} ${(activeFileContent || '').slice(0, 3000)}`);
         // Quitar bloques <thinking> de respuestas anteriores (también provocan el bloqueo de Claude)
         const historyForClaude = String(historyText).replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/<\/?thinking>/gi, '');
-        const userText = `${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${claudeMemory}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyForClaude}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
+        const userText = `${myworldMemory}\n\n${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${claudeMemory}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyForClaude}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
         const totalChars = staticSystem.length + activeContextSection.length + userText.length;
         const claudeModel = pickClaudeModel('Director', totalChars, true);
         const content: any[] = [];
@@ -1955,8 +2006,9 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         const r = await callClaude({
           model: claudeModel,
           system: [
-            { text: staticSystem, cache: true },
-            ...(activeContextSection.trim() ? [{ text: activeContextSection, cache: true }] : []),
+            // Caché de 1 h: el autor escribe y vuelve cada 10-30 min; la de 5 min nunca se reutilizaba.
+            { text: staticSystem, cache: true, ttl1h: true },
+            ...(activeContextSection.trim() ? [{ text: activeContextSection, cache: true, ttl1h: true }] : []),
           ],
           content,
           maxTokens: 3000, // incluye el pensamiento interno del modelo; la brevedad la controla el prompt
@@ -2237,7 +2289,9 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         const invokeMsg = String(invokeError?.message || '').toLowerCase();
         const isOverloaded = invokeMsg.includes('503') || invokeMsg.includes('high demand') || invokeMsg.includes('overloaded');
         const errorText = isQuotaError(invokeError)
-            ? QUOTA_USER_MESSAGE
+            ? (claudeEnabledForCurrentUser()
+                ? "⚠️ Claude no pudo responder este mensaje y el respaldo gratuito (Gemini) ya gastó su cuota de hoy. Vuelve a enviarlo en un momento; si se repite, avísale a Claude en el chat de desarrollo."
+                : QUOTA_USER_MESSAGE)
             : isOverloaded
               ? "⏳ Los servidores gratuitos de Gemini están saturados en este momento. Tu mensaje no se perdió: vuelve a enviarlo en un minuto."
               : /PROHIBITED_CONTENT|blocked/i.test(String(invokeError?.message || ''))

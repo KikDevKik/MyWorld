@@ -42,9 +42,12 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
     const tierMode = localStorage.getItem('myworld_tier_mode');
     const tier: 'normal' | 'ultra' = tierMode === 'ultra' ? 'ultra' : 'normal';
     const currentLang = localStorage.getItem('myworld_language_preference') || 'es';
+    // Oct 2026: calidad de Claude (solo aplica a cuentas con Claude pagado por MyWorld)
+    let claudeQuality: string = 'calidad';
+    try { claudeQuality = localStorage.getItem('myworld_claude_quality') === 'economico' ? 'economico' : 'calidad'; } catch { /* sin storage */ }
     const payload = customKey
-        ? { ...data, _authOverride: customKey, _userTier: tier, _lang: currentLang }
-        : { ...data, _userTier: tier, _lang: currentLang };
+        ? { ...data, _authOverride: customKey, _userTier: tier, _lang: currentLang, _claudeQuality: claudeQuality }
+        : { ...data, _userTier: tier, _lang: currentLang, _claudeQuality: claudeQuality };
 
     // Oct 2026: el SDK corta a los 70 s por defecto; nuestras funciones de IA pueden tardar más (timeout servidor 300 s).
     const fn = firebaseHttpsCallable(functions, name, { timeout: 300000, ...options });

@@ -605,7 +605,7 @@ export const arquitectoInitialize = onCall(
 
         let pendingItems: PendingItem[] = [];
         let projectSummary = "Proyecto inicializado.";
-        let initialMessage = "El Arquitecto en línea. ¿Qué frente de batalla vamos a atacar hoy?";
+        let initialMessage = "Listo. ¿En qué parte de tu proyecto trabajamos hoy?";
         // Oct 2026: si el usuario abrió la sesión con un mensaje y la IA falló, no responder
         // con un saludo genérico como si no hubiera escrito nada.
         if (!initResult.text && implementationGoal && String(implementationGoal).trim()) {
@@ -878,8 +878,8 @@ RUTA: DEBATE — El usuario está explorando o dio una respuesta ambigua.
 INSTRUCCIONES:
 1. NO aceptes la respuesta como resolución todavía.
 2. Si hay ambigüedad, formula UNA pregunta de clarificación específica.
-3. Si la respuesta es vaga, presiona: ¿Qué significa exactamente "${escapePromptVariable(userMessage.substring(0, 50))}"?
-4. Aplica el Filtro de Cámara: ¿esto aparecerá en la historia?
+3. Si la respuesta es vaga, pide que la concrete: ¿Qué significa exactamente "${escapePromptVariable(userMessage.substring(0, 50))}"?
+4. Si el tema no va a aparecer en la historia, no exijas desarrollarlo.
 5. Si llevas más de 3 intercambios sobre la misma disonancia y el autor ha dado respuestas sustanciales (aunque incompletas), aplica El Espejo y cierra el item actual. Los elementos sin definir se convierten en nuevos pendientes. No bloquees el avance indefinidamente.
 6. Máximo 250 palabras. Un solo desafío por respuesta.
 
@@ -943,7 +943,7 @@ ${historyText}
 RUTA: REFUTACIÓN — El autor defiende que esto no es un error.
 
 INSTRUCCIONES DE EVALUACIÓN:
-1. Si el autor invoca el Filtro de Cámara ("no se va a mostrar", "no es relevante para la trama"), DEBES aceptarlo como refutación válida. Cierra la disonancia con "Aceptado. Procedo sin desarrollar esto."
+1. Si el autor dice que algo no se va a mostrar o no es relevante para la trama, acéptalo como refutación válida y cierra el tema en una línea.
 2. Si el autor dice "es a propósito" o "es una característica intencional", evalúa si tiene sentido dramático. Si sí, acéptalo. Si no, rebate UNA VEZ más con evidencia lógica concreta.
 3. Si la defensa es débil o circular, rechaza educadamente y explica por qué la disonancia persiste.
 4. FORMATO: Tu respuesta debe indicar claramente si la refutación es VÁLIDA o INVÁLIDA.
