@@ -14,6 +14,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
@@ -577,24 +578,80 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         try {
             console.log("Iniciando indexado estricto...", folderIds);
 
-            const promise = callFunction<{ success: boolean; message: string }>('indexTDB', {
-                folderIds: folderIds,
-                projectId: config.folderId || folderId,
-                accessToken: oauthToken,
-                forceFullReindex: false
-            });
+            // Oct 2026: progreso en vivo desde Firestore (users/{uid}/profile/index_status).
+            // Si el navegador deja de esperar (5 min) pero el servidor sigue indexando,
+            // NO es un error: seguimos mostrando el progreso hasta que termine.
+            const uid = getAuth().currentUser?.uid;
+            const toastId = toast.loading('Indexando base de conocimiento...');
+            const startedAt = Date.now();
+            let finished = false;
+            let unsub: (() => void) | null = null;
+            const STALE_MS = 5 * 60 * 1000;
+            const finishOk = (msg: string) => {
+                if (finished) return; finished = true; unsub?.();
+                setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
+                refreshConfig();
+                toast.success(`¡Aprendizaje completado! ${msg}`, { id: toastId, duration: 10000 });
+            };
+            const finishErr = (msg: string) => {
+                if (finished) return; finished = true; unsub?.();
+                toast.error(msg, { id: toastId, duration: 12000 });
+            };
+            if (uid) {
+                unsub = onSnapshot(doc(getFirestore(), 'users', uid, 'profile', 'index_status'), (snap) => {
+                    const st: any = snap.data();
+                    if (!st || finished) return;
+                    // Ignorar estados de una indexación anterior
+                    if (st.startedAt && new Date(st.startedAt).getTime() < startedAt - 60_000) return;
+                    if (st.state === 'running') {
+                        const prog = st.total ? ` (${st.done || 0}/${st.total} archivos)` : '';
+                        toast.loading(`Indexando base de conocimiento${prog}...`, { id: toastId });
+                    } else if (st.state === 'done') {
+                        finishOk(st.message || '');
+                    }
+                });
+            }
 
-            toast.promise(promise, {
-                loading: 'Indexando base de conocimiento...',
-                success: (result: any) => {
-                    setIndexStatus({ isIndexed: true, lastIndexedAt: new Date().toISOString() });
-                    refreshConfig();
-                    return `¡Aprendizaje Completado! ${result.message}`;
-                },
-                error: 'Error al indexar. Revisa la consola.',
-            });
-
-            await promise;
+            try {
+                const result = await callFunction<{ success: boolean; message: string }>('indexTDB', {
+                    folderIds: folderIds,
+                    projectId: config.folderId || folderId,
+                    accessToken: oauthToken,
+                    forceFullReindex: false
+                });
+                finishOk((result as any)?.message || '');
+            } catch (err: any) {
+                // ¿Error real o el navegador se cansó de esperar?
+                let stillRunning = false;
+                try {
+                    if (uid) {
+                        const snap = await getDoc(doc(getFirestore(), 'users', uid, 'profile', 'index_status'));
+                        const st: any = snap.data();
+                        if (st?.state === 'done' && st.startedAt && new Date(st.startedAt).getTime() >= startedAt - 60_000) {
+                            finishOk(st.message || ''); return;
+                        }
+                        stillRunning = st?.state === 'running' && !!st.updatedAt && (Date.now() - new Date(st.updatedAt).getTime()) < STALE_MS;
+                    }
+                } catch { /* sin acceso al estado: tratar como error */ }
+                if (stillRunning) {
+                    toast.loading('La indexación sigue en el servidor (es normal si tienes muchos archivos). Puedes seguir escribiendo; te aviso al terminar.', { id: toastId });
+                    // Vigilancia: si el estado deja de actualizarse 5 min, es un fallo real
+                    const watchdog = setInterval(async () => {
+                        if (finished) { clearInterval(watchdog); return; }
+                        try {
+                            const snap = await getDoc(doc(getFirestore(), 'users', uid!, 'profile', 'index_status'));
+                            const st: any = snap.data();
+                            if (st?.state === 'running' && st.updatedAt && Date.now() - new Date(st.updatedAt).getTime() > STALE_MS) {
+                                clearInterval(watchdog);
+                                finishErr('La indexación se detuvo sin terminar. Vuelve a pulsar indexar: continuará donde quedó.');
+                            }
+                        } catch { /* reintenta en el siguiente ciclo */ }
+                    }, 60_000);
+                } else {
+                    console.error(err);
+                    finishErr('Error al indexar: ' + (err?.message || 'desconocido') + '. Vuelve a intentarlo; lo ya indexado no se pierde.');
+                }
+            }
         } catch (error) {
             console.error(error);
         }

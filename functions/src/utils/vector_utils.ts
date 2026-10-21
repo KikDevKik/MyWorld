@@ -8,6 +8,31 @@ import * as logger from "firebase-functions/logger";
  * 2. Input truncation (avoid API errors)
  * 3. Output dimensionality (prevent > 2048 errors in Firestore)
  */
+// Oct 2026: límite del nivel gratuito = 100 embeddings/min por proyecto.
+// Regulador simple por instancia (ventana deslizante) + reintento al recibir 429.
+const EMBED_WINDOW_MS = 60_000;
+const EMBED_MAX_PER_WINDOW = 85;
+let embedSent: number[] = [];
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+async function acquireEmbedSlots(n: number) {
+    for (;;) {
+        const now = Date.now();
+        embedSent = embedSent.filter(t => now - t < EMBED_WINDOW_MS);
+        if (embedSent.length + n <= EMBED_MAX_PER_WINDOW) {
+            for (let i = 0; i < n; i++) embedSent.push(now);
+            return;
+        }
+        const waitMs = Math.min(EMBED_WINDOW_MS - (now - embedSent[0]) + 250, 15_000);
+        await sleep(Math.max(waitMs, 500));
+    }
+}
+function retryDelayMs(err: any): number | null {
+    const msg = String(err?.message || '');
+    if (!msg.includes('429')) return null;
+    const m = msg.match(/retry in ([\d.]+)s/i);
+    return (m ? Math.ceil(parseFloat(m[1]) * 1000) : 30_000) + 1000;
+}
+
 export class GeminiEmbedder {
     private model: any;
     private apiKey: string;
@@ -42,10 +67,23 @@ export class GeminiEmbedder {
         const processedText = text.length > SAFE_CHAR_LIMIT ? text.substring(0, SAFE_CHAR_LIMIT) : text;
 
         try {
-            const result = await this.model.embedContent({
-                content: { role: 'user', parts: [{ text: processedText }] },
-                taskType: this.taskType
-            });
+            await acquireEmbedSlots(1);
+            let result: any;
+            try {
+                result = await this.model.embedContent({
+                    content: { role: 'user', parts: [{ text: processedText }] },
+                    taskType: this.taskType
+                });
+            } catch (e: any) {
+                const d = retryDelayMs(e);
+                if (d === null || d > 65_000) throw e;
+                await sleep(d);
+                embedSent = [];
+                result = await this.model.embedContent({
+                    content: { role: 'user', parts: [{ text: processedText }] },
+                    taskType: this.taskType
+                });
+            }
 
             const vector = result.embedding.values;
 
@@ -76,20 +114,33 @@ export class GeminiEmbedder {
         // muchas menos peticiones de la cuota gratuita que una llamada por fragmento.
         const SAFE_CHAR_LIMIT = 9000;
         const out: number[][] = [];
-        for (let i = 0; i < documents.length; i += 100) {
-            const slice = documents.slice(i, i + 100).map(d => (d && typeof d === 'string' ? d : ' ').substring(0, SAFE_CHAR_LIMIT));
-            try {
-                const res = await this.model.batchEmbedContents({
-                    requests: slice.map(text => ({ content: { role: 'user', parts: [{ text }] }, taskType: this.taskType })),
-                });
-                for (const e of res.embeddings || []) {
-                    const v: number[] = e.values || [];
-                    out.push(v.length > 2048 ? v.slice(0, 768) : v);
+        const BATCH = 40;
+        for (let i = 0; i < documents.length; i += BATCH) {
+            const slice = documents.slice(i, i + BATCH).map(d => (d && typeof d === 'string' ? d : ' ').substring(0, SAFE_CHAR_LIMIT));
+            let done = false;
+            for (let attempt = 0; attempt < 4 && !done; attempt++) {
+                try {
+                    await acquireEmbedSlots(slice.length);
+                    const res = await this.model.batchEmbedContents({
+                        requests: slice.map(text => ({ content: { role: 'user', parts: [{ text }] }, taskType: this.taskType })),
+                    });
+                    for (const e of res.embeddings || []) {
+                        const v: number[] = e.values || [];
+                        out.push(v.length > 2048 ? v.slice(0, 768) : v);
+                    }
+                    done = true;
+                } catch (err: any) {
+                    const d = retryDelayMs(err);
+                    if (d !== null && d <= 65_000) {
+                        logger.info(`[EMBEDDER] Límite de cuota alcanzado; esperando ${Math.round(d / 1000)} s (intento ${attempt + 1}).`);
+                        embedSent = embedSent.concat(new Array(EMBED_MAX_PER_WINDOW).fill(Date.now()));
+                        await sleep(d);
+                        continue;
+                    }
+                    throw err; // error no recuperable (o cuota diaria): que lo maneje quien llama
                 }
-            } catch (err: any) {
-                logger.warn(`[EMBEDDER] batchEmbedContents falló (${err?.message}); usando llamadas individuales.`);
-                for (const t of slice) out.push(await this.embedQuery(t));
             }
+            if (!done) throw new Error('EMBED_QUOTA: no se pudo generar embeddings tras varios intentos.');
         }
         return out;
     }

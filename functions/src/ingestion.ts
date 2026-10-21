@@ -19,6 +19,7 @@ export interface IngestionResult {
     hash: string;
     chunksCreated: number;
     chunksDeleted: number;
+    vectorsMissing?: boolean; // Oct 2026: true si no se pudieron generar embeddings (cuota)
 }
 
 // ============================================================================
@@ -57,7 +58,17 @@ function parseAST(content: string) {
 function computeSemanticDelta(newBody: string, previousHashes: Set<string>) {
     // Corte por párrafos semánticos (doble salto de línea)
     const paragraphs = newBody.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-    const newChunks = paragraphs.map((text, index) => {
+    // Oct 2026: agrupar párrafos en fragmentos de ~1500 caracteres. Un vector por párrafo
+    // agotaba la cuota gratuita de embeddings (100/min) y da fragmentos sin contexto.
+    const TARGET_CHARS = 1500;
+    const grouped: string[] = [];
+    let cur = "";
+    for (const p of paragraphs) {
+        if (cur.length > 0 && cur.length + p.length + 2 > TARGET_CHARS) { grouped.push(cur); cur = ""; }
+        cur += (cur ? "\n\n" : "") + p;
+    }
+    if (cur.trim().length > 0) grouped.push(cur);
+    const newChunks = grouped.map((text, index) => {
         const hash = crypto.createHash('sha256').update(text).digest('hex');
         return { index, text, hash };
     });
@@ -359,6 +370,7 @@ export async function ingestFile(
 
         return {
             status: 'processed',
+            vectorsMissing: vectors.some(v => !v),
             hash: currentHash,
             chunksCreated: deltaResult.allChunks.length,
             chunksDeleted: existingChunksSnap.size

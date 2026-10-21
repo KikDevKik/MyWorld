@@ -1,4 +1,4 @@
-import { MODEL_PRO, MODEL_FLASH, modelForRequest } from './ai_config';
+import { MODEL_PRO, MODEL_FLASH, MODEL_FLASH_2_5_LITE, modelForRequest } from './ai_config';
 import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
@@ -867,7 +867,7 @@ export const indexTDB = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     memory: "2GiB",
-    timeoutSeconds: 540,
+    timeoutSeconds: 1800, // Oct 2026: el regulador de embeddings (100/min gratis) alarga la indexación
     secrets: [googleApiKey],
   },
   async (request) => {
@@ -887,6 +887,12 @@ export const indexTDB = onCall(
     }
 
     logger.info(`🧠 [INDEX TDB] Iniciando indexación REAL para ${userId}. Carpetas: ${folderIds.length}`);
+
+    // Oct 2026: estado visible para la app. Si el navegador deja de esperar (5 min),
+    // la app lee este documento para saber si sigue indexando o si falló de verdad.
+    const statusRef = db.collection("users").doc(userId).collection("profile").doc("index_status");
+    const setStatus = (data: any) => statusRef.set({ ...data, updatedAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+    await setStatus({ state: 'running', done: 0, total: 0, missingVectors: 0, startedAt: new Date().toISOString(), message: null, error: null });
 
     const auth = new google.auth.OAuth2();
     auth.setCredentials({ access_token: accessToken });
@@ -986,8 +992,10 @@ export const indexTDB = onCall(
     }
 
     logger.info(`📊 [INDEX TDB] Total archivos encontrados: ${allFiles.length}`);
+    await setStatus({ total: allFiles.length });
 
     if (allFiles.length === 0) {
+      await setStatus({ state: 'done', message: "No se encontraron archivos para indexar.", finishedAt: new Date().toISOString() });
       return { success: true, message: "No se encontraron archivos para indexar.", count: 0 };
     }
 
@@ -996,6 +1004,7 @@ export const indexTDB = onCall(
     let processed = 0;
     let skipped = 0;
     let errors = 0;
+    let missingVectors = 0;
     const allVectors: number[][] = [];
 
     for (let i = 0; i < allFiles.length; i += BATCH_SIZE) {
@@ -1029,6 +1038,7 @@ export const indexTDB = onCall(
 
           if (result.status === 'processed') {
             processed++;
+            if (result.vectorsMissing) missingVectors++;
             // Guardar el vector para calcular el centroide después
             try {
               const chunkRef = db.collection("TDB_Index").doc(userId)
@@ -1056,6 +1066,7 @@ export const indexTDB = onCall(
       }));
 
       logger.info(`   -> Progreso: ${Math.min(i + BATCH_SIZE, allFiles.length)}/${allFiles.length}`);
+      await setStatus({ done: Math.min(i + BATCH_SIZE, allFiles.length), missingVectors });
 
       // Pequeña pausa entre batches para evitar rate limits de Drive
       if (i + BATCH_SIZE < allFiles.length) {
@@ -1097,8 +1108,10 @@ export const indexTDB = onCall(
         lastIndexed: new Date().toISOString()
       }, { merge: true });
 
-    const message = `Indexación completa: ${processed} procesados, ${skipped} sin cambios, ${errors} errores.`;
+    const message = `Indexación completa: ${processed} procesados, ${skipped} sin cambios, ${errors} errores.`
+      + (missingVectors > 0 ? ` ${missingVectors} archivos quedaron sin vector por el límite de la IA gratuita: vuelve a indexar más tarde para completarlos.` : '');
     logger.info(`✅ [INDEX TDB] ${message}`);
+    await setStatus({ state: 'done', done: allFiles.length, missingVectors, message, finishedAt: new Date().toISOString() });
 
     return {
       success: true,
@@ -1971,8 +1984,31 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
 
         logger.info("🚀 [BYPASS] Attempt 1: Calling Gemini Native SDK with Tools...");
 
-        const chat = model.startChat();
-        let result = await chat.sendMessage(payload);
+        let chat = model.startChat();
+        // Oct 2026: el modelo gratuito devuelve a veces 503 "high demand". Reintentamos
+        // y, en nivel gratis, pasamos a un modelo de respaldo antes de rendirnos.
+        let result: any;
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            result = await chat.sendMessage(payload);
+            break;
+          } catch (sendErr: any) {
+            const m = String(sendErr?.message || '');
+            const overloaded = m.includes('503') || m.toLowerCase().includes('high demand') || m.toLowerCase().includes('overloaded');
+            if (!overloaded || attempt === 2) throw sendErr;
+            logger.warn(`⏳ [DIRECTOR] Modelo saturado (intento ${attempt + 1}). Reintentando...`);
+            await new Promise(r => setTimeout(r, 2000 * (attempt + 1)));
+            if (attempt === 1 && isFreeTierChat) {
+              logger.warn(`🔁 [DIRECTOR] Cambiando a modelo de respaldo ${MODEL_FLASH_2_5_LITE}.`);
+              model = genAI.getGenerativeModel({
+                model: MODEL_FLASH_2_5_LITE,
+                generationConfig: { temperature: TEMP_CREATIVE, maxOutputTokens: requestedMaxTokens ?? 8192 },
+                safetySettings: SAFETY_SETTINGS_PERMISSIVE,
+              } as any, { timeout: 120000 });
+              chat = model.startChat();
+            }
+          }
+        }
         let response = result.response;
 
         // 🟢 TOOL HANDLING (FUNCTION CALLING)
@@ -2135,9 +2171,13 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         }
 
         // Detect API quota / rate-limit errors and surface them clearly
+        const invokeMsg = String(invokeError?.message || '').toLowerCase();
+        const isOverloaded = invokeMsg.includes('503') || invokeMsg.includes('high demand') || invokeMsg.includes('overloaded');
         const errorText = isQuotaError(invokeError)
             ? QUOTA_USER_MESSAGE
-            : "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.";
+            : isOverloaded
+              ? "⏳ Los servidores gratuitos de Gemini están saturados en este momento. Tu mensaje no se perdió: vuelve a enviarlo en un minuto."
+              : "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.";
 
         logger.error(
           isQuotaError(invokeError) ? "⚠️ [QUOTA] Cuota API agotada en forgeRagChat:" : "💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG) [CATCH-ALL]:",
