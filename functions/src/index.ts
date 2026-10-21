@@ -1934,14 +1934,17 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         const thinkEnd = CONTINUITY_PROTOCOL.indexOf('[PROTOCOLO DE MIMETISMO');
         const continuityForClaude = (thinkStart >= 0 && thinkEnd > thinkStart)
           ? CONTINUITY_PROTOCOL.slice(0, thinkStart)
-            + "[RAZONAMIENTO VISIBLE]\nAntes de responder, escribe tu razonamiento dentro de <thinking> ... </thinking> en MÁXIMO 100 palabras (qué fragmentos del canon usas y por qué). El autor puede desplegarlo si quiere. Luego da la respuesta.\n\n"
+            // Oct 2026: NO pedir razonamiento en <thinking>: la API de Claude lo bloquea (refusal: reasoning_extraction).
+            + "Al final de tu respuesta, en una línea aparte que empiece por «Fuentes:», nombra los archivos del canon en los que te apoyaste.\n\n"
             + CONTINUITY_PROTOCOL.slice(thinkEnd)
           : CONTINUITY_PROTOCOL;
         let memChars = 0;
         const claudeChunks = relevantanys.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
         const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
         const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
-        const userText = `${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${claudeMemory}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyText}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
+        // Quitar bloques <thinking> de respuestas anteriores (también provocan el bloqueo de Claude)
+        const historyForClaude = String(historyText).replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/<\/?thinking>/gi, '');
+        const userText = `${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${claudeMemory}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyForClaude}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
         const totalChars = staticSystem.length + activeContextSection.length + userText.length;
         const claudeModel = pickClaudeModel('Director', totalChars, true);
         const content: any[] = [];
@@ -1968,7 +1971,7 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         if (r.refusal) {
           // Claude se negó: no gastar la cuota diaria de Gemini (20/día), que además bloquea estos temas.
           return {
-            response: "🛡️ Claude no respondió a este mensaje: su filtro de seguridad lo marcó. Suele pasar cuando el contexto mezcla menores con escenas duras. Prueba a preguntar de forma más concreta sobre la escena o la técnica (por ejemplo: «¿cómo hago que la plaza del pueblo se sienta viva?»). Si se repite con mensajes normales, avísale a Claude en el chat de desarrollo.",
+            response: `🛡️ Claude no respondió a este mensaje: lo bloqueó su filtro (motivo: ${r.stopReason || 'desconocido'}). Si se repite con mensajes normales, avísale a Claude en el chat de desarrollo para revisar el registro.`,
             sources: [],
           };
         }

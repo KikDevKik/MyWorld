@@ -63,8 +63,22 @@ function getClient(): Anthropic {
     return client;
 }
 
+// Oct 2026: la API de Claude bloquea (refusal: reasoning_extraction) los prompts que piden
+// escribir el razonamiento en <thinking>. Varios prompts heredados de Gemini lo hacen.
+function stripReasoningRequests(text: string): string {
+    return String(text || "")
+        .replace(/\[THINKING MODE ACTIVATED\][\s\S]*?(?:critical for consistency\.|\n\s*\n)/g, "")
+        .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+        .replace(/<\/?thinking>/gi, "");
+}
+
 export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallResult> {
     const label = opts.label || "Claude";
+    opts = {
+        ...opts,
+        system: (opts.system || []).map(b => ({ ...b, text: stripReasoningRequests(b.text) })),
+        content: (opts.content || []).map((b: any) => b?.type === "text" ? { ...b, text: stripReasoningRequests(b.text) } : b),
+    };
     const system = (opts.system || []).filter(b => b.text && b.text.trim()).map(b => ({
         type: "text" as const,
         text: b.text,
