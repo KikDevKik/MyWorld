@@ -217,7 +217,18 @@ export async function ingestFile(
         const fileDoc = await fileRef.get();
         const storedHash = fileDoc.exists ? fileDoc.data()?.contentHash : null;
 
-        if (storedHash === currentHash && fileDoc.exists) {
+        // Oct 2026: desde el commit ALPHA (mar 2026) los fragmentos se guardaban SIN embedding ni path,
+        // así que la búsqueda del canon devolvía 0 resultados. Si un archivo tiene fragmentos sin
+        // vector, lo reprocesamos aunque su texto no haya cambiado.
+        let missingVectors = false;
+        if (fileDoc.exists) {
+            try {
+                const sample = await fileRef.collection("chunks").limit(1).get();
+                missingVectors = sample.empty || !sample.docs[0].data()?.embedding;
+            } catch { missingVectors = false; }
+        }
+
+        if (storedHash === currentHash && fileDoc.exists && !missingVectors) {
             logger.info(`⏩ [INGEST ECS] Hash Match for ${file.name}. Updating metadata only.`);
             await fileRef.set({ updatedAt: new Date().toISOString() }, { merge: true });
             return { status: 'skipped', hash: currentHash, chunksCreated: 0, chunksDeleted: 0 };
@@ -236,7 +247,7 @@ export async function ingestFile(
         
         const deltaResult = computeSemanticDelta(ast.body, previousHashes);
         
-        if (deltaResult.deltaChunks.length === 0 && fileDoc.exists) {
+        if (deltaResult.deltaChunks.length === 0 && fileDoc.exists && !missingVectors) {
              logger.info(`⏩ [INGEST ECS] No semantic text changes. Updating AST meta only.`);
              await fileRef.set({ contentHash: currentHash, updatedAt: new Date().toISOString() }, { merge: true });
              return { status: 'skipped', hash: currentHash, chunksCreated: 0, chunksDeleted: 0 };
@@ -259,16 +270,39 @@ export async function ingestFile(
         // ============================================================================
         const batch = db.batch();
 
+        // 0. Embeddings (restaurado oct 2026): sin esto la búsqueda vectorial del canon no encuentra nada
+        let vectors: (number[] | null)[] = deltaResult.allChunks.map(() => null);
+        if (aiModel && typeof aiModel.embedDocuments === 'function' && deltaResult.allChunks.length > 0) {
+            try {
+                const vs: number[][] = await aiModel.embedDocuments(deltaResult.allChunks.map(c => c.text));
+                vectors = deltaResult.allChunks.map((_, i) => (vs[i] && vs[i].length > 0 ? vs[i] : null));
+            } catch (e: any) {
+                logger.warn(`⚠️ [INGEST] No se pudieron generar embeddings para ${file.name}: ${e?.message}`);
+            }
+        }
+
         // 1. Recrear chunks en TDB_Index para futura comparación Delta
-        existingChunksSnap.docs.forEach(doc => batch.delete(doc.ref));
+        // Oct 2026: los fragmentos van en lotes propios (límite de 500 escrituras por lote de Firestore;
+        // un capítulo largo puede tener cientos de párrafos).
+        const chunkOps: ((b: FirebaseFirestore.WriteBatch) => void)[] = [];
+        existingChunksSnap.docs.forEach(doc => chunkOps.push(b => b.delete(doc.ref)));
         
         deltaResult.allChunks.forEach((chunk, i) => {
              const chunkRef = chunksRef.doc(`chunk_${i}`);
-             batch.set(chunkRef, {
+             const vec = vectors[i];
+             chunkOps.push(b => b.set(chunkRef, {
                  userId: userId, projectId: projectId, fileName: file.name, 
-                 text: chunk.text, hash: chunk.hash, timestamp: new Date().toISOString()
-             });
+                 fileId: file.id, path: file.path || file.name, category: file.category || 'canon',
+                 saga: file.saga || 'Global',
+                 text: chunk.text, hash: chunk.hash, timestamp: new Date().toISOString(),
+                 ...(vec ? { embedding: FieldValue.vector(vec) } : {})
+             }));
         });
+        for (let k = 0; k < chunkOps.length; k += 400) {
+            const cb = db.batch();
+            chunkOps.slice(k, k + 400).forEach(op => op(cb));
+            await cb.commit();
+        }
 
         // 2. Actualizar metadatos del archivo
         batch.set(fileRef, {

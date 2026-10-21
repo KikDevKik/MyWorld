@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X } from 'lucide-react';
 import GuidePanel from './ui/GuidePanel';
 import CreateItemModal from './ui/CreateItemModal';
+import FolderPickerModal from './ui/FolderPickerModal';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -304,7 +305,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         setMoveTargetFile({ id: fileId, name: fileName, parentId });
     };
 
-    const handleConfirmMove = async (targetFolderId: string) => {
+    const handleConfirmMove = async (targetFolderId: string, targetFolderName?: string) => {
         if (!moveTargetFile || !accessToken) return;
         const fileId = moveTargetFile.id;
         const fileName = moveTargetFile.name;
@@ -317,7 +318,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 targetParentId: targetFolderId,
                 currentParentId,
             });
-            toast.success(`"${fileName}" movido correctamente.`);
+            toast.success(targetFolderName ? `"${fileName}" movido a "${targetFolderName}".` : `"${fileName}" movido correctamente.`);
             setMoveTargetFile(null);
             await refreshConfig();
         } catch (e: any) {
@@ -630,40 +631,22 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             </div>
 
 
-            {/* 🟢 FOLDER PICKER MODAL — move file */}
-            {moveTargetFile && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-                    <div className="bg-titanium-900 border border-titanium-700 rounded-xl shadow-2xl w-80 max-h-[70vh] flex flex-col overflow-hidden">
-                        <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800">
-                            <div>
-                                <p className="text-xs font-medium text-titanium-200">Mover a...</p>
-                                <p className="text-[10px] text-titanium-500 truncate max-w-[200px]">{moveTargetFile.name}</p>
-                            </div>
-                            <button onClick={() => setMoveTargetFile(null)} className="text-titanium-500 hover:text-titanium-300">
-                                <X size={14} />
-                            </button>
-                        </div>
-                        <div className="overflow-y-auto flex-1 p-2">
-                            {(fileTree || [])
-                                .filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder' && f.id !== moveTargetFile.parentId)
-                                .map((folder: any) => (
-                                    <button
-                                        key={folder.id}
-                                        onClick={() => handleConfirmMove(folder.id)}
-                                        className="w-full text-left px-3 py-2 rounded-lg text-xs text-titanium-300 hover:bg-titanium-800 hover:text-white transition-colors flex items-center gap-2"
-                                    >
-                                        <FolderPlus size={12} className="text-amber-400 shrink-0" />
-                                        <span className="truncate">{folder.name}</span>
-                                    </button>
-                                ))
-                            }
-                            {(fileTree || []).filter((f: any) => f.mimeType === 'application/vnd.google-apps.folder' && f.id !== moveTargetFile.parentId).length === 0 && (
-                                <p className="text-[11px] text-titanium-600 text-center py-4">No hay carpetas disponibles.</p>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* 🟢 FOLDER PICKER MODAL — move file/folder (navegable, cualquier profundidad) */}
+            <FolderPickerModal
+                isOpen={!!moveTargetFile}
+                itemName={moveTargetFile?.name || ''}
+                itemId={moveTargetFile?.id || ''}
+                currentParentId={moveTargetFile?.parentId}
+                accessToken={accessToken}
+                isBusy={!!isMovingFileId}
+                sections={[
+                    { label: t.canon, tone: 'canon', folders: canonNodes.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder') },
+                    { label: t.resources, tone: 'resources', folders: resourceNodes.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder') },
+                    { label: t.unassigned, tone: 'other', folders: unassignedNodes.filter((f: FileNode) => f.mimeType === 'application/vnd.google-apps.folder') },
+                ]}
+                onConfirm={handleConfirmMove}
+                onClose={() => { if (!isMovingFileId) setMoveTargetFile(null); }}
+            />
 
             <CreateProjectModal
                 isOpen={isCreateModalOpen}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useContext, createContext } from 'react';
-import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare, MoreHorizontal, FolderInput, Trash2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, FileText, Loader2, AlertTriangle, Check, X, Square, CheckSquare, MoreHorizontal, FolderInput, Trash2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../services/api';
 import { useLanguageStore } from '../stores/useLanguageStore';
@@ -276,11 +276,9 @@ const FileNodeRow = React.memo(({
                             onToggleDeleteSelect(node.id);
                             return;
                         }
-                        if (!isFolder) {
-                            onToggle();
-                        } else {
-                            e.stopPropagation();
-                        }
+                        // Oct 2026: clic en el nombre de una carpeta también la abre/cierra (antes solo la flecha)
+                        e.stopPropagation();
+                        onToggle(e);
                     }}
                     onDoubleClick={(e) => {
                         e.stopPropagation();
@@ -291,17 +289,19 @@ const FileNodeRow = React.memo(({
                 </span>
             )}
 
-            {/* 🟢 FILE ACTIONS MENU (···) — only for files, hidden unless hovered */}
-            {!isFolder && !isDeleteMode && !isMoving && (onMoveFile || onDeleteFile) && (
+            {/* 🟢 ACTIONS MENU (···) — archivos y carpetas */}
+            {!isDeleteMode && !isMoving && !isEditing && (onMoveFile || onDeleteFile) && (
                 <div className="relative shrink-0" ref={actionsRef}>
                     <button
                         onClick={(e) => { e.stopPropagation(); setIsActionsOpen(v => !v); }}
-                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded text-titanium-600 hover:text-titanium-300 transition-all"
+                        className={`${isActionsOpen || isActive ? 'opacity-100' : 'opacity-0'} group-hover:opacity-100 focus:opacity-100 p-0.5 rounded text-titanium-600 hover:text-titanium-300 transition-all`}
+                        title="Acciones"
+                        aria-label={`Acciones de ${node.name}`}
                     >
                         <MoreHorizontal size={12} />
                     </button>
                     {isActionsOpen && (
-                        <div className="absolute right-0 top-full mt-1 w-40 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                        <div className="absolute right-0 top-full mt-1 w-52 bg-titanium-800 border border-titanium-600 rounded-md shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
                             {!isConfirmingDelete ? (
                                 <>
                                     {onMoveFile && (
@@ -317,6 +317,17 @@ const FileNodeRow = React.memo(({
                                             <span>Mover a...</span>
                                         </button>
                                     )}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setIsActionsOpen(false);
+                                            setIsEditing(true);
+                                        }}
+                                        className="w-full text-left px-3 py-2 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
+                                    >
+                                        <Pencil size={12} className="text-cyan-400" />
+                                        <span>Renombrar</span>
+                                    </button>
                                     {onDeleteFile && (
                                         <button
                                             onClick={(e) => {
@@ -333,7 +344,7 @@ const FileNodeRow = React.memo(({
                             ) : (
                                 <div className="p-2.5">
                                     <p className="text-[10px] text-red-300 text-center mb-2 leading-tight">
-                                        ¿Mover a la papelera?
+                                        {isFolder ? '¿Mover la carpeta y todo su contenido a la papelera de Drive?' : '¿Mover a la papelera de Drive?'}
                                     </p>
                                     <div className="flex gap-1.5">
                                         <button

@@ -160,8 +160,8 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
 
     if (genesisComplete) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
-                <div className="w-full max-w-[520px] flex flex-col gap-6">
+            <div className="flex-1 flex flex-col items-center justify-start h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
+                <div className="w-full max-w-[520px] flex flex-col gap-6 my-auto">
                     <div className="flex flex-col items-center gap-3">
                         <div className="text-4xl">✦</div>
                         <h2 className="text-[22px] font-medium text-titanium-100">
@@ -220,8 +220,8 @@ export default function StartingAssistant({ onClose, onStartGenesis, projectName
     if (!hasByok) return <AIMotorBlockedOverlay toolName="El Génesis" />;
 
     return (
-        <div className="flex-1 flex flex-col items-center justify-center h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
-            <div className="w-full max-w-[520px] flex flex-col gap-6">
+        <div className="flex-1 flex flex-col items-center justify-start h-full w-full px-6 py-8 overflow-y-auto bg-titanium-950">
+            <div className="w-full max-w-[520px] flex flex-col gap-6 my-auto">
 
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">

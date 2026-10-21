@@ -46,7 +46,8 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
         ? { ...data, _authOverride: customKey, _userTier: tier, _lang: currentLang }
         : { ...data, _userTier: tier, _lang: currentLang };
 
-    const fn = firebaseHttpsCallable(functions, name, options);
+    // Oct 2026: el SDK corta a los 70 s por defecto; nuestras funciones de IA pueden tardar más (timeout servidor 300 s).
+    const fn = firebaseHttpsCallable(functions, name, { timeout: 300000, ...options });
 
     try {
         const result = await fn(payload);

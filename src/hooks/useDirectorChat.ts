@@ -295,7 +295,7 @@ BREVEDAD: Respuestas concisas — máximo 3-4 párrafos.
 VOCABULARIO CORRECTO: arco, motivación, tensión, ritmo, punto de giro, subtexto, personaje, escena, diálogo, conflicto, tema, voz narrativa
 VOCABULARIO PROHIBIDO: plano, frame, encuadre, iluminación cinematográfica, diseño sonoro, corte, montaje (en sentido fílmico), cámara`
 
-            });
+            }, { timeout: 300000 });
 
             // 🟢 AUDIT: TRACK AI GENERATION
             if (folderId && userId) {

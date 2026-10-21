@@ -51,7 +51,9 @@ export class GeminiEmbedder {
 
             // 3. Dimensionality Check (The Fix)
             if (vector.length > 2048) {
-                logger.error(`💥 [EMBEDDER] DIMENSION OVERFLOW: ${vector.length}. Model: ${this.modelName}. Truncating to 768.`);
+                // Oct 2026: gemini-embedding-001 devuelve 3072 dims por defecto; recortar a 768 es esperado
+                // (representación Matryoshka) y coincide con el índice vectorial. No es un error.
+                logger.debug(`[EMBEDDER] ${vector.length} dims -> 768 (${this.modelName})`);
                 // If model returns huge vector (e.g. concatenated), we must fix it.
                 // gemini-embedding-001 should be 768.
                 return vector.slice(0, 768);
@@ -70,6 +72,25 @@ export class GeminiEmbedder {
      * Batch embedding for compatibility with LangChain interface.
      */
     async embedDocuments(documents: string[]): Promise<number[][]> {
-        return Promise.all(documents.map(doc => this.embedQuery(doc)));
+        // Oct 2026: usar batchEmbedContents (hasta 100 textos por llamada) para gastar
+        // muchas menos peticiones de la cuota gratuita que una llamada por fragmento.
+        const SAFE_CHAR_LIMIT = 9000;
+        const out: number[][] = [];
+        for (let i = 0; i < documents.length; i += 100) {
+            const slice = documents.slice(i, i + 100).map(d => (d && typeof d === 'string' ? d : ' ').substring(0, SAFE_CHAR_LIMIT));
+            try {
+                const res = await this.model.batchEmbedContents({
+                    requests: slice.map(text => ({ content: { role: 'user', parts: [{ text }] }, taskType: this.taskType })),
+                });
+                for (const e of res.embeddings || []) {
+                    const v: number[] = e.values || [];
+                    out.push(v.length > 2048 ? v.slice(0, 768) : v);
+                }
+            } catch (err: any) {
+                logger.warn(`[EMBEDDER] batchEmbedContents falló (${err?.message}); usando llamadas individuales.`);
+                for (const t of slice) out.push(await this.embedQuery(t));
+            }
+        }
+        return out;
     }
 }

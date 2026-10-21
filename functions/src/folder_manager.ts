@@ -771,17 +771,56 @@ export const moveDriveFile = onCall(
             };
             if (currentParentId) params.removeParents = currentParentId;
 
+            // Oct 2026: evitar mover una carpeta dentro de sí misma
+            if (fileId === targetParentId) throw new HttpsError("invalid-argument", "No puedes mover una carpeta dentro de sí misma.");
+
             const res = await drive.files.update(params);
 
             if (res.data.id) {
-                const db = getFirestore();
-                const fileRef = db.collection("TDB_Index").doc(request.auth.uid).collection("files").doc(fileId);
-                await fileRef.update({ parentId: targetParentId });
+                // Oct 2026: antes usaba update() y fallaba si el archivo no estaba indexado
+                // (Drive ya lo había movido pero la app mostraba error). Ahora set+merge,
+                // y se actualizan también path y categoría (canon/recursos) según la carpeta destino.
+                try {
+                    const db = getFirestore();
+                    const filesCol = db.collection("TDB_Index").doc(request.auth.uid).collection("files");
+                    const targetSnap = await filesCol.doc(targetParentId).get();
+                    const target: any = targetSnap.exists ? targetSnap.data() : {};
+                    const name = res.data.name || '';
+                    const now = new Date().toISOString();
+                    const upd: any = { parentId: targetParentId, updatedAt: now, name };
+                    if (target?.path) upd.path = `${target.path}/${name}`;
+                    if (target?.category) upd.category = target.category;
+                    await filesCol.doc(fileId).set(upd, { merge: true });
+
+                    // Si es carpeta, propagar path/categoría a sus descendientes (máx. 400)
+                    let queue: { id: string; path?: string }[] = [{ id: fileId, path: upd.path }];
+                    let touched = 0;
+                    while (queue.length && touched < 400) {
+                        const cur = queue.shift()!;
+                        const kids = await filesCol.where("parentId", "==", cur.id).get();
+                        if (kids.empty) continue;
+                        const batch = db.batch();
+                        for (const k of kids.docs) {
+                            const kd: any = k.data();
+                            const kPath = cur.path ? `${cur.path}/${kd.name}` : undefined;
+                            const ku: any = { updatedAt: now };
+                            if (kPath) ku.path = kPath;
+                            if (upd.category) ku.category = upd.category;
+                            batch.set(k.ref, ku, { merge: true });
+                            touched++;
+                            if (kd.type === 'folder' || kd.mimeType === 'application/vnd.google-apps.folder') queue.push({ id: k.id, path: kPath });
+                        }
+                        await batch.commit();
+                    }
+                } catch (idxErr: any) {
+                    logger.warn('moveDriveFile: archivo movido en Drive, pero el índice no se pudo actualizar:', idxErr?.message);
+                }
             }
 
             return { success: true, id: res.data.id };
         } catch (e: any) {
             logger.error('moveDriveFile error:', e);
+            if (e instanceof HttpsError) throw e;
             throw new HttpsError('internal', e.message);
         }
     }

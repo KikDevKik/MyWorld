@@ -80,7 +80,7 @@ interface AppContentProps {
 
 // 🟢 NEW WRAPPER COMPONENT TO HANDLE LOADING STATE
 function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, setDriveStatus, handleTokenRefresh, handleDriveLink, isSecurityReady }: AppContentProps) {
-    const { config, updateConfig, refreshConfig, loading: configLoading, technicalError, fileTree } = useProjectConfig();
+    const { config, updateConfig, refreshConfig, loading: configLoading, technicalError, fileTree, isFileTreeLoading } = useProjectConfig();
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage].toasts;
     const tApp = TRANSLATIONS[currentLanguage].app;
@@ -355,7 +355,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const existingSession = arquitectoSessionId || activeDirectorSessionId;
 
     useEffect(() => {
-        if (!config || configLoading) return;
+        if (!config || configLoading || isFileTreeLoading) return;
         const hasCanon = config?.canonPaths?.length > 0;
 
         // Contar total de archivos en todo el árbol recursivamente
@@ -369,7 +369,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         };
 
         const totalFiles = countFiles(fileTree || []);
-        const isEmpty = totalFiles === 0;
+        // Oct 2026: el árbol se carga perezosamente (children vacíos), así que contar solo
+        // archivos daba 0 en proyectos con carpetas y el asistente salía en cada carga.
+        // Un proyecto con cualquier nodo (carpeta o archivo) NO está vacío.
+        const totalNodes = (fileTree || []).length;
+        const isEmpty = totalFiles === 0 && totalNodes === 0;
+        const dismissed = (() => { try { return localStorage.getItem(`assistant_dismissed_${config?.folderId}`) === 'true'; } catch { return false; } })();
+        if (isEmpty && dismissed) {
+            setShowStartingAssistant(false);
+            setShowContinueCard(false);
+            return;
+        }
 
         // Si el proyecto está vacío, Genesis debe aparecer siempre —
         // ignorar sesiones viejas del Arquitecto/Director y el flag de dismiss,
@@ -389,7 +399,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
         setShowStartingAssistant(false);
         setShowContinueCard(hasCanon);
-    }, [config?.canonPaths?.length, JSON.stringify((fileTree || []).map((f: any) => ({ id: f.id, childCount: f.children?.length || 0 }))), config?.folderId, existingSession, configLoading, config]);
+    }, [config?.canonPaths?.length, JSON.stringify((fileTree || []).map((f: any) => ({ id: f.id, childCount: f.children?.length || 0 }))), config?.folderId, existingSession, configLoading, config, isFileTreeLoading]);
 
     // 🟢 FILE LOCKING
     const { isLocked, isSelfLocked, lockedBySession } = useFileLock(currentFileId, user?.uid);

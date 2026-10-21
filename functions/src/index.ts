@@ -1037,8 +1037,10 @@ export const indexTDB = onCall(
               const chunkSnap = await chunkRef.get();
               if (chunkSnap.exists) {
                 const embeddingData = chunkSnap.data()?.embedding;
-                if (embeddingData && embeddingData.values) {
-                  allVectors.push(embeddingData.values);
+                // VectorValue (FieldValue.vector) expone toArray(); los arrays antiguos, .values
+                const arr = typeof embeddingData?.toArray === 'function' ? embeddingData.toArray() : embeddingData?.values;
+                if (Array.isArray(arr) && arr.length > 0) {
+                  allVectors.push(arr);
                 }
               }
             } catch (e) { /* Non-critical */ }
@@ -1936,19 +1938,26 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
           ]
         } as any; // Cast to any to bypass strict schema vs interface mismatch in SDK types
 
-        const generationConfig = {
+        // Oct 2026: en nivel normal (3.8-flash gratis) el razonamiento sin límite tardaba >3 min
+        // y el cliente se rendía. Limitamos el thinking para respuestas en segundos.
+        const chatModelName = modelForRequest(MODEL_PRO, request.data);
+        const generationConfig: any = {
           temperature: TEMP_CREATIVE,
           maxOutputTokens: requestedMaxTokens ?? 8192,
+          ...(chatModelName !== MODEL_PRO ? { thinkingConfig: { thinkingBudget: 1024 } } : {}),
         };
 
         // --- 2. ATTEMPT 1: STANDARD CALL WITH TOOLS ---
+        // Oct 2026: en nivel gratis la llamada con herramienta + caché tardaba ~205 s constantes
+        // (el Arquitecto, sin herramientas, responde en 8-26 s con el mismo modelo).
+        // En nivel normal: sin herramienta ni caché (la caché era del modelo Pro) y con límite de tiempo.
+        const isFreeTierChat = chatModelName !== MODEL_PRO;
         let model = genAI.getGenerativeModel({
-          model: modelForRequest(MODEL_PRO, request.data),
+          model: chatModelName,
           generationConfig,
           safetySettings: SAFETY_SETTINGS_PERMISSIVE,
-          cachedContent: cachedContent,
-          tools: [fetchPastSessionsTool]
-        });
+          ...(isFreeTierChat ? {} : { cachedContent: cachedContent, tools: [fetchPastSessionsTool] }),
+        } as any, { timeout: 120000 });
 
         // 🟢 MULTIMODAL PAYLOAD
         let payload: any = promptFinal;
