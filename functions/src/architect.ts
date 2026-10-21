@@ -604,6 +604,13 @@ export const arquitectoInitialize = onCall(
         let pendingItems: PendingItem[] = [];
         let projectSummary = "Proyecto inicializado.";
         let initialMessage = "El Arquitecto en línea. ¿Qué frente de batalla vamos a atacar hoy?";
+        // Oct 2026: si el usuario abrió la sesión con un mensaje y la IA falló, no responder
+        // con un saludo genérico como si no hubiera escrito nada.
+        if (!initResult.text && implementationGoal && String(implementationGoal).trim()) {
+            initialMessage = /503|high demand|overloaded|unavailable/i.test(String(initResult.details || ''))
+                ? "Recibí tu mensaje, pero los servidores gratuitos de Gemini están saturados ahora mismo y no pude analizarlo. Reenvíalo en un minuto; la sesión ya quedó creada."
+                : "Recibí tu mensaje, pero no pude analizarlo por un error de la IA. Reenvíalo, por favor; la sesión ya quedó creada.";
+        }
 
         if (initResult.text) {
             const parsed = parseSecureJSON(initResult.text, "ArquitectoInitMessage");

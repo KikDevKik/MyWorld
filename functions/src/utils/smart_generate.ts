@@ -1,7 +1,7 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import {
-    MODEL_FLASH, MODEL_PRO, MODEL_FLASH_2_5,
+    MODEL_FLASH, MODEL_PRO, MODEL_FLASH_2_5, MODEL_FLASH_2_5_LITE,
     SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL,
     Tier, TaskType,
     getModelForTask, getThinkingBudgetForTask, getDefaultMaxOutputTokens,
@@ -76,11 +76,25 @@ export async function smartGenerateContent(
         const maxTokens = config.maxOutputTokens ?? getDefaultMaxOutputTokens(task);
 
         try {
-            const result = await _executeGeneration(
+            let result = await _executeGeneration(
                 genAI, modelName, prompt,
                 { ...config, maxOutputTokens: maxTokens },
                 effectiveBudget
             );
+            // Oct 2026: el modelo gratuito responde a veces 503 "high demand". Un reintento
+            // y, si sigue saturado, un modelo de respaldo (sin thinkingBudget: flash-lite rechaza 0).
+            const isOverloaded = (r: any) => !r.success && /503|high demand|overloaded|unavailable/i.test(String(r.details || ''));
+            if (isOverloaded(result)) {
+                logger.warn(`⏳ [SMART_GENERATE] ${contextLabel}: modelo saturado, reintentando...`);
+                await new Promise(r => setTimeout(r, 2500));
+                result = await _executeGeneration(genAI, modelName, prompt, { ...config, maxOutputTokens: maxTokens }, effectiveBudget);
+                if (isOverloaded(result) && modelName !== MODEL_FLASH_2_5_LITE) {
+                    logger.warn(`🔁 [SMART_GENERATE] ${contextLabel}: usando respaldo ${MODEL_FLASH_2_5_LITE}.`);
+                    const backup = await _executeGeneration(genAI, MODEL_FLASH_2_5_LITE, prompt, { ...config, maxOutputTokens: maxTokens }, undefined);
+                    if (backup.success) return { text: backup.text, modelUsed: MODEL_FLASH_2_5_LITE };
+                    result = backup;
+                }
+            }
             if (result.success) {
                 logger.info(`✅ [SMART_GENERATE] ${contextLabel} | tier=${tier} task=${task} model=${modelName}`);
                 return { text: result.text, modelUsed: modelName };
