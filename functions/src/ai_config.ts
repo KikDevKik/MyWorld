@@ -40,7 +40,7 @@ export type TaskType = 'high_volume' | 'standard' | 'deep_analysis';
 
 const TASK_MODELS: Record<Tier, Record<TaskType, string>> = {
     normal: {
-        high_volume:   MODEL_FLASH_2_5_LITE,  // 3× cheaper input, 6× cheaper output
+        high_volume:   MODEL_FLASH_2_5,       // Oct 2026: 3.5-flash-lite rechaza thinkingBudget=0 (400). Se usa 3.8-flash, probado en producción.
         standard:      MODEL_FLASH_2_5,
         deep_analysis: MODEL_FLASH_2_5,       // + thinkingBudget=8192 compensa vs Pro
     },
