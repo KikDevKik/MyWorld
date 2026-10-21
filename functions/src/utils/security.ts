@@ -36,24 +36,84 @@ export function handleSecureError(error: any, contextLabel: string): HttpsError 
 }
 
 /**
- * 🔑 KEYMASTER: AI Key Resolver — BYOK Estricto.
- * Solo acepta la clave del usuario. Sin BYOK → error inmediato.
- *
- * @param requestData The request.data object from the Callable Function
- * @param systemKeyValue Ignored — kept for signature compatibility only
+ * Extrae la Gemini API Key si está disponible en el requestData.
  */
-export function getAIKey(requestData: any, _systemKeyValue: string): string {
-    const override = requestData?._authOverride;
+export function getGeminiKeyOnly(requestData: any): string | null {
+    const userKey = requestData?.customGeminiKey || requestData?._authOverride;
+    if (userKey && typeof userKey === 'string' && userKey.trim().length > 0) {
+        return userKey.trim();
+    }
+    return null;
+}
 
-    if (override && typeof override === 'string' && override.startsWith("AIza")) {
-        logger.info("🔑 [KEYMASTER] Using BYOK (Custom Key) for this request.");
-        return override;
+/**
+ * Extrae la Anthropic API Key si está disponible en el requestData.
+ */
+export function getAnthropicKeyOnly(requestData: any): string | null {
+    const userKey = requestData?.customAnthropicKey || requestData?._anthropicOverride;
+    if (userKey && typeof userKey === 'string' && userKey.trim().length > 0) {
+        return userKey.trim();
+    }
+    return null;
+}
+
+/**
+ * 🔑 KEYMASTER: Resuelve el proveedor preferido con fallback automático al alterno.
+ * Permite que MyWorld funcione con Gemini, con Claude o con ambas.
+ *
+ * @param requestData Objeto request.data de la función Callable
+ * @param preferred 'gemini' | 'claude' (proveedor deseado para la tarea)
+ * @returns { provider: 'gemini' | 'claude', apiKey: string }
+ */
+export function resolveAIProvider(
+    requestData: any,
+    preferred: 'gemini' | 'claude' = 'gemini'
+): { provider: 'gemini' | 'claude'; apiKey: string } {
+    const geminiKey = getGeminiKeyOnly(requestData);
+    const anthropicKey = getAnthropicKeyOnly(requestData);
+
+    if (preferred === 'claude') {
+        if (anthropicKey) {
+            logger.info("🔑 [KEYMASTER] Usando clave BYOK de Anthropic (Claude).");
+            return { provider: 'claude', apiKey: anthropicKey };
+        }
+        if (geminiKey) {
+            logger.info("🔑 [KEYMASTER] Anthropic key no encontrada; usando fallback a Gemini BYOK Key.");
+            return { provider: 'gemini', apiKey: geminiKey };
+        }
+    } else {
+        if (geminiKey) {
+            logger.info("🔑 [KEYMASTER] Usando clave BYOK de Gemini.");
+            return { provider: 'gemini', apiKey: geminiKey };
+        }
+        if (anthropicKey) {
+            logger.info("🔑 [KEYMASTER] Gemini key no encontrada; usando fallback a Anthropic (Claude) BYOK Key.");
+            return { provider: 'claude', apiKey: anthropicKey };
+        }
     }
 
     throw new HttpsError(
-        'unauthenticated',
-        'API_KEY_REQUIRED: MyWorld requiere que configures tu propia API key de Google AI Studio.'
+        'failed-precondition',
+        'REQUERIDO: Debes ingresar al menos una API Key (Google Gemini o Anthropic Claude) en los Ajustes para usar la IA.'
     );
+}
+
+/**
+ * 🔑 KEYMASTER: AI Key Resolver — Compatibilidad heredada con Gemini.
+ * Falla solo si el usuario no tiene ninguna clave (Gemini o Claude).
+ */
+export function getAIKey(requestData: any, _systemKeyValue?: string): string {
+    const resolved = resolveAIProvider(requestData, 'gemini');
+    return resolved.apiKey;
+}
+
+/**
+ * 🔑 KEYMASTER: Anthropic API Key Resolver — Compatibilidad heredada con Claude.
+ * Falla solo si el usuario no tiene ninguna clave (Gemini o Claude).
+ */
+export function getAnthropicAIKey(requestData: any): string {
+    const resolved = resolveAIProvider(requestData, 'claude');
+    return resolved.apiKey;
 }
 
 /**

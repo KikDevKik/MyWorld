@@ -29,6 +29,9 @@ interface ProjectConfigContextType {
   // 🟢 BYOK: Custom Gemini Key (Local Only)
   customGeminiKey: string | null;
   setCustomGeminiKey: (key: string | null) => void;
+  // 🟢 BYOK: Custom Anthropic Key (Local Only)
+  customAnthropicKey: string | null;
+  setCustomAnthropicKey: (key: string | null) => void;
 }
 
 export const ProjectConfigContext = createContext<ProjectConfigContextType | undefined>(undefined);
@@ -88,6 +91,22 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
     } else {
       sessionStorage.removeItem('myworld_custom_gemini_key');
       localStorage.removeItem('myworld_custom_gemini_key');
+    }
+  };
+
+  // 🟢 BYOK: Custom Anthropic Key State
+  const [customAnthropicKey, setCustomAnthropicKeyState] = useState<string | null>(() => {
+    return sessionStorage.getItem('myworld_custom_anthropic_key') || localStorage.getItem('myworld_custom_anthropic_key');
+  });
+
+  const setCustomAnthropicKey = (key: string | null) => {
+    setCustomAnthropicKeyState(key);
+    if (key) {
+      sessionStorage.setItem('myworld_custom_anthropic_key', key);
+      localStorage.setItem('myworld_custom_anthropic_key', key);
+    } else {
+      sessionStorage.removeItem('myworld_custom_anthropic_key');
+      localStorage.removeItem('myworld_custom_anthropic_key');
     }
   };
 
@@ -271,7 +290,9 @@ export const ProjectConfigProvider: React.FC<{ children: React.ReactNode }> = ({
       fileTreeRefreshKey,
       user,
       customGeminiKey,
-      setCustomGeminiKey
+      setCustomGeminiKey,
+      customAnthropicKey,
+      setCustomAnthropicKey
     }}>
       {children}
     </ProjectConfigContext.Provider>

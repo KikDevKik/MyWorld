@@ -23,6 +23,14 @@ export const MODEL_HIGH_REASONING = MODEL_PRO;
 
 export type Tier = 'normal' | 'ultra';
 
+// TODO [MULTI-PROVIDER ROADMAP]:
+// En el futuro, añadir un campo 'provider' para elegir el motor de IA por función:
+//   export type AIProvider = 'gemini' | 'claude' | 'openai';
+// Esto permitiría, por ejemplo, enrutar EXPLORACION siempre a Claude y RESOLUCION a Gemini
+// sin acoplarlo al Tier del usuario. Podría vivir en ai_config.ts como:
+//   export interface AIRoutingConfig { provider: AIProvider; tier: Tier; taskType: TaskType; }
+// Por ahora, el proveedor se selecciona manualmente por rama en cada Cloud Function.
+
 /**
  * high_volume  — clasificación, tagging, extracción estructurada
  * standard     — conversación, Guardian, Scribe, Forge

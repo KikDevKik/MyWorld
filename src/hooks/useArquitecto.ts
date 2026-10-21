@@ -22,7 +22,7 @@ interface UseArquitectoProps {
 }
 
 export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => {
-    const { config, updateConfig } = useProjectConfig();
+    const { config, updateConfig, customGeminiKey, customAnthropicKey } = useProjectConfig();
     const [messages, setMessages] = useState<ArquitectoMessage[]>([]);
     const [pendingItems, setPendingItems] = useState<PendingItem[]>(() => useArquitectoStore.getState().arquitectoPendingItems || []);
     const [projectSummary, setProjectSummary] = useState<string>(() => useArquitectoStore.getState().arquitectoSummary || config?.arquitectoSummary || '');
@@ -592,6 +592,13 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             }
         }
 
+        // 🛡️ STRICT BYOK CLIENT CHECK: Se requiere al menos una API Key (Gemini o Claude)
+        if (!customGeminiKey && !customAnthropicKey) {
+            toast.error("REQUERIDO: Debes ingresar al menos una API Key (Gemini o Claude) en Ajustes para usar la IA.");
+            setIsThinking(false);
+            return;
+        }
+
         try {
             const historyPayload = messages
                 .filter(m => m.role !== 'system')
@@ -606,7 +613,9 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 pendingItems,
                 accessToken,
                 objective: currentObjective,
-                attachment
+                attachment,
+                customGeminiKey,
+                customAnthropicKey
             });
 
             if (!data) throw new Error("Sin respuesta.");

@@ -7,8 +7,9 @@ import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { defineSecret } from "firebase-functions/params";
 import { MODEL_PRO, MODEL_FLASH, SAFETY_SETTINGS_PERMISSIVE, TEMP_PRECISION, TEMP_CREATIVE, Tier } from "./ai_config";
-import { getAIKey, escapePromptVariable, getTier } from "./utils/security";
+import { getAIKey, getAnthropicAIKey, resolveAIProvider, escapePromptVariable, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
+import { smartGenerateContentClaude } from "./utils/smart_generate_claude";
 import { parseSecureJSON } from "./utils/json";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { GeminiEmbedder } from "./utils/vector_utils";
@@ -16,6 +17,7 @@ import { TaskType } from "@google/generative-ai";
 import { getPrompt } from "./prompt_manager";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
 // ─────────────────────────────────────────────
 // TIPOS
@@ -1232,7 +1234,7 @@ export const arquitectoChat = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "1GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<ArquitectoChatResult> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -1310,15 +1312,16 @@ No la copies literalmente. Adáptala al flujo de la conversación.
             logger.info(`📎 [ARQUITECTO] PDF adjunto: ${attachment.fileName}`);
         }
 
-        // 1. Buscar contexto relevante via RAG
-        const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
+        // 1. Resolver proveedor de IA (permite Gemini, Claude o ambos)
+        const primaryProvider = resolveAIProvider(request.data, 'gemini');
+        const genAI = primaryProvider.provider === 'gemini' ? new GoogleGenerativeAI(primaryProvider.apiKey) : null;
         const tier = getTier(request.data);
 
         let ragContext = "";
-        if (query) {
+        if (query && primaryProvider.provider === 'gemini') {
             try {
                 const embeddings = new GeminiEmbedder({
-                    apiKey: getAIKey(request.data, googleApiKey.value()),
+                    apiKey: primaryProvider.apiKey,
                     model: "gemini-embedding-001",
                     taskType: TaskType.RETRIEVAL_QUERY,
                 });
@@ -1520,7 +1523,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
             .join('\n\n');
 
         // 4. Clasificar la intención del mensaje
-        const intent = await routeArquitectoIntent(genAI, activePendingItem, query || '', tier);
+        const intent = genAI ? await routeArquitectoIntent(genAI, activePendingItem, query || '', tier) : 'EXPLORACION';
         logger.info(`🧭 [ARQUITECTO] Intención detectada: ${intent} | Item activo: ${activePendingItem?.title || 'ninguno'}`);
 
         // 5. Generar respuesta según la intención
@@ -1529,7 +1532,6 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
         let drivePatches: Array<{ documentName: string; driveFileId: string | null; newRuleStatement: string }> = [];
 
         if (intent === 'EXPLORACION') {
-            // Ruta de Exploración Socrática — el usuario tiene bloqueo creativo
             const prompt = buildExploracionChatPrompt(
                 request.data._lang || 'es',
                 recentHistoryText,
@@ -1537,36 +1539,64 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
                 contextData.worldEntities,
                 sessionImplementationGoal
             );
-            const result = await smartGenerateContent(genAI, prompt, {
-                _tier: tier,
-                taskType: 'deep_analysis',
-                temperature: TEMP_CREATIVE,
-                contextLabel: 'ArquitectoChat_EXPLORACION',
-            });
-            responseText = result.text || 'Cuéntame más sobre tu proyecto. ¿Qué tienes construido hasta ahora?';
+            const resolved = resolveAIProvider(request.data, 'claude');
+            if (resolved.provider === 'claude') {
+                const result = await smartGenerateContentClaude(resolved.apiKey, prompt, {
+                    reasoningLevel: 'balanced',    // claude-sonnet-5 — balance calidad/costo
+                    thinkingBudget: 6000,          // extended thinking: 6k tokens de razonamiento interno
+                    contextLabel: 'ArquitectoChat_EXPLORACION_Claude',
+                });
+                responseText = result.text || 'Cuéntame más sobre tu proyecto. ¿Qué tienes construido hasta ahora?';
+            } else {
+                const result = await smartGenerateContent(genAI!, prompt, {
+                    _tier: tier,
+                    taskType: 'deep_analysis',
+                    temperature: TEMP_CREATIVE,
+                    contextLabel: 'ArquitectoChat_EXPLORACION_GeminiFallback',
+                });
+                responseText = result.text || 'Cuéntame más sobre tu proyecto. ¿Qué tienes construido hasta ahora?';
+            }
 
         } else if (intent === 'DEBATE' || intent === 'CONSULTA') {
             const prompt = intent === 'CONSULTA'
                 ? buildConsultaPrompt(request.data._lang || 'es', recentHistoryText, query || '', contextData.canon, contextData.worldEntities)
                 : buildDebatePrompt(request.data._lang || 'es', activePendingItem, recentHistoryText, query || '', contextData.worldEntities, resolvedItems);
 
-            const result = await smartGenerateContent(genAI, prompt, {
-                _tier: tier,
-                taskType: 'deep_analysis',
-                temperature: TEMP_CREATIVE,
-                contextLabel: `ArquitectoChat_${intent}`,
-            });
-            responseText = result.text || 'No pude procesar esa consulta. ¿Puedes reformularla?';
+            const resolved = resolveAIProvider(request.data, 'gemini');
+            if (resolved.provider === 'gemini') {
+                const result = await smartGenerateContent(genAI!, prompt, {
+                    _tier: tier,
+                    taskType: 'deep_analysis',
+                    temperature: TEMP_CREATIVE,
+                    contextLabel: `ArquitectoChat_${intent}`,
+                });
+                responseText = result.text || 'No pude procesar esa consulta. ¿Puedes reformularla?';
+            } else {
+                const result = await smartGenerateContentClaude(resolved.apiKey, prompt, {
+                    reasoningLevel: 'balanced',
+                    contextLabel: `ArquitectoChat_${intent}_ClaudeFallback`,
+                });
+                responseText = result.text || 'No pude procesar esa consulta. ¿Puedes reformularla?';
+            }
 
         } else if (intent === 'REFUTACION') {
             const prompt = buildRefutacionPrompt(request.data._lang || 'es', activePendingItem, recentHistoryText, query || '');
-            const result = await smartGenerateContent(genAI, prompt, {
-                _tier: tier,
-                taskType: 'deep_analysis',
-                temperature: TEMP_PRECISION,
-                contextLabel: 'ArquitectoChat_REFUTACION',
-            });
-            responseText = result.text || 'No pude evaluar la refutación. Intenta de nuevo.';
+            const resolved = resolveAIProvider(request.data, 'gemini');
+            if (resolved.provider === 'gemini') {
+                const result = await smartGenerateContent(genAI!, prompt, {
+                    _tier: tier,
+                    taskType: 'deep_analysis',
+                    temperature: TEMP_PRECISION,
+                    contextLabel: 'ArquitectoChat_REFUTACION',
+                });
+                responseText = result.text || 'No pude evaluar la refutación. Intenta de nuevo.';
+            } else {
+                const result = await smartGenerateContentClaude(resolved.apiKey, prompt, {
+                    reasoningLevel: 'balanced',
+                    contextLabel: 'ArquitectoChat_REFUTACION_ClaudeFallback',
+                });
+                responseText = result.text || 'No pude evaluar la refutación. Intenta de nuevo.';
+            }
             
             // Si la refutación es válida, marcar el item como resuelto
             if (responseText.includes('[REFUTACIÓN VÁLIDA]') && activePendingItem) {
@@ -1590,26 +1620,46 @@ INSTRUCCIONES:
 Formula el desafío socrático para la disonancia siguiente. Aborda ÚNICAMENTE esta disonancia, ninguna otra. Si no hay disonancia activa, felicita al autor por resolver todo.
 Máximo 150 palabras. Un solo desafío.`;
 
-            const result = await smartGenerateContent(genAI, confirmacionPrompt, {
-                _tier: tier,
-                taskType: 'standard',
-                temperature: TEMP_CREATIVE,
-                contextLabel: 'ArquitectoChat_CONFIRMACION',
-            });
-            responseText = result.text || 'Entendido. Pasemos al siguiente punto.';
+            const resolved = resolveAIProvider(request.data, 'gemini');
+            if (resolved.provider === 'gemini') {
+                const result = await smartGenerateContent(genAI!, confirmacionPrompt, {
+                    _tier: tier,
+                    taskType: 'standard',
+                    temperature: TEMP_CREATIVE,
+                    contextLabel: 'ArquitectoChat_CONFIRMACION',
+                });
+                responseText = result.text || 'Entendido. Pasemos al siguiente punto.';
+            } else {
+                const result = await smartGenerateContentClaude(resolved.apiKey, confirmacionPrompt, {
+                    reasoningLevel: 'balanced',
+                    contextLabel: 'ArquitectoChat_CONFIRMACION_ClaudeFallback',
+                });
+                responseText = result.text || 'Entendido. Pasemos al siguiente punto.';
+            }
 
         } else if (intent === 'RESOLUCION' && activePendingItem) {
             const prompt = buildResolucionPrompt(request.data._lang || 'es', activePendingItem, recentHistoryText, query || '', contextData.canon, resolvedItems);
-            const result = await smartGenerateContent(genAI, prompt, {
-                _tier: tier,
-                taskType: 'deep_analysis',
-                jsonMode: true,
-                temperature: TEMP_PRECISION,
-                contextLabel: 'ArquitectoChat_RESOLUCION',
-            });
+            const resolved = resolveAIProvider(request.data, 'gemini');
+            let jsonText = '';
+            if (resolved.provider === 'gemini') {
+                const result = await smartGenerateContent(genAI!, prompt, {
+                    _tier: tier,
+                    taskType: 'deep_analysis',
+                    jsonMode: true,
+                    temperature: TEMP_PRECISION,
+                    contextLabel: 'ArquitectoChat_RESOLUCION',
+                });
+                jsonText = result.text;
+            } else {
+                const result = await smartGenerateContentClaude(resolved.apiKey, prompt + '\n\nResponde estrictamente en formato JSON.', {
+                    reasoningLevel: 'balanced',
+                    contextLabel: 'ArquitectoChat_RESOLUCION_ClaudeFallback',
+                });
+                jsonText = result.text;
+            }
             
-            if (result.text) {
-                const parsed = parseSecureJSON(result.text, 'ArquitectoChat_RESOLUCION');
+            if (jsonText) {
+                const parsed = parseSecureJSON(jsonText, 'ArquitectoChat_RESOLUCION');
                 if (parsed && !parsed.error) {
                     responseText = parsed.architectReply || 'Resolución registrada.';
                     

@@ -15,21 +15,30 @@ export function AIMotorBlockedOverlay({ toolName }: Props) {
             <h3 className="text-base font-medium text-zinc-300 mb-2">
                 Motor de IA desconectado
             </h3>
-            <p className="text-sm text-zinc-500 mb-6 max-w-xs leading-relaxed">
-                {toolName} necesita tu API key de Google AI Studio para funcionar. Es gratuita y solo tarda 2 minutos.
+            <p className="text-sm text-zinc-400 mb-6 max-w-sm leading-relaxed">
+                {toolName} necesita que configures al menos una API key (Google Gemini o Anthropic Claude) en Ajustes para funcionar.
             </p>
             <button
                 onClick={showAPIKeyOnboarding}
-                className="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors"
+                className="px-5 py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-xl transition-colors shadow-lg shadow-violet-500/20"
             >
-                Conectar mi API key
+                Configurar mi API Key
             </button>
-            <button
-                onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
-                className="mt-3 text-xs text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2"
-            >
-                Obtener API key gratuita en Google AI Studio →
-            </button>
+            <div className="mt-4 flex items-center gap-4 text-xs text-zinc-500">
+                <button
+                    onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
+                    className="hover:text-cyan-400 transition-colors underline underline-offset-2"
+                >
+                    Gemini Gratis →
+                </button>
+                <span>•</span>
+                <button
+                    onClick={() => window.open('https://console.anthropic.com/settings/keys', '_blank')}
+                    className="hover:text-amber-400 transition-colors underline underline-offset-2"
+                >
+                    Anthropic Claude →
+                </button>
+            </div>
         </div>
     );
 }

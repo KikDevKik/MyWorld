@@ -7,7 +7,7 @@ export type TierMode = 'normal' | 'ultra';
 export const TIER_MODE_KEY = 'myworld_tier_mode';
 
 export function useTier() {
-    const { customGeminiKey } = useProjectConfig();
+    const { customGeminiKey, customAnthropicKey } = useProjectConfig();
 
     const [tierMode, setTierModeState] = useState<TierMode>(() => {
         const saved = localStorage.getItem(TIER_MODE_KEY);
@@ -26,7 +26,9 @@ export function useTier() {
         tierMode,
         isUltra: tier === 'ultra',
         isNormal: tier === 'normal',
-        hasByok: !!customGeminiKey,
+        hasByok: !!(customGeminiKey || customAnthropicKey),
+        hasGeminiKey: !!customGeminiKey,
+        hasAnthropicKey: !!customAnthropicKey,
         setTierMode,
     };
 }

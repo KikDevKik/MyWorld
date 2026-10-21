@@ -316,7 +316,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [initialByokChecked, setInitialByokChecked] = useState(false);
 
     // 🟢 BYOK ONBOARDING
-    const { customGeminiKey } = useProjectConfig();
+    const { customGeminiKey, customAnthropicKey } = useProjectConfig();
     const { isNormal } = useTier();
 
     // Global settings modal event dispatch (from overlays, TTS gate, etc.)
@@ -337,9 +337,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     useEffect(() => {
         if (!isAppLoading && user && !initialByokChecked && driveStatus === 'connected') {
             setInitialByokChecked(true);
-            if (!customGeminiKey) {
+            if (!customGeminiKey && !customAnthropicKey) {
                 toast("Falta Clave de IA (BYOK)", {
-                    description: "Para usar las herramientas avanzadas, necesitas configurar tu propia API Key de Google Gemini.",
+                    description: "Para usar las herramientas avanzadas, necesitas configurar al menos una API Key (Google Gemini o Anthropic Claude).",
                     duration: 10000,
                     action: {
                         label: "Configurar",
@@ -348,7 +348,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 });
             }
         }
-    }, [isAppLoading, user, customGeminiKey, initialByokChecked, driveStatus]);
+    }, [isAppLoading, user, customGeminiKey, customAnthropicKey, initialByokChecked, driveStatus]);
 
     // 🟢 STARTING ASSISTANT — show when project is new and empty
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);

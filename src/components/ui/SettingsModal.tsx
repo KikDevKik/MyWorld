@@ -25,7 +25,7 @@ interface SettingsModalProps {
 }
 
 const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessToken, onGetFreshToken, initialTab }) => {
-    const { config, updateConfig, customGeminiKey, setCustomGeminiKey, fileTree } = useProjectConfig(); // 🟢 Use Context
+    const { config, updateConfig, customGeminiKey, setCustomGeminiKey, customAnthropicKey, setCustomAnthropicKey, fileTree } = useProjectConfig(); // 🟢 Use Context
     const { currentLanguage, setLanguage } = useLanguageStore(); // 🟢 LANGUAGE STORE
     const t = TRANSLATIONS[currentLanguage].settings; // 🟢 LOCALIZED TEXTS
     const { tier, tierMode, setTierMode } = useTier();
@@ -69,6 +69,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     // 🟢 BYOK: Local State
     const [localGeminiKey, setLocalGeminiKey] = useState('');
     const [showKey, setShowKey] = useState(false);
+    const [localAnthropicKey, setLocalAnthropicKey] = useState('');
+    const [showAnthropicKey, setShowAnthropicKey] = useState(false);
 
     const { isUltra } = useTier();
 
@@ -126,7 +128,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
         if (customGeminiKey) {
             setLocalGeminiKey(customGeminiKey);
         }
-    }, [config, customGeminiKey]);
+        if (customAnthropicKey) {
+            setLocalAnthropicKey(customAnthropicKey);
+        }
+    }, [config, customGeminiKey, customAnthropicKey]);
 
     const handleSave = async () => {
         setIsLoading(true);
@@ -143,8 +148,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 });
             }
 
-            // 🟢 BYOK: Save Custom Key to LocalStorage (via Context)
+            // 🟢 BYOK: Save Custom Keys to LocalStorage (via Context)
             setCustomGeminiKey(localGeminiKey);
+            setCustomAnthropicKey(localAnthropicKey);
 
             toast.success(t.savedSuccess);
             onClose();
@@ -873,18 +879,18 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     {/* Estado actual */}
                                     <div>
                                         <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Estado actual</h4>
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${!customGeminiKey
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${(!customGeminiKey && !customAnthropicKey)
                                                 ? 'bg-red-500/10 text-red-400 border-red-500/30'
                                                 : tier === 'ultra'
                                                     ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
                                                     : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                                             }`}>
-                                            {!customGeminiKey ? (
+                                            {(!customGeminiKey && !customAnthropicKey) ? (
                                                 <><span>✕</span><span>Sin API Key</span></>
                                             ) : tier === 'ultra' ? (
                                                 <><Zap size={11} /><span>Ultra — Key conectada</span></>
                                             ) : (
-                                                <><Leaf size={11} /><span>Normal — Tu key</span></>
+                                                <><Leaf size={11} /><span>Activo — Key conectada</span></>
                                             )}
                                         </div>
                                     </div>
@@ -960,62 +966,176 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     </div>
                                 </div>
 
-                                {/* COLUMNA DERECHA — API Key */}
-                                <div className="space-y-3">
-                                    <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Tu API Key de Google AI Studio</h4>
-
-                                    <div className="relative">
-                                        <input
-                                            id="api-key-input"
-                                            type={showKey ? "text" : "password"}
-                                            value={localGeminiKey}
-                                            onChange={(e) => setLocalGeminiKey(e.target.value)}
-                                            className="w-full bg-slate-800 text-white placeholder-gray-500 border border-slate-700 p-2.5 pr-10 rounded-xl focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none font-mono text-sm"
-                                            placeholder="AIzaSy..."
-                                        />
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowKey(!showKey)}
-                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-titanium-400 hover:text-white transition-colors"
-                                            aria-label={showKey ? "Ocultar clave" : "Mostrar clave"}
-                                        >
-                                            {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
-                                        </button>
-                                    </div>
-
-                                    {localGeminiKey && (
-                                        <button
-                                            onClick={() => setLocalGeminiKey('')}
-                                            className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1"
-                                        >
-                                            <Trash2 size={11} /> Eliminar key
-                                        </button>
+                                {/* COLUMNA DERECHA — API Keys (BYOK Flexible) */}
+                                <div className="space-y-4">
+                                    {/* ALERTA Y ESTADO BYOK */}
+                                    {!localGeminiKey && !localAnthropicKey ? (
+                                        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5">
+                                            <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-xs font-bold text-red-400">Sin API Key — IA Desactivada</p>
+                                                <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
+                                                    Para usar MyWorld necesitas ingresar <strong>al menos una API Key</strong> (Gemini o Claude). No se cobrarrán llamadas en el servidor.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-start gap-2.5">
+                                            <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <p className="text-xs font-bold text-emerald-400">
+                                                    {localGeminiKey && localAnthropicKey
+                                                        ? "Modo Híbrido Activo (Gemini + Claude)"
+                                                        : localGeminiKey
+                                                        ? "Google Gemini Conectado (Capa Gratuita)"
+                                                        : "Anthropic Claude Conectado (Exploración Socrática)"}
+                                                </p>
+                                                <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
+                                                    {localGeminiKey && localAnthropicKey
+                                                        ? "Tienes conectados ambos proveedores. El Arquitecto usará cada uno para su especialidad narrativa."
+                                                        : localGeminiKey
+                                                        ? "Motor listo con Gemini. Puedes usar la app normalmente. (Opcional: Añade Claude para Exploración Socrática)."
+                                                        : "Motor listo con Claude. Puedes usar la app normalmente. (Opcional: Añade Gemini para capa gratuita)."}
+                                                </p>
+                                            </div>
+                                        </div>
                                     )}
 
-                                    <div className="p-3 bg-emerald-500/5 border border-emerald-500/15 rounded-lg space-y-1.5">
-                                        <p className="text-xs text-emerald-400 font-medium">Google AI Studio ofrece capa gratuita</p>
-                                        <p className="text-xs text-titanium-500 leading-relaxed">
-                                            No necesitas tarjeta de crédito. El Modo Normal usa Gemini Flash, que es 100% gratuito con límites generosos.
-                                        </p>
-                                        <button
-                                            onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
-                                            className="text-xs text-emerald-400 hover:text-emerald-300 underline underline-offset-2 transition-colors"
-                                        >
-                                            Obtener mi API key gratuita →
-                                        </button>
+                                    {/* 1. GOOGLE GEMINI KEY */}
+                                    <div className="space-y-2 p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                                                <h4 className="text-xs font-semibold text-zinc-200">Google AI Studio (Gemini)</h4>
+                                            </div>
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-medium">Capa Gratis Disponible</span>
+                                        </div>
+
+                                        <div className="relative">
+                                            <input
+                                                id="api-key-input"
+                                                type={showKey ? "text" : "password"}
+                                                value={localGeminiKey}
+                                                onChange={(e) => setLocalGeminiKey(e.target.value)}
+                                                className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localGeminiKey ? 'border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500' : 'border-slate-700 focus:border-purple-500 focus:ring-purple-500'}`}
+                                                placeholder="AIzaSy..."
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowKey(!showKey)}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-titanium-400 hover:text-white transition-colors"
+                                                aria-label={showKey ? "Ocultar clave" : "Mostrar clave"}
+                                            >
+                                                {showKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-1">
+                                            {localGeminiKey ? (
+                                                <button
+                                                    onClick={() => setLocalGeminiKey('')}
+                                                    className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1"
+                                                >
+                                                    <Trash2 size={11} /> Eliminar key
+                                                </button>
+                                            ) : <span />}
+
+                                            <button
+                                                onClick={() => window.open('https://aistudio.google.com/apikey', '_blank')}
+                                                className="text-[11px] text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors font-medium"
+                                            >
+                                                Obtener Key Gratis de Gemini →
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-start gap-1.5">
+                                    {/* 2. ANTHROPIC CLAUDE KEY */}
+                                    <div className="space-y-2 p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+                                                <h4 className="text-xs font-semibold text-zinc-200">Anthropic Console (Claude)</h4>
+                                            </div>
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-medium">Razonamiento Socrático</span>
+                                        </div>
+
+                                        <div className="relative">
+                                            <input
+                                                id="anthropic-api-key-input"
+                                                type={showAnthropicKey ? "text" : "password"}
+                                                value={localAnthropicKey}
+                                                onChange={(e) => setLocalAnthropicKey(e.target.value)}
+                                                className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localAnthropicKey ? 'border-amber-500/40 focus:border-amber-500 focus:ring-amber-500' : 'border-slate-700 focus:border-purple-500 focus:ring-purple-500'}`}
+                                                placeholder="sk-ant-..."
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowAnthropicKey(!showAnthropicKey)}
+                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-titanium-400 hover:text-white transition-colors"
+                                                aria-label={showAnthropicKey ? "Ocultar clave" : "Mostrar clave"}
+                                            >
+                                                {showAnthropicKey ? <EyeOff size={15} /> : <Eye size={15} />}
+                                            </button>
+                                        </div>
+
+                                        <div className="flex items-center justify-between pt-1">
+                                            {localAnthropicKey ? (
+                                                <button
+                                                    onClick={() => setLocalAnthropicKey('')}
+                                                    className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1"
+                                                >
+                                                    <Trash2 size={11} /> Eliminar key
+                                                </button>
+                                            ) : <span />}
+
+                                            <button
+                                                onClick={() => window.open('https://console.anthropic.com/settings/keys', '_blank')}
+                                                className="text-[11px] text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors font-medium"
+                                            >
+                                                Obtener Key de Claude →
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-1.5 pt-1">
                                         <ShieldCheck size={11} className="text-zinc-600 mt-0.5 shrink-0" />
-                                        <p className="text-xs text-zinc-600 leading-relaxed">
-                                            Tu key se guarda solo en tu navegador. Nunca se almacena en nuestros servidores.
+                                        <p className="text-[11px] text-zinc-500 leading-relaxed">
+                                            Tus claves se guardan exclusivamente en el almacenamiento de tu navegador (localStorage) y nunca en nuestras bases de datos.
                                         </p>
                                     </div>
 
                                 </div>
+
+                                {/*
+                                 * TODO [CLAUDE MODEL SELECTOR — MULTI-PROVIDER]:
+                                 *
+                                 * Aquí debería ir el selector del modelo de Claude para El Arquitecto.
+                                 * Los datos del catálogo de modelos están disponibles en:
+                                 *   functions/src/utils/smart_generate_claude.ts → export const CLAUDE_MODELS
+                                 *
+                                 * Tabla de referencia para renderizar:
+                                 * ┌─────────────────┬──────────────────────────┬────────────────────────────┐
+                                 * │ Modelo          │ Costo aprox. por sesión  │ Cuándo usarlo              │
+                                 * ├─────────────────┼──────────────────────────┼────────────────────────────┤
+                                 * │ Haiku 4.5       │ ~$0.01–0.02              │ Uso diario, económico      │
+                                 * │ Sonnet 5 ★      │ ~$0.02–0.05              │ Recomendado — buen balance │
+                                 * │ Opus 5          │ ~$0.05–0.15              │ Sesiones complejas         │
+                                 * │ Fable 5.1       │ ~$0.10–0.30              │ Casos extremos             │
+                                 * └─────────────────┴──────────────────────────┴────────────────────────────┘
+                                 *
+                                 * Para implementarlo:
+                                 * 1. Añadir 'customAnthropicKey' y 'claudeReasoningLevel' a ProjectConfigContext
+                                 * 2. Exponer un input tipo password para ANTHROPIC_API_KEY (igual que Gemini)
+                                 * 3. Añadir un selector de ClaudeReasoningLevel ('cheap'|'balanced'|'premium'|'maximum')
+                                 *    usando CLAUDE_MODELS importado desde un módulo compartido frontend/backend
+                                 *    (actualmente el catálogo vive solo en el backend — mover a src/lib/claudeModels.ts)
+                                 * 4. Pasar la selección al payload de arquitectoChat como { claudeReasoningLevel, customAnthropicKey }
+                                 */}
+
                             </div>
                         </div>
                     )}
+
 
                     {/* TAB: MEMORY (DEBUG) */}
                     {/*
