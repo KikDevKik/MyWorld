@@ -1,4 +1,5 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
@@ -10,6 +11,7 @@ import { smartGenerateContent } from "./utils/smart_generate";
 
 // --- CONFIG ---
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 // --- HELPERS ---
 
@@ -99,7 +101,7 @@ export const analyzeStyleDNA = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "2GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         if (!request.auth) {

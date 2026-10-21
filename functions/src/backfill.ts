@@ -1,5 +1,6 @@
 import './admin';
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { getFirestore } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { defineSecret } from "firebase-functions/params";
@@ -7,13 +8,14 @@ import { FUNCTIONS_REGION, ALLOWED_ORIGINS } from "./config";
 import * as logger from "firebase-functions/logger";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 export const backfillResourcesFromDrive = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
         timeoutSeconds: 540,
         memory: "1GiB",
     },

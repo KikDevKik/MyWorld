@@ -1,5 +1,6 @@
 import './admin';
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
@@ -441,7 +442,7 @@ export const arquitectoInitialize = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "1GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<ArquitectoInitResult> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -1804,7 +1805,7 @@ export const arquitectoAnalyze = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "1GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<{ pendingItems: PendingItem[]; projectSummary: string; analyzedAt: string }> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -1916,7 +1917,7 @@ export const arquitectoGenerateRoadmap = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "1GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<{
         ready: boolean;
@@ -2126,7 +2127,7 @@ export const arquitectoRecalculateCards = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 300,
         memory: "1GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<any> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -2144,7 +2145,7 @@ export const arquitectoResolvePendingItem = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 60,
         memory: "512MiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<{ success: boolean; pendingItems: PendingItem[] }> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -2222,7 +2223,7 @@ export const arquitectoApplyPatch = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 120,
         memory: "1GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<{ success: boolean; updatedFileName?: string }> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -2385,7 +2386,7 @@ export const arquitectoRejectPatch = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 30,
         memory: "256MiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<{ success: boolean }> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -2419,7 +2420,7 @@ export const arquitectoGenerateRoadmapFinal = onCall(
     {
         region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS,
         enforceAppCheck: false, timeoutSeconds: 300,
-        memory: "1GiB", secrets: [googleApiKey],
+        memory: "1GiB", secrets: [googleApiKey, anthropicApiKey],
     },
     async (request): Promise<{ changelog: string[]; creationMissions: string[]; researchMissions: string[] }> => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");

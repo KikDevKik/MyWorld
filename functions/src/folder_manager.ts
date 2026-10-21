@@ -1,5 +1,6 @@
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
@@ -14,6 +15,7 @@ import { deleteFileVectors } from "./ingestion";
 import { getAIKey, escapeDriveQuery } from "./utils/security";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 // 🛡️ SENTINEL SECURITY CONSTANTS
 const MAX_BATCH_SIZE = 50; // Prevent DoS loop via unbounded batch operations
@@ -46,7 +48,7 @@ export const discoverFolderRoles = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
         memory: "4GiB",
     },
     async (request) => {

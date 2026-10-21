@@ -1,4 +1,5 @@
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
@@ -7,6 +8,7 @@ import { getAIKey, getTier } from "./utils/security";
 import { MODEL_FLASH, MODEL_FLASH_2_5 } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 const TTS_MODEL = 'gemini-3.1-pro-tts'; // 🟢 Updated to 3.1 Pro TTS
 
 // Local Interface Definitions
@@ -49,7 +51,7 @@ export const generateSpeech = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
         memory: "2GiB",
     },
     async (request) => {
@@ -146,7 +148,7 @@ export const analyzeScene = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
         memory: "1GiB",
         timeoutSeconds: 120,
     },

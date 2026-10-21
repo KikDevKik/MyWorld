@@ -1,5 +1,6 @@
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
@@ -11,6 +12,7 @@ import { getAIKey, getTier, escapePromptVariable } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 interface ClassifyResourceRequest {
     fileId: string;
@@ -24,7 +26,7 @@ export const classifyResource = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
         memory: "1GiB",
     },
     async (request) => {

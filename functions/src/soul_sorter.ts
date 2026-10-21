@@ -1,5 +1,6 @@
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -91,6 +92,7 @@ function extractNameFromBlock(text: string): string | null {
 }
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 const MAX_BATCH_CHARS = 75000;
 
 export interface FileContent {
@@ -410,7 +412,7 @@ export const classifyEntities = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 3600, // 60 minutes
         memory: "4GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");

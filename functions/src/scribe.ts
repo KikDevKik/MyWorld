@@ -1,5 +1,6 @@
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -20,6 +21,7 @@ import { getPrompt } from "./prompt_manager";
 import { TEMP_PRECISION } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 const MAX_AI_INPUT_CHARS = 100000;
 
 async function _getProjectConfigInternal(userId: string): Promise<ProjectConfig> {
@@ -231,7 +233,7 @@ export const integrateNarrative = onCall(
         enforceAppCheck: false,
         memory: "1GiB",
         timeoutSeconds: 60,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
@@ -297,7 +299,7 @@ export const scribePatchFile = onCall(
         enforceAppCheck: false,
         memory: "1GiB",
         timeoutSeconds: 60, // Drive IO + AI + Drive IO
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
@@ -426,7 +428,7 @@ export const transformToGuide = onCall(
         enforceAppCheck: false,
         memory: "1GiB",
         timeoutSeconds: 60,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");

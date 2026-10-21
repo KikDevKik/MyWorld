@@ -1,6 +1,7 @@
 import { MODEL_PRO, MODEL_FLASH, MODEL_FLASH_2_5_LITE, modelForRequest } from './ai_config';
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
@@ -12,6 +13,7 @@ import { GeminiEmbedder } from "./utils/vector_utils";
 import { GoogleGenerativeAI, TaskType, SchemaType } from "@google/generative-ai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { smartGenerateContent } from "./utils/smart_generate";
+import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM } from "./utils/claude_router";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
 import * as crypto from 'crypto';
@@ -78,6 +80,7 @@ export { builderStream } from './builder';
 // --- CORE HANDLERS (Bridge) ---
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 const MAX_FILE_SAVE_BYTES = 5 * 1024 * 1024;
 
 /**
@@ -89,7 +92,7 @@ export const forgeToolExecution = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
     memory: "1GiB",
   },
   async (request) => {
@@ -688,7 +691,7 @@ export const addMuseMessage = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
@@ -868,7 +871,7 @@ export const indexTDB = onCall(
     enforceAppCheck: false,
     memory: "2GiB",
     timeoutSeconds: 1800, // Oct 2026: el regulador de embeddings (100/min gratis) alarga la indexación
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -1141,7 +1144,7 @@ export const summonTheTribunal = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 300,
     memory: "1GiB",
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
@@ -1327,7 +1330,7 @@ export const chatWithGem = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     timeoutSeconds: 300,
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
     memory: "2GiB",
   },
   async (request) => {
@@ -1918,6 +1921,41 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         PREGUNTA DEL USUARIO: "${finalQuery}"
       `;
 
+      // ── Oct 2026: Claude (pagado por MyWorld) para usuarios autorizados ──
+      // Sistema fijo + archivo abierto van con caché de prompt (se cobran a 1/10 al repetirse).
+      // Si Claude falla (sin saldo, error), seguimos con Gemini como antes.
+      if (claudeEnabledForCurrentUser()) {
+        const labIdx = finalSystemInstruction.indexOf('[MODO LABORATORIO');
+        const labExtra = labIdx >= 0 ? finalSystemInstruction.slice(labIdx) : '';
+        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${CONTINUITY_PROTOCOL}\n\n${coAuthorInstruction}`;
+        const userText = `${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${longTermMemorySection}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyText}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
+        const totalChars = staticSystem.length + activeContextSection.length + userText.length;
+        const claudeModel = pickClaudeModel('Director', totalChars, true);
+        const content: any[] = [];
+        if (mediaAttachment?.mimeType?.startsWith('image/')) {
+          content.push({ type: 'image', source: { type: 'base64', media_type: mediaAttachment.mimeType, data: mediaAttachment.data } });
+        }
+        content.push({ type: 'text', text: userText });
+        const r = await callClaude({
+          model: claudeModel,
+          system: [
+            { text: staticSystem, cache: true },
+            ...(activeContextSection.trim() ? [{ text: activeContextSection, cache: true }] : []),
+          ],
+          content,
+          maxTokens: requestedMaxTokens ?? 2048,
+          temperature: TEMP_CREATIVE,
+          label: 'Director',
+        });
+        if (r.ok && r.text) {
+          return {
+            response: r.text,
+            sources: relevantanys.map(chunk => ({ text: chunk.text.substring(0, 200) + "...", fileName: chunk.fileName })),
+          };
+        }
+        logger.warn('↩️ [DIRECTOR] Claude no respondió; usando Gemini.');
+      }
+
       // 🟢 OPERATION BYPASS TOTAL: NATIVE SDK IMPLEMENTATION
       try {
         const genAI = new GoogleGenerativeAI(finalKey);
@@ -2234,7 +2272,7 @@ export const compileManuscript = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 300,
     memory: "2GiB",
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
 
@@ -2540,7 +2578,7 @@ export const extractTimelineEvents = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     timeoutSeconds: 120,
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
     memory: "1GiB",
   },
   async (request) => {
@@ -2740,7 +2778,7 @@ export const worldEngine = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 1800, // 30 Minutes
     memory: "2GiB",
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
     console.log("🚀 WORLD ENGINE v2.0 (Sanitizer Active) - Loaded");
@@ -3131,7 +3169,7 @@ export const updateLongTermMemory = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 3600, // 1 Hour (Heavy Operation)
     memory: "2GiB",
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
     const db = getFirestore();
@@ -3252,7 +3290,7 @@ export const enrichCharacterContext = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 300,
     memory: "2GiB",
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
     const db = getFirestore();
@@ -3442,7 +3480,7 @@ export const crystallizeNode = onCall(
     region: FUNCTIONS_REGION,
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
     memory: "1GiB",
   },
   async (request) => {
@@ -3550,7 +3588,7 @@ export const forgeAnalyzer = onCall(
     enforceAppCheck: false,
     timeoutSeconds: 300,
     memory: "2GiB",
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
   },
   async (request) => {
 
@@ -3795,7 +3833,7 @@ export const syncCharacterManifest = onCall(
     cors: ALLOWED_ORIGINS,
     enforceAppCheck: false,
     timeoutSeconds: 300,
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
     memory: "2GiB",
   },
   async (request) => {

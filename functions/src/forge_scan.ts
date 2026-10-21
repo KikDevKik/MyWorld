@@ -1,5 +1,6 @@
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { google } from "googleapis";
@@ -14,6 +15,7 @@ import { smartGenerateContent } from "./utils/smart_generate";
 const MAX_BATCH_SIZE = 50;
 const MAX_TOTAL_CONTENT_CHARS = 500000; // 500k chars limit
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 interface NexusScanRequest {
     fileId?: string;
@@ -34,7 +36,7 @@ export const analyzeForgeBatch = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 540, // 9 mins
         memory: "2GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");

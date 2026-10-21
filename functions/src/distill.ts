@@ -1,5 +1,6 @@
 import './admin';
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { getFirestore } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -13,13 +14,14 @@ import { getAIKey, escapePromptVariable } from "./utils/security";
 
 // IMPORTANTE: Manejo de BYOK (Bring Your Own Key) para Gemini
 const googleApiKeySecret = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 export const distillResource = onCall(
     {
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        secrets: [googleApiKeySecret],
+        secrets: [googleApiKeySecret, anthropicApiKey],
         timeoutSeconds: 120,
         memory: "1GiB",
     },

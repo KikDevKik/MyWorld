@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
+import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM } from "./claude_router";
 import {
     MODEL_FLASH, MODEL_PRO, MODEL_FLASH_2_5, MODEL_FLASH_2_5_LITE,
     SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL,
@@ -51,6 +52,32 @@ export async function smartGenerateContent(
     config: SmartConfig
 ): Promise<SmartResponse> {
     const contextLabel = config.contextLabel || "SmartGenerate";
+
+    // ── Oct 2026: Claude (pagado por MyWorld) para usuarios autorizados ──
+    // Si falla (sin saldo, error), se sigue con Gemini como antes.
+    if (claudeEnabledForCurrentUser()) {
+        const model = pickClaudeModel(contextLabel, prompt.length + (config.systemInstruction?.length || 0));
+        const jsonRule = config.jsonMode ? "\n\nResponde ÚNICAMENTE con JSON válido, sin texto antes ni después y sin bloques de código." : "";
+        const content: any[] = [];
+        if (config.mediaPayload?.inlineData?.mimeType?.startsWith("image/")) {
+            content.push({ type: "image", source: { type: "base64", media_type: config.mediaPayload.inlineData.mimeType, data: config.mediaPayload.inlineData.data } });
+        }
+        content.push({ type: "text", text: prompt + jsonRule });
+        const r = await callClaude({
+            model,
+            system: [{ text: CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + config.systemInstruction : ""), cache: !!config.systemInstruction && config.systemInstruction.length > 2000 }],
+            content,
+            maxTokens: Math.max(config.maxOutputTokens ?? 4096, 1024),
+            temperature: config.temperature,
+            label: contextLabel,
+        });
+        if (r.ok && r.text) {
+            let text = r.text;
+            if (config.jsonMode) text = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+            return { text, modelUsed: model };
+        }
+        logger.warn(`↩️ [SMART_GENERATE] ${contextLabel}: Claude no respondió, usando Gemini.`);
+    }
 
     // ── Tier-aware routing (Fase 2) ──
     // When _tier + taskType are both provided, use the model routing table.

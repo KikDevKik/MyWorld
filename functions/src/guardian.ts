@@ -1,5 +1,6 @@
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
@@ -14,6 +15,7 @@ import { parseSecureJSON } from "./utils/json";
 import { ProjectConfig } from "./types/project";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 const MAX_AI_INPUT_CHARS = 100000;
 const MAX_SCAN_LIMIT = 10000; // 🛡️ SENTINEL: Optimized for Multigenerational Sagas (Node.js Gen2)
 
@@ -30,7 +32,7 @@ export const auditContent = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 540, // 🛡️ SENTINEL: Extended for Deep Analysis (God Mode)
         memory: "1GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         const db = getFirestore();
@@ -858,7 +860,7 @@ export const auditGlobal = onCall(
         enforceAppCheck: false,
         timeoutSeconds: 300, // 5 minutos para análisis global
         memory: "2GiB",
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");

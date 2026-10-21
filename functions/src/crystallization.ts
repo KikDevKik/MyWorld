@@ -1,5 +1,6 @@
 import './admin'; // Ensure firebase-admin is initialized
-import { onCall, HttpsError } from "firebase-functions/v2/https";
+import { HttpsError } from "firebase-functions/v2/https";
+import { onCall } from "./utils/on_call";
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
@@ -21,6 +22,7 @@ import { TitaniumGenesis } from "./services/genesis";
 import matter from 'gray-matter';
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 // Internal helper to get config
 async function getProjectConfigLocal(userId: string): Promise<ProjectConfig> {
@@ -240,7 +242,7 @@ export const crystallizeGraph = onCall(
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
         timeoutSeconds: 540, // 9 minutes for batch processing
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
         memory: "1GiB",
     },
     async (request) => {
@@ -693,7 +695,7 @@ export const crystallizeForgeEntity = onCall(
         region: FUNCTIONS_REGION,
         cors: ALLOWED_ORIGINS,
         enforceAppCheck: false,
-        secrets: [googleApiKey],
+        secrets: [googleApiKey, anthropicApiKey],
         memory: "1GiB",
     },
     async (request) => {

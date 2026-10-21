@@ -12,6 +12,7 @@ import { getAIKey, getTier } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
+const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
 
 // --- TOOL DEFINITION ---
 const tools: any = [
@@ -38,7 +39,7 @@ const tools: any = [
 export const forgeChatStream = onRequest(
   {
     region: FUNCTIONS_REGION,
-    secrets: [googleApiKey],
+    secrets: [googleApiKey, anthropicApiKey],
     timeoutSeconds: 300,
     memory: "1GiB",
     cors: ALLOWED_ORIGINS,
