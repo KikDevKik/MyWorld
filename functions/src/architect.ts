@@ -1546,7 +1546,19 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
                     thinkingBudget: 6000,          // extended thinking: 6k tokens de razonamiento interno
                     contextLabel: 'ArquitectoChat_EXPLORACION_Claude',
                 });
-                responseText = result.text || 'Cuéntame más sobre tu proyecto. ¿Qué tienes construido hasta ahora?';
+                responseText = result.text || '';
+                // Oct 2026: si Claude falla (clave inválida, sin saldo), caer a Gemini en vez de una frase genérica.
+                if (!responseText && genAI) {
+                    logger.warn('[ARQUITECTO] Claude no respondió en EXPLORACION; usando Gemini como respaldo.');
+                    const fallback = await smartGenerateContent(genAI, prompt, {
+                        _tier: tier,
+                        taskType: 'deep_analysis',
+                        temperature: TEMP_CREATIVE,
+                        contextLabel: 'ArquitectoChat_EXPLORACION_GeminiAfterClaude',
+                    });
+                    responseText = fallback.text || '';
+                }
+                responseText = responseText || 'Cuéntame más sobre tu proyecto. ¿Qué tienes construido hasta ahora?';
             } else {
                 const result = await smartGenerateContent(genAI!, prompt, {
                     _tier: tier,
