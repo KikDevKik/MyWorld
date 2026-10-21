@@ -55,6 +55,11 @@ export async function smartGenerateContent(
     // ── Tier-aware routing (Fase 2) ──
     // When _tier + taskType are both provided, use the model routing table.
     // Otherwise, fall back to legacy useFlash logic (backward compat).
+    // Oct 2026: las llamadas sin _tier/taskType usaban MODEL_FLASH/MODEL_PRO fijos (de pago, límite 0 en nivel gratis).
+    // Ahora se enrutan por la tabla de modelos en modo Normal por defecto.
+    if (!config._tier || !config.taskType) {
+        config = { ...config, _tier: config._tier || 'normal', taskType: config.taskType || (config.useFlash ? 'standard' : 'deep_analysis') };
+    }
     const hasTierRouting = config._tier && config.taskType;
 
     if (hasTierRouting) {

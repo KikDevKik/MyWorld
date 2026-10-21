@@ -14,6 +14,19 @@ export const MODEL_FLASH_2_5_LITE = "gemini-3.5-flash-lite"; // Oct 2026: reempl
 // 🟢 LEGACY POINTERS
 export const MODEL_LOW_COST = MODEL_FLASH;
 export const MODEL_HIGH_REASONING = MODEL_PRO;
+/**
+ * Oct 2026: en modo Normal (nivel gratuito) los modelos de pago fijos (MODEL_PRO / MODEL_FLASH)
+ * tienen límite 0 y devuelven 429. Esta función los cambia por el modelo gratuito vigente.
+ * Usar en cualquier llamada que fije el modelo a mano en vez de pasar por getModelForTask().
+ */
+export function modelForRequest(model: string, requestData: any): string {
+    const t = requestData?._userTier;
+    const tier = (t === 'ultra' || t === 'normal') ? t
+        : (typeof requestData?._authOverride === 'string' && requestData._authOverride.startsWith('AIza') ? 'ultra' : 'normal');
+    if (tier === 'normal' && (model === MODEL_PRO || model === MODEL_FLASH)) return MODEL_FLASH_2_5;
+    return model;
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────
 // DUAL-TIER SYSTEM — Fase 2 (28 abril 2026)

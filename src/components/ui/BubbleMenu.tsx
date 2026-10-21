@@ -4,6 +4,9 @@ import { Sparkles, Maximize2, CheckCircle, Bold, Italic, Heading1, Heading2, Mic
 import { EditorView } from '@codemirror/view';
 import { EditorSelection, Text } from '@codemirror/state';
 
+// Oct 2026: el Narrador (lectura en voz alta) queda oculto. En el futuro volverá como comodidad para escuchar el libro.
+const NARRATOR_ENABLED = false;
+
 interface BubbleMenuProps {
     visible: boolean;
     position: { x: number; y: number } | null;
@@ -158,6 +161,8 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                 <Heading2 size={16} />
             </button>
 
+            {/* NARRADOR (TTS) — oculto desde oct 2026 por decisión de producto. Reactivar con NARRATOR_ENABLED = true. */}
+            {NARRATOR_ENABLED && (<>
             <div className="w-px h-4 bg-titanium-700 mx-0.5" role="separator" />
 
             {/* TTS READ */}
@@ -188,6 +193,8 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
                     <Square size={16} fill="currentColor" />
                 </button>
             )}
+
+            </>)}
 
             {/* DECORATION */}
             <div

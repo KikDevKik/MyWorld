@@ -6,7 +6,7 @@ import { google } from "googleapis";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
-import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE } from "./ai_config";
+import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE, modelForRequest } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey, escapeDriveQuery } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
@@ -435,7 +435,7 @@ ${answers.protagonistMisbelief || '*(pendiente de definir)*'}
             const finalApiKey = getAIKey(request.data, googleApiKey.value());
             const genAI = new GoogleGenerativeAI(finalApiKey);
             const model = genAI.getGenerativeModel({
-                model: MODEL_LOW_COST,
+                model: modelForRequest(MODEL_LOW_COST, request.data),
                 safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: {
                     temperature: TEMP_PRECISION,

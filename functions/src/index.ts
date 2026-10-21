@@ -1,4 +1,4 @@
-import { MODEL_PRO, MODEL_FLASH } from './ai_config';
+import { MODEL_PRO, MODEL_FLASH, modelForRequest } from './ai_config';
 import './admin'; // Ensure firebase-admin is initialized
 import { onCall, HttpsError } from "firebase-functions/v2/https";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
@@ -1943,7 +1943,7 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
 
         // --- 2. ATTEMPT 1: STANDARD CALL WITH TOOLS ---
         let model = genAI.getGenerativeModel({
-          model: MODEL_PRO,
+          model: modelForRequest(MODEL_PRO, request.data),
           generationConfig,
           safetySettings: SAFETY_SETTINGS_PERMISSIVE,
           cachedContent: cachedContent,
@@ -2509,7 +2509,7 @@ export const extractTimelineEvents = onCall(
     try {
       const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
       const model = genAI.getGenerativeModel({
-        model: MODEL_FLASH,
+        model: modelForRequest(MODEL_FLASH, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_PRECISION,
@@ -2761,7 +2761,7 @@ export const worldEngine = onCall(
       }
 
       const model = genAI.getGenerativeModel({
-        model: MODEL_PRO,
+        model: modelForRequest(MODEL_PRO, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         cachedContent: cachedContent,
         generationConfig: {
@@ -3273,7 +3273,7 @@ export const enrichCharacterContext = onCall(
       // 4. AI ANALYSIS (Gemini 3 Pro)
       const genAI = new GoogleGenerativeAI(finalKey);
       const model = genAI.getGenerativeModel({
-        model: MODEL_PRO,
+        model: modelForRequest(MODEL_PRO, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_CREATIVE,
@@ -3570,7 +3570,7 @@ export const forgeAnalyzer = onCall(
       // 2. PREPARAR PROMPT DE ANÁLISIS
       const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
       const model = genAI.getGenerativeModel({
-        model: MODEL_FLASH,
+        model: modelForRequest(MODEL_FLASH, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_PRECISION, // Analítico

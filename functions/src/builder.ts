@@ -6,7 +6,7 @@ import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI, SchemaType, TaskType } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE, getModelForTask } from "./ai_config";
+import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE, getModelForTask, modelForRequest } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";
 import { getAIKey, getTier } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
@@ -367,7 +367,7 @@ export const builderStream = onRequest(
                              if (!vectorSnap.empty) {
                                  const rawChunks = vectorSnap.docs.map(doc => doc.data().text).join("\n---\n");
                                  const flashModel = genAI.getGenerativeModel({
-                                     model: MODEL_LOW_COST,
+                                     model: modelForRequest(MODEL_LOW_COST, req.body),
                                      safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                                      generationConfig: { temperature: 0.3 }
                                  });
