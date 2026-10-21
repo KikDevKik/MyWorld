@@ -1965,6 +1965,13 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
             sources: relevantanys.map(chunk => ({ text: chunk.text.substring(0, 200) + "...", fileName: chunk.fileName })),
           };
         }
+        if (r.refusal) {
+          // Claude se negó: no gastar la cuota diaria de Gemini (20/día), que además bloquea estos temas.
+          return {
+            response: "🛡️ Claude no respondió a este mensaje: su filtro de seguridad lo marcó. Suele pasar cuando el contexto mezcla menores con escenas duras. Prueba a preguntar de forma más concreta sobre la escena o la técnica (por ejemplo: «¿cómo hago que la plaza del pueblo se sienta viva?»). Si se repite con mensajes normales, avísale a Claude en el chat de desarrollo.",
+            sources: [],
+          };
+        }
         logger.warn('↩️ [DIRECTOR] Claude no respondió; usando Gemini.');
       }
 

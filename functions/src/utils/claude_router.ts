@@ -52,7 +52,7 @@ export interface ClaudeCallOptions {
     label?: string;
 }
 
-export interface ClaudeCallResult { ok: boolean; text?: string; error?: string; noCredit?: boolean; }
+export interface ClaudeCallResult { ok: boolean; text?: string; error?: string; noCredit?: boolean; refusal?: boolean; stopReason?: string; }
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
@@ -80,9 +80,14 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
         } as any);
         const text = (res.content || []).filter((b: any) => b.type === "text").map((b: any) => b.text).join("");
         const u = res.usage || {};
-        logger.info(`🟣 [CLAUDE] ${label} | ${opts.model} | in=${u.input_tokens} cacheW=${u.cache_creation_input_tokens || 0} cacheR=${u.cache_read_input_tokens || 0} out=${u.output_tokens}`);
+        const stopReason = String(res.stop_reason || '');
+        logger.info(`🟣 [CLAUDE] ${label} | ${opts.model} | stop=${stopReason} | in=${u.input_tokens} cacheW=${u.cache_creation_input_tokens || 0} cacheR=${u.cache_read_input_tokens || 0} out=${u.output_tokens}`);
         recordUsage(opts.model, u).catch(() => {});
-        if (!text) return { ok: false, error: "EMPTY" };
+        if (!text) {
+            const details = JSON.stringify(res.stop_details || res.content || []).slice(0, 500);
+            logger.warn(`⚠️ [CLAUDE] ${label}: respuesta vacía (stop=${stopReason}) ${details}`);
+            return { ok: false, error: `EMPTY_${stopReason}`, refusal: stopReason === 'refusal', stopReason };
+        }
         return { ok: true, text };
     } catch (e: any) {
         const msg = String(e?.message || e);
