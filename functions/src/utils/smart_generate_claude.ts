@@ -101,9 +101,9 @@ export async function smartGenerateContentClaude(
     );
 
     // Anteponer el protocolo de ficción literaria (mismo patrón que Gemini)
-    const safePrompt = `${LITERARY_FICTION_PROTOCOL}\n\n${prompt}`;
+    const safePrompt = `${LITERARY_FICTION_PROTOCOL}\n\n${prompt.split('\n<<<MW_CACHE_SPLIT>>>\n').join('\n')}`;
 
-    const client = new Anthropic({ apiKey });
+    const client = new Anthropic({ apiKey, ...(process.env.ANTHROPIC_WORKSPACE_ID ? { defaultHeaders: { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } } : {}) });
 
     try {
         let responseText = '';

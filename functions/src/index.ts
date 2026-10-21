@@ -1,3 +1,4 @@
+import { routedModel } from "./utils/routed_model";
 import { MODEL_PRO, MODEL_FLASH, MODEL_FLASH_2_5_LITE, modelForRequest } from './ai_config';
 import './admin'; // Ensure firebase-admin is initialized
 import { HttpsError } from "firebase-functions/v2/https";
@@ -2600,14 +2601,14 @@ export const extractTimelineEvents = onCall(
 
     try {
       const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-      const model = genAI.getGenerativeModel({
+      const model = routedModel(genAI, {
         model: modelForRequest(MODEL_FLASH, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_PRECISION,
           responseMimeType: "application/json"
         }
-      });
+      }, undefined, "TimelineExtract");
 
       const prompt = `
         Eres un Cronista experto en narrativa y continuidad.
@@ -2852,14 +2853,14 @@ export const worldEngine = onCall(
         logger.info(`🧠 [GOD MODE] Using Context Cache: ${cachedContent}`);
       }
 
-      const model = genAI.getGenerativeModel({
+      const model = routedModel(genAI, {
         model: modelForRequest(MODEL_PRO, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         cachedContent: cachedContent,
         generationConfig: {
           temperature: dynamicTemp,
         } as any
-      });
+      }, undefined, "WorldEngine");
 
       // 🟢 PHASE 4.3: SESSION AWARENESS
       let sessionContext = "";
@@ -3364,13 +3365,13 @@ export const enrichCharacterContext = onCall(
 
       // 4. AI ANALYSIS (Gemini 3 Pro)
       const genAI = new GoogleGenerativeAI(finalKey);
-      const model = genAI.getGenerativeModel({
+      const model = routedModel(genAI, {
         model: modelForRequest(MODEL_PRO, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_CREATIVE,
         } as any
-      });
+      }, undefined, "EnrichCharacter");
 
       const prompt = `
         ACT AS: Senior Lorekeeper & Biographer.
@@ -3661,13 +3662,13 @@ export const forgeAnalyzer = onCall(
 
       // 2. PREPARAR PROMPT DE ANÁLISIS
       const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-      const model = genAI.getGenerativeModel({
+      const model = routedModel(genAI, {
         model: modelForRequest(MODEL_FLASH, request.data),
         safetySettings: SAFETY_SETTINGS_PERMISSIVE,
         generationConfig: {
           temperature: TEMP_PRECISION, // Analítico
         } as any
-      });
+      }, undefined, "ForgeAnalyzer");
 
       // 🔍 BETA DEBUG: LOGGING
       logger.info(`🔍 [ANALYZER BETA] Content Length: ${content.length} chars`);
@@ -4178,5 +4179,25 @@ export const checkSentinelIntegrity = onCall(
         details: error.message // Debug info (safe to show admin)
       };
     }
+  }
+);
+
+/**
+ * Oct 2026: estado de la IA para la pantalla "Config IA".
+ * Indica si esta cuenta usa Claude pagado por MyWorld y cuánto lleva gastado este mes (estimado).
+ */
+export const getAIStatus = onCall(
+  { region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS, enforceAppCheck: false, secrets: [googleApiKey, anthropicApiKey] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+    const claudeActive = claudeEnabledForCurrentUser();
+    let monthCostUsd = 0, calls = 0;
+    if (claudeActive) {
+      const month = new Date().toISOString().slice(0, 7);
+      const snap = await getFirestore().collection("users").doc(request.auth.uid).collection("ai_usage").doc(month).get();
+      monthCostUsd = snap.data()?.costUsd || 0;
+      calls = snap.data()?.calls || 0;
+    }
+    return { claudeActive, monthCostUsd, calls, conversationModel: "Claude Sonnet 5.5", taskModel: "Claude Haiku 5.5" };
   }
 );

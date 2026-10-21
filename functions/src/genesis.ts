@@ -1,3 +1,4 @@
+import { routedModel } from "./utils/routed_model";
 import './admin'; // Ensure firebase-admin is initialized
 import { HttpsError } from "firebase-functions/v2/https";
 import { onCall } from "./utils/on_call";
@@ -436,14 +437,14 @@ ${answers.protagonistMisbelief || '*(pendiente de definir)*'}
             // ── MODO CHAT HISTORY (GenesisWizard — sin cambios) ───────────────
             const finalApiKey = getAIKey(request.data, googleApiKey.value());
             const genAI = new GoogleGenerativeAI(finalApiKey);
-            const model = genAI.getGenerativeModel({
+            const model = routedModel(genAI, {
                 model: modelForRequest(MODEL_LOW_COST, request.data),
                 safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: {
                     temperature: TEMP_PRECISION,
                     responseMimeType: "application/json"
                 } as any
-            });
+            }, undefined, "Genesis");
 
             const historyText = (chatHistory as any[]).map((h: any) => `${h.role}: ${h.message}`).join("\n");
             const prompt = `

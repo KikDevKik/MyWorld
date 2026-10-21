@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";
-import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM } from "./claude_router";
+import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, CACHE_SPLIT } from "./claude_router";
 import {
     MODEL_FLASH, MODEL_PRO, MODEL_FLASH_2_5, MODEL_FLASH_2_5_LITE,
     SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL,
@@ -62,10 +62,18 @@ export async function smartGenerateContent(
         if (config.mediaPayload?.inlineData?.mimeType?.startsWith("image/")) {
             content.push({ type: "image", source: { type: "base64", media_type: config.mediaPayload.inlineData.mimeType, data: config.mediaPayload.inlineData.data } });
         }
-        content.push({ type: "text", text: prompt + jsonRule });
+        // Caché: instrucciones de sistema + la parte fija del prompt (antes de CACHE_SPLIT).
+        const splitIdx = prompt.indexOf(CACHE_SPLIT);
+        const fixedPart = splitIdx >= 0 ? prompt.slice(0, splitIdx) : "";
+        const variablePart = splitIdx >= 0 ? prompt.slice(splitIdx + CACHE_SPLIT.length) : prompt;
+        content.push({ type: "text", text: variablePart + jsonRule });
+        const sysText = CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + config.systemInstruction : "");
         const r = await callClaude({
             model,
-            system: [{ text: CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + config.systemInstruction : ""), cache: !!config.systemInstruction && config.systemInstruction.length > 2000 }],
+            system: [
+                { text: sysText, cache: !fixedPart && sysText.length > 1800 },
+                ...(fixedPart ? [{ text: fixedPart, cache: (sysText.length + fixedPart.length) > 1800 }] : []),
+            ],
             content,
             maxTokens: Math.max(config.maxOutputTokens ?? 4096, 1024),
             temperature: config.temperature,
@@ -78,6 +86,7 @@ export async function smartGenerateContent(
         }
         logger.warn(`↩️ [SMART_GENERATE] ${contextLabel}: Claude no respondió, usando Gemini.`);
     }
+    if (prompt.includes(CACHE_SPLIT)) prompt = prompt.split(CACHE_SPLIT).join("\n");
 
     // ── Tier-aware routing (Fase 2) ──
     // When _tier + taskType are both provided, use the model routing table.

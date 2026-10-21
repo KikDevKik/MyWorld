@@ -1,3 +1,4 @@
+import { routedModel } from "./utils/routed_model";
 import './admin'; // Ensure firebase-admin is initialized
 import { HttpsError } from "firebase-functions/v2/https";
 import { onCall } from "./utils/on_call";
@@ -146,14 +147,14 @@ export const discoverFolderRoles = onCall(
 
             // 5. AI Mapping (Gemini Flash)
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
-            const model = genAI.getGenerativeModel({
+            const model = routedModel(genAI, {
                 model: modelForRequest(MODEL_LOW_COST, request.data),
                 safetySettings: SAFETY_SETTINGS_PERMISSIVE,
                 generationConfig: {
                     temperature: TEMP_PRECISION,
                     responseMimeType: "application/json"
                 } as any
-            });
+            }, undefined, "FolderManager");
 
             const prompt = `
         TASK: Map User Folders to System Roles.

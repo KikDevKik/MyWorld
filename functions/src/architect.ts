@@ -10,6 +10,7 @@ import { defineSecret } from "firebase-functions/params";
 import { MODEL_PRO, MODEL_FLASH, SAFETY_SETTINGS_PERMISSIVE, TEMP_PRECISION, TEMP_CREATIVE, Tier } from "./ai_config";
 import { getAIKey, getAnthropicAIKey, resolveAIProvider, escapePromptVariable, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
+import { CACHE_SPLIT } from "./utils/claude_router";
 import { smartGenerateContentClaude } from "./utils/smart_generate_claude";
 import { parseSecureJSON } from "./utils/json";
 import { _getDriveFileContentInternal } from "./utils/drive";
@@ -870,8 +871,7 @@ ${disonancia}
 
 CONTEXTO DE ENTIDADES:
 ${worldEntitiesContext.substring(0, 3000)}
-
-HISTORIAL:
+${CACHE_SPLIT}HISTORIAL:
 ${historyText}
 
 RUTA: DEBATE — El usuario está explorando o dio una respuesta ambigua.
@@ -916,8 +916,7 @@ NORTE TEMÁTICO DEL PROYECTO: ${implementationGoal || 'Sin objetivo definido aú
 
 CONTEXTO DE ENTIDADES (REFERENCIA):
 ${worldEntitiesContext.substring(0, 3000)}
-
-HISTORIAL:
+${CACHE_SPLIT}HISTORIAL:
 ${historyText}
 
 MENSAJE DEL AUTOR: "${escapePromptVariable(userMessage)}"`;
@@ -938,8 +937,7 @@ ${activePendingItem.title}: ${activePendingItem.description}`
     return `${getPrompt(lang, 'architectSystem')}
 
 ${disonancia}
-
-HISTORIAL:
+${CACHE_SPLIT}HISTORIAL:
 ${historyText}
 
 RUTA: REFUTACIÓN — El autor defiende que esto no es un error.
@@ -972,8 +970,7 @@ ${canonContext.substring(0, 15000)}
 
 ENTIDADES REGISTRADAS:
 ${worldEntitiesContext.substring(0, 5000)}
-
-HISTORIAL:
+${CACHE_SPLIT}HISTORIAL:
 ${historyText}
 
 INSTRUCCIONES:
@@ -1011,8 +1008,7 @@ Capa: ${activePendingItem.layer || 'MACRO'}
 
 CANON ACTUAL (para generar parches):
 ${canonContext.substring(0, 15000)}
-
-HISTORIAL DE LA NEGOCIACIÓN:
+${CACHE_SPLIT}HISTORIAL DE LA NEGOCIACIÓN:
 ${historyText}
 
 INSTRUCCIONES — PROTOCOLO DE RESOLUCIÓN:

@@ -31,6 +31,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const { tier, tierMode, setTierMode } = useTier();
 
     const [activeTab, setActiveTab] = useState<'general' | 'profile' | 'ai_config' | 'info'>(initialTab || 'general');
+    // Oct 2026: estado de Claude (pagado por MyWorld) y gasto del mes
+    const [aiStatus, setAiStatus] = useState<{ claudeActive: boolean; monthCostUsd: number; calls: number; conversationModel: string; taskModel: string } | null>(null);
+    useEffect(() => {
+        if (activeTab !== 'ai_config') return;
+        callFunction<any>('getAIStatus', {}).then(r => { if (r) setAiStatus(r); }).catch(() => {});
+    }, [activeTab]);
     const modalRef = React.useRef<HTMLDivElement>(null);
 
     // 🎨 PALETTE: Focus Trap & Escape Key
@@ -844,6 +850,15 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                     {activeTab === 'ai_config' && (
                         <div role="tabpanel" id="panel-ai_config" aria-labelledby="tab-ai_config" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <h3 className="text-xs font-medium text-titanium-500 uppercase tracking-wider mb-4">IA &amp; Seguridad</h3>
+
+                            {aiStatus?.claudeActive && (
+                                <div className="mb-5 p-3 rounded-lg border border-purple-500/30 bg-purple-900/10 text-xs text-titanium-300 space-y-1">
+                                    <p className="font-medium text-purple-300">Claude activo en tu cuenta (lo paga MyWorld)</p>
+                                    <p>Director y Arquitecto: {aiStatus.conversationModel}. Tareas automáticas: {aiStatus.taskModel}. La indexación del canon sigue con Gemini.</p>
+                                    <p>Gasto estimado este mes: <span className="text-titanium-100 font-medium">US$ {aiStatus.monthCostUsd.toFixed(3)}</span> en {aiStatus.calls} llamadas. Si Claude no responde, MyWorld usa Gemini automáticamente.</p>
+                                    <p className="text-titanium-500">La clave de Gemini de abajo solo se usa como respaldo y para indexar.</p>
+                                </div>
+                            )}
 
                             <div className="grid grid-cols-2 gap-6">
 

@@ -1,3 +1,4 @@
+import { routedModel } from "./utils/routed_model";
 import './admin'; // Ensure firebase-admin is initialized
 import { HttpsError } from "firebase-functions/v2/https";
 import { onCall } from "./utils/on_call";
@@ -264,13 +265,13 @@ export const crystallizeGraph = onCall(
 
         const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
         const tier = getTier(request.data);
-        const model = genAI.getGenerativeModel({
+        const model = routedModel(genAI, {
             model: getModelForTask('standard', tier),
             safetySettings: SAFETY_SETTINGS_PERMISSIVE,
             generationConfig: {
                 temperature: mode === 'RIGOR' ? 0.3 : mode === 'ENTROPIA' ? 0.9 : 0.6,
             } as any
-        });
+        }, undefined, "Crystallization");
 
         const auth = new google.auth.OAuth2();
         auth.setCredentials({ access_token: accessToken });

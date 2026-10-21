@@ -8,6 +8,10 @@ import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getRequestUid } from "./request_context";
 
+// Marca opcional dentro de un prompt: todo lo anterior es fijo (instrucciones, canon) y se cachea;
+// lo posterior (historial, mensaje) cambia en cada petición. Gemini la ignora.
+export const CACHE_SPLIT = "\n<<<MW_CACHE_SPLIT>>>\n";
+
 export const CLAUDE_HAIKU = "claude-haiku-5-5";
 export const CLAUDE_SONNET = "claude-sonnet-5-5";
 
@@ -52,7 +56,10 @@ export interface ClaudeCallResult { ok: boolean; text?: string; error?: string; 
 
 let client: Anthropic | null = null;
 function getClient(): Anthropic {
-    if (!client) client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY!, maxRetries: 2, timeout: 120_000 });
+    if (!client) client = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY!, maxRetries: 2, timeout: 120_000,
+        ...(process.env.ANTHROPIC_WORKSPACE_ID ? { defaultHeaders: { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } } : {}),
+    });
     return client;
 }
 
