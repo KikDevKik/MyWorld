@@ -749,7 +749,8 @@ export const addMuseMessage = onCall(
       }, { merge: true });
 
       // 🟢 META-RAG GENERATION: Trigger on AI response
-      if (role === 'model' || role === 'ia') {
+      // Oct 2026: con Claude activo, la Memoria de MyWorld reemplaza este resumen (gastaba una llamada extra por mensaje).
+      if ((role === 'model' || role === 'ia') && !claudeEnabledForCurrentUser()) {
         // Perform async background update (don't await to keep UI fast)
         // Actually, in Cloud Functions we should await or use a separate trigger.
         // For reliability in this surgical update, we'll do it here but catch errors.
