@@ -77,7 +77,7 @@ export const distillResourceOnIndex = onDocumentWritten(
 
             // 2. Call Gemini (Using saved BYOK)
             const byok = (afterData as any).byok;
-            const tier = getTierFromByok(byok);
+            const tier = "normal" as const; // Oct 2026: forzado a Normal. Antes cualquier clave AIza activaba Ultra (modelos 3.x de pago), lo que falla en nivel gratuito.
             const genAI = new GoogleGenerativeAI(getAIKey({ _authOverride: byok }, googleApiKey.value()));
             const model = genAI.getGenerativeModel({ model: getModelForTask('standard', tier) });
 

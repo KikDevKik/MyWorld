@@ -8,8 +8,8 @@ export const MODEL_PRO = "gemini-3.1-pro-preview";   // 🟢 Latest 3.1 Pro
 
 // 🧪 BACKGROUND & STABLE MODELS
 // Specific version for background triggers like distillation to ensure stability.
-export const MODEL_FLASH_2_5 = "gemini-2.5-flash";
-export const MODEL_FLASH_2_5_LITE = "gemini-2.5-flash-lite"; // High-volume Free Tier
+export const MODEL_FLASH_2_5 = "gemini-3.8-flash"; // Oct 2026: 2.5-flash ya no se ofrece a proyectos nuevos (404). Nombre de constante se mantiene por compatibilidad.
+export const MODEL_FLASH_2_5_LITE = "gemini-3.5-flash-lite"; // Oct 2026: reemplaza 2.5-flash-lite (404 para proyectos nuevos). Free Tier, alto volumen.
 
 // 🟢 LEGACY POINTERS
 export const MODEL_LOW_COST = MODEL_FLASH;
