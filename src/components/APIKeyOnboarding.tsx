@@ -20,7 +20,7 @@ const STEPS = [
             'Inicia sesión con tu cuenta de Google',
             'Haz clic en "Create API Key"',
             'Selecciona o crea un proyecto',
-            'Copia el código (empieza con "AIza")',
+            'Copia el código (empieza con "AQ." o "AIza")',
         ],
     },
     {
@@ -42,8 +42,9 @@ export function APIKeyOnboarding({ onClose }: Props) {
 
     const handleConnect = () => {
         const trimmed = apiKey.trim();
-        if (!trimmed.startsWith('AIza') || trimmed.length < 20) {
-            setError('La key debe empezar con "AIza" y tener al menos 20 caracteres.');
+        // Oct 2026: Google emite claves nuevas que empiezan con "AQ."; las viejas con "AIza".
+        if (!/^(AIza|AQ\.)/.test(trimmed) || trimmed.length < 20) {
+            setError('La clave debe empezar con "AQ." o "AIza" y tener al menos 20 caracteres.');
             return;
         }
         setCustomGeminiKey(trimmed);

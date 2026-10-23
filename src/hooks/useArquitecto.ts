@@ -629,7 +629,13 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 mode: data.suggestedMode
             };
 
-            setMessages(prev => [...prev, assistantMsg]);
+            // Oct 2026: el onSnapshot de la sesión puede traer esta misma respuesta antes que
+            // esta línea (el backend la guarda en Firestore antes de devolverla) → no duplicar.
+            setMessages(prev => {
+                const tail = prev.slice(-3);
+                const yaEsta = tail.some(m => m.role === 'assistant' && m.text === data.response);
+                return yaEsta ? prev : [...prev, assistantMsg];
+            });
             rememberExchange({ userMessage: text, assistantMessage: data.response, tool: 'arquitecto', accessToken });
 
             if (data?.detectedIntent) {

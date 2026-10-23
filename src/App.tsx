@@ -19,6 +19,7 @@ import { callFunction } from './services/api';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import { FileCache } from './utils/fileCache';
+import { textHash } from './utils/textHash';
 import VaultSidebar from './components/VaultSidebar';
 import HybridEditor, { HybridEditorHandle } from './editor/HybridEditor'; // 👈 IMPORT NEW EDITOR
 import { DriftMarker } from './editor/extensions/driftPlugin';
@@ -44,7 +45,6 @@ import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
 import { useNarrator } from './hooks/useNarrator'; // 🟢 IMPORT NARRATOR HOOK
-import { useTier } from './hooks/useTier';
 import { useTutorial } from './hooks/useTutorial'; // 🟢 IMPORT TUTORIAL HOOK
 import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfigContext";
 import { GemId } from './types';
@@ -105,6 +105,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const currentFileIdRef = useRef(currentFileId);
     const selectedFileContentRef = useRef(selectedFileContent);
     const lastSavedContentRef = useRef(lastSavedContent); // To detect isDirty in closure
+    // Oct 2026: archivo con conflicto (cambió en Drive/Obsidian): el autoguardado espera a que el autor elija.
+    const conflictFileRef = useRef<string | null>(null);
 
     useEffect(() => { currentFileIdRef.current = currentFileId; }, [currentFileId]);
     useEffect(() => { selectedFileContentRef.current = selectedFileContent; }, [selectedFileContent]);
@@ -172,6 +174,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         if (!fileIdToSave || !oauthToken || !contentToSave) return;
         // Don't save if content hasn't changed from last save (redundant check but safe)
         if (contentToSave === lastSavedContent) return;
+        if (conflictFileRef.current === fileIdToSave) return;
 
         setIsSaving(true);
         try {
@@ -185,12 +188,51 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
             const isSignificant = isMajorAdd || isMajorDelete;
 
-            await callFunction('saveDriveFile', {
+            const saveRes = await callFunction<{ success: boolean; conflict?: boolean; remoteContent?: string }>('saveDriveFile', {
                 fileId: fileIdToSave,
                 content: contentToSave,
                 accessToken: oauthToken,
-                isSignificant: isSignificant
+                isSignificant: isSignificant,
+                baseHash: textHash(lastSavedContent),
             });
+
+            // Oct 2026: el archivo cambió fuera de MyWorld (p. ej. en Obsidian). No se pisó nada.
+            if (saveRes?.conflict) {
+                conflictFileRef.current = fileIdToSave;
+                const remote = saveRes.remoteContent ?? '';
+                const fileLabel = currentFileName || 'este archivo';
+                toast.warning(`«${fileLabel}» cambió fuera de MyWorld`, {
+                    description: 'Lo editaste en Obsidian u otra pestaña. No guardé para no borrar esos cambios. ¿Cuál versión quieres?',
+                    duration: Infinity,
+                    action: {
+                        label: 'Usar la de Obsidian',
+                        onClick: () => {
+                            try { localStorage.setItem(`myworld_conflict_backup_${fileIdToSave}`, contentToSave); } catch { /* sin almacenamiento */ }
+                            conflictFileRef.current = null;
+                            FileCache.set(fileIdToSave, remote);
+                            setLastSavedContent(remote);
+                            setSelectedFileContent(remote);
+                            toast.success('Cargué la versión de Obsidian.', { description: 'Tu versión de MyWorld quedó guardada como respaldo en este navegador.' });
+                        },
+                    },
+                    cancel: {
+                        label: 'Guardar la mía encima',
+                        onClick: async () => {
+                            try {
+                                const latest = selectedFileContentRef.current || contentToSave;
+                                await callFunction('saveDriveFile', { fileId: fileIdToSave, content: latest, accessToken: oauthToken, force: true });
+                                conflictFileRef.current = null;
+                                FileCache.set(fileIdToSave, latest);
+                                setLastSavedContent(latest);
+                                toast.success('Guardé tu versión de MyWorld.');
+                            } catch {
+                                toast.error(t.autoSaveError);
+                            }
+                        },
+                    },
+                });
+                return;
+            }
 
             // 🟢 CACHE UPDATE: Keep local cache in sync with saves
             FileCache.set(fileIdToSave, contentToSave);
@@ -318,7 +360,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // 🟢 BYOK ONBOARDING
     const { customGeminiKey, customAnthropicKey } = useProjectConfig();
-    const { isNormal } = useTier();
 
     // Global settings modal event dispatch (from overlays, TTS gate, etc.)
     useEffect(() => {
@@ -744,9 +785,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 HANDLE TTS SELECTION
     const handleReadSelection = async (text: string) => {
         if (!text) return;
-        if (isNormal) {
-            toast.warning("Narración con IA requiere el plan Ultra.", {
-                description: "Configura tu API Key de Gemini en Ajustes para activarla.",
+        if (!customGeminiKey) {
+            toast.warning("La narración necesita una clave de Gemini.", {
+                description: "Pega tu clave de AI Studio en Ajustes (la gratuita sirve).",
                 action: {
                     label: 'Ajustes',
                     onClick: () => {

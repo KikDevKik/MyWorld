@@ -710,7 +710,7 @@ export const createDriveFolder = onCall(
     },
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
-        const { accessToken, parentId, folderName } = request.data;
+        const { accessToken, parentId, folderName, category, registerInIndex } = request.data;
         if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
         if (!parentId || !folderName?.trim()) throw new HttpsError("invalid-argument", "parentId y folderName requeridos.");
 
@@ -739,6 +739,28 @@ export const createDriveFolder = onCall(
                         isFolder: true,
                     },
                 });
+
+                // Oct 2026: registrar la carpeta en TDB_Index para que aparezca enseguida en
+                // "Crear nuevo" y "Mover a…" (leen el índice; antes salía solo tras re-indexar).
+                // Las carpetas raíz del proyecto no viven en el índice, por eso solo subcarpetas.
+                if (registerInIndex) {
+                    try {
+                        const filesCol = getFirestore().collection("TDB_Index").doc(request.auth.uid).collection("files");
+                        const parentSnap = await filesCol.doc(parentId).get();
+                        const p: any = parentSnap.exists ? parentSnap.data() : {};
+                        const name = folderName.trim();
+                        const now = new Date().toISOString();
+                        await filesCol.doc(res.data.id).set({
+                            name, path: p.path ? `${p.path}/${name}` : name,
+                            saga: p.saga || 'Global', parentId,
+                            category: p.category || (category === 'reference' ? 'reference' : 'canon'),
+                            lastIndexed: now, updatedAt: now,
+                            driveId: res.data.id, mimeType: 'application/vnd.google-apps.folder', type: 'folder',
+                        }, { merge: true });
+                    } catch (idxErr: any) {
+                        logger.warn(`createDriveFolder: carpeta creada pero no se registró en el índice: ${idxErr?.message}`);
+                    }
+                }
             }
 
             return { id: res.data.id, name: folderName.trim(), success: true };

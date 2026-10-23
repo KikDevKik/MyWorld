@@ -13,6 +13,7 @@ import { google } from "googleapis";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { GoogleGenerativeAI, TaskType, SchemaType } from "@google/generative-ai";
 import { _getDriveFileContentInternal } from "./utils/drive";
+import { textHash } from "./utils/text_hash";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, monthlyCapUsd } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
@@ -158,7 +159,7 @@ export const saveDriveFile = onCall(
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
-    const { fileId, content, accessToken } = request.data;
+    const { fileId, content, accessToken, baseHash, force } = request.data;
     if (!fileId) throw new HttpsError("invalid-argument", "Missing fileId.");
     if (!content) throw new HttpsError("invalid-argument", "Missing content.");
     if (!accessToken) throw new HttpsError("invalid-argument", "Missing accessToken.");
@@ -167,6 +168,22 @@ export const saveDriveFile = onCall(
       const auth = new google.auth.OAuth2();
       auth.setCredentials({ access_token: accessToken });
       const drive = google.drive({ version: "v3", auth });
+
+      // Oct 2026: no pisar cambios hechos fuera de MyWorld (Obsidian, otra pestaña).
+      // Si el archivo en Drive ya no es la versión que el editor abrió, no se guarda
+      // y se devuelve la versión de Drive para que el autor elija.
+      if (baseHash && !force) {
+        try {
+          const remote = await _getDriveFileContentInternal(drive, fileId);
+          const remoteHash = textHash(remote);
+          if (remoteHash !== baseHash && remoteHash !== textHash(content)) {
+            logger.warn(`⚠️ [SAVE] Conflicto en ${fileId}: Drive cambió desde que se abrió. No se guarda.`);
+            return { success: false, conflict: true, remoteContent: remote };
+          }
+        } catch (checkErr: any) {
+          logger.warn(`[SAVE] No se pudo comprobar la versión de Drive; guardo igual: ${checkErr?.message}`);
+        }
+      }
 
       await drive.files.update({
         fileId: fileId,
@@ -2965,13 +2982,8 @@ AI Result: ${item.result?.title || 'Unknown'} - ${item.result?.content || ''}
       }
 
       const systemPrompt = `
-        You are using the Gemini 3 Reasoning Engine.
         CORE PERSONA DIRECTIVE: ${systemPersona}
-
-        [THINKING MODE ACTIVATED]
-        Before answering, you MUST perform a deep structural analysis in a hidden thought block.
-        Format: <thinking> ... internal monologue ... </thinking>
-        The user will not see this, but it is critical for consistency.
+        (Oct 2026: quitado el bloque <thinking> heredado de Gemini; la salida debe ser solo el JSON.)
 
         === WORLD CONTEXT (THE LAW) ===
         ${canon_dump || "No canon rules provided."}

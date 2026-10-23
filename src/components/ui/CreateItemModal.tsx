@@ -71,16 +71,20 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
         setIsLoadingFolders(true);
         const folders: FlatFolder[] = [];
 
+        // Oct 2026: hasta 3 niveles (antes solo 1: no se veían las sub-subcarpetas).
+        const MAX_DEPTH = 3;
+        const collect = async (folderId: string, depth: number, section: SectionType): Promise<FlatFolder[]> => {
+            if (depth > MAX_DEPTH) return [];
+            try {
+                const result = await callFunction<any>('getFileSystemNodes', { folderId, accessToken });
+                const subs = extractFiles(result).filter((c: any) => c.mimeType === 'application/vnd.google-apps.folder');
+                const nested = await Promise.all(subs.map((c: any) => collect(c.id, depth + 1, section)));
+                return subs.flatMap((c: any, i: number) => [{ id: c.id, name: c.name, depth, section }, ...nested[i]]);
+            } catch (_) { return []; }
+        };
         const processPath = async (path: { id: string; name: string }, section: SectionType) => {
             folders.push({ id: path.id, name: path.name, depth: 0, section });
-            try {
-                const result = await callFunction<any>('getFileSystemNodes', { folderId: path.id, accessToken });
-                for (const child of extractFiles(result)) {
-                    if (child.mimeType === 'application/vnd.google-apps.folder') {
-                        folders.push({ id: child.id, name: child.name, depth: 1, section });
-                    }
-                }
-            } catch (_) {}
+            folders.push(...await collect(path.id, 1, section));
         };
 
         for (const p of config?.canonPaths || []) await processPath(p, 'canon');
@@ -120,7 +124,12 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
         try {
             const result = await callFunction<{ id: string; name: string; success: boolean }>(
                 'createDriveFolder',
-                { accessToken, parentId, folderName: folderName.trim() }
+                {
+                    accessToken, parentId, folderName: folderName.trim(),
+                    // Oct 2026: subcarpetas se registran en el índice para verse al instante.
+                    registerInIndex: !!parentFolderId,
+                    category: (flatFolders.find(f => f.id === parentFolderId)?.section ?? sectionType) === 'resources' ? 'reference' : 'canon',
+                }
             );
             if (!parentFolderId && result?.id) {
                 const newPath = { id: result.id, name: folderName.trim() };

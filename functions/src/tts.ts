@@ -4,12 +4,14 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getAIKey, getTier } from "./utils/security";
+import { getAIKey, getGeminiKeyOnly } from "./utils/security";
 import { MODEL_FLASH, MODEL_FLASH_2_5 } from "./ai_config";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY"); // Oct 2026: Claude pagado por MyWorld
-const TTS_MODEL = 'gemini-3.1-pro-tts'; // 🟢 Updated to 3.1 Pro TTS
+// Oct 2026: 'gemini-3.1-pro-tts' no existe; los *-preview-tts se apagan el 17-nov-2026.
+// Reemplazo oficial según ai.google.dev/gemini-api/docs/deprecations (sin fecha de apagado):
+const TTS_MODEL = 'gemini-3.8-flash-tts';
 
 // Local Interface Definitions
 interface VoiceProfile {
@@ -68,10 +70,10 @@ export const generateSpeech = onCall(
         // Use default profile if missing
         const profile = voiceProfile || { gender: 'NEUTRAL', age: 'ADULT' };
 
-        // TTS is Ultra-only (requires billing for TTS model access)
-        const tier = getTier(request.data);
-        if (tier === 'normal') {
-            throw new HttpsError("failed-precondition", "TTS_ULTRA_ONLY");
+        // Oct 2026: gemini-3.8-flash-tts funciona en el nivel gratuito; basta con tener
+        // clave de Gemini (antes exigía Ultra = clave "AIza", y las claves nuevas empiezan con "AQ.").
+        if (!getGeminiKeyOnly(request.data)) {
+            throw new HttpsError("failed-precondition", "TTS_NEEDS_GEMINI_KEY");
         }
 
         try {
