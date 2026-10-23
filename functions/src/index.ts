@@ -1598,7 +1598,18 @@ ${analysis}
         model: "gemini-embedding-001",
         taskType: TaskType.RETRIEVAL_QUERY,
       });
-      const queryVector = await embeddings.embedQuery(searchQuery);
+      // Oct 2026: si la clave de Gemini falla, el Director responde sin canon en vez de romperse.
+      let queryVector: number[] | null = null;
+      let ragNotice = "";
+      try {
+        queryVector = await embeddings.embedQuery(searchQuery);
+      } catch (embErr: any) {
+        const em = String(embErr?.message || embErr);
+        logger.warn(`⚠️ [RAG] Embedding falló; sigo sin canon: ${em.slice(0, 300)}`);
+        ragNotice = /401|403|API key|ACCESS_TOKEN|PERMISSION/i.test(em)
+          ? "⚠️ No pude consultar tu canon: Google rechazó tu clave de Gemini. Cámbiala en Ajustes → Claves de API (la de AI Studio sirve). Esta respuesta va sin fuentes.\n\n"
+          : "⚠️ No pude consultar tu canon (Gemini no respondió). Esta respuesta va sin fuentes.\n\n";
+      }
 
       // 3. Recuperar anys (Vector Search Nativo)
       const coll = db.collectionGroup("chunks");
@@ -1624,7 +1635,7 @@ ${analysis}
       console.log('🔍 Vector Search Request for User:', userId);
 
       const vectorQuery = chunkQuery.findNearest({
-        queryVector: queryVector,
+        queryVector: queryVector || [0],
         limit: fetchLimit,
         distanceMeasure: 'COSINE',
         vectorField: 'embedding'
@@ -1633,7 +1644,7 @@ ${analysis}
       // 🟢 [SENTINEL] SAFE VECTOR SEARCH
       let vectorSnapshot;
       try {
-        vectorSnapshot = await vectorQuery.get();
+        vectorSnapshot = queryVector ? await vectorQuery.get() : ({ docs: [] } as unknown as Awaited<ReturnType<typeof vectorQuery.get>>);
       } catch (vectorError: any) {
         if (vectorError.message?.includes('index') || vectorError.code === 9) {
           logger.error(`[SENTINEL_ALERTA_CRITICA]: Fallo de Precondición en Firestore. El índice vectorial no existe o está inactivo. LINK DE ACTIVACIÓN: [LINK_DE_ERROR_9]`);
@@ -1762,7 +1773,7 @@ ${analysis}
       const relevantanys = finalContext;
 
       // 🛑 FINITE CONTEXT CHECK (Prevent Crash on Empty)
-      if (isScopedSearch && relevantanys.length === 0) {
+      if (isScopedSearch && relevantanys.length === 0 && !ragNotice) {
         logger.warn("🛑 SCOPE EMPTY: No chunks found in selected path. Aborting AI call.");
         return {
           response: "No encontré información en los libros seleccionados.",
@@ -2017,7 +2028,7 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         });
         if (r.ok && r.text) {
           return {
-            response: r.text,
+            response: ragNotice + r.text,
             sources: relevantanys.map(chunk => ({ text: chunk.text.substring(0, 200) + "...", fileName: chunk.fileName })),
           };
         }
