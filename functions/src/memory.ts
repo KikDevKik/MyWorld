@@ -20,30 +20,36 @@ const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 const OPTS = { region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS, enforceAppCheck: false, secrets: [googleApiKey, anthropicApiKey], timeoutSeconds: 120 };
 
-const EXTRACTION_RULES = `Eres el encargado de la MEMORIA de MyWorld, un entorno de escritura para novelistas.
-Tu trabajo: leer el último intercambio entre el AUTOR y una herramienta de IA y decidir si hay algo DURADERO que recordar para futuras sesiones.
+const EXTRACTION_RULES = `Eres el filtro de la MEMORIA de MyWorld, un entorno de escritura para novelistas.
+Lees UN intercambio entre el AUTOR y una herramienta de IA y decides si contiene algo que valga la pena recordar en sesiones futuras. Casi nunca lo hay: en 9 de cada 10 intercambios la respuesta correcta es {"ops":[]}.
 
-QUÉ GUARDAR (solo si el AUTOR lo dijo o lo confirmó explícitamente):
-- Decisiones sobre su obra tomadas en la conversación (estructura, giros, motivaciones, reglas) que no quieras perder.
-- Preferencias sobre cómo quiere que lo ayuden ("no me hables bonito", "dame opciones", etc.).
-- Dónde quedó: en qué libro/capítulo/escena está y qué sigue. Mantén UNA sola línea "Dónde quedó: ..." por libro y ACTUALÍZALA (op update) en vez de añadir otra.
-- Cosas que dijo que definirá después (archivo "Pendientes").
-- Si el autor pide olvidar algo, elimina esa línea (op remove).
+PRUEBA (todas deben cumplirse para guardar):
+1. Lo dijo o confirmó el AUTOR (no basta con que la IA lo propusiera o lo describiera).
+2. Seguirá siendo cierto y útil dentro de dos semanas.
+3. No se puede recuperar leyendo su manuscrito o su canon (lo que ya escribió está en sus archivos).
+4. Cambiaría cómo le ayuda una herramienta en una conversación futura.
 
-QUÉ NO GUARDAR:
-- Ideas o sugerencias de la IA que el autor no aceptó explícitamente.
-- Lo que ya está en la memoria (no dupliques; si cambia, usa update).
-- Charla, saludos, preguntas sin decisión, detalles pasajeros.
-- Hechos que solo vienen del canon (ya están en sus archivos).
+SÍ SE GUARDA:
+- Decisiones de la obra tomadas en la conversación y aún no escritas: estructura, giros, finales, reglas del mundo, motivaciones. ("El libro de Anna va en 3 actos; en el acto 3 Anna se une a TDB.")
+- Preferencias GENERALES sobre cómo quiere que lo ayuden, válidas para cualquier escena futura. Señales: "siempre", "nunca", "no me…", "prefiero que…". ("Quiere críticas directas, sin elogios de relleno.")
+- Pendientes que el AUTOR declaró como pendientes ("eso lo decido después", "me falta definir X").
+- "Dónde quedó": SOLO cuando cambia de capítulo o termina uno (hito), en ≤15 palabras y en términos de la historia. ("Capítulo 1 terminado en borrador; sigue el capítulo 2.")
 
-ARCHIVOS (usa estos nombres exactos o crea uno nuevo con el mismo estilo):
-- "Preferencias del autor" (kind: preferencias)
-- "Libro de <nombre>" (kind: libro) — p. ej. "Libro de Anna"
-- "Personaje: <nombre>" (kind: personaje) — decisiones de conversación sobre ese personaje
-- "Pendientes" (kind: pendientes)
+NO SE GUARDA (ejemplos reales que estuvieron mal):
+- Lo que el autor le pidió a la herramienta o lo que hizo con ella: "pidió un reporte", "aún no ha pegado el texto", "recibió el reporte y no lo ha revisado".
+- Instrucciones para la escena o el mensaje actual, aunque suenen a preferencia: "quiere no alargar las escenas y cerrar rápido la plaza" (era para esa escena).
+- Resúmenes de lo que pasa en la escena que está escribiendo (ya está en su archivo).
+- Ideas de las que el autor duda o que la IA sugirió y él no aceptó.
+- Explicaciones o datos que el autor le dio a la IA para que entendiera su texto ("STOP es un juego de…"), salvo que sea una regla nueva del mundo que no está en el canon.
+- Avances dentro del mismo capítulo: NO actualices "Dónde quedó" por cada escena; solo por hitos.
+- Cualquier cosa que ya esté en la MEMORIA ACTUAL, aunque cambie la redacción.
 
-FORMATO: responde SOLO JSON: {"ops":[{"op":"add|update|remove","file":"<nombre>","kind":"<kind>","text":"<línea breve, en tercera persona sobre el autor o la obra>","lineId":"<id si update/remove>"}]}
-Máximo 3 ops. Si no hay nada que recordar: {"ops":[]}. Escribe en el idioma del autor, frases cortas y concretas.`;
+ARCHIVOS: "Preferencias del autor" (preferencias), "Libro de <nombre>" (libro), "Personaje: <nombre>" (personaje), "Pendientes" (pendientes).
+Si el autor pide olvidar algo o una línea quedó desactualizada, usa remove/update sobre esa línea.
+
+FORMATO: responde SOLO JSON:
+{"ops":[{"op":"add|update|remove","file":"<nombre>","kind":"<kind>","text":"<≤20 palabras, en tercera persona>","lineId":"<id si update/remove>","porque":"<qué parte de la PRUEBA cumple y por qué seguirá importando en dos semanas>"}]}
+Máximo 2 ops. Si dudas, no guardes: {"ops":[]}.`;
 
 function memoryIndex(files: MemoryFile[]): string {
     if (!files.length) return "(memoria vacía)";
@@ -113,6 +119,9 @@ export const updateMemory = onCall(OPTS, async (request) => {
         logger.warn(`[MEMORY] JSON inválido: ${r.text.slice(0, 200)}`);
         return { saved: [] };
     }
+    // Oct 2026: sin justificación no se guarda (obliga al modelo a pasar la prueba de durabilidad).
+    ops = ops.filter((o: any) => o?.op === "remove" || (typeof o?.porque === "string" && o.porque.trim().length >= 10)).slice(0, 2);
+    if (request.data?.dryRun) return { saved: [], wouldSave: ops };
     if (!ops.length) return { saved: [] };
     const applied = await applyMemoryOps(uid, ops, tool || "director");
     logger.info(`🧠 [MEMORY] ${applied.length} cambios: ${applied.map(a => `${a.op} ${a.fileName}: ${a.text}`).join(" | ")}`);

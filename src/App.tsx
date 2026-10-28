@@ -58,6 +58,7 @@ import { CreativeAuditService } from './services/CreativeAuditService';
 import CreateFileModal from './components/ui/CreateFileModal';
 import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
+import ChapterReportPanel from './components/ui/ChapterReportPanel'; // Oct 2026
 import ReadingToolbar from './components/ui/ReadingToolbar';
 import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
@@ -107,6 +108,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const lastSavedContentRef = useRef(lastSavedContent); // To detect isDirty in closure
     // Oct 2026: archivo con conflicto (cambió en Drive/Obsidian): el autoguardado espera a que el autor elija.
     const conflictFileRef = useRef<string | null>(null);
+    // Oct 2026: un solo guardado a la vez. Antes, si un guardado tardaba más de 2 s (arranque en frío
+    // + re-indexado), el siguiente salía con la huella vieja y el servidor lo tomaba por un cambio externo.
+    const saveInFlightRef = useRef(false);
+    const savePendingRef = useRef(false);
+    const saveToDriveRef = useRef<() => Promise<void>>(async () => {});
 
     useEffect(() => { currentFileIdRef.current = currentFileId; }, [currentFileId]);
     useEffect(() => { selectedFileContentRef.current = selectedFileContent; }, [selectedFileContent]);
@@ -167,15 +173,18 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // 🟢 AUTO-SAVE LOGIC
     const saveToDrive = async () => {
-        // Capture current state values
-        const contentToSave = selectedFileContent;
-        const fileIdToSave = currentFileId;
+        if (saveInFlightRef.current) { savePendingRef.current = true; return; }
+        // Valores actuales desde refs (no del render en que se programó el guardado)
+        const contentToSave = selectedFileContentRef.current;
+        const fileIdToSave = currentFileIdRef.current;
+        const lastSavedContent = lastSavedContentRef.current;
 
         if (!fileIdToSave || !oauthToken || !contentToSave) return;
         // Don't save if content hasn't changed from last save (redundant check but safe)
         if (contentToSave === lastSavedContent) return;
         if (conflictFileRef.current === fileIdToSave) return;
 
+        saveInFlightRef.current = true;
         setIsSaving(true);
         try {
             // 🟢 SIGNIFICANT EDIT DETECTION
@@ -201,36 +210,43 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 conflictFileRef.current = fileIdToSave;
                 const remote = saveRes.remoteContent ?? '';
                 const fileLabel = currentFileName || 'este archivo';
-                toast.warning(`«${fileLabel}» cambió fuera de MyWorld`, {
-                    description: 'Lo editaste en Obsidian u otra pestaña. No guardé para no borrar esos cambios. ¿Cuál versión quieres?',
-                    duration: Infinity,
-                    action: {
-                        label: 'Usar la de Obsidian',
-                        onClick: () => {
-                            try { localStorage.setItem(`myworld_conflict_backup_${fileIdToSave}`, contentToSave); } catch { /* sin almacenamiento */ }
-                            conflictFileRef.current = null;
-                            FileCache.set(fileIdToSave, remote);
-                            setLastSavedContent(remote);
-                            setSelectedFileContent(remote);
-                            toast.success('Cargué la versión de Obsidian.', { description: 'Tu versión de MyWorld quedó guardada como respaldo en este navegador.' });
-                        },
-                    },
-                    cancel: {
-                        label: 'Guardar la mía encima',
-                        onClick: async () => {
-                            try {
-                                const latest = selectedFileContentRef.current || contentToSave;
-                                await callFunction('saveDriveFile', { fileId: fileIdToSave, content: latest, accessToken: oauthToken, force: true });
-                                conflictFileRef.current = null;
-                                FileCache.set(fileIdToSave, latest);
-                                setLastSavedContent(latest);
-                                toast.success('Guardé tu versión de MyWorld.');
-                            } catch {
-                                toast.error(t.autoSaveError);
-                            }
-                        },
-                    },
-                });
+                const useRemote = (id: string | number) => {
+                    toast.dismiss(id);
+                    try { localStorage.setItem(`myworld_conflict_backup_${fileIdToSave}`, contentToSave); } catch { /* sin almacenamiento */ }
+                    conflictFileRef.current = null;
+                    FileCache.set(fileIdToSave, remote);
+                    lastSavedContentRef.current = remote;
+                    setLastSavedContent(remote);
+                    setSelectedFileContent(remote);
+                    toast.success('Cargué la versión de Drive.', { description: 'Tu versión de MyWorld quedó como respaldo en este navegador.' });
+                };
+                const keepMine = async (id: string | number) => {
+                    toast.dismiss(id);
+                    try {
+                        const latest = selectedFileContentRef.current || contentToSave;
+                        await callFunction('saveDriveFile', { fileId: fileIdToSave, content: latest, accessToken: oauthToken, force: true });
+                        conflictFileRef.current = null;
+                        FileCache.set(fileIdToSave, latest);
+                        lastSavedContentRef.current = latest;
+                        setLastSavedContent(latest);
+                        toast.success('Guardé tu versión de MyWorld.');
+                    } catch {
+                        toast.error(t.autoSaveError);
+                    }
+                };
+                // Oct 2026: aviso propio (el de sonner con dos botones aplastaba el texto en una columna).
+                toast.custom((id) => (
+                    <div className="w-[356px] rounded-lg border border-amber-700/50 bg-titanium-900 p-4 shadow-xl text-titanium-100">
+                        <p className="text-sm font-semibold">⚠️ «{fileLabel}» cambió en Drive</p>
+                        <p className="mt-1 text-xs text-titanium-400 leading-relaxed">
+                            La versión en Drive no es la que abriste aquí (¿Obsidian u otra pestaña?). No guardé para no borrar nada. ¿Con cuál te quedas?
+                        </p>
+                        <div className="mt-3 flex gap-2">
+                            <button onClick={() => keepMine(id)} className="flex-1 rounded-md bg-purple-700/80 hover:bg-purple-600 px-3 py-1.5 text-xs font-medium">Guardar la mía</button>
+                            <button onClick={() => useRemote(id)} className="flex-1 rounded-md bg-titanium-800 hover:bg-titanium-700 px-3 py-1.5 text-xs font-medium">Usar la de Drive</button>
+                        </div>
+                    </div>
+                ), { duration: Infinity });
                 return;
             }
 
@@ -256,15 +272,24 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 });
             }
 
-            // Update lastSavedContent to what we just saved
-            setLastSavedContent(contentToSave);
+            // Update lastSavedContent to what we just saved (solo si sigue abierto el mismo archivo)
+            if (currentFileIdRef.current === fileIdToSave) {
+                lastSavedContentRef.current = contentToSave;
+                setLastSavedContent(contentToSave);
+            }
         } catch (error) {
             console.error("❌ Auto-save failed:", error);
             toast.error(t.autoSaveError);
         } finally {
+            saveInFlightRef.current = false;
             setIsSaving(false);
+            if (savePendingRef.current) {
+                savePendingRef.current = false;
+                setTimeout(() => { saveToDriveRef.current(); }, 0);
+            }
         }
     };
+    saveToDriveRef.current = saveToDrive;
 
     // 🟢 DEBOUNCE AUTO-SAVE EFFECT
     useEffect(() => {
@@ -345,6 +370,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 UI STATE
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
+    const [isReportOpen, setIsReportOpen] = useState(false); // Oct 2026: Reporte de capítulo
     const [showStartingAssistant, setShowStartingAssistant] = useState(false);
     const [showPostGenesisPanel, setShowPostGenesisPanel] = useState(false);
     const [showContinueCard, setShowContinueCard] = useState(false);
@@ -1245,6 +1271,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             }}
                         />
                     </div>
+                    {isReportOpen && currentFileId && (
+                        <ChapterReportPanel
+                            key={currentFileId}
+                            fileId={currentFileId}
+                            fileName={currentFileName || 'Capítulo'}
+                            getText={() => hybridEditorRef.current?.getText() || selectedFileContentRef.current || ''}
+                            reveal={(from, to) => hybridEditorRef.current?.revealRange(from, to)}
+                            replace={(from, to, text) => hybridEditorRef.current?.replaceRange(from, to, text)}
+                            onClose={() => setIsReportOpen(false)}
+                        />
+                    )}
                     <StatusBar
                         content={selectedFileContent}
                         guardianStatus={guardianStatus}
@@ -1254,6 +1291,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             setIsSettingsModalOpen(true);
                         }}
                         className="z-50 shrink-0"
+                        onOpenReport={currentFileId ? () => setIsReportOpen(true) : undefined}
                         narratorControls={{
                             ...narratorControls,
                             isLoading: isNarratorLoading

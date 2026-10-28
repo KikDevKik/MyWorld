@@ -77,6 +77,7 @@ export { analyzeNexusBatch, analyzeNexusFile } from './nexus_scan';
 export { forgeChatStream } from './forge_chat';
 export { builderStream } from './builder';
 export { updateMemory, undoMemory, getMemory, editMemory } from './memory'; // Oct 2026: Memoria de MyWorld
+export { chapterReport } from './chapter_report'; // Oct 2026: Reporte de capítulo
 // export { distillResourceOnIndex } from './distillation_trigger'; // Desactivado: backfill hace todo
 
 

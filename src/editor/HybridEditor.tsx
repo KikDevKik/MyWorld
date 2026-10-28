@@ -24,6 +24,10 @@ import BubbleMenu from '../components/ui/BubbleMenu'; // 🟢 IMPORT BUBBLE MENU
 export interface HybridEditorHandle {
     insertAtCursor: (text: string) => void;
     getCursorContext: (before?: number, after?: number) => { preceding: string; following: string };
+    // Oct 2026: Reporte de capítulo — ubicar y corregir pasajes
+    getText: () => string;
+    revealRange: (from: number, to: number) => void;
+    replaceRange: (from: number, to: number, text: string) => void;
 }
 
 interface HybridEditorProps {
@@ -125,7 +129,22 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                 };
             }
             return { preceding: "", following: "" };
-        }
+        },
+        getText: () => viewRef.current ? viewRef.current.state.doc.toString() : "",
+        revealRange: (from: number, to: number) => {
+            const view = viewRef.current;
+            if (!view) return;
+            const len = view.state.doc.length;
+            const a = Math.max(0, Math.min(from, len)), b = Math.max(a, Math.min(to, len));
+            view.dispatch({ selection: { anchor: a, head: b }, effects: EditorView.scrollIntoView(a, { y: 'center' }) });
+            view.focus();
+        },
+        replaceRange: (from: number, to: number, text: string) => {
+            const view = viewRef.current;
+            if (!view) return;
+            view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from, head: from + text.length } });
+            view.focus();
+        },
     }));
 
     // 🟢 STALE CLOSURE FIX: Keep latest callback in a ref

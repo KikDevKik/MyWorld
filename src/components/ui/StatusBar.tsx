@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Settings, Clock, Type, RefreshCw, ScanEye, Loader2, Pause, Square, Target, X, Check, Zap, Leaf } from 'lucide-react';
+import { Settings, Clock, Type, RefreshCw, ScanEye, Loader2, Pause, Square, Target, X, Check, Zap, Leaf, FileSearch } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTier } from '../../hooks/useTier';
 import { AlertCircle } from 'lucide-react';
@@ -14,6 +14,7 @@ interface StatusBarProps {
     guardianStatus?: string;
     onGuardianClick?: () => void;
     onOpenSettings?: () => void;
+    onOpenReport?: () => void; // Oct 2026: Reporte de capítulo
     narratorControls?: {
         isPlaying: boolean;
         isLoading: boolean;
@@ -35,7 +36,7 @@ const getTodayKey = () => {
     return `myword_daily_${date}`;
 };
 
-const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, narratorControls }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, narratorControls }) => {
     const { tier, hasByok, isNormal } = useTier();
     const { currentLanguage } = useLanguageStore();
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
@@ -417,6 +418,16 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         />
                     </div>
                 </div>
+
+                {onOpenReport && (
+                    <button
+                        onClick={onOpenReport}
+                        className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-purple-300 hover:bg-purple-900/30 transition-colors ml-2"
+                        title="Reporte del capítulo: qué corregir y dónde"
+                    >
+                        <FileSearch size={12} /> Reporte
+                    </button>
+                )}
 
                 <button
                     onClick={() => window.dispatchEvent(new CustomEvent('OPEN_SETTINGS_MODAL', { detail: { tab: 'info' } }))}
