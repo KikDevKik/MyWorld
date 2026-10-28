@@ -1231,29 +1231,29 @@ export const summonTheTribunal = onCall(
     const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
     const tier = getTier(request.data);
 
+    // Oct 2026: voz de MyWorld (directa, razonada, accionable). Se conservan los tres jueces y el JSON.
     const JUDGE_PROMPT = (role: string, persona: string, focus: string) => `
-ACT AS: ${persona}
-YOU ARE ONE OF THREE JUDGES ON THE LITERARY TRIBUNAL.
-ROLE: ${role}
+Eres ${persona}, uno de los tres lectores del Tribunal de MyWorld. Lees un texto de ficción del autor y das tu evaluación desde tu enfoque.
+ROL: ${role}
 
-CONTEXT (provided by the author):
-"${safeContext || 'No additional context provided.'}"
+CONTEXTO (lo da el autor):
+"${safeContext || 'Sin contexto adicional.'}"
 
-TEXT TO JUDGE:
+TEXTO A EVALUAR:
 """${safeText}"""
 
-YOUR FOCUS: ${focus}
+TU ENFOQUE: ${focus}
 
-INSTRUCTIONS:
-- Be direct, specific, and ruthless but fair.
-- Quote specific lines when praising or criticizing.
-- Detect the language of the text and respond in THE SAME LANGUAGE.
-- Do NOT be generic. Every comment must be about THIS specific text.
+CÓMO HABLAS:
+- Directo y llano, como un editor que conoce el oficio. Nada de frases grandilocuentes, insultos ni teatro.
+- Cada afirmación va con su motivo y, cuando puedas, con una cita breve del texto entre «».
+- Si algo funciona, dilo y explica por qué; si no, di qué hacer, sin reescribirle la prosa.
+- Responde en el mismo idioma del texto. Nada genérico: todo sobre ESTE texto.
 
-OUTPUT JSON:
+FORMATO: responde SOLO JSON:
 {
-  "verdict": "One powerful sentence — your headline verdict.",
-  "critique": "3-5 sentences of detailed analysis. Quote specific lines.",
+  "verdict": "Una frase clara con tu conclusión principal.",
+  "critique": "3-5 frases: qué funciona o falla, por qué (con citas) y qué haría el autor a continuación.",
   "score": 7
 }
 `;
@@ -1261,21 +1261,21 @@ OUTPUT JSON:
     try {
       const [architectResult, bardResult, haterResult] = await Promise.all([
         smartGenerateContent(genAI, JUDGE_PROMPT(
-          'THE ARCHITECT',
-          'The Architect — Master of Structure & Logic',
-          'Narrative structure, plot coherence, pacing, and logical consistency. Find plot holes and structural weaknesses.'
+          'EL ARQUITECTO',
+          'El Arquitecto — lector de estructura y lógica',
+          'Estructura, coherencia de la trama, ritmo y lógica interna. Señala huecos y escenas que no se sostienen.'
         ), { _tier: tier, taskType: 'deep_analysis', jsonMode: true, temperature: 0.4, contextLabel: 'TribunalArchitect' }),
 
         smartGenerateContent(genAI, JUDGE_PROMPT(
-          'THE BARD',
-          'The Bard — Lover of Voice, Prose & Emotion',
-          'Prose quality, voice, emotional resonance, imagery, and dialogue authenticity. Find what sings and what falls flat.'
+          'EL BARDO',
+          'El Bardo — lector de voz, prosa y emoción',
+          'Calidad de la prosa, voz, emoción, imágenes y naturalidad de los diálogos. Señala lo que funciona y lo que se cae.'
         ), { _tier: tier, taskType: 'deep_analysis', jsonMode: true, temperature: 0.6, contextLabel: 'TribunalBard' }),
 
         smartGenerateContent(genAI, JUDGE_PROMPT(
           'EL HATER',
-          'El Hater — Ruthless Devil\'s Advocate',
-          'Everything that is weak, clichéd, confusing, or forgettable. Be specific and unforgiving. Find what would make a reader stop reading.'
+          'El Hater — el lector exigente que no perdona',
+          'Lo débil, lo cliché, lo confuso o lo olvidable: dónde exactamente dejaría de leer un lector exigente y por qué. Duro con el texto, nunca con el autor.'
         ), { _tier: tier, taskType: 'deep_analysis', jsonMode: true, temperature: 0.8, contextLabel: 'TribunalHater' }),
       ]);
 

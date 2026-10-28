@@ -89,8 +89,8 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
                                         ) : (
                                             <>
                                                 <span className="flex-1 leading-relaxed">{l.text}</span>
-                                                <button onClick={() => setEditing({ slug: f.slug, id: l.id, text: l.text })} className="opacity-0 group-hover:opacity-100 text-titanium-500 hover:text-cyan-400" title="Corregir" aria-label="Corregir"><Pencil size={12} /></button>
-                                                <button disabled={busy} onClick={() => act({ slug: f.slug, action: 'delete', lineId: l.id }, 'Olvidado.')} className="opacity-0 group-hover:opacity-100 text-titanium-500 hover:text-red-400" title="Olvidar" aria-label="Olvidar"><Trash2 size={12} /></button>
+                                                <button onClick={() => setEditing({ slug: f.slug, id: l.id, text: l.text })} className="text-titanium-500 hover:text-cyan-400 p-0.5" title="Corregir" aria-label="Corregir"><Pencil size={13} /></button>
+                                                <button disabled={busy} onClick={() => act({ slug: f.slug, action: 'delete', lineId: l.id }, 'Olvidado.')} className="text-titanium-500 hover:text-red-400 p-0.5" title="Olvidar (borrar esta línea)" aria-label="Olvidar"><Trash2 size={13} /></button>
                                             </>
                                         )}
                                     </li>

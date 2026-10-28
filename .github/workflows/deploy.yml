@@ -1,0 +1,111 @@
+# Oct 2026: deploy automático de MyWorld.
+# Cada push a main publica lo que cambió: si tocaste functions/ se publican las funciones; si tocaste la web,
+# se publica la web. También se puede lanzar a mano desde GitHub → Actions → "Deploy MyWorld" → Run workflow.
+#
+# Sin claves guardadas: GitHub se identifica ante Google Cloud con Workload Identity Federation
+# (ver docs/DEPLOY_AUTOMATICO.md para la configuración única que hace Dei).
+name: Deploy MyWorld
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "Qué publicar"
+        type: choice
+        options: [auto, todo, web, funciones]
+        default: auto
+
+concurrency:
+  group: deploy-myworld
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write   # necesario para identificarse ante Google Cloud sin claves
+
+env:
+  FIREBASE_PROJECT: myword-67b03
+  FIREBASE_TOOLS: firebase-tools@15.34.0
+
+jobs:
+  deploy:
+    # Hasta que Dei haga la configuración única (docs/DEPLOY_AUTOMATICO.md), el workflow no corre.
+    if: ${{ vars.GCP_WIF_PROVIDER != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ¿Qué cambió?
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            funciones:
+              - 'functions/**'
+            web:
+              - 'src/**'
+              - 'public/**'
+              - 'index.html'
+              - 'vite.config.ts'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'firebase.json'
+
+      - name: Decidir qué publicar
+        id: plan
+        run: |
+          T="${{ github.event.inputs.target || 'auto' }}"
+          F="${{ steps.changes.outputs.funciones }}"; W="${{ steps.changes.outputs.web }}"
+          if [ "$T" = "todo" ]; then F=true; W=true; fi
+          if [ "$T" = "web" ]; then F=false; W=true; fi
+          if [ "$T" = "funciones" ]; then F=true; W=false; fi
+          echo "funciones=$F" >> "$GITHUB_OUTPUT"; echo "web=$W" >> "$GITHUB_OUTPUT"
+          echo "### Plan de deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Funciones: $F" >> "$GITHUB_STEP_SUMMARY"; echo "- Web: $W" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v4
+        if: steps.plan.outputs.funciones == 'true' || steps.plan.outputs.web == 'true'
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            functions/package-lock.json
+
+      - name: Identificarse ante Google Cloud
+        if: steps.plan.outputs.funciones == 'true' || steps.plan.outputs.web == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      # ── Funciones ──
+      - name: Configuración del servidor (.env de functions)
+        if: steps.plan.outputs.funciones == 'true'
+        run: printf '%s\n' "$FUNCTIONS_ENV" > functions/.env.${FIREBASE_PROJECT}
+        env:
+          FUNCTIONS_ENV: ${{ secrets.FUNCTIONS_ENV }}
+      - name: Compilar el servidor
+        if: steps.plan.outputs.funciones == 'true'
+        working-directory: functions
+        run: npm ci && npm run build
+      - name: Publicar el servidor
+        if: steps.plan.outputs.funciones == 'true'
+        # --non-interactive: si el deploy quisiera BORRAR funciones que ya no están en el código, falla en vez de borrarlas.
+        run: npx -y ${FIREBASE_TOOLS} deploy --only functions --project ${FIREBASE_PROJECT} --non-interactive
+
+      # ── Web ──
+      - name: Configuración de la web (.env.local)
+        if: steps.plan.outputs.web == 'true'
+        run: printf '%s\n' "$ENV_LOCAL" > .env.local
+        env:
+          ENV_LOCAL: ${{ secrets.ENV_LOCAL }}
+      - name: Compilar la web
+        if: steps.plan.outputs.web == 'true'
+        run: npm ci && npm run build
+      - name: Publicar la web
+        if: steps.plan.outputs.web == 'true'
+        run: npx -y ${FIREBASE_TOOLS} deploy --only hosting --project ${FIREBASE_PROJECT} --non-interactive

@@ -8,6 +8,7 @@ import GuidePanel from './ui/GuidePanel';
 import CreateItemModal from './ui/CreateItemModal';
 import FolderPickerModal from './ui/FolderPickerModal';
 import MemoryPanel from './ui/MemoryPanel';
+import { OPEN_MEMORY_PANEL } from './ui/MemoryToast';
 import useDrivePicker from 'react-google-drive-picker';
 import FileTree from './FileTree';
 import ProjectHUD from './forge/ProjectHUD';
@@ -113,6 +114,13 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             runSmartSync();
         }
     }, [driveStatus, accessToken, folderId, isFileTreeLoading, isEmptyProject]);
+
+    // Oct 2026: el aviso de la Memoria ("Ver memoria") abre este panel desde cualquier parte.
+    useEffect(() => {
+        const open = () => setIsMemoryOpen(true);
+        window.addEventListener(OPEN_MEMORY_PANEL, open);
+        return () => window.removeEventListener(OPEN_MEMORY_PANEL, open);
+    }, []);
 
     // Oct 2026: sincronizar también al volver a la pestaña (p. ej. desde Obsidian), como mucho cada 3 min.
     const lastSyncRef = useRef(0);
@@ -708,9 +716,9 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">
                         <HelpCircle size={16} />
                     </button>
-                    <button onClick={() => setIsMemoryOpen(true)} title="Memoria" aria-label="Memoria"
-                        className="p-2 rounded-md text-titanium-400 hover:text-purple-300 hover:bg-purple-900/20 transition-all">
-                        <Brain size={16} />
+                    <button onClick={() => setIsMemoryOpen(true)} title="Memoria: lo que MyWorld recuerda de tu proyecto (ver, corregir, borrar)" aria-label="Memoria"
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-purple-300/90 hover:text-purple-200 hover:bg-purple-900/20 transition-all text-[11px] font-medium">
+                        <Brain size={15} /> Memoria
                     </button>
                     <button id="sidebar-project-settings" onClick={onOpenProjectSettings} title={t.project} aria-label={t.project}
                         className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">

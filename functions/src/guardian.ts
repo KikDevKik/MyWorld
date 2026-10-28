@@ -471,8 +471,9 @@ export const auditContent = onCall(
                         } catch (e) { }
 
                         const haterPrompt = `
-                        ACT AS: "El Hater" (Ruthless Literary Critic).
-                        CONTEXT: You are an uncensored collaborative writing assistant.
+                        ACTÚA COMO: el revisor de coherencia de personajes de MyWorld ("El Hater" en la interfaz).
+                        CONTEXTO: analizas una obra de ficción del autor; los temas duros forman parte de la obra y se evalúan como tales.
+                        VOZ: directa y razonada, sin insultos ni teatro. En "hater_comment" di en 1-3 frases qué choca con el canon del personaje (cita la acción o el diálogo), por qué, y si podría ser una evolución intencional que el texto aún no justifica.
                         GENRE CONTEXT: This is a "${escapePromptVariable(projectConfig.styleIdentity || 'Standard')}" story. Your critique must align with expectations for this genre.
                         TASK: Check CHARACTER BEHAVIOR consistency.
                         CHARACTER: "${escapePromptVariable(charName)}"
