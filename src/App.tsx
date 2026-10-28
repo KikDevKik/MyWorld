@@ -1,3 +1,4 @@
+import { lazyView } from './utils/lazyView';
 import { ErrorBoundary } from "./components/ErrorBoundary";
 /*
  * Este software y su código fuente son propiedad intelectual de Deiner David Trelles Renteria.
@@ -24,23 +25,14 @@ import VaultSidebar from './components/VaultSidebar';
 import HybridEditor, { HybridEditorHandle } from './editor/HybridEditor'; // 👈 IMPORT NEW EDITOR
 import { DriftMarker } from './editor/extensions/driftPlugin';
 import ChatPanel from './components/ChatPanel';
-import ForgePanel from './components/forge/ForgePanel';
 import ArsenalDock from './components/forge/ArsenalDock';
-import TribunalPanel from './components/TribunalPanel';
-import LaboratoryPanel from './components/LaboratoryPanel';
-import TimelinePanel from './components/TimelinePanel';
-import ExportPanel from './components/ExportPanel';
 import LoginScreen from './pages/LoginScreen';
 import ConnectDriveModal from './components/ui/ConnectDriveModal';
 import SettingsModal from './components/ui/SettingsModal';
 import FieldManualModal from './components/ui/FieldManualModal';
 import ProjectSettingsModal from './components/ui/ProjectSettingsModal';
 import { DirectorPanel } from './components/DirectorPanel'; // 👈 IMPORT
-import ArquitectoPanel from './components/ArquitectoPanel';
 import ArquitectoPendingWidget from './components/ArquitectoPendingWidget';
-import NexusCanvas from './components/NexusCanvas'; // 👈 IMPORT NEXUS (V2)
-import WorldEnginePageV2 from './components/WorldEngineV2/WorldEnginePageV2'; // 👈 IMPORT WORLD ENGINE V2 (NEW)
-import CanonRadar from './components/CanonRadar'; // 👈 IMPORT GUARDIAN PANEL
 import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
@@ -60,13 +52,23 @@ import CreateProjectModal from './components/ui/CreateProjectModal';
 import StatusBar from './components/ui/StatusBar';
 import ChapterReportPanel from './components/ui/ChapterReportPanel'; // Oct 2026
 import ReadingToolbar from './components/ui/ReadingToolbar';
-import GenesisWizardModal from './components/genesis/GenesisWizardModal';
 import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
 import { PostGenesisPanel } from './components/PostGenesisPanel';
 import ContinueCard from './components/ui/ContinueCard';
 import { APIKeyOnboarding } from './components/APIKeyOnboarding';
 import { useLanguageStore } from './stores/useLanguageStore';
 import { TRANSLATIONS } from './i18n/translations';
+
+// Oct 2026: vistas pesadas con carga diferida (ver utils/lazyView)
+const ForgePanel = lazyView(() => import('./components/forge/ForgePanel'));
+const TribunalPanel = lazyView(() => import('./components/TribunalPanel'));
+const LaboratoryPanel = lazyView(() => import('./components/LaboratoryPanel'));
+const TimelinePanel = lazyView(() => import('./components/TimelinePanel'));
+const ExportPanel = lazyView(() => import('./components/ExportPanel'));
+const ArquitectoPanel = lazyView(() => import('./components/ArquitectoPanel'));
+const WorldEnginePageV2 = lazyView(() => import('./components/WorldEngineV2/WorldEnginePageV2'));
+const CanonRadar = lazyView(() => import('./components/CanonRadar'));
+const GenesisWizardModal = lazyView(() => import('./components/genesis/GenesisWizardModal'));
 
 interface AppContentProps {
     user: User | null;

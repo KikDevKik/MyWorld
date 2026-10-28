@@ -41,7 +41,8 @@ export { genesisManifest } from './genesis';
 
 export { exchangeAuthCode, loginWithGoogleCode, refreshDriveToken, revokeDriveAccess } from './auth';
 export { auditContent, purgeEcho, scanProjectDrift, rescueEcho, auditGlobal } from './guardian';
-export { scribeCreateFile, integrateNarrative, scribePatchFile, transformToGuide, syncSmart } from './scribe';
+export { scribeCreateFile, integrateNarrative, scribePatchFile, transformToGuide } from './scribe';
+export { syncSmart } from './sync_smart'; // Oct 2026: sincronización real Drive/Obsidian ↔ índice
 import { getTranslation } from './backend_i18n';
 export {
   discoverFolderRoles,
@@ -2024,9 +2025,26 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         // Memoria de MyWorld: fuera de la caché (cambia cuando se guarda algo nuevo)
         const myworldMemory = await getMemoryContext(userId, `${finalQuery} ${activeFileName || ''} ${(activeFileContent || '').slice(0, 3000)}`);
         // Quitar bloques <thinking> de respuestas anteriores (también provocan el bloqueo de Claude)
-        const historyForClaude = String(historyText).replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/<\/?thinking>/gi, '');
+        // Oct 2026 (costos): el historial era la parte más cara sin caché (~12k tokens por mensaje): las
+        // respuestas largas del Director viajaban completas 20 veces. Ahora: últimos 12 mensajes; los del
+        // asistente recortados a su inicio (lo que importa para la continuidad) y los del autor a 2.000 caracteres.
+        const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n) + ' […]' : s);
+        const historyForClaude = Array.isArray(history) && history.length
+          ? (() => {
+              const recent = history.slice(-12);
+              const lastAsst = recent.map((h: any) => h?.role).lastIndexOf('model') >= 0
+                ? recent.map((h: any) => h?.role).lastIndexOf('model')
+                : recent.map((h: any) => h?.role).lastIndexOf('assistant');
+              return recent.map((h: any, i: number) => {
+                const msg = String(h?.message || '').replace(/<thinking>[\s\S]*?<\/thinking>/gi, '').replace(/<\/?thinking>/gi, '').trim();
+                // La última respuesta va casi completa: el autor suele preguntar sobre ella ("explícame el punto B").
+                return h?.role === 'user' ? `USUARIO: ${clip(msg, 2000)}` : `ASISTENTE: ${clip(msg, i === lastAsst ? 5000 : 900)}`;
+              }).join('\n');
+            })()
+          : 'No hay historial previo.';
         const userText = `${myworldMemory}\n\n${profileContext}\n${perspectiveContext}\n${entityContext}\n${labExtra}\n\n${attachedContextSection}\n\n${webContext}\n\n${claudeMemory}\n\n--- HISTORIAL DE CONVERSACIÓN ---\n${historyForClaude}\n-------------------------------------------\n\nPREGUNTA DEL USUARIO: "${finalQuery}"`;
         const totalChars = staticSystem.length + activeContextSection.length + userText.length;
+        logger.info(`📏 [DIRECTOR] chars: sistema=${staticSystem.length} archivo=${activeContextSection.length} memoria=${myworldMemory.length} canon=${claudeMemory.length} entidad=${entityContext.length} historial=${historyForClaude.length} adjuntos=${attachedContextSection.length} web=${webContext.length}`);
         const claudeModel = pickClaudeModel('Director', totalChars, true);
         const content: any[] = [];
         if (mediaAttachment?.mimeType?.startsWith('image/')) {
@@ -2038,7 +2056,9 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
           system: [
             // Caché de 1 h: el autor escribe y vuelve cada 10-30 min; la de 5 min nunca se reutilizaba.
             { text: staticSystem, cache: true, ttl1h: true },
-            ...(activeContextSection.trim() ? [{ text: activeContextSection, cache: true, ttl1h: true }] : []),
+            // El archivo abierto cambia cada vez que el autor escribe: caché de 5 min (escritura 1,25×) en vez de
+            // 1 h (2×). Si pregunta varias veces seguidas sin escribir, igual se lee a 0,1×.
+            ...(activeContextSection.trim() ? [{ text: activeContextSection, cache: true }] : []),
           ],
           content,
           // Oct 2026: 3000 no alcanzaba en pedidos grandes (p. ej. un reporte): el pensamiento se comía todo

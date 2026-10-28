@@ -110,20 +110,45 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             hasSyncedRef.current = true;
             console.log("🔄 Triggering Initial Smart Sync...");
 
-            callFunction<{ added: number, deleted: number, success: boolean }>('syncSmart', { accessToken })
-                .then(res => {
-                    if (res && res.success && (res.added > 0 || res.deleted > 0)) {
-                        console.log(`🔄 Smart Sync: +${res.added} / -${res.deleted}`);
-                        toast.success("Sincronización Inteligente", {
-                            description: `Se detectaron ${res.added} nuevos y ${res.deleted} eliminados externos.`
-                        });
-                    }
-                })
-                .catch(err => {
-                    console.warn("Smart Sync skipped/failed:", err);
-                });
+            runSmartSync();
         }
     }, [driveStatus, accessToken, folderId, isFileTreeLoading, isEmptyProject]);
+
+    // Oct 2026: sincronizar también al volver a la pestaña (p. ej. desde Obsidian), como mucho cada 3 min.
+    const lastSyncRef = useRef(0);
+    const runSmartSync = () => {
+        if (!accessToken) return;
+        lastSyncRef.current = Date.now();
+        callFunction<{ added: number, updated?: number, deleted: number, pending?: number, success: boolean }>('syncSmart', { accessToken }, { timeout: 300000 })
+            .then(res => {
+                if (!res?.success) return;
+                const changed = (res.added || 0) + (res.updated || 0) + (res.deleted || 0);
+                if (changed > 0) {
+                    console.log(`🔄 Smart Sync: +${res.added} ~${res.updated || 0} -${res.deleted}`);
+                    const partes = [
+                        res.added ? `${res.added} nuevo${res.added === 1 ? '' : 's'}` : '',
+                        res.updated ? `${res.updated} editado${res.updated === 1 ? '' : 's'}` : '',
+                        res.deleted ? `${res.deleted} borrado${res.deleted === 1 ? '' : 's'}` : '',
+                    ].filter(Boolean).join(', ');
+                    toast.success('Sincronizado con Drive', {
+                        description: `${partes}${res.pending ? ` · ${res.pending} más en la próxima pasada` : ''}.`,
+                    });
+                    if ((res.added || 0) + (res.deleted || 0) > 0) refreshConfig();
+                }
+            })
+            .catch(err => console.warn("Smart Sync skipped/failed:", err));
+    };
+    useEffect(() => {
+        const onFocus = () => {
+            if (document.visibilityState !== 'visible') return;
+            if (!hasSyncedRef.current || Date.now() - lastSyncRef.current < 3 * 60 * 1000) return;
+            if (driveStatus !== 'connected' || isEmptyProject) return;
+            runSmartSync();
+        };
+        window.addEventListener('focus', onFocus);
+        document.addEventListener('visibilitychange', onFocus);
+        return () => { window.removeEventListener('focus', onFocus); document.removeEventListener('visibilitychange', onFocus); };
+    });
 
     // 🟢 LOCALIZATION
     const { currentLanguage } = useLanguageStore();
