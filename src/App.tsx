@@ -1276,6 +1276,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             key={currentFileId}
                             fileId={currentFileId}
                             fileName={currentFileName || 'Capítulo'}
+                            accessToken={oauthToken}
                             getText={() => hybridEditorRef.current?.getText() || selectedFileContentRef.current || ''}
                             reveal={(from, to) => hybridEditorRef.current?.revealRange(from, to)}
                             replace={(from, to, text) => hybridEditorRef.current?.replaceRange(from, to, text)}

@@ -17,6 +17,7 @@ interface Report { resumen: string; fortalezas: Strength[]; problemas: Problem[]
 interface Props {
     fileId: string;
     fileName: string;
+    accessToken?: string | null;
     getText: () => string;
     reveal: (from: number, to: number) => void;
     replace: (from: number, to: number, text: string) => void;
@@ -29,7 +30,7 @@ const GRAVEDAD: Record<string, string> = {
     baja: 'bg-titanium-700/40 text-titanium-300 border-titanium-600/40',
 };
 
-export default function ChapterReportPanel({ fileId, fileName, getText, reveal, replace, onClose }: Props) {
+export default function ChapterReportPanel({ fileId, fileName, accessToken, getText, reveal, replace, onClose }: Props) {
     const [report, setReport] = useState<Report | null>(null);
     const [meta, setMeta] = useState<{ createdAt?: string; contentHash?: string }>({});
     const [loading, setLoading] = useState(true);
@@ -68,7 +69,7 @@ export default function ChapterReportPanel({ fileId, fileName, getText, reveal, 
         if (text.trim().length < 300) { toast.warning('El capítulo es muy corto para un reporte.'); return; }
         setGenerating(true);
         try {
-            const r = await callFunction<any>('chapterReport', { mode: 'generate', fileId, fileName, content: text }, { timeout: 300000 });
+            const r = await callFunction<any>('chapterReport', { mode: 'generate', fileId, fileName, content: text, accessToken: accessToken || undefined }, { timeout: 300000 });
             if (!r) throw new Error('Sin respuesta del servidor.');
             setReport(r.report);
             setMeta({ createdAt: r.createdAt, contentHash: r.contentHash });
