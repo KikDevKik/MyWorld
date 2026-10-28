@@ -22,7 +22,9 @@ QUÉ REVISAS:
 - Lo que funciona (con la cita que lo demuestra), para que lo conserve.
 - Problemas de oficio: punto de vista y persona narrativa, promesas sin cumplir (armas de Chéjov), continuidad con su plan y su canon, ritmo (escenas infladas o apresuradas), diálogos, claridad, tono.
 - Ortografía y puntuación (incluida la de diálogos: raya, incisos, mayúsculas de nombres propios).
-- Lecturas que le servirían para ESTE capítulo. Apóyate primero en sus referencias (obras y autores que él mismo menciona en sus archivos de Recursos): di qué mirar en ellas. Añade como mucho 3 libros más, solo obras reales y conocidas de las que estés seguro (título y autor exactos), explicando qué técnica concreta enseñan para su problema.
+- Referencias para estudiar, ligadas a los problemas de ESTE capítulo:
+  1. PRIMERO sus propias referencias (series, anime, películas, libros o autores que menciona en sus archivos de Recursos): para cada una, qué escena o recurso concreto mirar y qué problema del capítulo le ayuda a resolver. Márcalas con "deSusReferencias": true y "tipo" según lo que sean.
+  2. Después, como mucho 3 libros reales y conocidos de los que estés completamente seguro: título y autor EXACTOS tal como se publicaron en español (p. ej. «Mientras escribo», Stephen King). Nunca inventes ni aproximes un título ("o similar" no vale); si no estás seguro, no lo pongas.
 
 REGLAS DE LAS CITAS (muy importante, el editor las usa para ubicar cada punto):
 - "cita" debe ser texto COPIADO EXACTAMENTE del capítulo (mismas letras, tildes, errores y puntuación), de 4 a 15 palabras, sin "…" ni cambios.
@@ -35,10 +37,10 @@ FORMATO: responde SOLO JSON con esta forma:
  "fortalezas": [{"titulo":"…","explicacion":"…","cita":"…"}],
  "problemas": [{"tipo":"pov|continuidad|ritmo|dialogo|claridad|tono|estructura","gravedad":"alta|media|baja","titulo":"…","explicacion":"por qué no funciona","sugerencia":"qué hacer (sin escribirle la prosa)","citas":["…"]}],
  "ortografia": [{"original":"…","correccion":"…","cita":"…","nota":"regla breve, opcional"}],
- "lecturas": [{"titulo":"…","autor":"…","deSusReferencias":true,"porque":"qué técnica mirar y para qué problema de este capítulo"}],
+ "lecturas": [{"titulo":"…","autor":"autor o estudio","tipo":"libro|serie|anime|película|otro","deSusReferencias":true,"porque":"qué escena o técnica mirar y para qué problema de este capítulo"}],
  "siguientePaso": "la primera cosa que haría en la reescritura"
 }
-Máximo: 4 fortalezas, 8 problemas (ordenados por gravedad), 30 ortografía, 5 lecturas. Escribe en el idioma del autor.`;
+Máximo: 4 fortalezas, 8 problemas (ordenados por gravedad), 30 ortografía, 6 referencias. Escribe en el idioma del autor.`;
 
 async function loadReferences(uid: string): Promise<string> {
     try {
@@ -53,6 +55,7 @@ async function loadReferences(uid: string): Promise<string> {
             const text = ch.docs.map(c => String((c.data() as any).text || "")).join("\n").slice(0, 700);
             if (text.trim()) parts.push(`### ${name}\n${text}`);
         }
+        logger.info(`[REPORT] Referencias del autor: ${parts.length} archivos (${parts.map(p => p.split("\n")[0].replace("### ", "")).join(", ")})`);
         return parts.join("\n\n").slice(0, 8000);
     } catch (e: any) {
         logger.warn(`[REPORT] No se pudieron leer las referencias: ${e?.message}`);

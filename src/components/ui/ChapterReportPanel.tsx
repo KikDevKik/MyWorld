@@ -11,7 +11,7 @@ import { locateQuote } from '../../utils/locateQuote';
 interface Strength { titulo: string; explicacion: string; cita?: string }
 interface Problem { tipo: string; gravedad: 'alta' | 'media' | 'baja'; titulo: string; explicacion: string; sugerencia: string; citas?: string[] }
 interface Spelling { original: string; correccion: string; cita?: string; nota?: string }
-interface Reading { titulo: string; autor: string; deSusReferencias?: boolean; porque: string }
+interface Reading { titulo: string; autor: string; tipo?: string; deSusReferencias?: boolean; porque: string }
 interface Report { resumen: string; fortalezas: Strength[]; problemas: Problem[]; ortografia: Spelling[]; lecturas: Reading[]; siguientePaso?: string }
 
 interface Props {
@@ -236,10 +236,11 @@ export default function ChapterReportPanel({ fileId, fileName, getText, reveal, 
 
                         {!!report.lecturas?.length && (
                             <section className="space-y-2">
-                                <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-titanium-500"><BookOpen size={12} /> Para leer</h3>
+                                <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-titanium-500"><BookOpen size={12} /> Para estudiar</h3>
                                 {report.lecturas.map((l, i) => (
                                     <div key={i} className="rounded-lg border border-titanium-800 bg-titanium-950/40 p-3">
-                                        <p className="text-titanium-100"><b>{l.titulo}</b> — {l.autor}
+                                        <p className="text-titanium-100"><b>{l.titulo}</b>{l.autor ? ` — ${l.autor}` : ''}
+                                            {l.tipo && <span className="ml-2 text-[10px] text-titanium-500">{l.tipo}</span>}
                                             {l.deSusReferencias && <span className="ml-2 rounded bg-purple-900/40 px-1.5 py-px text-[10px] text-purple-300">de tus referencias</span>}
                                         </p>
                                         <p className="mt-1">{l.porque}</p>

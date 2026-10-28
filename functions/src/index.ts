@@ -2041,7 +2041,9 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
             ...(activeContextSection.trim() ? [{ text: activeContextSection, cache: true, ttl1h: true }] : []),
           ],
           content,
-          maxTokens: 3000, // incluye el pensamiento interno del modelo; la brevedad la controla el prompt
+          // Oct 2026: 3000 no alcanzaba en pedidos grandes (p. ej. un reporte): el pensamiento se comía todo
+          // y llegaba vacío. Solo se paga lo que se usa; la brevedad la sigue controlando el prompt.
+          maxTokens: 8000,
           label: 'Director',
         });
         if (r.ok && r.text) {
