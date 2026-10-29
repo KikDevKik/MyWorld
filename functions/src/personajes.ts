@@ -35,6 +35,8 @@ Devuelve TODOS los personajes con nombre propio (también criaturas con nombre y
 - "ficha": el nombre EXACTO del archivo (tal cual en el catálogo) que es la ficha o el documento principal de ese personaje (p. ej. «Anna», «Ficha Anna»), o null si no tiene. Una ficha es un archivo dedicado a ese personaje, no un capítulo donde aparece.
 - "archivos": nombres exactos de los archivos donde aparece (máx. 8).
 - Une alias y apodos del mismo personaje en una sola entrada.
+- NO incluyas personajes de obras ajenas (series, anime, libros o películas que el autor analiza o cita como referencia): solo los de SU mundo.
+- Razas, pueblos y especies (p. ej. «Humanos») no son personajes: omítelos; las organizaciones que actúan como personaje van como "grupo".
 - "rol": protagonista | principal | secundario | mencionado, según el peso que tiene en el material.
 - "resumen": una frase con lo que el material dice de él (sin inventar).
 FORMATO: SOLO JSON {"personajes":[{"nombre":"…","alias":["…"],"tipo":"personaje|criatura|grupo","rol":"…","ficha":"…|null","archivos":["…"],"resumen":"…"}]}. Máximo 80, ordenados por importancia.`;

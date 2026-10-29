@@ -113,6 +113,30 @@ export const syncSmart = onCall(
             added++;
         }
 
+        // 3.5 Oct 2026: reparar la categoría (canon / referencia) de lo ya indexado. Archivos de Recursos
+        // indexados antes como canon contaminaban al Guardián, al Mapa y a Personajes (p. ej. análisis de series).
+        let recategorized = 0;
+        for (const it of items) {
+            const doc = indexed.get(it.id);
+            if (!doc || doc.category === it.category) continue;
+            try {
+                await filesCol.doc(it.id).set({ category: it.category }, { merge: true });
+                if (it.mimeType !== FOLDER) {
+                    const chunks = await filesCol.doc(it.id).collection("chunks").listDocuments();
+                    for (let i = 0; i < chunks.length; i += 400) {
+                        const wb = db.batch();
+                        chunks.slice(i, i + 400).forEach(c => wb.set(c, { category: it.category }, { merge: true }));
+                        await wb.commit();
+                    }
+                }
+                doc.category = it.category;
+                recategorized++;
+            } catch (e: any) {
+                logger.warn(`[SYNC] No se pudo corregir la categoría de ${it.path}: ${e?.message}`);
+            }
+        }
+        if (recategorized) logger.info(`🔄 [SYNC] Categoría corregida en ${recategorized} elementos (canon/recursos)`);
+
         // 4. Archivos nuevos o editados (con embeddings si hay clave de Gemini)
         let embedder: any = null;
         try {

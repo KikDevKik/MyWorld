@@ -67,7 +67,30 @@ export default function ImprentaView({ folderId, accessToken, onClose, onOpenCer
 
     useEffect(() => { try { localStorage.setItem(KEY, JSON.stringify({ design, meta, sel: [...sel], order })); } catch { /* sin almacenamiento */ } }, [design, meta, sel, order, KEY]);
 
-    const allFiles = useMemo(() => flatten((fileTree as any) || []), [fileTree]);
+    // El árbol del proyecto trae solo las carpetas raíz: se cargan sus hijos (como en el Explorador).
+    const [tree, setTree] = useState<Node[] | null>(null);
+    useEffect(() => {
+        if (!fileTree) return;
+        let alive = true;
+        const roots: Node[] = ((fileTree as any) as Node[]).map(n => ({ ...n, children: n.children && n.children.length ? n.children : undefined }));
+        (async () => {
+            const load = async (n: Node, depth: number): Promise<void> => {
+                if (!isFolder(n) || depth > 6) return;
+                if (!n.children) {
+                    try {
+                        const r = await callFunction<any>('getFileSystemNodes', { folderId: n.id, accessToken });
+                        n.children = (Array.isArray(r) ? r : r?.files || []).map((c: any) => ({ id: c.id, name: c.name, mimeType: c.mimeType }));
+                    } catch { n.children = []; }
+                }
+                for (let k = 0; k < n.children!.length; k += 4) await Promise.all(n.children!.slice(k, k + 4).map(c => load(c, depth + 1)));
+            };
+            await Promise.all(roots.map(r => load(r, 0)));
+            if (alive) setTree(roots);
+        })();
+        return () => { alive = false; };
+    }, [fileTree, accessToken]);
+
+    const allFiles = useMemo(() => flatten(tree || []), [tree]);
     const ordered = useMemo(() => {
         const treeOrder = allFiles.map(f => f.id).filter(id => sel.has(id));
         const kept = order.filter(id => sel.has(id));
@@ -199,7 +222,7 @@ export default function ImprentaView({ folderId, accessToken, onClose, onOpenCer
                             )}
                             <div>
                                 <p className="mb-1 text-[10px] uppercase tracking-wider text-titanium-500">Qué entra</p>
-                                {!fileTree ? <p className="text-[12px] text-titanium-600">Cargando tus archivos…</p> : (fileTree as any as Node[]).map(n => <TreeItem key={n.id} node={n} depth={0} sel={sel} toggle={toggle} />)}
+                                {!tree ? <p className="flex items-center gap-1.5 text-[12px] text-titanium-600"><Loader2 size={11} className="animate-spin" /> Cargando tus archivos…</p> : tree.map(n => <TreeItem key={n.id} node={n} depth={0} sel={sel} toggle={toggle} />)}
                             </div>
                         </>) : (<>
                             <div>

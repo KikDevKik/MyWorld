@@ -212,8 +212,10 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
                     {refs.length > 8 && (
                         <input value={refFilter} onChange={e => setRefFilter(e.target.value)} placeholder="Buscar…" className="mt-2 w-full rounded-md border border-titanium-800 bg-titanium-950 px-2 py-1 text-[12px] text-titanium-200 outline-none focus:border-amber-800" />
                     )}
-                    {!refs.length ? (
-                        <p className="mt-2 text-[12px] text-titanium-600">No hay archivos en tu carpeta de Recursos.</p>
+                    {loading ? (
+                        <p className="mt-2 flex items-center gap-1.5 text-[12px] text-titanium-600"><Loader2 size={11} className="animate-spin" /> Cargando…</p>
+                    ) : !refs.length ? (
+                        <p className="mt-2 text-[12px] text-titanium-600">No encontré archivos de Recursos en el índice. Pulsa «Sincronizar» en el explorador.</p>
                     ) : (
                         <ul className="mt-2 space-y-0.5">
                             {shownRefs.map(r => (
