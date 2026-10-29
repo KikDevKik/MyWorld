@@ -77,6 +77,8 @@ const CANON_TASK = `TAREA: GUARDIÁN DEL CANON. Comparas el capítulo con el can
 REGLAS:
 - Cada contradicción necesita DOS citas exactas: "citaCapitulo" (copiada tal cual del capítulo, 4 a 15 palabras) y "citaCanon" (copiada tal cual del fragmento del canon), más "fuente" (el nombre del archivo del canon).
 - Si el canon no dice nada sobre algo, NO es una contradicción. Si hay tensión pero no certeza, va en "dudas" como pregunta al autor.
+- LÍNEA DE TIEMPO: ubica primero el capítulo en la historia usando la memoria del proyecto (plan del libro, actos). Si el canon describe algo que pasa DESPUÉS (una muerte, una mudanza, un cambio), que el capítulo muestre el estado anterior NO es contradicción. Nunca marques eso como error.
+- PLAN RECIENTE vs. ARCHIVO VIEJO: la memoria del proyecto refleja las decisiones más recientes del autor. Si un archivo del canon dice algo distinto a esa memoria y el capítulo sigue la memoria, el problema es el archivo: va en "dudas" como «¿Actualizo <archivo>? Dice X, pero tu plan actual dice Y», no como contradicción del capítulo.
 - Ignora fragmentos que sean un borrador anterior de este mismo capítulo, y no comentes estilo ni ortografía (eso va en el reporte).
 - No encontrar nada es un buen resultado: dilo en el resumen y deja las listas vacías. Nunca rellenes.
 FORMATO (solo JSON):
@@ -95,6 +97,7 @@ Señala SOLO errores GRAVES y evidentes contra su canon:
 - una ley del mundo explícita (poderes, magia, tecnología) rota sin explicación;
 - un hecho central de la historia contradicho.
 Cada alerta necesita "citaCapitulo" (copiada tal cual del capítulo, 4 a 15 palabras), "citaCanon" (copiada tal cual del canon) y "fuente" (archivo del canon). Si no puedes citar ambas cosas, no es alerta.
+Un hecho del canon que ocurre más adelante en la historia (p. ej. una muerte futura) NO es un error si el capítulo transcurre antes. Ante la duda, no alertes.
 Lo normal es que no haya nada: entonces responde {"alertas":[]}. Nunca rellenes. Máximo 3.
 FORMATO (solo JSON): {"alertas":[{"titulo":"…","explicacion":"1-2 frases","citaCapitulo":"…","citaCanon":"…","fuente":"…"}]}
 Escribe en el idioma del autor.`;
@@ -295,7 +298,8 @@ export const chapterReport = onCall(
                 return { found: true, skipped: true, watch: prev.watch || { alertas: [] } }; // sin clave de Gemini: no molestar
             }
             if (!canon.text) return { found: true, skipped: true, watch: { alertas: [] } };
-            const result = await runReview(WATCH_TASK, text, name, `CANON DEL AUTOR (fragmentos de sus archivos):\n${canon.text}`,
+            const memory = await getMemoryContext(uid, `${name} ${text.slice(0, 1500)}`);
+            const result = await runReview(WATCH_TASK, text, name, [memory ? `MEMORIA DEL PROYECTO (plan actual del autor):\n${memory}` : "", `CANON DEL AUTOR (fragmentos de sus archivos):\n${canon.text}`].filter(Boolean).join("\n\n"),
                 { maxTokens: 3000, effort: "low", label: "GuardianWatch", model: CLAUDE_HAIKU });
             const alertas = (Array.isArray(result?.alertas) ? result.alertas : []).filter((a: any) => a?.citaCapitulo && a?.citaCanon).slice(0, 3);
             const out = { watch: { alertas }, watchHash: hash, watchAt: new Date().toISOString() };
