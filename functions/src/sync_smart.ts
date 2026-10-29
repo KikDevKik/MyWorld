@@ -167,3 +167,30 @@ export const syncSmart = onCall(
         return { success: true, added, updated, deleted, pending };
     }
 );
+
+// Oct 2026: carpeta donde abre el selector de "Traer notas". Las carpetas del Canon pueden vivir fuera de la
+// carpeta raíz del proyecto (p. ej. en la bóveda de Obsidian): se usa la carpeta que las contiene a todas.
+export const getPickerStartFolder = onCall(
+    { region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS, enforceAppCheck: false },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+        const { accessToken } = request.data || {};
+        if (!accessToken) throw new HttpsError("invalid-argument", "Missing accessToken");
+        const cfg: any = (await getFirestore().collection("users").doc(request.auth.uid).collection("profile").doc("project_config").get()).data() || {};
+        const roots: string[] = [...(cfg.canonPaths || []), ...(cfg.resourcePaths || [])].map((p: any) => p?.id).filter(Boolean);
+        if (!roots.length) return { folderId: cfg.folderId || "root" };
+        const auth = new google.auth.OAuth2();
+        auth.setCredentials({ access_token: accessToken });
+        const drive = google.drive({ version: "v3", auth });
+        const counts: Record<string, number> = {};
+        for (const id of roots.slice(0, 12)) {
+            try {
+                const r = await drive.files.get({ fileId: id, fields: "parents" });
+                const p = r.data.parents?.[0];
+                if (p) counts[p] = (counts[p] || 0) + 1;
+            } catch { /* carpeta no accesible: se ignora */ }
+        }
+        const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
+        return { folderId: best || cfg.folderId || "root" };
+    }
+);

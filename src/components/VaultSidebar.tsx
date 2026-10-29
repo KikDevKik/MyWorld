@@ -120,7 +120,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
     // la sincronización las indexa y aparecen en el explorador.
     const [openPicker] = useDrivePicker();
     const [isBringing, setIsBringing] = useState(false);
-    const handleBringNotes = () => {
+    const handleBringNotes = async () => {
         const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
         const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
         const appId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '';
@@ -128,6 +128,12 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             toast.error('No pude abrir el selector de Google: falta conexión con Drive.');
             return;
         }
+        // Abrir donde viven las carpetas del Canon (la bóveda), no en la raíz del proyecto.
+        let startFolder = config?.folderId || '';
+        try {
+            const r = await callFunction<{ folderId: string }>('getPickerStartFolder', { accessToken });
+            if (r?.folderId) startFolder = r.folderId;
+        } catch { /* se usa la raíz del proyecto */ }
         openPicker({
             clientId, developerKey, appId,
             token: accessToken,
@@ -137,7 +143,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
             multiselect: true,
             supportDrives: true,
             locale: 'es',
-            setParentFolder: config?.folderId || '',
+            setParentFolder: startFolder,
             callbackFunction: async (data: any) => {
                 if (data?.action !== 'picked' || !data.docs?.length) return;
                 setIsBringing(true);

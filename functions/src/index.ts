@@ -42,7 +42,7 @@ export { genesisManifest } from './genesis';
 export { exchangeAuthCode, loginWithGoogleCode, refreshDriveToken, revokeDriveAccess } from './auth';
 export { auditContent, purgeEcho, scanProjectDrift, rescueEcho, auditGlobal } from './guardian';
 export { scribeCreateFile, integrateNarrative, scribePatchFile, transformToGuide } from './scribe';
-export { syncSmart } from './sync_smart'; // Oct 2026: sincronización real Drive/Obsidian ↔ índice
+export { syncSmart, getPickerStartFolder } from './sync_smart'; // Oct 2026: sincronización real Drive/Obsidian ↔ índice
 import { getTranslation } from './backend_i18n';
 export {
   discoverFolderRoles,
