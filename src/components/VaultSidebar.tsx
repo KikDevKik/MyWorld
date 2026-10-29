@@ -3,7 +3,7 @@
  * Queda prohibida su reproducción, distribución o ingeniería inversa sin autorización.
  */
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X, Brain, FolderInput } from 'lucide-react';
+import { Settings, LogOut, HelpCircle, HardDrive, BrainCircuit, ChevronDown, Key, FolderCog, AlertTriangle, Eye, EyeOff, LayoutTemplate, Loader2, FilePlus, FolderPlus, Sparkles, Download, X, Brain, RefreshCw } from 'lucide-react';
 import GuidePanel from './ui/GuidePanel';
 import CreateItemModal from './ui/CreateItemModal';
 import FolderPickerModal from './ui/FolderPickerModal';
@@ -115,56 +115,32 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
         }
     }, [driveStatus, accessToken, folderId, isFileTreeLoading, isEmptyProject]);
 
-    // Oct 2026: "Traer notas de Drive/Obsidian". MyWorld usa el permiso drive.file (solo ve lo que creó o
-    // lo que el autor le muestra). Elegir notas en el selector de Google le da permiso sobre ellas; después
-    // la sincronización las indexa y aparecen en el explorador.
-    const [openPicker] = useDrivePicker();
+    // Oct 2026: "Sincronizar ahora". La sincronización automática (al abrir y al volver a la pestaña) ya trae
+    // las notas creadas o editadas en Obsidian; este botón la lanza en el momento. Bloqueado mientras corre.
     const [isBringing, setIsBringing] = useState(false);
     const handleBringNotes = async () => {
-        const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-        const developerKey = import.meta.env.VITE_GOOGLE_API_KEY;
-        const appId = import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '';
-        if (!clientId || !developerKey || !accessToken) {
-            toast.error('No pude abrir el selector de Google: falta conexión con Drive.');
-            return;
-        }
-        // Abrir donde viven las carpetas del Canon (la bóveda), no en la raíz del proyecto.
-        let startFolder = config?.folderId || '';
+        if (isBringing || !accessToken) return;
+        setIsBringing(true);
         try {
-            const r = await callFunction<{ folderId: string }>('getPickerStartFolder', { accessToken });
-            if (r?.folderId) startFolder = r.folderId;
-        } catch { /* se usa la raíz del proyecto */ }
-        openPicker({
-            clientId, developerKey, appId,
-            token: accessToken,
-            viewId: 'DOCS',
-            setIncludeFolders: true,
-            setSelectFolderEnabled: true,
-            multiselect: true,
-            supportDrives: true,
-            locale: 'es',
-            setParentFolder: startFolder,
-            callbackFunction: async (data: any) => {
-                if (data?.action !== 'picked' || !data.docs?.length) return;
-                setIsBringing(true);
-                const tId = toast.loading(`Trayendo ${data.docs.length} elemento${data.docs.length === 1 ? '' : 's'}…`);
-                try {
-                    const res = await callFunction<{ added: number; updated?: number; deleted: number; pending?: number; success: boolean }>('syncSmart', { accessToken }, { timeout: 300000 });
-                    toast.dismiss(tId);
-                    if ((res?.added || 0) + (res?.updated || 0) > 0) {
-                        toast.success('Notas traídas', { description: `${res?.added || 0} nueva${res?.added === 1 ? '' : 's'} en el explorador${res?.pending ? ` · ${res.pending} más en la próxima pasada` : ''}.` });
-                        refreshConfig();
-                    } else {
-                        toast.info('No entró nada nuevo', { description: 'Las notas deben estar dentro de las carpetas de tu proyecto (Canon o Recursos). Si creaste también la carpeta en Obsidian, elígela junto con las notas.' });
-                    }
-                } catch {
-                    toast.dismiss(tId);
-                    toast.error('No se pudieron traer las notas. Intenta de nuevo.');
-                } finally {
-                    setIsBringing(false);
-                }
-            },
-        });
+            const res = await callFunction<{ added: number; updated?: number; deleted: number; pending?: number; success: boolean }>('syncSmart', { accessToken }, { timeout: 300000 });
+            const added = res?.added || 0, updated = res?.updated || 0, deleted = res?.deleted || 0;
+            if (added + updated + deleted > 0) {
+                const partes = [
+                    added ? `${added} nueva${added === 1 ? '' : 's'}` : '',
+                    updated ? `${updated} editada${updated === 1 ? '' : 's'}` : '',
+                    deleted ? `${deleted} borrada${deleted === 1 ? '' : 's'}` : '',
+                ].filter(Boolean).join(', ');
+                toast.success('Sincronizado con Drive', { description: `${partes}${res?.pending ? ` · ${res.pending} más en la próxima pasada` : ''}.` });
+                refreshConfig();
+            } else {
+                toast.success('Todo está al día', { description: 'No hay notas nuevas ni cambios en Drive/Obsidian desde la última sincronización.' });
+            }
+            lastSyncRef.current = Date.now();
+        } catch {
+            toast.error('No se pudo sincronizar. Intenta de nuevo en un momento.');
+        } finally {
+            setIsBringing(false);
+        }
     };
 
     // Oct 2026: el aviso de la Memoria ("Ver memoria") abre este panel desde cualquier parte.
@@ -484,10 +460,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 onClick={handleBringNotes}
                                 disabled={isBringing}
                                 className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-cyan-400 disabled:opacity-40"
-                                title="Traer notas nuevas de Drive/Obsidian"
-                                aria-label="Traer notas nuevas de Drive/Obsidian"
+                                title="Sincronizar con Drive/Obsidian ahora"
+                                aria-label="Sincronizar con Drive/Obsidian ahora"
                             >
-                                {isBringing ? <Loader2 size={16} className="animate-spin" /> : <FolderInput size={16} />}
+                                {isBringing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                             </button>
                         )}
 
