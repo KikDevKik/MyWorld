@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clapperboard, Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, Landmark } from 'lucide-react';
+import { Clapperboard, Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, Landmark, FileSearch } from 'lucide-react';
 import { GEMS } from '../../constants';
 import { GemId } from '../../types';
 import { useLanguageStore } from '../../stores/useLanguageStore';
@@ -11,14 +11,18 @@ interface ArsenalDockProps {
     onSimulateDrift?: () => void; // 🟢 SMOKE TEST
     isSecurityReady?: boolean; // 🟢 NEW PROP
     onToggleSentinel?: () => void; // 🟢 NEW PROP
+    onOpenReport?: () => void; // Oct 2026: Reporte (incluye Tribunal y Guardián)
+    reportActive?: boolean;
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive }) => {
     const { currentLanguage } = useLanguageStore();
     const tTools = TRANSLATIONS[currentLanguage].tools;
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
-    const DOCK_GEMS: GemId[] = ['director', 'arquitecto', 'perforador', 'forja', 'laboratorio', 'tribunal', 'guardian', 'imprenta'];
+    // Oct 2026: el Tribunal y el Guardián ya no son botones sueltos: viven dentro del Reporte.
+    // Oct 2026: Nexus, Forja y Laboratorio viven dentro de Preparar (botón del Arquitecto).
+    const DOCK_GEMS: GemId[] = ['director', 'arquitecto', 'imprenta'];
 
     // Función auxiliar para elegir el icono correcto según la ID de la Gem
     const getIcon = (id: string) => {
@@ -38,6 +42,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
 
     // Helper to get translated name safely
     const getTranslatedName = (id: GemId) => {
+        if (id === 'arquitecto') return 'Preparar: Arquitecto, Mapa, Personajes y Qué pasaría si';
         return tTools[id] || GEMS[id].name;
     };
 
@@ -74,6 +79,16 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                         </button>
                     );
                 })}
+                {onOpenReport && (
+                    <button
+                        onClick={onOpenReport}
+                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none active:scale-95 ${reportActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
+                        title="Reporte del capítulo (canon y tres lecturas)"
+                        aria-label="Reporte del capítulo"
+                    >
+                        <FileSearch size={20} />
+                    </button>
+                )}
             </div>
             <div className="flex-1" /> {/* Espaciador flexible para empujar lo de abajo */}
 

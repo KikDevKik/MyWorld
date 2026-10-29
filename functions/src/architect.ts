@@ -17,6 +17,7 @@ import { _getDriveFileContentInternal } from "./utils/drive";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { TaskType } from "@google/generative-ai";
 import { getPrompt } from "./prompt_manager";
+import { wantsAudit, connectAvailable, conectarStart, conectarReply, conectarClose } from "./arquitecto_conectar";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
@@ -460,6 +461,30 @@ export const arquitectoInitialize = onCall(
         // 1. LEER CONFIG DEL PROYECTO
         const config = await getProjectConfigLocal(userId);
         const projectName = (config as any)?.projectName || "Proyecto sin nombre";
+
+        // Oct 2026: modo «Conectar» por defecto (antes de escribir). La auditoría de disonancias
+        // queda para cuando el autor la pide explícitamente (o con el botón «Analizar disonancias»).
+        if (connectAvailable() && !culturalDocument?.fileData && !wantsAudit(implementationGoal)) {
+            const goal = String(implementationGoal || '').trim() || 'Quiero ver cómo se conectan las piezas de mi mundo.';
+            const initialMessage = await conectarStart(userId, goal, getAIKey(request.data, googleApiKey.value()));
+            const now = new Date().toISOString();
+            const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc();
+            await sessionRef.set({
+                name: `Arquitecto ${new Date().toLocaleDateString()}`,
+                type: 'arquitecto',
+                engine: 'conectar',
+                createdAt: now, updatedAt: now,
+                pendingItems: [],
+                projectSummary: '',
+                lastAnalyzedAt: now,
+                implementationGoal: goal,
+                isCreativeBlockMode: true,
+                snapshot: { currentState: 'conectar' },
+            });
+            await sessionRef.collection("messages").add({ role: 'ia', text: initialMessage, timestamp: new Date() });
+            logger.info(`✅ [ARQUITECTO] Sesión «Conectar» creada (${sessionRef.id})`);
+            return { pendingItems: [], initialMessage, sessionId: sessionRef.id, projectSummary: '', lastAnalyzedAt: now, focusMode, severityMode };
+        }
 
         // 2. CONTAR WORLD ENTITIES (No-RESOURCE)
         let worldEntitiesCount = 0;
@@ -1260,6 +1285,21 @@ export const arquitectoChat = onCall(
         const db = getFirestore();
 
         logger.info(`🏛️ [ARQUITECTO] Chat para ${userId}: "${query?.substring(0, 50)}..." | Objetivo: ${objective || 'Ninguno'}`);
+
+        // Oct 2026: sesiones «Conectar»: una sola llamada a Claude con su material citado.
+        if (query && !attachment && connectAvailable()) {
+            const sref = db.collection("users").doc(userId).collection("forge_sessions").doc(sessionId);
+            const sdata: any = (await sref.get()).data() || {};
+            const unresolved = (sdata.pendingItems || []).filter((i: any) => !i.resolved).length;
+            if (sdata.engine === 'conectar' && unresolved === 0) {
+                // Se guarda primero el mensaje del autor para que la conversación lo incluya.
+                await sref.collection("messages").add({ role: 'user', text: query, timestamp: new Date() });
+                const responseText = await conectarReply(userId, sessionId, sdata.implementationGoal || '', query, getAIKey(request.data, googleApiKey.value()));
+                await sref.collection("messages").add({ role: 'ia', text: responseText, timestamp: new Date(), arquitectoMode: 'conectar' });
+                await sref.set({ updatedAt: new Date().toISOString() }, { merge: true });
+                return { response: responseText, detectedIntent: 'CONECTAR', hadResolution: false };
+            }
+        }
 
         const config = await getProjectConfigLocal(userId);
         const projectId = (config as any)?.folderId || "unknown";
@@ -2513,3 +2553,22 @@ REGLAS:
     }
 );
 
+
+// Oct 2026: cerrar una sesión del Arquitecto con un resumen en cuatro partes
+// (ideas sueltas, conexiones decididas, por decidir, una escena que ya puede escribir).
+export const arquitectoCerrarSesion = onCall(
+    { region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS, enforceAppCheck: false, timeoutSeconds: 180, memory: "512MiB", secrets: [googleApiKey, anthropicApiKey] },
+    async (request) => {
+        if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
+        const { sessionId, accessToken } = request.data || {};
+        if (!sessionId) throw new HttpsError("invalid-argument", "Falta sessionId.");
+        if (!connectAvailable()) throw new HttpsError("failed-precondition", "El resumen de sesión usa Claude y todavía no está activo para tu cuenta.");
+        const uid = request.auth.uid;
+        const { summary, savedAs } = await conectarClose(uid, sessionId, accessToken);
+        const text = summary + (savedAs ? `\n\n_Guardé este resumen en ${savedAs} (también lo ves en Obsidian)._` : '');
+        const sref = getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId);
+        await sref.collection("messages").add({ role: 'ia', text, timestamp: new Date(), arquitectoMode: 'cierre' });
+        await sref.set({ updatedAt: new Date().toISOString(), closedAt: new Date().toISOString(), closingSummary: summary }, { merge: true });
+        return { summary: text, savedAs: savedAs || null };
+    }
+);

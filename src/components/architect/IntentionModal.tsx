@@ -17,13 +17,20 @@ export default function IntentionModal({ onConfirm, isLoading }: Props) {
     const t = TRANSLATIONS[currentLanguage];
     const tArch = t.architect;
 
-    const SUGGESTION_CHIPS = [
-        { label: tArch.traceNextPath || 'Trazar el camino siguiente', value: tArch.traceNextPathVal || 'No tengo claro cómo continuar mi obra. Ayúdame a definir el siguiente paso concreto.' },
-        { label: tArch.checkConsistency || 'Revisar consistencia', value: tArch.checkConsistencyVal || 'Quiero revisar si hay inconsistencias en mi worldbuilding y sistemas actuales.' },
-        { label: tArch.developCharacters || 'Desarrollar personajes', value: tArch.developCharactersVal || 'Mis personajes necesitan motivaciones y arcos más claros.' },
-        { label: tArch.unblockAct2 || 'Desbloquear el Acto 2', value: tArch.unblockAct2Val || 'Estoy atascado en la mitad de mi historia y no sé cómo avanzar.' },
-        { label: tArch.magicAudit || 'Auditoría de sistema de magia', value: tArch.magicAuditVal || 'Quiero revisar si mi sistema de magia tiene lagunas lógicas.' },
-        { label: tArch.integrateCulture || 'Integrar cultura real', value: tArch.integrateCultureVal || 'Quiero inspirarme en una cultura real para enriquecer mi obra.' },
+    // Oct 2026: el Arquitecto es para ANTES de escribir: conectar ideas y mundo. La auditoría queda como una opción más.
+    const isEn = currentLanguage === 'en';
+    const SUGGESTION_CHIPS = isEn ? [
+        { label: 'I have a new idea', value: 'I have a new idea and I want to see where it fits in my world: ' },
+        { label: 'Connect loose pieces', value: "I have several loose ideas and I don't know how to connect them." },
+        { label: 'Prepare what comes next', value: 'I want to prepare the next chapter: what has to happen and what is already decided.' },
+        { label: "I'm stuck", value: "I'm stuck and I don't know how to move forward." },
+        { label: 'Check for contradictions', value: 'I want to check my world for inconsistencies and contradictions.' },
+    ] : [
+        { label: 'Tengo una idea nueva', value: 'Tengo una idea nueva y quiero ver dónde encaja en mi mundo: ' },
+        { label: 'Conectar piezas sueltas', value: 'Tengo varias ideas sueltas y no sé cómo conectarlas.' },
+        { label: 'Preparar lo que sigue', value: 'Quiero preparar el próximo capítulo: qué tiene que pasar y qué ya está decidido.' },
+        { label: 'Estoy atascado', value: 'Estoy atascado y no sé cómo avanzar.' },
+        { label: 'Revisar contradicciones', value: 'Quiero revisar si hay inconsistencias y contradicciones en mi mundo.' },
     ];
 
     const FILTER_CAMERA_TIP = tArch.filterCameraTip || '💡 Si un elemento no aparecerá constantemente en tu obra y es solo un acabado visual o una mención ocasional, no lo desarrolles en profundidad. Primero lo esencial.';
@@ -89,10 +96,10 @@ export default function IntentionModal({ onConfirm, isLoading }: Props) {
             {/* Header */}
             <div className="text-center mb-8">
                 <h2 className="text-xl font-medium text-titanium-100 mb-2">
-                    {tArch.solveToday || '¿Qué necesitas resolver hoy?'}
+                    {isEn ? 'What are you bringing today?' : '¿Qué traes hoy?'}
                 </h2>
                 <p className="text-sm text-titanium-500">
-                    {tArch.architectGoal || 'El Arquitecto analizará tu proyecto con ese objetivo en mente.'}
+                    {isEn ? 'The Architect knows your material and helps you connect it. It asks; you decide.' : 'El Arquitecto conoce tu material y te ayuda a conectarlo. Él pregunta; tú decides.'}
                 </p>
             </div>
 

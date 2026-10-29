@@ -10,15 +10,24 @@ import { getFirestore } from "firebase-admin/firestore";
 import { google } from "googleapis";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
-import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, MYWORLD_VOICE } from "./utils/claude_router";
+import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
 import { textHash } from "./utils/text_hash";
+import { getAIKey } from "./utils/security";
+import { GeminiEmbedder } from "./utils/vector_utils";
+import { TaskType } from "@google/generative-ai";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
-const REPORT_SYSTEM = `Eres el editor de MyWorld. El autor terminó un capítulo y te pide un reporte para reescribirlo.
-Lees el capítulo completo y devuelves un diagnóstico útil, honesto y accionable. No reescribes su prosa: señalas, explicas y sugieres.
+// Oct 2026: las tres revisiones (reporte, tres lecturas, Guardián) comparten el mismo sistema y el capítulo
+// va primero con caché de 1 h: la segunda y tercera revisión leen el capítulo a 1/20 del precio.
+const EDITOR_BASE = `Eres el editor de MyWorld. El autor te da un capítulo completo y, al final, la revisión que necesita.
+Lees con atención, eres honesto y concreto, y nunca reescribes su prosa: señalas, explicas y sugieres.
+Respondes SOLO con el JSON que pida la tarea.`;
+
+const REPORT_SYSTEM = `TAREA: REPORTE DEL CAPÍTULO. El autor terminó el capítulo y te pide un reporte para reescribirlo.
+Devuelves un diagnóstico útil, honesto y accionable.
 
 QUÉ REVISAS:
 - Lo que funciona (con la cita que lo demuestra), para que lo conserve.
@@ -43,6 +52,139 @@ FORMATO: responde SOLO JSON con esta forma:
  "siguientePaso": "la primera cosa que haría en la reescritura"
 }
 Máximo: 4 fortalezas, 8 problemas (ordenados por gravedad), 30 ortografía, 6 referencias. Escribe en el idioma del autor.`;
+
+// Antes "El Tribunal": tres lectores con enfoques distintos, ahora dentro del reporte.
+const VOICES_TASK = `TAREA: TRES LECTURAS. Tres lectores leen el mismo capítulo, cada uno desde su enfoque, y le dicen al autor lo que vieron.
+- "arquitecto": estructura, lógica interna, causa y efecto, ritmo. Dónde la escena no se sostiene o sobra.
+- "bardo": voz, prosa, emoción, imágenes, diálogos. Qué suena vivo y qué suena a relleno.
+- "hater": el lector exigente que no perdona. Lo cliché, lo confuso, lo olvidable: el punto exacto donde dejaría de leer y por qué. Duro con el texto, nunca con el autor.
+Cada uno habla con su propia mirada; no repiten lo mismo entre ellos. Todo sobre ESTE capítulo, nada genérico.
+Las "citas" son texto COPIADO EXACTAMENTE del capítulo (4 a 15 palabras, sin cambios ni "…").
+FORMATO (solo JSON):
+{
+ "arquitecto": {"veredicto":"una frase","lectura":"3-5 frases con razones","nota":7,"citas":["…"]},
+ "bardo": {"veredicto":"…","lectura":"…","nota":7,"citas":["…"]},
+ "hater": {"veredicto":"…","lectura":"…","nota":5,"citas":["…"]}
+}
+"nota" de 0 a 10. Máximo 3 citas por lector. Escribe en el idioma del autor.`;
+
+// Antes "El Guardián del canon": contradicciones del capítulo contra lo que el autor ya estableció.
+const CANON_TASK = `TAREA: GUARDIÁN DEL CANON. Comparas el capítulo con el canon del autor (fragmentos de sus archivos y su memoria del proyecto) y buscas SOLO contradicciones reales y demostrables:
+- "hecho": algo que el canon establece de otra forma (edades, lugares, parentescos, quién sabe qué, cómo se llama algo).
+- "cronologia": eventos fuera de orden, personajes presentes cuando el canon dice que estaban muertos, ausentes o en otra parte; objetos que ya no existían.
+- "ley": poderes, magia, tecnología o reglas del mundo usadas de una forma que el canon prohíbe o limita.
+- "personaje": alguien actúa o habla en contra de cómo el canon lo define, sin que el texto lo justifique.
+REGLAS:
+- Cada contradicción necesita DOS citas exactas: "citaCapitulo" (copiada tal cual del capítulo, 4 a 15 palabras) y "citaCanon" (copiada tal cual del fragmento del canon), más "fuente" (el nombre del archivo del canon).
+- Si el canon no dice nada sobre algo, NO es una contradicción. Si hay tensión pero no certeza, va en "dudas" como pregunta al autor.
+- Ignora fragmentos que sean un borrador anterior de este mismo capítulo, y no comentes estilo ni ortografía (eso va en el reporte).
+- No encontrar nada es un buen resultado: dilo en el resumen y deja las listas vacías. Nunca rellenes.
+FORMATO (solo JSON):
+{
+ "resumen": "1-2 frases",
+ "contradicciones": [{"tipo":"hecho|cronologia|ley|personaje","gravedad":"alta|media|baja","titulo":"…","explicacion":"qué choca y por qué importa","citaCapitulo":"…","citaCanon":"…","fuente":"archivo","sugerencia":"cómo resolverlo sin escribirle la prosa (cambiar el capítulo o actualizar el canon)"}],
+ "dudas": [{"pregunta":"…","citaCapitulo":"…","fuente":"archivo o vacío"}]
+}
+Máximo 8 contradicciones (por gravedad) y 5 dudas. Escribe en el idioma del autor.`;
+
+// Guardián pasivo: revisión rápida y barata (Haiku) al guardar. Solo errores gigantes.
+const WATCH_TASK = `TAREA: VIGILANCIA RÁPIDA DEL GUARDIÁN. El autor está escribiendo; no lo interrumpas por matices.
+Señala SOLO errores GRAVES y evidentes contra su canon:
+- un personaje muerto, desaparecido o en otro lugar según el canon que aparece actuando aquí;
+- un nombre, parentesco, edad o rasgo central cambiado;
+- una ley del mundo explícita (poderes, magia, tecnología) rota sin explicación;
+- un hecho central de la historia contradicho.
+Cada alerta necesita "citaCapitulo" (copiada tal cual del capítulo, 4 a 15 palabras), "citaCanon" (copiada tal cual del canon) y "fuente" (archivo del canon). Si no puedes citar ambas cosas, no es alerta.
+Lo normal es que no haya nada: entonces responde {"alertas":[]}. Nunca rellenes. Máximo 3.
+FORMATO (solo JSON): {"alertas":[{"titulo":"…","explicacion":"1-2 frases","citaCapitulo":"…","citaCanon":"…","fuente":"…"}]}
+Escribe en el idioma del autor.`;
+
+function parseJsonReply(text: string): any {
+    const j = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
+    return JSON.parse(j.slice(j.indexOf("{"), j.lastIndexOf("}") + 1));
+}
+
+// Llamada común: sistema fijo (caché 1 h) + capítulo (caché 1 h) + tarea y contexto (sin caché).
+async function runReview(task: string, chapter: string, fileName: string, extra: string, opts: { maxTokens: number; effort: "low" | "medium"; label: string; model?: string }) {
+    const r = await callClaude({
+        model: opts.model || CLAUDE_SONNET,
+        system: [{ text: EDITOR_BASE + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
+        content: [
+            { type: "text", text: `ARCHIVO: ${fileName || "(sin nombre)"}\nCAPÍTULO:\n<<<\n${chapter}\n>>>`, cache_control: { type: "ephemeral", ttl: "1h" } },
+            { type: "text", text: [extra, task, "Responde SOLO con el JSON."].filter(Boolean).join("\n\n") },
+        ],
+        maxTokens: opts.maxTokens,
+        effort: opts.effort,
+        label: opts.label,
+    } as any);
+    if (!r.ok || !r.text) {
+        if (r.noCredit || r.error === "MONTHLY_CAP") throw new HttpsError("resource-exhausted", "Se acabó el saldo de Claude de este mes.");
+        throw new HttpsError("internal", r.refusal ? "Claude no quiso revisar este texto." : "No se pudo generar la revisión. Intenta de nuevo.");
+    }
+    try {
+        return parseJsonReply(r.text);
+    } catch {
+        logger.warn(`[REPORT] ${opts.label}: JSON inválido: ${r.text.slice(0, 300)}`);
+        throw new HttpsError("internal", "La revisión llegó mal formada. Intenta de nuevo.");
+    }
+}
+
+// Fragmentos del canon parecidos a cada parte del capítulo (búsqueda vectorial en el índice del autor).
+async function loadCanonForChapter(uid: string, fileId: string, chapter: string, requestData: any, maxWindows = 8, maxChars = 18000): Promise<{ text: string; files: string[] }> {
+    const paras = chapter.split(/\n\s*\n/).map(p => p.trim()).filter(p => p.length > 40);
+    const windows: string[] = [];
+    let cur = "";
+    for (const p of paras) {
+        if (cur && (cur.length + p.length) > 1800) { windows.push(cur); cur = ""; }
+        cur += (cur ? "\n\n" : "") + p;
+    }
+    if (cur) windows.push(cur);
+    const MAXW = maxWindows;
+    const picked = windows.length <= MAXW ? windows : Array.from({ length: MAXW }, (_, i) => windows[Math.floor(i * windows.length / MAXW)]);
+
+    const embedder = new GeminiEmbedder({ apiKey: getAIKey(requestData, googleApiKey.value()), model: "gemini-embedding-001", taskType: TaskType.RETRIEVAL_QUERY });
+    let vectors: number[][];
+    try {
+        vectors = await Promise.all(picked.map(w => embedder.embedQuery(w.slice(0, 1800))));
+    } catch (e: any) {
+        const em = String(e?.message || e);
+        logger.warn(`[GUARDIAN] Embedding falló: ${em.slice(0, 300)}`);
+        throw new HttpsError("failed-precondition", /401|403|API key|ACCESS_TOKEN|PERMISSION/i.test(em)
+            ? "No pude consultar tu canon: Google rechazó tu clave de Gemini. Cámbiala en Ajustes → Claves de API."
+            : "No pude consultar tu canon (Gemini no respondió). Intenta de nuevo en un momento.");
+    }
+    const db = getFirestore();
+    const results = await Promise.all(vectors.map(v => db.collectionGroup("chunks")
+        .where("userId", "==", uid).where("path", ">=", "").where("path", "<=", "\uf8ff")
+        .findNearest({ vectorField: "embedding", queryVector: v, limit: 10, distanceMeasure: "COSINE", distanceResultField: "_dist" } as any)
+        .get().catch((e: any) => { logger.warn(`[GUARDIAN] Búsqueda falló: ${e?.message}`); return null; })));
+    const seen = new Set<string>();
+    const all: { text: string; fileName: string; dist: number }[] = [];
+    for (const snap of results) {
+        for (const d of snap?.docs || []) {
+            const c: any = d.data();
+            const fid = d.ref.parent.parent?.id;
+            if (fid === fileId || c.category === "reference") continue;
+            const text = String(c.text || "").trim();
+            const key = text.slice(0, 100);
+            if (!text || seen.has(key)) continue;
+            seen.add(key);
+            all.push({ text, fileName: String(c.fileName || "Desconocido").replace(/\.md$/i, ""), dist: Number(c._dist ?? 1) });
+        }
+    }
+    all.sort((a, b) => a.dist - b.dist);
+    const perFile: Record<string, number> = {};
+    let chars = 0;
+    const kept = all.filter(c => {
+        perFile[c.fileName] = (perFile[c.fileName] || 0) + 1;
+        if (perFile[c.fileName] > 3 || chars + c.text.length > maxChars) return false;
+        chars += c.text.length;
+        return true;
+    });
+    const files = [...new Set(kept.map(c => c.fileName))];
+    logger.info(`🛡️ [GUARDIAN] Canon para el capítulo: ${kept.length} fragmentos de ${files.length} archivos (${files.join(", ")})`);
+    return { text: kept.map(c => `### ${c.fileName}\n${c.text}`).join("\n\n"), files };
+}
 
 // Oct 2026: las referencias se leen directo de las carpetas de Recursos en Drive (el índice no siempre
 // las tiene: archivos cortos o sin re-indexar). Si no hay token de Drive, se intenta con el índice.
@@ -124,41 +266,74 @@ export const chapterReport = onCall(
             throw new HttpsError("failed-precondition", "El reporte de capítulo usa Claude y todavía no está activo para tu cuenta.");
         }
 
+        const name = fileName || "(sin nombre)";
+        const hash = textHash(text);
+
+        // Tres lecturas (antes: el Tribunal)
+        if (mode === "voices") {
+            const voices = await runReview(VOICES_TASK, text, name, "", { maxTokens: 5000, effort: "low", label: "ChapterVoices" });
+            const out = { voices, voicesHash: hash, voicesAt: new Date().toISOString() };
+            await ref.set({ ...out, fileName: name }, { merge: true });
+            return { found: true, ...out };
+        }
+
+        // Guardián pasivo (al guardar): barato, con freno, y solo para archivos del canon.
+        if (mode === "watch") {
+            const prev: any = (await ref.get()).data() || {};
+            const last = prev.watchAt ? new Date(prev.watchAt).getTime() : 0;
+            if (prev.watchHash === hash || Date.now() - last < 8 * 60 * 1000) {
+                return { found: true, skipped: true, watch: prev.watch || { alertas: [] }, watchAt: prev.watchAt || null };
+            }
+            const fdoc: any = (await getFirestore().collection("TDB_Index").doc(uid).collection("files").doc(fileId).get()).data();
+            if (fdoc && (fdoc.category === "reference" || /^memoria del autor\.md$/i.test(fdoc.name || ""))) {
+                return { found: true, skipped: true, watch: { alertas: [] } };
+            }
+            let canon: { text: string; files: string[] };
+            try {
+                canon = await loadCanonForChapter(uid, fileId, text, request.data, 5, 10000);
+            } catch {
+                return { found: true, skipped: true, watch: prev.watch || { alertas: [] } }; // sin clave de Gemini: no molestar
+            }
+            if (!canon.text) return { found: true, skipped: true, watch: { alertas: [] } };
+            const result = await runReview(WATCH_TASK, text, name, `CANON DEL AUTOR (fragmentos de sus archivos):\n${canon.text}`,
+                { maxTokens: 3000, effort: "low", label: "GuardianWatch", model: CLAUDE_HAIKU });
+            const alertas = (Array.isArray(result?.alertas) ? result.alertas : []).filter((a: any) => a?.citaCapitulo && a?.citaCanon).slice(0, 3);
+            const out = { watch: { alertas }, watchHash: hash, watchAt: new Date().toISOString() };
+            await ref.set({ ...out, fileName: name }, { merge: true });
+            logger.info(`🛡️ [GUARDIAN] Vigilancia de ${name}: ${alertas.length} alertas`);
+            return { found: true, ...out };
+        }
+
+        // Guardián del canon
+        if (mode === "canon") {
+            const [memory, canon] = await Promise.all([
+                getMemoryContext(uid, `${name} canon personajes reglas cronología ${text.slice(0, 2000)}`),
+                loadCanonForChapter(uid, fileId, text, request.data),
+            ]);
+            if (!canon.text && !memory) {
+                throw new HttpsError("failed-precondition", "No encontré canon indexado con qué comparar. Sincroniza tus notas y vuelve a intentar.");
+            }
+            const extra = [
+                memory ? `MEMORIA DEL PROYECTO (plan y decisiones del autor):\n${memory}` : "",
+                canon.text ? `CANON DEL AUTOR (fragmentos de sus archivos):\n${canon.text}` : "CANON DEL AUTOR: (sin fragmentos relevantes)",
+            ].filter(Boolean).join("\n\n");
+            const result = await runReview(CANON_TASK, text, name, extra, { maxTokens: 8000, effort: "medium", label: "ChapterCanon" });
+            const out = { canon: { ...result, archivos: canon.files }, canonHash: hash, canonAt: new Date().toISOString() };
+            await ref.set({ ...out, fileName: name }, { merge: true });
+            return { found: true, ...out };
+        }
+
         const [memory, references] = await Promise.all([
             getMemoryContext(uid, `${fileName || ""} reporte capítulo`),
             loadReferences(uid, accessToken),
         ]);
-
-        const userText = [
+        const extra = [
             memory ? `MEMORIA DEL PROYECTO (plan y decisiones del autor):\n${memory}` : "",
             references ? `REFERENCIAS DEL AUTOR (de sus carpetas de Recursos):\n${references}` : "REFERENCIAS DEL AUTOR: (no hay archivos de Recursos indexados)",
-            `ARCHIVO: ${fileName || "(sin nombre)"}`,
-            `CAPÍTULO:\n<<<\n${text}\n>>>`,
-            "Responde SOLO con el JSON.",
         ].filter(Boolean).join("\n\n");
-
-        const r = await callClaude({
-            model: CLAUDE_SONNET,
-            system: [{ text: REPORT_SYSTEM + "\n\n" + MYWORLD_VOICE, cache: true }],
-            content: [{ type: "text", text: userText }],
-            maxTokens: 12000,
-            effort: "medium",
-            label: "ChapterReport",
-        } as any);
-        if (!r.ok || !r.text) {
-            if (r.noCredit) throw new HttpsError("resource-exhausted", "Se acabó el saldo de Claude de este mes.");
-            throw new HttpsError("internal", r.refusal ? "Claude no quiso revisar este texto." : "No se pudo generar el reporte. Intenta de nuevo.");
-        }
-        let report: any;
-        try {
-            const j = r.text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
-            report = JSON.parse(j.slice(j.indexOf("{"), j.lastIndexOf("}") + 1));
-        } catch {
-            logger.warn(`[REPORT] JSON inválido: ${r.text.slice(0, 300)}`);
-            throw new HttpsError("internal", "El reporte llegó mal formado. Intenta de nuevo.");
-        }
-        const saved = { report, fileName: fileName || "", contentHash: textHash(text), createdAt: new Date().toISOString() };
-        await ref.set(saved);
+        const report = await runReview(REPORT_SYSTEM, text, name, extra, { maxTokens: 12000, effort: "medium", label: "ChapterReport" });
+        const saved = { report, fileName: fileName || "", contentHash: hash, createdAt: new Date().toISOString() };
+        await ref.set(saved, { merge: true });
         return { found: true, ...saved };
     }
 );

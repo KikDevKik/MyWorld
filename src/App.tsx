@@ -36,6 +36,7 @@ import ArquitectoPendingWidget from './components/ArquitectoPendingWidget';
 import SecurityLockScreen from './pages/SecurityLockScreen'; // 👈 IMPORT LOCK SCREEN
 import SentinelStatus from './components/forge/SentinelStatus'; // 👈 IMPORT SENTINEL STATUS
 import { useGuardian } from './hooks/useGuardian'; // 👈 IMPORT GUARDIAN HOOK
+import { useCanonWatch } from './hooks/useCanonWatch'; // Oct 2026: Guardián pasivo
 import { useNarrator } from './hooks/useNarrator'; // 🟢 IMPORT NARRATOR HOOK
 import { useTutorial } from './hooks/useTutorial'; // 🟢 IMPORT TUTORIAL HOOK
 import { ProjectConfigProvider, useProjectConfig } from "./contexts/ProjectConfigContext";
@@ -68,6 +69,9 @@ const ExportPanel = lazyView(() => import('./components/ExportPanel'));
 const ArquitectoPanel = lazyView(() => import('./components/ArquitectoPanel'));
 const WorldEnginePageV2 = lazyView(() => import('./components/WorldEngineV2/WorldEnginePageV2'));
 const CanonRadar = lazyView(() => import('./components/CanonRadar'));
+const PrepararSpace = lazyView(() => import('./components/preparar/PrepararSpace'));
+const QuePasariaSiView = lazyView(() => import('./components/preparar/QuePasariaSiView'));
+import { loadPrepararTab, type PrepararTab } from './components/preparar/tabs';
 const GenesisWizardModal = lazyView(() => import('./components/genesis/GenesisWizardModal'));
 
 interface AppContentProps {
@@ -254,6 +258,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
             // 🟢 CACHE UPDATE: Keep local cache in sync with saves
             FileCache.set(fileIdToSave, contentToSave);
+            canonWatchNotifyRef.current(fileIdToSave, contentToSave); // Guardián pasivo (con freno)
 
             // ⚖️ AUDIT: LOG SIGNIFICANT WRITES
             // Only log if the edit was "significant" (>50 chars or similar heuristic from above)
@@ -373,6 +378,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
     const [isReportOpen, setIsReportOpen] = useState(false); // Oct 2026: Reporte de capítulo
+    const [prepararTab, setPrepararTab] = useState<PrepararTab>(loadPrepararTab); // Oct 2026: espacio Preparar
+    const openReportRef = useRef<() => void>(() => {});
+    const canonWatch = useCanonWatch(currentFileId, currentFileName, () => openReportRef.current());
+    const canonWatchNotifyRef = useRef(canonWatch.notifySaved);
+    canonWatchNotifyRef.current = canonWatch.notifySaved;
     const [showStartingAssistant, setShowStartingAssistant] = useState(false);
     const [showPostGenesisPanel, setShowPostGenesisPanel] = useState(false);
     const [showContinueCard, setShowContinueCard] = useState(false);
@@ -587,6 +597,21 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             window.location.href = '/';
         }
     };
+
+    // Oct 2026: el Reporte reúne el Tribunal y el Guardián; se abre sobre el editor.
+    const openReport = () => {
+        if (!currentFileId) { toast.info('Abre un capítulo para pedir su reporte.'); return; }
+        if (isReportOpen) { setIsReportOpen(false); return; }
+        setActiveView('editor');
+        setIsReportOpen(true);
+    };
+    openReportRef.current = () => { setActiveView('editor'); setIsReportOpen(true); };
+
+    // Oct 2026: los accesos viejos (Forja, Nexus, Laboratorio) abren su pestaña dentro de Preparar.
+    useEffect(() => {
+        const map: Record<string, PrepararTab> = { forja: 'personajes', perforador: 'mapa', laboratorio: 'quepasa' };
+        if (map[activeView]) { setPrepararTab(map[activeView]); setActiveView('arquitecto'); }
+    }, [activeView]);
 
     const handleGemSelect = (id: GemId) => {
         // Toggle behavior if clicking the same active tool?
@@ -958,6 +983,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onSimulateDrift={import.meta.env.VITE_JULES_MODE === 'true' ? handleSimulateDrift : undefined}
                 isSecurityReady={isSecurityReady}
                 onToggleSentinel={() => setActiveView(activeView === 'sentinel' ? 'editor' : 'sentinel')}
+                onOpenReport={openReport}
+                reportActive={isReportOpen}
             />
         );
 
@@ -1081,6 +1108,44 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     const renderZoneBContent = () => {
+        // Oct 2026: Arquitecto, Mapa (Nexus), Personajes (Forja) y «Qué pasaría si» (Laboratorio) viven en Preparar.
+        if (activeView === 'arquitecto' || activeView === 'forja' || activeView === 'perforador' || activeView === 'laboratorio') {
+            return (
+                <PrepararSpace
+                    tab={prepararTab}
+                    onTabChange={setPrepararTab}
+                    views={{
+                        conversacion: (
+                            <ArquitectoPanel
+                                onClose={() => setActiveView('editor')}
+                                accessToken={oauthToken}
+                                folderId={folderId}
+                                onPendingItemsUpdate={setArquitectoPendingItems}
+                                genesisContext={arquitectoGenesisContext}
+                                onGenesisContextConsumed={() => setArquitectoGenesisContext(null)}
+                            />
+                        ),
+                        mapa: (
+                            <ErrorBoundary>
+                                <WorldEnginePageV2
+                                    isOpen={true}
+                                    onClose={() => setActiveView('editor')}
+                                    activeGemId={'perforador'}
+                                    accessToken={oauthToken}
+                                    onRefreshTokens={handleTokenRefresh}
+                                />
+                            </ErrorBoundary>
+                        ),
+                        personajes: (
+                            <ErrorBoundary>
+                                <ForgePanel onClose={() => setActiveView('editor')} folderId={folderId} accessToken={oauthToken} />
+                            </ErrorBoundary>
+                        ),
+                        quepasa: <QuePasariaSiView accessToken={oauthToken} onOpenFile={handleTimelineFileSelect} />,
+                    }}
+                />
+            );
+        }
         if (activeView === 'forja') {
             return (
                 <ErrorBoundary>
@@ -1279,6 +1344,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             fileId={currentFileId}
                             fileName={currentFileName || 'Capítulo'}
                             accessToken={oauthToken}
+                            watchAlerts={canonWatch.alerts}
                             getText={() => hybridEditorRef.current?.getText() || selectedFileContentRef.current || ''}
                             reveal={(from, to) => hybridEditorRef.current?.revealRange(from, to)}
                             replace={(from, to, text) => hybridEditorRef.current?.replaceRange(from, to, text)}
@@ -1287,8 +1353,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     )}
                     <StatusBar
                         content={selectedFileContent}
-                        guardianStatus={guardianStatus}
-                        onGuardianClick={() => setActiveView('guardian')}
+                        guardianStatus={canonWatch.status}
+                        onGuardianClick={openReport}
                         onOpenSettings={() => {
                             setSettingsInitialTab('ai_config');
                             setIsSettingsModalOpen(true);

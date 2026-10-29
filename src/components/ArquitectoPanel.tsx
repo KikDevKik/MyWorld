@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle } from 'lucide-react';
+import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks } from 'lucide-react';
+import { callFunction } from '../services/api';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
 import { PendingItem } from '../types/roadmap';
@@ -73,6 +74,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const [expandedAccordions, setExpandedAccordions] = useState<Set<string>>(new Set());
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const [isClosing, setIsClosing] = useState(false);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     const {
@@ -298,6 +300,20 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         }
     };
 
+    // Oct 2026: cerrar la sesión con un resumen (llega al chat por el listener de mensajes).
+    const handleCloseSession = async () => {
+        if (!arquitectoSessionId || isClosing) return;
+        setIsClosing(true);
+        try {
+            const r = await callFunction<{ summary: string; savedAs?: string | null }>('arquitectoCerrarSesion', { sessionId: arquitectoSessionId, accessToken }, { timeout: 180000 });
+            toast.success('Sesión resumida.', { description: r?.savedAs ? `Guardada en ${r.savedAs}.` : undefined });
+        } catch (e: any) {
+            toast.error(e?.message || 'No pude resumir la sesión.');
+        } finally {
+            setIsClosing(false);
+        }
+    };
+
     const handleAnalyze = () => {
         reAnalyze();
         setIsPendingDrawerOpen(true);
@@ -441,9 +457,9 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         {pendingItems.length === 0 ? (
                             <div className="flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                                <span className="text-cyan-500 uppercase tracking-wider">Modo Exploración</span>
+                                <span className="text-cyan-500 uppercase tracking-wider">Conectar</span>
                                 <span className="text-titanium-700 mx-1">·</span>
-                                <span className="text-titanium-600">Sin análisis formal activo</span>
+                                <span className="text-titanium-600">El Arquitecto pregunta; tú decides</span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5">
@@ -456,6 +472,17 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </div>
                         )}
                     </div>
+                    {hasInitialized && arquitectoSessionId && messages.some(m => m.role === 'user') && (
+                        <button
+                            onClick={handleCloseSession}
+                            disabled={isClosing || isThinking}
+                            className="ml-auto mr-4 flex items-center gap-1.5 text-titanium-400 hover:text-emerald-400 transition-colors disabled:opacity-40"
+                            title="Resumen: ideas sueltas, conexiones que decidiste, lo que falta y una escena que ya puedes escribir"
+                        >
+                            {isClosing ? <Loader2 size={11} className="animate-spin" /> : <ListChecks size={11} />}
+                            <span>Cerrar y resumir</span>
+                        </button>
+                    )}
                     {pendingItems.length === 0 && hasInitialized && (
                         <button
                             onClick={handleAnalyze}
@@ -552,12 +579,12 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 </div>
 
                                 <div className="text-xl font-medium text-titanium-100 tracking-wide mb-3">
-                                    {tArch.auditInProgress}
+                                    {currentLanguage === 'en' ? 'Reading your material…' : 'Leyendo tu material…'}
                                 </div>
                                 
                                 <div className="text-xs text-cyan-500/80 font-mono mb-8 animate-pulse flex items-center gap-2">
                                     <span className="inline-block w-2 h-2 bg-cyan-500 rounded-full"></span>
-                                    {tArch.mining}: EXTRAYENDO CANON
+                                    {currentLanguage === 'en' ? 'Looking for what connects with what you brought' : 'Buscando lo que se conecta con lo que traes'}
                                 </div>
                                 {/* Barra de Asimilación (Simulada) */}
                                 <div className="w-72 h-1.5 bg-titanium-900 rounded-full overflow-hidden relative shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">

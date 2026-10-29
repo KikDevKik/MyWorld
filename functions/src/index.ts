@@ -67,7 +67,7 @@ export { acquireLock, releaseLock, checkIndexStatus } from './librarian';
 export { crystallizeGraph, crystallizeForgeEntity } from './crystallization';
 export { generateAuditPDF, generateCertificate } from './audit';
 export { analyzeStyleDNA } from './analyst';
-export { arquitectoInitialize, arquitectoChat, arquitectoAnalyze, arquitectoRecalculateCards, arquitectoGenerateRoadmap, arquitectoResolvePendingItem, arquitectoGenerateRoadmapFinal, arquitectoApplyPatch, arquitectoRejectPatch } from './architect';
+export { arquitectoInitialize, arquitectoChat, arquitectoAnalyze, arquitectoRecalculateCards, arquitectoGenerateRoadmap, arquitectoResolvePendingItem, arquitectoGenerateRoadmapFinal, arquitectoApplyPatch, arquitectoRejectPatch, arquitectoCerrarSesion } from './architect';
 // export { distillResourceOnIndex } from './distillation_trigger'; // 🟢 NEW: Trigger para Recursos (Desactivado: backfill hace todo)
 export { backfillResourcesFromDrive } from './backfill'; // 🟢 NEW: Sistema de Backfill (Golden Fix)
 export { distillResource } from './distill'; // 🟢 NEW: Destilación Poco a Poco (Bajo demanda)
@@ -79,6 +79,7 @@ export { forgeChatStream } from './forge_chat';
 export { builderStream } from './builder';
 export { updateMemory, undoMemory, getMemory, editMemory } from './memory'; // Oct 2026: Memoria de MyWorld
 export { chapterReport } from './chapter_report'; // Oct 2026: Reporte de capítulo
+export { whatIf } from './whatif'; // Oct 2026: «Qué pasaría si» (ideas no canon)
 // export { distillResourceOnIndex } from './distillation_trigger'; // Desactivado: backfill hace todo
 
 
