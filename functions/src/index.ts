@@ -2016,9 +2016,37 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
             activeFolder = ap.includes('/') ? ap.slice(0, ap.lastIndexOf('/')) : '';
           }
         } catch { /* sin prioridad */ }
-        const inFolder = (c: any) => (activeFolder && String(c.path || '').startsWith(activeFolder)) ? 1 : 0;
-        const ranked = activeFolder ? [...diverse].sort((a, b) => inFolder(b) - inFolder(a)) : diverse;
-        if (activeFolder) logger.info(`📂 [DIRECTOR] Prioridad a la carpeta "${activeFolder}": ${ranked.filter(inFolder).length} fragmentos`);
+        // Oct 2026: la carpeta del capítulo suele tener solo el capítulo abierto (que ya va completo y se excluye
+        // de la búsqueda). Lo útil está un nivel arriba, en la carpeta del libro (p. ej. "JUST ANNA": estructura,
+        // personajes). Se hace una búsqueda extra limitada a esa carpeta y sus fragmentos van primero.
+        const bookFolder = activeFolder.includes('/') ? activeFolder.slice(0, activeFolder.lastIndexOf('/')) : activeFolder;
+        let bookChunks: any[] = [];
+        if (bookFolder && queryVector) {
+          try {
+            const bq = await getFirestore().collectionGroup('chunks')
+              .where('userId', '==', userId)
+              .where('path', '>=', bookFolder + '/')
+              .where('path', '<=', bookFolder + '/\uf8ff')
+              .findNearest({ vectorField: 'embedding', queryVector, limit: 12, distanceMeasure: 'COSINE' })
+              .get();
+            const seen = new Set(diverse.map((c: any) => (c.text || '').slice(0, 80)));
+            const perBook: Record<string, number> = {};
+            bookChunks = bq.docs.map(d => ({ text: d.data().text, fileName: d.data().fileName || 'Desconocido', path: d.data().path || '', fileId: d.ref.parent.parent?.id }))
+              .filter(c => c.fileName !== activeFileName && !seen.has((c.text || '').slice(0, 80)))
+              .filter(c => { perBook[c.fileName] = (perBook[c.fileName] || 0) + 1; return perBook[c.fileName] <= 2; })
+              .slice(0, 5);
+          } catch (e: any) {
+            logger.warn(`[DIRECTOR] Búsqueda en la carpeta del libro falló: ${e?.message}`);
+          }
+        }
+        const inFolder = (c: any) => {
+          const p = String(c.path || '');
+          if (activeFolder && p.startsWith(activeFolder + '/')) return 2;
+          if (bookFolder && p.startsWith(bookFolder + '/')) return 1;
+          return 0;
+        };
+        const ranked = [...bookChunks, ...(activeFolder ? [...diverse].sort((a, b) => inFolder(b) - inFolder(a)) : diverse)];
+        if (activeFolder) logger.info(`📂 [DIRECTOR] Libro "${bookFolder}": ${bookChunks.length} fragmentos extra (${[...new Set(bookChunks.map(c => c.fileName))].join(', ')}); en la búsqueda general: ${diverse.filter(c => inFolder(c) > 0).length}`);
         const claudeChunks = ranked.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
         const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
         const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
@@ -2069,7 +2097,8 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         if (r.ok && r.text) {
           return {
             response: ragNotice + r.text,
-            sources: relevantanys.map(chunk => ({ text: chunk.text.substring(0, 200) + "...", fileName: chunk.fileName })),
+            // Las fuentes son lo que de verdad recibió Claude (incluye los fragmentos de la carpeta del libro).
+            sources: claudeChunks.map((chunk: any) => ({ text: String(chunk.text || '').substring(0, 200) + "...", fileName: chunk.fileName })),
           };
         }
         if (r.refusal) {

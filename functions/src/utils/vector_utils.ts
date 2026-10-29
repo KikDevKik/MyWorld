@@ -72,8 +72,10 @@ export class GeminiEmbedder {
             try {
                 result = await this.model.embedContent({
                     content: { role: 'user', parts: [{ text: processedText }] },
-                    taskType: this.taskType
-                });
+                    taskType: this.taskType,
+                    // Oct 2026: pedir 768 directo (antes llegaban 3072 y se recortaban). Si el SDK lo ignora, se recorta abajo.
+                    outputDimensionality: 768,
+                } as any);
             } catch (e: any) {
                 const d = retryDelayMs(e);
                 if (d === null || d > 65_000) throw e;
@@ -81,8 +83,10 @@ export class GeminiEmbedder {
                 embedSent = [];
                 result = await this.model.embedContent({
                     content: { role: 'user', parts: [{ text: processedText }] },
-                    taskType: this.taskType
-                });
+                    taskType: this.taskType,
+                    // Oct 2026: pedir 768 directo (antes llegaban 3072 y se recortaban). Si el SDK lo ignora, se recorta abajo.
+                    outputDimensionality: 768,
+                } as any);
             }
 
             const vector = result.embedding.values;
@@ -122,7 +126,7 @@ export class GeminiEmbedder {
                 try {
                     await acquireEmbedSlots(slice.length);
                     const res = await this.model.batchEmbedContents({
-                        requests: slice.map(text => ({ content: { role: 'user', parts: [{ text }] }, taskType: this.taskType })),
+                        requests: slice.map(text => ({ content: { role: 'user', parts: [{ text }] }, taskType: this.taskType, outputDimensionality: 768 } as any)),
                     });
                     for (const e of res.embeddings || []) {
                         const v: number[] = e.values || [];
