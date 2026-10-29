@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Settings, Clock, Type, RefreshCw, ScanEye, Loader2, Pause, Square, Target, X, Check, Zap, Leaf, FileSearch } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTier } from '../../hooks/useTier';
+import { getAiLevel } from '../../hooks/aiLevel';
 import { AlertCircle } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
@@ -38,6 +39,8 @@ const getTodayKey = () => {
 
 const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, narratorControls }) => {
     const { tier, hasByok, isNormal } = useTier();
+    const aiLevel = getAiLevel();
+    const levelLabel = aiLevel === 'gratis' ? 'Gratis' : aiLevel === 'propia' ? 'Tu clave' : aiLevel === 'myworld' ? 'MyWorld' : null;
     const { currentLanguage } = useLanguageStore();
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const t = TRANSLATIONS[currentLanguage].statusBar;
@@ -134,7 +137,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                     onClick={onOpenSettings}
                     className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors
                         ${!hasByok ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-zinc-700/50'}`}
-                    title={!hasByok ? t.noApiKeyTooltip : tier === 'ultra' ? t.ultraModeTooltip : t.normalModeTooltip}
+                    title={!hasByok ? t.noApiKeyTooltip : levelLabel ? `Nivel de IA: ${levelLabel} — click para cambiar` : tier === 'ultra' ? t.ultraModeTooltip : t.normalModeTooltip}
                 >
                     {!hasByok ? (
                         <>
@@ -144,12 +147,12 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                     ) : tier === 'ultra' ? (
                         <>
                             <Zap size={11} className="text-violet-400" />
-                            <span className="text-[10px] font-medium text-violet-400">Ultra</span>
+                            <span className="text-[10px] font-medium text-violet-400">{levelLabel || 'Ultra'}</span>
                         </>
                     ) : (
                         <>
                             <Leaf size={11} className="text-emerald-400" />
-                            <span className="text-[10px] font-medium text-emerald-400">Normal</span>
+                            <span className="text-[10px] font-medium text-emerald-400">{levelLabel || 'Normal'}</span>
                         </>
                     )}
                 </button>

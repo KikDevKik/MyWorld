@@ -864,27 +864,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                                 {/* COLUMNA IZQUIERDA — Nivel de IA */}
                                 <div className="space-y-4">
-                                    {/* Estado actual */}
-                                    <div>
-                                        <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Estado actual</h4>
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${(!customGeminiKey && !customAnthropicKey)
-                                                ? 'bg-red-500/10 text-red-400 border-red-500/30'
-                                                : tier === 'ultra'
-                                                    ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/40'
-                                                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                            }`}>
-                                            {(!customGeminiKey && !customAnthropicKey) ? (
-                                                <><span>✕</span><span>Sin API Key</span></>
-                                            ) : tier === 'ultra' ? (
-                                                <><Zap size={11} /><span>Ultra — Key conectada</span></>
-                                            ) : (
-                                                <><Leaf size={11} /><span>Activo — Key conectada</span></>
-                                            )}
-                                        </div>
-                                    </div>
-
                                     {/* Sección de herramientas automáticas */}
-                                    <div className="mt-4 pt-4 border-t border-zinc-800">
+                                    <div>
                                         <h4 className="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">
                                             Herramientas automáticas
                                         </h4>
@@ -896,7 +877,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                 <p className="text-xs text-zinc-500 mt-0.5">
                                                     {isUltra
                                                         ? 'Audita mientras escribes (cada 50 palabras)'
-                                                        : 'En Modo Normal: recomendamos Manual para conservar cuota'
+                                                        : 'Con la clave gratis de Gemini, en Manual cuidas tu cuota diaria'
                                                     }
                                                 </p>
                                             </div>
@@ -946,8 +927,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         {!isUltra && (
                                             <div className="mt-2 p-2.5 bg-amber-500/5 border border-amber-500/15 rounded-lg">
                                                 <p className="text-xs text-amber-400/80 leading-relaxed">
-                                                    💡 En Modo Normal (Free Tier), tener ambas herramientas en Manual
-                                                    te da control total sobre tu cuota de 250 RPD.
+                                                    💡 Con la clave gratis de Gemini, dejar ambas en Manual
+                                                    evita que se agote tu cuota diaria.
                                                 </p>
                                             </div>
                                         )}
@@ -963,7 +944,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             <div>
                                                 <p className="text-xs font-bold text-red-400">Sin API Key — IA Desactivada</p>
                                                 <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
-                                                    Para usar MyWorld necesitas ingresar <strong>al menos una API Key</strong> (Gemini o Claude). No se cobrarrán llamadas en el servidor.
+                                                    Necesitas al menos <strong>tu clave de Gemini</strong> (es gratis): con ella MyWorld busca en tu canon.
                                                 </p>
                                             </div>
                                         </div>
@@ -973,17 +954,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             <div>
                                                 <p className="text-xs font-bold text-emerald-400">
                                                     {hasGemini && hasAnthropic
-                                                        ? "Modo Híbrido Activo (Gemini + Claude)"
+                                                        ? "Claves de Gemini y Anthropic conectadas"
                                                         : hasGemini
-                                                        ? "Google Gemini Conectado (Capa Gratuita)"
-                                                        : "Anthropic Claude Conectado (Exploración Socrática)"}
+                                                        ? "Clave de Gemini conectada"
+                                                        : "Clave de Anthropic conectada"}
                                                 </p>
                                                 <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
                                                     {hasGemini && hasAnthropic
-                                                        ? "Tienes conectados ambos proveedores. El Arquitecto usará cada uno para su especialidad narrativa."
+                                                        ? "En el nivel 2, Claude lleva la conversación y Gemini busca en tu canon."
                                                         : hasGemini
-                                                        ? "Motor listo con Gemini. Puedes usar la app normalmente. (Opcional: Añade Claude para Exploración Socrática)."
-                                                        : "Motor listo con Claude. Puedes usar la app normalmente. (Opcional: Añade Gemini para capa gratuita)."}
+                                                        ? "Gemini busca en tu canon y responde según el nivel que elijas arriba."
+                                                        : "Claude responde en el nivel 2. Añade también tu clave de Gemini: la búsqueda en tu canon la necesita."}
                                                 </p>
                                             </div>
                                         </div>
@@ -996,7 +977,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                 <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
                                                 <h4 className="text-xs font-semibold text-zinc-200">Google AI Studio (Gemini)</h4>
                                             </div>
-                                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-medium">Capa Gratis Disponible</span>
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-medium">Gratis o de pago</span>
                                         </div>
 
                                         {customGeminiKey && !geminiCleared && (
@@ -1049,7 +1030,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                 <span className="w-2 h-2 rounded-full bg-amber-400"></span>
                                                 <h4 className="text-xs font-semibold text-zinc-200">Anthropic Console (Claude)</h4>
                                             </div>
-                                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-medium">Razonamiento Socrático</span>
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-medium">Opcional · nivel 2</span>
                                         </div>
 
                                         {customAnthropicKey && !anthropicCleared && (

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { AiLevel, getAiLevel, setAiLevelStored, getGeminiPaid, setGeminiPaidStored } from '../../hooks/aiLevel';
 
+const usd = (n: number) => n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 3 : 2 });
 interface Status { myworldAvailable?: boolean; claudeActive?: boolean; monthCostUsd: number; calls: number; byokCostUsd?: number; byokCalls?: number; capUsd?: number }
 interface Props { hasGeminiKey: boolean; hasAnthropicKey: boolean }
 
@@ -57,12 +58,12 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                     <p className="flex gap-1 text-emerald-300/80"><ShieldCheck size={12} className="mt-0.5 shrink-0" />Con APIs de pago tu escritura no se usa para entrenar modelos.</p>
                     <p>{hasAnthropicKey ? 'Director, Arquitecto, Reporte y Personajes usan Claude con tu clave.' : 'Con una clave de Anthropic, la conversación usa Claude (lo más fino para narrativa).'}</p>
                     <p className="text-titanium-500">Aprox.: mensaje del Director US$ 0,02–0,04 · reporte de capítulo US$ 0,10.</p>
-                    {level === 'propia' && status && (status.byokCalls || 0) > 0 && <p className="text-titanium-300">Este mes con tu clave: US$ {(status.byokCostUsd || 0).toFixed(3)} en {status.byokCalls} llamadas.</p>}
+                    {level === 'propia' && status && (status.byokCalls || 0) > 0 && <p className="text-titanium-300">Este mes con tu clave: US$ {usd(status.byokCostUsd || 0)} en {status.byokCalls} llamadas.</p>}
                 </Card>
                 <Card id="myworld" icon={<Sparkles size={15} />} title="3 · MyWorld" price={status?.myworldAvailable ? 'Incluido en tu cuenta' : 'Próximamente · con suscripción'} disabled={!status?.myworldAvailable}>
                     <p>Claude incluido: no necesitas clave de pago. MyWorld paga la IA.</p>
                     {status?.myworldAvailable ? (
-                        <p className="text-titanium-300">Este mes: US$ {status.monthCostUsd.toFixed(3)} en {status.calls} llamadas{status.capUsd ? ` · tope US$ ${status.capUsd} (al 80% pasa a Haiku)` : ''}.</p>
+                        <p className="text-titanium-300">Este mes: US$ {usd(status.monthCostUsd)} en {status.calls} llamadas{status.capUsd ? ` · tope US$ ${status.capUsd} (al 80% pasa a Haiku)` : ''}.</p>
                     ) : <p className="text-titanium-500">Lo abriremos cuando estén listos los planes.</p>}
                 </Card>
             </div>
