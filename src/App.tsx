@@ -71,6 +71,9 @@ const WorldEnginePageV2 = lazyView(() => import('./components/WorldEngineV2/Worl
 const CanonRadar = lazyView(() => import('./components/CanonRadar'));
 const PrepararSpace = lazyView(() => import('./components/preparar/PrepararSpace'));
 const QuePasariaSiView = lazyView(() => import('./components/preparar/QuePasariaSiView'));
+const PersonajesView = lazyView(() => import('./components/preparar/PersonajesView'));
+const MapaView = lazyView(() => import('./components/preparar/MapaView'));
+const ImprentaView = lazyView(() => import('./components/imprenta/ImprentaView'));
 import { loadPrepararTab, type PrepararTab } from './components/preparar/tabs';
 const GenesisWizardModal = lazyView(() => import('./components/genesis/GenesisWizardModal'));
 
@@ -379,6 +382,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isZenMode, setIsZenMode] = useState(false);
     const [isReportOpen, setIsReportOpen] = useState(false); // Oct 2026: Reporte de capítulo
     const [prepararTab, setPrepararTab] = useState<PrepararTab>(loadPrepararTab); // Oct 2026: espacio Preparar
+    const [arquitectoHandoff, setArquitectoHandoff] = useState<{ text: string; nonce: number } | null>(null);
+    const [showLegacyExport, setShowLegacyExport] = useState(false); // Oct 2026: certificado de autoría (panel anterior)
     const openReportRef = useRef<() => void>(() => {});
     const canonWatch = useCanonWatch(currentFileId, currentFileName, () => openReportRef.current());
     const canonWatchNotifyRef = useRef(canonWatch.notifySaved);
@@ -1123,22 +1128,22 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                                 onPendingItemsUpdate={setArquitectoPendingItems}
                                 genesisContext={arquitectoGenesisContext}
                                 onGenesisContextConsumed={() => setArquitectoGenesisContext(null)}
+                                handoff={arquitectoHandoff}
+                                onHandoffConsumed={() => setArquitectoHandoff(null)}
                             />
                         ),
                         mapa: (
                             <ErrorBoundary>
-                                <WorldEnginePageV2
-                                    isOpen={true}
-                                    onClose={() => setActiveView('editor')}
-                                    activeGemId={'perforador'}
-                                    accessToken={oauthToken}
-                                    onRefreshTokens={handleTokenRefresh}
+                                <MapaView
+                                    onOpenFile={handleTimelineFileSelect}
+                                    onAskArquitecto={(text) => { setArquitectoHandoff({ text, nonce: Date.now() }); setPrepararTab('conversacion'); }}
+                                    onGoToPersonajes={() => setPrepararTab('personajes')}
                                 />
                             </ErrorBoundary>
                         ),
                         personajes: (
                             <ErrorBoundary>
-                                <ForgePanel onClose={() => setActiveView('editor')} folderId={folderId} accessToken={oauthToken} />
+                                <PersonajesView accessToken={oauthToken} onOpenFile={handleTimelineFileSelect} />
                             </ErrorBoundary>
                         ),
                         quepasa: <QuePasariaSiView accessToken={oauthToken} onOpenFile={handleTimelineFileSelect} />,
@@ -1192,10 +1197,20 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 />
             );
         }
+        if (activeView === 'imprenta' && !showLegacyExport) {
+            return (
+                <ImprentaView
+                    onClose={() => setActiveView('editor')}
+                    folderId={folderId}
+                    accessToken={oauthToken}
+                    onOpenCertificate={() => setShowLegacyExport(true)}
+                />
+            );
+        }
         if (activeView === 'imprenta') {
             return (
                 <ExportPanel
-                    onClose={() => setActiveView('editor')}
+                    onClose={() => setShowLegacyExport(false)}
                     folderId={folderId}
                     accessToken={oauthToken}
                 />

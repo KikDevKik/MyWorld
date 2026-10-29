@@ -34,12 +34,15 @@ interface ArquitectoPanelProps {
     onPendingItemsUpdate?: (items: PendingItem[]) => void;
     genesisContext?: string | null;
     onGenesisContextConsumed?: () => void;
+    // Oct 2026: mensajes que llegan desde el Mapa de Preparar
+    handoff?: { text: string; nonce: number } | null;
+    onHandoffConsumed?: () => void;
 }
 
 type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings';
 type PanelView = 'welcome' | 'intention' | 'chat' | 'reinitializing';
 
-const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate, genesisContext, onGenesisContextConsumed }) => {
+const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate, genesisContext, onGenesisContextConsumed, handoff, onHandoffConsumed }) => {
     const { config } = useProjectConfig();
     const { hasByok } = useTier();
     const projectName = config?.projectName || 'Mi Proyecto';
@@ -166,6 +169,28 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         };
         run();
     }, [genesisContext]);
+
+    // Oct 2026: el Mapa manda un tema al Arquitecto. Con sesión abierta se envía como mensaje;
+    // si no, abre una sesión «Conectar» con ese tema.
+    useEffect(() => {
+        if (!handoff?.text) return;
+        const run = async () => {
+            try {
+                if (panelView === 'chat' && hasInitialized) {
+                    await sendMessage(handoff.text);
+                } else {
+                    setPanelView('intention');
+                    await initialize({ implementationGoal: handoff.text });
+                    setPanelView('chat');
+                }
+            } catch {
+                toast.error('No pude llevar eso al Arquitecto.');
+            } finally {
+                onHandoffConsumed?.();
+            }
+        };
+        run();
+    }, [handoff?.nonce]);
 
     const handleIntentionConfirm = async (goal: string, culturalFile?: {
         fileName: string;
