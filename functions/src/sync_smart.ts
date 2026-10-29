@@ -190,6 +190,17 @@ export const getPickerStartFolder = onCall(
                 if (p) counts[p] = (counts[p] || 0) + 1;
             } catch { /* carpeta no accesible: se ignora */ }
         }
+        const parents = Object.keys(counts);
+        if (parents.length === 1) return { folderId: parents[0] };
+        // Canon y Recursos en ramas distintas (p. ej. Bóveda/CANON y Bóveda/RECURSOS): abrir un nivel arriba si comparten carpeta.
+        if (parents.length > 1) {
+            const grand = new Set<string>();
+            for (const p of parents.slice(0, 6)) {
+                try { const g = await drive.files.get({ fileId: p, fields: "parents" }); if (g.data.parents?.[0]) grand.add(g.data.parents[0]); }
+                catch { grand.add("?"); }
+            }
+            if (grand.size === 1 && !grand.has("?")) return { folderId: [...grand][0] };
+        }
         const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0];
         return { folderId: best || cfg.folderId || "root" };
     }
