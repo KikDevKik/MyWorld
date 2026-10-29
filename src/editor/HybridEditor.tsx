@@ -21,6 +21,34 @@ import { CreativeAuditService } from '../services/CreativeAuditService';
 import BubbleMenu from '../components/ui/BubbleMenu'; // 🟢 IMPORT BUBBLE MENU
 import { useLanguageStore } from '../stores/useLanguageStore';
 
+// Oct 2026: idioma del corrector ortográfico = idioma en que está escrito el texto (no el de la página, que es "en").
+// Se detecta con palabras frecuentes; si no hay pista clara, se usa el idioma de la app.
+const LANG_WORDS: Record<string, string[]> = {
+    es: ['que', 'de', 'la', 'el', 'en', 'y', 'los', 'se', 'del', 'las', 'por', 'con', 'una', 'para', 'su', 'pero', 'como', 'más', 'era', 'muy'],
+    en: ['the', 'and', 'of', 'to', 'a', 'in', 'is', 'was', 'he', 'she', 'it', 'that', 'with', 'for', 'his', 'her', 'they', 'but', 'had', 'you'],
+    pt: ['que', 'de', 'não', 'uma', 'com', 'para', 'os', 'as', 'do', 'da', 'em', 'um', 'mas', 'ele', 'ela', 'você', 'foi', 'muito', 'são', 'isso'],
+    fr: ['le', 'la', 'les', 'et', 'des', 'est', 'une', 'que', 'dans', 'pour', 'pas', 'qui', 'sur', 'avec', 'il', 'elle', 'mais', 'nous', 'vous', 'était'],
+};
+function appWritingLang(): string {
+    const l = useLanguageStore.getState().currentLanguage || 'es';
+    return ({ jp: 'ja' } as Record<string, string>)[l] || l;
+}
+function detectWritingLang(text: string): string {
+    const sample = (text || '').slice(0, 6000);
+    if (/[\u3040-\u30ff]/.test(sample)) return 'ja';
+    if (/[\uac00-\ud7af]/.test(sample)) return 'ko';
+    if (/[\u4e00-\u9fff]/.test(sample)) return 'zh';
+    const words = sample.toLowerCase().match(/[a-záéíóúñüçãõâêôàèùœ]+/g) || [];
+    if (words.length < 25) return appWritingLang();
+    const counts: Record<string, number> = {};
+    for (const [lang, list] of Object.entries(LANG_WORDS)) {
+        const set = new Set(list);
+        counts[lang] = (words as string[]).filter(w => set.has(w)).length;
+    }
+    const best = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+    return best && best[1] >= Math.max(5, words.length * 0.08) ? best[0] : appWritingLang();
+}
+
 // 🟢 EXPOSE HANDLE FOR IMPERATIVE ACTIONS
 export interface HybridEditorHandle {
     insertAtCursor: (text: string) => void;
@@ -102,6 +130,8 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
     const editorRef = useRef<HTMLDivElement>(null);
     const viewRef = useRef<EditorView | null>(null);
     const editableCompartment = useMemo(() => new Compartment(), []);
+    const langCompartment = useMemo(() => new Compartment(), []);
+    const langRef = useRef<string>('');
     const [bubbleMenu, setBubbleMenu] = React.useState<{ visible: boolean; x: number; y: number } | null>(null); // 🟢 STATE
 
     // 🟢 EXPOSE IMPERATIVE HANDLE
@@ -190,7 +220,7 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
 
                 // 🟢 ENABLE SPELLCHECK
                 // Oct 2026: lang del texto = idioma de la app; sin esto el navegador corregía en inglés (la página es lang="en").
-                EditorView.contentAttributes.of({ spellcheck: "true", lang: ({ jp: 'ja' } as Record<string, string>)[useLanguageStore.getState().currentLanguage] || useLanguageStore.getState().currentLanguage || 'es' }),
+                langCompartment.of(EditorView.contentAttributes.of({ spellcheck: "true", lang: (langRef.current = detectWritingLang(content)) })),
 
                 // Base
                 lineNumbers(),
@@ -321,6 +351,11 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                  viewRef.current.dispatch({
                      changes: { from: 0, to: currentDoc.length, insert: content }
                  });
+                 const lang = detectWritingLang(content);
+                 if (lang !== langRef.current) {
+                     langRef.current = lang;
+                     viewRef.current.dispatch({ effects: langCompartment.reconfigure(EditorView.contentAttributes.of({ spellcheck: "true", lang })) });
+                 }
             }
         }
     }, [content]);
