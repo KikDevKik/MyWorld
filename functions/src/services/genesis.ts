@@ -2,7 +2,7 @@ import '../admin'; // Ensure firebase-admin is initialized
 import * as logger from "firebase-functions/logger";
 import * as crypto from 'crypto';
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { google } from "googleapis";
+import { google } from "../utils/gapi";
 import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
 import { defineSecret } from "firebase-functions/params";
 import { TitaniumEntity, EntityTrait } from "../types/ontology";

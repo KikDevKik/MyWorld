@@ -6,7 +6,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { getRequestUid, getClaudeQuality } from "./request_context";
+import { getRequestUid, getClaudeQuality, getAiLevel, getUserAnthropicKey } from "./request_context";
 
 // Marca opcional dentro de un prompt: todo lo anterior es fijo (instrucciones, canon) y se cachea;
 // lo posterior (historial, mensaje) cambia en cada petición. Gemini la ignora.
@@ -38,12 +38,22 @@ export const MYWORLD_VOICE = `VOZ DE MYWORLD (aplica siempre, por encima de cual
 - No repitas lo que el autor acaba de decir. Pregunta solo cuando de verdad haga falta.
 - Breve: lo esencial primero.`;
 
-export function claudeEnabledForCurrentUser(): boolean {
+/** ¿Esta cuenta tiene Claude incluido (lo paga MyWorld)? No depende del nivel elegido. */
+export function myworldClaudeAvailable(uid?: string): boolean {
     const key = process.env.ANTHROPIC_API_KEY;
-    const uid = getRequestUid();
     if (!key || !uid) return false;
     const allowed = (process.env.CLAUDE_ALLOWED_UIDS || "").split(",").map(s => s.trim()).filter(Boolean);
     return allowed.includes(uid);
+}
+
+/** Oct 2026 (3 niveles): Claude se usa con la clave del autor (nivel «propia») o con la de MyWorld
+ *  (nivel «myworld», solo cuentas habilitadas). En el nivel «gratis» todo va con Gemini. */
+export function claudeEnabledForCurrentUser(): boolean {
+    const level = getAiLevel();
+    if (level === 'gratis') return false;
+    if (getUserAnthropicKey()) return true;
+    if (level === 'propia') return false; // nivel propio sin clave de Anthropic: Gemini de pago
+    return myworldClaudeAvailable(getRequestUid());
 }
 
 // Oct 2026: tope de gasto mensual por usuario (estimado). Al pasar el 80% todo va a Haiku;
@@ -68,6 +78,7 @@ export function monthlyCapUsd(): number {
 }
 /** Verifica el tope antes de cada llamada. true = puede usar Claude. */
 export async function claudeWithinBudget(): Promise<boolean> {
+    if (getUserAnthropicKey()) { lastSpendRatio = 0; return true; } // la paga el autor: sin tope de MyWorld
     const uid = getRequestUid();
     const spent = await getMonthSpend(uid);
     if (spent >= monthlyCapUsd()) {
@@ -101,7 +112,14 @@ export interface ClaudeCallOptions {
 export interface ClaudeCallResult { ok: boolean; text?: string; error?: string; noCredit?: boolean; refusal?: boolean; stopReason?: string; }
 
 let client: Anthropic | null = null;
+const userClients = new Map<string, Anthropic>();
 function getClient(): Anthropic {
+    const userKey = getUserAnthropicKey();
+    if (userKey) {
+        let c = userClients.get(userKey);
+        if (!c) { c = new Anthropic({ apiKey: userKey, maxRetries: 2, timeout: 120_000 }); userClients.set(userKey, c); }
+        return c;
+    }
     if (!client) client = new Anthropic({
         apiKey: process.env.ANTHROPIC_API_KEY!, maxRetries: 2, timeout: 120_000,
         ...(process.env.ANTHROPIC_WORKSPACE_ID ? { defaultHeaders: { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } } : {}),
@@ -173,6 +191,13 @@ async function recordUsage(model: string, u: any) {
     const mult = model === CLAUDE_HAIKU && (inTok + cw + cr) > 100_000 ? 5 : 1;
     const cost = mult * (inTok * p.in + outTok * p.out + (cw - cw1h) * p.cacheWrite + cw1h * p.in * 2 + cr * p.cacheRead) / 1_000_000;
     const month = new Date().toISOString().slice(0, 7);
+    // Con la clave propia del autor el gasto es suyo: se registra aparte y no cuenta para el tope de MyWorld.
+    if (getUserAnthropicKey()) {
+        await getFirestore().collection("users").doc(uid).collection("ai_usage").doc(month).set({
+            byokCostUsd: FieldValue.increment(cost), byokCalls: FieldValue.increment(1), updatedAt: new Date().toISOString(),
+        }, { merge: true });
+        return;
+    }
     await getFirestore().collection("users").doc(uid).collection("ai_usage").doc(month).set({
         costUsd: FieldValue.increment(cost),
         calls: FieldValue.increment(1),

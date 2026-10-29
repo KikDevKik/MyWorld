@@ -1,5 +1,6 @@
 import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions } from 'firebase/functions';
 import { toast } from 'sonner';
+import { getAiLevel } from '../hooks/aiLevel';
 
 // Limpiar keys residuales del sistema de cuota anterior
 try { localStorage.removeItem('myworld_quota_today'); } catch { /* ignore */ }
@@ -45,9 +46,17 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
     // Oct 2026: calidad de Claude (solo aplica a cuentas con Claude pagado por MyWorld)
     let claudeQuality: string = 'calidad';
     try { claudeQuality = localStorage.getItem('myworld_claude_quality') === 'economico' ? 'economico' : 'calidad'; } catch { /* sin storage */ }
-    const payload = customKey
-        ? { ...data, _authOverride: customKey, _userTier: tier, _lang: currentLang, _claudeQuality: claudeQuality }
-        : { ...data, _userTier: tier, _lang: currentLang, _claudeQuality: claudeQuality };
+    // Oct 2026: nivel de IA elegido en Config IA (gratis / propia / myworld). La clave de Anthropic del
+    // autor solo viaja en el nivel «propia» (en «myworld» la IA la paga MyWorld).
+    const aiLevel = getAiLevel();
+    let anthropicKey: string | null = null;
+    if (aiLevel === 'propia') {
+        try { anthropicKey = sessionStorage.getItem('myworld_custom_anthropic_key') || localStorage.getItem('myworld_custom_anthropic_key'); } catch { /* sin storage */ }
+    }
+    const base: any = { ...data, _userTier: tier, _lang: currentLang, _claudeQuality: claudeQuality };
+    if (aiLevel) base._aiLevel = aiLevel;
+    if (anthropicKey) base._anthropicOverride = anthropicKey;
+    const payload = customKey ? { ...base, _authOverride: customKey } : base;
 
     // Oct 2026: el SDK corta a los 70 s por defecto; nuestras funciones de IA pueden tardar más (timeout servidor 300 s).
     const fn = firebaseHttpsCallable(functions, name, { timeout: 300000, ...options });

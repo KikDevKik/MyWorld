@@ -1,4 +1,6 @@
-import { JSDOM } from "jsdom";
+import type { JSDOM as JSDOMType } from "jsdom";
+// Oct 2026: jsdom se carga al usarse (no en cada arranque en frío).
+const loadJSDOM = (): typeof JSDOMType => require("jsdom").JSDOM;
 import * as logger from "firebase-functions/logger";
 import { validateUrlDns } from "./security";
 
@@ -118,6 +120,7 @@ export async function fetchWebPageContent(url: string): Promise<{ url: string, t
         }
 
         const html = await response.text();
+        const JSDOM = loadJSDOM();
         const dom = new JSDOM(html);
         const doc = dom.window.document;
 

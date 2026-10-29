@@ -16,7 +16,7 @@ import { SmartSyncService } from "./services/smart_sync";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { TaskType } from "@google/generative-ai";
 import { ingestFile } from "./ingestion";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { getPrompt } from "./prompt_manager";
 import { TEMP_PRECISION } from "./ai_config";
 

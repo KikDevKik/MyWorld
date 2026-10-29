@@ -5,7 +5,7 @@ import { onCall } from "./utils/on_call";
 import * as admin from "firebase-admin";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import * as crypto from 'crypto';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import * as logger from "firebase-functions/logger";

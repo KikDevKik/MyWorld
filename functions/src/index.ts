@@ -9,13 +9,13 @@ import { defineSecret } from "firebase-functions/params";
 import { TitaniumGenesis } from "./services/genesis";
 import { getAIKey, getTier } from "./utils/security";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { GoogleGenerativeAI, TaskType, SchemaType } from "@google/generative-ai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { textHash } from "./utils/text_hash";
 import { smartGenerateContent } from "./utils/smart_generate";
-import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, monthlyCapUsd } from "./utils/claude_router";
+import { claudeEnabledForCurrentUser, myworldClaudeAvailable, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, monthlyCapUsd } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
@@ -4345,13 +4345,15 @@ export const getAIStatus = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
     const claudeActive = claudeEnabledForCurrentUser();
-    let monthCostUsd = 0, calls = 0;
-    if (claudeActive) {
-      const month = new Date().toISOString().slice(0, 7);
-      const snap = await getFirestore().collection("users").doc(request.auth.uid).collection("ai_usage").doc(month).get();
-      monthCostUsd = snap.data()?.costUsd || 0;
-      calls = snap.data()?.calls || 0;
-    }
-    return { claudeActive, monthCostUsd, calls, capUsd: monthlyCapUsd(), conversationModel: "Claude Sonnet 5.5", taskModel: "Claude Haiku 5.5" };
+    // Oct 2026 (3 niveles): si la cuenta tiene Claude incluido (nivel MyWorld) y lo gastado con cada opción.
+    const myworldAvailable = myworldClaudeAvailable(request.auth.uid);
+    const month = new Date().toISOString().slice(0, 7);
+    const u: any = (await getFirestore().collection("users").doc(request.auth.uid).collection("ai_usage").doc(month).get()).data() || {};
+    return {
+      claudeActive, myworldAvailable,
+      monthCostUsd: u.costUsd || 0, calls: u.calls || 0,
+      byokCostUsd: u.byokCostUsd || 0, byokCalls: u.byokCalls || 0,
+      capUsd: monthlyCapUsd(), conversationModel: "Claude Sonnet 5.5", taskModel: "Claude Haiku 5.5",
+    };
   }
 );

@@ -5,7 +5,7 @@
 // lo que falta decidir y una escena que ya puede escribir (y lo guarda en Recursos para Obsidian).
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { TaskType } from "@google/generative-ai";
 import { HttpsError } from "firebase-functions/v2/https";
 import { callClaude, claudeEnabledForCurrentUser, CLAUDE_SONNET, MYWORLD_VOICE } from "./utils/claude_router";

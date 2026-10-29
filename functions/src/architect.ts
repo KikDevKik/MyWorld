@@ -4,7 +4,7 @@ import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { defineSecret } from "firebase-functions/params";
 import { MODEL_PRO, MODEL_FLASH, SAFETY_SETTINGS_PERMISSIVE, TEMP_PRECISION, TEMP_CREATIVE, Tier } from "./ai_config";

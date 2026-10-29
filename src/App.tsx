@@ -532,6 +532,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 console.warn("⚠️ No Cloud Config found. Waiting for user input (Drive Connect).");
             }
 
+            // Oct 2026: la app se muestra ya; el estado del índice se consulta en segundo plano
+            // (antes esperaba esta llamada, que en arranque en frío del servidor tardaba 10-20 s).
+            setIsAppLoading(false);
+
             // 3. CHECK INDEX STATUS
             try {
                 // 🟢 GHOST MODE BYPASS

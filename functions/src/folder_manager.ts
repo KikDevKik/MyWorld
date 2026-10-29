@@ -4,7 +4,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
 import { GoogleGenerativeAI } from "@google/generative-ai";

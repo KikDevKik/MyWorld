@@ -3,12 +3,25 @@
 // qué usuarios pueden usar Claude (lo paga MyWorld) y para registrar su gasto.
 import { AsyncLocalStorage } from "async_hooks";
 
-export interface RequestContext { uid?: string; claudeQuality?: 'calidad' | 'economico'; }
+// aiLevel (Config IA, oct 2026): 'gratis' = clave gratis de Gemini; 'propia' = clave de pago del autor
+// (Gemini con facturación y/o Anthropic); 'myworld' = Claude incluido, lo paga MyWorld.
+export type AiLevel = 'gratis' | 'propia' | 'myworld';
+export interface RequestContext { uid?: string; claudeQuality?: 'calidad' | 'economico'; aiLevel?: AiLevel; anthropicKey?: string; }
 
 export const requestContext = new AsyncLocalStorage<RequestContext>();
 
 export function getRequestUid(): string | undefined {
     return requestContext.getStore()?.uid;
+}
+
+export function getAiLevel(): AiLevel | undefined {
+    return requestContext.getStore()?.aiLevel;
+}
+
+/** Clave de Anthropic del propio autor (solo en el nivel «propia»). */
+export function getUserAnthropicKey(): string | undefined {
+    const s = requestContext.getStore();
+    return s?.aiLevel === 'propia' && s.anthropicKey ? s.anthropicKey : undefined;
 }
 
 export function getClaudeQuality(): 'calidad' | 'economico' {

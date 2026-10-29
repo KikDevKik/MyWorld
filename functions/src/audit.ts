@@ -19,7 +19,7 @@ interface CreativeLogEntry {
     sessionHash?: string;
 }
 
-const PdfPrinter = require("pdfmake");
+// Oct 2026: pdfmake se carga al usarse (no en cada arranque en frío).
 
 export const generateAuditPDF = onCall(
     {
@@ -70,6 +70,7 @@ export const generateAuditPDF = onCall(
                 }
             };
 
+            const PdfPrinter = require("pdfmake");
             const printer = new PdfPrinter(fonts);
 
             // PROCESS LOGS FOR LAYOUT

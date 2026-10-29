@@ -1,4 +1,6 @@
-import { JSDOM } from 'jsdom';
+import type { JSDOM as JSDOMType } from 'jsdom';
+// Oct 2026: jsdom se carga al usarse (no en cada arranque en frío).
+const loadJSDOM = (): typeof JSDOMType => require('jsdom').JSDOM;
 
 /**
  * Sanitizes HTML string by removing dangerous tags and attributes.
@@ -9,6 +11,7 @@ import { JSDOM } from 'jsdom';
  * @returns The sanitized HTML string
  */
 export function sanitizeHtml(html: string): string {
+  const JSDOM = loadJSDOM();
   const dom = new JSDOM(html);
   const doc = dom.window.document;
 

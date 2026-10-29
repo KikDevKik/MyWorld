@@ -7,7 +7,7 @@ import { onCall } from "./utils/on_call";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { TaskType } from "@google/generative-ai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";

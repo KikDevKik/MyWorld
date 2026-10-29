@@ -8,7 +8,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { onCall } from "./utils/on_call";
 import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { getFirestore } from "firebase-admin/firestore";
 import { TaskType } from "@google/generative-ai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";

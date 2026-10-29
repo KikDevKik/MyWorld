@@ -4,7 +4,7 @@ import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { getFirestore } from "firebase-admin/firestore";
 import { getAuth as getAdminAuth } from "firebase-admin/auth";
 import { handleSecureError } from "./utils/security";

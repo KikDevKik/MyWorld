@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { User, Brain, Sparkles, HardDrive, FileSearch, Trash2, AlertTriangle, RefreshCw, ShieldCheck, Dna, Key, Eye, EyeOff, Info, Globe2, Zap, Leaf, ExternalLink, Copy } from 'lucide-react';
 import { useProjectConfig } from "../../contexts/ProjectConfigContext";
 import InternalFileSelector from '../InternalFileSelector';
+import AiLevelSelector from './AiLevelSelector';
 import { callFunction } from '../../services/api';
 import { useLanguageStore, Language } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
@@ -857,62 +858,12 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         <div role="tabpanel" id="panel-ai_config" aria-labelledby="tab-ai_config" className="animate-in fade-in slide-in-from-bottom-2 duration-200">
                             <h3 className="text-xs font-medium text-titanium-500 uppercase tracking-wider mb-4">IA &amp; Seguridad</h3>
 
-                            {aiStatus?.claudeActive && (
-                                <div className="mb-5 p-3 rounded-lg border border-purple-500/30 bg-purple-900/10 text-xs text-titanium-300 space-y-1">
-                                    <p className="font-medium text-purple-300">Claude activo en tu cuenta (lo paga MyWorld)</p>
-                                    <p>Director y Arquitecto: {aiStatus.conversationModel}. Tareas automáticas: {aiStatus.taskModel}. La indexación del canon sigue con Gemini.</p>
-                                    <p>Gasto estimado este mes: <span className="text-titanium-100 font-medium">US$ {aiStatus.monthCostUsd.toFixed(3)}</span> en {aiStatus.calls} llamadas{aiStatus.capUsd ? ` (tope mensual: US$ ${aiStatus.capUsd}; al 80% todo pasa a Haiku y al llegar al tope se usa Gemini hasta el mes siguiente)` : ''}. Si Claude no responde, MyWorld usa Gemini automáticamente.</p>
-                                    <p className="text-titanium-500">La clave de Gemini de abajo solo se usa como respaldo y para buscar en tu canon. No la borres.</p>
-                                    <div className="pt-2 flex items-center gap-2">
-                                        <span className="text-titanium-400">Director y Arquitecto:</span>
-                                        {([
-                                            { v: 'calidad', label: 'Calidad (Sonnet)', hint: '≈ US$ 0,02–0,04 por mensaje' },
-                                            { v: 'economico', label: 'Económico (Haiku)', hint: '≈ US$ 0,002 por mensaje' },
-                                        ] as const).map(opt => (
-                                            <button
-                                                key={opt.v}
-                                                title={opt.hint}
-                                                onClick={() => { try { localStorage.setItem('myworld_claude_quality', opt.v); } catch { /* */ } setClaudeQuality(opt.v); toast.success(`Modo ${opt.label} activado`); }}
-                                                className={`px-2.5 py-1 rounded-md border text-[11px] transition-colors ${claudeQuality === opt.v ? 'border-purple-400 text-purple-200 bg-purple-900/30' : 'border-titanium-700 text-titanium-400 hover:text-titanium-200'}`}
-                                            >
-                                                {opt.label}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            <AiLevelSelector hasGeminiKey={!!customGeminiKey} hasAnthropicKey={!!customAnthropicKey} />
 
                             <div className="grid grid-cols-2 gap-6">
 
                                 {/* COLUMNA IZQUIERDA — Nivel de IA */}
                                 <div className="space-y-4">
-                                    <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">Nivel de IA</h4>
-
-                                    <div className="space-y-1">
-                                        {[
-                                            { value: 'normal' as TierMode, label: 'Normal (Gratis)', desc: 'Gemini Flash — Free Tier de Google' },
-                                            { value: 'ultra' as TierMode, label: 'Ultra (Pro)', desc: 'Gemini 3.x Premium — requiere billing' },
-                                        ].map(option => (
-                                            <label
-                                                key={option.value}
-                                                className="flex items-start gap-2.5 cursor-pointer p-2 rounded-lg hover:bg-titanium-900 transition-colors"
-                                            >
-                                                <input
-                                                    type="radio"
-                                                    name="tierMode"
-                                                    value={option.value}
-                                                    checked={tierMode === option.value}
-                                                    onChange={() => setTierMode(option.value)}
-                                                    className="mt-0.5 accent-yellow-400 shrink-0"
-                                                />
-                                                <div>
-                                                    <span className="text-sm text-titanium-100 font-medium">{option.label}</span>
-                                                    <p className="text-xs text-titanium-500 mt-0.5">{option.desc}</p>
-                                                </div>
-                                            </label>
-                                        ))}
-                                    </div>
-
                                     {/* Estado actual */}
                                     <div>
                                         <h4 className="text-xs font-medium text-zinc-400 uppercase tracking-wider mb-2">Estado actual</h4>

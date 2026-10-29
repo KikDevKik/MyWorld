@@ -4,7 +4,7 @@ import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore, FieldPath } from "firebase-admin/firestore";
-import { google } from "googleapis";
+import { google } from "./utils/gapi";
 import { defineSecret } from "firebase-functions/params";
 import { cosineSimilarity } from "./similarity";
 
