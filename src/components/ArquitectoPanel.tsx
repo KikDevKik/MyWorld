@@ -329,6 +329,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     // Oct 2026: cerrar la sesión con un resumen (llega al chat por el listener de mensajes).
     const handleCloseSession = async () => {
         if (!arquitectoSessionId || isClosing) return;
+        // Evitar resúmenes duplicados: si lo último ya es el resumen, confirmar antes de gastar otro.
+        const lastMsg = messages.filter(m => m.role !== 'system').slice(-1)[0];
+        if (lastMsg?.role === 'assistant' && /##\s*(Ideas sueltas|Conexiones que decidiste|Por decidir)/.test(lastMsg.text || '')
+            && !window.confirm('Ya resumiste esta sesión y no has escrito nada nuevo desde entonces. ¿Resumir otra vez? (crea otra nota en Recursos)')) return;
         setIsClosing(true);
         try {
             const r = await callFunction<{ summary: string; savedAs?: string | null }>('arquitectoCerrarSesion', { sessionId: arquitectoSessionId, accessToken }, { timeout: 180000 });

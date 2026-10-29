@@ -182,7 +182,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                             graphData={data as any}
                             backgroundColor="#08090b"
                             cooldownTicks={160}
-                            onEngineStop={() => { if (!fittedRef.current) { fittedRef.current = true; fgRef.current?.zoomToFit(500, 50); } }}
+                            onEngineStop={() => { if (!fittedRef.current) { fittedRef.current = true; fgRef.current?.zoomToFit(500, 50, (n: any) => (degreeRef.current[n.id] || 0) > 0); } }}
                             nodeRelSize={4}
                             nodeVal={(n: any) => 1 + Math.min(12, degree[n.id] || 0)}
                             linkColor={(l: any) => l.sug ? 'rgba(251,191,36,0.85)' : (neighbors && !(neighbors.has(idOf(l.source)) && neighbors.has(idOf(l.target))) ? 'rgba(120,120,130,0.08)' : 'rgba(150,160,175,0.35)')}

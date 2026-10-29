@@ -47,6 +47,8 @@ export default function WelcomeState({ projectName, onStart, onResume, onDiscard
                 <p className="text-sm text-titanium-600">
                     {lastSessionDate
                         ? `Última sesión: ${lastSessionDate}`
+                        : formattedDate
+                        ? `Última sesión: ${formattedDate}`
                         : 'Sin sesiones previas'
                     }
                 </p>
