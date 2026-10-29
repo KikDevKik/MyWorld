@@ -5,6 +5,7 @@
 // acercarte aparecen todos los nombres.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
+import { forceCollide } from 'd3-force';
 import { Network, ScanSearch, Loader2, Sparkles, X, FileText, Ghost, Landmark, Users, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
@@ -47,6 +48,8 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
     const boxRef = useRef<HTMLDivElement>(null);
     const fgRef = useRef<any>(null);
     const posRef = useRef<Record<string, any>>({});
+    const fittedRef = useRef(false);
+    const radius = (deg: number) => 4 + Math.min(8, Math.sqrt(deg) * 2);
 
     useEffect(() => {
         callFunction<any>('mapaMundo', { mode: 'get' })
@@ -68,7 +71,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
             const r = await callFunction<any>('mapaMundo', { mode: 'scan' }, { timeout: 540000 });
             setNodes(r.nodes || []); setLinks(r.links || []); setSugs([]); setScannedAt(r.scannedAt || null); setSel(null); setSelSug(null);
             toast.success(`Mapa listo: ${r.nodes?.length || 0} elementos y ${r.links?.length || 0} conexiones.`);
-            setTimeout(() => fgRef.current?.zoomToFit(600, 60), 1200);
+            fittedRef.current = false;
         } catch (e: any) { toast.error(e?.message || 'No pude escanear tu mundo.'); } finally { setBusy(''); }
     };
 
@@ -81,9 +84,23 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
         } catch (e: any) { toast.error(e?.message || 'No pude sugerir conexiones.'); } finally { setBusy(''); }
     };
 
+    // Fuerzas: más separación y sin solapes (los nombres necesitan aire).
+    useEffect(() => {
+        const fg = fgRef.current;
+        if (!fg || !nodes.length) return;
+        try {
+            fg.d3Force('charge')?.strength(-140);
+            fg.d3Force('link')?.distance(55);
+            fg.d3Force('collide', forceCollide((n: any) => radius(degreeRef.current[n.id] || 0) + 10));
+            fg.d3ReheatSimulation?.();
+        } catch { /* versión sin d3Force */ }
+    }, [nodes.length, links.length]);
+
+    const degreeRef = useRef<Record<string, number>>({});
     const degree = useMemo(() => {
         const d: Record<string, number> = {};
         links.forEach(l => { const s = idOf(l.source), t = idOf(l.target); d[s] = (d[s] || 0) + 1; d[t] = (d[t] || 0) + 1; });
+        degreeRef.current = d;
         return d;
     }, [links]);
 
@@ -147,7 +164,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
             </div>
 
             <div className="flex-1 flex min-h-0">
-                <div ref={boxRef} className="relative flex-1 min-w-0">
+                <div ref={boxRef} className="relative flex-1 min-w-0 overflow-hidden">
                     {loading ? (
                         <div className="absolute inset-0 flex items-center justify-center text-titanium-600"><Loader2 size={18} className="animate-spin" /></div>
                     ) : !nodes.length ? (
@@ -164,7 +181,8 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                             height={size.h}
                             graphData={data as any}
                             backgroundColor="#08090b"
-                            cooldownTicks={120}
+                            cooldownTicks={160}
+                            onEngineStop={() => { if (!fittedRef.current) { fittedRef.current = true; fgRef.current?.zoomToFit(500, 50); } }}
                             nodeRelSize={4}
                             nodeVal={(n: any) => 1 + Math.min(12, degree[n.id] || 0)}
                             linkColor={(l: any) => l.sug ? 'rgba(251,191,36,0.85)' : (neighbors && !(neighbors.has(idOf(l.source)) && neighbors.has(idOf(l.target))) ? 'rgba(120,120,130,0.08)' : 'rgba(150,160,175,0.35)')}
@@ -178,15 +196,16 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                             onBackgroundClick={() => { setSel(null); setSelSug(null); }}
                             nodeCanvasObject={(n: any, ctx: CanvasRenderingContext2D, scale: number) => {
                                 const deg = degree[n.id] || 0;
-                                const r = 3 + Math.min(9, Math.sqrt(deg) * 2.2);
+                                // Tamaño casi constante en pantalla: al acercarte no crecen hasta taparse.
+                                const r = radius(deg) / Math.pow(Math.max(scale, 0.3), 0.75);
                                 const dim = neighbors && !neighbors.has(n.id);
                                 const color = COLOR[n.tipo] || '#94a3b8';
                                 ctx.globalAlpha = dim ? 0.15 : 1;
                                 ctx.beginPath();
                                 ctx.arc(n.x, n.y, r, 0, 2 * Math.PI);
                                 if (n.fileId) { ctx.fillStyle = color; ctx.fill(); }
-                                else { ctx.setLineDash([2, 2]); ctx.lineWidth = 1.4; ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]); }
-                                if (n.id === sel) { ctx.lineWidth = 2; ctx.strokeStyle = '#fff'; ctx.stroke(); }
+                                else { ctx.setLineDash([3 / scale, 2.5 / scale]); ctx.lineWidth = 1.4 / scale; ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]); }
+                                if (n.id === sel) { ctx.lineWidth = 2 / scale; ctx.strokeStyle = '#fff'; ctx.stroke(); }
                                 // Nivel de detalle: lejos solo los nombres de los elementos grandes.
                                 if (scale > 1.4 || deg >= 6 || n.id === sel || (neighbors && neighbors.has(n.id))) {
                                     const fs = Math.max(10 / scale, 2.5);
@@ -199,7 +218,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                                 ctx.globalAlpha = 1;
                             }}
                             nodePointerAreaPaint={(n: any, color: string, ctx: CanvasRenderingContext2D) => {
-                                const r = 3 + Math.min(9, Math.sqrt(degree[n.id] || 0) * 2.2) + 2;
+                                const r = radius(degree[n.id] || 0) + 2;
                                 ctx.fillStyle = color; ctx.beginPath(); ctx.arc(n.x, n.y, r, 0, 2 * Math.PI); ctx.fill();
                             }}
                         />
@@ -219,7 +238,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                 </div>
 
                 {(cur || selSug || sugs.length > 0) && (
-                    <aside className="w-80 shrink-0 border-l border-titanium-800 bg-[#0b0c0e] overflow-y-auto">
+                    <aside className="relative z-10 w-80 shrink-0 border-l border-titanium-800 bg-[#0b0c0e] overflow-y-auto">
                         {cur ? (
                             <div className="p-4 space-y-3 text-[12.5px] text-titanium-300">
                                 <div className="flex items-start gap-2">

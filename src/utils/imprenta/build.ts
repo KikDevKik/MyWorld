@@ -96,9 +96,12 @@ export function toChapters(files: { name: string; content: string }[], d: Design
         if (m) { title = m[1].trim(); md = md.slice(m[0].length); }
         else if (d.useFileName) title = prettyName(f.name);
         // Separadores de escena: ***, * * *, ---, ___ o # solos en su línea
-        md = md.replace(/^\s*(\*\s*\*\s*\*|-{3,}|_{3,}|#{1,3})\s*$/gm, '\n<p class="scene-break">§§SCENE§§</p>\n');
-        const html = String(marked.parse(md, { gfm: true, breaks: false, async: false }))
+        // También «…» o «...» solos en su línea (separador habitual del autor).
+        md = md.replace(/^\s*(\*\s*\*\s*\*|-{3,}|_{3,}|#{1,3}|…|\.{3})\s*$/gm, '\n<p class="scene-break">§§SCENE§§</p>\n');
+        let html = String(marked.parse(md, { gfm: true, breaks: false, async: false }))
             .replace(/<hr\s*\/?>/g, '<p class="scene-break">§§SCENE§§</p>');
+        // Si el capítulo abre con diálogo (raya, comillas), no va letra capitular: se agrandaría la raya.
+        html = html.replace(/^(\s*)<p>(?=\s*[—–\-«"“¿¡'(])/, '$1<p class="sin-capitular">');
         return { title, html };
     });
 }
@@ -144,7 +147,7 @@ body { margin: 0; font-family: ${body}; font-size: ${d.size}pt; line-height: ${d
 .chapter p { margin: 0 0 ${d.indent ? 0 : 0.8}em; text-align: ${d.justify ? 'justify' : 'left'}; orphans: 2; widows: 2; }
 ${d.indent ? `.chapter p + p { text-indent: 1.4em; }` : ''}
 .chapter .body > p:first-child { text-indent: 0; }
-${d.dropCap ? `.chapter .body > p:first-child::first-letter { float: left; font-family: ${head}; font-size: ${(d.leading * 3.1).toFixed(2)}em; line-height: .82; padding: .06em .08em 0 0; }` : ''}
+${d.dropCap ? `.chapter .body > p:first-child:not(.sin-capitular)::first-letter { float: left; font-family: ${head}; font-size: ${(d.leading * 3.1).toFixed(2)}em; line-height: .82; padding: .06em .08em 0 0; }` : ''}
 .chapter h1, .chapter h2, .chapter h3 { font-family: ${head}; font-weight: 600; text-align: center; margin: 1.6em 0 .8em; break-after: avoid; }
 .chapter h1 { font-size: 1.4em; } .chapter h2 { font-size: 1.2em; } .chapter h3 { font-size: 1.05em; }
 .chapter blockquote { margin: 1em 1.6em; font-style: italic; }
