@@ -103,6 +103,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         discardSession,
         sessionResolved,
         generateRoadmap,
+        appendAssistantMessage,
     } = useArquitecto({ accessToken, folderId });
 
     // Compute which assistant messages are "old" (2+ exchanges from the latest)
@@ -331,6 +332,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         setIsClosing(true);
         try {
             const r = await callFunction<{ summary: string; savedAs?: string | null }>('arquitectoCerrarSesion', { sessionId: arquitectoSessionId, accessToken }, { timeout: 180000 });
+            if (r?.summary) appendAssistantMessage(r.summary);
             toast.success('Sesión resumida.', { description: r?.savedAs ? `Guardada en ${r.savedAs}.` : undefined });
         } catch (e: any) {
             toast.error(e?.message || 'No pude resumir la sesión.');

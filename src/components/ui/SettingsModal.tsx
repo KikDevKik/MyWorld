@@ -80,6 +80,13 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
     const [showKey, setShowKey] = useState(false);
     const [localAnthropicKey, setLocalAnthropicKey] = useState('');
     const [showAnthropicKey, setShowAnthropicKey] = useState(false);
+    // Oct 2026 (seguridad): la clave guardada nunca vuelve a mostrarse ni se puede copiar desde aquí.
+    // El campo solo sirve para escribir una clave NUEVA; la guardada se ve enmascarada (últimos 4).
+    const [geminiCleared, setGeminiCleared] = useState(false);
+    const [anthropicCleared, setAnthropicCleared] = useState(false);
+    const hasGemini = !!localGeminiKey.trim() || (!!customGeminiKey && !geminiCleared);
+    const hasAnthropic = !!localAnthropicKey.trim() || (!!customAnthropicKey && !anthropicCleared);
+    const mask = (k?: string | null) => (k ? `•••• ${k.slice(-4)}` : '');
 
     const { isUltra } = useTier();
 
@@ -133,13 +140,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                 setStyleIdentity(config.styleIdentity);
             }
         }
-        // Load Key from Context (LocalStorage)
-        if (customGeminiKey) {
-            setLocalGeminiKey(customGeminiKey);
-        }
-        if (customAnthropicKey) {
-            setLocalAnthropicKey(customAnthropicKey);
-        }
     }, [config, customGeminiKey, customAnthropicKey]);
 
     const handleSave = async () => {
@@ -158,8 +158,11 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
             }
 
             // 🟢 BYOK: Save Custom Keys to LocalStorage (via Context)
-            setCustomGeminiKey(localGeminiKey);
-            setCustomAnthropicKey(localAnthropicKey);
+            if (localGeminiKey.trim()) setCustomGeminiKey(localGeminiKey.trim());
+            else if (geminiCleared) setCustomGeminiKey('');
+            if (localAnthropicKey.trim()) setCustomAnthropicKey(localAnthropicKey.trim());
+            else if (anthropicCleared) setCustomAnthropicKey('');
+            setLocalGeminiKey(''); setLocalAnthropicKey('');
 
             toast.success(t.savedSuccess);
             onClose();
@@ -1003,7 +1006,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 {/* COLUMNA DERECHA — API Keys (BYOK Flexible) */}
                                 <div className="space-y-4">
                                     {/* ALERTA Y ESTADO BYOK */}
-                                    {!localGeminiKey && !localAnthropicKey ? (
+                                    {!hasGemini && !hasAnthropic ? (
                                         <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-start gap-2.5">
                                             <AlertTriangle size={16} className="text-red-400 shrink-0 mt-0.5" />
                                             <div>
@@ -1018,16 +1021,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             <ShieldCheck size={16} className="text-emerald-400 shrink-0 mt-0.5" />
                                             <div>
                                                 <p className="text-xs font-bold text-emerald-400">
-                                                    {localGeminiKey && localAnthropicKey
+                                                    {hasGemini && hasAnthropic
                                                         ? "Modo Híbrido Activo (Gemini + Claude)"
-                                                        : localGeminiKey
+                                                        : hasGemini
                                                         ? "Google Gemini Conectado (Capa Gratuita)"
                                                         : "Anthropic Claude Conectado (Exploración Socrática)"}
                                                 </p>
                                                 <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
-                                                    {localGeminiKey && localAnthropicKey
+                                                    {hasGemini && hasAnthropic
                                                         ? "Tienes conectados ambos proveedores. El Arquitecto usará cada uno para su especialidad narrativa."
-                                                        : localGeminiKey
+                                                        : hasGemini
                                                         ? "Motor listo con Gemini. Puedes usar la app normalmente. (Opcional: Añade Claude para Exploración Socrática)."
                                                         : "Motor listo con Claude. Puedes usar la app normalmente. (Opcional: Añade Gemini para capa gratuita)."}
                                                 </p>
@@ -1045,14 +1048,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded font-medium">Capa Gratis Disponible</span>
                                         </div>
 
+                                        {customGeminiKey && !geminiCleared && (
+                                            <p className="text-[11px] text-emerald-300/90 font-mono">Clave guardada: {mask(customGeminiKey)} <span className="font-sans text-titanium-500">· por seguridad no se muestra completa. Escribe abajo solo si quieres reemplazarla.</span></p>
+                                        )}
                                         <div className="relative">
                                             <input
                                                 id="api-key-input"
                                                 type={showKey ? "text" : "password"}
+                                                autoComplete="new-password"
+                                                spellCheck={false}
                                                 value={localGeminiKey}
                                                 onChange={(e) => setLocalGeminiKey(e.target.value)}
                                                 className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localGeminiKey ? 'border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500' : 'border-slate-700 focus:border-purple-500 focus:ring-purple-500'}`}
-                                                placeholder="AIzaSy..."
+                                                placeholder={customGeminiKey && !geminiCleared ? "Nueva clave (opcional)" : "AIzaSy..."}
                                             />
                                             <button
                                                 type="button"
@@ -1065,9 +1073,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         </div>
 
                                         <div className="flex items-center justify-between pt-1">
-                                            {localGeminiKey ? (
+                                            {hasGemini ? (
                                                 <button
-                                                    onClick={() => setLocalGeminiKey('')}
+                                                    onClick={() => { setLocalGeminiKey(''); setGeminiCleared(true); }}
                                                     className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1"
                                                 >
                                                     <Trash2 size={11} /> Eliminar key
@@ -1093,14 +1101,19 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             <span className="text-[10px] px-1.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded font-medium">Razonamiento Socrático</span>
                                         </div>
 
+                                        {customAnthropicKey && !anthropicCleared && (
+                                            <p className="text-[11px] text-amber-300/90 font-mono">Clave guardada: {mask(customAnthropicKey)} <span className="font-sans text-titanium-500">· por seguridad no se muestra completa.</span></p>
+                                        )}
                                         <div className="relative">
                                             <input
                                                 id="anthropic-api-key-input"
                                                 type={showAnthropicKey ? "text" : "password"}
+                                                autoComplete="new-password"
+                                                spellCheck={false}
                                                 value={localAnthropicKey}
                                                 onChange={(e) => setLocalAnthropicKey(e.target.value)}
                                                 className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localAnthropicKey ? 'border-amber-500/40 focus:border-amber-500 focus:ring-amber-500' : 'border-slate-700 focus:border-purple-500 focus:ring-purple-500'}`}
-                                                placeholder="sk-ant-..."
+                                                placeholder={customAnthropicKey && !anthropicCleared ? "Nueva clave (opcional)" : "sk-ant-..."}
                                             />
                                             <button
                                                 type="button"
@@ -1113,9 +1126,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                         </div>
 
                                         <div className="flex items-center justify-between pt-1">
-                                            {localAnthropicKey ? (
+                                            {hasAnthropic ? (
                                                 <button
-                                                    onClick={() => setLocalAnthropicKey('')}
+                                                    onClick={() => { setLocalAnthropicKey(''); setAnthropicCleared(true); }}
                                                     className="text-xs text-red-400 hover:text-red-300 underline flex items-center gap-1"
                                                 >
                                                     <Trash2 size={11} /> Eliminar key

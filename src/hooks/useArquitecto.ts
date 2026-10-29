@@ -862,6 +862,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
 
     return {
         messages,
+        // Oct 2026: agrega una respuesta del Arquitecto que llegó por otra vía (p. ej. el resumen de cierre)
+        appendAssistantMessage: (text: string) => setMessages(prev => [...prev, { id: `ia_${Date.now()}`, role: 'assistant', text, timestamp: Date.now(), mode: 'cierre' }]),
         pendingItems,
         projectSummary,
         sessionId,

@@ -25,10 +25,10 @@ const MAP_TASK = `Eres el cartógrafo del mundo de un autor en MyWorld. Recibes 
 2. Extrae las RELACIONES entre todas las entidades (personajes incluidos), solo las que el texto establece:
    - "de" y "a": nombres exactos tal como aparecen en las listas.
    - "tipo": 1 a 3 palabras (familia de, aliado de, rival de, pertenece a, vive en, gobierna, creó, causó, se opone a, maestro de, ama a, teme a, origen de, usa…).
-   - "descripcion": una frase concreta. "fuente": el archivo donde se establece.
+   - "descripcion": una frase corta (máximo 12 palabras). "fuente": el archivo donde se establece.
 Nada inventado: si el texto no lo dice, no va.
 FORMATO: SOLO JSON {"entidades":[{"nombre":"…","tipo":"lugar|faccion|objeto|concepto|evento","resumen":"1 frase","archivo":"…|null","archivos":["…"]}],"relaciones":[{"de":"…","a":"…","tipo":"…","descripcion":"…","fuente":"…"}]}
-Máximo 60 entidades y 160 relaciones (las más importantes primero).`;
+Máximo 45 entidades y 110 relaciones (las más importantes primero). Resúmenes de máximo 15 palabras. Pon "relaciones" DESPUÉS de "entidades".`;
 
 const SUGGEST_TASK = `Eres El Arquitecto de MyWorld mirando el mapa del mundo del autor. Propón conexiones POSIBLES entre piezas que hoy están lejos o sueltas en su mapa, de las que harían su mundo más cohesionado o su historia más interesante.
 - Cada propuesta es una hipótesis, no una decisión: di qué conectarías, qué consecuencia tendría y qué pregunta debe responderse el autor para decidir.
@@ -38,7 +38,18 @@ FORMATO: SOLO JSON {"sugerencias":[{"de":"nombre exacto","a":"nombre exacto","id
 
 function parseJson(text: string): any {
     const j = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
-    return JSON.parse(j.slice(j.indexOf("{"), j.lastIndexOf("}") + 1));
+    const start = j.indexOf("{");
+    try { return JSON.parse(j.slice(start, j.lastIndexOf("}") + 1)); } catch { /* respuesta cortada: se rescata */ }
+    // Oct 2026: si la respuesta se cortó por largo, se conserva todo lo completo hasta el último objeto cerrado.
+    let tries = 0;
+    for (let i = j.length - 1; i > start && tries < 400; i--) {
+        if (j[i] !== "}") continue;
+        tries++;
+        for (const suffix of ["", "]}", "]}]}", "}]}", "]}}"]) {
+            try { return JSON.parse(j.slice(start, i + 1) + suffix); } catch { /* sigue */ }
+        }
+    }
+    throw new Error("JSON irrecuperable");
 }
 
 async function ask(model: string, system: string, user: string, label: string, maxTokens: number, effort: "low" | "medium" = "low") {

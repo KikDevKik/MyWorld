@@ -11,6 +11,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { callClaude, claudeEnabledForCurrentUser, CLAUDE_SONNET, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
 import { GeminiEmbedder } from "./utils/vector_utils";
+import { fileText } from "./personajes";
 
 const FOLDER = "application/vnd.google-apps.folder";
 export const SESSIONS_FOLDER = "Sesiones del Arquitecto";
@@ -66,6 +67,48 @@ async function worldMap(uid: string): Promise<string> {
     }
     const lines = Object.keys(groups).sort().map(k => `- ${k}: ${groups[k].slice(0, 25).join(", ")}${groups[k].length > 25 ? ` (+${groups[k].length - 25})` : ""}`);
     return lines.join("\n").slice(0, 6000);
+}
+
+/** Material NOMBRADO: si el autor menciona un personaje, lugar, concepto o archivo por su nombre,
+ *  se trae ese archivo directo (la búsqueda por similitud se diluye cuando el mensaje toca varios temas). */
+export async function namedMaterial(uid: string, text: string, maxFiles = 5): Promise<string> {
+    try {
+        const db = getFirestore();
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const t = ` ${norm(text)} `;
+        const mentioned = (name: string) => {
+            const n = norm(name).trim();
+            if (n.length < 4) return false;
+            return new RegExp(`[^a-z0-9]${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es)?[^a-z0-9]`).test(t); // admite plural
+        };
+        const [filesSnap, pIdx, mapa] = await Promise.all([
+            db.collection("TDB_Index").doc(uid).collection("files").get(),
+            db.collection("users").doc(uid).collection("personajes").doc("index").get(),
+            db.collection("users").doc(uid).collection("mapa").doc("grafo").get(),
+        ]);
+        const files = filesSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter((f: any) => f.type !== "folder" && f.mimeType !== FOLDER);
+        const byName = new Map(files.map((f: any) => [norm(String(f.name || "").replace(/\.md$/i, "")), f]));
+        const picked: { id: string; name: string; why: string }[] = [];
+        const add = (f: any, why: string) => { if (f && !picked.some(p => p.id === f.id) && picked.length < maxFiles) picked.push({ id: f.id, name: String(f.name || "").replace(/\.md$/i, ""), why }); };
+        const entities: { nombre: string; alias?: string[]; fileId?: string | null; archivos?: string[] }[] = [
+            ...(((pIdx.data() as any)?.personajes) || []).map((p: any) => ({ nombre: p.nombre, alias: p.alias, fileId: p.fichaFileId, archivos: p.archivos })),
+            ...(((mapa.data() as any)?.nodes) || []).map((n: any) => ({ nombre: n.nombre, fileId: n.fileId, archivos: n.archivos })),
+        ];
+        for (const e of entities) {
+            if (![e.nombre, ...(e.alias || [])].some(n => n && mentioned(n))) continue;
+            if (e.fileId) add(files.find((f: any) => f.id === e.fileId), e.nombre);
+            for (const a of (e.archivos || []).slice(0, 2)) add(byName.get(norm(a)), e.nombre);
+        }
+        for (const f of files) if (mentioned(String(f.name || "").replace(/\.md$/i, ""))) add(f, "archivo");
+        if (!picked.length) return "";
+        const texts = await Promise.all(picked.map(p => fileText(uid, p.id, 2500).catch(() => "")));
+        const out = picked.map((p, i) => texts[i] ? `### ${p.name}\n${texts[i]}` : "").filter(Boolean);
+        logger.info(`🏛️ [ARQUITECTO·CONECTAR] Material nombrado: ${picked.map(p => `${p.name} (${p.why})`).join(", ")}`);
+        return out.join("\n\n");
+    } catch (e: any) {
+        logger.warn(`[ARQUITECTO·CONECTAR] Sin material nombrado: ${e?.message}`);
+        return "";
+    }
 }
 
 /** Fragmentos de su material parecidos a lo que se habla (canon primero, luego recursos). */
@@ -128,15 +171,17 @@ async function ask(contextBlocks: string[], instruction: string, label: string, 
 
 /** Primer mensaje de una sesión «Conectar». */
 export async function conectarStart(uid: string, goal: string, apiKey: string): Promise<string> {
-    const [map, memory, material] = await Promise.all([
+    const [map, memory, material, named] = await Promise.all([
         worldMap(uid),
         getMemoryContext(uid, goal),
         relevantMaterial(uid, goal, apiKey),
+        namedMaterial(uid, goal),
     ]);
     logger.info(`🏛️ [ARQUITECTO·CONECTAR] Inicio: mapa ${map.length} car., material ${material.length} car.`);
     return ask([
         map ? `MAPA DE SU MATERIAL (archivos por carpeta):\n${map}` : "MAPA DE SU MATERIAL: (todavía no hay archivos)",
         memory ? `MEMORIA DEL PROYECTO (decisiones y dónde quedó):\n${memory}` : "",
+        named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES:\n${material}` : "",
     ], `INICIO DE SESIÓN. El autor dice lo que trae hoy:\n«${goal}»\n\nResponde: en 3 a 5 líneas, qué piezas de su material ves relacionadas con eso (nombrando archivos) y por qué; luego tu primera pregunta (máximo 2). Si su material está vacío, pregúntale por lo esencial en vez de suponer.`, "ArquitectoConectarInicio");
 }
@@ -145,13 +190,15 @@ export async function conectarStart(uid: string, goal: string, apiKey: string): 
 export async function conectarReply(uid: string, sessionId: string, goal: string, query: string, apiKey: string): Promise<string> {
     const history = await sessionHistory(uid, sessionId);
     const hint = `${query} ${history.slice(-1200)}`;
-    const [memory, material] = await Promise.all([
+    const [memory, material, named] = await Promise.all([
         getMemoryContext(uid, hint),
         relevantMaterial(uid, hint, apiKey),
+        namedMaterial(uid, query, 4),
     ]);
     return ask([
         goal ? `OBJETIVO DE LA SESIÓN: ${goal}` : "",
         memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
+        named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES DE SU MATERIAL:\n${material}` : "",
         history ? `CONVERSACIÓN HASTA AHORA:\n${history}` : "",
     ], `AUTOR: ${query}`, "ArquitectoConectar");
@@ -175,7 +222,7 @@ export async function conectarClose(uid: string, sessionId: string, accessToken?
                     folderId = (await drive.files.create({ requestBody: { name: SESSIONS_FOLDER, mimeType: FOLDER, parents: [rootId] }, fields: "id" })).data.id!;
                 }
                 const sess: any = (await getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId).get()).data() || {};
-                const goal = String(sess.implementationGoal || "Sesión").replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim().slice(0, 50);
+                const goal = String(sess.implementationGoal || "Sesión").replace(/[\\/:*?"<>|#^[\]]/g, " ").replace(/\s+/g, " ").trim().replace(/^(.{0,60})(\s.*)?$/, "$1").trim().slice(0, 80);
                 const date = new Date().toISOString().slice(0, 10);
                 const name = `${date} ${goal}.md`;
                 const content = `---\ntipo: sesion-arquitecto\ncanon: no\nfecha: ${date}\n---\n\n# ${goal}\n\n${summary}\n`;
