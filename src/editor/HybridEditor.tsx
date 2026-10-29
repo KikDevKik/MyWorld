@@ -19,6 +19,7 @@ import { Lock } from 'lucide-react';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { CreativeAuditService } from '../services/CreativeAuditService';
 import BubbleMenu from '../components/ui/BubbleMenu'; // 🟢 IMPORT BUBBLE MENU
+import { useLanguageStore } from '../stores/useLanguageStore';
 
 // 🟢 EXPOSE HANDLE FOR IMPERATIVE ACTIONS
 export interface HybridEditorHandle {
@@ -188,7 +189,8 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                 editableCompartment.of(EditorView.editable.of(!readOnly)),
 
                 // 🟢 ENABLE SPELLCHECK
-                EditorView.contentAttributes.of({ spellcheck: "true" }),
+                // Oct 2026: lang del texto = idioma de la app; sin esto el navegador corregía en inglés (la página es lang="en").
+                EditorView.contentAttributes.of({ spellcheck: "true", lang: ({ jp: 'ja' } as Record<string, string>)[useLanguageStore.getState().currentLanguage] || useLanguageStore.getState().currentLanguage || 'es' }),
 
                 // Base
                 lineNumbers(),

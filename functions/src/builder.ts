@@ -3,7 +3,7 @@ import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI, SchemaType, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, TaskType } from "./utils/genai";
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, MODEL_LOW_COST, SAFETY_SETTINGS_PERMISSIVE, getModelForTask, modelForRequest } from "./ai_config";

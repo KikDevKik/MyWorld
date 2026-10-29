@@ -3,7 +3,7 @@ import * as logger from "firebase-functions/logger";
 import * as crypto from 'crypto';
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "../utils/gapi";
-import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAI, TaskType } from "../utils/genai";
 import { defineSecret } from "firebase-functions/params";
 import { TitaniumEntity, EntityTrait } from "../types/ontology";
 import { TitaniumFactory } from "./factory";

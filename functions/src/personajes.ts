@@ -11,7 +11,7 @@ import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
-import { TaskType } from "@google/generative-ai";
+import { TaskType } from "./utils/genai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";

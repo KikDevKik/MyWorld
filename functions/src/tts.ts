@@ -3,7 +3,7 @@ import { onCall } from "./utils/on_call";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./utils/genai";
 import { getAIKey, getGeminiKeyOnly } from "./utils/security";
 import { MODEL_FLASH, MODEL_FLASH_2_5 } from "./ai_config";
 

@@ -1,4 +1,4 @@
-import { HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
+import { HarmCategory, HarmBlockThreshold } from "./utils/genai";
 
 // 🟢 MODEL CONFIGURATION (Updated March 2026)
 // FLASH (El Soldado): Fast, cheap, for high-volume tasks.

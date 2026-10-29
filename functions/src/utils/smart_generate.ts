@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./genai";
 import * as logger from "firebase-functions/logger";
 import { getMemoryContext } from "./memory_store";
 import { getRequestUid } from "./request_context";

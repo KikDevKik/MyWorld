@@ -2,7 +2,7 @@
 // a Gemini directamente. Para usuarios autorizados responde con Claude, imitando la forma
 // de la respuesta de Gemini (result.response.text()) para no tocar el código que la usa.
 // Si Claude falla, usa Gemini como siempre.
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./genai";
 import * as logger from "firebase-functions/logger";
 import { claudeEnabledForCurrentUser, callClaude, CLAUDE_FICTION_SYSTEM, CLAUDE_HAIKU, CLAUDE_SONNET } from "./claude_router";
 import { MODEL_PRO } from "../ai_config";

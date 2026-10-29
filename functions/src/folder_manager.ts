@@ -7,7 +7,7 @@ import * as logger from "firebase-functions/logger";
 import { google } from "./utils/gapi";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./utils/genai";
 import { FolderRole, ProjectConfig } from "./types/project";
 import { MODEL_LOW_COST, TEMP_PRECISION, SAFETY_SETTINGS_PERMISSIVE, modelForRequest } from "./ai_config";
 import { parseSecureJSON } from "./utils/json";

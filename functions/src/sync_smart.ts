@@ -10,7 +10,7 @@ import { defineSecret } from "firebase-functions/params";
 import * as logger from "firebase-functions/logger";
 import { google } from "./utils/gapi";
 import { getFirestore } from "firebase-admin/firestore";
-import { TaskType } from "@google/generative-ai";
+import { TaskType } from "./utils/genai";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { ingestFile, IngestionFile } from "./ingestion";
 import { GeminiEmbedder } from "./utils/vector_utils";
@@ -136,6 +136,32 @@ export const syncSmart = onCall(
             }
         }
         if (recategorized) logger.info(`🔄 [SYNC] Categoría corregida en ${recategorized} elementos (canon/recursos)`);
+
+        // 3.6 Oct 2026: fragmentos viejos (antes de may-2026) se guardaron sin projectId. La búsqueda tenía un
+        // respaldo sin filtro, pero con varios proyectos por usuario mezclaba canon. Se rellena una sola vez por
+        // archivo (marca projectIdFixed) y como mucho 40 archivos por pasada, para no alargar la sincronización.
+        const projectId = cfg.folderId || "decentralized-project";
+        let projectFixed = 0;
+        for (const it of items) {
+            if (projectFixed >= 40) break;
+            if (it.mimeType === FOLDER) continue;
+            const doc = indexed.get(it.id);
+            if (!doc || doc.projectIdFixed === projectId) continue;
+            try {
+                const chunks = await filesCol.doc(it.id).collection("chunks").listDocuments();
+                for (let i = 0; i < chunks.length; i += 400) {
+                    const wb = db.batch();
+                    chunks.slice(i, i + 400).forEach(c => wb.set(c, { projectId }, { merge: true }));
+                    await wb.commit();
+                }
+                await filesCol.doc(it.id).set({ projectId, projectIdFixed: projectId }, { merge: true });
+                doc.projectIdFixed = projectId;
+                projectFixed++;
+            } catch (e: any) {
+                logger.warn(`[SYNC] No se pudo fijar el proyecto de ${it.path}: ${e?.message}`);
+            }
+        }
+        if (projectFixed) logger.info(`🔄 [SYNC] projectId fijado en ${projectFixed} archivos`);
 
         // 4. Archivos nuevos o editados (con embeddings si hay clave de Gemini)
         let embedder: any = null;

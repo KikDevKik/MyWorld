@@ -4,7 +4,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { google } from "./utils/gapi";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./utils/genai";
 import { Readable } from 'stream';
 import { getAIKey, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";

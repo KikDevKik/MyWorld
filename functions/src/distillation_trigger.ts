@@ -2,7 +2,7 @@ import './admin';
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./utils/genai";
 import { defineSecret } from "firebase-functions/params";
 import { FUNCTIONS_REGION } from "./config";
 import { getModelForTask } from "./ai_config";

@@ -1,5 +1,5 @@
 import '../admin'; // Ensure firebase-admin is initialized
-import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAI, TaskType } from "../utils/genai";
 import * as logger from "firebase-functions/logger";
 import { Firestore } from "firebase-admin/firestore";
 import { parseSecureJSON } from "../utils/json";
@@ -43,10 +43,11 @@ export async function enrichEntity(
             // Wrap in Retry
             const embeddingResult = await withRetry(() => embeddingModel.embedContent({
                 content: { role: 'user', parts: [{ text: `Contexto y rol de ${entity.name}` }] },
-                taskType: TaskType.RETRIEVAL_QUERY
+                taskType: TaskType.RETRIEVAL_QUERY,
+                outputDimensionality: 768, // Oct 2026: el índice vectorial es de 768
             }));
 
-            const queryVector = embeddingResult.embedding.values;
+            const queryVector: number[] = (embeddingResult as any).embedding.values;
             const chunksColl = db.collectionGroup("chunks");
 
             const vectorQuery = chunksColl.where("userId", "==", uid).findNearest({

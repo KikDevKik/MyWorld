@@ -3,8 +3,8 @@ import { onRequest } from "firebase-functions/v2/https";
 import * as admin from "firebase-admin";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
-import { TaskType } from "@google/generative-ai"; // Import TaskType enum
+import { GoogleGenerativeAI, SchemaType } from "./utils/genai";
+import { TaskType } from "./utils/genai"; // Import TaskType enum
 import * as logger from "firebase-functions/logger";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { MODEL_HIGH_REASONING, TEMP_CREATIVE, SAFETY_SETTINGS_PERMISSIVE, getModelForTask } from "./ai_config";
@@ -26,7 +26,7 @@ const tools: any = [
           properties: {
             query: {
               type: SchemaType.STRING,
-              description: "The search query. Focus on keywords (e.g., 'The Fall of GardenFlowers', 'Who is Anna?', 'Magic System Rules')."
+              description: "The search query. Focus on keywords (e.g., 'The fall of the old capital', 'Who is Anna?', 'Magic System Rules')."
             }
           },
           required: ["query"]

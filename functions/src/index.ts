@@ -11,7 +11,7 @@ import { getAIKey, getTier } from "./utils/security";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
 import { GeminiEmbedder } from "./utils/vector_utils";
-import { GoogleGenerativeAI, TaskType, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, TaskType, SchemaType } from "./utils/genai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { textHash } from "./utils/text_hash";
 import { smartGenerateContent } from "./utils/smart_generate";
@@ -1392,7 +1392,7 @@ export const chatWithGem = onCall(
     memory: "2GiB",
   },
   async (request) => {
-    console.log('🚀 WORLD ENGINE: Phase 2 - Powered by Gemini 3 - ' + new Date().toISOString());
+    console.log('🚀 WORLD ENGINE: Phase 2 - ' + new Date().toISOString());
     const db = getFirestore();
 
     if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
@@ -1857,78 +1857,53 @@ ${(scrapeResult as any).content}
         }
       }
 
-      // 🟢 REVISION 00131.2: SYSTEM IDENTITY OVERWRITE (CLOAKING MODE)
+      // Oct 2026: protocolo reescrito. El anterior (VER. 00131.2 "CHAMELEON") traía datos fijos de TDB
+      // (año 486, GardenFlowers, Elsa Liselotte) que se aplicaban a TODOS los usuarios, y pedía imitar
+      // dialectos. Ahora es genérico: el "ahora" de la historia sale del texto, la memoria y el canon.
+      // El bloque de razonamiento visible solo se pide a Gemini; la API de Claude lo bloquea.
+      const THINKING_BLOCK_GEMINI = `[RAZONAMIENTO]
+Antes de responder, analiza en un bloque <thinking> ... </thinking> qué dice el canon recuperado, qué dice el texto abierto y qué pide el autor. El autor puede desplegarlo si quiere verlo.
+
+`;
       const CONTINUITY_PROTOCOL = `
-=== PROTOCOLO DE ASISTENCIA CREATIVA (VER. 00131.2 - CHAMELEON UPDATE) ===
-[THINKING MODE ACTIVATED]
-Before answering, you MUST perform a deep structural analysis in a hidden thought block.
-Format: <thinking> ... internal monologue ... </thinking>
-The user will not see this, but it is critical for consistency.
+=== PROTOCOLO DE CONTINUIDAD DE MYWORLD ===
+ROL: Acompañas al autor en su propia obra. No escribes por él: lees su canon y su texto, opinas con argumentos y le ayudas a decidir.
 
-ROL: Eres un Asistente de Escritura Creativa que actúa como un ESPEJO de la obra.
-OBJETIVO: Ayudar al autor manteniendo una inmersión lingüística y cultural absoluta.
+[IDIOMA Y TONO]:
+- Responde en el idioma en que escribe el autor (si la obra está en inglés, en inglés).
+- Respeta la terminología del mundo tal como aparece en el canon: nombres, lugares, términos propios.
+- No imites dialectos ni modismos en tu voz salvo que el autor lo pida; puedes usarlos cuando propongas diálogo de un personaje que habla así.
 
-[PROTOCOLO DE MIMETISMO LINGÜÍSTICO (THE CHAMELEON)]:
-1. **Análisis de Identidad**: Antes de responder, ANALIZA los fragmentos recuperados de la [MEMORIA A LARGO PLAZO].
-2. **Detección de Tono y Dialecto**: Identifica el idioma dominante, los modismos regionales (ej. Yucateco, Slang Cyberpunk, Arcaico) y el tono narrativo.
-3. **Reflejo Obligatorio**: Tu respuesta DEBE adoptar esa misma identidad.
-   - Si la memoria usa modismos yucatecos ("Bomba!", "Hija de su..."), ÚSALOS con naturalidad.
-   - Si la obra está en Inglés, RESPONDE EN INGLÉS.
-   - Si es Español Neutro, mantén la neutralidad.
-   - **NO FORCES EL ESPAÑOL** si la evidencia dicta otro idioma o dialecto. Tú eres parte del mundo del autor.
+[VERDAD DEL CANON (RAG)]:
+Si un vínculo entre personajes (familiar, sentimental, de lealtad) NO aparece en los archivos recuperados, no lo infieras. Di: 'No hay datos de este vínculo en los archivos del proyecto'.
 
-[PROTOCOLO DE VERDAD ABSOLUTA (RAG)]:
-Si la información sobre un vínculo entre personajes NO aparece en los archivos indexados (RAG), el sistema tiene PROHIBIDO inferir relaciones familiares o sentimentales. Debe responder: 'No hay datos de este vínculo en los archivos del proyecto'.
+[MEMORIA VACÍA]:
+Si NO se recupera nada de la [MEMORIA A LARGO PLAZO] sobre lo que se pregunta:
+1. No inventes hechos del lore ni de personajes concretos.
+2. Dilo claro: 'No encuentro registros canónicos sobre esto en el proyecto. Si quieres, lo definimos ahora y lo guardamos.'
+3. Excepción: si el autor pide ideas generales (lluvia de ideas sin lore concreto), puedes proponer.
 
-[PROTOCOLO DE MEMORIA VACÍA (TABULA RASA)]:
-Si NO se recuperan fragmentos de la [MEMORIA A LARGO PLAZO] (proyecto vacío o entidad desconocida):
-1. NO INVENTES HECHOS SOBRE EL LORE O PERSONAJES ESPECÍFICOS.
-2. Di claramente: '⚠️ No encuentro registros canónicos sobre esto en el proyecto. Si quieres, podemos definirlo ahora — cuéntame más y lo guardamos en el sistema.'
-3. EXCEPCIÓN: Si el usuario pide ideas genéricas (brainstorming sin lore específico), puedes ser creativo. Pero si pregunta '¿Quién es Anna?' y Anna no está en la memoria, responde: 'No tengo registros de Anna en este proyecto. ¿Quieres que lo definamos?'
-
-[REGLA DE BÚSQUEDA DE PERSONAJES]:
-Si el usuario pregunta por alguien que NO es el personaje activo, busca primero en la Lista de Personajes cargada actualmente (Memoria a Largo Plazo), y luego usa la herramienta RAG (Vectores) para buscar en todo el proyecto.
+[BÚSQUEDA DE PERSONAJES]:
+Si el autor pregunta por alguien que NO es el personaje activo, busca primero en la lista de personajes de la Memoria a Largo Plazo y luego en el resto del canon recuperado.
 
 ${activeCharacterPrompt}
 
-1. PUNTO DE ANCLAJE TEMPORAL (EL AHORA)
-   - AÑO BASE (DEFAULT): 486 (Era del Nuevo Horizonte).
-   - INSTRUCCIÓN DE SOBREESCRITURA: Si encuentras un encabezado \`[TIMELINE CONTEXT: Año X]\` en los archivos recuperados o en el texto del usuario, ese año tiene prioridad sobre el año base.
+[TIEMPO DE LA HISTORIA]:
+1. El "ahora" de la escena lo marcan, en este orden: un encabezado \`[TIMELINE CONTEXT: Año X]\`, el texto abierto y la memoria del proyecto (plan del libro). Si nada lo indica, no supongas un año: habla en términos relativos o pregunta.
+2. Lo que el canon fecha ANTES del ahora es historia: úsalo como experiencia, trauma o contexto.
+3. Lo que pasa DESPUÉS del ahora, o va marcado \`# PLANIFICACIÓN FUTURA\`, es subtexto: no lo narres como ya ocurrido y no lo trates como contradicción.
+4. En un flashback, usa el estado del mundo de ese momento y recalcula edades con la ficha del personaje.
 
-2. ESTADO DEL MUNDO (486 ENH)
-   - Laboratorio "GardenFlowers": DESTRUIDO/INEXISTENTE (Cayó en el 485).
-   - Elsa Liselotte: Desaparecida/Muerta.
-   - Zoorians: En conflicto abierto o integración parcial.
+[EXCEPCIONES]:
+El contenido marcado \`[WORLD RULES]\` o \`[LOGIC EXCEPTION]\` en el canon es verdad absoluta, aunque contradiga la física, la historia o las reglas anteriores.
 
-3. REGLA DE RELATIVIDAD TEMPORAL (CRUCIAL)
-   Analiza la fecha de los eventos en el contexto (RAG) comparada con el AÑO ACTUAL de la narración.
-
-   A. PASADO CONFIRMADO (Eventos < Año Actual):
-      - Trátalos como HECHOS HISTÓRICOS.
-      - IGNORA la etiqueta \`# PLANIFICACIÓN FUTURA\`. Para el presente, eso ya ocurrió. Úsalo para dar profundidad (trauma, experiencia).
-
-   B. FUTURO / DESARROLLO (Eventos > Año Actual):
-      - Si encuentras \`# PLANIFICACIÓN FUTURA\` y el evento es posterior al ahora:
-      - NO LO TRATES COMO HECHO ACTUAL.
-      - ÚSALO COMO SUBTEXTO (Foreshadowing/Potencial) pero no narres que ya sucedió.
-
-4. MANEJO DE FLASHBACKS (Rango 471-485)
-   - DETECCIÓN: Si la narración o el usuario invocan el pasado (ej: "Recuerdo...", "En 475..."):
-     a) REACTIVA "GardenFlowers" (Es una amenaza real en ese tiempo).
-     b) AJUSTE DE EDAD: Calcula la edad restando (Año Flashback - Año Nacimiento en Ficha).
-
-5. SISTEMA DE EXCEPCIONES (OVERRIDE)
-   - [WORLD RULES] / [LOGIC EXCEPTION]: Si encuentras estas etiquetas en el texto recuperado, su contenido es VERDAD ABSOLUTA.
-   - Obedece estas excepciones incluso si contradicen la física, la historia o las reglas anteriores.
-
-6. JERARQUÍA DE LA VERDAD (REFERENCE PRIORITY)
-   - Prioriza la información encontrada en archivos 'Reference', 'Ficha' o 'Resource' al responder preguntas sobre hechos o lore.
-   - SI EXISTE CONFLICTO entre un 'Borrador' (Draft) y una 'Ficha/Referencia', el archivo de REFERENCIA TIENE LA VERDAD CANÓNICA.
+[JERARQUÍA DE LA VERDAD]:
+Si un borrador contradice una ficha o un archivo de referencia, manda la ficha o la referencia.
 ===================================================
 `;
 
       let finalSystemInstruction = systemInstruction || "";
-      finalSystemInstruction = CONTINUITY_PROTOCOL + "\n\n" + entityContext + "\n\n" + finalSystemInstruction;
+      finalSystemInstruction = THINKING_BLOCK_GEMINI + CONTINUITY_PROTOCOL + "\n\n" + entityContext + "\n\n" + finalSystemInstruction;
 
       if (categoryFilter === 'reference') {
         // 🟢 OMNISCIENT MODE: No longer exclusive — RAG already searches ALL user chunks.
@@ -1998,14 +1973,9 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         const labExtra = labIdx >= 0 ? finalSystemInstruction.slice(labIdx) : '';
         // Oct 2026 (costos): razonamiento visible corto y sin el rol de "espejo" (choca con el tono nuevo);
         // canon limitado a los 8 fragmentos más relevantes (~9.000 caracteres).
-        const thinkStart = CONTINUITY_PROTOCOL.indexOf('[THINKING MODE ACTIVATED]');
-        const thinkEnd = CONTINUITY_PROTOCOL.indexOf('[PROTOCOLO DE MIMETISMO');
-        const continuityForClaude = (thinkStart >= 0 && thinkEnd > thinkStart)
-          ? CONTINUITY_PROTOCOL.slice(0, thinkStart)
-            // Oct 2026: NO pedir razonamiento en <thinking>: la API de Claude lo bloquea (refusal: reasoning_extraction).
-            + "Al final de tu respuesta, en una línea aparte que empiece por «Fuentes:», nombra los archivos del canon en los que te apoyaste.\n\n"
-            + CONTINUITY_PROTOCOL.slice(thinkEnd)
-          : CONTINUITY_PROTOCOL;
+        // NO pedir razonamiento en <thinking>: la API de Claude lo bloquea (refusal: reasoning_extraction).
+        const continuityForClaude = CONTINUITY_PROTOCOL
+          + "\nAl final de tu respuesta, en una línea aparte que empiece por «Fuentes:», nombra los archivos del canon en los que te apoyaste.\n";
         let memChars = 0;
         // Máx. 2 fragmentos por archivo: la búsqueda solía devolver el mismo borrador 4-5 veces.
         const perFile: Record<string, number> = {};

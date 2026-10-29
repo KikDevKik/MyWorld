@@ -22,7 +22,7 @@ export const BACKEND_TRANSLATIONS: Record<string, any> = {
             structure: 'Estructura',
             research: 'Investigación',
             auditTrailTitle: 'HISTORIAL DE AUDITORÍA (INMUTABLE)',
-            footer: 'Verificado por Titanium Creative Audit Service',
+            footer: 'Verificado por MyWorld · Auditoría creativa',
             humanInput: 'ENTRADA HUMANA'
         }
     },
@@ -49,7 +49,7 @@ export const BACKEND_TRANSLATIONS: Record<string, any> = {
             structure: 'Structure',
             research: 'Research',
             auditTrailTitle: 'AUDIT TRAIL (IMMUTABLE)',
-            footer: 'Verified by Titanium Creative Audit Service',
+            footer: 'Verified by MyWorld · Creative audit',
             humanInput: 'HUMAN INPUT'
         }
     }

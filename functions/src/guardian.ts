@@ -5,7 +5,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { defineSecret } from "firebase-functions/params";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./utils/genai";
 import * as crypto from 'crypto';
 import { cosineSimilarity } from "./similarity";
 import { TEMP_CREATIVE, TEMP_PRECISION } from "./ai_config";

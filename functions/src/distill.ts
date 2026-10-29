@@ -3,7 +3,7 @@ import { HttpsError } from "firebase-functions/v2/https";
 import { onCall } from "./utils/on_call";
 import { getFirestore } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./utils/genai";
 import { defineSecret } from "firebase-functions/params";
 import { FUNCTIONS_REGION, ALLOWED_ORIGINS } from "./config";
 import * as logger from "firebase-functions/logger";

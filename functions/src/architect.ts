@@ -5,7 +5,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import * as logger from "firebase-functions/logger";
 import { getFirestore } from "firebase-admin/firestore";
 import { google } from "./utils/gapi";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "./utils/genai";
 import { defineSecret } from "firebase-functions/params";
 import { MODEL_PRO, MODEL_FLASH, SAFETY_SETTINGS_PERMISSIVE, TEMP_PRECISION, TEMP_CREATIVE, Tier } from "./ai_config";
 import { getAIKey, getAnthropicAIKey, resolveAIProvider, escapePromptVariable, getTier } from "./utils/security";
@@ -15,7 +15,7 @@ import { smartGenerateContentClaude } from "./utils/smart_generate_claude";
 import { parseSecureJSON } from "./utils/json";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { GeminiEmbedder } from "./utils/vector_utils";
-import { TaskType } from "@google/generative-ai";
+import { TaskType } from "./utils/genai";
 import { getPrompt } from "./prompt_manager";
 import { wantsAudit, connectAvailable, conectarStart, conectarReply, conectarClose } from "./arquitecto_conectar";
 

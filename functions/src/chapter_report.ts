@@ -15,7 +15,7 @@ import { getMemoryContext } from "./utils/memory_store";
 import { textHash } from "./utils/text_hash";
 import { getAIKey } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
-import { TaskType } from "@google/generative-ai";
+import { TaskType } from "./utils/genai";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
@@ -40,6 +40,7 @@ QUÉ REVISAS:
 REGLAS DE LAS CITAS (muy importante, el editor las usa para ubicar cada punto):
 - "cita" debe ser texto COPIADO EXACTAMENTE del capítulo (mismas letras, tildes, errores y puntuación), de 4 a 15 palabras, sin "…" ni cambios.
 - En ortografía, "original" es la palabra o tramo exacto con el error (tal cual aparece) y "cita" un tramo exacto que lo contiene; "correccion" reemplaza solo a "original".
+- Ortografía según la RAE vigente (Ortografía 2010). Antes de marcar una tilde, mira la función de la palabra en la frase: «rio», «guion», «truhan», «fie», «crie» y otros monosílabos ortográficos van SIN tilde (verbo reír: «se rio»); «río» con tilde solo es el sustantivo (el río). «solo» y los demostrativos sin tilde son correctos. Si dudas, no lo marques.
 - Si no puedes citar exacto, deja "cita" vacía.
 
 FORMATO: responde SOLO JSON con esta forma:

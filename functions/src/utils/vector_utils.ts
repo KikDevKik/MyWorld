@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, TaskType } from "@google/generative-ai";
+import { GoogleGenerativeAI, TaskType } from "./genai";
 import * as logger from "firebase-functions/logger";
 
 /**
