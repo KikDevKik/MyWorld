@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>MyWorld — Escribe un mundo que no se olvide</title>
 <meta name="description" content="MyWorld es un entorno para escribir mundos de ficción: guarda el canon de tu historia, avisa de contradicciones y te acompaña con Mira mientras escribes.">
-<meta name="theme-color" content="#0B0A12">
+<meta name="theme-color" content="#0A0911">
 <meta property="og:title" content="MyWorld — Escribe un mundo que no se olvide">
 <meta property="og:description" content="Guarda el canon de tu historia para que la IA te ayude sin inventar ni olvidar.">
 <meta property="og:type" content="website">
@@ -13,17 +13,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="/assets/scene/sky.png">
+<link rel="preload" as="image" href="/assets/scene/mid.png">
+<link rel="preload" as="image" href="/assets/scene/fg.png">
 <link rel="preload" as="image" href="/assets/mira/mira_sentarse_9f.png">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  color-scheme:dark;
-  --night0:#0B0A12;--night1:#100E1A;--night2:#161327;--night3:#1E1933;--night4:#2A2140;
+  color-scheme:dark; --s:2;
   --bg:#14131B;--panel:#1E1C28;--panel2:#262333;--line:#332E44;
   --text:#FFF4F4;--muted:#B9AEC8;--soft:#D6CDE2;
   --coral:#F5697E;--onCoral:#14131B;--orange:#FF9638;--mira:#B9AEE0;--miraBg:#262236;
-  --grass:#1F3D35;--grass2:#19342D;--grassTop:#2B5A47;--hill1:#1C1830;--hill2:#17282B;
+  --grass:#1F3D35;--grass2:#1A332C;
 }
+@media (max-width:820px){:root{--s:1}}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 body{background:var(--bg);color:var(--text);font-family:Figtree,system-ui,sans-serif;font-size:17px;line-height:1.5;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
@@ -34,148 +37,135 @@ h1,h2,h3{font-family:Literata,Georgia,serif;font-weight:600;text-wrap:balance;le
 .wrap{max-width:1240px;margin:0 auto;padding:0 max(24px,env(safe-area-inset-left))}
 .skip{position:absolute;left:-9999px;top:8px;z-index:100;background:var(--coral);color:var(--onCoral);padding:10px 16px;border-radius:8px;font-weight:700}
 .skip:focus{left:12px}
-.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.px{image-rendering:pixelated;image-rendering:crisp-edges}
+.spr{position:absolute;image-rendering:pixelated;background-repeat:no-repeat;pointer-events:none}
+.rim{filter:drop-shadow(0 0 1px rgba(185,174,224,.5))}
 
-/* sprites */
-.spr{image-rendering:pixelated;background-repeat:no-repeat;display:block}
-.rim{filter:drop-shadow(0 0 2px rgba(185,174,224,.55))}
-.s-sit{background-image:url(/assets/mira/mira_sentarse_9f.png);background-size:2592px 288px;width:288px;height:288px;animation:sit 1.5s steps(4) infinite}
-@keyframes sit{from{background-position:-1440px 0}to{background-position:-2592px 0}}
-.s-wave{background-image:url(/assets/mira/mira_saludo_9f.png);background-size:1296px 144px;width:144px;height:144px;animation:wave 2.4s steps(1) infinite}
-@keyframes wave{0%{background-position:0 0}5%{background-position:-144px 0}10%{background-position:-288px 0}15%{background-position:-432px 0}20%{background-position:-576px 0}25%{background-position:-720px 0}30%{background-position:-864px 0}35%{background-position:-1008px 0}40%{background-position:-1152px 0}45%,100%{background-position:0 0}}
-.s-sleep{background-image:url(/assets/mira/mira_dormida_6f.png);background-size:576px 128px;width:96px;height:128px;animation:sleep 2.6s steps(6) infinite}
-@keyframes sleep{from{background-position:0 0}to{background-position:-576px 0}}
-.s-plane{background-image:url(/assets/mira/mira_avion_9f.png);background-size:1296px 144px;width:144px;height:144px;animation:plane 1s steps(9) 1 forwards}
-@keyframes plane{from{background-position:0 0}to{background-position:-1296px 0}}
-.s-clap{background-image:url(/assets/mira/mira_aplauso_9f.png);background-size:1296px 144px;width:144px;height:144px}
-.s-clap.go{animation:clap .9s steps(9) 1 forwards}
-@keyframes clap{from{background-position:0 0}to{background-position:-1296px 0}}
-
-/* sky */
-@keyframes tw{0%,100%{opacity:.25}50%{opacity:1}}
-.tw{position:absolute;animation:tw 3.6s ease-in-out infinite}
-@keyframes ff{0%{transform:translate(0,0);opacity:0}20%{opacity:1}50%{transform:translate(18px,-26px)}80%{opacity:.8}100%{transform:translate(-10px,-48px);opacity:0}}
-.ff{position:absolute;width:3px;height:3px;background:#FFE08A;box-shadow:0 0 6px 2px rgba(255,224,138,.6);animation:ff 6s ease-in-out infinite}
-@keyframes shoot{0%,88%{transform:translate(0,0) rotate(18deg);opacity:0}90%{opacity:1}100%{transform:translate(420px,140px) rotate(18deg);opacity:0}}
-.shoot{position:absolute;width:120px;height:2px;background:#FFE08A;box-shadow:0 0 8px 2px rgba(255,224,138,.5);animation:shoot 11s linear infinite}
-@keyframes smoke{0%{transform:translate(0,0);opacity:.7}100%{transform:translate(8px,-40px);opacity:0}}
-.smoke{animation:smoke 3s linear infinite}
-.sky{background:linear-gradient(180deg,var(--night0) 0 22%,var(--night1) 22% 44%,var(--night2) 44% 62%,var(--night3) 62% 76%,var(--night4) 76%)}
-
-/* hero */
-.hero{position:relative;min-height:min(860px,100svh);overflow:hidden;display:flex;flex-direction:column}
-.hero .stars,.hero .layer{position:absolute;inset:0;pointer-events:none}
-.hero .layer{will-change:transform}
-nav.top{position:relative;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:22px 0}
+/* ── mundo en píxeles: una sola cuadrícula (960×430 → ×2) ── */
+.hero{position:relative;height:max(760px,min(900px,100svh));overflow:hidden;background:#0A0911}
+.world{position:absolute;right:0;bottom:0;width:calc(1200px*var(--s));height:calc(430px*var(--s))}
+.zoom{position:absolute;inset:0;transform-origin:0 0;will-change:transform}
+.lyr{position:absolute;inset:0;width:100%;height:100%;will-change:transform}
+.at{position:absolute}
+.tw{position:absolute;width:calc(1px*var(--s));height:calc(1px*var(--s));background:#FFF4F4;animation:tw 3.4s ease-in-out infinite}
+@keyframes tw{0%,100%{opacity:.2}50%{opacity:1}}
+.ff{position:absolute;width:calc(1px*var(--s));height:calc(1px*var(--s));background:#FFE9A6;box-shadow:0 0 calc(3px*var(--s)) calc(1px*var(--s)) rgba(255,224,138,.55);animation:ff 7s ease-in-out infinite;opacity:0}
+@keyframes ff{0%{transform:translate(0,0);opacity:0}15%{opacity:1}50%{transform:translate(calc(9px*var(--s)),calc(-12px*var(--s)))}85%{opacity:.9}100%{transform:translate(calc(-4px*var(--s)),calc(-24px*var(--s)));opacity:0}}
+.glow{position:absolute;border-radius:50%;pointer-events:none;mix-blend-mode:screen;background:radial-gradient(closest-side,rgba(255,210,122,.55),rgba(255,210,122,.14) 55%,transparent);animation:flick 4.5s ease-in-out infinite}
+@keyframes flick{0%,100%{opacity:.85}45%{opacity:1}55%{opacity:.75}}
+.shoot{position:absolute;height:calc(1px*var(--s));width:calc(60px*var(--s));background:linear-gradient(90deg,transparent,rgba(255,233,166,.5) 60%,#FFF6D8);opacity:0;transform-origin:100% 50%}
+.shoot::after{content:"";position:absolute;right:calc(-1px*var(--s));top:calc(-1px*var(--s));width:calc(3px*var(--s));height:calc(3px*var(--s));background:#FFF6D8;box-shadow:0 0 calc(6px*var(--s)) calc(2px*var(--s)) rgba(255,214,140,.7)}
+.hero-ui{position:relative;z-index:5;height:100%;display:flex;flex-direction:column;pointer-events:none}
+.hero-ui a,.hero-ui button{pointer-events:auto}
+nav.top{display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:22px 0}
 .brand{display:flex;align-items:center;gap:10px;font-family:Literata,serif;font-size:22px;font-weight:600;text-decoration:none}
 .links{display:flex;flex-wrap:wrap;gap:22px;flex:1;font-size:15px}
 .links a{color:#CFC6DC;text-decoration:none}
 .links a:hover{color:var(--text)}
-.pill{min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 18px;border-radius:22px;border:1px solid #3A3450;background:rgba(20,19,27,.55);text-decoration:none;font-size:15px}
+.pill{min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 18px;border-radius:22px;border:1px solid #3A3450;background:rgba(10,9,17,.6);text-decoration:none;font-size:15px}
 .pill:hover{border-color:var(--mira)}
-.btn{min-height:56px;display:inline-flex;align-items:center;justify-content:center;padding:0 32px;border-radius:28px;border:0;background:var(--coral);color:var(--onCoral);font-size:18px;font-weight:700;text-decoration:none;transition:transform .15s ease,background-color .15s ease}
+.btn{min-height:56px;display:inline-flex;align-items:center;justify-content:center;padding:0 32px;border-radius:28px;border:0;background:var(--coral);color:var(--onCoral);font-size:18px;font-weight:700;text-decoration:none;box-shadow:0 0 0 3px rgba(245,105,126,.15);transition:transform .15s ease,background-color .15s ease}
 .btn:hover{transform:translateY(-1px);background:#FF7D90}
-.hero-copy{position:relative;z-index:5;max-width:580px;margin-top:clamp(40px,9vh,110px);display:flex;flex-direction:column;gap:24px}
-.hero h1{font-size:clamp(42px,6vw,74px);line-height:1.02}
-.hero p.lead{font-size:clamp(17px,1.6vw,20px);color:var(--soft);max-width:34em}
-.hero .row{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
-.hero .row a.ghost{color:var(--text);font-size:16px}
+.copy{max-width:560px;margin-top:clamp(28px,8vh,96px);display:flex;flex-direction:column;gap:22px;transition:opacity .8s ease}
+.copy h1{font-size:clamp(40px,5.6vw,72px);line-height:1.02;text-shadow:0 2px 0 #0A0911}
+.copy p{font-size:clamp(17px,1.5vw,20px);color:var(--soft);max-width:33em}
+.copy .row{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
 .beta{font-size:14px;color:var(--muted)}
-.ground{position:absolute;left:0;right:0;bottom:0;height:120px;background:var(--grass);z-index:2}
-.ground::after{content:"";position:absolute;left:0;right:0;top:38px;bottom:0;background:var(--grass2)}
-.grass{position:absolute;left:0;top:-10px;width:100%;height:14px}
-.house{position:absolute;right:15%;bottom:212px;z-index:1}
-.mira-hill{position:absolute;right:30%;bottom:84px;z-index:3}
-@media (max-width:860px){
-  .mira-hill{right:-30px;bottom:96px;transform:scale(.5);transform-origin:bottom right}
-  .house{right:4%;bottom:190px;transform:scale(.7);transform-origin:bottom right}
-  .const{display:none}
+@media (max-width:820px){
   .links{display:none}
-  .hero{min-height:960px}
-  .moon{left:auto!important;right:12%;top:120px!important}
-  .hero-copy{margin-top:28px}
+  .hero{height:auto;min-height:0;padding-bottom:430px}
+  .world{right:-140px}
+  .copy{margin-top:20px}
 }
 
-/* sections */
-section.band{padding:96px 0;border-top:1px solid var(--line)}
-.kicker{display:none}
-.two{display:flex;flex-wrap:wrap;gap:48px}
-.two>h2{flex:1 1 320px;font-size:clamp(32px,3.6vw,46px);line-height:1.08}
-.three{flex:2 1 560px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px}
-.three h3{font-size:24px;margin-bottom:10px}
-.three p{color:var(--muted)}
-@media (max-width:760px){.three{grid-template-columns:1fr}}
+/* ── secciones ── */
+section.band{padding:96px 0;position:relative}
+.h2{font-size:clamp(32px,3.6vw,46px);line-height:1.08}
+.lead2{color:var(--soft);max-width:36em;margin-top:14px}
+.obj{width:120px;height:120px;image-rendering:pixelated;display:block}
+@media (max-width:820px){.obj{width:60px;height:60px}}
 
-.mira-sec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
-.mira-sec h2{font-size:clamp(32px,3.6vw,46px);line-height:1.08;margin-bottom:18px}
-.mira-sec p{color:var(--soft);margin-bottom:14px;max-width:32em}
-.desk{position:relative;height:420px;border-radius:24px;background:#FBF8F4;overflow:hidden}
-.desk.night{background:var(--panel)}
-.desk .page{position:absolute;left:40px;right:180px;top:44px;font-family:Literata,serif;font-size:18px;line-height:1.8;color:var(--soft)}
-.desk .page .caret{display:inline-block;width:2px;height:1.1em;background:var(--coral);vertical-align:-3px;animation:blink 1.1s steps(1) infinite}
-@keyframes blink{50%{opacity:0}}
-.desk .bar{position:absolute;left:0;right:0;top:0;height:3px;background:var(--line)}
-.desk .bar i{display:block;height:3px;width:62%;background:var(--orange)}
-.desk .who{position:absolute;right:28px;bottom:26px}
-.desk .zz{position:absolute;right:-2px;top:-18px;font:700 18px monospace;color:var(--mira);animation:zz 2.4s ease-in-out infinite}
-@keyframes zz{0%{transform:translateY(4px);opacity:.3}50%{opacity:1}100%{transform:translateY(-10px);opacity:0}}
-.bubble{position:absolute;right:140px;bottom:120px;max-width:260px;padding:14px 16px;border-radius:16px 16px 4px 16px;background:var(--miraBg);border:1px solid var(--mira);font-size:15px;line-height:1.45}
-.bubble b{display:block;font-size:12px;color:var(--mira);margin-bottom:4px}
-@media (max-width:860px){.mira-sec{grid-template-columns:1fr}.desk .page{right:40px}.bubble{right:110px;left:24px;max-width:none}}
+.canon{background:#121019}
+.canon .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;margin-top:44px}
+.canon .it{display:flex;gap:18px;align-items:flex-start}
+.canon h3{font-size:24px;margin-bottom:6px}
+.canon p{color:var(--muted)}
+@media (max-width:900px){.canon .grid{grid-template-columns:1fr}}
 
-.rooms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:36px}
-.room{padding:22px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(var(--panel),var(--panel));min-height:170px;display:flex;flex-direction:column;gap:8px}
+.room-sec{background-color:#231918;background-image:url(/assets/scene/wood.png);background-size:calc(32px*var(--s)) calc(32px*var(--s));image-rendering:pixelated}
+.room-sec::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 70% 55% at 50% 0%,rgba(255,176,96,.20),transparent 70%),linear-gradient(180deg,rgba(10,9,17,.35),transparent 18%,transparent 78%,rgba(10,9,17,.55))}
+.room-sec .wrap{position:relative;z-index:1}
+.room .obj{transition:transform .25s ease}
+.room:hover .obj{transform:translateY(-6px)}
+.room:hover{border-color:#5A4038}
+.room-sec .h2,.room-sec .lead2{text-shadow:0 2px 0 #1C1413}
+.rooms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin-top:250px}
+.room{position:relative;padding:20px 22px 24px;border-radius:16px;background:rgba(20,19,27,.92);border:1px solid #3A2C2A;display:flex;flex-direction:column;gap:6px;box-shadow:0 6px 0 #170F0E}
+.room .obj{margin:-58px 0 4px -6px}
 .room h3{font-size:21px}
 .room .tag{font-size:13px;color:var(--mira)}
 .room p{font-size:15px;color:var(--muted)}
-@media (max-width:1000px){.rooms{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media (max-width:560px){.rooms{grid-template-columns:1fr}}
+.room .sit{position:absolute;right:10px;bottom:100%;margin-bottom:calc(-15px*var(--s));width:calc(144px*var(--s));height:calc(144px*var(--s))}
+@media (max-width:1000px){.rooms{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:60px}}
+@media (max-width:1000px){.rooms{margin-top:200px}}
+@media (max-width:560px){.rooms{grid-template-columns:1fr;margin-top:60px;row-gap:44px}.room .obj{margin:-30px 0 4px 0}.room:has(.sit){margin-top:110px}}
 
-.judges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:36px}
-.judge{padding:24px;border-radius:18px;background:var(--panel);border:1px solid var(--line)}
-.judge .score{font-family:Literata,serif;font-size:40px;font-variant-numeric:tabular-nums}
+.desk-sec{background:#16131D}
+.desk-sec .wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:56px;align-items:center}
+.desk-sec p{color:var(--soft);margin-top:14px;max-width:32em}
+.room-view{position:relative;height:520px;border-radius:20px;overflow:hidden;background-color:#231918;background-image:url(/assets/scene/wood.png);background-size:64px 64px;image-rendering:pixelated;border:1px solid #3A2C2A}
+.window{position:absolute;left:36px;top:34px;width:220px;height:150px;border:8px solid #4A3226;border-radius:4px;background-image:url(/assets/scene/sky.png);background-size:2400px 860px;background-position:-2194px -176px;image-rendering:pixelated;box-shadow:inset 0 0 0 2px #2A1C16}
+.window::after{content:"";position:absolute;left:50%;top:0;bottom:0;width:6px;margin-left:-3px;background:#4A3226}
+.floor{position:absolute;left:0;right:0;bottom:0;height:70px;background:#2E211D;border-top:4px solid #3A2A24}
+.page{position:absolute;right:24px;top:28px;width:min(230px,42%);padding:18px;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-family:Literata,serif;font-size:15px;line-height:1.7;color:var(--soft)}
+.caret{display:inline-block;width:2px;height:1.05em;background:var(--coral);vertical-align:-2px;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.bubble{position:absolute;max-width:250px;padding:12px 14px;border-radius:14px 14px 14px 4px;background:var(--miraBg);border:1px solid var(--mira);font-size:14px;line-height:1.45;transition:opacity .4s ease,transform .4s ease}
+.bubble b{display:block;font-size:12px;color:var(--mira);margin-bottom:3px}
+.zz{position:absolute;font:700 16px monospace;color:var(--mira);animation:zz 2.4s ease-in-out infinite}
+@keyframes zz{0%{transform:translateY(4px);opacity:.2}50%{opacity:1}100%{transform:translateY(-12px);opacity:0}}
+@media (max-width:900px){.desk-sec .wrap{grid-template-columns:1fr}.page{display:none}}
+@media (max-width:560px){.room-view{height:420px}#deskMira{left:auto!important;right:18px}.room-view .desk{width:120px!important;height:120px!important;left:16px!important}.room-view .books{width:60px!important;height:60px!important;left:140px!important}#deskZz{left:auto!important;right:40px;bottom:170px!important}#deskBubble{left:16px!important;right:16px;bottom:190px!important}.window{width:180px;left:16px}}
+
+.judges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin-top:40px}
+.judge{padding:24px;border-radius:18px;background:var(--panel);border:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.judge .top{display:flex;align-items:flex-end;justify-content:space-between}
+.judge .score{font-family:Literata,serif;font-size:42px;font-variant-numeric:tabular-nums;line-height:1}
 .judge .score small{font-size:18px;color:var(--muted)}
-.judge h3{font-size:20px;margin:6px 0 10px}
+.judge h3{font-size:20px}
 .judge p{font-size:15px;color:var(--muted)}
 @media (max-width:860px){.judges{grid-template-columns:1fr}}
 
-.final{position:relative;overflow:hidden;padding:120px 0 0;text-align:left}
+.final{position:relative;overflow:hidden;background:#0A0911;padding-top:110px}
+.final .sky2{position:absolute;inset:0;background-image:url(/assets/scene/sky.png);background-size:calc(1200px*var(--s)) calc(430px*var(--s));background-position:right top;image-rendering:pixelated;opacity:.95}
+.final .wrap{position:relative;z-index:2}
 .final h2{font-size:clamp(36px,4.6vw,60px);line-height:1.05;max-width:14em}
 .final p{color:var(--soft);margin:18px 0 28px;max-width:34em}
-.final .ground{height:90px}
-.final .scene{position:relative;height:240px;margin-top:40px}
-footer{background:var(--grass2);padding:28px 0 calc(28px + env(safe-area-inset-bottom));font-size:14px;color:#C9D8CF}
+.final .row{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.strip{position:relative;height:calc(150px*var(--s));margin-top:40px;background-image:url(/assets/scene/fg.png);background-size:calc(1200px*var(--s)) calc(430px*var(--s));background-position:right calc(-280px*var(--s));image-rendering:pixelated}
+footer{background:#1A332C;padding:26px 0 calc(26px + env(safe-area-inset-bottom));font-size:14px;color:#C9D8CF}
 footer .wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:center}
 footer nav{display:flex;flex-wrap:wrap;gap:18px;flex:1}
 footer a{color:#E7F0EA;text-decoration:none}
 footer a:hover{text-decoration:underline}
 
 /* overlays */
-.overlay{position:fixed;inset:0;z-index:50;display:none;overflow:hidden;overscroll-behavior:contain}
-.overlay.on{display:block}
-#enter .stage{position:absolute;left:50%;bottom:170px;width:900px;margin-left:-450px;height:520px}
-@media (max-width:920px){#enter .stage{transform:scale(.6);transform-origin:bottom center}}
-#enter .walk{position:absolute;bottom:-26px;left:40px;width:288px;height:288px;background-image:url(/assets/mira/mira_caminar_8f.png);background-size:2304px 288px}
-#enter .skipbtn{position:absolute;right:24px;bottom:20px;z-index:3}
-#enter .note{position:absolute;left:24px;bottom:30px;font-size:14px;color:#CFC6DC;z-index:3}
-#intro .land{position:absolute;left:50%;bottom:60px;margin-left:-144px;width:288px;height:288px;background-image:url(/assets/mira/mira_salto_7f.png);background-size:2016px 288px;opacity:0}
-#intro .star{position:absolute;width:10px;height:10px;background:#FFF4D6;box-shadow:0 0 14px 5px #FFE08A;transform:rotate(45deg)}
-#intro .hello{position:absolute;left:50%;bottom:350px;transform:translateX(-50%);font-family:Literata,serif;font-size:clamp(26px,4vw,40px);opacity:0;transition:opacity .6s ease;text-align:center;padding:0 20px}
-
-.modal-bg{position:fixed;inset:0;z-index:60;background:rgba(8,7,12,.66);display:none;align-items:center;justify-content:center;padding:16px;overscroll-behavior:contain}
+.veil{position:fixed;inset:0;z-index:60;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 55%,#FFE3A0,#FFB863 40%,#14131B 100%)}
+.modal-bg{position:fixed;inset:0;z-index:70;background:rgba(8,7,12,.66);display:none;align-items:center;justify-content:center;padding:16px;overscroll-behavior:contain}
 .modal-bg.on{display:flex}
 .modal{position:relative;width:100%;max-width:480px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:30px 28px 26px}
 .modal h2{font-size:28px;margin-bottom:10px}
 .modal p{color:var(--soft);margin-bottom:14px}
 .modal .x{position:absolute;right:14px;top:14px;width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:transparent}
-.modal .mira-corner{position:absolute;right:16px;top:-120px}
 .mailbox{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:14px;background:var(--bg);border:1px solid var(--line);margin:6px 0 16px}
 .mailbox span{font-size:16px;color:var(--mira)}
-
-.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+.hello{position:absolute;z-index:6;padding:12px 16px;border-radius:16px 16px 16px 4px;background:var(--miraBg);border:1px solid var(--mira);font-family:Literata,serif;font-size:18px;opacity:0;transition:opacity .5s ease;pointer-events:none;white-space:nowrap}
+.skip-intro{position:absolute;right:24px;bottom:20px;z-index:7;display:none}
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .7s ease,transform .7s ease}
 .reveal.in{opacity:1;transform:none}
 @media (prefers-reduced-motion:reduce){
-  .tw,.ff,.shoot,.smoke,.s-sit,.s-wave,.s-sleep,.zz,.caret{animation:none!important}
+  .tw,.ff,.glow,.zz,.caret{animation:none!important}
+  .ff{opacity:.7}
   .reveal{opacity:1;transform:none;transition:none}
 }
 </style>
@@ -183,48 +173,48 @@ footer a:hover{text-decoration:underline}
 <body>
 <a class="skip" href="#main" data-i18n="skip">Saltar al contenido</a>
 
-<header class="hero sky" id="top">
-  <div class="stars" id="stars" aria-hidden="true"></div>
-  <div class="shoot" aria-hidden="true" style="left:18%;top:9%"></div>
-  <div class="layer" data-depth="0.15" aria-hidden="true">
-    <svg class="moon" width="44" height="44" viewBox="0 0 11 11" shape-rendering="crispEdges" style="position:absolute;left:47%;top:84px"><rect x="3" y="0" width="5" height="1" fill="#F3E6C8"/><rect x="1" y="1" width="9" height="2" fill="#F3E6C8"/><rect x="0" y="3" width="11" height="5" fill="#F3E6C8"/><rect x="1" y="8" width="9" height="2" fill="#F3E6C8"/><rect x="3" y="10" width="5" height="1" fill="#F3E6C8"/><rect x="4" y="1" width="7" height="8" fill="#0B0A12"/><rect x="5" y="9" width="4" height="1" fill="#0B0A12"/></svg>
-    <svg class="const" width="520" height="280" viewBox="0 0 520 280" style="position:absolute;right:5%;top:100px">
-      <g stroke="#B9AEE0" stroke-opacity=".35" stroke-width="1.2" fill="none"><polyline points="40,170 110,120 190,138 250,80 330,96"/><polyline points="190,138 230,210 300,236"/><polyline points="380,60 430,110 500,92 470,170 430,110"/></g>
-      <g fill="#FFF4F4"><rect x="38" y="168" width="4" height="4"/><rect x="108" y="118" width="4" height="4"/><rect x="187" y="135" width="6" height="6" fill="#B9AEE0"/><rect x="248" y="78" width="4" height="4"/><rect x="328" y="94" width="4" height="4"/><rect x="228" y="208" width="4" height="4"/><rect x="298" y="234" width="4" height="4"/><rect x="378" y="58" width="4" height="4"/><rect x="427" y="107" width="6" height="6" fill="#B9AEE0"/><rect x="498" y="90" width="4" height="4"/><rect x="468" y="168" width="4" height="4"/></g>
-      <text x="198" y="160" fill="#B9AEE0" fill-opacity=".8" font-family="Figtree,sans-serif" font-size="12" data-i18n="c1">tu mundo</text>
-      <text x="440" y="132" fill="#B9AEE0" fill-opacity=".8" font-family="Figtree,sans-serif" font-size="12" data-i18n="c2">el siguiente</text>
-    </svg>
-  </div>
-  <div class="layer" data-depth="0.35" aria-hidden="true">
-    <svg viewBox="0 0 1440 300" preserveAspectRatio="none" style="position:absolute;left:-2%;bottom:100px;width:104%;height:300px"><path d="M0 150 Q 220 70 460 130 T 900 100 T 1440 120 V300 H0 Z" fill="#1C1830"/><path d="M0 220 Q 320 150 640 200 T 1120 182 T 1440 196 V300 H0 Z" fill="#17282B"/></svg>
-    <div class="house">
-      <div class="smoke" style="position:absolute;left:86px;top:-22px;width:6px;height:6px;background:#4A4560"></div>
-      <svg width="120" height="108" viewBox="0 0 40 36" shape-rendering="crispEdges"><rect x="28" y="4" width="4" height="8" fill="#3A2630"/><polygon points="2,16 20,4 38,16" fill="#6B2836"/><rect x="5" y="15" width="30" height="21" fill="#3E2C2A"/><rect x="9" y="20" width="7" height="6" fill="#FFD27A"/><rect x="24" y="22" width="7" height="14" fill="#5A3A2E"/><rect x="29" y="28" width="1" height="1" fill="#FF9638"/></svg>
-      <div style="position:absolute;left:14px;top:46px;width:40px;height:30px;background:#FFD27A;opacity:.18;filter:blur(8px)"></div>
+<header class="hero" id="top">
+  <div class="world" id="world" aria-hidden="true">
+    <div class="zoom" id="zoom">
+      <img class="lyr px" data-depth="0.08" src="/assets/scene/sky.png" alt="" width="1200" height="430">
+      <div class="lyr" data-depth="0.08" id="twinkles"></div>
+      <div class="shoot" id="shoot1"></div>
+      <img class="lyr px" data-depth="0.18" src="/assets/scene/far.png" alt="" width="1200" height="430">
+      <div class="lyr" data-depth="0.3" id="midWrap">
+        <img class="lyr px" src="/assets/scene/mid.png" alt="" width="1200" height="430">
+        <img class="at px" id="doorOpen" src="/assets/scene/door_open.png" alt="" style="opacity:0;transition:opacity .25s;left:calc(959px*var(--s));top:calc(272px*var(--s));width:calc(8px*var(--s));height:calc(18px*var(--s))">
+        <div class="glow" style="left:calc(972px*var(--s));top:calc(270px*var(--s));width:calc(26px*var(--s));height:calc(24px*var(--s))"></div>
+        <div class="glow" id="doorGlow" style="opacity:0;left:calc(948px*var(--s));top:calc(268px*var(--s));width:calc(30px*var(--s));height:calc(40px*var(--s))"></div>
+      </div>
+      <div class="lyr" data-depth="0.5" id="fgWrap">
+        <img class="lyr px" src="/assets/scene/fg.png" alt="" width="1200" height="430">
+        <div class="glow" style="left:calc(776px*var(--s));top:calc(326px*var(--s));width:calc(30px*var(--s));height:calc(30px*var(--s))"></div>
+        <div id="flies"></div>
+        <div class="spr rim" id="mira" role="img" aria-label="Mira, sentada en la colina" style="left:calc(760px*var(--s));top:calc(234px*var(--s))"></div>
+      </div>
     </div>
   </div>
-  <div class="ground" aria-hidden="true"><svg class="grass"><defs><pattern id="gA" width="14" height="14" patternUnits="userSpaceOnUse"><rect x="0" y="10" width="14" height="4" fill="#1F3D35"/><rect x="2" y="6" width="2" height="4" fill="#2B5A47"/><rect x="7" y="3" width="2" height="7" fill="#2B5A47"/><rect x="11" y="7" width="2" height="3" fill="#2B5A47"/></pattern></defs><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
-  <div id="flies" aria-hidden="true"></div>
-  <div class="mira-hill"><span class="spr s-sit rim" role="img" aria-label="Mira, sentada en la colina" data-i18n-aria="miraHill"></span></div>
+  <div class="hello" id="hello" data-i18n="hello">¡Hola! Soy Mira.</div>
+  <button class="pill skip-intro" id="skipIntro" type="button" data-i18n="skipAnim">Saltar</button>
 
-  <div class="wrap" style="position:relative;z-index:5;flex:1;display:flex;flex-direction:column;width:100%">
+  <div class="wrap hero-ui">
     <nav class="top" aria-label="Principal" data-i18n-aria="navMain">
-      <a class="brand" href="#top"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 0 L11 7 L18 9 L11 11 L9 18 L7 11 L0 9 L7 7 Z" fill="#B9AEE0"/></svg>MyWorld</a>
+      <a class="brand" href="#top"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true" shape-rendering="crispEdges"><path d="M8 0h2v6h6v2h-6v8H8V8H2V6h6z" fill="#B9AEE0"/></svg>MyWorld</a>
       <div class="links">
         <a href="#como" data-i18n="nHow">Cómo funciona</a>
         <a href="#casa" data-i18n="nHouse">La casa</a>
-        <a href="#mira" data-i18n="nMira">Mira</a>
+        <a href="#companera" data-i18n="nMira">Mira</a>
         <a href="#apoyo" data-i18n="nSupport">Apoyar</a>
       </div>
       <button class="pill" id="langBtn" type="button" aria-label="Cambiar idioma" data-i18n-aria="langAria">EN</button>
       <a class="pill" href="/app" data-enter style="border-color:var(--coral)" data-i18n="signIn">Entrar</a>
     </nav>
-    <div class="hero-copy">
+    <div class="copy" id="copy">
       <h1 data-i18n="h1">Escribe un mundo que no se olvide.</h1>
-      <p class="lead" data-i18n="lead">MyWorld guarda el canon de tu historia —personajes, lugares, reglas— para que la IA te ayude sin inventar ni olvidar. Mira te acompaña mientras escribes, y se va a dormir cuando necesitas silencio.</p>
+      <p data-i18n="lead">MyWorld guarda el canon de tu historia —personajes, lugares, reglas— para que la IA te ayude sin inventar ni olvidar. Mira te acompaña mientras escribes, y se va a dormir cuando necesitas silencio.</p>
       <div class="row">
         <a class="btn" href="/app" data-enter data-i18n="open">Abrir MyWorld</a>
-        <a class="ghost" href="#como" data-i18n="see">Ver cómo funciona</a>
+        <a href="#como" style="font-size:16px" data-i18n="see">Ver cómo funciona</a>
       </div>
       <div class="beta" data-i18n="beta">Beta abierta · Tus historias viven en tu Google Drive.</div>
     </div>
@@ -232,79 +222,81 @@ footer a:hover{text-decoration:underline}
 </header>
 
 <main id="main">
-  <section class="band" id="como">
-    <div class="wrap two">
-      <h2 class="reveal" data-i18n="s1h">La IA sugiere. Tu canon manda.</h2>
-      <div class="three">
-        <div class="reveal"><h3 data-i18n="s1a">Recuerda</h3><p data-i18n="s1at">Cada personaje, lugar y regla queda guardado como canon. La IA lo consulta antes de responder y te dice de dónde sacó cada dato.</p></div>
-        <div class="reveal"><h3 data-i18n="s1b">Avisa</h3><p data-i18n="s1bt">El estudio revisa tu capítulo y marca lo que choca con lo que ya escribiste, antes de que lo note un lector.</p></div>
-        <div class="reveal"><h3 data-i18n="s1c">Acompaña</h3><p data-i18n="s1ct">Mira opina, celebra tus metas y te recuerda descansar. Nunca escribe por ti: la historia sigue siendo tuya.</p></div>
+  <section class="band canon" id="como">
+    <div class="wrap">
+      <h2 class="h2 reveal" data-i18n="s1h">La IA sugiere. Tu canon manda.</h2>
+      <div class="grid">
+        <div class="it reveal"><img class="obj" src="/assets/objetos/fichero.png" alt="" width="60" height="60"><div><h3 data-i18n="s1a">Recuerda</h3><p data-i18n="s1at">Cada personaje, lugar y regla queda guardado como canon. La IA lo consulta antes de responder y te dice de dónde sacó cada dato.</p></div></div>
+        <div class="it reveal"><img class="obj" src="/assets/objetos/lupa.png" alt="" width="60" height="60"><div><h3 data-i18n="s1b">Avisa</h3><p data-i18n="s1bt">El estudio revisa tu capítulo y marca lo que choca con lo que ya escribiste, antes de que lo note un lector.</p></div></div>
+        <div class="it reveal"><img class="obj" src="/assets/objetos/sillon.png" alt="" width="60" height="60"><div><h3 data-i18n="s1c">Acompaña</h3><p data-i18n="s1ct">Mira opina, celebra tus metas y te recuerda descansar. Nunca escribe por ti: la historia sigue siendo tuya.</p></div></div>
       </div>
     </div>
   </section>
 
-  <section class="band" id="mira">
-    <div class="wrap mira-sec">
+  <section class="band desk-sec" id="companera">
+    <div class="wrap">
       <div class="reveal">
-        <h2 data-i18n="s2h">Una compañera que sabe cuándo callarse.</h2>
+        <h2 class="h2" data-i18n="s2h">Una compañera que sabe cuándo callarse.</h2>
         <p data-i18n="s2p1">Cuando escribes, todo lo demás se apaga. Si te detienes un rato, Mira se queda dormida en su esquina.</p>
         <p data-i18n="s2p2">Al volver al teclado se despierta y te deja un tip pequeño, que desaparece en cuanto sigues escribiendo. Y cuando cumples tu meta del día, te dice que te mereces un descanso.</p>
       </div>
-      <div class="desk night reveal" aria-hidden="true">
-        <div class="bar"><i></i></div>
+      <div class="room-view reveal" aria-hidden="true">
+        <div class="window"></div>
+        <div class="floor"></div>
+        <img class="px desk" src="/assets/objetos/escritorio.png" alt="" style="position:absolute;left:40px;bottom:46px;width:180px;height:180px">
+        <img class="px books" src="/assets/objetos/libros.png" alt="" style="position:absolute;left:232px;bottom:56px;width:90px;height:90px">
+        <div class="spr rim" id="deskMira" style="left:300px;bottom:44px"></div>
+        <span class="zz" id="deskZz" style="left:420px;bottom:220px">z Z</span>
         <div class="page"><span data-i18n="demo">El tren salió del campo antes de que amaneciera, y Anna no miró atrás. Por la ventana pasaban los últimos cultivos, y luego nada: solo niebla</span><span class="caret"></span></div>
-        <div class="bubble"><b data-i18n="tipT">Tip para enfocarte</b><span data-i18n="tipX">Deja el teléfono en otra habitación: lo que no ves no te llama.</span></div>
-        <div class="who"><span class="spr s-sleep rim"></span><span class="zz">z Z</span></div>
+        <div class="bubble" id="deskBubble" style="left:56px;bottom:270px;border-radius:14px 14px 4px 14px;opacity:0;transform:translateY(6px)"><b data-i18n="tipT">Tip para enfocarte</b><span data-i18n="tipX">Deja el teléfono en otra habitación: lo que no ves no te llama.</span></div>
       </div>
     </div>
   </section>
 
-  <section class="band" id="casa">
+  <section class="band room-sec" id="casa">
     <div class="wrap">
-      <h2 class="reveal" style="font-size:clamp(32px,3.6vw,46px);line-height:1.08;max-width:16em" data-i18n="s3h">Una casa con un cuarto para cada cosa.</h2>
+      <h2 class="h2 reveal" style="max-width:16em" data-i18n="s3h">Una casa con un cuarto para cada cosa.</h2>
+      <p class="lead2 reveal" data-i18n="s3p">Cada herramienta es un cuarto, y Mira tiene algo suyo en cada uno.</p>
       <div class="rooms">
-        <div class="room reveal"><span class="tag" data-i18n="r1t">Escribir</span><h3 data-i18n="r1">El escritorio</h3><p data-i18n="r1p">Un editor sin distracciones, con modo enfoque, meta diaria y tu mundo siempre a mano.</p></div>
-        <div class="room reveal"><span class="tag" data-i18n="r2t">Conversar</span><h3>Mira</h3><p data-i18n="r2p">Pregúntale por cualquier personaje o escena. Ya conoce tu mundo y cita sus fuentes.</p></div>
-        <div class="room reveal"><span class="tag" data-i18n="r3t">Revisar</span><h3 data-i18n="r3">El estudio</h3><p data-i18n="r3p">Tres lectores —el Arquitecto, el Bardo y el Hater— evalúan lógica, emoción y mercado.</p></div>
-        <div class="room reveal"><span class="tag" data-i18n="r4t">Planear</span><h3 data-i18n="r4">La mesa del arquitecto</h3><p data-i18n="r4p">Las partes de tu libro, los hilos de la trama y las dudas que faltan por resolver.</p></div>
-        <div class="room reveal"><span class="tag" data-i18n="r5t">Mapa</span><h3 data-i18n="r5">El observatorio</h3><p data-i18n="r5p">Los lugares de tu mundo sobre un mapa, con los capítulos donde aparecen.</p></div>
-        <div class="room reveal"><span class="tag" data-i18n="r6t">Personajes</span><h3 data-i18n="r6">El fichero</h3><p data-i18n="r6p">Una ficha por personaje: rasgos, relaciones y en qué parte de la historia está.</p></div>
-        <div class="room reveal"><span class="tag" data-i18n="r7t">Ideas</span><h3 data-i18n="r7">El frasco de ideas</h3><p data-i18n="r7p">Lo que se te ocurre y aún no decides. Nada cambia tu historia hasta que lo llevas al canon.</p></div>
-        <div class="room reveal"><span class="tag" data-i18n="r8t">Exportar</span><h3 data-i18n="r8">La imprenta</h3><p data-i18n="r8p">Convierte tus capítulos en un libro listo para compartir.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/escritorio.png" alt="" width="60" height="60"><span class="tag" data-i18n="r1t">Escribir</span><h3 data-i18n="r1">El escritorio</h3><p data-i18n="r1p">Un editor sin distracciones, con modo enfoque, meta diaria y tu mundo siempre a mano.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/sillon.png" alt="" width="60" height="60"><span class="tag" data-i18n="r2t">Conversar</span><h3>Mira</h3><p data-i18n="r2p">Pregúntale por cualquier personaje o escena. Ya conoce tu mundo y cita sus fuentes.</p><div class="spr rim sit" id="roomMira"></div></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/lupa.png" alt="" width="60" height="60"><span class="tag" data-i18n="r3t">Revisar</span><h3 data-i18n="r3">El estudio</h3><p data-i18n="r3p">Tres lectores —el Arquitecto, el Bardo y el Hater— evalúan lógica, emoción y mercado.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/planos.png" alt="" width="60" height="60"><span class="tag" data-i18n="r4t">Planear</span><h3 data-i18n="r4">La mesa del arquitecto</h3><p data-i18n="r4p">Las partes de tu libro, los hilos de la trama y las dudas que faltan por resolver.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/telescopio.png" alt="" width="60" height="60"><span class="tag" data-i18n="r5t">Mapa</span><h3 data-i18n="r5">El observatorio</h3><p data-i18n="r5p">Los lugares de tu mundo sobre un mapa, con los capítulos donde aparecen.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/fichero.png" alt="" width="60" height="60"><span class="tag" data-i18n="r6t">Personajes</span><h3 data-i18n="r6">El fichero</h3><p data-i18n="r6p">Una ficha por personaje: rasgos, relaciones y en qué parte de la historia está.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/frasco_luciernagas.png" alt="" width="60" height="60"><span class="tag" data-i18n="r7t">Ideas</span><h3 data-i18n="r7">El frasco de ideas</h3><p data-i18n="r7p">Lo que se te ocurre y aún no decides. Nada cambia tu historia hasta que lo llevas al canon.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/imprenta.png" alt="" width="60" height="60"><span class="tag" data-i18n="r8t">Exportar</span><h3 data-i18n="r8">La imprenta</h3><p data-i18n="r8p">Convierte tus capítulos en un libro listo para compartir.</p></div>
       </div>
     </div>
   </section>
 
-  <section class="band">
+  <section class="band" style="background:#14131B">
     <div class="wrap">
-      <h2 class="reveal" style="font-size:clamp(32px,3.6vw,46px);line-height:1.08;max-width:16em" data-i18n="s4h">Tres lectores honestos antes del lector de verdad.</h2>
+      <h2 class="h2 reveal" style="max-width:16em" data-i18n="s4h">Tres lectores honestos antes del lector de verdad.</h2>
       <div class="judges">
-        <div class="judge reveal"><div class="score">7<small>/10</small></div><h3 data-i18n="j1">El Arquitecto</h3><p data-i18n="j1p">Lógica y estructura: «Buenas bases, pero la motivación del personaje todavía es un misterio».</p></div>
-        <div class="judge reveal"><div class="score">7<small>/10</small></div><h3 data-i18n="j2">El Bardo</h3><p data-i18n="j2p">Emoción y estética: «Las imágenes son vívidas; el cambio de tono entre capítulos desorienta».</p></div>
-        <div class="judge reveal"><div class="score">3<small>/10</small></div><h3 data-i18n="j3">El Hater</h3><p data-i18n="j3p">Mercado: «La revelación llega sin preparación. El lector no lo compra».</p></div>
+        <div class="judge reveal"><div class="top"><div class="score">7<small>/10</small></div><img class="px" src="/assets/objetos/planos.png" alt="" width="72" height="72"></div><h3 data-i18n="j1">El Arquitecto</h3><p data-i18n="j1p">Lógica y estructura: «Buenas bases, pero la motivación del personaje todavía es un misterio».</p></div>
+        <div class="judge reveal"><div class="top"><div class="score">7<small>/10</small></div><img class="px" src="/assets/objetos/libros.png" alt="" width="72" height="72"></div><h3 data-i18n="j2">El Bardo</h3><p data-i18n="j2p">Emoción y estética: «Las imágenes son vívidas; el cambio de tono entre capítulos desorienta».</p></div>
+        <div class="judge reveal"><div class="top"><div class="score">3<small>/10</small></div><img class="px" src="/assets/objetos/lupa.png" alt="" width="72" height="72"></div><h3 data-i18n="j3">El Hater</h3><p data-i18n="j3p">Mercado: «La revelación llega sin preparación. El lector no lo compra».</p></div>
       </div>
     </div>
   </section>
 
-  <section class="final sky" id="apoyo">
+  <section class="final" id="apoyo">
+    <div class="sky2" aria-hidden="true"></div>
     <div class="wrap">
       <h2 class="reveal" data-i18n="fh">Tu mundo te espera.</h2>
       <p class="reveal" data-i18n="fp">Entra con tu cuenta de Google. Tus historias viven en tu Drive y no hay suscripción durante la beta. Si MyWorld te sirve, puedes apoyarlo.</p>
-      <div class="reveal" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+      <div class="row reveal">
         <a class="btn" href="/app" data-enter data-i18n="open">Abrir MyWorld</a>
         <a class="pill" id="donate" href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener" data-i18n="donate">Donar</a>
         <button class="pill" type="button" id="supportBtn" data-i18n="contact">Escribir a soporte</button>
       </div>
     </div>
-    <div class="scene">
-      <div class="ground" aria-hidden="true"><svg class="grass"><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
-      <div style="position:absolute;left:max(24px,8%);bottom:64px;z-index:3"><span class="spr s-wave rim" role="img" aria-label="Mira se despide con la mano" data-i18n-aria="miraBye"></span></div>
-      <div id="jarBox" style="position:absolute;right:max(24px,10%);bottom:76px;z-index:3;display:flex;align-items:flex-end;gap:4px">
-        <span class="spr s-clap rim" id="clapper" aria-hidden="true"></span>
-        <svg width="60" height="72" viewBox="0 0 20 24" shape-rendering="crispEdges" aria-hidden="true"><rect x="4" y="0" width="12" height="3" fill="#7A2E3C"/><rect x="2" y="3" width="16" height="21" fill="#B9D7F0" opacity=".3"/><rect x="2" y="3" width="1" height="21" fill="#DCEBF7"/><rect x="17" y="3" width="1" height="21" fill="#DCEBF7"/><rect x="2" y="23" width="16" height="1" fill="#DCEBF7"/><rect id="jarFill" x="3" y="18" width="14" height="5" fill="#FFC94A"/></svg>
-        <span id="coin" aria-hidden="true" style="position:absolute;width:12px;height:12px;border-radius:50%;background:#FFC94A;box-shadow:inset -3px -3px 0 #E0962A;opacity:0;left:0;top:0"></span>
-        <span id="heart" aria-hidden="true" style="position:absolute;right:16px;top:-30px;font:700 26px monospace;color:var(--coral);opacity:0;transition:opacity .4s,transform .8s;">♥</span>
-      </div>
+    <div class="strip" aria-hidden="true">
+      <img class="px" id="jar" src="/assets/objetos/frasco_monedas.png" alt="" style="position:absolute;right:max(24px,12%);bottom:calc(20px*var(--s));width:calc(60px*var(--s));height:calc(60px*var(--s));transition:transform .15s">
+      <div class="spr rim" id="clapMira" style="right:calc(max(24px,12%) + 40px*var(--s));bottom:calc(14px*var(--s))"></div>
+      <img class="px" id="coin" src="/assets/scene/coin.png" alt="" style="position:absolute;width:calc(8px*var(--s));height:calc(8px*var(--s));opacity:0;left:0;top:0">
+      <img class="px" id="heart" src="/assets/scene/heart.png" alt="" style="position:absolute;width:calc(7px*var(--s));height:calc(6px*var(--s));opacity:0;transition:opacity .4s,transform .9s ease-out">
     </div>
   </section>
 </main>
@@ -320,39 +312,11 @@ footer a:hover{text-decoration:underline}
   </div>
 </footer>
 
-<!-- Entrar a casa -->
-<div class="overlay sky" id="enter" role="dialog" aria-modal="true" aria-label="Entrando a MyWorld" data-i18n-aria="entering">
-  <div class="stars" id="stars2" aria-hidden="true" style="position:absolute;inset:0"></div>
-  <div class="ground" style="height:170px" aria-hidden="true"><svg class="grass"><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
-  <div class="stage" aria-hidden="true">
-    <div style="position:absolute;left:520px;bottom:0;width:360px;height:420px">
-      <div style="position:absolute;left:250px;top:20px;width:40px;height:90px;background:#3A2630"></div>
-      <div style="position:absolute;left:-20px;top:40px;width:0;height:0;border-left:200px solid transparent;border-right:200px solid transparent;border-bottom:120px solid #6B2836"></div>
-      <div style="position:absolute;left:10px;top:158px;width:340px;height:262px;background:#3E2C2A"></div>
-      <div id="win" style="position:absolute;left:36px;top:200px;width:80px;height:70px;background:#2A2436;transition:background-color .4s"></div>
-      <div style="position:absolute;left:75px;top:200px;width:2px;height:70px;background:#3E2C2A"></div>
-      <div id="doorOpen" style="display:none"><div style="position:absolute;left:175px;top:160px;width:140px;height:260px;background:#08070C"></div><div style="position:absolute;left:175px;top:160px;width:26px;height:260px;background:#8A5A3C"></div></div>
-      <div id="doorClosed"><div style="position:absolute;left:175px;top:160px;width:140px;height:260px;background:#8A5A3C"></div><div style="position:absolute;left:189px;top:174px;width:112px;height:100px;background:#9E6A48"></div><div style="position:absolute;left:189px;top:286px;width:112px;height:120px;background:#9E6A48"></div><div style="position:absolute;left:290px;top:276px;width:10px;height:10px;background:#FF9638"></div></div>
-    </div>
-    <div class="walk spr rim" id="walker"></div>
-  </div>
-  <div class="note" data-i18n="enteringNote">Entrando a la casa…</div>
-  <a class="pill skipbtn" href="/app" data-i18n="skipAnim">Saltar</a>
-</div>
+<div class="veil" id="veil"></div>
 
-<!-- Primera visita: estrella fugaz -->
-<div class="overlay sky" id="intro" aria-hidden="true">
-  <div class="stars" id="stars3" style="position:absolute;inset:0"></div>
-  <div class="ground" style="height:90px"><svg class="grass"><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
-  <div class="star" id="istar"></div>
-  <div class="land spr rim" id="iland"></div>
-  <div class="hello" id="ihello" data-i18n="hello">Hola, soy Mira. Bienvenido a MyWorld.</div>
-</div>
-
-<!-- Soporte -->
 <div class="modal-bg" id="supportModal">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="supT">
-    <span class="spr s-plane rim mira-corner" id="planeMira" aria-hidden="true"></span>
+    <div class="spr rim" id="planeMira" style="right:10px;top:calc(-136px*var(--s) + 20px)"></div>
     <button class="x" type="button" id="supClose" aria-label="Cerrar" data-i18n-aria="close">✕</button>
     <h2 id="supT" data-i18n="supT">Escríbenos</h2>
     <p data-i18n="supP">Mándanos un correo y te respondemos lo antes posible.</p>
@@ -365,11 +329,11 @@ footer a:hover{text-decoration:underline}
 <script>
 (function(){
   var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function S(){ return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--s')) || 2; }
 
-  // ---------- idioma ----------
+  // ───────── idioma ─────────
   var EN = {
-    skip:'Skip to content', c1:'your world', c2:'the next one', miraHill:'Mira, sitting on the hill', navMain:'Main',
-    nHow:'How it works', nHouse:'The house', nMira:'Mira', nSupport:'Support us', langAria:'Change language', signIn:'Sign in',
+    skip:'Skip to content', navMain:'Main', nHow:'How it works', nHouse:'The house', nMira:'Mira', nSupport:'Support us', langAria:'Change language', signIn:'Sign in',
     h1:'Write a world that never forgets.', lead:'MyWorld keeps the canon of your story —characters, places, rules— so AI helps you without making things up or forgetting. Mira keeps you company while you write, and falls asleep when you need silence.',
     open:'Open MyWorld', see:'See how it works', beta:'Open beta · Your stories live in your Google Drive.',
     s1h:'AI suggests. Your canon rules.', s1a:'Remembers', s1at:'Every character, place and rule is stored as canon. The AI checks it before answering and tells you where each fact came from.',
@@ -378,7 +342,9 @@ footer a:hover{text-decoration:underline}
     s2h:'A companion who knows when to be quiet.', s2p1:'When you write, everything else fades away. If you stop for a while, Mira falls asleep in her corner.',
     s2p2:'When you come back to the keyboard she wakes up and leaves a small tip, which disappears as soon as you keep writing. And when you hit your daily goal, she tells you that you deserve a break.',
     tipT:'Focus tip', tipX:'Leave your phone in another room: what you don’t see doesn’t call you.',
-    s3h:'A house with a room for everything.', r1t:'Write', r1:'The desk', r1p:'A distraction-free editor with focus mode, a daily goal and your world always at hand.',
+    demo:'The train left the countryside before dawn, and Anna didn’t look back. The last fields slid past the window, and then nothing: only fog',
+    s3h:'A house with a room for everything.', s3p:'Each tool is a room, and Mira has something of hers in every one.',
+    r1t:'Write', r1:'The desk', r1p:'A distraction-free editor with focus mode, a daily goal and your world always at hand.',
     r2t:'Talk', r2p:'Ask her about any character or scene. She already knows your world and cites her sources.',
     r3t:'Review', r3:'The study', r3p:'Three readers —the Architect, the Bard and the Hater— score logic, emotion and market appeal.',
     r4t:'Plan', r4:'The architect’s table', r4p:'The parts of your book, the plot threads and the questions still to answer.',
@@ -390,10 +356,8 @@ footer a:hover{text-decoration:underline}
     j2:'The Bard', j2p:'Emotion and aesthetics: “The imagery is vivid; the shift in tone between chapters is disorienting.”',
     j3:'The Hater', j3p:'Market: “The reveal comes out of nowhere. Readers won’t buy it.”',
     fh:'Your world is waiting.', fp:'Sign in with your Google account. Your stories live in your Drive and there is no subscription during the beta. If MyWorld helps you, you can support it.',
-    donate:'Donate', contact:'Contact support', miraBye:'Mira waves goodbye', privacy:'Privacy', terms:'Terms', contact2:'Contact',
-    entering:'Entering MyWorld', enteringNote:'Going into the house…', skipAnim:'Skip', hello:'Hi, I’m Mira. Welcome to MyWorld.',
-    demo:'The train left the countryside before dawn, and Anna didn\u2019t look back. The last fields slid past the window, and then nothing: only fog',
-    close:'Close', supT:'Write to us', supP:'Send us an email and we’ll get back to you as soon as we can.', copy:'Copy', copied:'Email copied', mail:'Open your email'
+    donate:'Donate', contact:'Contact support', privacy:'Privacy', terms:'Terms', contact2:'Contact',
+    skipAnim:'Skip', hello:'Hi! I’m Mira.', close:'Close', supT:'Write to us', supP:'Send us an email and we’ll get back to you as soon as we can.', copy:'Copy', copied:'Email copied', mail:'Open your email'
   };
   var ES = {}; document.querySelectorAll('[data-i18n]').forEach(function(el){ ES[el.dataset.i18n] = el.innerHTML; });
   document.querySelectorAll('[data-i18n-aria]').forEach(function(el){ ES[el.dataset.i18nAria] = el.getAttribute('aria-label'); });
@@ -411,89 +375,165 @@ footer a:hover{text-decoration:underline}
   }
   document.getElementById('langBtn').addEventListener('click', function(){ var n = lang === 'es' ? 'en' : 'es'; try { localStorage.setItem('mw-lang', n); } catch(e) {} applyLang(n); });
   applyLang(lang);
-  window.__t = function(k){ return (lang === 'es' ? ES : EN)[k]; };
+  function t(k){ return (lang === 'es' ? ES : EN)[k]; }
 
-  // ---------- estrellas y luciérnagas ----------
-  function stars(id, n, maxY){
-    var box = document.getElementById(id); if (!box) return; var s = 7, frag = document.createDocumentFragment();
+  // ───────── motor de sprites: cuadros a su ritmo, posiciones suaves ─────────
+  var BIG = { w:144, h:144 }, SMALL = { w:96, h:128 };
+  var SP = {
+    sentarse:{ src:'/assets/mira/mira_sentarse_9f.png', n:9, f:BIG }, saludo:{ src:'/assets/mira/mira_saludo_9f.png', n:9, f:BIG },
+    caminar:{ src:'/assets/mira/mira_caminar_8f.png', n:8, f:BIG }, salto:{ src:'/assets/mira/mira_salto_7f.png', n:7, f:BIG },
+    aplauso:{ src:'/assets/mira/mira_aplauso_9f.png', n:9, f:BIG }, avion:{ src:'/assets/mira/mira_avion_9f.png', n:9, f:BIG },
+    dormida:{ src:'/assets/mira/mira_dormida_6f.png', n:6, f:SMALL }, despertando:{ src:'/assets/mira/mira_despertando_6f.png', n:6, f:SMALL }, neutral:{ src:'/assets/mira/mira_neutral_4f.png', n:4, f:SMALL }
+  };
+  function Sprite(el, scaleFn){ this.el = el; this.scale = scaleFn || S; this.timer = 0; this.cur = null; this.frame = 0; }
+  Sprite.prototype.set = function(name, frame){
+    var d = SP[name], s = this.scale(); this.cur = name; this.frame = frame;
+    var e = this.el.style; e.backgroundImage = 'url(' + d.src + ')'; e.width = d.f.w * s + 'px'; e.height = d.f.h * s + 'px';
+    e.backgroundSize = (d.n * d.f.w * s) + 'px ' + (d.f.h * s) + 'px'; e.backgroundPosition = (-frame * d.f.w * s) + 'px 0';
+  };
+  Sprite.prototype.play = function(name, frames, fps, loop){
+    var self = this; clearInterval(this.timer); var i = 0; this.set(name, frames[0]);
+    if (reduce){ this.set(name, frames[frames.length - 1]); return Promise.resolve(); }
+    return new Promise(function(res){
+      self.timer = setInterval(function(){ i++; if (i >= frames.length){ if (loop) i = 0; else { clearInterval(self.timer); res(); return; } } self.set(name, frames[i]); }, 1000 / fps);
+    });
+  };
+  var all = [];
+  function mk(id, scaleFn){ var s = new Sprite(document.getElementById(id), scaleFn); all.push(s); return s; }
+  addEventListener('resize', function(){ all.forEach(function(s){ if (s.cur) s.set(s.cur, s.frame); }); });
+  function range(a, b){ var r = []; for (var i = a; i <= b; i++) r.push(i); return r; }
+  function ease(t){ return t < .5 ? 2*t*t : 1 - Math.pow(-2*t + 2, 2) / 2; }
+  function tween(ms, fn){ return new Promise(function(res){ var t0 = performance.now(); (function step(now){ var p = Math.min(1, (now - t0) / ms); fn(p); if (p < 1) requestAnimationFrame(step); else res(); })(t0); }); }
+  var wait = function(ms){ return new Promise(function(r){ setTimeout(r, ms); }); };
+
+  // ───────── cielo vivo ─────────
+  (function(){
+    var box = document.getElementById('twinkles'), s = 11;
     function r(){ s = (s * 9301 + 49297) % 233280; return s / 233280; }
-    for (var i = 0; i < n; i++){ var d = document.createElement('i'); var big = r() < .15; d.className = 'tw';
-      d.style.cssText = 'left:'+(r()*98).toFixed(1)+'%;top:'+(r()*maxY).toFixed(1)+'%;width:'+(big?4:2)+'px;height:'+(big?4:2)+'px;background:'+(r()<.3?'#B9AEE0':'#FFF4F4')+';opacity:'+(.35+r()*.6).toFixed(2)+';animation-delay:'+(r()*4).toFixed(2)+'s';
-      frag.appendChild(d); }
-    box.appendChild(frag);
-  }
-  stars('stars', 90, 62); stars('stars2', 70, 60); stars('stars3', 70, 70);
-  var fl = document.getElementById('flies');
-  [[52,60,0,6],[61,140,1.2,7],[70,90,2.5,5.5],[78,180,.6,6.5],[86,70,3.1,7.5],[93,150,1.8,6],[44,110,4,8],[66,40,2.2,5]].forEach(function(a){
-    var d = document.createElement('i'); d.className = 'ff'; d.style.cssText = 'left:'+a[0]+'%;bottom:'+a[1]+'px;z-index:4;animation-delay:'+a[2]+'s;animation-duration:'+a[3]+'s'; fl.appendChild(d); });
+    for (var i = 0; i < 46; i++){ var d = document.createElement('i'); d.className = 'tw';
+      d.style.left = 'calc(' + Math.floor(r() * 1200) + 'px*var(--s))'; d.style.top = 'calc(' + Math.floor(r() * 190) + 'px*var(--s))'; d.style.animationDelay = (r() * 4).toFixed(2) + 's'; box.appendChild(d); }
+    var fl = document.getElementById('flies');
+    [[700,330,0,7],[760,300,1.4,8],[820,352,2.6,6.5],[880,318,.8,7.5],[1000,340,3.2,8.5],[1060,310,1.9,7],[640,350,4.1,9],[930,360,2.3,6]].forEach(function(a){
+      var d = document.createElement('i'); d.className = 'ff'; d.style.left = 'calc(' + a[0] + 'px*var(--s))'; d.style.top = 'calc(' + a[1] + 'px*var(--s))'; d.style.animationDelay = a[2] + 's'; d.style.animationDuration = a[3] + 's'; fl.appendChild(d); });
+    if (!reduce){
+      var sh = document.getElementById('shoot1');
+      setInterval(function(){
+        var x0 = 300 + Math.random() * 500, y0 = 20 + Math.random() * 60;
+        tween(900, function(p){ var e = ease(p), sc = S(); sh.style.left = (x0 + 160 * e) * sc + 'px'; sh.style.top = (y0 + 50 * e) * sc + 'px'; sh.style.transform = 'rotate(17deg)'; sh.style.opacity = p < .15 ? p / .15 : 1 - p; });
+      }, 9000);
+    }
+  })();
 
-  // ---------- parallax ----------
+  // ───────── parallax suave ─────────
   if (!reduce && matchMedia('(pointer: fine)').matches){
-    var layers = document.querySelectorAll('.hero .layer'), mx = 0, my = 0, raf = 0;
-    addEventListener('pointermove', function(e){ mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; if (!raf) raf = requestAnimationFrame(function(){ raf = 0;
-      layers.forEach(function(l){ var d = +l.dataset.depth; l.style.transform = 'translate3d('+(-mx*40*d)+'px,'+(-my*20*d - scrollY*d*.3)+'px,0)'; }); }); }, { passive: true });
+    var lyr = document.querySelectorAll('#zoom > [data-depth]'), tx = 0, ty = 0, cx = 0, cy = 0;
+    addEventListener('pointermove', function(e){ tx = e.clientX / innerWidth - .5; ty = e.clientY / innerHeight - .5; }, { passive: true });
+    (function loop(){ cx += (tx - cx) * .06; cy += (ty - cy) * .06;
+      lyr.forEach(function(l){ var d = +l.dataset.depth; l.style.transform = 'translate3d(' + (-cx * 36 * d).toFixed(2) + 'px,' + (-cy * 14 * d).toFixed(2) + 'px,0)'; });
+      requestAnimationFrame(loop); })();
   }
 
-  // ---------- aparición al hacer scroll ----------
-  var io = 'IntersectionObserver' in window ? new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .12 }) : null;
-  document.querySelectorAll('.reveal').forEach(function(el){ io ? io.observe(el) : el.classList.add('in'); });
+  // ───────── Mira en la colina ─────────
+  var mira = mk('mira'), miraEl = document.getElementById('mira');
+  var copy = document.getElementById('copy');
+  function idleSit(){ mira.play('sentarse', range(5, 8), 3, true); }
 
-  // ---------- entrar a casa ----------
+  // primera visita: estrella fugaz → aterriza → saluda → se sienta
+  var seen = true; try { seen = localStorage.getItem('mw-intro') === '1'; } catch(e) {}
+  var skip = false, skipBtn = document.getElementById('skipIntro'), hello = document.getElementById('hello');
+  async function intro(){
+    try { localStorage.setItem('mw-intro', '1'); } catch(e) {}
+    copy.style.opacity = 0; skipBtn.style.display = 'inline-flex';
+    var sc = S(), sh = document.getElementById('shoot1');
+    mira.set('salto', 4); miraEl.style.opacity = 0;
+    var tx = 760 + 72, ty = 234 + 120; // pies de Mira
+    await tween(1400, function(p){ if (skip) return; var e = Math.pow(p, 1.5); sh.style.width = 90 * S() + 'px'; sh.style.left = (420 + (tx - 420) * e - 90) * S() + 'px'; sh.style.top = (30 + (ty - 30) * e) * S() + 'px'; sh.style.transform = 'rotate(' + (Math.atan2(ty - 30, tx - 420) * 57.3).toFixed(1) + 'deg)'; sh.style.opacity = p < .1 ? p * 10 : 1; });
+    sh.style.opacity = 0; if (skip) return;
+    miraEl.style.opacity = 1;
+    mira.play('salto', [4, 5], 8, false);
+    await tween(420, function(p){ var e = 1 - Math.pow(1 - p, 3); miraEl.style.transform = 'translateY(' + ((-70 + 70 * e) * S()).toFixed(1) + 'px)'; });
+    miraEl.style.transform = ''; dust(760 + 72, 365);
+    await mira.play('salto', [6, 2, 0], 9, false); if (skip) return;
+    var r = miraEl.getBoundingClientRect(), hr = document.getElementById('top').getBoundingClientRect();
+    hello.style.left = (r.left - hr.left + r.width * .62) + 'px'; hello.style.top = (r.top - hr.top + r.height * .02) + 'px'; hello.style.opacity = 1;
+    await mira.play('saludo', range(0, 8), 10, false); await mira.play('saludo', range(0, 8), 10, false);
+    if (skip) return;
+    hello.style.opacity = 0; await mira.play('sentarse', range(0, 8), 9, false);
+    endIntro();
+  }
+  function dust(x, y){
+    var box = document.getElementById('flies');
+    for (var i = 0; i < 14; i++){ (function(i){ var d = document.createElement('i'), a = Math.PI * (i / 13), sp = 10 + (i % 4) * 6, c = i % 3 ? '#FFE9A6' : '#B9AEE0';
+      d.style.cssText = 'position:absolute;width:calc(1px*var(--s));height:calc(1px*var(--s));background:' + c + ';box-shadow:0 0 4px ' + c; box.appendChild(d);
+      tween(700 + (i % 3) * 120, function(p){ var e = 1 - Math.pow(1 - p, 3), sc = S(); d.style.left = (x - Math.cos(a) * sp * e) * sc + 'px'; d.style.top = (y - Math.sin(a) * sp * .7 * e + 6 * p * p) * sc + 'px'; d.style.opacity = (1 - p).toFixed(2); }).then(function(){ d.remove(); }); })(i); }
+  }
+  function endIntro(){ skip = true; skipBtn.style.display = 'none'; hello.style.opacity = 0; miraEl.style.opacity = 1; miraEl.style.transform = ''; copy.style.opacity = 1; idleSit(); }
+  skipBtn.addEventListener('click', endIntro);
+  if (!seen && !reduce) intro(); else idleSit();
+
+  // ───────── entrar a casa: sube por el camino, se abre la puerta y la cámara entra ─────────
   var entering = false;
-  function enterHouse(e){
+  async function enterHouse(e){
     if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1)) return;
-    if (reduce) return; // navega directo
-    if (e) e.preventDefault(); if (entering) return; entering = true;
-    var ov = document.getElementById('enter'), w = document.getElementById('walker'), win = document.getElementById('win');
-    var dO = document.getElementById('doorOpen'), dC = document.getElementById('doorClosed');
-    ov.classList.add('on'); document.body.style.overflow = 'hidden';
-    var t = 0; var iv = setInterval(function(){
-      var x = 40, f = 0, op = 1;
-      if (t < 30){ x = 40 + t * 19; f = t % 8; }
-      else if (t < 32){ x = 610; }
-      else if (t < 34){ x = 610; dO.style.display = 'block'; dC.style.display = 'none'; }
-      else if (t < 40){ x = 610 + (t - 34) * 4; f = t % 8; op = Math.max(0, 1 - (t - 34) / 5); }
-      else { op = 0; dO.style.display = 'none'; dC.style.display = 'block'; if (t >= 42) win.style.background = '#FFD27A'; }
-      w.style.left = x + 'px'; w.style.opacity = op; w.style.backgroundPosition = (-f * 288) + 'px 0';
-      if (t >= 52){ clearInterval(iv); location.href = '/app'; }
-      t++;
-    }, 110);
+    if (reduce) return;
+    if (e) e.preventDefault(); if (entering) return; entering = true; endIntro();
+    var hero = document.getElementById('top'); if (scrollY > 40){ scrollTo({ top: 0, behavior: 'smooth' }); await wait(450); }
+    copy.style.opacity = 0;
+    var path = [[760, 234]]; [.92, .78, .64, .5, .36, .22, .1, 0].forEach(function(t){ path.push([963 - 163 * t + 30 * Math.sin(3 * t) - 72, 289 + 78 * t - 131]); });
+    var scale0 = 1, scale1 = .32;
+    mira.play('caminar', range(0, 7), 10, true);
+    await tween(2300, function(p){
+      var e = ease(p), seg = Math.min(path.length - 2, Math.floor(e * (path.length - 1))), f = e * (path.length - 1) - seg;
+      var x = path[seg][0] + (path[seg + 1][0] - path[seg][0]) * f, y = path[seg][1] + (path[seg + 1][1] - path[seg][1]) * f, k = scale0 + (scale1 - scale0) * e, s = S();
+      miraEl.style.left = x * s + 'px'; miraEl.style.top = y * s + 'px'; miraEl.style.transformOrigin = '50% 91%'; miraEl.style.transform = 'scale(' + k.toFixed(3) + ')';
+      if (p > .78) miraEl.style.opacity = (1 - (p - .78) / .22).toFixed(2);
+      if (p > .6){ document.getElementById('doorOpen').style.opacity = 1; document.getElementById('doorGlow').style.opacity = 1; }
+    });
+    var z = document.getElementById('zoom'), s = S(), ox = 963 * s, oy = 281 * s, veil = document.getElementById('veil');
+    var wr = document.getElementById('world').getBoundingClientRect(), dx = innerWidth / 2 - (wr.left + ox), dy = innerHeight / 2 - (wr.top + oy);
+    z.style.transformOrigin = ox + 'px ' + oy + 'px';
+    await tween(1400, function(p){ var e = p * p * (3 - 2 * p), k = p * p * p; z.style.transform = 'translate(' + (dx * e).toFixed(1) + 'px,' + (dy * e).toFixed(1) + 'px) scale(' + (1 + 13 * k).toFixed(3) + ')'; veil.style.opacity = Math.max(0, (p - .5) / .5).toFixed(2); });
+    location.href = '/app';
   }
   document.querySelectorAll('[data-enter]').forEach(function(a){ a.addEventListener('click', enterHouse); });
 
-  // ---------- primera visita ----------
-  var seen = false; try { seen = localStorage.getItem('mw-intro') === '1'; } catch(e) { seen = true; }
-  if (!seen && !reduce){
-    try { localStorage.setItem('mw-intro', '1'); } catch(e) {}
-    var it = document.getElementById('intro'), st = document.getElementById('istar'), ld = document.getElementById('iland'), hi = document.getElementById('ihello');
-    it.classList.add('on');
-    var W = innerWidth, H = innerHeight, k = 0, done = false;
-    function finish(){ if (done) return; done = true; it.style.transition = 'opacity .6s ease'; it.style.opacity = 0; setTimeout(function(){ it.classList.remove('on'); }, 600); }
-    it.addEventListener('click', finish); addEventListener('keydown', function once(){ finish(); removeEventListener('keydown', once); });
-    var iv2 = setInterval(function(){
-      if (k <= 24){ var p = k / 24; st.style.left = (40 + (W/2 - 40) * p) + 'px'; st.style.top = (20 + (H - 220) * p) + 'px'; }
-      if (k === 25){ st.style.display = 'none'; ld.style.opacity = 1; ld.style.backgroundPosition = '-1152px 0'; }
-      if (k === 26) ld.style.backgroundPosition = '-1440px 0';
-      if (k === 27) ld.style.backgroundPosition = '-1728px 0';
-      if (k === 29) ld.style.backgroundPosition = '-576px 0';
-      if (k === 30){ ld.style.backgroundPosition = '0 0'; hi.style.opacity = 1; }
-      if (k === 52){ clearInterval(iv2); finish(); }
-      k++;
-    }, 45);
+  // ───────── el escritorio: se duerme, despierta y deja un tip ─────────
+  var desk = mk('deskMira', function(){ return innerWidth <= 560 ? 1 : 2; }), zz = document.getElementById('deskZz'), bub = document.getElementById('deskBubble');
+  async function deskLoop(){
+    while (true){
+      zz.style.display = ''; bub.style.opacity = 0; bub.style.transform = 'translateY(6px)';
+      await desk.play('dormida', range(0, 5).concat(range(0, 5)), 3, false);
+      zz.style.display = 'none';
+      await desk.play('despertando', range(0, 5), 8, false);
+      bub.style.opacity = 1; bub.style.transform = 'none';
+      await desk.play('neutral', range(0, 3).concat(range(0, 3), range(0, 3)), 4, false);
+      bub.style.opacity = 0; await wait(500);
+    }
   }
+  if (reduce){ desk.set('neutral', 0); bub.style.opacity = 1; zz.style.display = 'none'; } else deskLoop();
 
-  // ---------- donar ----------
+  // ───────── Mira sentada sobre su cuarto ─────────
+  var rm = mk('roomMira'); rm.play('sentarse', range(5, 8), 3, true);
+
+  // ───────── despedida y donar ─────────
+  var clap = mk('clapMira'); function clapIdle(){ clap.play('sentarse', range(5, 8), 3, true); } clapIdle();
   document.getElementById('donate').addEventListener('click', function(){
-    var c = document.getElementById('clapper'), coin = document.getElementById('coin'), h = document.getElementById('heart');
-    c.classList.remove('go'); void c.offsetWidth; c.classList.add('go');
-    if (reduce) return; var k = 0; coin.style.opacity = 1;
-    var iv3 = setInterval(function(){ var p = k / 18; coin.style.left = (40 + 110 * p) + 'px'; coin.style.top = (20 - 90 * Math.sin(Math.PI * p) + 30 * p) + 'px';
-      if (k++ >= 18){ clearInterval(iv3); coin.style.opacity = 0; h.style.opacity = 1; h.style.transform = 'translateY(-30px)'; setTimeout(function(){ h.style.opacity = 0; h.style.transform = 'none'; }, 900); } }, 30);
+    if (reduce) return;
+    var coin = document.getElementById('coin'), heart = document.getElementById('heart'), jar = document.getElementById('jar'), strip = coin.parentElement;
+    var sr = strip.getBoundingClientRect(), jr = jar.getBoundingClientRect(), cr = document.getElementById('clapMira').getBoundingClientRect();
+    var x0 = cr.left - sr.left + cr.width * .55, y0 = cr.top - sr.top + cr.height * .45, x1 = jr.left - sr.left + jr.width * .45, y1 = jr.top - sr.top + jr.height * .2;
+    clap.play('aplauso', range(0, 8).concat(range(0, 8)), 12, false).then(function(){ clap.play('sentarse', [3, 4, 5], 8, false).then(clapIdle); });
+    coin.style.opacity = 1;
+    tween(700, function(p){ var x = x0 + (x1 - x0) * p, y = y0 + (y1 - y0) * p - Math.sin(Math.PI * p) * 90; coin.style.left = x + 'px'; coin.style.top = y + 'px'; }).then(function(){
+      coin.style.opacity = 0; jar.style.transform = 'translateY(' + (2 * S()) + 'px)'; setTimeout(function(){ jar.style.transform = ''; }, 140);
+      heart.style.left = (x1 - 4) + 'px'; heart.style.top = (y1 - 20) + 'px'; heart.style.transform = 'none'; heart.style.opacity = 1;
+      requestAnimationFrame(function(){ heart.style.transform = 'translateY(-40px)'; }); setTimeout(function(){ heart.style.opacity = 0; }, 800);
+    });
   });
 
-  // ---------- soporte ----------
-  var modal = document.getElementById('supportModal'), lastFocus = null;
-  function openSup(e){ if (e) e.preventDefault(); lastFocus = document.activeElement; modal.classList.add('on'); var pm = document.getElementById('planeMira'); pm.style.animation = 'none'; void pm.offsetWidth; pm.style.animation = ''; document.getElementById('supClose').focus(); }
+  // ───────── soporte ─────────
+  var plane = mk('planeMira'), modal = document.getElementById('supportModal'), lastFocus = null;
+  function openSup(e){ if (e) e.preventDefault(); lastFocus = document.activeElement; modal.classList.add('on'); plane.play('avion', range(0, 8), 10, false); document.getElementById('supClose').focus(); }
   function closeSup(){ modal.classList.remove('on'); if (lastFocus) lastFocus.focus(); }
   document.getElementById('supportBtn').addEventListener('click', openSup);
   document.getElementById('supportLink').addEventListener('click', openSup);
@@ -501,8 +541,12 @@ footer a:hover{text-decoration:underline}
   modal.addEventListener('click', function(e){ if (e.target === modal) closeSup(); });
   addEventListener('keydown', function(e){ if (e.key === 'Escape' && modal.classList.contains('on')) closeSup(); });
   document.getElementById('copyBtn').addEventListener('click', function(){
-    navigator.clipboard && navigator.clipboard.writeText('deidev180@gmail.com').then(function(){ document.getElementById('copyMsg').textContent = window.__t('copied'); setTimeout(function(){ document.getElementById('copyMsg').textContent = ''; }, 2500); });
+    navigator.clipboard && navigator.clipboard.writeText('deidev180@gmail.com').then(function(){ var m = document.getElementById('copyMsg'); m.textContent = t('copied'); setTimeout(function(){ m.textContent = ''; }, 2500); });
   });
+
+  // ───────── aparición al bajar ─────────
+  var io = 'IntersectionObserver' in window ? new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .12 }) : null;
+  document.querySelectorAll('.reveal').forEach(function(el){ io ? io.observe(el) : el.classList.add('in'); });
 })();
 </script>
 </body>
