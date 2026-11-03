@@ -384,9 +384,9 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
 
     // 🟢 AI AUTO-DISCOVERY
     const handleAutoDiscover = async () => {
-        setIsAnalyzing(true);
         const token = accessToken;
-        if (!token) return;
+        if (!token) { toast.error('Reconecta Google Drive para analizar tus carpetas.'); return; }
+        setIsAnalyzing(true);
 
         if (!config?.folderId && !config?.canonPaths?.length) {
             toast.error('Primero crea o conecta una carpeta de proyecto.');
@@ -399,17 +399,19 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
             const data = await callFunction<any>('discoverFolderRoles', {
                 accessToken: token,
                 rootFolderId: config?.folderId,
-                canonPaths: config?.canonPaths || [],
+                canonPaths: canonPaths.length ? canonPaths : (config?.canonPaths || []),
+                resourcePaths: resourcePaths.length ? resourcePaths : (config?.resourcePaths || []),
             });
 
             if (data.suggestion && Object.keys(data.suggestion).length > 0) {
                 setFolderMapping(prev => ({ ...prev, ...data.suggestion }));
+                if (Array.isArray(data.folderList)) setFolderNames(prev => ({ ...prev, ...Object.fromEntries(data.folderList.map((f: any) => [f.id, f.name])) }));
                 
                 // Update lists if backend provided them
                 if (data.canonPaths) setCanonPaths(data.canonPaths);
                 if (data.resourcePaths) setResourcePaths(data.resourcePaths);
 
-                toast.success(`Se detectaron ${Object.keys(data.suggestion).length} roles y se actualizaron las rutas.`);
+                toast.success(`Listo: ${Object.keys(data.suggestion).length} tipos de carpeta asignados. Revísalos y guarda.`);
             } else {
                 toast.warning(data.message || "No se pudieron deducir roles automáticamente.");
             }
@@ -538,7 +540,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                 </div>
                 <div className="flex items-center gap-2">
                     {currentId && (
-                        <span className="text-[10px] font-mono text-titanium-600 max-w-[200px] truncate" title={currentId}>
+                        <span className="text-xs text-titanium-300 max-w-[220px] truncate" title={displayName || currentId}>
                             {displayName}
                         </span>
                     )}
@@ -789,10 +791,10 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                             <div className="flex items-center justify-between bg-titanium-950/30 p-4 rounded-lg border border-titanium-800">
                                 <div>
                                     <h3 className="text-sm font-bold text-titanium-200 flex items-center gap-2">
-                                        <Cpu size={16} className="text-cyan-500" /> Asistente de Estructura
+                                        <Cpu size={16} className="text-mira" /> Qué guarda cada carpeta
                                     </h3>
                                     <p className="text-xs text-titanium-500 mt-1">
-                                        Deja que la IA organice tu proyecto automáticamente.
+                                        Así Mira y el Arquitecto saben dónde buscar y dónde guardar lo nuevo (una ficha va a Personajes, un capítulo a la historia).
                                     </p>
                                 </div>
                                 <div className="flex gap-2">
@@ -801,7 +803,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                         disabled={isAnalyzing}
                                         className="px-3 py-1.5 bg-titanium-800 hover:bg-titanium-700 border border-titanium-700 rounded text-xs font-medium text-titanium-300 transition-colors flex items-center gap-2 disabled:opacity-50"
                                     >
-                                        <Brain size={14} /> {isAnalyzing ? 'Analizando...' : 'Auto-Detectar'}
+                                        <Brain size={14} /> {isAnalyzing ? 'Analizando…' : 'Detectar solo'}
                                     </button>
                                     <button
                                         onClick={handleCreateStructure}
@@ -815,20 +817,20 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
 
                             {/* Mappings List */}
                             <div className="space-y-1">
-                                <h4 className="text-xs font-bold text-titanium-400 uppercase tracking-wider mb-3">Nivel 1: El Mundo (La Biblia)</h4>
-                                <RoleRow role={FolderRole.WORLD_CORE} label="Reglas Universales" desc="Física, Magia, Cosmología." />
-                                <RoleRow role={FolderRole.LORE_HISTORY} label="Lore & Historia" desc="Cronologías, Mitos, Eventos Pasados." />
+                                <h4 className="text-sm font-semibold text-titanium-100 mb-2">El mundo</h4>
+                                <RoleRow role={FolderRole.WORLD_CORE} label="Reglas del mundo" desc="Física, magia, cosmología." />
+                                <RoleRow role={FolderRole.LORE_HISTORY} label="Historia del mundo" desc="Cronologías, mitos, eventos pasados." />
 
-                                <h4 className="text-xs font-bold text-titanium-400 uppercase tracking-wider mt-6 mb-3">Nivel 2: Las Entidades (Base de Datos)</h4>
-                                <RoleRow role={FolderRole.ENTITY_PEOPLE} label="Personajes (Forja)" desc="Humanoides con diálogo." />
-                                <RoleRow role={FolderRole.ENTITY_BESTIARY} label="Bestiario" desc="Criaturas, Monstruos, Flora." />
-                                <RoleRow role={FolderRole.ENTITY_FACTIONS} label="Facciones" desc="Gremios, Religiones, Ejércitos." />
+                                <h4 className="text-sm font-semibold text-titanium-100 mt-6 mb-2">Quiénes lo habitan</h4>
+                                <RoleRow role={FolderRole.ENTITY_PEOPLE} label="Personajes" desc="Quienes hablan y actúan en tu historia." />
+                                <RoleRow role={FolderRole.ENTITY_BESTIARY} label="Bestiario" desc="Criaturas, monstruos, flora." />
+                                <RoleRow role={FolderRole.ENTITY_FACTIONS} label="Facciones" desc="Gremios, religiones, ejércitos." />
 
-                                <h4 className="text-xs font-bold text-titanium-400 uppercase tracking-wider mt-6 mb-3">Nivel 3: La Narrativa (Manuscrito)</h4>
-                                <RoleRow role={FolderRole.SAGA_MAIN} label="Saga Principal" desc="Los libros principales." />
-                                <RoleRow role={FolderRole.SAGA_EXTRAS} label="Extras & Spin-offs" desc="Historias cortas, One-shots." />
-                                <RoleRow role={FolderRole.DRAFTS} label="Borradores (Limbos)" desc="Ideas sin procesar." />
-                                <RoleRow role={FolderRole.RESOURCES} label="Recursos" desc="Archivos de referencia (PDFs, Imágenes)." />
+                                <h4 className="text-sm font-semibold text-titanium-100 mt-6 mb-2">Lo que escribes</h4>
+                                <RoleRow role={FolderRole.SAGA_MAIN} label="Tu historia" desc="Los libros y capítulos principales." />
+                                <RoleRow role={FolderRole.SAGA_EXTRAS} label="Historias aparte" desc="Relatos cortos y spin-offs." />
+                                <RoleRow role={FolderRole.DRAFTS} label="Borradores" desc="Ideas sin procesar." />
+                                <RoleRow role={FolderRole.RESOURCES} label="Recursos" desc="Referencias: PDFs, imágenes, apuntes." />
                             </div>
                         </div>
                     )}

@@ -3,17 +3,20 @@
 // ("Ir"), la ortografía se puede corregir con un clic y los puntos se marcan como hechos.
 import React, { useEffect, useMemo, useState } from 'react';
 import { MiraSprite } from '../mira/MiraSprite';
-import { X, FileSearch, Loader2, LocateFixed, Check, RefreshCw, BookOpen, Sparkles, AlertTriangle, SpellCheck, ShieldCheck, Users, HelpCircle } from 'lucide-react';
+import { X, FileSearch, Loader2, LocateFixed, Check, RefreshCw, BookOpen, Sparkles, AlertTriangle, SpellCheck, ShieldCheck, Users, HelpCircle, MessageSquareQuote, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { textHash } from '../../utils/textHash';
-import { locateQuote } from '../../utils/locateQuote';
+import { locateQuote, locateWord } from '../../utils/locateQuote';
 
 interface Strength { titulo: string; explicacion: string; cita?: string }
 interface Problem { tipo: string; gravedad: 'alta' | 'media' | 'baja'; titulo: string; explicacion: string; sugerencia: string; citas?: string[] }
 interface Spelling { original: string; correccion: string; cita?: string; nota?: string }
 interface Reading { titulo: string; autor: string; tipo?: string; deSusReferencias?: boolean; porque: string }
-interface Report { resumen: string; fortalezas: Strength[]; problemas: Problem[]; ortografia: Spelling[]; lecturas: Reading[]; siguientePaso?: string }
+interface ReaderView { veredicto: string; seEntiende?: 'si' | 'a medias' | 'no'; confusiones?: string[] }
+interface ReaderReply { punto: string; coincide: boolean; explicacion: string; cita?: string }
+interface Report { resumen: string; fortalezas: Strength[]; problemas: Problem[]; ortografia: Spelling[]; lecturas: Reading[]; siguientePaso?: string; lector?: ReaderView; respuestaLector?: ReaderReply[] }
+const TIPO_LABEL: Record<string, string> = { pov: 'punto de vista', continuidad: 'continuidad', ritmo: 'ritmo', dialogo: 'diálogo', claridad: 'claridad', tono: 'tono', estructura: 'estructura', reparto: 'reparto', personaje: 'personajes' };
 // Oct 2026: el Tribunal y el Guardián viven ahora dentro del reporte.
 interface Voice { veredicto: string; lectura: string; nota?: number; citas?: string[] }
 interface Voices { arquitecto?: Voice; bardo?: Voice; hater?: Voice }
@@ -53,6 +56,11 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
     const [canon, setCanon] = useState<CanonCheck | null>(null);
     const [extraHash, setExtraHash] = useState<{ voices?: string; canon?: string }>({});
     const [busy, setBusy] = useState<Record<Extra, boolean>>({ voices: false, canon: false });
+    // Nov 2026: opiniones de lectores reales (un amigo que leyó el capítulo); el reporte las responde.
+    const [lectores, setLectores] = useState<{ texto: string; fecha: string }[]>([]);
+    const [lectorDraft, setLectorDraft] = useState('');
+    const [lectorOpen, setLectorOpen] = useState(false);
+    const [savingLector, setSavingLector] = useState(false);
     const doneKey = `myworld_report_done_${fileId}`;
     const [done, setDone] = useState<Record<string, boolean>>(() => {
         try { return JSON.parse(localStorage.getItem(doneKey) || '{}'); } catch { return {}; }
@@ -67,6 +75,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                 if (r.report) { setReport(r.report); setMeta({ createdAt: r.createdAt, contentHash: r.contentHash }); }
                 if (r.voices) setVoices(r.voices);
                 if (r.canon) setCanon(r.canon);
+                if (Array.isArray(r.lectores)) setLectores(r.lectores);
                 setExtraHash({ voices: r.voicesHash, canon: r.canonHash });
             })
             .catch(() => {})
@@ -136,14 +145,20 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
         if (!pos) { toast.warning('No encontré ese pasaje: puede que ya lo hayas cambiado.'); return; }
         reveal(pos.from, pos.to);
     };
+    // Nov 2026: en ortografía se ubica la palabra exacta (dentro de su cita, o su primera aparición).
+    const goToWord = (s: Spelling) => {
+        const pos = locateWord(getText(), s.original, s.cita);
+        if (!pos) { toast.warning(`No encontré «${s.original}»: puede que ya lo hayas corregido.`); return; }
+        reveal(pos.from, pos.to);
+    };
 
     const fix = (s: Spelling, k: string) => {
         const text = getText();
         const area = s.cita ? locateQuote(text, s.cita) : null;
         let pos: { from: number; to: number } | null = null;
         if (area) {
-            const inner = text.slice(area.from, area.to).indexOf(s.original);
-            if (inner >= 0) pos = { from: area.from + inner, to: area.from + inner + s.original.length };
+            const hit = locateWord(text, s.original, s.cita);
+            if (hit && hit.to - hit.from === s.original.length && text.slice(hit.from, hit.to) === s.original) pos = hit;
         }
         if (!pos) {
             const first = text.indexOf(s.original);
@@ -153,6 +168,52 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
         replace(pos.from, pos.to, s.correccion);
         if (!done[k]) toggleDone(k);
     };
+
+    const saveLector = async (quitar?: number) => {
+        if (quitar === undefined && lectorDraft.trim().length < 10) { toast.warning('Pega lo que te dijo el lector (al menos una frase).'); return; }
+        setSavingLector(true);
+        try {
+            const r = await callFunction<any>('chapterReport', quitar === undefined ? { mode: 'lector', fileId, fileName, texto: lectorDraft } : { mode: 'lector', fileId, fileName, quitar });
+            setLectores(r?.lectores || []);
+            if (quitar === undefined) { setLectorDraft(''); setLectorOpen(false); toast.success('Guardé lo que dijo tu lector. El próximo reporte lo responde punto por punto.'); }
+        } catch (e: any) {
+            toast.error(e?.message || 'No se pudo guardar.');
+        } finally {
+            setSavingLector(false);
+        }
+    };
+
+    const renderLector = () => (
+        <section className="rounded-xl border border-titanium-700 bg-titanium-950/40 p-3 space-y-2">
+            <div className="flex items-center gap-2">
+                <MessageSquareQuote size={14} className="text-mira shrink-0" />
+                <h3 className="flex-1 text-[13px] font-semibold text-titanium-100">Lo que dijo un lector real</h3>
+                {!lectorOpen && <button onClick={() => setLectorOpen(true)} className="text-[12px] text-mira hover:underline">{lectores.length ? 'Añadir otro' : 'Añadir'}</button>}
+            </div>
+            {!lectores.length && !lectorOpen && <p className="text-titanium-400">¿Alguien leyó este capítulo? Pega lo que te dijo, tal cual. El reporte le responde punto por punto y suma lo que se le haya escapado.</p>}
+            {lectores.map((l, i) => (
+                <div key={i} className="flex items-start gap-2 rounded-lg bg-titanium-900 border border-titanium-800 p-2">
+                    <p className="flex-1 whitespace-pre-wrap text-titanium-300 line-clamp-4">{l.texto}</p>
+                    <button onClick={() => saveLector(i)} disabled={savingLector} className="p-1 text-titanium-500 hover:text-red-300" aria-label="Quitar esta opinión"><Trash2 size={12} /></button>
+                </div>
+            ))}
+            {lectorOpen && (
+                <div className="space-y-2">
+                    <label className="sr-only" htmlFor="lector-draft">Opinión del lector</label>
+                    <textarea id="lector-draft" value={lectorDraft} onChange={e => setLectorDraft(e.target.value)} rows={5} autoFocus
+                        placeholder="Ej.: «Demasiados personajes se presentan de golpe. La mitad del tiempo no se entiende quién habla…»"
+                        className="w-full rounded-lg border border-titanium-700 bg-titanium-900 p-2 text-[13px] text-titanium-100 placeholder-titanium-500 focus:border-mira/70 focus-visible:outline-none" />
+                    <div className="flex items-center gap-2">
+                        <button onClick={() => saveLector()} disabled={savingLector} className="rounded-lg bg-coral px-3 py-1.5 text-[12px] font-semibold text-on-coral disabled:opacity-50">{savingLector ? 'Guardando…' : 'Guardar'}</button>
+                        <button onClick={() => { setLectorOpen(false); setLectorDraft(''); }} className="rounded-lg px-3 py-1.5 text-[12px] text-titanium-300 hover:bg-titanium-800">Cancelar</button>
+                    </div>
+                </div>
+            )}
+            {!!lectores.length && report && !report.respuestaLector?.length && !lectorOpen && (
+                <button onClick={generate} disabled={generating} className="text-[12px] font-medium text-mira hover:underline">Rehacer el reporte con esta opinión</button>
+            )}
+        </section>
+    );
 
     const stale = useMemo(() => !!(meta.contentHash && report && textHash(getText()) !== meta.contentHash), [meta.contentHash, report, getText]);
     const fecha = meta.createdAt ? new Date(meta.createdAt).toLocaleString() : '';
@@ -324,6 +385,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                             <Sparkles size={13} /> Generar reporte
                         </button>
                         <div className="pt-4 space-y-3 text-left">
+                            {renderLector()}
                             {renderWatch()}
                             {renderCanon()}
                             {renderVoices()}
@@ -342,6 +404,37 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                             {report.siguientePaso && <p className="mt-2 text-purple-300"><b>Primer paso:</b> {report.siguientePaso}</p>}
                         </section>
 
+                        {report.lector?.veredicto && (
+                            <section className="rounded-xl border border-mira/40 bg-mira-bg p-3 space-y-1.5">
+                                <div className="flex items-center gap-2">
+                                    <h3 className="flex-1 text-[13px] font-semibold text-titanium-100">Así le llega a un lector</h3>
+                                    {report.lector.seEntiende && <span className={`rounded border px-1.5 py-px text-[10px] ${report.lector.seEntiende === 'si' ? GRAVEDAD.baja : report.lector.seEntiende === 'no' ? GRAVEDAD.alta : GRAVEDAD.media}`}>{report.lector.seEntiende === 'si' ? 'se entiende' : report.lector.seEntiende === 'no' ? 'no se entiende' : 'se entiende a medias'}</span>}
+                                </div>
+                                <p className="font-serif text-[14px] text-titanium-100">«{report.lector.veredicto}»</p>
+                                {!!report.lector.confusiones?.length && (
+                                    <ul className="list-disc pl-4 space-y-0.5">{report.lector.confusiones.map((c, i) => <li key={i}>{c}</li>)}</ul>
+                                )}
+                            </section>
+                        )}
+
+                        {!!report.respuestaLector?.length && (
+                            <section className="space-y-2">
+                                <h3 className="text-[11px] font-semibold uppercase tracking-wider text-titanium-500">Tu lector dijo… ({report.respuestaLector.length})</h3>
+                                {report.respuestaLector.map((r, i) => (
+                                    <div key={i} className="rounded-lg border border-titanium-800 bg-titanium-950/40 p-3">
+                                        <div className="flex items-start gap-2">
+                                            <span className={`mt-0.5 rounded border px-1.5 py-px text-[10px] ${r.coincide ? GRAVEDAD.alta : GRAVEDAD.baja}`}>{r.coincide ? 'tiene razón' : 'con matices'}</span>
+                                            <p className="flex-1 font-medium text-titanium-100">{r.punto}</p>
+                                            {r.cita && <GoBtn quote={r.cita} />}
+                                        </div>
+                                        <p className="mt-1">{r.explicacion}</p>
+                                    </div>
+                                ))}
+                            </section>
+                        )}
+
+                        {renderLector()}
+
                         {!!report.problemas?.length && (
                             <section className="space-y-2">
                                 <h3 className="text-[11px] font-semibold uppercase tracking-wider text-titanium-500">Qué corregir ({report.problemas.length})</h3>
@@ -349,7 +442,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                                     <Item key={`p${i}`} k={`p${i}`}>
                                         <div className="flex items-center gap-2 flex-wrap">
                                             <span className={`rounded border px-1.5 py-px text-[10px] ${GRAVEDAD[p.gravedad] || GRAVEDAD.baja}`}>{p.gravedad}</span>
-                                            <span className="text-[10px] text-titanium-500">{p.tipo}</span>
+                                            <span className="text-[10px] text-titanium-500">{TIPO_LABEL[p.tipo] || p.tipo}</span>
                                         </div>
                                         <p className="mt-1 font-medium text-titanium-100">{p.titulo}</p>
                                         <p className="mt-1">{p.explicacion}</p>
@@ -378,7 +471,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                                             <span className="text-titanium-600">→</span>
                                             <span className="text-emerald-300">{s.correccion}</span>
                                             <span className="ml-auto flex gap-1">
-                                                <GoBtn quote={s.cita || s.original} />
+                                                <button onClick={() => goToWord(s)} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-cyan-300 hover:bg-cyan-900/30" title="Ir a la palabra en el editor"><LocateFixed size={11} /> Ir</button>
                                                 <button onClick={() => fix(s, `o${i}`)} disabled={!!done[`o${i}`]} className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-emerald-300 hover:bg-emerald-900/30 disabled:opacity-30">
                                                     <Check size={11} /> Corregir
                                                 </button>

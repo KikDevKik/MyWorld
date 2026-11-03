@@ -67,6 +67,7 @@ export const discoverFolderRoles = onCall(
         let canonPaths: { id: string; name: string }[] = [];
         let resourcePaths: { id: string; name: string }[] = [];
         let allTaxonomyFolders: { id: string; name: string }[] = [];
+        let usedUserPaths = false;
 
         try {
             if (targetRootId) {
@@ -124,6 +125,29 @@ export const discoverFolderRoles = onCall(
                 }
 
                 allTaxonomyFolders = [...canonPaths, ...resourcePaths];
+
+                // Nov 2026: muchos proyectos (p. ej. los migrados de Obsidian) no tienen carpetas llamadas
+                // CANON / RECURSOS: sus carpetas de canon e inspiración son las que el autor eligió en «Carpetas».
+                // Entonces se analizan esas carpetas y su primer nivel de subcarpetas, sin tocar su lista.
+                if (allTaxonomyFolders.length === 0) {
+                    const userCanon: { id: string; name: string }[] = (request.data.canonPaths?.length ? request.data.canonPaths : config.canonPaths) || [];
+                    const userRes: { id: string; name: string }[] = (request.data.resourcePaths?.length ? request.data.resourcePaths : config.resourcePaths) || [];
+                    const picked: { id: string; name: string }[] = [];
+                    for (const f of [...userCanon, ...userRes]) {
+                        if (!f?.id || picked.length >= 80) continue;
+                        picked.push({ id: f.id, name: f.name });
+                        try {
+                            const sub = await drive.files.list({
+                                q: `'${escapeDriveQuery(f.id)}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                                fields: "files(id, name)",
+                                pageSize: 30,
+                            });
+                            for (const s of sub.data.files || []) if (picked.length < 80) picked.push({ id: s.id!, name: `${f.name} / ${s.name}` });
+                        } catch (e: any) { logger.warn(`[FolderDiscovery] No se pudo leer ${f.name}: ${e?.message}`); }
+                    }
+                    allTaxonomyFolders = picked;
+                    usedUserPaths = true;
+                }
             } else {
                 // Decentralized structure: use user-selected paths if no root folder is set
                 const targetCanonPaths = request.data.canonPaths || config.canonPaths || [];
@@ -139,7 +163,7 @@ export const discoverFolderRoles = onCall(
                     suggestion: {},
                     canonPaths: [],
                     resourcePaths: [],
-                    message: "No se encontraron subcarpetas dentro de Canon o Recursos para analizar."
+                    message: "No encontré carpetas para organizar. Elige primero tus carpetas de canon e inspiración en «Carpetas»."
                 };
             }
 
@@ -203,8 +227,9 @@ export const discoverFolderRoles = onCall(
 
             return {
                 suggestion: finalMapping,
-                canonPaths,
-                resourcePaths,
+                // Con las carpetas del autor no se devuelven listas: el cliente conserva las suyas.
+                canonPaths: usedUserPaths ? undefined : canonPaths,
+                resourcePaths: usedUserPaths ? undefined : resourcePaths,
                 folderList: allTaxonomyFolders,
                 message: "Análisis completado."
             };

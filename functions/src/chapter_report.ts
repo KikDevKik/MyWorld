@@ -33,6 +33,11 @@ QUÉ REVISAS:
 - Lo que funciona (con la cita que lo demuestra), para que lo conserve.
 - Problemas de oficio: punto de vista y persona narrativa, promesas sin cumplir (armas de Chéjov), continuidad con su plan y su canon, ritmo (escenas infladas o apresuradas), diálogos, claridad, tono.
 - Ortografía y puntuación (incluida la de diálogos: raya, incisos, mayúsculas de nombres propios).
+- LO QUE NOTA UN LECTOR REAL (Nov 2026: un amigo del autor lo vio y el reporte no). Revísalo SIEMPRE y, si falla, va como problema de gravedad alta:
+  · Reparto: cuántos personajes aparecen por primera vez en el capítulo y si el lector puede seguirlos. Muchos nombres de golpe, sin un rasgo y su relación con la protagonista, confunden ("reparto").
+  · Quién habla: en las escenas con tres o más voces, ¿se sabe quién dice cada línea sin releer? Si a menudo no, es un problema "dialogo" de gravedad alta, no un detalle.
+  · Relaciones creíbles: cómo se tratan los personajes debe corresponder a la historia que comparten (una pareja de años no se habla como si se acabara de conocer; un rasgo de siempre no sorprende como si fuera nuevo). Si no corresponde, es "personaje".
+- Sé tan franco como un amigo que le dice la verdad: si el capítulo hoy no funciona para un lector, dilo en la primera frase del resumen, sin suavizar (sin crueldad con el autor).
 - Referencias para estudiar, ligadas a los problemas de ESTE capítulo:
   1. PRIMERO sus propias referencias (series, anime, películas, libros o autores que menciona en sus archivos de Recursos): para cada una, qué escena o recurso concreto mirar y qué problema del capítulo le ayuda a resolver. Márcalas con "deSusReferencias": true y "tipo" según lo que sean.
   2. Después, como mucho 3 libros reales y conocidos de los que estés completamente seguro: título y autor EXACTOS tal como se publicaron en español (p. ej. «Mientras escribo», Stephen King). Nunca inventes ni aproximes un título ("o similar" no vale); si no estás seguro, OMITE esa entrada por completo (nunca escribas una entrada que diga que no estás seguro o que se ignore).
@@ -43,11 +48,15 @@ REGLAS DE LAS CITAS (muy importante, el editor las usa para ubicar cada punto):
 - Ortografía según la RAE vigente (Ortografía 2010). Antes de marcar una tilde, mira la función de la palabra en la frase: «rio», «guion», «truhan», «fie», «crie» y otros monosílabos ortográficos van SIN tilde (verbo reír: «se rio»); «río» con tilde solo es el sustantivo (el río). «solo» y los demostrativos sin tilde son correctos. Si dudas, no lo marques.
 - Si no puedes citar exacto, deja "cita" vacía.
 
+OPINIONES DE LECTORES REALES: si el autor te pasa lo que le dijo alguien que leyó el capítulo, respóndela punto por punto en "respuestaLector": si tiene razón, muéstralo en el texto con una cita y súmalo a "problemas" si no estaba; si no la tiene o le falta contexto (por ejemplo, algo que el canon explica), dilo con respeto y por qué. Nunca la ignores.
+
 FORMATO: responde SOLO JSON con esta forma:
 {
- "resumen": "2-3 frases: estado del capítulo y lo más importante a mejorar",
+ "resumen": "2-3 frases: estado del capítulo y lo más importante a mejorar (franco)",
+ "lector": {"veredicto":"una frase: cómo le llega este capítulo a alguien que lo lee por primera vez, sin suavizar","seEntiende":"si|a medias|no","confusiones":["en qué se pierde el lector, máx. 4"]},
+ "respuestaLector": [{"punto":"lo que dijo el lector, resumido","coincide":true,"explicacion":"por qué tiene razón o qué le falta saber","cita":"…"}],
  "fortalezas": [{"titulo":"…","explicacion":"…","cita":"…"}],
- "problemas": [{"tipo":"pov|continuidad|ritmo|dialogo|claridad|tono|estructura","gravedad":"alta|media|baja","titulo":"…","explicacion":"por qué no funciona","sugerencia":"qué hacer (sin escribirle la prosa)","citas":["…"]}],
+ "problemas": [{"tipo":"pov|continuidad|ritmo|dialogo|claridad|tono|estructura|reparto|personaje","gravedad":"alta|media|baja","titulo":"…","explicacion":"por qué no funciona","sugerencia":"qué hacer (sin escribirle la prosa)","citas":["…"]}],
  "ortografia": [{"original":"…","correccion":"…","cita":"…","nota":"regla breve, opcional"}],
  "lecturas": [{"titulo":"…","autor":"autor o estudio","tipo":"libro|serie|anime|película|otro","deSusReferencias":true,"porque":"qué escena o técnica mirar y para qué problema de este capítulo"}],
  "siguientePaso": "la primera cosa que haría en la reescritura"
@@ -263,6 +272,19 @@ export const chapterReport = onCall(
             return snap.exists ? { found: true, ...(snap.data() as any) } : { found: false };
         }
 
+        // Nov 2026: lo que dijo un lector real del capítulo; el próximo reporte lo responde punto por punto.
+        if (mode === "lector") {
+            const texto = String(request.data?.texto || "").trim().slice(0, 4000);
+            const quitar = Number.isInteger(request.data?.quitar) ? Number(request.data.quitar) : -1;
+            const prev: any = (await ref.get()).data() || {};
+            let lectores: { texto: string; fecha: string }[] = Array.isArray(prev.lectores) ? prev.lectores : [];
+            if (quitar >= 0) lectores = lectores.filter((_, i) => i !== quitar);
+            else if (texto.length >= 10) lectores = [...lectores, { texto, fecha: new Date().toISOString() }].slice(-5);
+            else throw new HttpsError("invalid-argument", "Pega lo que te dijo el lector (al menos una frase).");
+            await ref.set({ lectores, fileName: fileName || prev.fileName || "" }, { merge: true });
+            return { found: true, lectores };
+        }
+
         const text = String(content || "");
         if (text.trim().length < 300) throw new HttpsError("invalid-argument", "El capítulo es demasiado corto para un reporte.");
         if (text.length > 120000) throw new HttpsError("invalid-argument", "El capítulo es demasiado largo (máx. ~20.000 palabras).");
@@ -328,12 +350,15 @@ export const chapterReport = onCall(
             return { found: true, ...out };
         }
 
-        const [memory, references] = await Promise.all([
+        const [memory, references, prevDoc] = await Promise.all([
             getMemoryContext(uid, `${fileName || ""} reporte capítulo`),
             loadReferences(uid, accessToken),
+            ref.get(),
         ]);
+        const lectores: { texto: string; fecha: string }[] = ((prevDoc.data() as any)?.lectores || []).slice(-5);
         const extra = [
             memory ? `MEMORIA DEL PROYECTO (plan y decisiones del autor):\n${memory}` : "",
+            lectores.length ? `OPINIONES DE LECTORES REALES (lo que le dijeron al autor sobre este capítulo, tal cual):\n${lectores.map((l, i) => `[Lector ${i + 1}]\n${l.texto}`).join("\n\n")}` : "",
             references ? `REFERENCIAS DEL AUTOR (de sus carpetas de Recursos):\n${references}` : "REFERENCIAS DEL AUTOR: (no hay archivos de Recursos indexados)",
         ].filter(Boolean).join("\n\n");
         const report = await runReview(REPORT_SYSTEM, text, name, extra, { maxTokens: 12000, effort: "medium", label: "ChapterReport" });

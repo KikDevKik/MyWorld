@@ -1,5 +1,5 @@
 import React from 'react';
-import { MessageCircleHeart, Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, Landmark, FileSearch } from 'lucide-react';
+import { Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, DraftingCompass, FileSearch } from 'lucide-react';
 import { GEMS } from '../../constants';
 import { GemId } from '../../types';
 import { useLanguageStore } from '../../stores/useLanguageStore';
@@ -27,8 +27,9 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     // Función auxiliar para elegir el icono correcto según la ID de la Gem
     const getIcon = (id: string) => {
         switch (id) {
-            case 'director': return <MessageCircleHeart size={20} />;
-            case 'arquitecto': return <Landmark size={20} />;
+            // Nov 2026: el cuarto de Mira lleva su cara (pixel art); la mesa, un compás de dibujo.
+            case 'director': return <img src="/assets/mira/mira_cara_icono.png" alt="" width={34} height={34} className="w-[34px] h-[34px] mira-rim" draggable={false} />;
+            case 'arquitecto': return <DraftingCompass size={20} />;
             case 'perforador': return <Globe2 size={20} />;
             case 'forja': return <Hammer size={20} />;
             case 'guardian': return <ShieldCheck size={20} />;

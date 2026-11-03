@@ -56,6 +56,7 @@ import ReadingToolbar from './components/ui/ReadingToolbar';
 import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
 import { PostGenesisPanel } from './components/PostGenesisPanel';
 import ContinueCard from './components/ui/ContinueCard';
+import { writeLastDoc } from './utils/lastDoc';
 import MiraDeskCompanion from './components/mira/MiraDeskCompanion';
 import { MiraSprite } from './components/mira/MiraSprite';
 import TipsCorner from './components/mira/TipsCorner';
@@ -182,6 +183,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const handleContentChange = (newContent: string) => {
         setSelectedFileContent(newContent);
     };
+
+    // Nov 2026: recuerda el último documento en el que el autor ESCRIBIÓ (para «Continuar donde lo dejaste» en la Casa).
+    const lastDocRef = useRef<{ id: string | null; content: string }>({ id: null, content: '' });
+    useEffect(() => {
+        const id = currentFileId, content = selectedFileContent;
+        const prev = lastDocRef.current;
+        lastDocRef.current = { id, content };
+        if (!id || id === 'mock-file-id' || prev.id !== id || !content || prev.content === content || prev.content === commonT.loading || content === commonT.loading) return;
+        const timer = window.setTimeout(() => writeLastDoc(config?.folderId, { id, name: currentFileName, content }), 1500);
+        return () => window.clearTimeout(timer);
+    }, [currentFileId, selectedFileContent]);
 
     // 🟢 AUTO-SAVE LOGIC
     const saveToDrive = async () => {
@@ -1282,8 +1294,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 return (
                     <ContinueCard
                         projectName={config?.projectName || ''}
+                        folderId={config?.folderId}
+                        sessionId={arquitectoSessionId}
                         onGoToArquitecto={() => setActiveView('arquitecto')}
                         onGoToDirector={() => setActiveView('director')}
+                        onContinue={(doc) => { setCurrentFileName(doc.name); handleTimelineFileSelect(doc.id); }}
+                        onAskMira={(message) => { setDirectorPendingMessage(message); setActiveView('director'); }}
                     />
                 );
             }

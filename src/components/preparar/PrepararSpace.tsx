@@ -3,7 +3,7 @@
 // y «Qué pasaría si» (ideas no canon). Cada vista se monta la primera vez que se abre y
 // luego se conserva, para no perder la conversación al cambiar de pestaña.
 import React, { useEffect, useState } from 'react';
-import { Landmark, Network, Users, Lightbulb } from 'lucide-react';
+import { DraftingCompass, Network, Users, Lightbulb } from 'lucide-react';
 
 import { type PrepararTab, PREPARAR_TAB_KEY } from './tabs';
 import RoomMira from '../mira/RoomMira';
@@ -18,7 +18,7 @@ const ROOM_MIRA: Partial<Record<PrepararTab, { pose: MiraPose; line: string; sid
 export type { PrepararTab } from './tabs';
 
 const TABS: { id: PrepararTab; label: string; hint: string; icon: React.ReactNode }[] = [
-    { id: 'conversacion', label: 'La mesa', hint: 'Planea con el Arquitecto: partes, hilos y dudas', icon: <Landmark size={14} /> },
+    { id: 'conversacion', label: 'La mesa', hint: 'Planea con el Arquitecto: partes, hilos y dudas', icon: <DraftingCompass size={14} /> },
     { id: 'mapa', label: 'El observatorio', hint: 'Tu mundo como un mapa de conexiones', icon: <Network size={14} /> },
     { id: 'personajes', label: 'El fichero', hint: 'Las fichas de tus personajes', icon: <Users size={14} /> },
     { id: 'quepasa', label: 'El frasco de ideas', hint: 'Qué pasaría si: aquí nada es canon hasta que lo decidas', icon: <Lightbulb size={14} /> },

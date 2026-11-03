@@ -1,53 +1,111 @@
-import React, { useMemo } from 'react';
-import { Landmark, MessageCircle } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { DraftingCompass, MessageCircle, PenLine } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
+import { useArquitectoStore } from '../../stores/useArquitectoStore';
+import { useMisionesEditor } from '../../hooks/useMisionesEditor';
 import { MiraSprite } from '../mira/MiraSprite';
 import { getTips } from '../mira/tips';
+import { readLastDoc, LastDoc } from '../../utils/lastDoc';
 
 // La Casa: lo primero que ves al entrar a un proyecto con historia.
-// Ventana con el cielo (tus mundos como constelaciones), tu semana y un tip del rincón.
+// Nov 2026: Mira te dice dónde lo dejaste y qué sigue (según el plan de la mesa del arquitecto), con un botón para
+// volver al último documento que escribiste. Si todavía no hay plan, lo dice y te invita a armarlo.
 interface ContinueCardProps {
     projectName: string;
+    folderId?: string;
+    sessionId?: string | null;
     onGoToArquitecto: () => void;
     onGoToDirector: () => void;
+    onContinue?: (doc: LastDoc) => void;
+    onAskMira?: (message: string) => void;
 }
 
 const STR = {
     es: {
         hi: (h: number) => (h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'),
-        lead: 'Tu mundo ya tiene historia. Abre un capítulo en la barra de la izquierda para volver al escritorio, o elige un cuarto.',
         architect: 'La mesa del arquitecto', architectP: 'Planos, hilos y dudas por resolver',
         mira: 'Hablar con Mira', miraP: 'Pregúntale por tu mundo',
-        week: 'Esta semana', weekP: (n: number) => `${n} ${n === 1 ? 'día' : 'días'} escribiendo. Descansar un día no rompe la racha.`,
-        tip: 'Tip del rincón', days: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], sky: 'tu mundo',
+        week: 'Esta semana', days: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], sky: 'tu mundo',
+        weekP: (full: number, touch: number) => full || touch
+            ? `${full} ${full === 1 ? 'día' : 'días'} escribiendo${touch ? ` · ${touch} con pocas palabras` : ''}. Descansar un día no rompe la racha.`
+            : 'Todavía no escribes esta semana. Con unas líneas basta para empezar.',
+        tip: 'Tip del rincón',
     },
     en: {
         hi: (h: number) => (h < 12 ? 'Good morning' : h < 19 ? 'Good afternoon' : 'Good evening'),
-        lead: 'Your world already has a story. Open a chapter in the left bar to go back to the desk, or pick a room.',
         architect: 'The architect’s table', architectP: 'Plans, threads and open questions',
         mira: 'Talk to Mira', miraP: 'Ask her about your world',
-        week: 'This week', weekP: (n: number) => `${n} ${n === 1 ? 'day' : 'days'} writing. A rest day doesn’t break the streak.`,
-        tip: 'Tip of the day', days: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], sky: 'your world',
+        week: 'This week', days: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], sky: 'your world',
+        weekP: (full: number, touch: number) => full || touch
+            ? `${full} ${full === 1 ? 'day' : 'days'} writing${touch ? ` · ${touch} with just a few words` : ''}. A rest day doesn’t break the streak.`
+            : 'No writing yet this week. A few lines are enough to start.',
+        tip: 'Tip of the day',
     },
 };
 
-function weekActivity(): boolean[] {
+// Un día cuenta como «escrito» desde 100 palabras; menos es un toque (un título, una nota).
+const FULL_DAY = 100;
+function weekActivity(): number[] {
     const now = new Date();
     const dow = (now.getDay() + 6) % 7; // lunes = 0
     return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(now); d.setDate(now.getDate() - dow + i);
-        try { return parseInt(localStorage.getItem(`myword_daily_${d.toISOString().split('T')[0]}`) || '0', 10) > 0; } catch { return false; }
+        try { return parseInt(localStorage.getItem(`myword_daily_${d.toISOString().split('T')[0]}`) || '0', 10) || 0; } catch { return 0; }
     });
 }
 
-export default function ContinueCard({ projectName, onGoToArquitecto, onGoToDirector }: ContinueCardProps) {
+function lastSentence(tail: string): string {
+    const paras = tail.split(/\n+/).map(p => p.trim()).filter(p => p && !/^#+\s/.test(p));
+    const p = paras[paras.length - 1] || '';
+    if (p.length <= 180) return p;
+    const cut = p.slice(-180);
+    const k = cut.search(/[.!?…»]\s+\S/);
+    return '…' + (k >= 0 ? cut.slice(k + 1).trim() : cut.trim());
+}
+
+function since(at: number, es: boolean): string {
+    const days = Math.floor((Date.now() - at) / 86400000);
+    if (days <= 0) return es ? 'hoy' : 'today';
+    if (days === 1) return es ? 'ayer' : 'yesterday';
+    return es ? `hace ${days} días` : `${days} days ago`;
+}
+
+const PLAN_SNOOZE = 'mw-plan-snooze';
+
+export default function ContinueCard({ projectName, folderId, sessionId, onGoToArquitecto, onGoToDirector, onContinue, onAskMira }: ContinueCardProps) {
     const { currentLanguage } = useLanguageStore();
-    const s = currentLanguage === 'es' ? STR.es : STR.en;
+    const es = currentLanguage === 'es';
+    const s = es ? STR.es : STR.en;
     const tips = getTips(currentLanguage);
     const tip = tips[new Date().getDate() % tips.length];
     const week = useMemo(weekActivity, []);
     const today = (new Date().getDay() + 6) % 7;
     const stars = useMemo(() => Array.from({ length: 34 }, (_, i) => ({ x: (i * 37) % 97, y: (i * 23) % 62, big: i % 7 === 0, d: (i % 5) * 0.7 })), []);
+    const last = useMemo(() => readLastDoc(folderId), [folderId]);
+    const { misiones } = useMisionesEditor(sessionId || null);
+    const pendingItems = useArquitectoStore(st => st.arquitectoPendingItems);
+    const nextMission = misiones.find(m => !m.completed);
+    const openItems = (pendingItems || []).filter(p => !p.resolved);
+    const hasPlan = misiones.length > 0 || openItems.length > 0;
+    const [snoozed, setSnoozed] = useState(() => { try { return Date.now() < parseInt(localStorage.getItem(PLAN_SNOOZE) || '0', 10); } catch { return false; } });
+    const full = week.filter(w => w >= FULL_DAY).length;
+    const touch = week.filter(w => w > 0 && w < FULL_DAY).length;
+
+    const next = nextMission
+        ? { label: es ? 'Lo que sigue, según tu plan' : 'What’s next, from your plan', text: nextMission.text }
+        : openItems.length
+            ? { label: es ? `Lo que sigue: ${openItems.length} ${openItems.length === 1 ? 'duda pendiente' : 'dudas pendientes'} en la mesa` : `What’s next: ${openItems.length} open ${openItems.length === 1 ? 'question' : 'questions'} at the table`, text: openItems[0].title }
+            : null;
+
+    const askMira = () => onAskMira?.(es
+        ? `Vuelvo a escribir${last ? ` después de ${since(last.at, true)}` : ''}. ${last ? `Lo último que toqué fue «${last.name}». ` : ''}¿Dónde me quedé y qué me toca escribir ahora? Ten en cuenta mi plan, mi memoria del proyecto y lo que hablé con el Arquitecto, y dime si me falta definir algo para no escribir sin rumbo.`
+        : `I'm coming back to writing${last ? ` after ${since(last.at, false)}` : ''}. ${last ? `The last thing I worked on was "${last.name}". ` : ''}Where did I leave off and what should I write next? Use my plan, project memory and what I discussed with the Architect, and tell me if I need to define something so I'm not writing aimlessly.`);
+
+    const miraLine = last
+        ? (next
+            ? (es ? `La última vez escribiste en «${last.name}», ${since(last.at, true)}. Te dejo lo que sigue para retomar.` : `Last time you wrote in "${last.name}", ${since(last.at, false)}. Here’s what’s next so you can pick it up.`)
+            : (es ? `La última vez escribiste en «${last.name}», ${since(last.at, true)}. Todavía no tenemos un plan, así que no sé con certeza qué sigue.` : `Last time you wrote in "${last.name}", ${since(last.at, false)}. We don’t have a plan yet, so I can’t be sure what’s next.`))
+        : (es ? 'Todavía no sé dónde lo dejaste. Abre un capítulo y, la próxima vez que entres, te lo digo aquí.' : 'I don’t know where you left off yet. Open a chapter, and next time you come in I’ll tell you here.');
 
     return (
         <div className="flex-1 overflow-y-auto bg-titanium-950 p-6 md:p-10">
@@ -69,11 +127,48 @@ export default function ContinueCard({ projectName, onGoToArquitecto, onGoToDire
                     </div>
                 </div>
 
-                <p className="text-titanium-300 text-[15px] max-w-2xl">{s.lead}</p>
+                {/* Donde lo dejaste — Mira señala la tarjeta */}
+                <section aria-labelledby="cc-where" className="relative rounded-2xl border border-mira/40 bg-mira-bg p-5 md:pl-44 flex flex-col gap-3">
+                    <MiraSprite pose="senalando" label="Mira señala dónde lo dejaste" className="hidden md:block absolute left-2 bottom-0" />
+                    <h2 id="cc-where" className="text-xs font-semibold text-mira">{es ? 'Donde lo dejaste' : 'Where you left off'}</h2>
+                    <p className="text-[15px] text-titanium-100 leading-relaxed" role="status">{miraLine}</p>
+                    {last?.tail && lastSentence(last.tail) && (
+                        <blockquote className="font-serif text-[16px] leading-relaxed text-titanium-200 border-l-2 border-mira/50 pl-3">«{lastSentence(last.tail)}»</blockquote>
+                    )}
+                    {next && (
+                        <div className="rounded-xl bg-titanium-900/70 border border-titanium-700 px-4 py-3">
+                            <div className="text-xs text-titanium-400">{next.label}</div>
+                            <div className="text-[15px] text-titanium-100 mt-0.5">{next.text}</div>
+                        </div>
+                    )}
+                    {!hasPlan && !snoozed && (
+                        <div className="rounded-xl bg-titanium-900/70 border border-dashed border-mira/50 px-4 py-3 text-sm text-titanium-200 leading-relaxed">
+                            {es
+                                ? 'Sin plan también se escribe, pero es fácil perder el rumbo. Si le cuentas a la mesa del arquitecto hacia dónde va tu historia (aunque cambie después), la próxima vez te digo qué sigue.'
+                                : 'You can write without a plan, but it’s easy to lose your way. Tell the architect’s table where your story is going (even if it changes later), and next time I’ll tell you what’s next.'}
+                            <div className="mt-2 flex flex-wrap gap-3">
+                                <button type="button" onClick={onGoToArquitecto} className="font-semibold text-mira hover:underline underline-offset-4">{es ? 'Armar el plan en la mesa' : 'Make a plan at the table'}</button>
+                                <button type="button" onClick={() => { try { localStorage.setItem(PLAN_SNOOZE, String(Date.now() + 7 * 86400000)); } catch { /* sin almacenamiento */ } setSnoozed(true); }} className="text-titanium-400 hover:text-titanium-200">{es ? 'Voy explorando, avísame en una semana' : 'I’m exploring, remind me in a week'}</button>
+                            </div>
+                        </div>
+                    )}
+                    <div className="flex flex-wrap items-center gap-3 pt-1">
+                        {last && onContinue && (
+                            <button type="button" onClick={() => onContinue(last)} className="inline-flex items-center gap-2 rounded-xl bg-coral text-on-coral px-5 py-2.5 text-sm font-semibold hover:brightness-110 transition">
+                                <PenLine size={16} /> {es ? 'Continuar donde lo dejaste' : 'Continue where you left off'}
+                            </button>
+                        )}
+                        {onAskMira && (
+                            <button type="button" onClick={askMira} className="rounded-xl border border-titanium-600 px-4 py-2.5 text-sm text-titanium-100 hover:border-mira transition-colors">
+                                {es ? 'Preguntarle a Mira qué sigue' : 'Ask Mira what’s next'}
+                            </button>
+                        )}
+                    </div>
+                </section>
 
                 <div className="grid gap-4 md:grid-cols-3">
                     <button onClick={onGoToArquitecto} className="text-left rounded-2xl border border-titanium-700 bg-titanium-800 hover:border-mira p-5 transition-colors flex flex-col gap-2 min-h-[120px]">
-                        <Landmark size={18} className="text-mira" />
+                        <DraftingCompass size={18} className="text-mira" />
                         <span className="font-serif text-lg text-titanium-100">{s.architect}</span>
                         <span className="text-sm text-titanium-400">{s.architectP}</span>
                     </button>
@@ -85,20 +180,20 @@ export default function ContinueCard({ projectName, onGoToArquitecto, onGoToDire
                     <div className="rounded-2xl border border-titanium-700 bg-titanium-800 p-5 flex flex-col gap-3">
                         <span className="font-semibold text-titanium-100 text-sm">{s.week}</span>
                         <div className="grid grid-cols-7 gap-1.5">
-                            {week.map((on, i) => (
-                                <div key={i} className="flex flex-col items-center gap-1">
-                                    <span className={`w-7 h-7 rounded-lg border ${on ? 'bg-logro border-logro' : i === today ? 'border-mira' : 'border-titanium-600'}`} />
+                            {week.map((w, i) => (
+                                <div key={i} className="flex flex-col items-center gap-1" title={w ? `${w} ${es ? 'palabras' : 'words'}` : undefined}>
+                                    <span className={`w-7 h-7 rounded-lg border ${w >= FULL_DAY ? 'bg-logro border-logro' : w > 0 ? 'border-logro bg-[linear-gradient(to_top,var(--mw-orange)_35%,transparent_35%)]' : i === today ? 'border-mira' : 'border-titanium-600'}`} />
                                     <span className="text-[11px] text-titanium-400">{s.days[i]}</span>
                                 </div>
                             ))}
                         </div>
-                        <span className="text-xs text-titanium-400">{s.weekP(week.filter(Boolean).length)}</span>
+                        <span className="text-xs text-titanium-400">{s.weekP(full, touch)}</span>
                     </div>
                 </div>
 
                 <div className="rounded-2xl bg-mira-bg border border-mira/40 p-5 flex items-end gap-4">
-                    <MiraSprite pose="leyendo" />
-                    <div className="pb-3">
+                    <img src="/assets/objetos/libros.png" alt="" width={72} height={72} className="w-[72px] h-[72px] shrink-0" style={{ imageRendering: 'pixelated' }} />
+                    <div className="pb-1">
                         <div className="text-xs font-semibold text-mira">{s.tip}</div>
                         <div className="font-serif text-lg text-titanium-100 mt-1">{tip.title}</div>
                         <div className="text-sm text-titanium-300 mt-1 max-w-xl">{tip.text}</div>

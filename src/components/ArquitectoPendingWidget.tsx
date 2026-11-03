@@ -1,5 +1,5 @@
 import React from 'react';
-import { Landmark, AlertCircle, AlertTriangle, Lightbulb, ArrowLeft, X } from 'lucide-react';
+import { DraftingCompass as Landmark, AlertCircle, AlertTriangle, Lightbulb, ArrowLeft, X } from 'lucide-react';
 import { PendingItem } from '../types/roadmap';
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { useLanguageStore } from '../stores/useLanguageStore';

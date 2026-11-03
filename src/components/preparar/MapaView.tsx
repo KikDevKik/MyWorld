@@ -6,7 +6,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { forceCollide } from 'd3-force';
-import { Network, ScanSearch, Loader2, Sparkles, X, FileText, Ghost, Landmark, Users, Search } from 'lucide-react';
+import { Network, ScanSearch, Loader2, Sparkles, X, FileText, Ghost, DraftingCompass as Landmark, Users, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 

@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { EditorState, Compartment, Prec } from '@codemirror/state';
-import { EditorView, keymap } from '@codemirror/view';
+import { EditorState, Compartment, Prec, StateEffect, StateField } from '@codemirror/state';
+import { EditorView, keymap, Decoration, DecorationSet } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
@@ -74,6 +74,19 @@ interface HybridEditorProps {
     };
 }
 
+// Nov 2026: al usar «Ir» desde el reporte, el pasaje se ilumina unos segundos (la selección sola no siempre se veía).
+const setFlash = StateEffect.define<{ from: number; to: number } | null>();
+const flashMark = Decoration.mark({ class: 'cm-flash' });
+const flashField = StateField.define<DecorationSet>({
+    create: () => Decoration.none,
+    update(deco, tr) {
+        deco = deco.map(tr.changes);
+        for (const e of tr.effects) if (e.is(setFlash)) deco = e.value && e.value.to > e.value.from ? Decoration.set([flashMark.range(e.value.from, e.value.to)]) : Decoration.none;
+        return deco;
+    },
+    provide: f => EditorView.decorations.from(f),
+});
+
 // 🟢 HOST COMPONENT TO PREVENT RE-RENDERS
 const CodeMirrorHost = React.memo(forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>((props, ref) => (
     <div ref={ref} {...props} />
@@ -95,6 +108,7 @@ const titaniumTheme = EditorView.theme({
         lineHeight: "1.8",
     },
     ".cm-activeLine": { backgroundColor: "transparent" },
+    ".cm-flash": { backgroundColor: "rgba(245, 105, 126, 0.28)", boxShadow: "0 0 0 2px rgba(245, 105, 126, 0.35)", borderRadius: "3px", transition: "background-color .4s" },
     ".cm-content": {
         fontFamily: "var(--editor-font-family, var(--font-serif))",
         caretColor: "var(--color-text-primary)",
@@ -172,8 +186,9 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
             if (!view) return;
             const len = view.state.doc.length;
             const a = Math.max(0, Math.min(from, len)), b = Math.max(a, Math.min(to, len));
-            view.dispatch({ selection: { anchor: a, head: b }, effects: EditorView.scrollIntoView(a, { y: 'center' }) });
+            view.dispatch({ selection: { anchor: a, head: b }, effects: [EditorView.scrollIntoView(a, { y: 'center' }), setFlash.of({ from: a, to: b })] });
             view.focus();
+            window.setTimeout(() => { try { viewRef.current?.dispatch({ effects: setFlash.of(null) }); } catch { /* editor cerrado */ } }, 2600);
         },
         replaceRange: (from: number, to: number, text: string) => {
             const view = viewRef.current;
@@ -259,6 +274,7 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                 EditorView.lineWrapping,
 
                 // Custom Extensions
+                flashField,
                 driftExtension,
                 livePreview,
                 narratorHighlighter, // 🟢 NEW

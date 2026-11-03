@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks } from 'lucide-react';
+import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks } from 'lucide-react';
 import { callFunction } from '../services/api';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
