@@ -28,7 +28,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
     const suggestions = pendingItems.filter(i => i.severity === 'suggestion');
 
     return (
-        <div className="w-full bg-[#0a0a0a] border-b border-titanium-800 transition-all duration-300 ease-in-out z-20 shadow-lg shadow-black/50">
+        <div className="w-full bg-titanium-950 border-b border-titanium-800 transition-all duration-300 ease-in-out z-20 shadow-lg shadow-black/50">
             <div className="max-w-7xl mx-auto flex flex-col">
                 {/* Header interno — solo cuando se usa standalone, no como drawer */}
                 {!hideHeader && (
@@ -65,7 +65,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                 )}
 
                 {/* Analysis Content */}
-                <div className="py-6 px-6 pb-8 bg-[#0a0a0a]">
+                <div className="py-6 px-6 pb-8 bg-titanium-950">
                     <div className="grid grid-cols-3 gap-6">
 
                         {/* Column 1: Critical */}

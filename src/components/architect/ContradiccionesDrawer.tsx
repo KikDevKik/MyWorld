@@ -74,7 +74,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
         return (
             <div 
                 onClick={onToggle}
-                className="flex items-center justify-center gap-4 px-6 py-2 border-b border-titanium-800 bg-[#0a0a0a]/80 cursor-pointer hover:bg-titanium-950/50 transition-colors shrink-0"
+                className="flex items-center justify-center gap-4 px-6 py-2 border-b border-titanium-800 bg-titanium-950/80 cursor-pointer hover:bg-titanium-950/50 transition-colors shrink-0"
             >
                 {(['MACRO', 'MESO', 'MICRO'] as const).map(layer => {
                     const count = byLayer[layer].length;
@@ -101,11 +101,11 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
 
     return (
         <>
-            <div className="border-b border-titanium-800 bg-[#0a0a0c] shrink-0 max-h-[40vh] overflow-y-auto custom-scrollbar relative">
+            <div className="border-b border-titanium-800 bg-titanium-950 shrink-0 max-h-[40vh] overflow-y-auto custom-scrollbar relative">
                 {/* Header del drawer */}
                 <div 
                     onClick={onToggle}
-                    className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-titanium-950/30 sticky top-0 bg-[#0a0a0c] z-10 border-b border-titanium-800/50"
+                    className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-titanium-950/30 sticky top-0 bg-titanium-950 z-10 border-b border-titanium-800/50"
                 >
                     <span className="text-[11px] font-mono text-titanium-500 uppercase tracking-wider">
                         {tArch.activeDissonances || "Disonancias Activas"} — {pendingOnly.length} {t.common?.pending || 'pendientes'} · {resolvedCount} {t.common?.resolved || 'resueltas'}
@@ -195,7 +195,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
             {/* Modal de Detalle */}
             {detailItem && (
                 <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-                    <div className="bg-[#0f0f13] border border-titanium-700/50 rounded-lg shadow-2xl max-w-lg w-full max-h-[90%] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+                    <div className="bg-titanium-900 border border-titanium-700/50 rounded-lg shadow-2xl max-w-lg w-full max-h-[90%] flex flex-col animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between p-4 border-b border-titanium-800/50">
                             <div className="flex items-center gap-3">
                                 <span className="text-xs font-mono px-2 py-1 rounded bg-titanium-900 text-titanium-400">
@@ -220,7 +220,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                                 </p>
                             </div>
                         </div>
-                        <div className="p-4 border-t border-titanium-800/50 bg-[#0a0a0c] rounded-b-lg flex justify-end gap-3">
+                        <div className="p-4 border-t border-titanium-800/50 bg-titanium-950 rounded-b-lg flex justify-end gap-3">
                             <button 
                                 onClick={() => setDetailItem(null)}
                                 className="px-4 py-2 text-xs font-medium text-titanium-400 hover:text-white transition-colors"

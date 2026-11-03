@@ -35,7 +35,7 @@ export const NodeDetailsSidebar: React.FC<NodeDetailsSidebarProps> = ({ node, is
                     animate={{ x: 0 }}
                     exit={{ x: '100%' }}
                     transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                    className="fixed top-0 right-0 h-full w-[400px] bg-[#0c0c0c] border-l border-slate-800 shadow-2xl z-[150] flex flex-col font-sans"
+                    className="fixed top-0 right-0 h-full w-[400px] bg-titanium-950 border-l border-slate-800 shadow-2xl z-[150] flex flex-col font-sans"
                 >
                     {/* HEADER */}
                     <div className="p-6 border-b border-slate-800 bg-slate-900/50">
@@ -133,7 +133,7 @@ export const NodeDetailsSidebar: React.FC<NodeDetailsSidebarProps> = ({ node, is
                     </div>
 
                     {/* FOOTER ACTIONS */}
-                    <div className="p-6 border-t border-slate-800 bg-[#0c0c0c] flex gap-3">
+                    <div className="p-6 border-t border-slate-800 bg-titanium-950 flex gap-3">
                         <button
                             onClick={onEdit}
                             className="flex-1 flex items-center justify-center gap-2 py-3 bg-cyan-950/20 border border-cyan-500/30 rounded-lg text-cyan-400 hover:bg-cyan-900/40 hover:border-cyan-400 hover:text-cyan-200 transition-all duration-300 text-xs font-bold tracking-widest uppercase shadow-[0_0_20px_rgba(6,182,212,0.05)] hover:shadow-[0_0_20px_rgba(6,182,212,0.15)]"

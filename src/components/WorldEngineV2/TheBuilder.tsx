@@ -509,7 +509,7 @@ const TheBuilder: React.FC<TheBuilderProps> = ({ isOpen, onClose, initialPrompt,
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-xl animate-in fade-in duration-200">
              {/* THE BOX */}
-            <div className={`w-[95vw] h-[90vh] bg-[#0a0a0a] border rounded-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300 transition-colors duration-500 ${getBorderColor()}`}>
+            <div className={`w-[95vw] h-[90vh] bg-titanium-950 border rounded-2xl flex flex-col overflow-hidden relative animate-in zoom-in-95 duration-300 transition-colors duration-500 ${getBorderColor()}`}>
 
                 {/* HEADER */}
                 <div className="h-14 border-b border-white/10 flex items-center justify-between px-6 bg-black/50 select-none">

@@ -28,7 +28,7 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="w-full max-w-lg bg-[#0f0f11] border border-amber-500/40 rounded-2xl shadow-[0_0_40px_rgba(245,158,11,0.15)] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            <div className="w-full max-w-lg bg-titanium-900 border border-amber-500/40 rounded-2xl shadow-[0_0_40px_rgba(245,158,11,0.15)] overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
 
                 {/* Header */}
                 <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-500/20 bg-amber-950/20">

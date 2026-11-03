@@ -41,8 +41,9 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     };
 
     // Helper to get translated name safely
+    const es = currentLanguage === 'es';
     const getTranslatedName = (id: GemId) => {
-        if (id === 'arquitecto') return 'Preparar: Arquitecto, Mapa, Personajes y Qué pasaría si';
+        if (id === 'arquitecto') return es ? 'La mesa del arquitecto: planos, observatorio, fichero y frasco de ideas' : 'The architect’s table: plans, observatory, card file and idea jar';
         return tTools[id] || GEMS[id].name;
     };
 
@@ -83,8 +84,8 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                     <button
                         onClick={onOpenReport}
                         className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none active:scale-95 ${reportActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
-                        title="Reporte del capítulo (canon y tres lecturas)"
-                        aria-label="Reporte del capítulo"
+                        title={es ? 'El estudio: reporte del capítulo (canon y tres lecturas)' : 'The study: chapter report'}
+                        aria-label={es ? 'El estudio' : 'The study'}
                     >
                         <FileSearch size={20} />
                     </button>

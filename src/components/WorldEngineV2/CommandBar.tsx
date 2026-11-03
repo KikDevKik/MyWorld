@@ -56,7 +56,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mo
                 {/* COMPONENT A: INPUT */}
                 <div className={`relative w-full transition-all duration-300 z-20 ${focused ? 'scale-[1.02]' : 'scale-100'}`}>
                     {/* Background */}
-                    <div className="absolute inset-0 bg-[#0a0a0a]/90 backdrop-blur-xl rounded-t-xl border border-b-0 border-white/10" />
+                    <div className="absolute inset-0 bg-titanium-950/90 backdrop-blur-xl rounded-t-xl border border-b-0 border-white/10" />
 
                     {/* Dynamic Glow based on Mode */}
                      <div className={`absolute inset-0 rounded-t-xl transition-all duration-500 opacity-0 ${focused ? 'opacity-100' : ''} ${
@@ -84,7 +84,7 @@ export const CommandBar: React.FC<CommandBarProps> = ({ onClearAll, onCommit, mo
 
                 {/* COMPONENT B: REALITY SLIDER */}
                 <div
-                    className="relative w-full h-12 bg-[#0a0a0a] border border-t-0 border-white/10 rounded-b-xl flex items-center p-1 z-10"
+                    className="relative w-full h-12 bg-titanium-950 border border-t-0 border-white/10 rounded-b-xl flex items-center p-1 z-10"
                     role="radiogroup"
                     aria-label={tNexus.realityModeAria || "Modo de Realidad"}
                 >

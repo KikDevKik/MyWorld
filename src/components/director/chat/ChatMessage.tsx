@@ -8,6 +8,16 @@ import { callFunction } from '../../../services/api';
 import { ChatMessageData } from '../../../types/director';
 import { parseThinking } from '../../../utils/thinking';
 import { ThinkingBubble } from './ThinkingBubble';
+import { MiraSprite, MiraPose } from '../../mira/MiraSprite';
+
+// Etiqueta opcional al inicio de la respuesta: [mira:estado]. Se quita del texto y elige la cara de Mira.
+const MOOD_FACE: Record<string, MiraPose> = { contenta: 'contenta', firme: 'firme', preocupada: 'preocupada', sorprendida: 'sorprendida', ojo: 'ojo', alerta: 'ojo', uy: 'uy', neutral: 'contenta', pensativa: 'contenta', celebrando: 'contenta' };
+const STAND_POSE: Record<string, MiraPose> = { pensativa: 'pensativa', contenta: 'contenta', firme: 'firme', preocupada: 'preocupada', sorprendida: 'sorprendida', ojo: 'ojo', alerta: 'ojo', celebrando: 'celebrando', neutral: 'neutral', uy: 'uy' };
+function parseMiraMood(text: string): { mood: string; clean: string } {
+    const m = /^\s*\[mira:([a-záéíóú]+)\]\s*/i.exec(text || '');
+    if (!m) return { mood: 'neutral', clean: text };
+    return { mood: m[1].toLowerCase(), clean: text.slice(m[0].length) };
+}
 
 interface ChatMessageProps {
     message: ChatMessageData;
@@ -166,7 +176,9 @@ export const ChatMessage = React.memo(({
     }
 
     // 6. STANDARD MESSAGE (Text with Markdown)
-    const { thinking, content } = React.useMemo(() => parseThinking(message.text), [message.text]);
+    const parsed = React.useMemo(() => parseThinking(message.text), [message.text]);
+    const thinking = parsed.thinking;
+    const { mood, clean: content } = React.useMemo(() => parseMiraMood(parsed.content), [parsed.content]);
 
     const isAssistant = message.role === 'assistant';
     const isUser = message.role === 'user';
@@ -181,7 +193,7 @@ export const ChatMessage = React.memo(({
 
     const proseBlock = (
         <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0 break-words"
-            style={isAssistant ? { fontFamily: "'Newsreader', Georgia, serif", fontSize: '16px', lineHeight: '1.75' } : {}}>
+            style={isAssistant ? { fontFamily: 'var(--font-serif)', fontSize: '16px', lineHeight: '1.7' } : {}}>
             {isAssistant && thinking && <ThinkingBubble thought={thinking} />}
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeComponents}>
                 {content}
@@ -189,29 +201,8 @@ export const ChatMessage = React.memo(({
         </div>
     );
 
-    return (
-        <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} ${isAssistant ? 'mb-5' : isUser ? 'mb-1' : ''}`}>
-            <div className={`
-                w-8 h-8 rounded-full flex items-center justify-center shrink-0
-                ${isUser ? 'bg-cyan-900/50 text-cyan-400' :
-                message.role === 'system' ? 'bg-red-900/50 text-red-400' : 'bg-emerald-900/50 text-emerald-400'}
-            `}>
-                {isUser ? <User size={14} /> : message.role === 'system' ? <X size={14} /> : <Bot size={14} />}
-            </div>
-            <div className={`
-                p-3 text-sm max-w-[85%] leading-relaxed
-                ${isUser
-                    ? 'rounded-xl bg-cyan-950/30 border border-cyan-900/50 text-cyan-100 overflow-hidden'
-                    : message.role === 'system'
-                    ? 'rounded-xl bg-red-950/30 border border-red-900/50 text-red-200 overflow-hidden'
-                    : 'text-titanium-200'}
-            `}
-            style={isAssistant ? {
-                background: 'rgba(129, 140, 248, 0.02)',
-                borderLeft: '2px solid rgba(129, 140, 248, 0.08)',
-                borderRadius: '0 8px 8px 0',
-                paddingLeft: '16px',
-            } : {}}>
+    const inner = (
+            <>
                 {/* Attachment preview */}
                 {message.attachmentPreview && (
                     <div className="mb-2 rounded-lg overflow-hidden border border-white/10">
@@ -230,7 +221,7 @@ export const ChatMessage = React.memo(({
                             {proseBlock}
                         </div>
                         <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
-                            style={{ background: 'linear-gradient(to top, rgba(28,28,30,0.97), transparent)' }} />
+                            style={{ background: 'linear-gradient(to top, var(--mw-mira-bg), transparent)' }} />
                     </div>
                 ) : (
                     proseBlock
@@ -241,7 +232,7 @@ export const ChatMessage = React.memo(({
                     <button
                         onClick={() => onToggleExpand?.(message.id)}
                         className="mt-2 text-[11px] font-mono uppercase tracking-wider transition-colors text-left"
-                        style={{ color: 'rgba(129, 140, 248, 0.6)' }}>
+                        style={{ color: 'var(--mw-ai-400)' }}>
                         {isExpanded ? 'Colapsar ↑' : 'Leer respuesta completa ↓'}
                     </button>
                 )}
@@ -252,9 +243,9 @@ export const ChatMessage = React.memo(({
                         <button
                             onClick={() => {
                                 setIsTransforming(true);
-                                callFunction<{text: string}>('transformToGuide', { text: message.text })
+                                callFunction<{text: string}>('transformToGuide', { text: content })
                                     .then((res) => { if (onInsert) onInsert(res.text); })
-                                    .catch(() => { if (onInsert) onInsert(message.text); })
+                                    .catch(() => { if (onInsert) onInsert(content); })
                                     .finally(() => setIsTransforming(false));
                             }}
                             disabled={isTransforming}
@@ -267,6 +258,54 @@ export const ChatMessage = React.memo(({
                         </button>
                     </div>
                 )}
+            </>
+    );
+
+    if (isAssistant) {
+        // Mira habla: su globo siempre lleva su sprite, que cambia de lugar (cara al lado, sentada encima o de pie al lado).
+        const variant = (message.id || '').split('').reduce((n, ch) => n + ch.charCodeAt(0), 0) % 3;
+        const face = MOOD_FACE[mood] || 'contenta';
+        const bubbleCls = 'relative text-sm max-w-[88%] leading-relaxed bg-mira-bg border border-mira/60 text-titanium-100 px-4 py-3';
+        if (variant === 1) {
+            return (
+                <div className="mb-6 pt-[92px]">
+                    <div className={`${bubbleCls} rounded-2xl`}>
+                        <MiraSprite pose="sentada" className="absolute left-4 bottom-full -mb-[15px] pointer-events-none" />
+                        {inner}
+                    </div>
+                </div>
+            );
+        }
+        if (variant === 2) {
+            return (
+                <div className="mb-6 flex items-end gap-1">
+                    <div className={`${bubbleCls} rounded-2xl rounded-br-sm mb-10`}>{inner}</div>
+                    <MiraSprite pose={STAND_POSE[mood] || 'pensativa'} label="Mira" />
+                </div>
+            );
+        }
+        return (
+            <div className="mb-6 flex items-end gap-1">
+                <MiraSprite pose={face} face scale={2} label="Mira" className="-ml-2 shrink-0" />
+                <div className={`${bubbleCls} rounded-2xl rounded-bl-sm`}>{inner}</div>
+            </div>
+        );
+    }
+
+    return (
+        <div className={`flex gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} ${isUser ? 'mb-1' : ''}`}>
+            {!isUser && (
+                <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-red-900/50 text-red-400">
+                    <X size={14} />
+                </div>
+            )}
+            <div className={`
+                p-3 text-sm max-w-[85%] leading-relaxed
+                ${isUser
+                    ? 'rounded-2xl rounded-br-sm bg-titanium-800 border border-titanium-700 text-titanium-100 overflow-hidden'
+                    : 'rounded-xl bg-red-950/30 border border-red-900/50 text-red-200 overflow-hidden'}
+            `}>
+                {inner}
             </div>
         </div>
     );

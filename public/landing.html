@@ -1,1589 +1,509 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>MyWorld — Creative Writing IDE</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MyWorld — Escribe un mundo que no se olvide</title>
+<meta name="description" content="MyWorld es un entorno para escribir mundos de ficción: guarda el canon de tu historia, avisa de contradicciones y te acompaña con Mira mientras escribes.">
+<meta name="theme-color" content="#0B0A12">
+<meta property="og:title" content="MyWorld — Escribe un mundo que no se olvide">
+<meta property="og:description" content="Guarda el canon de tu historia para que la IA te ayude sin inventar ni olvidar.">
+<meta property="og:type" content="website">
+<link rel="icon" href="/assets/mw-logo-icon.jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="preload" as="image" href="/assets/mira/mira_sentarse_9f.png">
 <style>
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --bg: #0a0a0f;
-  --surface: #111118;
-  --surface-hi: #161620;
-  --border: rgba(129,140,248,0.12);
-  --border-hi: rgba(103,232,249,0.2);
-  --text: #e2e8f0;
-  --muted: #64748b;
-  --muted-hi: #94a3b8;
-  --cyan: #67e8f9;
-  --violet: #818cf8;
-  --green: #34d399;
-  --violet-deep: #6d28d9;
-  --cyan-dim: rgba(103,232,249,0.15);
-  --violet-dim: rgba(129,140,248,0.15);
-  --green-dim: rgba(52,211,153,0.15);
-}
-
-html { scroll-behavior: smooth; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-  overflow-x: hidden;
-}
-
-/* ─── INTRO ─────────────────────────────────────────── */
-#intro {
-  position: fixed;
-  inset: 0;
-  background: var(--bg);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.intro-stage {
-  position: relative;
-  width: 320px;
-  height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.i-orb {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 0 3px rgba(52,211,153,0.25), 0 0 24px rgba(52,211,153,0.5);
-  opacity: 0;
-  transform: translateY(40px);
-  transition: none;
-}
-
-.i-ring {
-  position: absolute;
-  width: 130px;
-  height: 36px;
-  border: 1.5px solid var(--violet);
-  border-radius: 50%;
-  opacity: 0;
-  transform: translateY(50px) rotate(-30deg);
-  box-shadow: 0 0 12px rgba(129,140,248,0.3);
-}
-
-.i-w {
-  position: absolute;
-  font-family: 'Newsreader', serif;
-  font-size: 90px;
-  font-weight: 400;
-  background: linear-gradient(135deg, var(--violet), #a78bfa, var(--cyan));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  opacity: 0;
-  transform: scale(0.85);
-  line-height: 1;
-}
-
-.i-brand {
-  position: absolute;
-  display: flex;
-  align-items: baseline;
-  gap: 0;
-  opacity: 0;
-}
-
-.i-brand-my {
-  font-family: 'Newsreader', serif;
-  font-size: 80px;
-  font-weight: 400;
-  font-style: italic;
-  color: var(--cyan);
-  overflow: hidden;
-  max-width: 0;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-.i-brand-w {
-  font-family: 'Newsreader', serif;
-  font-size: 80px;
-  font-weight: 400;
-  background: linear-gradient(135deg, var(--violet), #a78bfa);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  line-height: 1;
-}
-
-.i-brand-orld {
-  font-family: 'Newsreader', serif;
-  font-size: 80px;
-  font-weight: 400;
-  font-style: italic;
-  color: var(--cyan);
-  overflow: hidden;
-  max-width: 0;
-  white-space: nowrap;
-  line-height: 1;
-}
-
-/* ─── BG GRID ────────────────────────────────────────── */
-.bg-grid {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    linear-gradient(rgba(129,140,248,0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(129,140,248,0.035) 1px, transparent 1px);
-  background-size: 48px 48px;
-  opacity: 0;
-}
-
-/* ─── PAGE WRAPPER ───────────────────────────────────── */
-#page {
-  position: relative;
-  z-index: 1;
-  opacity: 0;
-  transform: translateY(20px);
-}
-
-/* ─── NAV ────────────────────────────────────────────── */
-nav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 40px;
-  height: 60px;
-  background: rgba(10,10,15,0.8);
-  backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(129,140,248,0.08);
-}
-
-.nav-logo {
-  font-family: 'Newsreader', serif;
-  font-size: 22px;
-  font-style: italic;
-  color: var(--cyan);
-  text-decoration: none;
-  letter-spacing: -0.02em;
-}
-
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-
-.nav-links a {
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-.nav-links a:hover { color: var(--cyan); }
-
-.nav-cta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 20px;
-  border: 1px solid rgba(129,140,248,0.3);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--violet);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-decoration: none;
-}
-.nav-cta:hover {
-  background: rgba(129,140,248,0.12);
-  border-color: var(--violet);
-  color: #c7d2fe;
-}
-
-/* ─── HERO ───────────────────────────────────────────── */
-.hero {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  padding: 100px 40px 60px;
-  max-width: 1200px;
-  margin: 0 auto;
-  gap: 60px;
-}
-
-.hero-left {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
-
-.hero-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 14px;
-  border: 1px solid var(--green-dim);
-  border-radius: 4px;
-  background: rgba(52,211,153,0.05);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--green);
-  width: fit-content;
-}
-
-.hero-tag-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  box-shadow: 0 0 8px var(--green);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.7); }
-}
-
-.hero-h1 {
-  font-family: 'Newsreader', serif;
-  font-size: clamp(44px, 6vw, 72px);
-  font-weight: 400;
-  line-height: 1.1;
-  letter-spacing: -0.025em;
-  color: var(--text);
-}
-
-.hero-h1 em {
-  font-style: italic;
-  color: var(--cyan);
-}
-
-.hero-sub {
-  font-size: 14px;
-  line-height: 1.8;
-  color: var(--muted-hi);
-  max-width: 480px;
-  font-family: 'Newsreader', serif;
-  font-weight: 400;
-}
-
-.hero-cta {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 28px;
-  background: linear-gradient(135deg, rgba(103,232,249,0.2), rgba(129,140,248,0.2));
-  border: 1px solid rgba(103,232,249,0.35);
-  border-radius: 8px;
-  color: var(--cyan);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  cursor: pointer;
-  transition: all 0.25s;
-  text-decoration: none;
-  box-shadow: 0 0 20px rgba(103,232,249,0.08);
-}
-.btn-primary:hover {
-  background: linear-gradient(135deg, rgba(103,232,249,0.3), rgba(129,140,248,0.3));
-  box-shadow: 0 0 30px rgba(103,232,249,0.2);
-  transform: translateY(-1px);
-}
-.btn-primary svg { width: 16px; height: 16px; transition: transform 0.2s; }
-.btn-primary:hover svg { transform: translateX(3px); }
-
-.btn-ghost {
-  font-size: 12px;
-  color: var(--muted-hi);
-  text-decoration: none;
-  border-bottom: 1px solid transparent;
-  padding-bottom: 1px;
-  transition: all 0.2s;
-}
-.btn-ghost:hover {
-  color: var(--text);
-  border-bottom-color: var(--muted-hi);
-}
-
-/* ─── HERO RIGHT (IDE Panel) ─────────────────────────── */
-.hero-right {
-  flex: 0 0 420px;
-}
-
-.ide-panel {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(103,232,249,0.15);
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 0 0 1px rgba(129,140,248,0.05), 0 40px 80px rgba(0,0,0,0.5);
-}
-
-.ide-bar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 16px;
-  background: rgba(0,0,0,0.25);
-  border-bottom: 1px solid rgba(103,232,249,0.1);
-}
-
-.ide-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-}
-.ide-dot:nth-child(1) { background: rgba(255,100,100,0.4); }
-.ide-dot:nth-child(2) { background: rgba(255,200,0,0.4); }
-.ide-dot:nth-child(3) { background: rgba(52,211,153,0.4); }
-
-.ide-label {
-  margin-left: 8px;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: rgba(148,163,184,0.4);
-}
-
-.ide-body {
-  padding: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.ide-agent-tag {
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--green);
-}
-
-.ide-question {
-  font-family: 'Newsreader', serif;
-  font-size: 18px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--text);
-}
-
-.ide-divider {
-  height: 1px;
-  background: rgba(103,232,249,0.1);
-}
-
-.ide-cursor-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted-hi);
-  font-size: 13px;
-}
-
-.ide-cursor-arrow {
-  color: var(--violet);
-}
-
-.cursor-block {
-  display: inline-block;
-  width: 8px;
-  height: 16px;
-  background: var(--green);
-  box-shadow: 0 0 8px rgba(52,211,153,0.5);
-  animation: blink 1.1s step-end infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0; }
-}
-
-/* ─── SECTION GENERIC ────────────────────────────────── */
-section {
-  padding: 100px 40px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.section-label {
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--cyan);
-  margin-bottom: 16px;
-}
-
-.section-h2 {
-  font-family: 'Newsreader', serif;
-  font-size: clamp(32px, 4vw, 48px);
-  font-weight: 400;
-  line-height: 1.2;
-  letter-spacing: -0.02em;
-  color: var(--text);
-  margin-bottom: 16px;
-}
-
-.section-sub {
-  font-family: 'Newsreader', serif;
-  font-size: 17px;
-  line-height: 1.7;
-  color: var(--muted-hi);
-  max-width: 600px;
-  margin-bottom: 60px;
-}
-
-/* ─── FEATURE GRID ───────────────────────────────────── */
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: rgba(129,140,248,0.1);
-  border: 1px solid rgba(129,140,248,0.1);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.feature-card {
-  background: var(--bg);
-  padding: 32px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  transition: background 0.2s;
-  cursor: default;
-}
-.feature-card:hover {
-  background: rgba(129,140,248,0.04);
-}
-
-.feature-icon {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.feature-icon.cyan { background: rgba(103,232,249,0.1); }
-.feature-icon.violet { background: rgba(129,140,248,0.1); }
-.feature-icon.green { background: rgba(52,211,153,0.1); }
-.feature-icon.amber { background: rgba(251,191,36,0.1); }
-.feature-icon.red { background: rgba(252,100,100,0.1); }
-.feature-icon.pink { background: rgba(232,121,249,0.1); }
-
-.feature-icon svg { width: 18px; height: 18px; }
-
-.feature-name {
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  color: var(--text);
-  text-transform: uppercase;
-  line-height: 1.3;
-}
-
-.feature-sub {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 3px;
-  line-height: 1.2;
-}
-
-.feature-desc {
-  font-family: 'Newsreader', serif;
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--muted-hi);
-}
-
-/* ─── DIRECTOR SHOWCASE ──────────────────────────────── */
-.showcase {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 40px;
-  align-items: start;
-}
-
-.showcase-panel {
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(129,140,248,0.12);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid rgba(129,140,248,0.08);
-  background: rgba(0,0,0,0.2);
-}
-
-.panel-title {
-  font-size: 10px;
-  letter-spacing: 0.15em;
-  text-transform: uppercase;
-  color: var(--muted-hi);
-}
-
-.panel-badge {
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  padding: 3px 8px;
-  border-radius: 3px;
-}
-
-.badge-active { background: rgba(52,211,153,0.12); color: var(--green); }
-.badge-stable { background: rgba(103,232,249,0.1); color: var(--cyan); }
-
-.panel-body {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.msg-user {
-  align-self: flex-end;
-  max-width: 80%;
-  background: rgba(103,232,249,0.08);
-  border: 1px solid rgba(103,232,249,0.15);
-  border-radius: 10px 10px 2px 10px;
-  padding: 10px 14px;
-  color: var(--text);
-}
-
-.msg-agent {
-  align-self: flex-start;
-  max-width: 90%;
-}
-
-.msg-agent-tag {
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--green);
-  margin-bottom: 6px;
-}
-
-.msg-agent-body {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(129,140,248,0.1);
-  border-radius: 2px 10px 10px 10px;
-  padding: 12px 16px;
-  color: var(--muted-hi);
-  font-family: 'Newsreader', serif;
-  font-size: 14px;
-  line-height: 1.65;
-}
-
-.msg-agent-body strong { color: var(--text); font-weight: 500; }
-.msg-agent-body em { font-style: italic; color: var(--cyan); }
-
-/* ─── ROADMAP SHOWCASE ───────────────────────────────── */
-.roadmap-cols {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 1px;
-  background: rgba(129,140,248,0.08);
-  border: 1px solid rgba(129,140,248,0.1);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.roadmap-col {
-  background: var(--bg);
-  padding: 0;
-}
-
-.roadmap-col-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(129,140,248,0.08);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.roadmap-col-header.changelog { color: var(--green); }
-.roadmap-col-header.missions { color: #fbbf24; }
-.roadmap-col-header.research { color: var(--violet); }
-
-.roadmap-card {
-  margin: 12px;
-  padding: 14px;
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(129,140,248,0.08);
-  border-radius: 6px;
-  font-family: 'Newsreader', serif;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--muted-hi);
-}
-
-.roadmap-tag {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  margin-bottom: 6px;
-}
-.roadmap-tag.defined { color: var(--green); }
-.roadmap-tag.quest { color: #fbbf24; }
-.roadmap-tag.investigate { color: var(--violet); }
-
-/* ─── TRIBUNAL SHOWCASE ──────────────────────────────── */
-.tribunal-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
-}
-
-.judge-card {
-  background: rgba(255,255,255,0.025);
-  border: 1px solid rgba(129,140,248,0.1);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.judge-header {
-  padding: 16px 20px 12px;
-  border-bottom: 1px solid rgba(129,140,248,0.06);
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.judge-name {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text);
-}
-
-.judge-role {
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-top: 3px;
-}
-
-.judge-score {
-  font-family: 'Newsreader', serif;
-  font-size: 24px;
-  font-weight: 500;
-  line-height: 1;
-}
-
-.judge-body {
-  padding: 16px 20px;
-  font-family: 'Newsreader', serif;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--muted-hi);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.judge-verdict {
-  font-style: italic;
-  color: var(--muted-hi);
-  font-size: 12px;
-  border-left: 2px solid rgba(129,140,248,0.2);
-  padding-left: 10px;
-}
-
-/* ─── CTA SECTION ────────────────────────────────────── */
-.cta-section {
-  padding: 120px 40px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 32px;
-  position: relative;
-}
-
-.cta-glow {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 60% 50% at 50% 50%, rgba(109,40,217,0.08) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-.cta-h2 {
-  font-family: 'Newsreader', serif;
-  font-size: clamp(36px, 5vw, 60px);
-  font-weight: 400;
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-}
-
-.cta-h2 em { font-style: italic; color: var(--cyan); }
-
-.cta-sub {
-  font-family: 'Newsreader', serif;
-  font-size: 18px;
-  color: var(--muted-hi);
-  max-width: 520px;
-  line-height: 1.7;
-}
-
-/* ─── FOOTER ─────────────────────────────────────────── */
-footer {
-  border-top: 1px solid rgba(129,140,248,0.08);
-  padding: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  max-width: 1200px;
-  margin: 0 auto;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-footer a {
-  color: var(--muted);
-  text-decoration: none;
-  transition: color 0.2s;
-}
-footer a:hover { color: var(--text); }
-
-.footer-links {
-  display: flex;
-  gap: 24px;
-}
-
-/* ─── FULL WIDTH WRAPPERS ────────────────────────────── */
-.full-section {
-  border-top: 1px solid rgba(129,140,248,0.06);
-  border-bottom: 1px solid rgba(129,140,248,0.06);
-}
-
-/* ─── SCROLL REVEALS ─────────────────────────────────── */
-.reveal {
-  opacity: 0;
-  transform: translateY(24px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
-}
-.reveal.visible {
-  opacity: 1;
-  transform: none;
-}
-
-/* ─── ABOUT MODAL ────────────────────────────────────── */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.85);
-  backdrop-filter: blur(8px);
-  z-index: 500;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s;
-}
-.modal-backdrop.open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.modal {
-  background: var(--surface);
-  border: 1px solid rgba(129,140,248,0.2);
-  border-radius: 14px;
-  padding: 48px;
-  max-width: 560px;
-  width: 90%;
-  transform: translateY(20px);
-  transition: transform 0.3s;
-}
-.modal-backdrop.open .modal {
-  transform: none;
-}
-
-.modal h2 {
-  font-family: 'Newsreader', serif;
-  font-size: 28px;
-  font-weight: 400;
-  margin-bottom: 20px;
-  color: var(--text);
-}
-
-.modal p {
-  font-family: 'Newsreader', serif;
-  font-size: 16px;
-  line-height: 1.8;
-  color: var(--muted-hi);
-  margin-bottom: 16px;
-}
-
-.modal p a {
-  color: var(--cyan);
-  text-decoration: none;
-}
-
-.modal-close {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  background: none;
-  border: none;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 20px;
-  padding: 4px;
-  line-height: 1;
-}
-
-/* ─── RESPONSIVE ─────────────────────────────────────── */
-@media (max-width: 900px) {
-  .hero { flex-direction: column; padding-top: 90px; }
-  .hero-right { flex: none; width: 100%; }
-  .feature-grid { grid-template-columns: repeat(2, 1fr); }
-  .showcase { grid-template-columns: 1fr; }
-  .tribunal-grid { grid-template-columns: 1fr; }
-  .roadmap-cols { grid-template-columns: 1fr; }
-  footer { flex-direction: column; gap: 16px; }
-}
-
-@media (max-width: 600px) {
-  nav { padding: 0 20px; }
-  .nav-links a:not(.nav-cta) { display: none; }
-  .feature-grid { grid-template-columns: 1fr; }
-  section, .hero { padding-left: 20px; padding-right: 20px; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  color-scheme:dark;
+  --night0:#0B0A12;--night1:#100E1A;--night2:#161327;--night3:#1E1933;--night4:#2A2140;
+  --bg:#14131B;--panel:#1E1C28;--panel2:#262333;--line:#332E44;
+  --text:#FFF4F4;--muted:#B9AEC8;--soft:#D6CDE2;
+  --coral:#F5697E;--onCoral:#14131B;--orange:#FF9638;--mira:#B9AEE0;--miraBg:#262236;
+  --grass:#1F3D35;--grass2:#19342D;--grassTop:#2B5A47;--hill1:#1C1830;--hill2:#17282B;
+}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{background:var(--bg);color:var(--text);font-family:Figtree,system-ui,sans-serif;font-size:17px;line-height:1.5;overflow-x:hidden;-webkit-tap-highlight-color:transparent}
+a{color:inherit}
+button{font:inherit;color:inherit;cursor:pointer;touch-action:manipulation}
+:focus-visible{outline:2px solid var(--mira);outline-offset:3px;border-radius:6px}
+h1,h2,h3{font-family:Literata,Georgia,serif;font-weight:600;text-wrap:balance;letter-spacing:-0.015em}
+.wrap{max-width:1240px;margin:0 auto;padding:0 max(24px,env(safe-area-inset-left))}
+.skip{position:absolute;left:-9999px;top:8px;z-index:100;background:var(--coral);color:var(--onCoral);padding:10px 16px;border-radius:8px;font-weight:700}
+.skip:focus{left:12px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* sprites */
+.spr{image-rendering:pixelated;background-repeat:no-repeat;display:block}
+.rim{filter:drop-shadow(0 0 2px rgba(185,174,224,.55))}
+.s-sit{background-image:url(/assets/mira/mira_sentarse_9f.png);background-size:2592px 288px;width:288px;height:288px;animation:sit 1.5s steps(4) infinite}
+@keyframes sit{from{background-position:-1440px 0}to{background-position:-2592px 0}}
+.s-wave{background-image:url(/assets/mira/mira_saludo_9f.png);background-size:1296px 144px;width:144px;height:144px;animation:wave 2.4s steps(1) infinite}
+@keyframes wave{0%{background-position:0 0}5%{background-position:-144px 0}10%{background-position:-288px 0}15%{background-position:-432px 0}20%{background-position:-576px 0}25%{background-position:-720px 0}30%{background-position:-864px 0}35%{background-position:-1008px 0}40%{background-position:-1152px 0}45%,100%{background-position:0 0}}
+.s-sleep{background-image:url(/assets/mira/mira_dormida_6f.png);background-size:576px 128px;width:96px;height:128px;animation:sleep 2.6s steps(6) infinite}
+@keyframes sleep{from{background-position:0 0}to{background-position:-576px 0}}
+.s-plane{background-image:url(/assets/mira/mira_avion_9f.png);background-size:1296px 144px;width:144px;height:144px;animation:plane 1s steps(9) 1 forwards}
+@keyframes plane{from{background-position:0 0}to{background-position:-1296px 0}}
+.s-clap{background-image:url(/assets/mira/mira_aplauso_9f.png);background-size:1296px 144px;width:144px;height:144px}
+.s-clap.go{animation:clap .9s steps(9) 1 forwards}
+@keyframes clap{from{background-position:0 0}to{background-position:-1296px 0}}
+
+/* sky */
+@keyframes tw{0%,100%{opacity:.25}50%{opacity:1}}
+.tw{position:absolute;animation:tw 3.6s ease-in-out infinite}
+@keyframes ff{0%{transform:translate(0,0);opacity:0}20%{opacity:1}50%{transform:translate(18px,-26px)}80%{opacity:.8}100%{transform:translate(-10px,-48px);opacity:0}}
+.ff{position:absolute;width:3px;height:3px;background:#FFE08A;box-shadow:0 0 6px 2px rgba(255,224,138,.6);animation:ff 6s ease-in-out infinite}
+@keyframes shoot{0%,88%{transform:translate(0,0) rotate(18deg);opacity:0}90%{opacity:1}100%{transform:translate(420px,140px) rotate(18deg);opacity:0}}
+.shoot{position:absolute;width:120px;height:2px;background:#FFE08A;box-shadow:0 0 8px 2px rgba(255,224,138,.5);animation:shoot 11s linear infinite}
+@keyframes smoke{0%{transform:translate(0,0);opacity:.7}100%{transform:translate(8px,-40px);opacity:0}}
+.smoke{animation:smoke 3s linear infinite}
+.sky{background:linear-gradient(180deg,var(--night0) 0 22%,var(--night1) 22% 44%,var(--night2) 44% 62%,var(--night3) 62% 76%,var(--night4) 76%)}
+
+/* hero */
+.hero{position:relative;min-height:min(860px,100svh);overflow:hidden;display:flex;flex-direction:column}
+.hero .stars,.hero .layer{position:absolute;inset:0;pointer-events:none}
+.hero .layer{will-change:transform}
+nav.top{position:relative;z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:22px 0}
+.brand{display:flex;align-items:center;gap:10px;font-family:Literata,serif;font-size:22px;font-weight:600;text-decoration:none}
+.links{display:flex;flex-wrap:wrap;gap:22px;flex:1;font-size:15px}
+.links a{color:#CFC6DC;text-decoration:none}
+.links a:hover{color:var(--text)}
+.pill{min-height:44px;display:inline-flex;align-items:center;gap:8px;padding:0 18px;border-radius:22px;border:1px solid #3A3450;background:rgba(20,19,27,.55);text-decoration:none;font-size:15px}
+.pill:hover{border-color:var(--mira)}
+.btn{min-height:56px;display:inline-flex;align-items:center;justify-content:center;padding:0 32px;border-radius:28px;border:0;background:var(--coral);color:var(--onCoral);font-size:18px;font-weight:700;text-decoration:none;transition:transform .15s ease,background-color .15s ease}
+.btn:hover{transform:translateY(-1px);background:#FF7D90}
+.hero-copy{position:relative;z-index:5;max-width:580px;margin-top:clamp(40px,9vh,110px);display:flex;flex-direction:column;gap:24px}
+.hero h1{font-size:clamp(42px,6vw,74px);line-height:1.02}
+.hero p.lead{font-size:clamp(17px,1.6vw,20px);color:var(--soft);max-width:34em}
+.hero .row{display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+.hero .row a.ghost{color:var(--text);font-size:16px}
+.beta{font-size:14px;color:var(--muted)}
+.ground{position:absolute;left:0;right:0;bottom:0;height:120px;background:var(--grass);z-index:2}
+.ground::after{content:"";position:absolute;left:0;right:0;top:38px;bottom:0;background:var(--grass2)}
+.grass{position:absolute;left:0;top:-10px;width:100%;height:14px}
+.house{position:absolute;right:15%;bottom:212px;z-index:1}
+.mira-hill{position:absolute;right:30%;bottom:84px;z-index:3}
+@media (max-width:860px){
+  .mira-hill{right:-30px;bottom:96px;transform:scale(.5);transform-origin:bottom right}
+  .house{right:4%;bottom:190px;transform:scale(.7);transform-origin:bottom right}
+  .const{display:none}
+  .links{display:none}
+  .hero{min-height:960px}
+  .moon{left:auto!important;right:12%;top:120px!important}
+  .hero-copy{margin-top:28px}
+}
+
+/* sections */
+section.band{padding:96px 0;border-top:1px solid var(--line)}
+.kicker{display:none}
+.two{display:flex;flex-wrap:wrap;gap:48px}
+.two>h2{flex:1 1 320px;font-size:clamp(32px,3.6vw,46px);line-height:1.08}
+.three{flex:2 1 560px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:32px}
+.three h3{font-size:24px;margin-bottom:10px}
+.three p{color:var(--muted)}
+@media (max-width:760px){.three{grid-template-columns:1fr}}
+
+.mira-sec{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:56px;align-items:center}
+.mira-sec h2{font-size:clamp(32px,3.6vw,46px);line-height:1.08;margin-bottom:18px}
+.mira-sec p{color:var(--soft);margin-bottom:14px;max-width:32em}
+.desk{position:relative;height:420px;border-radius:24px;background:#FBF8F4;overflow:hidden}
+.desk.night{background:var(--panel)}
+.desk .page{position:absolute;left:40px;right:180px;top:44px;font-family:Literata,serif;font-size:18px;line-height:1.8;color:var(--soft)}
+.desk .page .caret{display:inline-block;width:2px;height:1.1em;background:var(--coral);vertical-align:-3px;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.desk .bar{position:absolute;left:0;right:0;top:0;height:3px;background:var(--line)}
+.desk .bar i{display:block;height:3px;width:62%;background:var(--orange)}
+.desk .who{position:absolute;right:28px;bottom:26px}
+.desk .zz{position:absolute;right:-2px;top:-18px;font:700 18px monospace;color:var(--mira);animation:zz 2.4s ease-in-out infinite}
+@keyframes zz{0%{transform:translateY(4px);opacity:.3}50%{opacity:1}100%{transform:translateY(-10px);opacity:0}}
+.bubble{position:absolute;right:140px;bottom:120px;max-width:260px;padding:14px 16px;border-radius:16px 16px 4px 16px;background:var(--miraBg);border:1px solid var(--mira);font-size:15px;line-height:1.45}
+.bubble b{display:block;font-size:12px;color:var(--mira);margin-bottom:4px}
+@media (max-width:860px){.mira-sec{grid-template-columns:1fr}.desk .page{right:40px}.bubble{right:110px;left:24px;max-width:none}}
+
+.rooms{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:36px}
+.room{padding:22px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(var(--panel),var(--panel));min-height:170px;display:flex;flex-direction:column;gap:8px}
+.room h3{font-size:21px}
+.room .tag{font-size:13px;color:var(--mira)}
+.room p{font-size:15px;color:var(--muted)}
+@media (max-width:1000px){.rooms{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.rooms{grid-template-columns:1fr}}
+
+.judges{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:36px}
+.judge{padding:24px;border-radius:18px;background:var(--panel);border:1px solid var(--line)}
+.judge .score{font-family:Literata,serif;font-size:40px;font-variant-numeric:tabular-nums}
+.judge .score small{font-size:18px;color:var(--muted)}
+.judge h3{font-size:20px;margin:6px 0 10px}
+.judge p{font-size:15px;color:var(--muted)}
+@media (max-width:860px){.judges{grid-template-columns:1fr}}
+
+.final{position:relative;overflow:hidden;padding:120px 0 0;text-align:left}
+.final h2{font-size:clamp(36px,4.6vw,60px);line-height:1.05;max-width:14em}
+.final p{color:var(--soft);margin:18px 0 28px;max-width:34em}
+.final .ground{height:90px}
+.final .scene{position:relative;height:240px;margin-top:40px}
+footer{background:var(--grass2);padding:28px 0 calc(28px + env(safe-area-inset-bottom));font-size:14px;color:#C9D8CF}
+footer .wrap{display:flex;flex-wrap:wrap;gap:20px;align-items:center}
+footer nav{display:flex;flex-wrap:wrap;gap:18px;flex:1}
+footer a{color:#E7F0EA;text-decoration:none}
+footer a:hover{text-decoration:underline}
+
+/* overlays */
+.overlay{position:fixed;inset:0;z-index:50;display:none;overflow:hidden;overscroll-behavior:contain}
+.overlay.on{display:block}
+#enter .stage{position:absolute;left:50%;bottom:170px;width:900px;margin-left:-450px;height:520px}
+@media (max-width:920px){#enter .stage{transform:scale(.6);transform-origin:bottom center}}
+#enter .walk{position:absolute;bottom:-26px;left:40px;width:288px;height:288px;background-image:url(/assets/mira/mira_caminar_8f.png);background-size:2304px 288px}
+#enter .skipbtn{position:absolute;right:24px;bottom:20px;z-index:3}
+#enter .note{position:absolute;left:24px;bottom:30px;font-size:14px;color:#CFC6DC;z-index:3}
+#intro .land{position:absolute;left:50%;bottom:60px;margin-left:-144px;width:288px;height:288px;background-image:url(/assets/mira/mira_salto_7f.png);background-size:2016px 288px;opacity:0}
+#intro .star{position:absolute;width:10px;height:10px;background:#FFF4D6;box-shadow:0 0 14px 5px #FFE08A;transform:rotate(45deg)}
+#intro .hello{position:absolute;left:50%;bottom:350px;transform:translateX(-50%);font-family:Literata,serif;font-size:clamp(26px,4vw,40px);opacity:0;transition:opacity .6s ease;text-align:center;padding:0 20px}
+
+.modal-bg{position:fixed;inset:0;z-index:60;background:rgba(8,7,12,.66);display:none;align-items:center;justify-content:center;padding:16px;overscroll-behavior:contain}
+.modal-bg.on{display:flex}
+.modal{position:relative;width:100%;max-width:480px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:30px 28px 26px}
+.modal h2{font-size:28px;margin-bottom:10px}
+.modal p{color:var(--soft);margin-bottom:14px}
+.modal .x{position:absolute;right:14px;top:14px;width:44px;height:44px;border-radius:22px;border:1px solid var(--line);background:transparent}
+.modal .mira-corner{position:absolute;right:16px;top:-120px}
+.mailbox{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:14px 16px;border-radius:14px;background:var(--bg);border:1px solid var(--line);margin:6px 0 16px}
+.mailbox span{font-size:16px;color:var(--mira)}
+
+.reveal{opacity:0;transform:translateY(18px);transition:opacity .7s ease,transform .7s ease}
+.reveal.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){
+  .tw,.ff,.shoot,.smoke,.s-sit,.s-wave,.s-sleep,.zz,.caret{animation:none!important}
+  .reveal{opacity:1;transform:none;transition:none}
 }
 </style>
 </head>
 <body>
+<a class="skip" href="#main" data-i18n="skip">Saltar al contenido</a>
 
-<!-- INTRO OVERLAY -->
-<div id="intro">
-  <div class="intro-stage">
-    <div class="i-ring" id="ring"></div>
-    <div class="i-orb" id="orb"></div>
-    <div class="i-w" id="iw">W</div>
-    <div class="i-brand" id="brand">
-      <span class="i-brand-my" id="bmy">My</span>
-      <span class="i-brand-w">W</span>
-      <span class="i-brand-orld" id="borld">orld</span>
+<header class="hero sky" id="top">
+  <div class="stars" id="stars" aria-hidden="true"></div>
+  <div class="shoot" aria-hidden="true" style="left:18%;top:9%"></div>
+  <div class="layer" data-depth="0.15" aria-hidden="true">
+    <svg class="moon" width="44" height="44" viewBox="0 0 11 11" shape-rendering="crispEdges" style="position:absolute;left:47%;top:84px"><rect x="3" y="0" width="5" height="1" fill="#F3E6C8"/><rect x="1" y="1" width="9" height="2" fill="#F3E6C8"/><rect x="0" y="3" width="11" height="5" fill="#F3E6C8"/><rect x="1" y="8" width="9" height="2" fill="#F3E6C8"/><rect x="3" y="10" width="5" height="1" fill="#F3E6C8"/><rect x="4" y="1" width="7" height="8" fill="#0B0A12"/><rect x="5" y="9" width="4" height="1" fill="#0B0A12"/></svg>
+    <svg class="const" width="520" height="280" viewBox="0 0 520 280" style="position:absolute;right:5%;top:100px">
+      <g stroke="#B9AEE0" stroke-opacity=".35" stroke-width="1.2" fill="none"><polyline points="40,170 110,120 190,138 250,80 330,96"/><polyline points="190,138 230,210 300,236"/><polyline points="380,60 430,110 500,92 470,170 430,110"/></g>
+      <g fill="#FFF4F4"><rect x="38" y="168" width="4" height="4"/><rect x="108" y="118" width="4" height="4"/><rect x="187" y="135" width="6" height="6" fill="#B9AEE0"/><rect x="248" y="78" width="4" height="4"/><rect x="328" y="94" width="4" height="4"/><rect x="228" y="208" width="4" height="4"/><rect x="298" y="234" width="4" height="4"/><rect x="378" y="58" width="4" height="4"/><rect x="427" y="107" width="6" height="6" fill="#B9AEE0"/><rect x="498" y="90" width="4" height="4"/><rect x="468" y="168" width="4" height="4"/></g>
+      <text x="198" y="160" fill="#B9AEE0" fill-opacity=".8" font-family="Figtree,sans-serif" font-size="12" data-i18n="c1">tu mundo</text>
+      <text x="440" y="132" fill="#B9AEE0" fill-opacity=".8" font-family="Figtree,sans-serif" font-size="12" data-i18n="c2">el siguiente</text>
+    </svg>
+  </div>
+  <div class="layer" data-depth="0.35" aria-hidden="true">
+    <svg viewBox="0 0 1440 300" preserveAspectRatio="none" style="position:absolute;left:-2%;bottom:100px;width:104%;height:300px"><path d="M0 150 Q 220 70 460 130 T 900 100 T 1440 120 V300 H0 Z" fill="#1C1830"/><path d="M0 220 Q 320 150 640 200 T 1120 182 T 1440 196 V300 H0 Z" fill="#17282B"/></svg>
+    <div class="house">
+      <div class="smoke" style="position:absolute;left:86px;top:-22px;width:6px;height:6px;background:#4A4560"></div>
+      <svg width="120" height="108" viewBox="0 0 40 36" shape-rendering="crispEdges"><rect x="28" y="4" width="4" height="8" fill="#3A2630"/><polygon points="2,16 20,4 38,16" fill="#6B2836"/><rect x="5" y="15" width="30" height="21" fill="#3E2C2A"/><rect x="9" y="20" width="7" height="6" fill="#FFD27A"/><rect x="24" y="22" width="7" height="14" fill="#5A3A2E"/><rect x="29" y="28" width="1" height="1" fill="#FF9638"/></svg>
+      <div style="position:absolute;left:14px;top:46px;width:40px;height:30px;background:#FFD27A;opacity:.18;filter:blur(8px)"></div>
     </div>
   </div>
-</div>
+  <div class="ground" aria-hidden="true"><svg class="grass"><defs><pattern id="gA" width="14" height="14" patternUnits="userSpaceOnUse"><rect x="0" y="10" width="14" height="4" fill="#1F3D35"/><rect x="2" y="6" width="2" height="4" fill="#2B5A47"/><rect x="7" y="3" width="2" height="7" fill="#2B5A47"/><rect x="11" y="7" width="2" height="3" fill="#2B5A47"/></pattern></defs><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
+  <div id="flies" aria-hidden="true"></div>
+  <div class="mira-hill"><span class="spr s-sit rim" role="img" aria-label="Mira, sentada en la colina" data-i18n-aria="miraHill"></span></div>
 
-<!-- BG GRID -->
-<div class="bg-grid" id="bgGrid"></div>
-
-<!-- ABOUT MODAL -->
-<div class="modal-backdrop" id="aboutModal">
-  <div class="modal" style="position:relative">
-    <button class="modal-close" onclick="closeAbout()">✕</button>
-    <h2>About MyWorld</h2>
-    <p>MyWorld is a creative IDE for writers building fictional worlds. It maps your story, watches for contradictions, and asks the questions you haven't thought to ask yourself.</p>
-    <p>Built by an indie developer — for storytellers who think in universes, not just chapters.</p>
-    <p>Currently in Beta. All your files live in <strong>your</strong> Google Drive. We never read your stories.</p>
-    <p>Questions? <a href="#" onclick="closeAbout(); openSupport(); return false;">Contact us</a></p>
-  </div>
-</div>
-
-<!-- SUPPORT MODAL -->
-<div class="modal-backdrop" id="supportModal">
-  <div class="modal" style="position:relative">
-    <button class="modal-close" onclick="closeSupport()">✕</button>
-    <h2>Get in touch</h2>
-    <p>Send us an email and we'll get back to you as soon as possible.</p>
-    <div style="background:rgba(103,232,249,0.05);border:1px solid rgba(103,232,249,0.15);border-radius:8px;padding:20px;margin-bottom:20px;">
-      <div style="font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Support email</div>
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-        <span style="font-size:15px;color:var(--cyan);font-family:'JetBrains Mono',monospace;">deidev180@gmail.com</span>
-        <button onclick="copyEmail()" id="copyBtn" style="background:rgba(103,232,249,0.1);border:1px solid rgba(103,232,249,0.2);border-radius:5px;padding:6px 14px;color:var(--cyan);font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;transition:all 0.2s;">Copy</button>
+  <div class="wrap" style="position:relative;z-index:5;flex:1;display:flex;flex-direction:column;width:100%">
+    <nav class="top" aria-label="Principal" data-i18n-aria="navMain">
+      <a class="brand" href="#top"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M9 0 L11 7 L18 9 L11 11 L9 18 L7 11 L0 9 L7 7 Z" fill="#B9AEE0"/></svg>MyWorld</a>
+      <div class="links">
+        <a href="#como" data-i18n="nHow">Cómo funciona</a>
+        <a href="#casa" data-i18n="nHouse">La casa</a>
+        <a href="#mira" data-i18n="nMira">Mira</a>
+        <a href="#apoyo" data-i18n="nSupport">Apoyar</a>
       </div>
-    </div>
-    <p style="font-size:13px;color:var(--muted);">You can also open your email client directly:</p>
-    <a href="mailto:deidev180@gmail.com?subject=MyWorld%20Support" style="display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:10px 20px;background:rgba(129,140,248,0.1);border:1px solid rgba(129,140,248,0.2);border-radius:6px;color:var(--violet);font-size:12px;letter-spacing:0.06em;text-decoration:none;transition:all 0.2s;" onmouseover="this.style.background='rgba(129,140,248,0.18)'" onmouseout="this.style.background='rgba(129,140,248,0.1)'">
-      <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="12" height="8" rx="1"/><path d="M1 4l6 4.5L13 4"/></svg>
-      Open email client
-    </a>
-  </div>
-</div>
-
-<!-- PAGE -->
-<div id="page">
-
-  <!-- NAV -->
-  <nav>
-    <a href="#" class="nav-logo">MyWorld</a>
-    <div class="nav-links">
-      <a href="#" onclick="openAbout(); return false;">About Us</a>
-      <a href="#" onclick="openSupport(); return false;">Support</a>
-      <a href="#features">Features</a>
-      <a href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener" class="nav-cta">
-        <svg viewBox="0 0 16 16" fill="currentColor" style="width:12px;height:12px"><path d="M8 14.4C7.6 14.4 2 10.6 2 6.4a3.6 3.6 0 0 1 6-2.7A3.6 3.6 0 0 1 14 6.4c0 4.2-5.6 8-6 8z"/></svg>
-        Donate
-      </a>
-    </div>
-  </nav>
-
-  <!-- HERO -->
-  <div class="hero">
-    <div class="hero-left">
-      <div class="hero-tag">
-        <span class="hero-tag-dot"></span>
-        Beta · Open Access
+      <button class="pill" id="langBtn" type="button" aria-label="Cambiar idioma" data-i18n-aria="langAria">EN</button>
+      <a class="pill" href="/app" data-enter style="border-color:var(--coral)" data-i18n="signIn">Entrar</a>
+    </nav>
+    <div class="hero-copy">
+      <h1 data-i18n="h1">Escribe un mundo que no se olvide.</h1>
+      <p class="lead" data-i18n="lead">MyWorld guarda el canon de tu historia —personajes, lugares, reglas— para que la IA te ayude sin inventar ni olvidar. Mira te acompaña mientras escribes, y se va a dormir cuando necesitas silencio.</p>
+      <div class="row">
+        <a class="btn" href="/app" data-enter data-i18n="open">Abrir MyWorld</a>
+        <a class="ghost" href="#como" data-i18n="see">Ver cómo funciona</a>
       </div>
-      <h1 class="hero-h1">
-        Build the world<br>
-        <em>only you can see.</em>
-      </h1>
-      <p class="hero-sub">
-        MyWorld is a creative IDE that maps your story, watches for contradictions, and asks the questions you haven't thought to ask yourself. Your worldbuilding partner.
-      </p>
-      <div class="hero-cta">
-        <a href="/app" class="btn-primary">
-          Open MyWorld
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M3 8h10M9 4l4 4-4 4"/>
-          </svg>
-        </a>
-        <a href="#features" class="btn-ghost">See how it works</a>
-      </div>
-    </div>
-
-    <div class="hero-right">
-      <div class="ide-panel">
-        <div class="ide-bar">
-          <div class="ide-dot"></div>
-          <div class="ide-dot"></div>
-          <div class="ide-dot"></div>
-          <span class="ide-label">IDE // Architect_Chat</span>
-        </div>
-        <div class="ide-body">
-          <span class="ide-agent-tag">The Architect</span>
-          <p class="ide-question">
-            If your world had a heartbeat, what rhythm would it keep?
-          </p>
-          <div class="ide-divider"></div>
-          <div class="ide-cursor-line">
-            <span class="ide-cursor-arrow">&gt;</span>
-            <span>It beats in </span>
-            <span class="cursor-block"></span>
-          </div>
-        </div>
-      </div>
+      <div class="beta" data-i18n="beta">Beta abierta · Tus historias viven en tu Google Drive.</div>
     </div>
   </div>
+</header>
 
-  <!-- FEATURES -->
-  <div class="full-section">
-    <section id="features">
-      <p class="section-label reveal">What lives inside</p>
-      <h2 class="section-h2 reveal">Six agents.<br>One universe.</h2>
-      <p class="section-sub reveal">Each tool in MyWorld has a role. Together they cover every dimension of your creative process.</p>
-      
-      <div class="feature-grid reveal">
-        <!-- Architect -->
-        <div class="feature-card">
-          <div class="feature-icon cyan">
-            <svg viewBox="0 0 18 18" fill="none" stroke="#67e8f9" stroke-width="1.5">
-              <rect x="3" y="3" width="12" height="12" rx="1"/>
-              <path d="M6 9h2l1.5-3 1.5 6 1.5-2.5H12"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-name">The Architect</div>
-            <div class="feature-sub">Story Structure</div>
-          </div>
-          <p class="feature-desc">Your narrative strategist. It reads your entire world, identifies the gaps, and asks the exact question that unlocks your next scene.</p>
-        </div>
-
-        <!-- Director -->
-        <div class="feature-card">
-          <div class="feature-icon violet">
-            <svg viewBox="0 0 18 18" fill="none" stroke="#818cf8" stroke-width="1.5">
-              <path d="M3 4h12M3 9h8M3 14h5"/>
-              <circle cx="14" cy="12" r="2.5"/>
-              <path d="M14 9.5V7"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-name">The Director</div>
-            <div class="feature-sub">Scene &amp; Cast</div>
-          </div>
-          <p class="feature-desc">Manages your cast, analyzes character arcs, and helps you direct each scene with precision. The creative engine in your sidebar.</p>
-        </div>
-
-        <!-- Canon Guardian -->
-        <div class="feature-card">
-          <div class="feature-icon green">
-            <svg viewBox="0 0 18 18" fill="none" stroke="#34d399" stroke-width="1.5">
-              <path d="M9 2L4 5v5c0 3.3 2.2 5.8 5 6.5 2.8-.7 5-3.2 5-6.5V5L9 2z"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-name">Canon Guardian</div>
-            <div class="feature-sub">Consistency Radar</div>
-          </div>
-          <p class="feature-desc">Watches your manuscript in real time, flags contradictions, and maintains a verified fact database for every element in your world.</p>
-        </div>
-
-        <!-- Tribunal -->
-        <div class="feature-card">
-          <div class="feature-icon amber">
-            <svg viewBox="0 0 18 18" fill="none" stroke="#fbbf24" stroke-width="1.5">
-              <path d="M5 15h8M9 2v13"/>
-              <path d="M4 8l5-6 5 6"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-name">The Tribunal</div>
-            <div class="feature-sub">Critical Judges</div>
-          </div>
-          <p class="feature-desc">Three judges — The Architect (logic), The Bard (emotion), The Hater (market) — give brutally honest scores with actionable feedback.</p>
-        </div>
-
-        <!-- Ideas Lab -->
-        <div class="feature-card">
-          <div class="feature-icon pink">
-            <svg viewBox="0 0 18 18" fill="none" stroke="#e879f9" stroke-width="1.5">
-              <path d="M7 3v5.5l-3 5.5h10l-3-5.5V3"/>
-              <path d="M6.5 3h5"/>
-              <circle cx="8" cy="12" r="0.75" fill="#e879f9" stroke="none"/>
-              <circle cx="11" cy="13.5" r="0.6" fill="#e879f9" stroke="none"/>
-              <circle cx="9.5" cy="11" r="0.5" fill="#e879f9" stroke="none"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-name">Ideas Lab</div>
-            <div class="feature-sub">References &amp; Inspiration</div>
-          </div>
-          <p class="feature-desc">Your inspiration vault. Add cultural references, images, and research. The Lab synthesizes them into ideas tailored to your world.</p>
-        </div>
-
-        <!-- Editor -->
-        <div class="feature-card">
-          <div class="feature-icon cyan" style="background: rgba(103,232,249,0.06);">
-            <svg viewBox="0 0 18 18" fill="none" stroke="#67e8f9" stroke-width="1.5">
-              <path d="M3 14l2.5-1L14 5l-1.5-1.5L4 12 3 14z"/>
-              <path d="M11.5 4.5L13 6"/>
-            </svg>
-          </div>
-          <div>
-            <div class="feature-name">Markdown IDE</div>
-            <div class="feature-sub">Focused Writing</div>
-          </div>
-          <p class="feature-desc">A distraction-free editor with Zen Mode, daily writing goals, syntax highlighting, and full context of your world attached to every file.</p>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <!-- DIRECTOR SHOWCASE -->
-  <section>
-    <p class="section-label reveal">The Director in action</p>
-    <h2 class="section-h2 reveal">Your creative<br>co-author.</h2>
-    <p class="section-sub reveal">Ask the Director about any character, scene, or story problem. It already knows your world.</p>
-
-    <div class="showcase reveal">
-      <div class="showcase-panel">
-        <div class="panel-header">
-          <span class="panel-title">Director // Active Session</span>
-          <span class="panel-badge badge-active">Active</span>
-        </div>
-        <div class="panel-body">
-          <div class="msg-user">What do I need to define to begin creating my protagonist's arc?</div>
-          <div class="msg-agent">
-            <div class="msg-agent-tag">The Director</div>
-            <div class="msg-agent-body">
-              To begin creating Saeya's arc, you need to establish the gap between <em>who she is</em> at the beginning and <em>who she must become</em> to achieve her goal.
-              <br><br>
-              Since her main conflict is against the <strong>Society</strong>—which opposes her desire to listen and share music freely—her arc will be deeply tied to how she responds to that oppression.
-              <br><br>
-              We need to define three foundational pillars: <strong>The Starting Point (The Lie)</strong>, <strong>The Catalyst (The Push)</strong>, and <strong>The Want vs. The Need</strong>.
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        <div class="showcase-panel">
-          <div class="panel-header">
-            <span class="panel-title">Tools</span>
-          </div>
-          <div class="panel-body" style="gap: 10px;">
-            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(251,191,36,0.05);border:1px solid rgba(251,191,36,0.12);border-radius:6px;">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#fbbf24" stroke-width="1.5"><circle cx="8" cy="8" r="5"/><path d="M8 5v3.5l2 1.5"/></svg>
-              <div>
-                <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#fbbf24">Inspector</div>
-                <div style="font-size:10px;color:var(--muted);margin-top:2px">Analyze Cast</div>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(129,140,248,0.05);border:1px solid rgba(129,140,248,0.12);border-radius:6px;">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#818cf8" stroke-width="1.5"><path d="M5 13h6M8 2v11"/><path d="M4 7l4-5 4 5"/></svg>
-              <div>
-                <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#818cf8">Tribunal</div>
-                <div style="font-size:10px;color:var(--muted);margin-top:2px">Summon Judges</div>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:12px;padding:12px;background:rgba(52,211,153,0.05);border:1px solid rgba(52,211,153,0.12);border-radius:6px;">
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#34d399" stroke-width="1.5"><circle cx="8" cy="6" r="3"/><path d="M8 9v7M5 13h6"/></svg>
-              <div>
-                <div style="font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#34d399">Memory</div>
-                <div style="font-size:10px;color:var(--muted);margin-top:2px">Force Read</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="showcase-panel">
-          <div class="panel-header">
-            <span class="panel-title">Archives</span>
-          </div>
-          <div class="panel-body">
-            <div style="padding:10px;background:rgba(129,140,248,0.06);border:1px solid rgba(129,140,248,0.15);border-radius:6px;font-size:12px;color:var(--cyan)">
-              Director... <span style="color:var(--muted);font-size:10px;float:right">Now</span>
-            </div>
-          </div>
-        </div>
+<main id="main">
+  <section class="band" id="como">
+    <div class="wrap two">
+      <h2 class="reveal" data-i18n="s1h">La IA sugiere. Tu canon manda.</h2>
+      <div class="three">
+        <div class="reveal"><h3 data-i18n="s1a">Recuerda</h3><p data-i18n="s1at">Cada personaje, lugar y regla queda guardado como canon. La IA lo consulta antes de responder y te dice de dónde sacó cada dato.</p></div>
+        <div class="reveal"><h3 data-i18n="s1b">Avisa</h3><p data-i18n="s1bt">El estudio revisa tu capítulo y marca lo que choca con lo que ya escribiste, antes de que lo note un lector.</p></div>
+        <div class="reveal"><h3 data-i18n="s1c">Acompaña</h3><p data-i18n="s1ct">Mira opina, celebra tus metas y te recuerda descansar. Nunca escribe por ti: la historia sigue siendo tuya.</p></div>
       </div>
     </div>
   </section>
 
-  <!-- ROADMAP SHOWCASE -->
-  <div class="full-section">
-    <section>
-      <p class="section-label reveal">The Architect's Roadmap</p>
-      <h2 class="section-h2 reveal">Know exactly what<br>to build next.</h2>
-      <p class="section-sub reveal">After each session, the Architect generates a structured roadmap: what changed, what quests remain, and what to research.</p>
-
-      <div class="roadmap-cols reveal">
-        <div class="roadmap-col">
-          <div class="roadmap-col-header changelog">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M6 4v2.5l1.5 1"/></svg>
-            Changelog
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag defined">Defined</div>
-            Key Emotional Direction: The world burns in flames as the protagonist achieves what she wanted most.
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag defined">Established</div>
-            The premise of 'innocent destruction' is the beating heart of the story.
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag defined">Established</div>
-            World Design Requirement: music must be more than just 'music', prohibition more than just 'censorship'.
-          </div>
-        </div>
-
-        <div class="roadmap-col">
-          <div class="roadmap-col-header missions">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="6" cy="6" r="4"/><path d="M4 6l1.5 1.5L8 4"/></svg>
-            Creation Missions
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag quest">Quest</div>
-            Develop 'The Monopoly of Sound': define how the government bans and controls music, and how the world has adapted.
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag quest">Quest</div>
-            Define the deep logical motivation of the Society beyond a 'closed mind', justifying its catastrophic reaction.
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag quest">Quest</div>
-            Develop 'The Mechanism of Doom': explain how music relates to the destruction of the world thematically.
-          </div>
-        </div>
-
-        <div class="roadmap-col">
-          <div class="roadmap-col-header research">
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="3.5"/><path d="M7.5 7.5L10 10"/></svg>
-            Research
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag investigate">Investigate</div>
-            Methods of social control, maintenance of power, and consequences of oppressive regimes on the collective psyche.
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag investigate">Investigate</div>
-            Mythological or philosophical concepts about the inherent power of music, sound, or vibration as a creative or destructive force.
-          </div>
-          <div class="roadmap-card">
-            <div class="roadmap-tag investigate">Study</div>
-            Narrative examples where the pursuit of an innocent desire leads to catastrophic consequences (Shakespearean tragedies, creation/destruction myths).
-          </div>
-        </div>
+  <section class="band" id="mira">
+    <div class="wrap mira-sec">
+      <div class="reveal">
+        <h2 data-i18n="s2h">Una compañera que sabe cuándo callarse.</h2>
+        <p data-i18n="s2p1">Cuando escribes, todo lo demás se apaga. Si te detienes un rato, Mira se queda dormida en su esquina.</p>
+        <p data-i18n="s2p2">Al volver al teclado se despierta y te deja un tip pequeño, que desaparece en cuanto sigues escribiendo. Y cuando cumples tu meta del día, te dice que te mereces un descanso.</p>
       </div>
-    </section>
-  </div>
-
-  <!-- TRIBUNAL SHOWCASE -->
-  <section>
-    <p class="section-label reveal">The Tribunal</p>
-    <h2 class="section-h2 reveal">Three perspectives.<br>No mercy.</h2>
-    <p class="section-sub reveal">Submit your draft to the Tribunal. Three judges evaluate logic, emotion, and market appeal — independently.</p>
-
-    <div class="tribunal-grid reveal">
-      <!-- Architect Judge -->
-      <div class="judge-card">
-        <div class="judge-header">
-          <div>
-            <div class="judge-name">The Architect</div>
-            <div class="judge-role">Logic & Structure</div>
-          </div>
-          <div class="judge-score" style="color: #fbbf24;">7<span style="font-size:14px;color:var(--muted)">/10</span></div>
-        </div>
-        <div class="judge-body">
-          <p class="judge-verdict">"A promising narrative with solid foundations, but with cracks in the coherence of motivation and rhythm."</p>
-          <p>The Prologue lays a potent emotional hook, however Anna's motivation for her altruism remains an undeveloped "mystery." The reveal of "Anime Fusion" emerges without preamble — functioning as a convenient solution rather than organic world integration.</p>
-        </div>
-      </div>
-
-      <!-- Bard Judge -->
-      <div class="judge-card">
-        <div class="judge-header">
-          <div>
-            <div class="judge-name">The Bard</div>
-            <div class="judge-role">Aesthetics & Emotion</div>
-          </div>
-          <div class="judge-score" style="color: var(--cyan);">7<span style="font-size:14px;color:var(--muted)">/10</span></div>
-        </div>
-        <div class="judge-body">
-          <p class="judge-verdict">"A symphony of voices, where the initial devastation gives way to a melody of connection and discovery, albeit with changes of rhythm that demand attention."</p>
-          <p>The emotional journey is the strongest point of the text. The imagery is consistently vivid. However, the abrupt tonal shift between the prologue and the first chapter is a bold leap that can be disorienting.</p>
-        </div>
-      </div>
-
-      <!-- Hater Judge -->
-      <div class="judge-card">
-        <div class="judge-header">
-          <div>
-            <div class="judge-name">The Hater</div>
-            <div class="judge-role">Market & Cynicism</div>
-          </div>
-          <div class="judge-score" style="color: #fc6464;">3<span style="font-size:14px;color:var(--muted)">/10</span></div>
-        </div>
-        <div class="judge-body">
-          <p class="judge-verdict">"Narrative confusion and clumsy introduction of key elements stifle any hint of initial interest."</p>
-          <p>The prologue dissociates itself from Megu in Chapter 1, leaving the reader wondering about the main character. The reveal of "Anime Fusion" is a blatant deus ex machina without any preparation.</p>
-        </div>
+      <div class="desk night reveal" aria-hidden="true">
+        <div class="bar"><i></i></div>
+        <div class="page"><span data-i18n="demo">El tren salió del campo antes de que amaneciera, y Anna no miró atrás. Por la ventana pasaban los últimos cultivos, y luego nada: solo niebla</span><span class="caret"></span></div>
+        <div class="bubble"><b data-i18n="tipT">Tip para enfocarte</b><span data-i18n="tipX">Deja el teléfono en otra habitación: lo que no ves no te llama.</span></div>
+        <div class="who"><span class="spr s-sleep rim"></span><span class="zz">z Z</span></div>
       </div>
     </div>
   </section>
 
-  <!-- ABOUT / NORTHFORGE -->
-  <section style="padding: 80px 40px; max-width: 1200px; margin: 0 auto;">
-    <div style="display:flex;align-items:center;gap:48px;flex-wrap:wrap;" class="reveal">
-      <div style="flex:1;min-width:280px;">
-        <p class="section-label">About MyWorld</p>
-        <h2 class="section-h2" style="font-size:clamp(24px,3vw,36px);margin-bottom:16px;">Built by NorthForge Studios.</h2>
-        <p style="font-family:'Newsreader',serif;font-size:16px;line-height:1.8;color:var(--muted-hi);margin-bottom:20px;">
-          MyWorld is an independent product developed and maintained by <a href="https://northforgestudios.tech" target="_blank" rel="noopener" style="color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(103,232,249,0.3);">NorthForge Studios</a> — an AI-focused technology studio building tools for creators and developers.
-        </p>
-        <p style="font-family:'Newsreader',serif;font-size:16px;line-height:1.8;color:var(--muted-hi);">
-          Questions, feedback, or just want to say hello?
-        </p>
-        <div style="margin-top:20px;display:flex;gap:12px;flex-wrap:wrap;">
-          <a href="#" onclick="openSupport(); return false;"
-            style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em;padding:9px 18px;border-radius:6px;background:rgba(103,232,249,0.06);border:1px solid rgba(103,232,249,0.15);color:var(--cyan);text-decoration:none;transition:all 0.2s;"
-            onmouseover="this.style.background='rgba(103,232,249,0.12)'"
-            onmouseout="this.style.background='rgba(103,232,249,0.06)'">
-            Contact us
-          </a>
-          <a href="https://northforgestudios.tech" target="_blank" rel="noopener"
-            style="font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:0.08em;padding:9px 18px;border-radius:6px;background:transparent;border:1px solid rgba(59,130,246,0.2);color:#60a5fa;text-decoration:none;transition:all 0.2s;display:flex;align-items:center;gap:7px;"
-            onmouseover="this.style.background='rgba(59,130,246,0.08)'"
-            onmouseout="this.style.background='transparent'">
-            <!-- Mini razorbill -->
-            <img src="data:image/png;base64,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" alt="NorthForge Studios" style="width:13px;height:13px;object-fit:contain;border-radius:2px;">
-            NorthForge Studios →
-          </a>
-        </div>
-      </div>
-      <!-- Right: NorthForge card -->
-      <div style="flex:0 0 300px;">
-        <a href="https://northforgestudios.tech" target="_blank" rel="noopener" style="text-decoration:none;display:block;">
-          <div style="background:rgba(255,255,255,0.02);border:1px solid rgba(59,130,246,0.15);border-radius:12px;padding:28px;transition:all 0.25s;cursor:pointer;"
-            onmouseover="this.style.background='rgba(59,130,246,0.04)';this.style.borderColor='rgba(59,130,246,0.3)'"
-            onmouseout="this.style.background='rgba(255,255,255,0.02)';this.style.borderColor='rgba(59,130,246,0.15)'">
-            <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
-              <img src="data:image/png;base64,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" alt="NorthForge Studios" style="width:28px;height:28px;object-fit:contain;border-radius:4px;">
-              <div>
-                <div style="font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;color:#e2e8f0;">NorthForge<span style="color:#3b82f6;">Studios</span></div>
-                <div style="font-family:'JetBrains Mono',monospace;font-size:9px;letter-spacing:0.1em;text-transform:uppercase;color:#374151;margin-top:2px;">Technology Studio</div>
-              </div>
-            </div>
-            <p style="font-family:'Newsreader',serif;font-size:13px;line-height:1.7;color:#4b5563;margin-bottom:16px;">
-              We build. We publish. We amplify. AI-focused products and a publishing platform for developers worldwide.
-            </p>
-            <div style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#3b82f6;">
-              northforgestudios.tech →
-            </div>
-          </div>
-        </a>
+  <section class="band" id="casa">
+    <div class="wrap">
+      <h2 class="reveal" style="font-size:clamp(32px,3.6vw,46px);line-height:1.08;max-width:16em" data-i18n="s3h">Una casa con un cuarto para cada cosa.</h2>
+      <div class="rooms">
+        <div class="room reveal"><span class="tag" data-i18n="r1t">Escribir</span><h3 data-i18n="r1">El escritorio</h3><p data-i18n="r1p">Un editor sin distracciones, con modo enfoque, meta diaria y tu mundo siempre a mano.</p></div>
+        <div class="room reveal"><span class="tag" data-i18n="r2t">Conversar</span><h3>Mira</h3><p data-i18n="r2p">Pregúntale por cualquier personaje o escena. Ya conoce tu mundo y cita sus fuentes.</p></div>
+        <div class="room reveal"><span class="tag" data-i18n="r3t">Revisar</span><h3 data-i18n="r3">El estudio</h3><p data-i18n="r3p">Tres lectores —el Arquitecto, el Bardo y el Hater— evalúan lógica, emoción y mercado.</p></div>
+        <div class="room reveal"><span class="tag" data-i18n="r4t">Planear</span><h3 data-i18n="r4">La mesa del arquitecto</h3><p data-i18n="r4p">Las partes de tu libro, los hilos de la trama y las dudas que faltan por resolver.</p></div>
+        <div class="room reveal"><span class="tag" data-i18n="r5t">Mapa</span><h3 data-i18n="r5">El observatorio</h3><p data-i18n="r5p">Los lugares de tu mundo sobre un mapa, con los capítulos donde aparecen.</p></div>
+        <div class="room reveal"><span class="tag" data-i18n="r6t">Personajes</span><h3 data-i18n="r6">El fichero</h3><p data-i18n="r6p">Una ficha por personaje: rasgos, relaciones y en qué parte de la historia está.</p></div>
+        <div class="room reveal"><span class="tag" data-i18n="r7t">Ideas</span><h3 data-i18n="r7">El frasco de ideas</h3><p data-i18n="r7p">Lo que se te ocurre y aún no decides. Nada cambia tu historia hasta que lo llevas al canon.</p></div>
+        <div class="room reveal"><span class="tag" data-i18n="r8t">Exportar</span><h3 data-i18n="r8">La imprenta</h3><p data-i18n="r8p">Convierte tus capítulos en un libro listo para compartir.</p></div>
       </div>
     </div>
   </section>
 
-  <!-- CTA -->
-  <div class="full-section">
-    <div class="cta-section">
-      <div class="cta-glow"></div>
-      <p class="section-label" style="position:relative">Start building</p>
-      <h2 class="cta-h2" style="position:relative">Your world is waiting<br>to be <em>written.</em></h2>
-      <p class="cta-sub" style="position:relative">Sign in with Google. Your stories live in your Drive. No subscriptions during Beta.</p>
-      <div style="position:relative;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:center;">
-        <a href="/app" class="btn-primary">
-          Open MyWorld
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M3 8h10M9 4l4 4-4 4"/>
-          </svg>
-        </a>
-        <a href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener"
-          style="display:flex;align-items:center;gap:8px;padding:14px 24px;border-radius:8px;border:1px solid rgba(129,140,248,0.25);background:transparent;color:var(--violet);font-family:'JetBrains Mono',monospace;font-size:13px;text-decoration:none;transition:all 0.2s;"
-          onmouseover="this.style.background='rgba(129,140,248,0.08)';this.style.borderColor='rgba(129,140,248,0.4)'"
-          onmouseout="this.style.background='transparent';this.style.borderColor='rgba(129,140,248,0.25)'">
-          <svg viewBox="0 0 16 16" fill="currentColor" style="width:14px;height:14px;color:#e879f9"><path d="M8 14.4C7.6 14.4 2 10.6 2 6.4a3.6 3.6 0 0 1 6-2.7A3.6 3.6 0 0 1 14 6.4c0 4.2-5.6 8-6 8z"/></svg>
-          Support MyWorld
-        </a>
+  <section class="band">
+    <div class="wrap">
+      <h2 class="reveal" style="font-size:clamp(32px,3.6vw,46px);line-height:1.08;max-width:16em" data-i18n="s4h">Tres lectores honestos antes del lector de verdad.</h2>
+      <div class="judges">
+        <div class="judge reveal"><div class="score">7<small>/10</small></div><h3 data-i18n="j1">El Arquitecto</h3><p data-i18n="j1p">Lógica y estructura: «Buenas bases, pero la motivación del personaje todavía es un misterio».</p></div>
+        <div class="judge reveal"><div class="score">7<small>/10</small></div><h3 data-i18n="j2">El Bardo</h3><p data-i18n="j2p">Emoción y estética: «Las imágenes son vívidas; el cambio de tono entre capítulos desorienta».</p></div>
+        <div class="judge reveal"><div class="score">3<small>/10</small></div><h3 data-i18n="j3">El Hater</h3><p data-i18n="j3p">Mercado: «La revelación llega sin preparación. El lector no lo compra».</p></div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- FOOTER -->
-  <div style="border-top: 1px solid rgba(129,140,248,0.08);">
-    <footer style="flex-direction: column; gap: 20px; align-items: center; text-align: center;">
-      <!-- Top row -->
-      <div style="display:flex;align-items:center;justify-content:space-between;width:100%;flex-wrap:wrap;gap:16px;">
-        <span style="font-family: 'Newsreader', serif; font-style: italic; color: var(--cyan); font-size: 16px;">MyWorld</span>
-        <span>© 2026 MyWorld.</span>
-        <div class="footer-links">
-          <a href="/privacy">Privacy</a>
-          <a href="/terms">Terms</a>
-          <a href="#" onclick="openSupport(); return false;">Contact</a>
-        </div>
+  <section class="final sky" id="apoyo">
+    <div class="wrap">
+      <h2 class="reveal" data-i18n="fh">Tu mundo te espera.</h2>
+      <p class="reveal" data-i18n="fp">Entra con tu cuenta de Google. Tus historias viven en tu Drive y no hay suscripción durante la beta. Si MyWorld te sirve, puedes apoyarlo.</p>
+      <div class="reveal" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center">
+        <a class="btn" href="/app" data-enter data-i18n="open">Abrir MyWorld</a>
+        <a class="pill" id="donate" href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener" data-i18n="donate">Donar</a>
+        <button class="pill" type="button" id="supportBtn" data-i18n="contact">Escribir a soporte</button>
       </div>
-      <!-- NorthForge credit -->
-      <div style="width:100%;padding-top:16px;border-top:1px solid rgba(129,140,248,0.06);display:flex;align-items:center;justify-content:center;gap:10px;">
-        <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);">A product by</span>
-        <a href="https://northforgestudios.tech" target="_blank" rel="noopener"
-          style="display:flex;align-items:center;gap:7px;text-decoration:none;transition:opacity 0.2s;opacity:0.7;"
-          onmouseover="this.style.opacity='1'"
-          onmouseout="this.style.opacity='0.7'">
-          <img src="data:image/png;base64,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" alt="NorthForge Studios" style="width:16px;height:16px;object-fit:contain;">
-          <span style="font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:0.08em;color:#64748b;">
-            NorthForge<span style="color:#3b82f6;">Studios</span>
-          </span>
-        </a>
+    </div>
+    <div class="scene">
+      <div class="ground" aria-hidden="true"><svg class="grass"><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
+      <div style="position:absolute;left:max(24px,8%);bottom:64px;z-index:3"><span class="spr s-wave rim" role="img" aria-label="Mira se despide con la mano" data-i18n-aria="miraBye"></span></div>
+      <div id="jarBox" style="position:absolute;right:max(24px,10%);bottom:76px;z-index:3;display:flex;align-items:flex-end;gap:4px">
+        <span class="spr s-clap rim" id="clapper" aria-hidden="true"></span>
+        <svg width="60" height="72" viewBox="0 0 20 24" shape-rendering="crispEdges" aria-hidden="true"><rect x="4" y="0" width="12" height="3" fill="#7A2E3C"/><rect x="2" y="3" width="16" height="21" fill="#B9D7F0" opacity=".3"/><rect x="2" y="3" width="1" height="21" fill="#DCEBF7"/><rect x="17" y="3" width="1" height="21" fill="#DCEBF7"/><rect x="2" y="23" width="16" height="1" fill="#DCEBF7"/><rect id="jarFill" x="3" y="18" width="14" height="5" fill="#FFC94A"/></svg>
+        <span id="coin" aria-hidden="true" style="position:absolute;width:12px;height:12px;border-radius:50%;background:#FFC94A;box-shadow:inset -3px -3px 0 #E0962A;opacity:0;left:0;top:0"></span>
+        <span id="heart" aria-hidden="true" style="position:absolute;right:16px;top:-30px;font:700 26px monospace;color:var(--coral);opacity:0;transition:opacity .4s,transform .8s;">♥</span>
       </div>
-    </footer>
-  </div>
+    </div>
+  </section>
+</main>
 
-</div><!-- #page -->
+<footer>
+  <div class="wrap">
+    <nav aria-label="Legal">
+      <a href="/privacy" data-i18n="privacy">Privacidad</a>
+      <a href="/terms" data-i18n="terms">Términos</a>
+      <a href="#" id="supportLink" data-i18n="contact2">Contacto</a>
+    </nav>
+    <span>© 2026 MyWorld · <a href="https://northforgestudios.tech" target="_blank" rel="noopener">NorthForge Studios</a></span>
+  </div>
+</footer>
+
+<!-- Entrar a casa -->
+<div class="overlay sky" id="enter" role="dialog" aria-modal="true" aria-label="Entrando a MyWorld" data-i18n-aria="entering">
+  <div class="stars" id="stars2" aria-hidden="true" style="position:absolute;inset:0"></div>
+  <div class="ground" style="height:170px" aria-hidden="true"><svg class="grass"><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
+  <div class="stage" aria-hidden="true">
+    <div style="position:absolute;left:520px;bottom:0;width:360px;height:420px">
+      <div style="position:absolute;left:250px;top:20px;width:40px;height:90px;background:#3A2630"></div>
+      <div style="position:absolute;left:-20px;top:40px;width:0;height:0;border-left:200px solid transparent;border-right:200px solid transparent;border-bottom:120px solid #6B2836"></div>
+      <div style="position:absolute;left:10px;top:158px;width:340px;height:262px;background:#3E2C2A"></div>
+      <div id="win" style="position:absolute;left:36px;top:200px;width:80px;height:70px;background:#2A2436;transition:background-color .4s"></div>
+      <div style="position:absolute;left:75px;top:200px;width:2px;height:70px;background:#3E2C2A"></div>
+      <div id="doorOpen" style="display:none"><div style="position:absolute;left:175px;top:160px;width:140px;height:260px;background:#08070C"></div><div style="position:absolute;left:175px;top:160px;width:26px;height:260px;background:#8A5A3C"></div></div>
+      <div id="doorClosed"><div style="position:absolute;left:175px;top:160px;width:140px;height:260px;background:#8A5A3C"></div><div style="position:absolute;left:189px;top:174px;width:112px;height:100px;background:#9E6A48"></div><div style="position:absolute;left:189px;top:286px;width:112px;height:120px;background:#9E6A48"></div><div style="position:absolute;left:290px;top:276px;width:10px;height:10px;background:#FF9638"></div></div>
+    </div>
+    <div class="walk spr rim" id="walker"></div>
+  </div>
+  <div class="note" data-i18n="enteringNote">Entrando a la casa…</div>
+  <a class="pill skipbtn" href="/app" data-i18n="skipAnim">Saltar</a>
+</div>
+
+<!-- Primera visita: estrella fugaz -->
+<div class="overlay sky" id="intro" aria-hidden="true">
+  <div class="stars" id="stars3" style="position:absolute;inset:0"></div>
+  <div class="ground" style="height:90px"><svg class="grass"><rect width="100%" height="14" fill="url(#gA)"/></svg></div>
+  <div class="star" id="istar"></div>
+  <div class="land spr rim" id="iland"></div>
+  <div class="hello" id="ihello" data-i18n="hello">Hola, soy Mira. Bienvenido a MyWorld.</div>
+</div>
+
+<!-- Soporte -->
+<div class="modal-bg" id="supportModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="supT">
+    <span class="spr s-plane rim mira-corner" id="planeMira" aria-hidden="true"></span>
+    <button class="x" type="button" id="supClose" aria-label="Cerrar" data-i18n-aria="close">✕</button>
+    <h2 id="supT" data-i18n="supT">Escríbenos</h2>
+    <p data-i18n="supP">Mándanos un correo y te respondemos lo antes posible.</p>
+    <div class="mailbox"><span>deidev180@gmail.com</span><button class="pill" type="button" id="copyBtn" data-i18n="copy">Copiar</button></div>
+    <a class="btn" style="min-height:48px;font-size:16px" href="mailto:deidev180@gmail.com?subject=MyWorld" data-i18n="mail">Abrir el correo</a>
+    <p role="status" aria-live="polite" id="copyMsg" style="margin:12px 0 0;font-size:14px;color:var(--mira)"></p>
+  </div>
+</div>
 
 <script>
-// ── INTRO ANIMATION ─────────────────────────────────────────────────────────
-(function() {
-  const orb = document.getElementById('orb');
-  const ring = document.getElementById('ring');
-  const iw = document.getElementById('iw');
-  const brand = document.getElementById('brand');
-  const bmy = document.getElementById('bmy');
-  const borld = document.getElementById('borld');
-  const intro = document.getElementById('intro');
-  const bgGrid = document.getElementById('bgGrid');
-  const page = document.getElementById('page');
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  function lerp(a, b, t) { return a + (b - a) * t; }
-
-  let startTime = null;
-  const DUR = {
-    orbIn: 0,     orbInEnd: 900,
-    ringIn: 300,  ringInEnd: 1200,
-    wIn: 800,     wInEnd: 1500,
-    wHold: 1500,  wHoldEnd: 2200,
-    brandIn: 2000, brandInEnd: 2600,
-    fadeOut: 2800, fadeOutEnd: 3400,
-    pageIn: 3200
+  // ---------- idioma ----------
+  var EN = {
+    skip:'Skip to content', c1:'your world', c2:'the next one', miraHill:'Mira, sitting on the hill', navMain:'Main',
+    nHow:'How it works', nHouse:'The house', nMira:'Mira', nSupport:'Support us', langAria:'Change language', signIn:'Sign in',
+    h1:'Write a world that never forgets.', lead:'MyWorld keeps the canon of your story —characters, places, rules— so AI helps you without making things up or forgetting. Mira keeps you company while you write, and falls asleep when you need silence.',
+    open:'Open MyWorld', see:'See how it works', beta:'Open beta · Your stories live in your Google Drive.',
+    s1h:'AI suggests. Your canon rules.', s1a:'Remembers', s1at:'Every character, place and rule is stored as canon. The AI checks it before answering and tells you where each fact came from.',
+    s1b:'Warns', s1bt:'The study reviews your chapter and flags what clashes with what you already wrote, before a reader notices.',
+    s1c:'Keeps you company', s1ct:'Mira gives her opinion, celebrates your goals and reminds you to rest. She never writes for you: the story stays yours.',
+    s2h:'A companion who knows when to be quiet.', s2p1:'When you write, everything else fades away. If you stop for a while, Mira falls asleep in her corner.',
+    s2p2:'When you come back to the keyboard she wakes up and leaves a small tip, which disappears as soon as you keep writing. And when you hit your daily goal, she tells you that you deserve a break.',
+    tipT:'Focus tip', tipX:'Leave your phone in another room: what you don’t see doesn’t call you.',
+    s3h:'A house with a room for everything.', r1t:'Write', r1:'The desk', r1p:'A distraction-free editor with focus mode, a daily goal and your world always at hand.',
+    r2t:'Talk', r2p:'Ask her about any character or scene. She already knows your world and cites her sources.',
+    r3t:'Review', r3:'The study', r3p:'Three readers —the Architect, the Bard and the Hater— score logic, emotion and market appeal.',
+    r4t:'Plan', r4:'The architect’s table', r4p:'The parts of your book, the plot threads and the questions still to answer.',
+    r5t:'Map', r5:'The observatory', r5p:'The places of your world on a map, with the chapters where they appear.',
+    r6t:'Characters', r6:'The card file', r6p:'One card per character: traits, relationships and where they are in the story.',
+    r7t:'Ideas', r7:'The idea jar', r7p:'What occurs to you that you haven’t decided yet. Nothing changes your story until you bring it into the canon.',
+    r8t:'Export', r8:'The press', r8p:'Turn your chapters into a book ready to share.',
+    s4h:'Three honest readers before the real one.', j1:'The Architect', j1p:'Logic and structure: “Good foundations, but the character’s motivation is still a mystery.”',
+    j2:'The Bard', j2p:'Emotion and aesthetics: “The imagery is vivid; the shift in tone between chapters is disorienting.”',
+    j3:'The Hater', j3p:'Market: “The reveal comes out of nowhere. Readers won’t buy it.”',
+    fh:'Your world is waiting.', fp:'Sign in with your Google account. Your stories live in your Drive and there is no subscription during the beta. If MyWorld helps you, you can support it.',
+    donate:'Donate', contact:'Contact support', miraBye:'Mira waves goodbye', privacy:'Privacy', terms:'Terms', contact2:'Contact',
+    entering:'Entering MyWorld', enteringNote:'Going into the house…', skipAnim:'Skip', hello:'Hi, I’m Mira. Welcome to MyWorld.',
+    demo:'The train left the countryside before dawn, and Anna didn\u2019t look back. The last fields slid past the window, and then nothing: only fog',
+    close:'Close', supT:'Write to us', supP:'Send us an email and we’ll get back to you as soon as we can.', copy:'Copy', copied:'Email copied', mail:'Open your email'
   };
+  var ES = {}; document.querySelectorAll('[data-i18n]').forEach(function(el){ ES[el.dataset.i18n] = el.innerHTML; });
+  document.querySelectorAll('[data-i18n-aria]').forEach(function(el){ ES[el.dataset.i18nAria] = el.getAttribute('aria-label'); });
+  ES.copied = 'Correo copiado';
+  var lang = 'es';
+  try { lang = localStorage.getItem('mw-lang') || ((navigator.languages||[navigator.language])[0]||'es').slice(0,2); } catch(e) {}
+  if (lang !== 'es') lang = 'en';
+  function applyLang(l){
+    lang = l; var D = l === 'es' ? ES : EN;
+    document.documentElement.lang = l;
+    document.querySelectorAll('[data-i18n]').forEach(function(el){ var k = el.dataset.i18n; if (D[k]) el.innerHTML = D[k]; });
+    document.querySelectorAll('[data-i18n-aria]').forEach(function(el){ var k = el.dataset.i18nAria; if (D[k]) el.setAttribute('aria-label', D[k]); });
+    document.getElementById('langBtn').textContent = l === 'es' ? 'EN' : 'ES';
+    document.title = l === 'es' ? 'MyWorld — Escribe un mundo que no se olvide' : 'MyWorld — Write a world that never forgets';
+  }
+  document.getElementById('langBtn').addEventListener('click', function(){ var n = lang === 'es' ? 'en' : 'es'; try { localStorage.setItem('mw-lang', n); } catch(e) {} applyLang(n); });
+  applyLang(lang);
+  window.__t = function(k){ return (lang === 'es' ? ES : EN)[k]; };
 
-  function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
-  function easeInOut(t) { return t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2; }
-  function easeBack(t) {
-    const c1 = 1.70158, c3 = c1 + 1;
-    return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+  // ---------- estrellas y luciérnagas ----------
+  function stars(id, n, maxY){
+    var box = document.getElementById(id); if (!box) return; var s = 7, frag = document.createDocumentFragment();
+    function r(){ s = (s * 9301 + 49297) % 233280; return s / 233280; }
+    for (var i = 0; i < n; i++){ var d = document.createElement('i'); var big = r() < .15; d.className = 'tw';
+      d.style.cssText = 'left:'+(r()*98).toFixed(1)+'%;top:'+(r()*maxY).toFixed(1)+'%;width:'+(big?4:2)+'px;height:'+(big?4:2)+'px;background:'+(r()<.3?'#B9AEE0':'#FFF4F4')+';opacity:'+(.35+r()*.6).toFixed(2)+';animation-delay:'+(r()*4).toFixed(2)+'s';
+      frag.appendChild(d); }
+    box.appendChild(frag);
+  }
+  stars('stars', 90, 62); stars('stars2', 70, 60); stars('stars3', 70, 70);
+  var fl = document.getElementById('flies');
+  [[52,60,0,6],[61,140,1.2,7],[70,90,2.5,5.5],[78,180,.6,6.5],[86,70,3.1,7.5],[93,150,1.8,6],[44,110,4,8],[66,40,2.2,5]].forEach(function(a){
+    var d = document.createElement('i'); d.className = 'ff'; d.style.cssText = 'left:'+a[0]+'%;bottom:'+a[1]+'px;z-index:4;animation-delay:'+a[2]+'s;animation-duration:'+a[3]+'s'; fl.appendChild(d); });
+
+  // ---------- parallax ----------
+  if (!reduce && matchMedia('(pointer: fine)').matches){
+    var layers = document.querySelectorAll('.hero .layer'), mx = 0, my = 0, raf = 0;
+    addEventListener('pointermove', function(e){ mx = e.clientX / innerWidth - .5; my = e.clientY / innerHeight - .5; if (!raf) raf = requestAnimationFrame(function(){ raf = 0;
+      layers.forEach(function(l){ var d = +l.dataset.depth; l.style.transform = 'translate3d('+(-mx*40*d)+'px,'+(-my*20*d - scrollY*d*.3)+'px,0)'; }); }); }, { passive: true });
   }
 
-  function clamp01(t, s, e) { return Math.max(0, Math.min(1, (t - s) / (e - s))); }
+  // ---------- aparición al hacer scroll ----------
+  var io = 'IntersectionObserver' in window ? new IntersectionObserver(function(es){ es.forEach(function(e){ if (e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target); } }); }, { threshold: .12 }) : null;
+  document.querySelectorAll('.reveal').forEach(function(el){ io ? io.observe(el) : el.classList.add('in'); });
 
-  function tick(ts) {
-    if (!startTime) startTime = ts;
-    const t = ts - startTime;
+  // ---------- entrar a casa ----------
+  var entering = false;
+  function enterHouse(e){
+    if (e && (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1)) return;
+    if (reduce) return; // navega directo
+    if (e) e.preventDefault(); if (entering) return; entering = true;
+    var ov = document.getElementById('enter'), w = document.getElementById('walker'), win = document.getElementById('win');
+    var dO = document.getElementById('doorOpen'), dC = document.getElementById('doorClosed');
+    ov.classList.add('on'); document.body.style.overflow = 'hidden';
+    var t = 0; var iv = setInterval(function(){
+      var x = 40, f = 0, op = 1;
+      if (t < 30){ x = 40 + t * 19; f = t % 8; }
+      else if (t < 32){ x = 610; }
+      else if (t < 34){ x = 610; dO.style.display = 'block'; dC.style.display = 'none'; }
+      else if (t < 40){ x = 610 + (t - 34) * 4; f = t % 8; op = Math.max(0, 1 - (t - 34) / 5); }
+      else { op = 0; dO.style.display = 'none'; dC.style.display = 'block'; if (t >= 42) win.style.background = '#FFD27A'; }
+      w.style.left = x + 'px'; w.style.opacity = op; w.style.backgroundPosition = (-f * 288) + 'px 0';
+      if (t >= 52){ clearInterval(iv); location.href = '/app'; }
+      t++;
+    }, 110);
+  }
+  document.querySelectorAll('[data-enter]').forEach(function(a){ a.addEventListener('click', enterHouse); });
 
-    // ORB: rises from y=40 to y=-70
-    let orbT = clamp01(t, DUR.orbIn, DUR.orbInEnd);
-    if (orbT > 0) {
-      orb.style.opacity = Math.min(orbT * 2, 1);
-      orb.style.transform = `translateY(${lerp(40, -70, easeOut(orbT))}px)`;
-    }
-
-    // RING: rises from y=50 and rotates to -15deg
-    let ringT = clamp01(t, DUR.ringIn, DUR.ringInEnd);
-    if (ringT > 0) {
-      orb.style.opacity = Math.min(orbT * 2, 1);
-      ring.style.opacity = easeOut(ringT) * 0.85;
-      const ry = lerp(50, -14, easeOut(ringT));
-      const rrot = lerp(-30, -15, easeOut(ringT));
-      const rscale = lerp(0.8, 1, easeOut(ringT));
-      ring.style.transform = `translateY(${ry}px) rotate(${rrot}deg) scale(${rscale})`;
-    }
-
-    // W: appears at center
-    let wT = clamp01(t, DUR.wIn, DUR.wInEnd);
-    if (wT > 0) {
-      iw.style.opacity = easeBack(wT);
-      iw.style.transform = `scale(${lerp(0.85, 1, easeBack(wT))})`;
-    }
-
-    // PHASE OUT orb+ring+w → brand appears
-    let phaseT = clamp01(t, DUR.wHold, DUR.wHoldEnd);
-    if (phaseT > 0) {
-      const fade = 1 - easeInOut(phaseT);
-      orb.style.opacity = fade * Math.min(clamp01(t, DUR.orbIn, DUR.orbInEnd) * 2, 1);
-      ring.style.opacity = fade * 0.85;
-      iw.style.opacity = fade;
-    }
-
-    // BRAND AUTOCOMPLETE
-    let brandT = clamp01(t, DUR.brandIn, DUR.brandInEnd);
-    if (brandT > 0) {
-      brand.style.opacity = 1;
-      const myW = Math.round(lerp(0, 96, easeOut(Math.min(brandT * 2, 1))));
-      const orldW = Math.round(lerp(0, 132, easeOut(Math.max(0, brandT * 2 - 0.7))));
-      bmy.style.maxWidth = myW + 'px';
-      borld.style.maxWidth = orldW + 'px';
-    }
-
-    // FADE OUT INTRO
-    let fadeT = clamp01(t, DUR.fadeOut, DUR.fadeOutEnd);
-    if (fadeT > 0) {
-      intro.style.opacity = 1 - easeInOut(fadeT);
-    }
-
-    if (t >= DUR.pageIn) {
-      // Reveal page
-      intro.style.display = 'none';
-      bgGrid.style.transition = 'opacity 1.5s ease';
-      bgGrid.style.opacity = '1';
-      page.style.transition = 'opacity 0.8s ease, transform 0.8s ease';
-      page.style.opacity = '1';
-      page.style.transform = 'none';
-
-      // Trigger scroll reveals
-      setTimeout(setupReveal, 100);
-      return;
-    }
-
-    requestAnimationFrame(tick);
+  // ---------- primera visita ----------
+  var seen = false; try { seen = localStorage.getItem('mw-intro') === '1'; } catch(e) { seen = true; }
+  if (!seen && !reduce){
+    try { localStorage.setItem('mw-intro', '1'); } catch(e) {}
+    var it = document.getElementById('intro'), st = document.getElementById('istar'), ld = document.getElementById('iland'), hi = document.getElementById('ihello');
+    it.classList.add('on');
+    var W = innerWidth, H = innerHeight, k = 0, done = false;
+    function finish(){ if (done) return; done = true; it.style.transition = 'opacity .6s ease'; it.style.opacity = 0; setTimeout(function(){ it.classList.remove('on'); }, 600); }
+    it.addEventListener('click', finish); addEventListener('keydown', function once(){ finish(); removeEventListener('keydown', once); });
+    var iv2 = setInterval(function(){
+      if (k <= 24){ var p = k / 24; st.style.left = (40 + (W/2 - 40) * p) + 'px'; st.style.top = (20 + (H - 220) * p) + 'px'; }
+      if (k === 25){ st.style.display = 'none'; ld.style.opacity = 1; ld.style.backgroundPosition = '-1152px 0'; }
+      if (k === 26) ld.style.backgroundPosition = '-1440px 0';
+      if (k === 27) ld.style.backgroundPosition = '-1728px 0';
+      if (k === 29) ld.style.backgroundPosition = '-576px 0';
+      if (k === 30){ ld.style.backgroundPosition = '0 0'; hi.style.opacity = 1; }
+      if (k === 52){ clearInterval(iv2); finish(); }
+      k++;
+    }, 45);
   }
 
-  requestAnimationFrame(tick);
-})();
-
-// ── SCROLL REVEAL ────────────────────────────────────────────────────────────
-function setupReveal() {
-  const items = document.querySelectorAll('.reveal');
-  const obs = new IntersectionObserver((entries) => {
-    entries.forEach(e => {
-      if (e.isIntersecting) {
-        e.target.classList.add('visible');
-        obs.unobserve(e.target);
-      }
-    });
-  }, { threshold: 0.12 });
-  items.forEach(el => obs.observe(el));
-}
-
-// ── ABOUT MODAL ──────────────────────────────────────────────────────────────
-function openAbout() {
-  document.getElementById('aboutModal').classList.add('open');
-}
-function closeAbout() {
-  document.getElementById('aboutModal').classList.remove('open');
-}
-document.getElementById('aboutModal').addEventListener('click', function(e) {
-  if (e.target === this) closeAbout();
-});
-
-// ── SUPPORT MODAL ─────────────────────────────────────────────────────────────
-function openSupport() {
-  document.getElementById('supportModal').classList.add('open');
-}
-function closeSupport() {
-  document.getElementById('supportModal').classList.remove('open');
-}
-document.getElementById('supportModal').addEventListener('click', function(e) {
-  if (e.target === this) closeSupport();
-});
-
-function copyEmail() {
-  navigator.clipboard.writeText('deidev180@gmail.com').then(() => {
-    const btn = document.getElementById('copyBtn');
-    btn.textContent = 'Copied!';
-    btn.style.background = 'rgba(52,211,153,0.15)';
-    btn.style.borderColor = 'rgba(52,211,153,0.3)';
-    btn.style.color = '#34d399';
-    setTimeout(() => {
-      btn.textContent = 'Copy';
-      btn.style.background = 'rgba(103,232,249,0.1)';
-      btn.style.borderColor = 'rgba(103,232,249,0.2)';
-      btn.style.color = 'var(--cyan)';
-    }, 2000);
+  // ---------- donar ----------
+  document.getElementById('donate').addEventListener('click', function(){
+    var c = document.getElementById('clapper'), coin = document.getElementById('coin'), h = document.getElementById('heart');
+    c.classList.remove('go'); void c.offsetWidth; c.classList.add('go');
+    if (reduce) return; var k = 0; coin.style.opacity = 1;
+    var iv3 = setInterval(function(){ var p = k / 18; coin.style.left = (40 + 110 * p) + 'px'; coin.style.top = (20 - 90 * Math.sin(Math.PI * p) + 30 * p) + 'px';
+      if (k++ >= 18){ clearInterval(iv3); coin.style.opacity = 0; h.style.opacity = 1; h.style.transform = 'translateY(-30px)'; setTimeout(function(){ h.style.opacity = 0; h.style.transform = 'none'; }, 900); } }, 30);
   });
-}
+
+  // ---------- soporte ----------
+  var modal = document.getElementById('supportModal'), lastFocus = null;
+  function openSup(e){ if (e) e.preventDefault(); lastFocus = document.activeElement; modal.classList.add('on'); var pm = document.getElementById('planeMira'); pm.style.animation = 'none'; void pm.offsetWidth; pm.style.animation = ''; document.getElementById('supClose').focus(); }
+  function closeSup(){ modal.classList.remove('on'); if (lastFocus) lastFocus.focus(); }
+  document.getElementById('supportBtn').addEventListener('click', openSup);
+  document.getElementById('supportLink').addEventListener('click', openSup);
+  document.getElementById('supClose').addEventListener('click', closeSup);
+  modal.addEventListener('click', function(e){ if (e.target === modal) closeSup(); });
+  addEventListener('keydown', function(e){ if (e.key === 'Escape' && modal.classList.contains('on')) closeSup(); });
+  document.getElementById('copyBtn').addEventListener('click', function(){
+    navigator.clipboard && navigator.clipboard.writeText('deidev180@gmail.com').then(function(){ document.getElementById('copyMsg').textContent = window.__t('copied'); setTimeout(function(){ document.getElementById('copyMsg').textContent = ''; }, 2500); });
+  });
+})();
 </script>
 </body>
 </html>

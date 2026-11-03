@@ -3,7 +3,9 @@ import { Settings, Clock, Type, RefreshCw, ScanEye, Loader2, Pause, Square, Targ
 import { toast } from 'sonner';
 import { useTier } from '../../hooks/useTier';
 import { getAiLevel } from '../../hooks/aiLevel';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Moon, Sun } from 'lucide-react';
+import { resolvedTheme, setThemePref } from '../../utils/theme';
+import { getMiraPrefs, setMiraPrefs } from '../mira/tips';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
 import { TRANSLATIONS } from '../../i18n/translations';
@@ -126,6 +128,18 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
     };
 
     const progressPercentage = Math.min(100, (dailyProgress / dailyGoal) * 100);
+    const [theme, setTheme] = useState<'noche' | 'papel'>(() => resolvedTheme());
+    const [miraOn, setMiraOn] = useState(() => getMiraPrefs().visible);
+    useEffect(() => {
+        const on = (e: Event) => setMiraOn((e as CustomEvent).detail.visible);
+        window.addEventListener('mw-mira-prefs', on);
+        return () => window.removeEventListener('mw-mira-prefs', on);
+    }, []);
+    useEffect(() => {
+        const on = (e: Event) => setTheme((e as CustomEvent).detail);
+        window.addEventListener('mw-theme', on);
+        return () => window.removeEventListener('mw-theme', on);
+    }, []);
 
     return (
         <div className={`h-8 bg-titanium-950 border-t border-titanium-800 flex items-center justify-between px-4 text-[10px] text-titanium-400 select-none ${className}`}>
@@ -431,6 +445,31 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         <FileSearch size={12} /> Reporte
                     </button>
                 )}
+
+                {!miraOn && (
+                    <button
+                        onClick={() => setMiraPrefs({ visible: true })}
+                        className="rounded px-2 py-0.5 text-[10px] font-medium text-mira hover:bg-titanium-800 transition-colors"
+                        title="Mostrar a Mira en el escritorio"
+                    >
+                        Mostrar a Mira
+                    </button>
+                )}
+                <button
+                    onClick={() => window.dispatchEvent(new Event('OPEN_TIPS'))}
+                    className="rounded px-2 py-0.5 text-[10px] font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
+                    title="Rincón de tips"
+                >
+                    Tips
+                </button>
+                <button
+                    onClick={() => setThemePref(theme === 'noche' ? 'papel' : 'noche')}
+                    className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
+                    title={theme === 'noche' ? 'Cambiar a modo papel' : 'Cambiar a modo noche'}
+                    aria-label={theme === 'noche' ? 'Cambiar a modo papel' : 'Cambiar a modo noche'}
+                >
+                    {theme === 'noche' ? <Sun size={12} /> : <Moon size={12} />} {theme === 'noche' ? 'Papel' : 'Noche'}
+                </button>
 
                 <button
                     onClick={() => window.dispatchEvent(new CustomEvent('OPEN_SETTINGS_MODAL', { detail: { tab: 'info' } }))}

@@ -1,25 +1,130 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono&family=Merriweather:wght@300;400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=JetBrains+Mono&display=swap');
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ─── MyWorld × Mira: colores por tema (noche / papel) ───────────────────
+   Las clases titanium-*, slate-*, zinc-* y cyan-* de toda la app leen estas
+   variables, así que cambiar el tema cambia toda la interfaz.
+   noche: imagen de marca. papel: tema claro cálido. */
+:root, :root[data-theme="noche"] {
+  color-scheme: dark;
+  --mw-950: #0F0E15; --mw-900: #14131B; --mw-800: #1E1C28; --mw-700: #2A2738;
+  --mw-600: #3A3550; --mw-500: #7A7192; --mw-400: #9C92B0; --mw-300: #B9AEC8;
+  --mw-200: #D6CDE2; --mw-100: #FFF4F4; --mw-50: #FFFAF8; --mw-surface: #262333;
+  --mw-text: #FFF4F4; --mw-text-2: #B9AEC8;
+  /* voz de Mira / IA (antes cian) */
+  --mw-ai-50: #F5F3FC; --mw-ai-100: #ECE8F8; --mw-ai-200: #D9D2F1; --mw-ai-300: #C7BDEA;
+  --mw-ai-400: #B9AEE0; --mw-ai-500: #9C8FD1; --mw-ai-600: #7F70C0; --mw-ai-700: #6556A3;
+  --mw-ai-800: #4C4080; --mw-ai-900: #352C5C; --mw-ai-950: #221C3D;
+  --mw-coral: #F5697E; --mw-on-coral: #14131B; --mw-orange: #FF9638;
+  --mw-mira-bg: #262236;
+}
+:root[data-theme="papel"] {
+  color-scheme: light;
+  --mw-950: #EAE2D9; --mw-900: #F6F1EC; --mw-800: #EDE5DC; --mw-700: #E0D6CB;
+  --mw-600: #CDC0B3; --mw-500: #857A92; --mw-400: #6B6080; --mw-300: #574C68;
+  --mw-200: #3E3550; --mw-100: #1A1626; --mw-50: #120F1C; --mw-surface: #FFFFFF;
+  --mw-text: #1A1626; --mw-text-2: #5E536E;
+  --mw-ai-50: #221C3D; --mw-ai-100: #352C5C; --mw-ai-200: #4C4080; --mw-ai-300: #5B4A9E;
+  --mw-ai-400: #5B4A9E; --mw-ai-500: #6556A3; --mw-ai-600: #7F70C0; --mw-ai-700: #9C8FD1;
+  --mw-ai-800: #C7BDEA; --mw-ai-900: #E4DEF6; --mw-ai-950: #F1EEFA;
+  --mw-coral: #C2384F; --mw-on-coral: #FFFFFF; --mw-orange: #A8530F;
+  --mw-mira-bg: #F1EEFA;
+}
+
 @theme {
-  --color-titanium-900: #1c1c1e;
-  --color-titanium-800: #292928;
-  --color-titanium-600: #63625e;
-  --color-titanium-500: #878681;
-  --color-titanium-surface: #3A3937;
-  --color-text-primary: #E0E0E0;
-  --color-text-secondary: #8D918D;
+  --color-titanium-950: var(--mw-950);
+  --color-titanium-900: var(--mw-900);
+  --color-titanium-800: var(--mw-800);
+  --color-titanium-700: var(--mw-700);
+  --color-titanium-600: var(--mw-600);
+  --color-titanium-500: var(--mw-500);
+  --color-titanium-400: var(--mw-400);
+  --color-titanium-300: var(--mw-300);
+  --color-titanium-200: var(--mw-200);
+  --color-titanium-100: var(--mw-100);
+  --color-titanium-50: var(--mw-50);
+  --color-titanium-surface: var(--mw-surface);
+  --color-text-primary: var(--mw-text);
+  --color-text-secondary: var(--mw-text-2);
   --color-drift-high: #7f1d1d;
 
-  --font-display: "Inter", sans-serif;
+  --color-slate-950: var(--mw-950); --color-slate-900: var(--mw-900); --color-slate-800: var(--mw-800);
+  --color-slate-700: var(--mw-700); --color-slate-600: var(--mw-600); --color-slate-500: var(--mw-500);
+  --color-slate-400: var(--mw-400); --color-slate-300: var(--mw-300); --color-slate-200: var(--mw-200);
+  --color-slate-100: var(--mw-100); --color-slate-50: var(--mw-50);
+  --color-zinc-950: var(--mw-950); --color-zinc-900: var(--mw-900); --color-zinc-800: var(--mw-800);
+  --color-zinc-700: var(--mw-700); --color-zinc-600: var(--mw-600); --color-zinc-500: var(--mw-500);
+  --color-zinc-400: var(--mw-400); --color-zinc-300: var(--mw-300); --color-zinc-200: var(--mw-200);
+  --color-zinc-100: var(--mw-100); --color-zinc-50: var(--mw-50);
+
+  --color-cyan-50: var(--mw-ai-50); --color-cyan-100: var(--mw-ai-100); --color-cyan-200: var(--mw-ai-200);
+  --color-cyan-300: var(--mw-ai-300); --color-cyan-400: var(--mw-ai-400); --color-cyan-500: var(--mw-ai-500);
+  --color-cyan-600: var(--mw-ai-600); --color-cyan-700: var(--mw-ai-700); --color-cyan-800: var(--mw-ai-800);
+  --color-cyan-900: var(--mw-ai-900); --color-cyan-950: var(--mw-ai-950);
+
+  --color-violet-50: var(--mw-ai-50);
+  --color-violet-100: var(--mw-ai-100);
+  --color-violet-200: var(--mw-ai-200);
+  --color-violet-300: var(--mw-ai-300);
+  --color-violet-400: var(--mw-ai-400);
+  --color-violet-500: var(--mw-ai-500);
+  --color-violet-600: var(--mw-ai-600);
+  --color-violet-700: var(--mw-ai-700);
+  --color-violet-800: var(--mw-ai-800);
+  --color-violet-900: var(--mw-ai-900);
+  --color-violet-950: var(--mw-ai-950);
+  --color-purple-50: var(--mw-ai-50);
+  --color-purple-100: var(--mw-ai-100);
+  --color-purple-200: var(--mw-ai-200);
+  --color-purple-300: var(--mw-ai-300);
+  --color-purple-400: var(--mw-ai-400);
+  --color-purple-500: var(--mw-ai-500);
+  --color-purple-600: var(--mw-ai-600);
+  --color-purple-700: var(--mw-ai-700);
+  --color-purple-800: var(--mw-ai-800);
+  --color-purple-900: var(--mw-ai-900);
+  --color-purple-950: var(--mw-ai-950);
+  --color-indigo-50: var(--mw-ai-50);
+  --color-indigo-100: var(--mw-ai-100);
+  --color-indigo-200: var(--mw-ai-200);
+  --color-indigo-300: var(--mw-ai-300);
+  --color-indigo-400: var(--mw-ai-400);
+  --color-indigo-500: var(--mw-ai-500);
+  --color-indigo-600: var(--mw-ai-600);
+  --color-indigo-700: var(--mw-ai-700);
+  --color-indigo-800: var(--mw-ai-800);
+  --color-indigo-900: var(--mw-ai-900);
+  --color-indigo-950: var(--mw-ai-950);
+  --color-coral: var(--mw-coral);
+  --color-on-coral: var(--mw-on-coral);
+  --color-logro: var(--mw-orange);
+  --color-mira: var(--mw-ai-400);
+  --color-mira-bg: var(--mw-mira-bg);
+
+  --font-display: "Figtree", system-ui, sans-serif;
+  --font-sans: "Figtree", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
-  --font-serif: "Merriweather", serif;
+  --font-serif: "Literata", Georgia, serif;
 }
 
 body {
   @apply bg-titanium-900 text-text-primary;
+  font-family: var(--font-display);
 }
+
+:focus-visible { outline: 2px solid var(--mw-ai-400); outline-offset: 2px; }
+
+/* En modo papel, el texto blanco sobre fondos neutros pasa a tinta (los botones de color lo conservan). */
+:root[data-theme="papel"] .text-white:not([class*="bg-cyan-"]):not([class*="bg-red-"]):not([class*="bg-emerald-"]):not([class*="bg-purple-"]):not([class*="bg-violet-"]):not([class*="bg-indigo-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-coral"]):not([class*="bg-rose-"]):not([class*="bg-orange-"]):not([class*="bg-green-"]):not([class*="bg-teal-"]):not([class*="bg-sky-"]):not([class*="bg-pink-"]):not([class*="bg-black"]) { color: var(--mw-100); }
+:root[data-theme="papel"] .hover\:text-white:hover:not([class*="bg-cyan-"]):not([class*="bg-red-"]):not([class*="bg-emerald-"]):not([class*="bg-purple-"]):not([class*="bg-violet-"]):not([class*="bg-indigo-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-coral"]):not([class*="bg-rose-"]):not([class*="bg-orange-"]):not([class*="bg-green-"]):not([class*="bg-teal-"]):not([class*="bg-sky-"]):not([class*="bg-pink-"]):not([class*="bg-black"]) { color: var(--mw-50); }
+:root[data-theme="papel"] .prose-invert { --tw-prose-body: var(--mw-200); --tw-prose-headings: var(--mw-100); --tw-prose-bold: var(--mw-100); --tw-prose-links: var(--mw-ai-400); }
+
+/* --- Sprites de Mira --- */
+.mira-spr { image-rendering: pixelated; background-repeat: no-repeat; display: block; flex: 0 0 auto; }
+.mira-rim { filter: drop-shadow(0 0 2px rgba(185,174,224,.55)); }
+:root[data-theme="papel"] .mira-rim { filter: drop-shadow(0 1px 1px rgba(26,22,38,.25)); }
+@media (prefers-reduced-motion: reduce) { .mira-spr { animation: none !important; } }
 
 /* --- SCROLLBAR TITANIUM (PROTOCOL PALETTE) --- */
 ::-webkit-scrollbar {
@@ -28,18 +133,18 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: #1c1c1e; /* Titanium 900 */
+    background: var(--mw-900);
     opacity: 0.5;
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: #63625e; /* Titanium 600 */
+    background-color: var(--mw-600);
     border-radius: 9999px; /* Fully Rounded */
     border: none; /* No border for stealth look */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: #878681; /* Titanium 500 */
+    background-color: var(--mw-500);
 }
 
 /* Ocultar scrollbar pero permitir scroll */

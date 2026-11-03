@@ -155,7 +155,7 @@ const InternalFolderSelector: React.FC<InternalFolderSelectorProps> = ({ onFolde
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="w-full max-w-lg bg-[#0a0a0a] border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[70vh] overflow-hidden relative">
+            <div className="w-full max-w-lg bg-titanium-950 border border-white/10 rounded-2xl shadow-2xl flex flex-col max-h-[70vh] overflow-hidden relative">
 
                 {/* HEADER */}
                 <div className="h-14 flex items-center justify-between px-6 border-b border-white/10 bg-black/50 shrink-0">

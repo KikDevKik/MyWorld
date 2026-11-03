@@ -198,7 +198,7 @@ const BubbleMenu: React.FC<BubbleMenuProps> = ({ visible, position, view, onRead
 
             {/* DECORATION */}
             <div
-                className="absolute left-1/2 bottom-[-5px] w-2.5 h-2.5 bg-[#09090b] border-r border-b border-titanium-700 transform -translate-x-1/2 rotate-45"
+                className="absolute left-1/2 bottom-[-5px] w-2.5 h-2.5 bg-titanium-950 border-r border-b border-titanium-700 transform -translate-x-1/2 rotate-45"
                 style={{ zIndex: -1 }}
                 aria-hidden="true"
             />

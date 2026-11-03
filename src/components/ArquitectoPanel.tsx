@@ -367,7 +367,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     if (!hasByok) return <AIMotorBlockedOverlay toolName={tArch.toolName || "El Arquitecto"} />;
 
     return (
-        <div className="h-full w-full bg-[#0a0a0a] bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
+        <div className="h-full w-full bg-titanium-950 bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
 
             {/* Top Drawer: Pendientes — solo en estado chat */}
             {panelView === 'chat' && (
@@ -388,7 +388,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             )}
 
             {/* HEADER — siempre visible */}
-            <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-[#0a0a0a]/80 backdrop-blur-md z-30 relative">
+            <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-titanium-950/80 backdrop-blur-md z-30 relative">
                 <button
                     onClick={onClose}
                     className="flex items-center gap-2 text-titanium-500 hover:text-titanium-300 transition-colors group"
@@ -467,7 +467,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             {/* Chevron toggle — solo en estado chat */}
             {panelView === 'chat' && pendingItems.length > 0 && (
-                <div className="flex justify-center shrink-0 z-30 bg-[#0a0a0a]/60">
+                <div className="flex justify-center shrink-0 z-30 bg-titanium-950/60">
                     <button
                         onClick={() => setIsPendingDrawerOpen(v => !v)}
                         className="flex items-center gap-1.5 px-4 py-1 text-titanium-500 hover:text-cyan-400 transition-colors text-xs font-mono tracking-wider group"
@@ -901,7 +901,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 <div className="shrink-0 w-full"
                     style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(103, 232, 249, 0.08)' }}>
                     <div className="max-w-[800px] mx-auto px-6 py-4">
-                    <div className="relative flex flex-col w-full bg-[#141416] border border-titanium-800 rounded-xl overflow-hidden shadow-2xl">
+                    <div className="relative flex flex-col w-full bg-titanium-900 border border-titanium-800 rounded-xl overflow-hidden shadow-2xl">
                         {/* Indicador de archivo adjunto */}
                         {attachedFile && (
                             <div className="flex items-center gap-2 bg-titanium-900 border-b border-titanium-800 px-3 py-2 text-xs text-cyan-400">

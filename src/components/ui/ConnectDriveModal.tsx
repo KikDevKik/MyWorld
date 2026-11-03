@@ -42,7 +42,7 @@ const ConnectDriveModal: React.FC<ConnectDriveModalProps> = ({ isOpen, onClose, 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in">
             <div
-                className="w-[450px] bg-[#09090b] border border-gray-800 rounded-2xl shadow-2xl p-6 relative animate-slide-up"
+                className="w-[450px] bg-titanium-950 border border-gray-800 rounded-2xl shadow-2xl p-6 relative animate-slide-up"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="connect-drive-title"

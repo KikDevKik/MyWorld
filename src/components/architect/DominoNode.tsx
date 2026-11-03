@@ -40,9 +40,9 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
     const phaseColor = PHASE_COLORS[phaseKey] ?? PHASE_COLORS.fundacion;
 
     const statusStyles: Record<string, string> = {
-        active: 'border-cyan-500/60 shadow-[0_0_24px_rgba(6,182,212,0.12)] bg-[#0d1a1f]',
-        completed: 'border-titanium-700/50 bg-[#0d0d10]',
-        locked: 'border-titanium-800/40 bg-[#0a0a0c] opacity-50',
+        active: 'border-cyan-500/60 shadow-[0_0_24px_rgba(6,182,212,0.12)] bg-titanium-950',
+        completed: 'border-titanium-700/50 bg-titanium-950',
+        locked: 'border-titanium-800/40 bg-titanium-950 opacity-50',
     };
 
     const StatusIcon = () => {

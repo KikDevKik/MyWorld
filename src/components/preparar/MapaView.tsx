@@ -144,7 +144,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
     };
 
     return (
-        <div className="h-full w-full flex flex-col overflow-hidden bg-[#08090b]">
+        <div className="h-full w-full flex flex-col overflow-hidden bg-titanium-950">
             <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-titanium-800 px-4 py-2">
                 <Network size={15} className="text-cyan-400" />
                 <span className="text-sm text-titanium-100">Mapa de tu mundo</span>
@@ -238,7 +238,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                 </div>
 
                 {(cur || selSug || sugs.length > 0) && (
-                    <aside className="relative z-10 w-80 shrink-0 border-l border-titanium-800 bg-[#0b0c0e] overflow-y-auto">
+                    <aside className="relative z-10 w-80 shrink-0 border-l border-titanium-800 bg-titanium-950 overflow-y-auto">
                         {cur ? (
                             <div className="p-4 space-y-3 text-[12.5px] text-titanium-300">
                                 <div className="flex items-start gap-2">

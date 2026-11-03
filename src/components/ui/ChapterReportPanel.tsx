@@ -2,6 +2,7 @@
 // Pide a Claude un reporte del capítulo abierto; cada punto trae la cita exacta para ubicarlo
 // ("Ir"), la ortografía se puede corregir con un clic y los puntos se marcan como hechos.
 import React, { useEffect, useMemo, useState } from 'react';
+import { MiraSprite } from '../mira/MiraSprite';
 import { X, FileSearch, Loader2, LocateFixed, Check, RefreshCw, BookOpen, Sparkles, AlertTriangle, SpellCheck, ShieldCheck, Users, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
@@ -290,9 +291,9 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
         <div className="fixed right-0 top-0 bottom-0 z-[150] w-[440px] max-w-[96vw] bg-titanium-900 border-l border-titanium-700 shadow-2xl flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800">
                 <div className="flex items-center gap-2 min-w-0">
-                    <FileSearch size={16} className="text-purple-400 shrink-0" />
+                    <MiraSprite pose={((canon?.contradicciones?.length || 0) + watchAlerts.length) > 0 ? 'ojo' : 'contenta'} face label="Mira" className="shrink-0 -my-2" />
                     <div className="min-w-0">
-                        <p className="text-sm font-medium text-titanium-100">Reporte del capítulo</p>
+                        <p className="font-serif text-base font-semibold text-titanium-100">El estudio <span className="font-sans text-xs font-normal text-titanium-400">· reporte del capítulo</span></p>
                         <p className="text-[11px] text-titanium-500 truncate">{fileName}{fecha ? ` · ${fecha}` : ''}</p>
                     </div>
                 </div>
@@ -311,11 +312,12 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                     <div className="flex items-center gap-2 text-titanium-500"><Loader2 size={14} className="animate-spin" /> Cargando…</div>
                 ) : generating ? (
                     <div className="flex flex-col items-center gap-3 py-16 text-center text-titanium-400">
-                        <Loader2 size={22} className="animate-spin text-purple-400" />
-                        <p>Leyendo el capítulo completo…<br /><span className="text-titanium-600">Tarda entre 30 segundos y 2 minutos.</span></p>
+                        <MiraSprite pose="leyendo" label="Mira lee tu capítulo" />
+                        <p role="status">Mira está leyendo el capítulo completo…<br /><span className="text-titanium-600">Tarda entre 30 segundos y 2 minutos.</span></p>
                     </div>
                 ) : !report ? (
-                    <div className="py-10 text-center space-y-3">
+                    <div className="py-6 text-center space-y-3">
+                        <MiraSprite pose="leyendo" className="mx-auto" />
                         <p className="text-titanium-300">Cuando termines un capítulo, pide un reporte: qué funciona, qué corregir y dónde está cada cosa en tu texto, ortografía con corrección de un clic y lecturas apoyadas en tus referencias. Debajo puedes pedir también la revisión del canon y las tres lecturas.</p>
                         <p className="text-titanium-600">Usa Claude · cuesta alrededor de US$0,10 por reporte.</p>
                         <button onClick={generate} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-purple-700/80 hover:bg-purple-600 px-4 py-2 text-xs font-medium text-white">

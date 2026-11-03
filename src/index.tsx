@@ -3,7 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import VerificationPage from './pages/VerificationPage';
 import './index.css'
+import { initTheme } from './utils/theme';
 import './lib/firebase'; // 👈 IMPORTACIÓN DE LA IGNICIÓN (Efecto secundario)
+
+initTheme();
 
 // 🟢 MANUAL ROUTING (The Judge's Chambers)
 const path = window.location.pathname;

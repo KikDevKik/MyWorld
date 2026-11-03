@@ -19,7 +19,7 @@ interface EfectoDominoProps {
          <div className="flex flex-col h-full min-h-[300px]">
 
              {/* Sub-toolbar interna del Canvas */}
-             <div className="flex items-center justify-between px-4 py-2 border-b border-titanium-800/40 shrink-0 bg-[#0a0a0c]">
+             <div className="flex items-center justify-between px-4 py-2 border-b border-titanium-800/40 shrink-0 bg-titanium-950">
                  <div className="flex items-center gap-3 text-[11px] font-mono text-titanium-600 uppercase tracking-wider">
                      <span>{roadmapCards.length} {t.common?.phases || 'fase(s)'}</span>
                      {roadmapCards.length > 0 && (
@@ -41,7 +41,7 @@ interface EfectoDominoProps {
                  </button>
              </div>
             {/* Canvas principal */}
-            <div className="flex-1 overflow-hidden bg-[#0a0a0a] relative">
+            <div className="flex-1 overflow-hidden bg-titanium-950 relative">
                 {/* Grid de fondo sutil */}
                 <div className="absolute inset-0 pointer-events-none opacity-[0.025]">
                     <svg width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">

@@ -19,6 +19,7 @@ import { DirectorWelcomeOverlay } from './director/DirectorWelcomeOverlay';
 import { useToolWelcome } from '../hooks/useToolWelcome';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
+import { MiraSprite } from './mira/MiraSprite';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -338,12 +339,10 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         )}
 
                         {isThinking && (
-                            <div className="flex gap-3">
-                                <div className="w-8 h-8 rounded-full bg-emerald-900/50 flex items-center justify-center shrink-0">
-                                    <Loader2 size={14} className="animate-spin text-emerald-400" />
-                                </div>
-                                <div className="bg-titanium-900/50 border border-titanium-800 rounded-xl p-3 text-xs text-titanium-500 italic">
-                                    {t.analyzing}
+                            <div className="flex items-end gap-1" role="status">
+                                <MiraSprite pose="escribiendo" className="-ml-4" />
+                                <div className="mb-6 bg-mira-bg border border-dashed border-mira/60 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-mira">
+                                    {currentLanguage === 'es' ? 'Revisando tu canon…' : 'Checking your canon…'}
                                 </div>
                             </div>
                         )}

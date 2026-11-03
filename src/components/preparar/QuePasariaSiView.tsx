@@ -111,7 +111,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
     const shownRefs = refs.filter(r => !refFilter || r.name.toLowerCase().includes(refFilter.toLowerCase()) || r.path.toLowerCase().includes(refFilter.toLowerCase()));
 
     return (
-        <div className="h-full w-full flex overflow-hidden bg-[#0b0a09] bg-[radial-gradient(circle_at_40%_20%,#1d1913_0%,#0b0a09_75%)]">
+        <div className="h-full w-full flex overflow-hidden bg-titanium-950 bg-[radial-gradient(circle_at_40%_20%,#1d1913_0%,#0b0a09_75%)]">
             {/* Conversación */}
             <div className="flex-1 flex flex-col min-w-0">
                 <div className="shrink-0 border-b border-amber-900/30 px-6 py-2.5 flex items-center gap-2 text-[12px] text-amber-200/80">
@@ -189,7 +189,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
             </div>
 
             {/* Lateral: ideas guardadas y referencias */}
-            <aside className="w-72 shrink-0 border-l border-titanium-800/70 bg-[#0d0c0b]/80 flex flex-col overflow-hidden">
+            <aside className="w-72 shrink-0 border-l border-titanium-800/70 bg-titanium-950/80 flex flex-col overflow-hidden">
                 <div className="p-4 border-b border-titanium-800/70 max-h-[45%] overflow-y-auto">
                     <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-titanium-500"><Bookmark size={12} /> Ideas guardadas</p>
                     {!ideas.length ? (

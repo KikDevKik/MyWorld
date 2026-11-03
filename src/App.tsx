@@ -56,6 +56,9 @@ import ReadingToolbar from './components/ui/ReadingToolbar';
 import StartingAssistant, { GenesisAnswers } from './components/editor/StartingAssistant';
 import { PostGenesisPanel } from './components/PostGenesisPanel';
 import ContinueCard from './components/ui/ContinueCard';
+import MiraDeskCompanion from './components/mira/MiraDeskCompanion';
+import { MiraSprite } from './components/mira/MiraSprite';
+import TipsCorner from './components/mira/TipsCorner';
 import { APIKeyOnboarding } from './components/APIKeyOnboarding';
 import { useLanguageStore } from './stores/useLanguageStore';
 import { TRANSLATIONS } from './i18n/translations';
@@ -1285,9 +1288,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 );
             }
             return (
-                <div className="flex-1 flex items-center justify-center bg-titanium-950">
-                    <div className="text-titanium-500 font-mono text-sm opacity-50">
-                        Selecciona un archivo del canon para comenzar.
+                <div className="flex-1 flex flex-col items-center justify-center gap-2 bg-titanium-950">
+                    <MiraSprite pose="esperando" label="Mira espera" />
+                    <div className="text-titanium-400 text-sm">
+                        Elige un capítulo o un archivo en la barra de la izquierda para empezar.
                     </div>
                 </div>
             );
@@ -1370,6 +1374,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             onClose={() => setIsReportOpen(false)}
                         />
                     )}
+                    {!isReportOpen && <MiraDeskCompanion content={selectedFileContent} fileId={currentFileId} isZenMode={isZenMode} />}
                     <StatusBar
                         content={selectedFileContent}
                         guardianStatus={canonWatch.status}
@@ -1398,13 +1403,15 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 position="bottom-right"
                 toastOptions={{
                     style: {
-                        background: '#09090b',
-                        border: '1px solid #27272a',
-                        color: '#e4e4e7',
+                        background: 'var(--mw-800)',
+                        border: '1px solid var(--mw-700)',
+                        color: 'var(--mw-100)',
                     },
                     className: 'z-50',
                 }}
             />
+
+            <TipsCorner />
 
             <ConnectDriveModal
                 isOpen={isConnectModalOpen}

@@ -2,6 +2,7 @@
 // tipografías, interlineado, sangría, capitular, separador de escenas, números de página…) y ves el
 // libro mientras lo ajustas. Exporta a PDF, EPUB y Word sin pasar por el servidor.
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import RoomMira from '../mira/RoomMira';
 import { Printer, ChevronRight, ChevronDown, Folder, FileText, Loader2, ArrowUp, ArrowDown, X, Download, BookOpen, FileType2, Award, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { useProjectConfig } from '../../contexts/ProjectConfigContext';
@@ -62,6 +63,7 @@ export default function ImprentaView({ folderId, accessToken, onClose, onOpenCer
     const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
     const [html, setHtml] = useState('');
     const [exporting, setExporting] = useState<'' | 'pdf' | 'epub' | 'docx'>('');
+    const [printed, setPrinted] = useState(0);
     const [tab, setTab] = useState<'contenido' | 'diseno'>('contenido');
     const printRef = useRef<HTMLIFrameElement>(null);
 
@@ -168,6 +170,7 @@ export default function ImprentaView({ folderId, accessToken, onClose, onOpenCer
             if (kind === 'epub') download(buildEpub(chapters, design, meta), `${fileBase}.epub`);
             else download(buildDocx(chapters, design, meta), `${fileBase}.docx`);
             toast.success(kind === 'epub' ? 'EPUB listo.' : 'Documento de Word listo.');
+            setPrinted(n => n + 1);
         } catch (e: any) { toast.error(e?.message || 'No pude generar el archivo.'); } finally { setExporting(''); }
     };
 
@@ -175,11 +178,12 @@ export default function ImprentaView({ folderId, accessToken, onClose, onOpenCer
     const fontOpts = (kinds: string[]) => FONTS.filter(f => kinds.includes(f.kind)).map(f => <option key={f.name} value={f.name}>{f.name}</option>);
 
     return (
-        <div className="h-full w-full flex flex-col overflow-hidden bg-[#0b0a09]">
+        <div className="relative h-full w-full flex flex-col overflow-hidden bg-titanium-950">
+            <RoomMira roomKey={`imprenta-${printed}`} pose={printed ? 'aplauso' : 'firme'} line={printed ? '¡Tu libro está listo! Esto merece un descanso.' : 'Elige los capítulos y el diseño. Cuando quieras, giramos la manivela.'} className="right-5 bottom-10" />
             <header className="shrink-0 flex items-center gap-3 border-b border-titanium-800 px-4 py-2.5">
-                <button onClick={onClose} className="flex items-center gap-1.5 text-titanium-500 hover:text-titanium-200"><ArrowLeft size={16} /></button>
-                <Printer size={16} className="text-amber-400" />
-                <span className="text-sm text-titanium-100">La Imprenta</span>
+                <button onClick={onClose} className="flex items-center gap-1.5 text-titanium-500 hover:text-titanium-200" aria-label="Volver"><ArrowLeft size={16} /></button>
+                <Printer size={16} className="text-logro" />
+                <span className="font-serif text-base font-semibold text-titanium-100">La imprenta</span>
                 <span className="text-[11px] text-titanium-600">{ordered.length} archivo(s) · {words.toLocaleString()} palabras</span>
                 <div className="ml-auto flex items-center gap-2">
                     {onOpenCertificate && <button onClick={onOpenCertificate} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] text-titanium-400 hover:bg-titanium-800 hover:text-titanium-100" title="Certificado de autoría y registro creativo"><Award size={12} /> Autoría</button>}

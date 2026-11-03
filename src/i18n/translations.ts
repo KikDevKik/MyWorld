@@ -202,17 +202,17 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             creating: "Creando..."
         },
         tools: {
-            director: "Director de Escena",
+            director: "Mira",
             perforador: "Motor de Mundos",
             forja: "Forja",
             laboratorio: "Laboratorio de Ideas",
             tribunal: "Tribunal",
             guardian: "Guardián (Local)",
-            imprenta: "Imprenta",
+            imprenta: "La imprenta",
             cronograma: "Cronograma"
         },
         director: {
-            title: "Director",
+            title: "Mira",
             activeSession: "Sesión Activa",
             standby: "Standby",
             sessionFiles: "Archivos de Sesión",
@@ -220,7 +220,7 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             archives: "Archivos",
             tools: "Herramientas",
             analyzing: "Analizando estructura...",
-            writePlaceholder: "Escribe al director...",
+            writePlaceholder: "Escríbele a Mira…",
             inspector: "Inspector",
             analyzeCast: "Analizar Elenco",
             tribunal: "Tribunal",
@@ -235,7 +235,7 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             ecosCritical: "Ecos Críticos",
             verdict: "Veredicto del Tribunal",
             analyzingCast: "Analizando Elenco",
-            directorOnline: "Director de Escena en línea"
+            directorOnline: "Mira está contigo"
         },
         architect: {
             toolName: "El Arquitecto",
@@ -913,17 +913,17 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             creating: "Creating..."
         },
         tools: {
-            director: "Director",
+            director: "Mira",
             perforador: "World Engine",
             forja: "Forge",
             laboratorio: "Ideas Lab",
             tribunal: "Tribunal",
             guardian: "Guardian (Local)",
-            imprenta: "Press",
+            imprenta: "The press",
             cronograma: "Timeline"
         },
         director: {
-            title: "Director",
+            title: "Mira",
             activeSession: "Active Session",
             standby: "Standby",
             sessionFiles: "Session Files",
@@ -931,7 +931,7 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             archives: "Archives",
             tools: "Tools",
             analyzing: "Analyzing structure...",
-            writePlaceholder: "Write to director...",
+            writePlaceholder: "Write to Mira…",
             inspector: "Inspector",
             analyzeCast: "Analyze Cast",
             tribunal: "Tribunal",
@@ -946,7 +946,7 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             ecosCritical: "Critical Echoes",
             verdict: "Tribunal Verdict",
             analyzingCast: "Analyzing Cast",
-            directorOnline: "Scene Director Online"
+            directorOnline: "Mira is here"
         },
         architect: {
             toolName: "The Architect",

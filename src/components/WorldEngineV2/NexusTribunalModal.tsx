@@ -318,10 +318,10 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="w-[90%] max-w-6xl h-[80vh] bg-[#0a0a0b] border border-slate-800 rounded-2xl shadow-2xl flex overflow-hidden ring-1 ring-white/10"
+                className="w-[90%] max-w-6xl h-[80vh] bg-titanium-950 border border-slate-800 rounded-2xl shadow-2xl flex overflow-hidden ring-1 ring-white/10"
             >
                 {/* 🟢 LEFT PANEL: LIST (30%) */}
-                <div className="w-[30%] border-r border-slate-800 bg-[#0f0f10] flex flex-col relative">
+                <div className="w-[30%] border-r border-slate-800 bg-titanium-900 flex flex-col relative">
                     {/* Header */}
                     <div className="h-16 border-b border-slate-800 flex items-center justify-between px-6 gap-3 bg-gradient-to-r from-slate-900 to-transparent">
                         <div className="flex items-center gap-3">
@@ -358,7 +358,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                     </div>
 
                     {/* 🟢 SEARCH BAR */}
-                    <div className="px-4 py-3 border-b border-slate-800 bg-[#0f0f10]">
+                    <div className="px-4 py-3 border-b border-slate-800 bg-titanium-900">
                         <div className="relative group">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-cyan-500 transition-colors" size={14} />
                             <input
@@ -516,7 +516,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                 </div>
 
                 {/* 🟢 RIGHT PANEL: DETAILS (70%) */}
-                <div className="flex-1 bg-[#0a0a0b] flex flex-col relative">
+                <div className="flex-1 bg-titanium-950 flex flex-col relative">
                     {/* Close Button */}
                     <button
                         onClick={onClose}
@@ -666,7 +666,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                             <div>
                                                 <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Proposed Action</h3>
                                                 <div className="p-1 rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700">
-                                                    <div className="bg-[#0a0a0b] rounded-lg p-5">
+                                                    <div className="bg-titanium-950 rounded-lg p-5">
                                                         <div className="flex items-center justify-between mb-4">
                                                             <span className="text-sm font-bold text-white">{selectedCandidate.suggestedAction}</span>
                                                             <span className={`text-xs px-2 py-1 rounded border ${getTypeColor(selectedCandidate.ambiguityType)}`}>
@@ -706,7 +706,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                             </div>
 
                             {/* Footer Actions */}
-                            <div className="h-20 border-t border-slate-800/50 flex items-center justify-end px-8 gap-4 bg-[#0f0f10] relative">
+                            <div className="h-20 border-t border-slate-800/50 flex items-center justify-end px-8 gap-4 bg-titanium-900 relative">
                                 {isEditing ? (
                                     <>
                                         <button
@@ -820,7 +820,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.9, opacity: 0 }}
-                                className="w-[500px] bg-[#0f0f10] border border-slate-700 rounded-xl p-6 shadow-2xl"
+                                className="w-[500px] bg-titanium-900 border border-slate-700 rounded-xl p-6 shadow-2xl"
                             >
                                 <div className="flex items-center gap-3 mb-6 border-b border-slate-800 pb-4">
                                     <div className="p-2 bg-indigo-900/30 rounded-lg text-indigo-400">
@@ -887,7 +887,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                 initial={{ scale: 0.9, opacity: 0 }}
                                 animate={{ scale: 1, opacity: 1 }}
                                 exit={{ scale: 0.9, opacity: 0 }}
-                                className="w-[500px] h-[600px] bg-[#0f0f10] border border-cyan-700/50 rounded-xl flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.1)]"
+                                className="w-[500px] h-[600px] bg-titanium-900 border border-cyan-700/50 rounded-xl flex flex-col shadow-[0_0_50px_rgba(6,182,212,0.1)]"
                             >
                                 {/* Header */}
                                 <div className="p-4 border-b border-slate-800 flex items-center justify-between">

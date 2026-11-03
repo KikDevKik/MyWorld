@@ -927,11 +927,11 @@ const NexusCanvas: React.FC<{ isOpen?: boolean; accessToken?: string | null }> =
     };
 
     return (
-        <div className="relative w-full h-full bg-[#141413] overflow-hidden font-sans text-white select-none">
+        <div className="relative w-full h-full bg-titanium-900 overflow-hidden font-sans text-white select-none">
             {/* WARMUP */}
             <AnimatePresence>
                 {loading && (
-                    <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-[#141413] z-[100] flex items-center justify-center pointer-events-none">
+                    <motion.div exit={{ opacity: 0 }} className="absolute inset-0 bg-titanium-900 z-[100] flex items-center justify-center pointer-events-none">
                         <div className="text-cyan-500 font-mono">{tNexus.loading}</div>
                     </motion.div>
                 )}
