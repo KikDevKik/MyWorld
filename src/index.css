@@ -113,7 +113,9 @@ body {
   font-family: var(--font-display);
 }
 
-:focus-visible { outline: 2px solid var(--mw-ai-400); outline-offset: 2px; }
+/* En la capa base para que las utilidades (focus-visible:outline-none) puedan quitarlo donde hay otro indicador. */
+@layer base { :focus-visible { outline: 2px solid var(--mw-ai-400); outline-offset: 2px; } }
+.cm-editor .cm-content:focus-visible, .cm-editor.cm-focused { outline: none; }
 
 /* En modo papel, el texto blanco sobre fondos neutros pasa a tinta (los botones de color lo conservan). */
 :root[data-theme="papel"] .text-white:not([class*="bg-cyan-"]):not([class*="bg-red-"]):not([class*="bg-emerald-"]):not([class*="bg-purple-"]):not([class*="bg-violet-"]):not([class*="bg-indigo-"]):not([class*="bg-blue-"]):not([class*="bg-amber-"]):not([class*="bg-coral"]):not([class*="bg-rose-"]):not([class*="bg-orange-"]):not([class*="bg-green-"]):not([class*="bg-teal-"]):not([class*="bg-sky-"]):not([class*="bg-pink-"]):not([class*="bg-black"]) { color: var(--mw-100); }

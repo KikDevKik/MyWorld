@@ -179,7 +179,7 @@ const ChatInput: React.FC<ChatInputProps> = ({
             )}
 
             {/* Input Bar */}
-            <div className={`flex items-end gap-2 bg-titanium-950 border border-titanium-800 rounded-xl px-2 py-2 focus-within:border-emerald-500/50 transition-colors ${disabled ? 'opacity-50 pointer-events-none' : (isLoading ? 'opacity-80 pointer-events-none' : '')}`}>
+            <div className={`flex items-end gap-2 bg-titanium-950 border border-titanium-800 rounded-xl px-2 py-2 focus-within:border-mira/70 focus-within:ring-2 focus-within:ring-mira/15 transition-colors ${disabled ? 'opacity-50 pointer-events-none' : (isLoading ? 'opacity-80 pointer-events-none' : '')}`}>
 
                 {/* File Button */}
                 <button
@@ -187,8 +187,8 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     disabled={!!attachment || effectiveDisabled}
                     className={`p-2 rounded-lg transition-colors mb-0.5 shrink-0 ${
                         attachment
-                        ? 'text-emerald-500 bg-emerald-500/10'
-                        : 'text-titanium-400 hover:text-emerald-400 hover:bg-titanium-800'
+                        ? 'text-mira bg-mira-bg'
+                        : 'text-titanium-400 hover:text-mira hover:bg-titanium-800'
                     }`}
                     title="Adjuntar imagen o audio"
                     aria-label="Adjuntar imagen o audio"
@@ -212,13 +212,13 @@ const ChatInput: React.FC<ChatInputProps> = ({
                     disabled={effectiveDisabled}
                     autoFocus={autoFocus}
                     rows={1}
-                    className={`flex-1 bg-transparent text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none py-2.5 max-h-[150px] resize-none scrollbar-hide ${textAreaClassName}`}
+                    className={`flex-1 bg-transparent text-sm text-titanium-100 placeholder-titanium-500 focus:outline-none focus-visible:outline-none py-2.5 max-h-[150px] resize-none scrollbar-hide ${textAreaClassName}`}
                 />
 
                 <button
                     onClick={() => handleSubmit()}
                     disabled={(!text.trim() && !attachment) || effectiveDisabled}
-                    className="p-2 bg-emerald-900/30 hover:bg-emerald-900/50 border border-emerald-800 text-emerald-400 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-0.5 shrink-0 min-w-[38px] flex justify-center items-center"
+                    className="p-2 bg-coral hover:brightness-110 text-on-coral rounded-lg transition-all disabled:opacity-40 disabled:bg-titanium-800 disabled:text-titanium-500 disabled:cursor-not-allowed mb-0.5 shrink-0 min-w-[38px] flex justify-center items-center"
                     aria-label={isLoading ? "Enviando..." : "Enviar mensaje"}
                 >
                     {isLoading ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}

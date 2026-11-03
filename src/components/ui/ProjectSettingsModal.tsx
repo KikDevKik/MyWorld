@@ -487,7 +487,7 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
     }> = ({ label, paths, setPaths, icon: Icon }) => {
         return (
             <div className="mb-6">
-                <label className="text-xs font-semibold text-titanium-400 uppercase tracking-wider mb-2 flex items-center gap-2">
+                <label className="text-sm font-semibold text-titanium-200 mb-2 flex items-center gap-2">
                     <Icon size={14} /> {label}
                 </label>
 
@@ -505,7 +505,6 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                                             <span className="text-sm font-medium text-titanium-200">
                                                 {path.name}
                                             </span>
-                                            <span className="text-[10px] text-titanium-500 font-mono">{path.id}</span>
                                         </div>
                                     </div>
                                     <button
@@ -575,8 +574,8 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                 <div className="p-6 border-b border-titanium-700/50 bg-titanium-800/30">
                     <div className="flex justify-between items-start mb-6">
                         <div>
-                            <h2 id="project-settings-title" className="text-xl font-bold text-titanium-100">{t.settings.title}</h2>
-                            <p className="text-sm text-titanium-400 mt-1">{t.settings.subtitle}</p>
+                            <h2 id="project-settings-title" className="font-serif text-xl font-semibold text-titanium-100">{currentLanguage === 'en' ? 'Your project' : 'Tu proyecto'}</h2>
+                            <p className="text-sm text-titanium-400 mt-1">{currentLanguage === 'en' ? 'Which folders are canon and which are inspiration.' : 'Qué carpetas son canon y cuáles son inspiración.'}</p>
                         </div>
                         <button
                             onClick={onClose}
@@ -768,13 +767,13 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <PathListInput
-                                    label="Rutas Canon (Verdad Absoluta)"
+                                    label="Canon: lo que es verdad en tu historia"
                                     paths={canonPaths}
                                     setPaths={setCanonPaths}
                                     icon={Book}
                                 />
                                 <PathListInput
-                                    label="Rutas de Recursos (Inspiración)"
+                                    label="Inspiración: referencias y apuntes"
                                     paths={resourcePaths}
                                     setPaths={setResourcePaths}
                                     icon={Star}

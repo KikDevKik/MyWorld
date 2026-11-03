@@ -241,46 +241,44 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 </div>
             )}
 
-            {/* HEADER */}
-            <div className="flex items-center justify-between p-4 border-b border-titanium-800 bg-titanium-900/50">
-                <div className="flex items-center gap-3">
-                    <div>
-                         <h2 className="text-sm font-bold uppercase tracking-widest text-titanium-100 leading-none">{t.title}</h2>
-                         <div className="text-[9px] text-titanium-500 uppercase tracking-wider mt-0.5">
-                             {activeSessionId ? t.activeSession : t.standby}
-                         </div>
+            {/* HEADER — Nov 2026: nombre de Mira y un estado humano (antes «MIRA / STANDBY»). */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800 bg-titanium-900/50">
+                <div className="min-w-0">
+                    <h2 className="font-serif text-[17px] font-semibold text-titanium-100 leading-tight">{t.title}</h2>
+                    <div className="text-xs text-titanium-400 mt-0.5 truncate" aria-live="polite">
+                        {isThinking ? (currentLanguage === 'es' ? 'Revisando tu canon…' : 'Checking your canon…') : (activeSessionId ? t.activeSession : t.standby)}
                     </div>
                 </div>
 
                 <div className="flex gap-1">
                     <button
                         onClick={() => setIsSessionManagerOpen(true)}
-                        className="p-1.5 text-titanium-300 hover:text-violet-400 transition-colors rounded hover:bg-titanium-800"
-                        title="Historial de sesiones"
-                        aria-label="Historial de sesiones"
+                        className="p-2 text-titanium-400 hover:text-mira transition-colors rounded-lg hover:bg-titanium-800"
+                        title={currentLanguage === 'es' ? 'Conversaciones anteriores' : 'Past conversations'}
+                        aria-label={currentLanguage === 'es' ? 'Conversaciones anteriores' : 'Past conversations'}
                     >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"
-                            width="18" height="18">
+                            width="18" height="18" aria-hidden="true">
                             <circle cx="12" cy="12" r="9"/>
                             <polyline points="12 7 12 12 15.5 14"/>
                         </svg>
                     </button>
                     <button
                         onClick={toggleArsenalWidth}
-                        className={`p-1.5 transition-colors rounded hover:bg-titanium-800 ${isArsenalWide ? 'text-cyan-400' : 'text-titanium-400 hover:text-white'}`}
+                        className={`p-2 transition-colors rounded-lg hover:bg-titanium-800 ${isArsenalWide ? 'text-mira' : 'text-titanium-400 hover:text-mira'}`}
                         title={t.strategistMode}
                         aria-label={t.strategistMode}
                         aria-pressed={isArsenalWide}
                     >
-                        <LayoutTemplate size={16} />
+                        <LayoutTemplate size={18} />
                     </button>
                     <button
                         onClick={onClose}
-                        className="p-1.5 text-titanium-400 hover:text-red-400 transition-colors rounded hover:bg-titanium-800 ml-2"
-                        aria-label="Close Director"
+                        className="p-2 text-titanium-400 hover:text-titanium-100 transition-colors rounded-lg hover:bg-titanium-800"
+                        aria-label={currentLanguage === 'es' ? 'Cerrar Mira' : 'Close Mira'}
                     >
-                        <X size={16} />
+                        <X size={18} />
                     </button>
                 </div>
             </div>
@@ -338,10 +336,25 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                             ))
                         )}
 
+                        {/* Nov 2026: al empezar, tres preguntas tocables para no quedar ante una pantalla vacía. */}
+                        {!isLoadingHistory && !isThinking && !messages.some(m => m.role === 'user') && (
+                            <div className="flex flex-wrap gap-2 pl-1 -mt-2">
+                                {(currentLanguage === 'es'
+                                    ? ['¿Qué sabes de mi protagonista?', '¿Qué dudas tiene mi historia ahora?', 'Dame tres ideas para la próxima escena']
+                                    : ['What do you know about my main character?', 'What open questions does my story have?', 'Give me three ideas for the next scene']
+                                ).map(q => (
+                                    <button key={q} type="button" onClick={() => handleSendMessage(q)}
+                                        className="text-left text-[13px] leading-snug px-3 py-2 rounded-xl border border-titanium-700 bg-titanium-900 text-titanium-200 hover:border-mira/60 hover:text-titanium-100 transition-colors">
+                                        {q}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+
                         {isThinking && (
-                            <div className="flex items-end gap-1" role="status">
-                                <MiraSprite pose="escribiendo" className="-ml-4" />
-                                <div className="mb-6 bg-mira-bg border border-dashed border-mira/60 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-mira">
+                            <div className="flex items-end" role="status">
+                                <MiraSprite pose="escribiendo" className="-ml-4 shrink-0" />
+                                <div className="-ml-8 mb-8 bg-mira-bg border border-dashed border-mira/60 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-mira">
                                     {currentLanguage === 'es' ? 'Revisando tu canon…' : 'Checking your canon…'}
                                 </div>
                             </div>

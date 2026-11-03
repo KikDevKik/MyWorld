@@ -179,12 +179,12 @@ export default function ImprentaView({ folderId, accessToken, onClose, onOpenCer
 
     return (
         <div className="relative h-full w-full flex flex-col overflow-hidden bg-titanium-950">
-            <RoomMira roomKey={`imprenta-${printed}`} pose={printed ? 'aplauso' : 'firme'} line={printed ? '¡Tu libro está listo! Esto merece un descanso.' : 'Elige los capítulos y el diseño. Cuando quieras, giramos la manivela.'} className="right-5 bottom-10" />
+            <RoomMira roomKey={`imprenta-${printed}`} pose={printed ? 'aplauso' : 'firme'} line={printed ? '¡Tu libro está listo! Esto merece un descanso.' : 'Elige los capítulos y el diseño. Cuando quieras, giramos la manivela.'} side="left" className="left-[340px] bottom-10" />
             <header className="shrink-0 flex items-center gap-3 border-b border-titanium-800 px-4 py-2.5">
                 <button onClick={onClose} className="flex items-center gap-1.5 text-titanium-500 hover:text-titanium-200" aria-label="Volver"><ArrowLeft size={16} /></button>
                 <Printer size={16} className="text-logro" />
                 <span className="font-serif text-base font-semibold text-titanium-100">La imprenta</span>
-                <span className="text-[11px] text-titanium-600">{ordered.length} archivo(s) · {words.toLocaleString()} palabras</span>
+                <span className="text-xs text-titanium-400">{ordered.length} {ordered.length === 1 ? 'archivo' : 'archivos'} · {words.toLocaleString('es')} palabras</span>
                 <div className="ml-auto flex items-center gap-2">
                     {onOpenCertificate && <button onClick={onOpenCertificate} className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] text-titanium-400 hover:bg-titanium-800 hover:text-titanium-100" title="Certificado de autoría y registro creativo"><Award size={12} /> Autoría</button>}
                     <button onClick={() => exportFile('docx')} disabled={!!exporting} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-3 py-1.5 text-[12px] text-titanium-100 disabled:opacity-40"><FileType2 size={13} /> Word</button>

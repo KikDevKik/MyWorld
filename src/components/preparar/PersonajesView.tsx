@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { lineDiff } from '../../utils/lineDiff';
 import { textHash } from '../../utils/textHash';
+import { MiraSprite } from '../mira/MiraSprite';
 
 interface Personaje { id: string; nombre: string; alias: string[]; tipo: 'personaje' | 'criatura' | 'grupo'; rol: string; resumen: string; fichaFileId: string | null; fichaNombre: string | null; archivos: string[] }
 interface Analisis { resumen: string; tiene: string[]; falta: { aspecto: string; porQue: string; pregunta: string }[]; choques: { explicacion: string; citaFicha?: string; citaTexto?: string; fuente?: string }[] }
@@ -186,9 +187,13 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
             <section className="flex-1 min-w-0 flex flex-col">
                 {!cur ? (
                     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-10">
-                        <Users size={34} className="text-titanium-700" />
-                        <p className="text-titanium-300">Elige un personaje para revisar su ficha y completarla.</p>
-                        <p className="max-w-md text-[12px] text-titanium-600">El Arquitecto compara la ficha con lo que tu manuscrito dice, te muestra qué falta y te entrevista. Al final te propone la ficha actualizada con tus palabras y tú decides si se guarda.</p>
+                        {/* Nov 2026: Mira espera junto al fichero en vez de en la esquina. */}
+                        <div className="flex items-end gap-3">
+                            <img src="/assets/objetos/fichero.png" alt="" width={72} height={72} className="w-[72px] h-[72px] mb-3" style={{ imageRendering: 'pixelated' }} />
+                            <MiraSprite pose="contenta" label="Mira" />
+                        </div>
+                        <p className="font-serif text-lg text-titanium-100">Elige un personaje y completamos su ficha juntos.</p>
+                        <p className="max-w-md text-[13px] text-titanium-400 leading-relaxed">El Arquitecto compara la ficha con lo que tu manuscrito dice, te muestra qué falta y te entrevista. Al final te propone la ficha actualizada con tus palabras y tú decides si se guarda.</p>
                     </div>
                 ) : (
                     <div className="flex-1 overflow-y-auto">

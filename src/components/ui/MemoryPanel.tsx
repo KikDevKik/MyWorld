@@ -52,7 +52,7 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
                         <Brain size={16} className="text-purple-400" />
                         <div>
                             <p className="text-sm font-medium text-titanium-100">Memoria</p>
-                            <p className="text-[11px] text-titanium-500">Lo que MyWorld recuerda de tu trabajo. El Director y el Arquitecto la leen en cada mensaje.</p>
+                            <p className="text-xs text-titanium-400">Lo que MyWorld recuerda de tu trabajo. Mira y el Arquitecto la leen en cada mensaje.</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="text-titanium-500 hover:text-titanium-200" aria-label="Cerrar"><X size={16} /></button>

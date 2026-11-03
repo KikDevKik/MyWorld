@@ -478,10 +478,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             return;
         }
 
-        // Proyecto con archivos: respetar sesiones activas y el dismiss
+        // Proyecto con archivos: con o sin sesión del Arquitecto, se ve la casa (Nov 2026: antes la ocultaba).
         if (existingSession) {
             setShowStartingAssistant(false);
-            setShowContinueCard(false);
+            setShowContinueCard(hasCanon);
             return;
         }
 
@@ -1342,7 +1342,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         className="flex-1 overflow-hidden relative transition-all duration-300"
                         style={{
                             '--editor-font-family': fontFamily === 'sans' ? 'var(--font-display)' : 'var(--font-serif)',
-                            '--editor-max-width': editorWidth === 'wide' ? '100%' : '800px'
+                            '--editor-max-width': editorWidth === 'wide' ? '100%' : '680px'
                         } as React.CSSProperties}
                     >
                         <HybridEditor

@@ -395,11 +395,11 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     aria-label="Cerrar Arquitecto"
                 >
                     <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-sm font-medium">{tArch.toolName || 'El Arquitecto'}</span>
+                    <span className="text-sm">{currentLanguage === 'en' ? 'Back to the desk' : 'Volver al escritorio'}</span>
                 </button>
 
-                <div className="text-titanium-500 text-sm font-medium uppercase tracking-wider font-mono">
-                    {currentLanguage === 'en' ? 'Project' : 'Proyecto'}: {projectName}
+                <div className="font-serif text-[15px] text-titanium-300 truncate px-4">
+                    {projectName}
                 </div>
 
                 <div className="w-[150px] flex justify-end">
@@ -407,9 +407,9 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         <div className="relative">
                                 <button
                                     onClick={handleReinitStart}
-                                    className="text-titanium-500 hover:text-titanium-300 text-[12px] font-mono uppercase tracking-wider transition-colors"
+                                    className="text-titanium-400 hover:text-titanium-100 text-[13px] transition-colors"
                                 >
-                                    {tArch.newSession}
+                                    {currentLanguage === 'en' ? 'New conversation' : 'Nueva conversación'}
                                 </button>
 
                             {/* Primera confirmación */}
@@ -561,7 +561,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             onResume={handleResume}
                             onDiscard={handleDiscard}
                             lastSessionDate={lastAnalyzedAt
-                                ? new Date(lastAnalyzedAt).toLocaleDateString()
+                                ? new Date(lastAnalyzedAt).toLocaleDateString(currentLanguage === 'en' ? 'en' : 'es', { day: 'numeric', month: 'long' })
                                 : undefined
                             }
                             existingSession={existingSession}

@@ -148,7 +148,7 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
             <div className="shrink-0 flex flex-wrap items-center gap-2 border-b border-titanium-800 px-4 py-2">
                 <Network size={15} className="text-cyan-400" />
                 <span className="text-sm text-titanium-100">Mapa de tu mundo</span>
-                {scannedAt && <span className="text-[10px] text-titanium-600">· {nodes.length} elementos · {links.length} conexiones · {ghosts} sin archivo</span>}
+                {scannedAt && <span className="text-xs text-titanium-400">· {nodes.length} {nodes.length === 1 ? 'elemento' : 'elementos'} · {links.length} {links.length === 1 ? 'conexión' : 'conexiones'} · {ghosts} sin archivo</span>}
                 <div className="ml-auto flex items-center gap-2">
                     <div className="flex items-center gap-1 rounded-md border border-titanium-800 bg-titanium-950 px-2">
                         <Search size={12} className="text-titanium-600" />

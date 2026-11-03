@@ -1,178 +1,75 @@
-import React from 'react';
-import { X, PenLine, Compass, Clapperboard, Shield, Gavel, FlaskConical } from 'lucide-react';
+import React, { useEffect, useRef } from 'react';
+import { X } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
-import { TRANSLATIONS } from '../../i18n/translations';
+import { MiraSprite } from '../mira/MiraSprite';
 
+// Nov 2026: la guía usa la casa (un cuarto por herramienta, con su objeto pixel) en vez de las herramientas antiguas.
 interface GuidePanelProps {
     onClose: () => void;
 }
 
-const TOOLS = [
-    {
-        icon: PenLine,
-        color: 'text-cyan-400',
-        bg: 'bg-cyan-900/20 border-cyan-500/20',
-        nameKey: 'editor' as const,
-        descKey: 'editorDesc' as const,
-    },
-    {
-        icon: Compass,
-        color: 'text-amber-400',
-        bg: 'bg-amber-900/20 border-amber-500/20',
-        nameKey: 'architect' as const,
-        descKey: 'architectDesc' as const,
-    },
-    {
-        icon: Clapperboard,
-        color: 'text-purple-400',
-        bg: 'bg-purple-900/20 border-purple-500/20',
-        nameKey: 'director' as const,
-        descKey: 'directorDesc' as const,
-    },
-    {
-        icon: Shield,
-        color: 'text-emerald-400',
-        bg: 'bg-emerald-900/20 border-emerald-500/20',
-        nameKey: 'guardian' as const,
-        descKey: 'guardianDesc' as const,
-    },
-    {
-        icon: Gavel,
-        color: 'text-rose-400',
-        bg: 'bg-rose-900/20 border-rose-500/20',
-        nameKey: 'tribunal' as const,
-        descKey: 'tribunalDesc' as const,
-    },
-    {
-        icon: FlaskConical,
-        color: 'text-sky-400',
-        bg: 'bg-sky-900/20 border-sky-500/20',
-        nameKey: 'lab' as const,
-        descKey: 'labDesc' as const,
-    },
+type Room = { obj: string; es: [string, string]; en: [string, string] };
+const ROOMS: Room[] = [
+    { obj: 'escritorio', es: ['El escritorio', 'Escribes tu capítulo sin distracciones, con modo enfoque y meta del día.'], en: ['The desk', 'Write your chapter without distractions, with focus mode and a daily goal.'] },
+    { obj: 'sillon', es: ['Mira', 'Pregúntale por un personaje, un lugar o una escena: ya conoce tu canon y te dice de dónde saca cada dato.'], en: ['Mira', 'Ask her about a character, a place or a scene: she knows your canon and tells you where each fact comes from.'] },
+    { obj: 'lupa', es: ['El estudio', 'Revisa el capítulo abierto y marca lo que choca con tu canon y lo que conviene pulir.'], en: ['The study', 'Reviews the open chapter and flags what clashes with your canon and what to polish.'] },
+    { obj: 'planos', es: ['La mesa del arquitecto', 'Planeas con el Arquitecto: las partes del libro, los hilos de la trama y las dudas por resolver.'], en: ["The architect's table", 'Plan with the Architect: the parts of your book, plot threads and open questions.'] },
+    { obj: 'telescopio', es: ['El observatorio', 'Tu mundo como un mapa de conexiones entre personajes, lugares y reglas.'], en: ['The observatory', 'Your world as a map of connections between characters, places and rules.'] },
+    { obj: 'fichero', es: ['El fichero', 'Una ficha por personaje. Mira te ayuda a completarlas con lo que ya escribiste.'], en: ['The card file', 'One card per character. Mira helps you fill them in from what you already wrote.'] },
+    { obj: 'frasco_luciernagas', es: ['El frasco de ideas', '«¿Qué pasaría si…?». Nada de aquí cambia tu historia hasta que lo llevas al canon.'], en: ['The idea jar', '"What if…?". Nothing here changes your story until you bring it into the canon.'] },
+    { obj: 'imprenta', es: ['La imprenta', 'Convierte tus capítulos en un libro: Word, EPUB o PDF.'], en: ['The press', 'Turn your chapters into a book: Word, EPUB or PDF.'] },
 ];
-
-const GUIDE_STRINGS: Record<string, Record<string, string>> = {
-    es: {
-        title: 'Herramientas de MyWorld',
-        subtitle: 'Tu arsenal creativo',
-        editor: 'El Editor',
-        editorDesc: 'Escribe y edita tus documentos con asistencia de IA contextual.',
-        architect: 'El Arquitecto',
-        architectDesc: 'Analiza tu narrativa, detecta inconsistencias y genera un roadmap de misiones.',
-        director: 'Director de Escena',
-        directorDesc: 'Tu co-piloto para los momentos de bloqueo. El Director conoce tu mundo completo y responde dudas puntuales sobre personajes, escenas o decisiones narrativas — como tener al Arquitecto siempre disponible para una consulta rápida.',
-        guardian: 'Canon Guardian',
-        guardianDesc: 'Detecta contradicciones entre lo que escribes y el canon establecido.',
-        tribunal: 'El Tribunal',
-        tribunalDesc: 'Evalúa la calidad literaria de tu manuscrito con criterios profesionales.',
-        lab: 'Laboratorio de Ideas',
-        labDesc: 'Explora referencias culturales e inspiración para enriquecer tu universo.',
-    },
-    en: {
-        title: 'MyWorld Tools',
-        subtitle: 'Your creative arsenal',
-        editor: 'The Editor',
-        editorDesc: 'Write and edit your documents with contextual AI assistance.',
-        architect: 'The Architect',
-        architectDesc: 'Analyze your narrative, detect inconsistencies, and generate a mission roadmap.',
-        director: 'Scene Director',
-        directorDesc: 'Manage characters, entities, and the internal logic of your world.',
-        guardian: 'Canon Guardian',
-        guardianDesc: 'Detects contradictions between what you write and the established canon.',
-        tribunal: 'The Tribunal',
-        tribunalDesc: 'Evaluates the literary quality of your manuscript with professional criteria.',
-        lab: 'Ideas Lab',
-        labDesc: 'Explore cultural references and inspiration to enrich your universe.',
-    },
-    ja: {
-        title: 'MyWorldツール',
-        subtitle: 'あなたのクリエイティブ武器庫',
-        editor: 'エディター',
-        editorDesc: 'コンテキストAIアシスタントでドキュメントを執筆・編集。',
-        architect: 'アーキテクト',
-        architectDesc: 'ナラティブを分析し、矛盾を検出し、ミッションロードマップを生成。',
-        director: 'シーンディレクター',
-        directorDesc: 'キャラクター、エンティティ、世界の内部ロジックを管理。',
-        guardian: 'カノンガーディアン',
-        guardianDesc: '執筆内容と確立されたカノンの矛盾を検出。',
-        tribunal: 'トリビューナル',
-        tribunalDesc: 'プロの基準で原稿の文学的品質を評価。',
-        lab: 'アイデアラボ',
-        labDesc: '宇宙を豊かにする文化的参照とインスピレーションを探索。',
-    },
-    ko: {
-        title: 'MyWorld 도구',
-        subtitle: '당신의 창작 무기고',
-        editor: '에디터',
-        editorDesc: '컨텍스트 AI 지원으로 문서를 작성하고 편집합니다.',
-        architect: '아키텍트',
-        architectDesc: '내러티브를 분석하고 불일치를 감지하며 미션 로드맵을 생성합니다.',
-        director: '씬 디렉터',
-        directorDesc: '캐릭터, 엔티티, 세계의 내부 논리를 관리합니다.',
-        guardian: '캐논 가디언',
-        guardianDesc: '작성 내용과 확립된 캐논 간의 모순을 감지합니다.',
-        tribunal: '트리뷰널',
-        tribunalDesc: '전문적인 기준으로 원고의 문학적 품질을 평가합니다.',
-        lab: '아이디어 랩',
-        labDesc: '우주를 풍요롭게 할 문화적 참고자료와 영감을 탐색합니다.',
-    },
-    zh: {
-        title: 'MyWorld 工具',
-        subtitle: '您的创意武器库',
-        editor: '编辑器',
-        editorDesc: '借助上下文AI辅助撰写和编辑文档。',
-        architect: '架构师',
-        architectDesc: '分析叙事，检测不一致，并生成任务路线图。',
-        director: '场景导演',
-        directorDesc: '管理角色、实体和世界的内部逻辑。',
-        guardian: '典籍守护者',
-        guardianDesc: '检测您的写作与既定典籍之间的矛盾。',
-        tribunal: '评审团',
-        tribunalDesc: '以专业标准评估手稿的文学质量。',
-        lab: '创意实验室',
-        labDesc: '探索文化参考和灵感，丰富您的宇宙。',
-    },
-};
 
 export default function GuidePanel({ onClose }: GuidePanelProps) {
     const { currentLanguage } = useLanguageStore();
-    const s = GUIDE_STRINGS[currentLanguage] ?? GUIDE_STRINGS.es;
+    const es = currentLanguage === 'es';
+    const closeRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        closeRef.current?.focus();
+        const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', k);
+        return () => window.removeEventListener('keydown', k);
+    }, [onClose]);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-md bg-titanium-950 border border-titanium-800 rounded-2xl shadow-2xl overflow-hidden">
-                {/* Header */}
-                <div className="flex items-center justify-between px-5 py-4 border-b border-titanium-800">
+            <div role="dialog" aria-modal="true" aria-labelledby="guide-title"
+                className="relative w-full max-w-xl bg-titanium-900 border border-titanium-700 rounded-2xl shadow-2xl overflow-hidden">
+                <div className="flex items-start justify-between gap-4 px-6 pt-5 pb-4 border-b border-titanium-800">
                     <div>
-                        <h2 className="text-sm font-semibold text-titanium-100">{s.title}</h2>
-                        <p className="text-xs text-titanium-500 mt-0.5">{s.subtitle}</p>
+                        <h2 id="guide-title" className="font-serif text-xl font-semibold text-titanium-100">{es ? 'La casa de MyWorld' : 'The MyWorld house'}</h2>
+                        <p className="text-sm text-titanium-400 mt-1">{es ? 'Cada herramienta es un cuarto. Mira tiene algo suyo en cada uno.' : 'Each tool is a room. Mira has something of hers in each one.'}</p>
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-1.5 rounded-lg text-titanium-500 hover:text-titanium-200 hover:bg-titanium-800 transition-colors"
-                    >
-                        <X size={15} />
+                    <button ref={closeRef} onClick={onClose} aria-label={es ? 'Cerrar' : 'Close'}
+                        className="p-2 rounded-lg text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors">
+                        <X size={18} />
                     </button>
                 </div>
 
-                {/* Tool list */}
-                <div className="p-3 space-y-1.5 max-h-[70vh] overflow-y-auto custom-scrollbar">
-                    {TOOLS.map(({ icon: Icon, color, bg, nameKey, descKey }) => (
-                        <div
-                            key={nameKey}
-                            className={`flex items-start gap-3 p-3 rounded-xl border ${bg}`}
-                        >
-                            <div className={`mt-0.5 shrink-0 ${color}`}>
-                                <Icon size={16} />
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold text-titanium-100">{s[nameKey]}</p>
-                                <p className="text-[11px] text-titanium-500 mt-0.5 leading-relaxed">{s[descKey]}</p>
-                            </div>
-                        </div>
-                    ))}
+                <ul className="px-4 py-3 grid grid-cols-1 sm:grid-cols-2 gap-1 max-h-[62vh] overflow-y-auto custom-scrollbar">
+                    {ROOMS.map(r => {
+                        const [name, desc] = es ? r.es : r.en;
+                        return (
+                            <li key={r.obj} className="flex items-start gap-3 p-2.5 rounded-xl hover:bg-titanium-800/60">
+                                <img src={`/assets/objetos/${r.obj}.png`} alt="" width={48} height={48}
+                                    className="w-12 h-12 shrink-0" style={{ imageRendering: 'pixelated' }} />
+                                <div className="min-w-0">
+                                    <p className="font-serif text-[15px] font-semibold text-titanium-100">{name}</p>
+                                    <p className="text-[13px] text-titanium-400 mt-0.5 leading-snug">{desc}</p>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ul>
+
+                <div className="flex items-center gap-3 px-6 py-4 border-t border-titanium-800 bg-titanium-950/40">
+                    <MiraSprite pose="contenta" face label="Mira" className="shrink-0" />
+                    <p className="text-sm text-titanium-300 flex-1">{es ? '¿Buscas consejos para escribir o enfocarte?' : 'Looking for writing or focus tips?'}</p>
+                    <button type="button" onClick={() => { onClose(); window.dispatchEvent(new Event('OPEN_TIPS')); }}
+                        className="text-sm font-semibold text-mira hover:underline underline-offset-4">
+                        {es ? 'Abrir el rincón de tips' : 'Open the tips corner'}
+                    </button>
                 </div>
             </div>
         </div>

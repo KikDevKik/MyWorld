@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle, FilePlus, Wand2 } from 'lucide-react';
+import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle, FilePlus, Wand2, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AnalysisCard } from './AnalysisCard';
@@ -13,6 +13,14 @@ import { MiraSprite, MiraPose } from '../../mira/MiraSprite';
 // Etiqueta opcional al inicio de la respuesta: [mira:estado]. Se quita del texto y elige la cara de Mira.
 const MOOD_FACE: Record<string, MiraPose> = { contenta: 'contenta', firme: 'firme', preocupada: 'preocupada', sorprendida: 'sorprendida', ojo: 'ojo', alerta: 'ojo', uy: 'uy', neutral: 'contenta', pensativa: 'contenta', celebrando: 'contenta' };
 const STAND_POSE: Record<string, MiraPose> = { pensativa: 'pensativa', contenta: 'contenta', firme: 'firme', preocupada: 'preocupada', sorprendida: 'sorprendida', ojo: 'ojo', alerta: 'ojo', celebrando: 'celebrando', neutral: 'neutral', uy: 'uy' };
+// Nov 2026: la línea final «Fuentes: a.md, b.md» se muestra como etiquetas de archivo.
+function splitSources(text: string): { body: string; sources: string[] } {
+    const m = /\n\s*(?:\*\*|_)?(?:Fuentes|Sources)(?:\*\*|_)?\s*:?\s*(?:\*\*|_)?\s*([^\n]+)\s*$/i.exec(text || '');
+    if (!m) return { body: text, sources: [] };
+    const sources = m[1].split(/,(?![^()]*\))/).map(s => s.replace(/[*_`]/g, '').trim()).filter(Boolean);
+    if (!sources.length || sources.length > 12) return { body: text, sources: [] };
+    return { body: text.slice(0, m.index).trimEnd(), sources };
+}
 function parseMiraMood(text: string): { mood: string; clean: string } {
     const m = /^\s*\[mira:([a-záéíóú]+)\]\s*/i.exec(text || '');
     if (!m) return { mood: 'neutral', clean: text };
@@ -179,6 +187,7 @@ export const ChatMessage = React.memo(({
     const parsed = React.useMemo(() => parseThinking(message.text), [message.text]);
     const thinking = parsed.thinking;
     const { mood, clean: content } = React.useMemo(() => parseMiraMood(parsed.content), [parsed.content]);
+    const { body: shownContent, sources } = React.useMemo(() => (message.role === 'assistant' ? splitSources(content) : { body: content, sources: [] as string[] }), [content, message.role]);
 
     const isAssistant = message.role === 'assistant';
     const isUser = message.role === 'user';
@@ -196,8 +205,19 @@ export const ChatMessage = React.memo(({
             style={isAssistant ? { fontFamily: 'var(--font-serif)', fontSize: '16px', lineHeight: '1.7' } : {}}>
             {isAssistant && thinking && <ThinkingBubble thought={thinking} />}
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={codeComponents}>
-                {content}
+                {shownContent}
             </ReactMarkdown>
+            {sources.length > 0 && (
+                <div className="not-prose mt-3 flex flex-wrap items-center gap-1.5" style={{ fontFamily: 'var(--font-display)' }}>
+                    <span className="text-[11px] text-titanium-400 mr-0.5">Fuentes</span>
+                    {sources.map(s => (
+                        <span key={s} className="inline-flex items-center gap-1 max-w-full rounded-md bg-titanium-900/70 border border-titanium-700 px-1.5 py-0.5 text-[11px] leading-tight text-titanium-300">
+                            <FileText size={11} className="shrink-0 text-mira" aria-hidden="true" />
+                            <span className="truncate">{s.replace(/\.md$/i, '')}</span>
+                        </span>
+                    ))}
+                </div>
+            )}
         </div>
     );
 
@@ -231,15 +251,14 @@ export const ChatMessage = React.memo(({
                 {isAssistant && isOld && (
                     <button
                         onClick={() => onToggleExpand?.(message.id)}
-                        className="mt-2 text-[11px] font-mono uppercase tracking-wider transition-colors text-left"
-                        style={{ color: 'var(--mw-ai-400)' }}>
-                        {isExpanded ? 'Colapsar ↑' : 'Leer respuesta completa ↓'}
+                        className="mt-2 text-xs text-mira hover:underline transition-colors text-left">
+                        {isExpanded ? 'Ver menos' : 'Leer la respuesta completa'}
                     </button>
                 )}
 
                 {/* Insert button — only when content is visible */}
                 {isAssistant && onInsert && message.id !== 'intro' && (!isOld || isExpanded) && (
-                    <div className="mt-3 pt-2 border-t border-titanium-800/50 flex justify-end gap-2">
+                    <div className="mt-3 pt-2 border-t border-mira/20 flex justify-end gap-2">
                         <button
                             onClick={() => {
                                 setIsTransforming(true);
@@ -249,12 +268,12 @@ export const ChatMessage = React.memo(({
                                     .finally(() => setIsTransforming(false));
                             }}
                             disabled={isTransforming}
-                            className="flex items-center gap-1.5 text-[10px] font-bold text-emerald-500 hover:text-emerald-300 bg-emerald-900/10 hover:bg-emerald-900/30 px-2 py-1.5 rounded transition-all uppercase tracking-wider"
-                            title="Transformar en Guía e Insertar (Magia)"
-                            aria-label="Transformar respuesta en guía e insertar"
+                            className="flex items-center gap-1.5 text-xs font-medium text-mira hover:text-titanium-100 hover:bg-mira/10 px-2.5 py-1.5 rounded-lg transition-colors"
+                            title="Convierte la respuesta en una nota-guía y la pone en tu capítulo"
+                            aria-label="Llevar la respuesta al capítulo como guía"
                         >
-                            {isTransforming ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                            <span>{isTransforming ? 'Transformando...' : 'Insertar (Guía)'}</span>
+                            {isTransforming ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+                            <span>{isTransforming ? 'Preparando…' : 'Llevar al capítulo'}</span>
                         </button>
                     </div>
                 )}
@@ -263,9 +282,13 @@ export const ChatMessage = React.memo(({
 
     if (isAssistant) {
         // Mira habla: su globo siempre lleva su sprite, que cambia de lugar (cara al lado, sentada encima o de pie al lado).
-        const variant = (message.id || '').split('').reduce((n, ch) => n + ch.charCodeAt(0), 0) % 3;
+        // Nov 2026: la pose depende del largo. Las respuestas largas la llevan sentada encima y el globo usa todo el ancho;
+        // de pie al lado solo en respuestas cortas (si no, el texto quedaba en tres palabras por línea).
+        const len = (content || '').length;
+        const hash = (message.id || '').split('').reduce((n, ch) => n + ch.charCodeAt(0), 0);
+        const variant = isOld ? 0 : len > 420 ? 1 : len < 160 ? (hash % 2 ? 2 : 0) : (hash % 2 ? 1 : 0);
         const face = MOOD_FACE[mood] || 'contenta';
-        const bubbleCls = 'relative text-sm max-w-[88%] leading-relaxed bg-mira-bg border border-mira/60 text-titanium-100 px-4 py-3';
+        const bubbleCls = `relative text-sm ${variant === 1 ? 'w-full' : 'max-w-[88%]'} leading-relaxed bg-mira-bg border border-mira/60 text-titanium-100 px-4 py-3`;
         if (variant === 1) {
             return (
                 <div className="mb-6 pt-[92px]">

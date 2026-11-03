@@ -9,11 +9,11 @@ import { type PrepararTab, PREPARAR_TAB_KEY } from './tabs';
 import RoomMira from '../mira/RoomMira';
 import type { MiraPose } from '../mira/MiraSprite';
 
-const ROOM_MIRA: Record<PrepararTab, { pose: MiraPose; line: string }> = {
-    conversacion: { pose: 'pensativa', line: 'Aquí planeamos: las partes del libro, los hilos de la trama y las dudas por resolver.' },
-    mapa: { pose: 'senalando', line: 'Este es tu mundo visto desde el observatorio. Toca un lugar y miramos dónde aparece.' },
-    personajes: { pose: 'contenta', line: 'Una ficha por personaje. Elige uno y la completamos juntos.' },
-    quepasa: { pose: 'sorprendida', line: 'Aquí va el caos: nada de esto cambia tu historia hasta que lo llevas al canon.' },
+// Nov 2026: Mira cambia de lugar según el cuarto. En la mesa y el fichero ya vive dentro de la vista
+// (sentada en la tarjeta, junto al fichero), así que aquí solo aparece en el observatorio y el frasco.
+const ROOM_MIRA: Partial<Record<PrepararTab, { pose: MiraPose; line: string; side: 'left' | 'right'; className: string }>> = {
+    mapa: { pose: 'senalando', side: 'left', className: 'left-4 bottom-12', line: 'Este es tu mundo visto desde el observatorio. Toca un punto y miramos con qué se conecta.' },
+    quepasa: { pose: 'sorprendida', side: 'left', className: 'left-[52px] bottom-[76px]', line: 'Aquí va el caos: nada de esto cambia tu historia hasta que lo llevas al canon.' },
 };
 export type { PrepararTab } from './tabs';
 
@@ -59,7 +59,7 @@ export default function PrepararSpace({ views, tab, onTabChange }: Props) {
                         {t.icon}{t.label}
                     </button>
                 ))}
-                <span className="ml-auto hidden lg:block text-[11px] text-titanium-600 truncate">{current.hint}</span>
+                <span className="ml-auto hidden lg:block text-xs text-titanium-400 truncate">{current.hint}</span>
             </nav>
             <div className="flex-1 relative overflow-hidden">
                 {TABS.map(t => visited.has(t.id) && (
@@ -67,7 +67,7 @@ export default function PrepararSpace({ views, tab, onTabChange }: Props) {
                         {views[t.id]}
                     </div>
                 ))}
-                <RoomMira roomKey={tab} pose={ROOM_MIRA[tab].pose} line={ROOM_MIRA[tab].line} />
+                {ROOM_MIRA[tab] && <RoomMira roomKey={tab} pose={ROOM_MIRA[tab]!.pose} line={ROOM_MIRA[tab]!.line} side={ROOM_MIRA[tab]!.side} className={ROOM_MIRA[tab]!.className} />}
             </div>
         </div>
     );

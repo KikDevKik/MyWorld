@@ -57,7 +57,7 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                 <Card id="propia" icon={<KeyRound size={15} />} title="2 · Tu clave de pago" price="Pagas tú, directo a Google o Anthropic">
                     <p className="flex gap-1 text-emerald-300/80"><ShieldCheck size={12} className="mt-0.5 shrink-0" />Con APIs de pago tu escritura no se usa para entrenar modelos.</p>
                     <p>{hasAnthropicKey ? 'Director, Arquitecto, Reporte y Personajes usan Claude con tu clave.' : 'Con una clave de Anthropic, la conversación usa Claude (lo más fino para narrativa).'}</p>
-                    <p className="text-titanium-500">Aprox.: mensaje del Director US$ 0,02–0,04 · reporte de capítulo US$ 0,10.</p>
+                    <p className="text-titanium-500">Aprox.: mensaje a Mira US$ 0,02–0,04 · reporte de capítulo US$ 0,10.</p>
                     {level === 'propia' && status && (status.byokCalls || 0) > 0 && <p className="text-titanium-300">Este mes con tu clave: US$ {usd(status.byokCostUsd || 0)} en {status.byokCalls} llamadas.</p>}
                 </Card>
                 <Card id="myworld" icon={<Sparkles size={15} />} title="3 · MyWorld" price={status?.myworldAvailable ? 'Incluido en tu cuenta' : 'Próximamente · con suscripción'} disabled={!status?.myworldAvailable}>

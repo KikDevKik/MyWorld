@@ -16,6 +16,7 @@ import { getAuth } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
 import { db } from '../../lib/firebase';
 import Credits from './Credits';
+import SettingsAppearance from './SettingsAppearance';
 
 interface SettingsModalProps {
     onClose: () => void;
@@ -588,10 +589,6 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                     {/* TAB: GENERAL */}
                     {activeTab === 'general' && (
                         <div role="tabpanel" id="panel-general" aria-labelledby="tab-general" className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                            <div className="flex items-center gap-2 mb-2">
-                                <Brain size={18} className="text-accent-DEFAULT" />
-                                <h4 className="text-sm font-bold text-titanium-100 uppercase tracking-wider">{t.genConfig}</h4>
-                            </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Project Name */}
@@ -638,15 +635,17 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                             <div className="h-px bg-titanium-800 my-2" />
 
+                            <SettingsAppearance lang={currentLanguage} />
+
                             {/* 🟢 EXPERIENCIA — Welcome cards toggle */}
                             <div className="space-y-3">
-                                <h4 className="text-xs font-medium text-titanium-500 uppercase tracking-wider">
-                                    Experiencia
+                                <h4 className="text-sm font-semibold text-titanium-100">
+                                    {currentLanguage === 'en' ? 'Guides and reminders' : 'Guías y recordatorios'}
                                 </h4>
 
                                 <div className="flex items-center justify-between py-2">
                                     <div>
-                                        <p className="text-sm text-titanium-300">Paneles de bienvenida</p>
+                                        <p className="text-sm text-titanium-200">Paneles de bienvenida</p>
                                         <p className="text-xs text-titanium-500 mt-0.5">
                                             Mostrar guías al abrir cada herramienta por primera vez
                                         </p>
@@ -658,7 +657,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             setWelcomeCardsDisabled(next);
                                             toast.success(next ? 'Paneles de bienvenida desactivados' : 'Paneles de bienvenida activados');
                                         }}
-                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!welcomeCardsDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!welcomeCardsDisabled ? 'bg-coral' : 'bg-titanium-700'
                                             }`}
                                         aria-label="Toggle paneles de bienvenida"
                                     >
@@ -683,9 +682,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                                 <div className="flex items-center justify-between py-2">
                                     <div>
-                                        <p className="text-sm text-titanium-300">Recordatorio de pausa (Arquitecto)</p>
+                                        <p className="text-sm text-titanium-200">Recordatorio de descanso</p>
                                         <p className="text-xs text-titanium-500 mt-0.5">
-                                            Notificar al resolver 5 disonancias seguidas
+                                            El Arquitecto te sugiere una pausa tras resolver 5 dudas seguidas
                                         </p>
                                     </div>
                                     <button
@@ -695,7 +694,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             setBreakRemindersDisabled(next);
                                             toast.success(next ? 'Recordatorio de pausa desactivado' : 'Recordatorio de pausa activado');
                                         }}
-                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!breakRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!breakRemindersDisabled ? 'bg-coral' : 'bg-titanium-700'
                                             }`}
                                         aria-label="Toggle recordatorio de pausa"
                                     >
@@ -706,9 +705,9 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                                 <div className="flex items-center justify-between py-2">
                                     <div>
-                                        <p className="text-sm text-titanium-300">Recordatorio de Roadmap (Arquitecto)</p>
+                                        <p className="text-sm text-titanium-200">Guardar el plan</p>
                                         <p className="text-xs text-titanium-500 mt-0.5">
-                                            Sugerir cristalizar el Roadmap al resolver 7 disonancias
+                                            El Arquitecto te propone guardar el plan tras resolver 7 dudas
                                         </p>
                                     </div>
                                     <button
@@ -718,7 +717,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             setRoadmapRemindersDisabled(next);
                                             toast.success(next ? 'Recordatorio de Roadmap desactivado' : 'Recordatorio de Roadmap activado');
                                         }}
-                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!roadmapRemindersDisabled ? 'bg-cyan-500' : 'bg-titanium-700'
+                                        className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${!roadmapRemindersDisabled ? 'bg-coral' : 'bg-titanium-700'
                                             }`}
                                         aria-label="Toggle recordatorio de Roadmap"
                                     >
@@ -887,7 +886,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                 </span>
                                                 <button
                                                     onClick={() => setGuardianMode(guardianMode === 'auto' ? 'manual' : 'auto')}
-                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${guardianMode === 'auto' ? 'bg-cyan-500' : 'bg-titanium-700'
+                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${guardianMode === 'auto' ? 'bg-coral' : 'bg-titanium-700'
                                                         }`}
                                                 >
                                                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${guardianMode === 'auto' ? 'translate-x-5' : 'translate-x-0.5'
@@ -914,7 +913,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                         savePreference('autoDistillResources', next);
                                                         setAutoDistill(next);
                                                     }}
-                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${autoDistill ? 'bg-cyan-500' : 'bg-titanium-700'
+                                                    className={`relative w-10 h-5 rounded-full transition-colors flex-shrink-0 ${autoDistill ? 'bg-coral' : 'bg-titanium-700'
                                                         }`}
                                                 >
                                                     <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-transform ${autoDistill ? 'translate-x-5' : 'translate-x-0.5'
@@ -1210,12 +1209,14 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                     <h3 className="text-3xl font-display text-white tracking-tight">
                                         MyWorld <span className="text-cyan-400 font-light"></span>
                                     </h3>
-                                    <p className="text-xs font-mono text-cyan-300 font-medium tracking-wide">
-                                        v0.0.0
+                                    <p className="text-xs text-titanium-400">
+                                        {currentLanguage === 'en' ? 'Open beta' : 'Beta abierta'}
                                     </p>
                                 </div>
                                 <p className="text-sm text-titanium-300 max-w-md leading-relaxed mt-2">
-                                    MyWorld is a creative writing environment that helps you build, maintain and explore every universes in your head. 
+                                    {currentLanguage === 'en'
+                                        ? 'MyWorld is a place to write fiction: it keeps the canon of your story so AI helps you without making things up or forgetting.'
+                                        : 'MyWorld es un lugar para escribir ficción: guarda el canon de tu historia para que la IA te ayude sin inventar ni olvidar.'}
                                 </p>
                             </div>
 
@@ -1227,16 +1228,16 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                             <img src="/logo-mark-northforge.png" alt="NorthForge Studios" className="w-full h-auto object-contain opacity-80 hover:opacity-100 transition-opacity" />
                                         </div>
                                         <div>
-                                            <p className="text-xs text-titanium-400">A product by</p>
+                                            <p className="text-xs text-titanium-400">{currentLanguage === 'en' ? 'A product by' : 'Un producto de'}</p>
                                             <a href="https://northforgestudios.tech" target="_blank" rel="noopener noreferrer" className="text-sm font-bold text-white hover:text-cyan-400 transition-colors flex items-center gap-1">
                                                 NorthForge Studios <ExternalLink size={12} />
                                             </a>
                                         </div>
                                     </div>
                                     
-                                    <div className="px-3 py-1.5 bg-gradient-to-r from-violet-900/40 to-cyan-900/40 rounded-full border border-titanium-700/50 flex items-center gap-2">
-                                        <Sparkles size={14} className="text-cyan-400" />
-                                        <span className="text-[11px] font-mono text-cyan-100">Powered by Gemini</span>
+                                    <div className="px-3 py-1.5 bg-mira-bg rounded-full border border-mira/40 flex items-center gap-2">
+                                        <Sparkles size={14} className="text-mira" />
+                                        <span className="text-xs text-titanium-200">{currentLanguage === 'en' ? 'Runs on Claude and Gemini' : 'Funciona con Claude y Gemini'}</span>
                                     </div>
                                 </div>
 
@@ -1245,7 +1246,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 <div className="flex items-center gap-2">
                                     <User size={16} className="text-titanium-400" />
                                     <p className="text-sm text-titanium-300">
-                                        Created and maintained by <strong className="text-white">Deiner David Trelles Renteria</strong>
+                                        {currentLanguage === 'en' ? 'Created and maintained by' : 'Creado y mantenido por'} <strong className="text-titanium-100">Deiner David Trelles Renteria</strong>
                                     </p>
                                 </div>
                             </div>
@@ -1255,10 +1256,10 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
                             {/* Legal Notice */}
                             <div className="p-4 border-l-2 border-violet-500/50 bg-violet-950/10 rounded-r-xl space-y-2">
-                                <h5 className="text-xs font-bold text-violet-300 uppercase tracking-widest">{t.legal}</h5>
-                                <p className="text-xs text-titanium-400 leading-relaxed font-mono">
-                                    This software is licensed under the <a href="https://github.com/KikDevKik/myworld-creative-writing-ide/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">Business Source License 1.1</a>.<br/>
-                                    © 2026 Deiner David Trelles Renteria. All rights reserved.
+                                <h5 className="text-sm font-semibold text-titanium-100">{currentLanguage === 'en' ? 'Legal notice' : 'Aviso legal'}</h5>
+                                <p className="text-xs text-titanium-400 leading-relaxed">
+                                    {currentLanguage === 'en' ? 'This software is licensed under the' : 'Este software se publica bajo la'} <a href="https://github.com/KikDevKik/myworld-creative-writing-ide/blob/main/LICENSE" target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline underline-offset-2">Business Source License 1.1</a>.<br/>
+                                    © 2026 Deiner David Trelles Renteria. {currentLanguage === 'en' ? 'All rights reserved.' : 'Todos los derechos reservados.'}
                                 </p>
                             </div>
 
@@ -1266,24 +1267,24 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
                                 <div className="flex gap-4">
                                     <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                                        <ShieldCheck size={14} /> Privacy Policy
+                                        <ShieldCheck size={14} /> {currentLanguage === 'en' ? 'Privacy' : 'Privacidad'}
                                     </a>
                                     <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="text-xs text-titanium-400 hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                                        <Info size={14} /> Terms of Service
+                                        <Info size={14} /> {currentLanguage === 'en' ? 'Terms' : 'Términos'}
                                     </a>
                                 </div>
                                 <div className="flex gap-3">
                                     <a href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5">
-                                        ♥ Sponsor
+                                        ♥ {currentLanguage === 'en' ? 'Support MyWorld' : 'Apoyar MyWorld'}
                                     </a>
                                     <button 
                                         onClick={() => {
                                             navigator.clipboard.writeText('deidev180@gmail.com');
-                                            toast.success('Email copied to clipboard!');
+                                            toast.success(currentLanguage === 'en' ? 'Email copied' : 'Correo copiado');
                                         }}
                                         className="px-3 py-1.5 bg-titanium-800 hover:bg-titanium-700 text-titanium-200 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5"
                                     >
-                                        <Copy size={14} /> Support
+                                        <Copy size={14} /> {currentLanguage === 'en' ? 'Copy support email' : 'Copiar correo de soporte'}
                                     </button>
                                 </div>
                             </div>

@@ -42,7 +42,7 @@ const getTodayKey = () => {
 const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, narratorControls }) => {
     const { tier, hasByok, isNormal } = useTier();
     const aiLevel = getAiLevel();
-    const levelLabel = aiLevel === 'gratis' ? 'Gratis' : aiLevel === 'propia' ? 'Tu clave' : aiLevel === 'myworld' ? 'MyWorld' : null;
+    const levelLabel = aiLevel === 'gratis' ? 'IA gratis' : aiLevel === 'propia' ? 'IA con tu clave' : aiLevel === 'myworld' ? 'IA de MyWorld' : null;
     const { currentLanguage } = useLanguageStore();
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const t = TRANSLATIONS[currentLanguage].statusBar;
@@ -142,7 +142,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
     }, []);
 
     return (
-        <div className={`h-8 bg-titanium-950 border-t border-titanium-800 flex items-center justify-between px-4 text-[10px] text-titanium-400 select-none ${className}`}>
+        <div className={`h-9 bg-titanium-950 border-t border-titanium-800 flex items-center justify-between px-4 text-xs text-titanium-400 select-none ${className}`}>
 
             {/* LEFT: METRICS & GUARDIAN */}
             <div className="flex items-center gap-4">
@@ -156,17 +156,17 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                     {!hasByok ? (
                         <>
                             <AlertCircle size={11} className="text-red-400" />
-                            <span className="text-[10px] font-medium text-red-400">{t.noApiKey}</span>
+                            <span className="text-xs font-medium text-red-400">{t.noApiKey}</span>
                         </>
                     ) : tier === 'ultra' ? (
                         <>
                             <Zap size={11} className="text-violet-400" />
-                            <span className="text-[10px] font-medium text-violet-400">{levelLabel || 'Ultra'}</span>
+                            <span className="text-xs font-medium text-violet-400">{levelLabel || 'Ultra'}</span>
                         </>
                     ) : (
                         <>
-                            <Leaf size={11} className="text-emerald-400" />
-                            <span className="text-[10px] font-medium text-emerald-400">{levelLabel || 'Normal'}</span>
+                            <Leaf size={12} className="text-titanium-400" />
+                            <span className="text-xs text-titanium-300">{levelLabel || 'Normal'}</span>
                         </>
                     )}
                 </button>
@@ -288,7 +288,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         aria-label={guardianStatus === 'scanning' ? t.scanning : guardianStatus === 'conflict' ? t.conflict : t.argos}
                     >
                         <ScanEye size={12} />
-                        <span className="font-bold tracking-wider">
+                        <span className="font-medium">
                             {guardianStatus === 'scanning' ? t.scanning :
                                 guardianStatus === 'conflict' ? t.conflict : t.argos}
                         </span>
@@ -414,8 +414,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 )}
 
                 <div className="flex flex-col w-32 gap-1">
-                    <div className="flex justify-between text-[9px] uppercase tracking-wider font-bold">
-                        <span className={dailyProgress >= dailyGoal ? "text-emerald-400" : "text-titanium-500"}>
+                    <div className="flex justify-between gap-2 text-[11px] font-medium">
+                        <span className={dailyProgress >= dailyGoal ? "text-logro" : "text-titanium-400"}>
                             {dailyProgress >= dailyGoal ? t.goalMet : t.dailyGoal}
                         </span>
                         <span className="text-titanium-400">{dailyProgress} / {dailyGoal}</span>
@@ -439,7 +439,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 {onOpenReport && (
                     <button
                         onClick={onOpenReport}
-                        className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-purple-300 hover:bg-purple-900/30 transition-colors ml-2"
+                        className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-purple-300 hover:bg-purple-900/30 transition-colors ml-2"
                         title="Reporte del capítulo: qué corregir y dónde"
                     >
                         <FileSearch size={12} /> Reporte
@@ -449,7 +449,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 {!miraOn && (
                     <button
                         onClick={() => setMiraPrefs({ visible: true })}
-                        className="rounded px-2 py-0.5 text-[10px] font-medium text-mira hover:bg-titanium-800 transition-colors"
+                        className="rounded px-2 py-0.5 text-xs font-medium text-mira hover:bg-titanium-800 transition-colors"
                         title="Mostrar a Mira en el escritorio"
                     >
                         Mostrar a Mira
@@ -457,27 +457,20 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                 )}
                 <button
                     onClick={() => window.dispatchEvent(new Event('OPEN_TIPS'))}
-                    className="rounded px-2 py-0.5 text-[10px] font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
+                    className="rounded px-2 py-0.5 text-xs font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
                     title="Rincón de tips"
                 >
                     Tips
                 </button>
                 <button
                     onClick={() => setThemePref(theme === 'noche' ? 'papel' : 'noche')}
-                    className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
+                    className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
                     title={theme === 'noche' ? 'Cambiar a modo papel' : 'Cambiar a modo noche'}
                     aria-label={theme === 'noche' ? 'Cambiar a modo papel' : 'Cambiar a modo noche'}
                 >
                     {theme === 'noche' ? <Sun size={12} /> : <Moon size={12} />} {theme === 'noche' ? 'Papel' : 'Noche'}
                 </button>
 
-                <button
-                    onClick={() => window.dispatchEvent(new CustomEvent('OPEN_SETTINGS_MODAL', { detail: { tab: 'info' } }))}
-                    className="text-[9px] uppercase tracking-wider font-bold text-titanium-600 hover:text-cyan-400 transition-colors mx-2"
-                    title="Créditos y Sponsors"
-                >
-                    Sponsors
-                </button>
 
                 <button
                     ref={settingsButtonRef}

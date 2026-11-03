@@ -1,12 +1,12 @@
 import React, { useRef, useEffect, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { EditorState, Compartment } from '@codemirror/state';
-import { EditorView, keymap, lineNumbers } from '@codemirror/view';
+import { EditorState, Compartment, Prec } from '@codemirror/state';
+import { EditorView, keymap } from '@codemirror/view';
 import { defaultKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
-import { oneDark } from '@codemirror/theme-one-dark';
-import { highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine } from '@codemirror/view';
+import { oneDarkHighlightStyle } from '@codemirror/theme-one-dark';
+import { highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor } from '@codemirror/view';
 import { history, historyKeymap } from '@codemirror/commands';
-import { bracketMatching } from '@codemirror/language';
+import { bracketMatching, syntaxHighlighting } from '@codemirror/language';
 import { closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
 import { highlightSelectionMatches, searchKeymap } from '@codemirror/search';
 import { lintKeymap } from '@codemirror/lint';
@@ -89,7 +89,14 @@ const titaniumTheme = EditorView.theme({
         lineHeight: "1.8", // increased line height
         height: "100%", // Explicit height
     },
+    // Nov 2026: la letra se fija también en el área de texto (el tema base pone monospace en .cm-scroller).
+    ".cm-scroller": {
+        fontFamily: "var(--editor-font-family, var(--font-serif))",
+        lineHeight: "1.8",
+    },
+    ".cm-activeLine": { backgroundColor: "transparent" },
     ".cm-content": {
+        fontFamily: "var(--editor-font-family, var(--font-serif))",
         caretColor: "var(--color-text-primary)",
         paddingBottom: "50vh", // Scroll past end
         paddingTop: "2rem",
@@ -100,15 +107,13 @@ const titaniumTheme = EditorView.theme({
         borderLeftColor: "var(--color-text-primary)"
     },
     ".cm-selectionBackground, ::selection": {
-        backgroundColor: "var(--color-titanium-500) !important", // Titanium 700ish
-        opacity: "0.3"
+        backgroundColor: "rgba(185, 174, 224, 0.28) !important"
     },
     "&.cm-focused .cm-cursor": {
         borderLeftColor: "var(--color-text-primary)"
     },
     "&.cm-focused .cm-selectionBackground, ::selection": {
-        backgroundColor: "var(--color-titanium-500) !important",
-        opacity: "0.3"
+        backgroundColor: "rgba(185, 174, 224, 0.34) !important"
     },
     ".cm-gutters": {
         backgroundColor: "transparent",
@@ -223,8 +228,6 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                 langCompartment.of(EditorView.contentAttributes.of({ spellcheck: "true", lang: (langRef.current = detectWritingLang(content)) })),
 
                 // Base
-                lineNumbers(),
-                highlightActiveLineGutter(),
                 highlightSpecialChars(),
                 history(),
                 drawSelection(),
@@ -232,7 +235,6 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                 EditorState.allowMultipleSelections.of(true),
                 rectangularSelection(),
                 crosshairCursor(),
-                highlightActiveLine(),
                 bracketMatching(),
                 closeBrackets(),
                 highlightSelectionMatches(),
@@ -250,8 +252,10 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                 markdown(),
 
                 // Theme & Appearance
-                oneDark,
-                titaniumTheme,
+                // Nov 2026: sin el tema One Dark (fondo gris de código); solo sus colores de sintaxis,
+                // y el tema propio con prioridad para que mande la letra de novela.
+                syntaxHighlighting(oneDarkHighlightStyle),
+                Prec.highest(titaniumTheme),
                 EditorView.lineWrapping,
 
                 // Custom Extensions
