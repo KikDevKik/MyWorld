@@ -18,6 +18,7 @@ export interface DocPair { id: string; kind: 'copia' | 'mismo_tema'; overlap: nu
 export interface NamesState { groups: NameGroup[]; decisions: NameDecision[]; docs?: DocPair[]; docDecisions?: any[]; checkedAt?: string; noIndex?: boolean }
 interface PreviewFile { fileId: string; fileName: string; count: number; links: number; googleDoc: boolean; samples: string[] }
 interface Renameable { fileId: string; fileName: string; newName: string }
+interface MergeItem { kind: 'nuevo' | 'distinto'; other: string; anchor: number; anchorText?: string; baseIndex?: number; base?: string }
 
 export const DOCS_CHANGED_EVENT = 'mw-docs-changed';
 export const NAMES_CHANGED_EVENT = 'mw-names-changed';
@@ -167,6 +168,35 @@ export default function WorldNamesPanel({ accessToken, initialState, onStateChan
         catch (e: any) { toast.error(e?.message || 'No se pudo guardar.'); }
         finally { setBusy(null); }
     };
+    // ── Combinar dos documentos ──
+    const [merge, setMerge] = useState<null | { pairId: string; keep: DocInfo; drop: DocInfo; items: MergeItem[]; include: Set<number>; choices: Record<number, 'base' | 'other' | 'both'> }>(null);
+    const startMerge = async (pairId: string, keep: DocInfo, drop: DocInfo) => {
+        if (!accessToken) { toast.error('Reconecta Google Drive para combinar los documentos.'); return; }
+        setConfirmKeep(null);
+        setBusy(`${pairId}:merge`);
+        try {
+            const r = await callFunction<{ items: MergeItem[] }>('worldNames', { mode: 'mergePreview', pairId, keepId: keep.fileId, accessToken });
+            const items = r?.items || [];
+            setMerge({ pairId, keep, drop, items, include: new Set(items.map((it, i) => (it.kind === 'nuevo' ? i : -1)).filter(i => i >= 0)), choices: {} });
+        } catch (e: any) { toast.error(e?.message || 'No se pudieron comparar los documentos.'); }
+        finally { setBusy(null); }
+    };
+    const applyMerge = async () => {
+        if (!merge) return;
+        setBusy('mergeApply');
+        try {
+            const r = await callFunction<NamesState & { merged?: { into: string; fileId: string; trashed: string; trashedId: string } }>('worldNames', {
+                mode: 'mergeApply', pairId: merge.pairId, keepId: merge.keep.fileId, accessToken,
+                include: [...merge.include], choices: Object.fromEntries(Object.entries(merge.choices)),
+            });
+            update(r);
+            toast.success(`Listo: todo quedó en «${stem(merge.keep.name)}».`, { description: `«${stem(merge.drop.name)}» está en la papelera de Drive (se recupera durante 30 días).` });
+            window.dispatchEvent(new CustomEvent(DOCS_CHANGED_EVENT, { detail: { fileIds: [merge.keep.fileId, merge.drop.fileId], trashed: true } }));
+            setMerge(null);
+        } catch (e: any) { toast.error(e?.message || 'No se pudieron combinar.'); }
+        finally { setBusy(null); }
+    };
+
     const docKeep = async () => {
         if (!confirmKeep) return;
         setBusy('keep');
@@ -399,9 +429,9 @@ export default function WorldNamesPanel({ accessToken, initialState, onStateChan
                                 const advice = p.kind === 'copia'
                                     ? (!aHas && bHas) ? `«${stem(p.b.name)}» ya tiene todo lo de «${stem(p.a.name)}» y más: «${stem(p.a.name)}» parece la copia vieja.`
                                         : (aHas && !bHas) ? `«${stem(p.a.name)}» ya tiene todo lo de «${stem(p.b.name)}» y más: «${stem(p.b.name)}» parece la copia vieja.`
-                                            : (aHas && bHas) ? 'Los dos tienen partes que el otro no tiene. Pasa lo que falte al que se queda antes de mandar el otro a la papelera.'
+                                            : (aHas && bHas) ? 'Los dos tienen partes que el otro no tiene. Usa «Combinar en este» en el que quieras conservar: te muestro lo que falta y tú eliges qué entra.'
                                                 : 'Son prácticamente iguales: quédate con uno.'
-                                    : `Hay dos documentos sobre «${topic}». Si los dos lo describen, el Arquitecto puede leer datos distintos: deja una sola versión oficial y pasa a ella lo que falte.`;
+                                    : `Hay dos documentos sobre «${topic}». Si los dos lo describen, el Arquitecto puede leer datos distintos: deja una sola versión oficial con «Combinar en este».`;
                                 const confirming = confirmKeep?.pairId === p.id;
                                 return (
                                     <li key={p.id} className="rounded-2xl border border-titanium-700 bg-titanium-900 px-5 py-4">
@@ -433,12 +463,70 @@ export default function WorldNamesPanel({ accessToken, initialState, onStateChan
                                                         )}
                                                         <div className="flex flex-wrap gap-2 mt-auto pt-1">
                                                             {onOpenDocument && <button onClick={() => onOpenDocument(d.fileId, d.uniqueSample?.replace(/…$/, '').slice(0, 120) || '')} className={btnSecondary}>Abrir</button>}
-                                                            <button onClick={() => setConfirmKeep({ pairId: p.id, keep: d, drop: other })} disabled={!!busy} className={btnSecondary}>Quedarme con este</button>
+                                                            <button onClick={() => { setMerge(null); setConfirmKeep({ pairId: p.id, keep: d, drop: other }); }} disabled={!!busy} className={btnSecondary}>Quedarme con este</button>
+                                                            <button onClick={() => startMerge(p.id, d, other)} disabled={!!busy} className={btnSecondary} title={`Pasa a «${stem(d.name)}» lo que solo tiene «${stem(other.name)}»`}>
+                                                                {busy === `${p.id}:merge` && <Loader2 size={15} className="animate-spin" aria-hidden="true" />} Combinar en este
+                                                            </button>
                                                         </div>
                                                     </div>
                                                 );
                                             })}
                                         </div>
+
+                                        {merge?.pairId === p.id && (
+                                            <div className="mt-4 rounded-xl border border-mira/30 bg-mira/5 px-4 py-4 flex flex-col gap-4">
+                                                <div>
+                                                    <h4 className="font-serif text-lg text-titanium-100">Combinar en «{stem(merge.keep.name)}»</h4>
+                                                    <p className="text-sm text-titanium-300 mt-1 leading-relaxed">
+                                                        Esto es lo que «{stem(merge.drop.name)}» tiene y «{stem(merge.keep.name)}» no. Elige qué entra; lo demás de «{stem(merge.keep.name)}» queda igual. Al terminar, «{stem(merge.drop.name)}» va a la papelera de Drive.
+                                                    </p>
+                                                </div>
+                                                {merge.items.length === 0 && <p className="text-[15px] text-titanium-200">«{stem(merge.drop.name)}» no tiene nada que no esté ya en «{stem(merge.keep.name)}».</p>}
+                                                {merge.items.some(it => it.kind === 'distinto') && (
+                                                    <div className="flex flex-col gap-3">
+                                                        <p className="text-sm text-amber-200">Dicen lo mismo de forma distinta: elige cuál vale</p>
+                                                        {merge.items.map((it, i) => it.kind !== 'distinto' ? null : (
+                                                            <fieldset key={i} className="rounded-xl border border-titanium-700 bg-titanium-950/40 px-3 py-3 flex flex-col gap-2">
+                                                                <legend className="sr-only">Elige una versión</legend>
+                                                                {([['base', `Dejar la de «${stem(merge.keep.name)}»`, it.base], ['other', `Usar la de «${stem(merge.drop.name)}»`, it.other], ['both', 'Dejar las dos', '']] as const).map(([v, label, text]) => (
+                                                                    <label key={v} className="flex items-start gap-3 cursor-pointer">
+                                                                        <input type="radio" name={`m-${p.id}-${i}`} className="mt-1 accent-[var(--color-mira)] w-4 h-4 shrink-0"
+                                                                            checked={(merge.choices[i] || 'base') === v}
+                                                                            onChange={() => setMerge(m => m ? { ...m, choices: { ...m.choices, [i]: v } } : m)} />
+                                                                        <span className="min-w-0">
+                                                                            <span className="block text-sm text-titanium-300">{label}</span>
+                                                                            {text && <span className="block font-serif text-[15px] text-titanium-100 leading-relaxed break-words">{text}</span>}
+                                                                        </span>
+                                                                    </label>
+                                                                ))}
+                                                            </fieldset>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                {merge.items.some(it => it.kind === 'nuevo') && (
+                                                    <div className="flex flex-col gap-2">
+                                                        <p className="text-sm text-logro">Solo está en «{stem(merge.drop.name)}»: se agrega en su lugar</p>
+                                                        {merge.items.map((it, i) => it.kind !== 'nuevo' ? null : (
+                                                            <label key={i} className="flex items-start gap-3 rounded-xl border border-titanium-700 bg-titanium-950/40 px-3 py-2.5 cursor-pointer">
+                                                                <input type="checkbox" className="mt-1 accent-[var(--color-coral)] w-4 h-4 shrink-0" checked={merge.include.has(i)}
+                                                                    onChange={() => setMerge(m => { if (!m) return m; const n = new Set(m.include); if (n.has(i)) n.delete(i); else n.add(i); return { ...m, include: n }; })} />
+                                                                <span className="min-w-0">
+                                                                    <span className="block font-serif text-[15px] text-titanium-100 leading-relaxed break-words">{it.other}</span>
+                                                                    <span className="block text-xs text-titanium-400 mt-0.5 break-words">{it.anchorText ? `Va después de: ${it.anchorText}…` : 'Va al principio'}</span>
+                                                                </span>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button onClick={applyMerge} disabled={busy === 'mergeApply'} className={btnPrimary}>
+                                                        {busy === 'mergeApply' && <Loader2 size={15} className="animate-spin" aria-hidden="true" />}
+                                                        Combinar y mandar «{stem(merge.drop.name)}» a la papelera
+                                                    </button>
+                                                    <button onClick={() => setMerge(null)} className={btnGhost}>Cancelar</button>
+                                                </div>
+                                            </div>
+                                        )}
 
                                         {confirming && confirmKeep && (
                                             <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/5 px-4 py-3 flex flex-col gap-3">

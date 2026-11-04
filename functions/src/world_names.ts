@@ -279,6 +279,50 @@ function findDocPairs(files: CorpusFile[], decided: DocDecision[]): DocPair[] {
     return pairs.sort((p, q) => (p.kind === q.kind ? q.overlap - p.overlap : p.kind === "copia" ? -1 : 1)).slice(0, 25);
 }
 
+// ── Plan para combinar: compara línea por línea (en las fichas cada dato suele ser una línea) ──
+interface MergeItem { kind: "nuevo" | "distinto"; other: string; anchor: number; anchorText?: string; baseIndex?: number; base?: string }
+function lineShingles(t: string): Set<string> {
+    const w = plainWords(t);
+    const s = new Set<string>();
+    if (w.length < 3) { if (w.length) s.add(w.join(" ")); return s; }
+    for (let i = 0; i + 3 <= w.length; i++) s.add(w.slice(i, i + 3).join(" "));
+    return s;
+}
+function sim(a: Set<string>, b: Set<string>) {
+    if (!a.size || !b.size) return 0;
+    let n = 0; a.forEach(x => { if (b.has(x)) n++; });
+    return n / Math.min(a.size, b.size);
+}
+const fieldKey = (l: string) => { const m = l.match(/^\s*[-*]?\s*\**([^:*]{2,40})\**\s*:/); return m ? plainWords(m[1]).join(" ") : ""; };
+function mergePlan(baseText: string, otherText: string): { items: MergeItem[] } {
+    const base = baseText.split("\n");
+    const bSh = base.map(lineShingles);
+    const bKey = base.map(fieldKey);
+    const items: MergeItem[] = [];
+    let anchor = -1;
+    const used = new Set<number>();
+    for (const raw of otherText.split("\n")) {
+        const line = raw.replace(/\s+$/, "");
+        if (!line.trim()) continue;
+        const sh = lineShingles(line);
+        const key = fieldKey(line);
+        let best = -1, bestSim = 0;
+        bSh.forEach((s, i) => { const v = sim(sh, s); if (v > bestSim) { bestSim = v; best = i; } });
+        // El mismo campo de ficha («Familia:») con otro contenido cuenta como distinto aunque compartan pocas palabras.
+        const sameField = key ? bKey.findIndex((k, i) => k === key && !used.has(i)) : -1;
+        if (bestSim >= 0.85) { anchor = Math.max(anchor, best); used.add(best); continue; }
+        if (sameField >= 0 || bestSim >= 0.4) {
+            const i = sameField >= 0 ? sameField : best;
+            if (base[i].trim() === line.trim()) { anchor = Math.max(anchor, i); continue; }
+            used.add(i); anchor = Math.max(anchor, i);
+            items.push({ kind: "distinto", other: line, anchor: i, baseIndex: i, base: base[i] });
+            continue;
+        }
+        items.push({ kind: "nuevo", other: line, anchor, anchorText: anchor >= 0 ? base[anchor].slice(0, 90) : "" });
+    }
+    return { items: items.slice(0, 120) };
+}
+
 const SCAN_PROMPT = `Eres Mira, la compañera de escritura de MyWorld. Revisas el VOCABULARIO del canon de un autor (nombres propios, mecánicas, reglas, lugares, objetos y los TÍTULOS de sus documentos) para encontrar el MISMO concepto escrito con nombres distintos: un renombre que quedó a medias en algunos documentos, una abreviatura, el título de un documento que dice una cosa mientras el texto dice otra, o una variante de escritura (tildes, guiones, espacios).
 
 REGLAS:
@@ -398,6 +442,55 @@ export const worldNames = onCall(
             const decisions = state.decisions.filter((_, i) => i !== idx);
             await ref.set({ decisions }, { merge: true });
             return { ...state, decisions };
+        }
+
+        // ── Combinar dos documentos repetidos (Nov 2026) ──
+        // Se queda uno (la base) y se le agrega lo que solo tiene el otro, en el lugar que le corresponde.
+        // Las líneas que dicen lo mismo con otras palabras se muestran como «distintas» para que el autor elija.
+        if (mode === "mergePreview" || mode === "mergeApply") {
+            const pair = state.docs.find(p => p.id === request.data?.pairId);
+            if (!pair) throw new HttpsError("not-found", "Ese par ya no está. Vuelve a revisar.");
+            const keep = String(request.data?.keepId || "");
+            if (keep !== pair.a.fileId && keep !== pair.b.fileId) throw new HttpsError("invalid-argument", "Elige en cuál documento se combinan.");
+            if (!accessToken) throw new HttpsError("unauthenticated", "Reconecta Google Drive para combinar los documentos.");
+            const drop = keep === pair.a.fileId ? pair.b : pair.a;
+            const base = keep === pair.a.fileId ? pair.a : pair.b;
+            const drive = driveFor(accessToken);
+            const meta = await drive.files.get({ fileId: keep, fields: "mimeType" });
+            if (meta.data.mimeType === "application/vnd.google-apps.document") throw new HttpsError("failed-precondition", `«${base.name}» es un Google Doc: combínalo a mano.`);
+            const [baseText, otherText] = await Promise.all([keep, drop.fileId].map(async id => String(await _getDriveFileContentInternal(drive, id) || "")));
+            const plan = mergePlan(baseText, otherText);
+            if (mode === "mergePreview") return { baseName: base.name, otherName: drop.name, items: plan.items };
+
+            // Qué eligió el autor: índices de líneas nuevas que entran y, en las distintas, cuál queda.
+            const include = new Set<number>((Array.isArray(request.data?.include) ? request.data.include : []).map(Number));
+            const choices: Record<string, string> = request.data?.choices || {};
+            const lines = baseText.split("\n");
+            const after = new Map<number, string[]>(); // índice de línea base → líneas que van después
+            const replace = new Map<number, string[]>();
+            plan.items.forEach((it, i) => {
+                if (it.kind === "nuevo") {
+                    if (!include.has(i)) return;
+                    after.set(it.anchor, [...(after.get(it.anchor) || []), it.other]);
+                } else {
+                    const c = choices[String(i)] || "base";
+                    if (c === "other") replace.set(it.baseIndex!, [it.other]);
+                    else if (c === "both") replace.set(it.baseIndex!, [lines[it.baseIndex!], it.other]);
+                }
+            });
+            const out: string[] = [...(after.get(-1) || [])];
+            lines.forEach((l, i) => { out.push(...(replace.get(i) || [l])); out.push(...(after.get(i) || [])); });
+            const next = out.join("\n");
+            await drive.files.update({ fileId: keep, media: { mimeType: meta.data.mimeType || "text/markdown", body: next } });
+            try { await drive.files.update({ fileId: drop.fileId, requestBody: { trashed: true } }); } catch (e: any) {
+                throw new HttpsError("failed-precondition", `Combiné en «${base.name}», pero no pude mover «${drop.name}» a la papelera: ${e?.message || "sin permiso"}. Hazlo a mano.`);
+            }
+            try { await deleteFromIndex(uid, drop.fileId); } catch (e: any) { logger.warn(`[NOMBRES] Índice: ${e?.message}`); }
+            const docs = state.docs.filter(p => p.a.fileId !== drop.fileId && p.b.fileId !== drop.fileId);
+            const docDecisions = [...state.docDecisions, { ids: [pair.a.fileId, pair.b.fileId], kind: "archivado" as const, keep, at: new Date().toISOString() }];
+            await ref.set({ docs, docDecisions }, { merge: true });
+            logger.info(`[NOMBRES] ${uid}: «${drop.name}» combinado en «${base.name}»`);
+            return { ...state, docs, docDecisions, merged: { into: base.name, fileId: keep, trashed: drop.name, trashedId: drop.fileId } };
         }
 
         // ── Documentos repetidos ──
