@@ -34,7 +34,7 @@ const SUGGEST_TASK = `Eres El Arquitecto de MyWorld mirando el mapa del mundo de
 - Cada propuesta es una hipótesis, no una decisión: di qué conectarías, qué consecuencia tendría y qué pregunta debe responderse el autor para decidir.
 - Apóyate en lo que su material dice (nombra el archivo cuando sirva). Nada que contradiga su canon.
 - Prioriza piezas aisladas (pocas conexiones) y elementos importantes que no se tocan.
-FORMATO: SOLO JSON {"sugerencias":[{"de":"nombre exacto","a":"nombre exacto","idea":"1-2 frases","consecuencia":"1 frase","pregunta":"1 frase"}]} — exactamente 5.`;
+FORMATO: SOLO JSON {"sugerencias":[{"de":"nombre exacto","a":"nombre exacto","idea":"1-2 frases","consecuencia":"1 frase","pregunta":"1 frase"}]} — hasta 5 (menos si no hay buenas; nunca rellenes).`;
 
 function parseJson(text: string): any {
     const j = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");

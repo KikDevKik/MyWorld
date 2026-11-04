@@ -246,7 +246,7 @@ export const analyzeNexusBatch = onCall(
 
             1. LEY DE MATERIALIDAD: Distingue Objetos de Lugares con precisión quirúrgica.
             2. LEY DE IDENTIDAD (Alias): Si "Madre", "Mamá" y "Elsa" son la misma entidad, FUSIÓNALOS (MERGE). Busca activamente alias ocultos.
-            3. LEY DEL ALCANCE: Ignora eventos personales menores, pero captura eventos que cambian el mundo.
+            3. LEY DEL ALCANCE: Captura los eventos que cambian el mundo y también los personales que marcan a un personaje (una muerte en su familia, una mudanza, una promesa); ignora solo lo trivial.
             4. LEY DE LA NATURALEZA: Habilidades, Magias o Tecnologías son CONCEPTOS.
             5. LEY DE NECROMANCIA: Ignora muertos irrelevantes, pero registra fantasmas o leyendas activas.
             6. LEY DEL ENJAMBRE: Ignora grupos sin nombre ("soldados"), pero registra "La Guardia Real".

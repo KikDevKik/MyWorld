@@ -23,7 +23,7 @@ interface ContinueCardProps {
 
 const STR = {
     es: {
-        hi: (h: number) => (h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'),
+        hi: (h: number) => (h < 5 ? 'Buenas noches' : h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'),
         architect: 'La mesa del arquitecto', architectP: 'Planos, hilos y dudas por resolver',
         mira: 'Hablar con Mira', miraP: 'Pregúntale por tu mundo',
         week: 'Esta semana', days: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], sky: 'tu mundo',
@@ -33,7 +33,7 @@ const STR = {
         tip: 'Tip del rincón',
     },
     en: {
-        hi: (h: number) => (h < 12 ? 'Good morning' : h < 19 ? 'Good afternoon' : 'Good evening'),
+        hi: (h: number) => (h < 5 ? 'Good evening' : h < 12 ? 'Good morning' : h < 19 ? 'Good afternoon' : 'Good evening'),
         architect: 'The architect’s table', architectP: 'Plans, threads and open questions',
         mira: 'Talk to Mira', miraP: 'Ask her about your world',
         week: 'This week', days: ['M', 'T', 'W', 'T', 'F', 'S', 'S'], sky: 'your world',

@@ -1908,7 +1908,7 @@ ${activeCharacterPrompt}
 El contenido marcado \`[WORLD RULES]\` o \`[LOGIC EXCEPTION]\` en el canon es verdad absoluta, aunque contradiga la física, la historia o las reglas anteriores.
 
 [JERARQUÍA DE LA VERDAD]:
-Si un borrador contradice una ficha o un archivo de referencia, manda la ficha o la referencia.
+Si un borrador contradice una ficha o un archivo de referencia, normalmente manda la ficha. Pero si el autor decidió un cambio después (memoria del proyecto, Nombres del mundo, Decisiones del libro), manda lo más reciente. Si no está claro cuál vale, señala la contradicción con las dos fuentes y pregúntale, sin elegir por él.
 ===================================================
 `;
 
@@ -3841,13 +3841,13 @@ export const forgeAnalyzer = onCall(
         CRITICAL DIRECTIVE - LANGUAGE PROTOCOL:
         1. DETECT the language of the provided "MANUSCRIPT TEXT".
         2. ADAPT your persona to that language.
-           - IF ENGLISH: You are 'Commander'. Write 'report_summary' in English.
-           - IF SPANISH: You are 'Comandante'. Write 'report_summary' in Spanish.
+           - IF ENGLISH: Write 'report_summary' in English.
+           - IF SPANISH: Write 'report_summary' in Spanish.
            - IF OTHER: Match the language.
         3. STRICT CONSTRAINT: The 'report_summary' MUST match the MANUSCRIPT LANGUAGE. Do not default to English if the text is Spanish.
 
         Directiva de Personalidad (Spanish Override):
-        "Si el texto del manuscrito está en Español, TU RESPUESTA en 'report_summary' DEBE ser en Español. Empieza con 'Comandante, he analizado...'."
+        "Si el texto del manuscrito está en Español, TU RESPUESTA en 'report_summary' DEBE ser en Español. Habla en segunda persona, cercano y claro (sin títulos ni rangos)."
 
         Golden Rule:
         "Do not mix languages in the summary. If the content extracted is Spanish, the report summary must be Spanish."
@@ -3874,14 +3874,14 @@ export const forgeAnalyzer = onCall(
              - Return this in the 'description' field.
            - For "EXISTING" characters, flag if the text contradicts known traits (optional).
         6. GENERATE A STATUS REPORT:
-           - A brief, professional summary addressed to the user with the appropriate rank title based on the language ('Commander' for English, 'Comandante' for Spanish).
+           - A brief, friendly summary addressed to the author in second person (no titles or ranks).
            - Highlight key findings (e.g., "I found 3 new characters", "Megu appears in 4 scenes").
            - Suggest immediate actions (e.g., "Should we create a sheet for 'The Baker'?").
            - REMEMBER: Write this summary in the language of the document.
 
         OUTPUT FORMAT (JSON STRICT):
         {
-          "report_summary": "Commander, I have analyzed the draft... (IN DETECTED LANGUAGE)",
+          "report_summary": "I read your draft... (IN DETECTED LANGUAGE)",
           "entities": [
             {
               "name": "Name",

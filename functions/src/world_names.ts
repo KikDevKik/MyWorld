@@ -21,7 +21,7 @@ import { GoogleGenerativeAI } from "./utils/genai";
 import { getAIKey, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
-import { applyMemoryOps } from "./utils/memory_store";
+import { memoryCol, slugify, invalidateMemoryCache } from "./utils/memory_store";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
@@ -36,11 +36,59 @@ interface DocDecision { ids: string[]; kind: "distintos" | "archivado"; keep?: s
 interface NamesState { groups: NameGroup[]; decisions: NameDecision[]; docs: DocPair[]; docDecisions: DocDecision[]; checkedAt?: string }
 interface CorpusFile { id: string; name: string; path: string; text: string }
 
+// Firestore no acepta undefined (p. ej. una fecha de Drive que no llegó): se limpian antes de guardar.
+const clean = <T,>(o: T): T => JSON.parse(JSON.stringify(o));
 const stateRef = (uid: string) => getFirestore().collection("users").doc(uid).collection("world_names").doc("state");
 
 async function loadState(uid: string): Promise<NamesState> {
     const d: any = (await stateRef(uid).get()).data() || {};
-    return { groups: d.groups || [], decisions: d.decisions || [], docs: d.docs || [], docDecisions: d.docDecisions || [], checkedAt: d.checkedAt };
+    return { groups: d.groups || [], decisions: resolveChains(d.decisions || []), docs: d.docs || [], docDecisions: d.docDecisions || [], checkedAt: d.checkedAt };
+}
+
+// La memoria «Nombres del mundo» se reescribe entera desde las decisiones (sin líneas viejas que se contradigan).
+async function syncNamesMemory(uid: string, decisions: NameDecision[]) {
+    try {
+        const now = new Date().toISOString();
+        const lines = decisions.map((d, i) => ({
+            id: `n${i}_${Date.now().toString(36)}`, at: d.at || now, source: "nombres",
+            text: d.kind === "distintos"
+                ? `«${d.canonical}» y ${d.others.map(o => `«${o}»`).join(", ")} son conceptos distintos.`
+                : `«${d.canonical}» es el nombre actual; ${d.others.map(o => `«${o}»`).join(", ")} es el nombre antiguo o una variante. Usar «${d.canonical}».`,
+        }));
+        await memoryCol(uid).doc(slugify("Nombres del mundo")).set({ name: "Nombres del mundo", kind: "libro", description: "Cómo se llama cada concepto del mundo (decidido en la Revisión del canon).", lines, updatedAt: now }, { merge: true });
+        invalidateMemoryCache(uid);
+    } catch (e: any) { logger.warn(`[NOMBRES] Memoria: ${e?.message}`); }
+}
+
+// Nov 2026: renombres en cadena. «Psico-Energía → Psico Energía» y después «Psico Energía → Anima» deben quedar
+// como una sola decisión («Anima» en vez de las tres); si no, el Arquitecto recibe dos órdenes que se contradicen.
+function resolveChains(list: NameDecision[]): NameDecision[] {
+    const ds = list.map(x => ({ ...x, others: [...x.others] }));
+    const f = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[-\s]+/g, "");
+    for (let i = 0; i < ds.length; i++) {
+        if (ds[i].kind !== "mismo") continue;
+        for (let j = i + 1; j < ds.length; j++) {
+            if (ds[j].kind !== "mismo") continue;
+            if (ds[j].others.some(o => f(o) === f(ds[i].canonical))) {
+                const old = ds[i].canonical;
+                ds[i] = { ...ds[i], canonical: ds[j].canonical, others: [...ds[i].others, old] };
+            }
+        }
+    }
+    const out: NameDecision[] = [];
+    for (const d of ds) {
+        const same = d.kind === "mismo" ? out.find(x => x.kind === "mismo" && f(x.canonical) === f(d.canonical)) : undefined;
+        if (same) {
+            same.others = [...same.others, ...d.others];
+            same.applied = (same.applied || 0) + (d.applied || 0) || undefined;
+            same.at = d.at > same.at ? d.at : same.at;
+        } else out.push({ ...d });
+    }
+    for (const d of out) {
+        const seen = new Set<string>([f(d.canonical)]);
+        d.others = d.others.filter(o => { const k = f(o); if (seen.has(k)) return false; seen.add(k); return true; });
+    }
+    return out.filter(d => d.others.length > 0);
 }
 
 /** Texto para los prompts del Arquitecto: los nombres que el autor ya decidió. */
@@ -430,7 +478,8 @@ export const worldNames = onCall(
             const liveDocs = docs.filter(p => p.a.modifiedTime !== "TRASHED" && p.b.modifiedTime !== "TRASHED");
 
             const next: NamesState = { groups, decisions: state.decisions, docs: liveDocs, docDecisions: state.docDecisions, checkedAt: new Date().toISOString() };
-            await ref.set(next, { merge: true });
+            await ref.set(clean(next), { merge: true });
+            await syncNamesMemory(uid, state.decisions);
             logger.info(`[NOMBRES] ${uid}: ${groups.length} grupos y ${liveDocs.length} pares de documentos en ${files.length} documentos`);
             return next;
         }
@@ -440,7 +489,8 @@ export const worldNames = onCall(
         if (mode === "forget") {
             const idx = Number(request.data?.index);
             const decisions = state.decisions.filter((_, i) => i !== idx);
-            await ref.set({ decisions }, { merge: true });
+            await ref.set(clean({ decisions }), { merge: true });
+            await syncNamesMemory(uid, decisions);
             return { ...state, decisions };
         }
 
@@ -488,7 +538,7 @@ export const worldNames = onCall(
             try { await deleteFromIndex(uid, drop.fileId); } catch (e: any) { logger.warn(`[NOMBRES] Índice: ${e?.message}`); }
             const docs = state.docs.filter(p => p.a.fileId !== drop.fileId && p.b.fileId !== drop.fileId);
             const docDecisions = [...state.docDecisions, { ids: [pair.a.fileId, pair.b.fileId], kind: "archivado" as const, keep, at: new Date().toISOString() }];
-            await ref.set({ docs, docDecisions }, { merge: true });
+            await ref.set(clean({ docs, docDecisions }), { merge: true });
             logger.info(`[NOMBRES] ${uid}: «${drop.name}» combinado en «${base.name}»`);
             return { ...state, docs, docDecisions, merged: { into: base.name, fileId: keep, trashed: drop.name, trashedId: drop.fileId } };
         }
@@ -501,7 +551,7 @@ export const worldNames = onCall(
             if (mode === "docDistinct") {
                 const docs = state.docs.filter(p => p.id !== pair.id);
                 const docDecisions = [...state.docDecisions, { ids: [pair.a.fileId, pair.b.fileId], kind: "distintos" as const, at }];
-                await ref.set({ docs, docDecisions }, { merge: true });
+                await ref.set(clean({ docs, docDecisions }), { merge: true });
                 return { ...state, docs, docDecisions };
             }
             const keep = String(request.data?.keepId || "");
@@ -517,7 +567,7 @@ export const worldNames = onCall(
             try { await deleteFromIndex(uid, drop.fileId); } catch (e: any) { logger.warn(`[NOMBRES] Índice: ${e?.message}`); }
             const docs = state.docs.filter(p => p.a.fileId !== drop.fileId && p.b.fileId !== drop.fileId);
             const docDecisions = [...state.docDecisions, { ids: [pair.a.fileId, pair.b.fileId], kind: "archivado" as const, keep, at }];
-            await ref.set({ docs, docDecisions }, { merge: true });
+            await ref.set(clean({ docs, docDecisions }), { merge: true });
             logger.info(`[NOMBRES] ${uid}: «${drop.name}» a la papelera; se queda ${keep}`);
             return { ...state, docs, docDecisions, trashed: drop.name };
         }
@@ -536,7 +586,7 @@ export const worldNames = onCall(
             const id = groupKey([from, to]);
             const group: NameGroup = { id, variants, suggested: to, reason: `Cambio de nombre que pediste: «${from}» pasa a llamarse «${to}».`, kind: "manual" };
             const groups = [...state.groups.filter(g => g.id !== id), group];
-            await ref.set({ groups }, { merge: true });
+            await ref.set(clean({ groups }), { merge: true });
             return { ...state, groups, groupId: id };
         }
 
@@ -545,19 +595,16 @@ export const worldNames = onCall(
         const names = group.variants.map(v => v.name);
 
         const saveDecision = async (d: NameDecision) => {
-            const decisions = [...state.decisions.filter(x => groupKey([x.canonical, ...x.others]) !== groupKey([d.canonical, ...d.others])), d];
+            const decisions = resolveChains([...state.decisions.filter(x => groupKey([x.canonical, ...x.others]) !== groupKey([d.canonical, ...d.others])), d]);
             const groups = state.groups.filter(g => g.id !== group.id);
-            await ref.set({ decisions, groups }, { merge: true });
-            const line = d.kind === "distintos"
-                ? `«${d.canonical}» y ${d.others.map(o => `«${o}»`).join(", ")} son conceptos distintos.`
-                : `«${d.canonical}» es el nombre actual; ${d.others.map(o => `«${o}»`).join(", ")} es el nombre antiguo o una variante. Usar «${d.canonical}».`;
-            try { await applyMemoryOps(uid, [{ op: "add", file: "Nombres del mundo", kind: "libro", text: line }], "nombres"); } catch (e: any) { logger.warn(`[NOMBRES] Memoria: ${e?.message}`); }
+            await ref.set(clean({ decisions, groups }), { merge: true });
+            await syncNamesMemory(uid, decisions);
             return { ...state, decisions, groups };
         };
 
         if (mode === "dismissManual") {
             const groups = state.groups.filter(g => g.id !== group.id);
-            await ref.set({ groups }, { merge: true });
+            await ref.set(clean({ groups }), { merge: true });
             return { ...state, groups };
         }
 

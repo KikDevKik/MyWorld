@@ -93,6 +93,22 @@ async function canonPeek(uid: string, text: string, requestData: any): Promise<s
             .findNearest({ vectorField: "embedding", queryVector: v, limit: 8, distanceMeasure: "COSINE" }).get();
         const out: string[] = [];
         let chars = 0;
+        // Nov 2026: si la idea nombra algo que tiene su propio documento («GardenFlowers»), ese documento entra primero.
+        // La búsqueda por parecido a veces no lo trae y la IA decía «no lo tengo en tu proyecto».
+        try {
+            const files = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "category").limit(400).get();
+            const low = text.toLowerCase();
+            const named = files.docs.filter(f => {
+                const x: any = f.data();
+                const base = String(x.name || "").replace(/\.md$/i, "").toLowerCase().trim();
+                return x.category !== "reference" && base.length >= 4 && low.includes(base);
+            }).slice(0, 2);
+            for (const f of named) {
+                const chunks = await f.ref.collection("chunks").select("text").limit(3).get();
+                const t = chunks.docs.map(c => String((c.data() as any).text || "")).join("\n").trim().slice(0, 2000);
+                if (t) { out.push(`(${String((f.data() as any).name || "").replace(/\.md$/i, "")}) ${t}`); chars += t.length; }
+            }
+        } catch { /* sin índice: sigue con la búsqueda por parecido */ }
         for (const d of snap.docs) {
             const c: any = d.data();
             if (c.category === "reference") continue;

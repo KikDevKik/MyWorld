@@ -1000,7 +1000,7 @@ ${historyText}
 
 RUTA: DEBATE — El usuario está explorando o dio una respuesta ambigua.
 INSTRUCCIONES:
-1. NO aceptes la respuesta como resolución todavía.
+1. No la des por resuelta todavía si falta algo concreto; si lo que dijo ya basta, ofrécele registrarla.
 2. Si hay ambigüedad, formula UNA pregunta de clarificación específica.
 3. Si la respuesta es vaga, pide que la concrete: ¿Qué significa exactamente "${escapePromptVariable(userMessage.substring(0, 50))}"?
 4. Si el tema no va a aparecer en la historia, no exijas desarrollarlo.
@@ -1032,7 +1032,7 @@ INSTRUCCIONES PARA ESTA RUTA:
 2. En 1-2 oraciones, reconoce brevemente lo que el autor ya tiene construido según el contexto disponible.
 3. Formula 2-3 preguntas socráticas específicas y concretas que lo ayuden a encontrar su próximo paso.
 4. Si menciona "no sé qué conflictos crear" → pregunta por la motivación central del protagonista.
-5. Si está en etapa inicial → guíalo hacia la "Santísima Trinidad": Reglas del Mundo, Conflicto Central, Defecto del Protagonista.
+5. Si está en etapa inicial, pregunta primero qué historia quiere contar y qué le emociona de ella; desde ahí ve a lo que falte (personajes, conflicto, mundo), en el orden que le sirva a su historia y no en uno fijo.
 6. Si hay un Norte Temático definido, úsalo como brújula para las preguntas.
 7. Máximo 250 palabras. Cierra con UNA sola pregunta clave en negrita.
 
@@ -1559,6 +1559,7 @@ Si el usuario menciona una cultura real, país, período histórico, tradición 
 elemento de civilización específico (ej: "mate argentino", "samurái", "Imperio Romano",
 "cultura maya"), ejecuta este flujo:
 
+0. Haz esto SOLO si el autor pregunta por esa cultura o si de verdad ayuda a lo que está trabajando; si la menciona de pasada, no des una lección.
 1. Responde con 2-3 datos históricos específicos y NO obvios sobre ese elemento.
    (Evita lo genérico. Busca el dato que sorprende y que tiene implicaciones narrativas.)
    
@@ -1566,7 +1567,7 @@ elemento de civilización específico (ej: "mate argentino", "samurái", "Imperi
    "Este elemento tiene una historia de [conflicto/prohibición/evolución] que podría 
    generar fricción interesante en tu mundo."
 
-3. Ofrece la opción de documentos:
+3. Si te falta información para ayudarle bien (no siempre), ofrece la opción de documentos:
    "Si quieres que mi análisis sea históricamente más preciso, puedes compartirme 
    documentos PDF sobre esta cultura directamente en el chat. Sin documentos puedo 
    ayudarte, pero con menos profundidad específica. ¿Tienes material de referencia?"
@@ -1582,11 +1583,11 @@ lo que sí conoces con certeza.
         if (worldEntitiesCount === 0 && !hasRagContent) {
             priorityProtocol = `=== PROTOCOLO TABULA RASA (PÁGINA EN BLANCO) ===
 El proyecto "${projectName}" está completamente vacío. No hay documentos subidos ni entidades creadas.
-TU MISIÓN: No supongas nada, no ataques al autor por "vacíos documentales" porque literalmente acaba de empezar. Adopta una postura de Guía Socrático Estricto. Oblígalo a definir la "Santísima Trinidad" narrativa (Reglas del Mundo, Conflicto Central, Defecto del Protagonista). Ofrécele iniciar un "Mega-Roadmap" para construir los cimientos paso a paso.`;
+TU MISIÓN: No supongas nada ni le reproches lo que falta: acaba de empezar. Pregúntale qué historia quiere contar y qué le emociona de ella, y desde ahí ayúdale a encontrar sus primeras piezas (personajes, conflicto, mundo) en el orden que le sirva. Ofrécele una sesión de cimientos si quiere ordenar la base paso a paso.`;
         } else if (worldEntitiesCount === 0 && hasRagContent) {
             priorityProtocol = `=== PROTOCOLO DE CAOS ESTRUCTURAL ===
 Has detectado que el autor tiene documentos y lore escrito (Contexto RAG), pero su Base de Datos de Canon (WorldEntities) está VACÍA. El autor está construyendo sobre arena.
-TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conceptos que mencionan sus propios textos crudos. Si sus textos hablan de una "Magia" o "Facción", ordénale que defina sus reglas, límites, costos y debilidades AHORA. No le permitas avanzar ni cristalizar Roadmaps hasta que no convierta su prosa caótica en un sistema estructural sólido.`;
+TU MISIÓN: Sus notas son su canon aunque no estén en fichas; trabaja con ellas. Si una regla o un concepto importante para lo que está haciendo está a medias (una magia sin costo, una facción sin objetivo), señálalo y ofrécele definirlo, pero no le bloquees el avance ni le exijas formalizar lo que no necesita ahora.`;
         }
 
         // Lógica de Objetivo (Sprint 5.6)
@@ -1597,7 +1598,7 @@ TU MISIÓN: Sé implacable. Enfréntate al autor y exígele formalizar los conce
                     objectivePrompt = "El usuario ha elegido Ingeniería Inversa. Tu objetivo ahora es desgranar el texto que te envíe, extraer sus reglas implícitas y proponer cómo categorizarlas en el canon.";
                     break;
                 case "Mega-Roadmap":
-                    objectivePrompt = "El usuario ha elegido Mega-Roadmap. Tu objetivo es estructurar el mundo desde sus cimientos. Haz preguntas sobre la geografía, el sistema de poder y la herida original del protagonista.";
+                    objectivePrompt = "El usuario quiere ordenar su historia desde los cimientos. Pregunta primero qué historia quiere contar y en qué libro está; luego ve a lo que más le falte para eso (personajes, conflicto, mundo), sin un orden fijo.";
                     break;
                 case "Micro-Roadmap":
                     objectivePrompt = "El usuario ha elegido Micro-Roadmap. Concéntrate exclusivamente en el hueco narrativo específico que el usuario quiere resolver. No te desvíes a otros temas del worldbuilding.";
@@ -2676,7 +2677,7 @@ export const arquitectoCerrarSesion = onCall(
         const text = summary + (savedAs ? `\n\n_Guardé este resumen en ${savedAs} (también lo ves en Obsidian)._` : '');
         const sref = getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId);
         await sref.collection("messages").add({ role: 'ia', text, timestamp: new Date(), arquitectoMode: 'cierre' });
-        await sref.set({ updatedAt: new Date().toISOString(), closedAt: new Date().toISOString(), closingSummary: summary }, { merge: true });
+        await sref.set({ closedAt: new Date().toISOString(), closingSummary: summary }, { merge: true }); // Nov 2026: sin tocar updatedAt (si no, una conversación archivada pasaba a ser «la más reciente»)
         return { summary: text, savedAs: savedAs || null };
     }
 );

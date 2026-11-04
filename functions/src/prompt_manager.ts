@@ -177,39 +177,38 @@ ${chunksText.substring(0, 15000)}
             // ── INSTRUCCIONES DE ENFOQUE ──
             let focusInstructions = '';
             if (focusMode === 'TRIAGE') {
-                focusInstructions = `SISTEMA DE TRIAGE (PRIORIDAD ABSOLUTA):
-Eres un cirujano de historias. Límite estricto: máximo 3-5 disonancias en TOTAL.
-Si los cimientos MACRO están rotos, IGNORA MESO y MICRO. Solo reporta MESO si MACRO es estable. Solo MICRO si MESO es perfecto. No inventes problemas menores para llegar a cuotas.`;
+                focusInstructions = `PRIORIDADES:
+Reporta pocas cosas y solo las que más pesan para lo que el autor está haciendo ahora (de 1 a 5; ninguna si no hay). Empieza por lo que bloquea su objetivo: si trabaja un libro íntimo o de personaje, pueden pesar más los personajes y las escenas que las reglas del mundo; si construye el mundo, al revés. No inventes problemas para llenar.`;
             } else if (focusMode === 'MACRO') {
                 focusInstructions = `MODO MACRO (Worldbuilding y Reglas):
-Ignora COMPLETAMENTE MESO y MICRO. Solo: reglas del mundo, sistemas de magia, física, economía, cosmología, historia y cultura. Genera entre 6-9 disonancias MACRO.`;
+Ignora COMPLETAMENTE MESO y MICRO. Solo: reglas del mundo, sistemas de magia, física, economía, cosmología, historia y cultura. Reporta las que haya de verdad (hasta 9).`;
             } else if (focusMode === 'MESO') {
                 focusInstructions = `MODO MESO (Estructura y Personajes):
-Ignora COMPLETAMENTE MACRO y MICRO. Solo: estructura de trama principal, facciones, política general, arcos de personajes a gran escala. Genera entre 6-9 disonancias MESO.`;
+Ignora COMPLETAMENTE MACRO y MICRO. Solo: estructura de trama principal, facciones, política general, arcos de personajes a gran escala. Reporta las que haya de verdad (hasta 9).`;
             } else if (focusMode === 'MICRO') {
                 focusInstructions = `MODO MICRO (Tono y Detalles):
-Ignora COMPLETAMENTE MACRO y MESO. Solo: acciones específicas de personajes, diálogos y huecos de escenas concretas. Genera entre 6-9 disonancias MICRO.`;
+Ignora COMPLETAMENTE MACRO y MESO. Solo: acciones específicas de personajes, diálogos y huecos de escenas concretas. Reporta las que haya de verdad (hasta 9).`;
             }
 
             // ── INSTRUCCIONES DE SEVERIDAD ──
             let severityInstructions = '';
             if (severityMode !== 'ALL' && focusMode !== 'TRIAGE') {
                 const labels: Record<string, string> = {
-                    HIGH: 'ALTA (críticas, rompen la historia). Entre 6-9 problemas.',
-                    MEDIUM: 'MEDIA (inconsistencias notables pero no fatales). Entre 6-9 problemas.',
-                    LOW: 'BAJA (detalles menores, oportunidades de pulido). Entre 6-9 problemas.'
+                    HIGH: 'ALTA (críticas, rompen la historia). Hasta 9, solo los reales.',
+                    MEDIUM: 'MEDIA (inconsistencias notables pero no fatales). Hasta 9, solo los reales.',
+                    LOW: 'BAJA (detalles menores, oportunidades de pulido). Hasta 9, solo los reales.'
                 };
                 severityInstructions = `FILTRO DE SEVERIDAD: ${labels[severityMode] || ''}`;
             }
 
             // ── OBJETIVO PRINCIPAL ──
-            let mainObjective = `OBJETIVO PRINCIPAL — SIMULADOR DE ESTRÉS NARRATIVO:
-No busques simples "errores lógicos" aburridos. Busca semillas de trama escondidas en las grietas. Tu objetivo es obligar al autor a conectar su mundo con sus personajes y hacer la historia más profunda.`;
+            let mainObjective = `OBJETIVO PRINCIPAL — QUE LA HISTORIA SE SOSTENGA:
+Busca lo que de verdad le sirve al autor ahora: contradicciones, huecos que el lector notaría y también oportunidades (semillas de trama en las grietas). Ayúdale a conectar lo que tiene, sin empujarlo a desarrollar lo que su historia no necesita.`;
 
             if (implementationGoal?.trim()) {
                 mainObjective = `OBJETIVO PRINCIPAL — NORTE TEMÁTICO:
 El autor quiere implementar: "${implementationGoal}"
-Estrés esta idea contra el Canon. Úsala como BRÚJULA. Evalúa todas las disonancias a través de este Norte. ATENCIÓN: Estás liberado de límites numéricos. Genera TODAS las fricciones necesarias (5, 15 o 50) para abarcar la magnitud de lo que el autor quiere construir.`;
+Usa este objetivo como brújula: todo lo que señales debe servirle. Reporta lo que haya que resolver para lograrlo, de lo más importante a lo menos, sin rellenar. Si el objetivo pide otra cosa que una revisión (planear, decidir, entender), responde a eso primero.`;
             }
 
             const fullContext = `
@@ -243,25 +242,34 @@ Genera el análisis completo con disonancias formales según las instrucciones d
 
 ${mainObjective}
 
-APLICA ESTAS TRES DIRECTIVAS ABSOLUTAS:
-1. DIRECTIVA DE ENTROPÍA (Frieren): Si algo es antiguo o eterno, exige saber qué se pudrió, qué se olvidó o qué mito se distorsionó con el tiempo.
-2. DIRECTIVA DE REACCIÓN (Munchkin): Si el autor crea un poder o recurso absoluto, asume que el mundo ya reaccionó. Exige saber quién tiene el monopolio y cómo aplasta a la competencia.
-3. DIRECTIVA DE RESONANCIA TEMÁTICA: Si una regla del mundo no le hace la vida miserable al protagonista o no presiona su herida interna, es una regla inútil. Exige que la conecten con la trama.
+LENTES QUE PUEDES USAR (solo cuando aplican a lo que el autor trabaja; no son obligatorias y no todas sirven para todas las historias):
+1. TIEMPO: si algo es antiguo, pregunta qué se olvidó, qué cambió o qué mito se distorsionó.
+2. REACCIÓN: si existe un poder o recurso enorme, pregunta cómo reaccionó el mundo (quién lo controla, quién queda fuera).
+3. CONEXIÓN: si una regla del mundo no toca a ningún personaje, pregunta si importa para la historia o si es solo fondo (el fondo está bien si no estorba).
+4. PERSONAJE: qué quiere, qué teme, qué le cuesta cada decisión y qué cambia en él.
+5. LECTOR: qué entiende y siente el lector en cada momento, y qué lo confundiría.
+Elige las que sirvan al libro y al objetivo del autor. En una historia íntima o de personaje suelen pesar más la 4 y la 5; en una de mundo y política, la 1 y la 2.
+
+ALCANCE (manda sobre las lentes):
+- Si el autor está trabajando un libro o una parte concreta (p. ej. «el libro de Anna»), cada pregunta y cada duda debe servir a ESE libro: lo que su lector necesita saber o sentir en las escenas de ese libro. No traigas reglas, épocas, facciones o personajes de otros libros de la saga si no afectan lo que pasa en este; si algo de la saga importa, di en una frase cómo toca a este libro.
+- Antes de preguntar por una regla del mundo, comprueba en el canon dónde y cuándo ocurre lo que preguntas (año, lugar, personaje) y que coincide con este libro.
+- Nunca nombres las lentes ni uses jerga: pregunta en lenguaje llano.
+- Máximo tres preguntas, ordenadas de la más importante a la menos, cada una en dos frases como mucho.
 
 ${focusInstructions}
 ${severityInstructions}
 
 ${fullContext}
 
-JERARQUÍA DE RESOLUCIÓN (ORDEN OBLIGATORIO):
+CAPAS (para ordenar, no para imponer):
 - MACRO: Reglas del mundo, sistemas de magia, física, economía, cosmología, historia, cultura.
 - MESO: Estructura de trama principal, facciones, política, arcos de personajes a gran escala.
 - MICRO: Acciones de personajes específicos, diálogos, huecos menores en escenas concretas.
-Las disonancias MACRO van SIEMPRE primero. Si resuelves MACRO, muchos MICRO se resuelven solos.
+Normalmente lo MACRO va primero porque arrastra a lo demás; pero si el autor trabaja un libro o una escena concreta, ordena por lo que más afecta a ese trabajo.
 
 ${outputInstructions}
 
-Genera un "initialMessage" extenso, inmersivo. Diagnóstico brutal pero constructivo del estado de la obra.
+Genera un "initialMessage" claro: diagnóstico honesto y útil del estado de la obra (lo que funciona, lo que no y por dónde seguir). Si el autor pidió algo concreto, respóndele eso primero.
 FORMATO: Markdown. Párrafos cortos. Negritas para conceptos clave. Viñetas si listas.
 
 UBICACIÓN DE CADA PROBLEMA (obligatorio):
@@ -472,39 +480,38 @@ ${chunksText.substring(0, 15000)}
             // ── ENFOQUE INSTRUCTIONS ──
             let focusInstructions = '';
             if (focusMode === 'TRIAGE') {
-                focusInstructions = `TRIAGE SYSTEM (ABSOLUTE PRIORITY):
-You are a story surgeon. Strict limit: maximum 3-5 dissonances in TOTAL.
-If MACRO foundations are broken, IGNORE MESO and MICRO. Only report MESO if MACRO is stable. Only MICRO if MESO is perfect. Do not invent minor problems to reach quotas.`;
+                focusInstructions = `PRIORITIES:
+Report few things, only those that weigh most for what the author is doing now (1 to 5; none if there are none). Start with what blocks their goal: in an intimate or character-driven book, characters and scenes may weigh more than world rules; when building the world, the reverse. Never pad.`;
             } else if (focusMode === 'MACRO') {
                 focusInstructions = `MACRO MODE (Worldbuilding and Rules):
-COMPLETELY ignore MESO and MICRO. Only: world rules, magic systems, physics, economy, cosmology, history, and culture. Generate 6-9 MACRO dissonances.`;
+COMPLETELY ignore MESO and MICRO. Only: world rules, magic systems, physics, economy, cosmology, history, and culture. Report the real ones (up to 9).`;
             } else if (focusMode === 'MESO') {
                 focusInstructions = `MESO MODE (Structure and Characters):
-COMPLETELY ignore MACRO and MICRO. Only: main plot structure, factions, general politics, large-scale character arcs. Generate 6-9 MESO dissonances.`;
+COMPLETELY ignore MACRO and MICRO. Only: main plot structure, factions, general politics, large-scale character arcs. Report the real ones (up to 9).`;
             } else if (focusMode === 'MICRO') {
                 focusInstructions = `MICRO MODE (Tone and Details):
-COMPLETELY ignore MACRO and MESO. Only: specific character actions, dialogues, and minor plot holes in concrete scenes. Generate 6-9 MICRO dissonances.`;
+COMPLETELY ignore MACRO and MESO. Only: specific character actions, dialogues, and minor plot holes in concrete scenes. Report the real ones (up to 9).`;
             }
 
             // ── SEVERITY INSTRUCTIONS ──
             let severityInstructions = '';
             if (severityMode !== 'ALL' && focusMode !== 'TRIAGE') {
                 const labels: Record<string, string> = {
-                    HIGH: 'HIGH (critical, break the story). 6-9 problems.',
-                    MEDIUM: 'MEDIUM (notable inconsistencies but not fatal). 6-9 problems.',
-                    LOW: 'LOW (minor details, polish opportunities). 6-9 problems.'
+                    HIGH: 'HIGH (critical, break the story). Up to 9, only real ones.',
+                    MEDIUM: 'MEDIUM (notable inconsistencies but not fatal). Up to 9, only real ones.',
+                    LOW: 'LOW (minor details, polish opportunities). Up to 9, only real ones.'
                 };
                 severityInstructions = `SEVERITY FILTER: ${labels[severityMode] || ''}`;
             }
 
             // ── MAIN OBJECTIVE ──
-            let mainObjective = `MAIN OBJECTIVE — NARRATIVE STRESS SIMULATOR:
-Do not look for simple, boring "logic errors". Look for plot seeds hidden in the cracks. Your goal is to force the author to connect their world with their characters and deepen the story.`;
+            let mainObjective = `MAIN OBJECTIVE — A STORY THAT HOLDS:
+Look for what actually helps the author now: contradictions, gaps a reader would notice, and opportunities (plot seeds in the cracks). Help them connect what they have, without pushing them to develop what their story doesn't need.`;
 
             if (implementationGoal?.trim()) {
                 mainObjective = `MAIN OBJECTIVE — THEMATIC TRUE NORTH:
 The author wants to implement: "${implementationGoal}"
-Stress test this idea against the Canon. Use it as a COMPASS. Evaluate all dissonances through this True North. WARNING: You are free from numeric limits. Generate ALL necessary frictions (5, 15, or 50) to cover the magnitude of what the author wants to build.`;
+Use this goal as a compass: everything you point out must serve it. Report what must be solved to reach it, most important first, without padding. If the goal asks for something other than a review (planning, deciding, understanding), answer that first.`;
             }
 
             const fullContext = `
@@ -538,25 +545,34 @@ Generate the full analysis with formal dissonances according to focus and severi
 
 ${mainObjective}
 
-APPLY THESE THREE ABSOLUTE DIRECTIVES:
-1. ENTROPY DIRECTIVE (Frieren): If something is ancient or eternal, demand to know what rotted, what was forgotten, or what myth was distorted over time.
-2. REACTION DIRECTIVE (Munchkin): If the author creates an absolute power or resource, assume the world has already reacted. Demand to know who has the monopoly and how they crush the competition.
-3. THEMATIC RESONANCE DIRECTIVE: If a world rule doesn't make the protagonist's life miserable or press their internal wound, it's a useless rule. Demand they connect it to the plot.
+LENSES YOU CAN USE (only when they apply to what the author is working on; they are optional and not all fit every story):
+1. TIME: if something is ancient, ask what was forgotten, what changed or what myth was distorted.
+2. REACTION: if a huge power or resource exists, ask how the world reacted (who controls it, who is left out).
+3. CONNECTION: if a world rule touches no character, ask whether it matters to the story or is just background (background is fine if it doesn't get in the way).
+4. CHARACTER: what they want, what they fear, what each decision costs them and how they change.
+5. READER: what the reader understands and feels at each moment, and what would confuse them.
+Pick the ones that serve the book and the author's goal. In an intimate, character-driven story 4 and 5 usually matter most; in a world-and-politics story, 1 and 2.
+
+SCOPE (overrides the lenses):
+- If the author is working on a specific book or part, every question must serve THAT book: what its reader needs to know or feel in its scenes. Do not bring rules, eras, factions or characters from other books of the saga unless they affect what happens in this one; if they do, say in one sentence how.
+- Before asking about a world rule, check in the canon where and when it happens and that it matches this book.
+- Never name the lenses or use jargon; ask in plain language.
+- At most three questions, most important first, two sentences each at most.
 
 ${focusInstructions}
 ${severityInstructions}
 
 ${fullContext}
 
-RESOLUTION HIERARCHY (MANDATORY ORDER):
+LAYERS (to order, not to impose):
 - MACRO: World rules, magic systems, physics, economy, cosmology, history, culture.
 - MESO: Main plot structure, factions, politics, large-scale character arcs.
 - MICRO: Specific character actions, dialogues, minor plot holes in concrete scenes.
-MACRO dissonances ALWAYS go first. If you resolve MACRO, many MICRO resolve themselves.
+MACRO usually goes first because it drags the rest; but if the author is working on a specific book or scene, order by what most affects that work.
 
 ${outputInstructions}
 
-Generate an extensive, immersive "initialMessage". A brutal but constructive diagnosis of the work's state.
+Generate a clear "initialMessage": an honest, useful diagnosis of the work (what works, what doesn't and where to go next). If the author asked for something specific, answer that first.
 FORMAT: Markdown. Short paragraphs. Bold for key concepts. Bullet points for lists.
 
 WHERE EACH PROBLEM IS (required):

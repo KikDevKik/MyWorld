@@ -125,9 +125,13 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 }
                 // Nov 2026: solo se ofrece la conversación MÁS RECIENTE. Antes se tomaba la primera no archivada,
                 // así que al descartar una aparecía la anterior y parecía que «Descartar» no hacía nada.
-                activeSessionIdsRef.current = sessions.filter((s: any) => s.status !== 'archived').map((s: any) => s.id);
-                const latest = sessions[0];
-                if (!latest || latest.status === 'archived') {
+                // Nov 2026 (2): se toma la más reciente NO archivada. Antes se tomaba sessions[0], pero el resumen de
+                // una conversación archivada le actualizaba la fecha y la ponía primera: la nueva quedaba oculta
+                // («Todavía no hay conversaciones»). Como «Descartar» archiva todas las abiertas, no reaparecen viejas.
+                const open = sessions.filter((s: any) => s.status !== 'archived');
+                activeSessionIdsRef.current = open.map((s: any) => s.id);
+                const latest = open[0];
+                if (!latest) {
                     setExistingSession(null);
                     return;
                 }

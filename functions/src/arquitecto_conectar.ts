@@ -18,7 +18,12 @@ export const SESSIONS_FOLDER = "Sesiones del Arquitecto";
 
 /** Auditoría (disonancias) solo si el autor lo pide; todo lo demás es conectar. */
 export function wantsAudit(goal: string): boolean {
-    return /(inconsisten|contradic|consistencia|auditor|lagunas?|huecos? l[oó]gic|disonanc|errores? (de|en) (mi )?(mundo|lore|sistema))/i.test(goal || "");
+    const g = goal || "";
+    // Nov 2026: planear (sesión de cimientos, estructura, capas, plan del libro) es una conversación, aunque
+    // mencione «contradicciones o huecos» de paso. Antes caía en la auditoría formal (lista de disonancias)
+    // y el Arquitecto respondía con preguntas de reglas del mundo que no tenían que ver con el libro.
+    if (/(cimientos|planear|planificar|plan del libro|estructura|columna de la historia|tres capas|capítulo a capítulo|actos)/i.test(g)) return false;
+    return /(inconsisten|contradic|consistencia|auditor|lagunas?|huecos? l[oó]gic|disonanc|errores? (de|en) (mi )?(mundo|lore|sistema))/i.test(g);
 }
 
 export function connectAvailable(): boolean {
