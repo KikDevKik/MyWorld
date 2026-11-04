@@ -85,8 +85,9 @@ function resolveChains(list: NameDecision[]): NameDecision[] {
         } else out.push({ ...d });
     }
     for (const d of out) {
-        const seen = new Set<string>([f(d.canonical)]);
-        d.others = d.others.filter(o => { const k = f(o); if (seen.has(k)) return false; seen.add(k); return true; });
+        // Se quitan solo los repetidos exactos: «KARLA» o «Psico Energia» son variantes reales que hay que nombrar.
+        const seen = new Set<string>([d.canonical.trim()]);
+        d.others = d.others.filter(o => { const k = o.trim(); if (seen.has(k)) return false; seen.add(k); return true; });
     }
     return out.filter(d => d.others.length > 0);
 }

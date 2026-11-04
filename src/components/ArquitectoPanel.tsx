@@ -808,7 +808,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                                     {renderArq(firstTwoParagraphs)}
                                                 </div>
                                                 <button onClick={() => toggleAccordion(msg.id)}
-                                                    className="mt-3 text-xs text-mira hover:text-mira transition-colors uppercase tracking-wider">
+                                                    className="mt-3 text-xs text-mira hover:text-mira transition-colors">
                                                     Ver todo ({restWordCount} palabras más)
                                                 </button>
                                             </div>
@@ -824,7 +824,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                                     </div>
                                                 </div>
                                                 <button onClick={() => toggleAccordion(msg.id)}
-                                                    className="mt-3 text-xs text-mira hover:text-mira transition-colors uppercase tracking-wider">
+                                                    className="mt-3 text-xs text-mira hover:text-mira transition-colors">
                                                     Ver menos
                                                 </button>
                                             </div>
@@ -837,7 +837,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                     </div>
                                     {isOld && (
                                         <button onClick={() => toggleMessageExpanded(msg.id)}
-                                            className="mb-2 text-xs text-mira hover:text-mira transition-colors uppercase tracking-wider">
+                                            className="mb-2 text-xs text-mira hover:text-mira transition-colors">
                                             {isExpanded ? 'Ver menos' : 'Leer la respuesta completa'}
                                         </button>
                                     )}

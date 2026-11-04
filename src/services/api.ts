@@ -1,3 +1,4 @@
+import { getAuth } from 'firebase/auth';
 import { getFunctions, httpsCallable as firebaseHttpsCallable, HttpsCallableOptions } from 'firebase/functions';
 import { toast } from 'sonner';
 import { getAiLevel } from '../hooks/aiLevel';
@@ -29,6 +30,9 @@ export function getQuotaMessage(): string {
  * Implements the "Injection Protocol" for secure key transport.
  */
 export const callFunction = async <T>(name: string, data: any = {}, options?: HttpsCallableOptions): Promise<T | null> => {
+    // Nov 2026: esperar a que Firebase sepa si hay sesión. Las consultas que salían al abrir la app (conversaciones
+    // del Arquitecto, revisión del canon) se iban sin usuario y volvían vacías.
+    try { await getAuth().authStateReady(); } catch { /* sin auth: sigue igual */ }
     const functions = getFunctions();
 
     // Emulador desactivado — usar funciones en producción

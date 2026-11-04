@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { PendingItem, RoadmapCard, RoadmapImpact } from '../types/roadmap';
 import { getFirestore, collection, query, orderBy, onSnapshot, doc, limit } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { getAuth, onAuthStateChanged } from 'firebase/auth';
 
 export interface ArquitectoMessage {
     id: string;
@@ -117,8 +117,17 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     // Sprint 6.4: Detectar sesión existente al montar (solo una vez)
     useEffect(() => {
         if (isGhostMode) return;
-        callFunction<any[]>('getForgeSessions', { type: 'arquitecto' })
+        // Nov 2026: esperar a que la sesión de Google esté lista. Al abrir la app directo en la mesa, la consulta
+        // salía antes del login, volvía vacía y la mesa decía «Todavía no hay conversaciones» aunque hubiera.
+        let cancelled = false;
+        const unsub = onAuthStateChanged(getAuth(), (u) => {
+            if (!u || cancelled) return;
+            unsub();
+            load();
+        });
+        const load = () => callFunction<any[]>('getForgeSessions', { type: 'arquitecto' })
             .then((sessions) => {
+                if (cancelled) return;
                 if (!sessions || sessions.length === 0) {
                     setExistingSession(null);
                     return;
@@ -149,7 +158,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                     pendingCount: items.filter((i: any) => !i.resolved).length,
                 });
             })
-            .catch(() => setExistingSession(null));
+            .catch(() => { if (!cancelled) setExistingSession(null); });
+        return () => { cancelled = true; unsub(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
