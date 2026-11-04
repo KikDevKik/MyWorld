@@ -1456,6 +1456,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     {!isReportOpen && <MiraDeskCompanion content={selectedFileContent} fileId={currentFileId} isZenMode={isZenMode} arrival={deskArrival} onOpenReport={() => setIsReportOpen(true)} onAskMira={askMiraWhatsNext} />}
                     <StatusBar
                         content={selectedFileContent}
+                        fileId={currentFileId}
                         guardianStatus={canonWatch.status}
                         onGuardianClick={openReport}
                         onOpenSettings={() => {

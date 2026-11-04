@@ -325,11 +325,17 @@ const ProjectSettingsModal: React.FC<ProjectSettingsModalProps> = ({ onClose, ac
                 folderId: "" // Empty root initially
             };
 
+            // Nov 2026: si solo cambió la organización (qué guarda cada carpeta) no hace falta reindexar:
+            // el índice depende de qué carpetas son canon o inspiración, no de su tipo.
+            const idsOf = (l: any[] = []) => l.map(p => p.id).sort().join(',');
+            const pathsChanged = idsOf(canonPaths) !== idsOf(config?.canonPaths) || idsOf(resourcePaths) !== idsOf(config?.resourcePaths);
+
             await updateConfig(newConfig);
+            if (!pathsChanged) toast.success('Guardado. No hace falta reindexar: tus carpetas siguen siendo las mismas.');
 
             // 🟢 TRIGGER MEMORY INDEX REFRESH (Botón de Indexar Automático)
             const token = accessToken;
-            if (token) {
+            if (token && pathsChanged) {
                 try {
                     const allPaths = [...canonPaths, ...resourcePaths];
                     const folderIds = allPaths.map(p => p.id);

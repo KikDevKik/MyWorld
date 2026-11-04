@@ -264,6 +264,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         } | null;
         forcedFocusMode?: 'TRIAGE' | 'MACRO' | 'MESO' | 'MICRO';
         forcedSeverityMode?: 'HIGH' | 'MEDIUM' | 'LOW' | 'ALL';
+        /** Nov 2026: el autor pidió una conversación nueva: no restaurar la anterior. */
+        forceNew?: boolean;
     }) => {
         if (isInitializing || !folderId) return;
         if (!accessToken) {
@@ -276,7 +278,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         // ═══ VERIFICACIÓN DE SESIÓN EXISTENTE ═══
         // Antes de llamar al backend, verificar si hay una sesión reciente
         try {
-            const sessions = await callFunction<any[]>('getForgeSessions', { type: 'arquitecto' });
+            const sessions = options?.forceNew ? [] : await callFunction<any[]>('getForgeSessions', { type: 'arquitecto' });
             
             if (sessions && sessions.length > 0) {
                 const latestSession = sessions[0]; // Ya ordenadas por updatedAt desc
@@ -529,9 +531,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         setProjectSummary('');
         setLastAnalyzedAt(null);
         setCurrentObjective(null);
-
-        // Lanzar inicialización fresca
-        await initialize();
+        // Nov 2026: no se inicializa aquí (eso restauraba la sesión anterior). El panel pide el objetivo
+        // y luego llama a initialize({ forceNew: true }).
     }, [initialize]);
 
     const sendMessage = useCallback(async (text: string, attachment?: { fileName: string; fileData: string; mimeType: string }) => {

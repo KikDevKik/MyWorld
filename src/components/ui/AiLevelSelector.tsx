@@ -63,7 +63,12 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                 <Card id="myworld" icon={<Sparkles size={15} />} title="3 · MyWorld" price={status?.myworldAvailable ? 'Incluido en tu cuenta' : 'Próximamente · con suscripción'} disabled={!status?.myworldAvailable}>
                     <p>Claude incluido: no necesitas clave de pago. MyWorld paga la IA.</p>
                     {status?.myworldAvailable ? (
-                        <p className="text-titanium-300">Este mes: US$ {usd(status.monthCostUsd)} en {status.calls} llamadas{status.capUsd ? ` · tope US$ ${status.capUsd} (al 80% pasa a Haiku)` : ''}.</p>
+                        <>
+                            <div className="mt-1 h-1.5 rounded-full bg-titanium-800 overflow-hidden" aria-hidden="true">
+                                <div className={`h-full rounded-full ${status.capUsd && status.monthCostUsd >= status.capUsd ? 'bg-red-400' : status.capUsd && status.monthCostUsd >= status.capUsd * 0.8 ? 'bg-amber-300' : 'bg-mira'}`} style={{ width: `${Math.min(100, Math.max(3, status.capUsd ? (status.monthCostUsd / status.capUsd) * 100 : 0))}%` }} />
+                            </div>
+                            <p className="text-titanium-300">Este mes: US$ {usd(status.monthCostUsd)} de US$ {status.capUsd || 8} en {status.calls} llamadas. Al 80 % pasa a Haiku; al 100 % sigue con Gemini hasta el 1 del mes siguiente.</p>
+                        </>
                     ) : <p className="text-titanium-500">Lo abriremos cuando estén listos los planes.</p>}
                 </Card>
             </div>

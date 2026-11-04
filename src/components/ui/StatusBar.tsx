@@ -10,9 +10,12 @@ import { useLanguageStore } from '../../stores/useLanguageStore';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import { useMisionesEditor } from '../../hooks/useMisionesEditor';
+import { localDayKey } from '../../utils/dayKey';
+import { useAiUsage, fmtReset } from '../../hooks/useAiUsage';
 
 interface StatusBarProps {
     content: string;
+    fileId?: string | null; // Nov 2026: al cambiar de archivo no se cuenta como escritura
     className?: string;
     guardianStatus?: string;
     onGuardianClick?: () => void;
@@ -36,14 +39,18 @@ const countWords = (html: string) => {
 };
 
 const getTodayKey = () => {
-    const date = new Date().toISOString().split('T')[0];
+    const date = localDayKey();
     return `myword_daily_${date}`;
 };
 
-const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, reportPending = 0, narratorControls }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, reportPending = 0, narratorControls }) => {
     const { tier, hasByok, isNormal } = useTier();
     const aiLevel = getAiLevel();
     const levelLabel = aiLevel === 'gratis' ? 'IA gratis' : aiLevel === 'propia' ? 'IA con tu clave' : aiLevel === 'myworld' ? 'IA de MyWorld' : null;
+    // Nov 2026: cuánto Claude queda este mes (solo en el nivel MyWorld).
+    const usage = useAiUsage();
+    const showUsage = !!usage?.myworldAvailable && aiLevel === 'myworld';
+    const usagePct = showUsage ? Math.min(100, Math.round((usage!.ratio) * 100)) : 0;
     const { currentLanguage } = useLanguageStore();
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const t = TRANSLATIONS[currentLanguage].statusBar;
@@ -89,10 +96,17 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
     }, []);
 
     // 🟢 TRACK CHANGES & UPDATE METRICS
+    // Nov 2026: abrir otro archivo cambia el conteo, pero no es escribir. Al cambiar de archivo solo se reinicia la base.
+    const lastFileRef = React.useRef(fileId);
     useEffect(() => {
         const currentCount = countWords(content);
         setWordCount(currentCount);
         setReadingTime(Math.ceil(currentCount / 200));
+        if (lastFileRef.current !== fileId) {
+            lastFileRef.current = fileId;
+            setPrevWordCount(currentCount);
+            return;
+        }
 
         // Calculate Delta for Daily Goal (Positive adds, Negative removes, Bulk ignored)
         const delta = currentCount - prevWordCount;
@@ -112,7 +126,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
             setPrevWordCount(currentCount);
         }
 
-    }, [content]);
+    }, [content, fileId]);
 
     const handleGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = parseInt(e.target.value);
@@ -152,7 +166,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                     onClick={onOpenSettings}
                     className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors
                         ${!hasByok ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-zinc-700/50'}`}
-                    title={!hasByok ? t.noApiKeyTooltip : levelLabel ? `Nivel de IA: ${levelLabel} — click para cambiar` : tier === 'ultra' ? t.ultraModeTooltip : t.normalModeTooltip}
+                    title={!hasByok ? t.noApiKeyTooltip : showUsage ? `Claude este mes: US$ ${usage!.spent.toFixed(2)} de US$ ${usage!.cap} (${usagePct} %)${usagePct >= 100 ? ' · agotado: MyWorld usa Gemini' : usagePct >= 80 ? ' · ahora con Haiku para estirarlo' : ''} · se renueva el ${fmtReset(usage!.resetsOn, currentLanguage)}` : levelLabel ? `Nivel de IA: ${levelLabel} — click para cambiar` : tier === 'ultra' ? t.ultraModeTooltip : t.normalModeTooltip}
+                    aria-label={showUsage ? `Claude este mes: ${usagePct} por ciento usado` : undefined}
                 >
                     {!hasByok ? (
                         <>
@@ -163,6 +178,17 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                         <>
                             <Zap size={11} className="text-violet-400" />
                             <span className="text-xs font-medium text-violet-400">{levelLabel || 'Ultra'}</span>
+                        </>
+                    ) : showUsage ? (
+                        <>
+                            <Leaf size={12} className={usagePct >= 100 ? 'text-red-400' : usagePct >= 80 ? 'text-amber-300' : 'text-titanium-400'} />
+                            <span className={`text-xs ${usagePct >= 100 ? 'text-red-300' : usagePct >= 80 ? 'text-amber-200' : 'text-titanium-300'}`}>
+                                {usagePct >= 100 ? 'Claude agotado' : levelLabel}
+                            </span>
+                            <span className="relative w-12 h-1.5 rounded-full bg-titanium-800 overflow-hidden" aria-hidden="true">
+                                <span className={`absolute inset-y-0 left-0 rounded-full ${usagePct >= 100 ? 'bg-red-400' : usagePct >= 80 ? 'bg-amber-300' : 'bg-mira'}`} style={{ width: `${Math.max(3, usagePct)}%` }} />
+                            </span>
+                            <span className="text-xs tabular-nums text-titanium-400">{usagePct} %</span>
                         </>
                     ) : (
                         <>

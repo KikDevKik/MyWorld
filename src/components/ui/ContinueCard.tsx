@@ -6,6 +6,7 @@ import { useMisionesEditor } from '../../hooks/useMisionesEditor';
 import { MiraSprite } from '../mira/MiraSprite';
 import { getTips } from '../mira/tips';
 import { readLastDoc, LastDoc } from '../../utils/lastDoc';
+import { localDayKey } from '../../utils/dayKey';
 
 // La Casa: lo primero que ves al entrar a un proyecto con historia.
 // Nov 2026: Mira te dice dónde lo dejaste y qué sigue (según el plan de la mesa del arquitecto), con un botón para
@@ -50,7 +51,7 @@ function weekActivity(): number[] {
     const dow = (now.getDay() + 6) % 7; // lunes = 0
     return Array.from({ length: 7 }, (_, i) => {
         const d = new Date(now); d.setDate(now.getDate() - dow + i);
-        try { return parseInt(localStorage.getItem(`myword_daily_${d.toISOString().split('T')[0]}`) || '0', 10) || 0; } catch { return 0; }
+        try { return parseInt(localStorage.getItem(`myword_daily_${localDayKey(d)}`) || '0', 10) || 0; } catch { return 0; }
     });
 }
 

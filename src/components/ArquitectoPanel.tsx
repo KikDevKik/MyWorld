@@ -104,6 +104,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         sessionResolved,
         generateRoadmap,
         appendAssistantMessage,
+        roadmapCards,
     } = useArquitecto({ accessToken, folderId });
 
     // Compute which assistant messages are "old" (2+ exchanges from the latest)
@@ -203,7 +204,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         try {
             await initialize({
                 implementationGoal: goal,
-                culturalDocument: culturalFile || null
+                culturalDocument: culturalFile || null,
+                forceNew: true, // el autor eligió empezar: no restaurar la conversación anterior
             });
             setPanelView('chat');
         } catch (e) {
@@ -216,11 +218,22 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
     const handleReinitConfirm1 = () => setReinitStep(2);
 
+    // Nov 2026: antes de empezar otra, se guarda el resumen de la anterior (decisiones y dudas) para que no se pierda.
+    const summarizeInBackground = (sid?: string | null) => {
+        if (!sid) return;
+        callFunction('arquitectoCerrarSesion', { sessionId: sid, accessToken }, { timeout: 180000 }).catch(() => { /* si falla, la conversación sigue guardada */ });
+    };
     const handleReinitConfirm2 = async () => {
         setReinitStep(0);
         setPanelView('reinitializing');
+        summarizeInBackground(arquitectoSessionId);
         await reinitialize();
-        setPanelView('welcome');
+        setPanelView('intention');
+    };
+    const handleStartFresh = async () => {
+        summarizeInBackground(existingSession?.id);
+        await reinitialize();
+        setPanelView('intention');
     };
 
     const handleReinitCancel = () => setReinitStep(0);
@@ -557,7 +570,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     <div className="flex-1 flex items-center justify-center w-full">
                         <WelcomeState
                             projectName={projectName}
-                            onStart={() => setPanelView('intention')}
+                            onStart={() => (existingSession ? handleStartFresh() : setPanelView('intention'))}
                             onResume={handleResume}
                             onDiscard={handleDiscard}
                             lastSessionDate={lastAnalyzedAt
@@ -818,20 +831,12 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'domino' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Network size={20} />
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
-                                Efecto Dominó
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+                                Efecto dominó: qué cambia si cambias algo
                             </span>
                         </button>
 
-                        <button
-                            onClick={() => setActiveTool(activeTool === 'personajes' ? 'none' : 'personajes')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'personajes' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'personajes' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
-                        >
-                            <Users size={20} />
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
-                                Personajes
-                            </span>
-                        </button>
+                        {/* Nov 2026: «Personajes» quitado: era un marcador vacío. Los personajes viven en El fichero. */}
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'patches' ? 'none' : 'patches')}
@@ -846,8 +851,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 </span>
                             )}
 
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
-                                Parches de Canon
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
+                                Cambios propuestos al canon
                             </span>
                         </button>
 
@@ -856,8 +861,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'map' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Map size={20} />
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
-                                Mapa de Colisiones
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+                                Mapa de dudas por capa
                             </span>
                         </button>
 
@@ -866,8 +871,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'lore' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Book size={20} />
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
-                                Roadmap Final
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+                                El plan (roadmap)
                             </span>
                         </button>
 
@@ -876,7 +881,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'settings' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
                         >
                             <Settings size={20} />
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
                                 Ajustes
                             </span>
                         </button>
@@ -888,7 +893,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             className="w-10 h-10 flex items-center justify-center rounded-full transition-all group relative text-titanium-600 hover:text-cyan-400 hover:bg-titanium-800/50"
                         >
                             <HelpCircle size={18} />
-                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-[11px] font-mono uppercase tracking-wider text-titanium-300 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
                                 Tour del panel
                             </span>
                         </button>
@@ -975,7 +980,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 icon={<Network size={16} />}
                 onClose={() => setActiveTool('none')}
             >
-                {activeTool === 'domino' && <EfectoDomino onClose={() => setActiveTool('none')} />}
+                {activeTool === 'domino' && <EfectoDomino onClose={() => setActiveTool('none')} roadmapCards={roadmapCards} />}
             </SlideUpPanel>
 
             <SlideUpPanel

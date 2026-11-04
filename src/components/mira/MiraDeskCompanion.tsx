@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MiraSprite, MiraBubble, MiraPose } from './MiraSprite';
 import { getTips, getMiraPrefs, setMiraPrefs, MiraPrefs } from './tips';
 import { useLanguageStore } from '../../stores/useLanguageStore';
+import { localDayKey } from '../../utils/dayKey';
 
 /**
  * Mira en el escritorio.
@@ -14,7 +15,7 @@ import { useLanguageStore } from '../../stores/useLanguageStore';
 const IDLE_MS = 5 * 60 * 1000;
 const LONG_AWAY_MS = 20 * 60 * 1000;
 const LONG_SESSION_MS = 50 * 60 * 1000;
-const todayKey = () => `myword_daily_${new Date().toISOString().split('T')[0]}`;
+const todayKey = () => `myword_daily_${localDayKey()}`;
 
 type Bubble = { title?: string; text: string; rest?: boolean; until?: number; arrival?: boolean };
 
@@ -86,14 +87,14 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
     // Ritual: una vez al día, al abrir un archivo
     useEffect(() => {
         if (!fileId || !prefs.ritual) return;
-        const k = 'mw-ritual-' + new Date().toISOString().split('T')[0];
+        const k = 'mw-ritual-' + localDayKey();
         try { if (!localStorage.getItem(k)) { setRitual(true); localStorage.setItem(k, '1'); } } catch { /* */ }
     }, [fileId, prefs.ritual]);
 
     // Llegada: una vez al día por archivo, cuando ya no está el ritual, Mira repasa lo pendiente.
     useEffect(() => {
         if (!fileId || ritual || !arrival || !arrival.items.length) return;
-        const k = `mw-arrival-${fileId}-${new Date().toISOString().split('T')[0]}`;
+        const k = `mw-arrival-${fileId}-${localDayKey()}`;
         try { if (localStorage.getItem(k)) return; } catch { /* */ }
         const id = window.setTimeout(() => {
             try { localStorage.setItem(k, '1'); } catch { /* */ }
