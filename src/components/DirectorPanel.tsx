@@ -36,6 +36,7 @@ interface DirectorPanelProps {
     driftAlerts?: any;
     accessToken?: string | null;
     onInsertContent?: (text: string) => void;
+    variant?: 'panel' | 'dialog';
 }
 
 export const DirectorPanel: React.FC<DirectorPanelProps> = ({
@@ -52,7 +53,8 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     folderId,
     accessToken,
     driftAlerts,
-    onInsertContent
+    onInsertContent,
+    variant = 'panel'
 }) => {
     // 🟢 GLOBAL STORE
     const { isArsenalWide, toggleArsenalWidth, directorWidth } = useLayoutStore();
@@ -214,7 +216,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     if (!hasByok) return <AIMotorBlockedOverlay toolName="El Director" />;
 
     return (
-        <div className="w-full h-full bg-titanium-950/95 flex flex-col overflow-hidden animate-in slide-in-from-right duration-300 relative">
+        <div className={`w-full h-full bg-titanium-950/95 flex flex-col overflow-hidden relative ${variant === 'dialog' ? '' : 'animate-in slide-in-from-right duration-300'}`}>
 
             <SessionManagerModal
                 isOpen={isSessionManagerOpen}

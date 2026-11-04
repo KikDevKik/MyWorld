@@ -16,7 +16,10 @@ const LONG_AWAY_MS = 20 * 60 * 1000;
 const LONG_SESSION_MS = 50 * 60 * 1000;
 const todayKey = () => `myword_daily_${new Date().toISOString().split('T')[0]}`;
 
-type Bubble = { title?: string; text: string; rest?: boolean; until?: number };
+type Bubble = { title?: string; text: string; rest?: boolean; until?: number; arrival?: boolean };
+
+/** Nov 2026: al entrar al escritorio Mira repasa lo pendiente (plan y reporte) y pregunta cómo seguir. */
+export interface DeskArrival { items: string[]; hasReport: boolean }
 
 const T = {
     es: {
@@ -27,6 +30,8 @@ const T = {
         ritualT: 'Antes de empezar', ritualP: 'Diez segundos que ayudan a no perderse.', r1: 'Teléfono en otra habitación', r2: 'Agua cerca', r3: (g: number) => `Meta de hoy: ${g} palabras`,
         start: 'Empezar', skip: 'Saltar', never: 'No volver a mostrar',
         opts: 'Opciones de Mira', oTips: 'Tips al despertar', oRitual: 'Ritual antes de escribir', oHide: 'Ocultar a Mira',
+        talk: 'Hablar con Mira', arrT: 'Antes de seguir', arrQ: '¿Sigues escribiendo o resolvemos pendientes?',
+        aWrite: 'Seguir escribiendo', aReport: 'Ver el reporte', aNext: '¿Qué sigue?',
     },
     en: {
         miraAria: 'Mira, your companion. Open her options', back: 'Welcome back', backText: (s: string) => `You were at: “${s}”. Carry on whenever you like.`,
@@ -36,6 +41,8 @@ const T = {
         ritualT: 'Before you start', ritualP: 'Ten seconds that help you stay on track.', r1: 'Phone in another room', r2: 'Water nearby', r3: (g: number) => `Today’s goal: ${g} words`,
         start: 'Start', skip: 'Skip', never: 'Don’t show again',
         opts: 'Mira’s options', oTips: 'Tips when she wakes up', oRitual: 'Ritual before writing', oHide: 'Hide Mira',
+        talk: 'Talk to Mira', arrT: 'Before you go on', arrQ: 'Keep writing or sort out what’s pending?',
+        aWrite: 'Keep writing', aReport: 'See the report', aNext: 'What’s next?',
     },
 };
 
@@ -47,9 +54,9 @@ const lastSentence = (s: string) => {
     return last.length > 90 ? '…' + last.slice(-90) : last;
 };
 
-interface Props { content: string; fileId?: string | null; isZenMode?: boolean }
+interface Props { content: string; fileId?: string | null; isZenMode?: boolean; arrival?: DeskArrival | null; onOpenReport?: () => void; onAskMira?: (msg?: string) => void }
 
-const MiraDeskCompanion: React.FC<Props> = ({ content, fileId }) => {
+const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenReport, onAskMira }) => {
     const lang = useLanguageStore(s => s.currentLanguage) === 'es' ? 'es' : 'en';
     const t = T[lang];
     const tips = useMemo(() => getTips(lang), [lang]);
@@ -82,6 +89,19 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId }) => {
         const k = 'mw-ritual-' + new Date().toISOString().split('T')[0];
         try { if (!localStorage.getItem(k)) { setRitual(true); localStorage.setItem(k, '1'); } } catch { /* */ }
     }, [fileId, prefs.ritual]);
+
+    // Llegada: una vez al día por archivo, cuando ya no está el ritual, Mira repasa lo pendiente.
+    useEffect(() => {
+        if (!fileId || ritual || !arrival || !arrival.items.length) return;
+        const k = `mw-arrival-${fileId}-${new Date().toISOString().split('T')[0]}`;
+        try { if (localStorage.getItem(k)) return; } catch { /* */ }
+        const id = window.setTimeout(() => {
+            try { localStorage.setItem(k, '1'); } catch { /* */ }
+            setPose('neutral');
+            setBubble({ title: t.arrT, text: '', arrival: true });
+        }, 1200);
+        return () => window.clearTimeout(id);
+    }, [fileId, ritual, arrival?.items.join('|')]);
 
     // Reloj: dormirse tras 5 min sin escribir; sugerir descanso tras sesión larga
     useEffect(() => {
@@ -117,7 +137,7 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId }) => {
                 setBubble({ title: tip.title, text: tip.text, until: now + 9000 });
             }
             setBubbleChars(0);
-        } else if (bubble && !bubble.rest) {
+        } else if (bubble && !bubble.rest && !bubble.arrival) {
             setBubbleChars(c => { if (c > 14) setBubble(null); return c + 1; });
         }
 
@@ -159,9 +179,22 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId }) => {
 
             <div className="absolute right-5 bottom-12 z-30 flex items-end gap-2 pointer-events-none">
                 {bubble && (
-                    <div className="pointer-events-auto mb-16 max-w-[290px] transition-opacity duration-300" style={{ opacity: bubble.rest ? 1 : Math.max(0.35, 1 - bubbleChars / 16) }}>
+                    <div className={`pointer-events-auto mb-16 ${bubble.arrival ? 'max-w-[340px]' : 'max-w-[290px]'} transition-opacity duration-300`} style={{ opacity: bubble.rest || bubble.arrival ? 1 : Math.max(0.35, 1 - bubbleChars / 16) }}>
                         <MiraBubble title={bubble.title} tail="right" live>
                             {bubble.text}
+                            {bubble.arrival && arrival && (
+                                <>
+                                    <ul className="space-y-1.5">
+                                        {arrival.items.map((it, i) => <li key={i} className="flex gap-2"><span aria-hidden className="mt-[7px] w-1.5 h-1.5 shrink-0 bg-mira" />{it}</li>)}
+                                    </ul>
+                                    <p className="mt-2 font-medium">{t.arrQ}</p>
+                                    <div className="flex flex-wrap gap-2 mt-3">
+                                        <button type="button" onClick={() => { setBubble(null); lastType.current = Date.now(); }} className="min-h-[36px] px-4 rounded-full bg-coral text-on-coral font-semibold text-sm">{t.aWrite}</button>
+                                        {arrival.hasReport && onOpenReport && <button type="button" onClick={() => { setBubble(null); onOpenReport(); }} className="min-h-[36px] px-4 rounded-full border border-titanium-600 text-titanium-100 text-sm">{t.aReport}</button>}
+                                        {onAskMira && <button type="button" onClick={() => { setBubble(null); onAskMira(); }} className="min-h-[36px] px-4 rounded-full border border-titanium-600 text-titanium-100 text-sm">{t.aNext}</button>}
+                                    </div>
+                                </>
+                            )}
                             {bubble.rest && (
                                 <div className="flex flex-wrap gap-2 mt-3">
                                     <button type="button" onClick={() => { setBubble({ title: t.resting, text: t.restingText, until: Date.now() + 5000 }); setPose('dormida'); }} className="min-h-[38px] px-4 rounded-full bg-coral text-on-coral font-semibold text-sm">{t.rest}</button>
@@ -181,6 +214,7 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId }) => {
                     {pose === 'dormida' && <span aria-hidden className="absolute -right-1 -top-4 font-mono font-bold text-mira animate-pulse">z Z</span>}
                     {menu && (
                         <div className="absolute right-0 bottom-full mb-2 w-60 bg-titanium-800 border border-titanium-700 rounded-xl p-2 shadow-2xl">
+                            {onAskMira && <button type="button" onClick={() => { setMenu(false); onAskMira(''); }} className="w-full text-left min-h-[40px] px-2 rounded-lg hover:bg-titanium-700 text-sm font-semibold text-titanium-100">{t.talk}</button>}
                             <div className="px-2 py-1 text-xs font-semibold text-titanium-300">{t.opts}</div>
                             {([['tipsOnWake', t.oTips], ['ritual', t.oRitual]] as const).map(([k, l]) => (
                                 <button key={k} type="button" role="switch" aria-checked={prefs[k]} onClick={() => setPrefs(setMiraPrefs({ [k]: !prefs[k] }))}

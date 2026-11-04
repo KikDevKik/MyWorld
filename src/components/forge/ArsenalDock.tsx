@@ -13,9 +13,10 @@ interface ArsenalDockProps {
     onToggleSentinel?: () => void; // 🟢 NEW PROP
     onOpenReport?: () => void; // Oct 2026: Reporte (incluye Tribunal y Guardián)
     reportActive?: boolean;
+    reportPending?: number;
 }
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive, reportPending = 0 }) => {
     const { currentLanguage } = useLanguageStore();
     const tTools = TRANSLATIONS[currentLanguage].tools;
 
@@ -89,6 +90,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                         aria-label={es ? 'El estudio' : 'The study'}
                     >
                         <FileSearch size={20} />
+                        {reportPending > 0 && <span aria-label={`${reportPending} pendientes`} className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-on-coral text-[11px] font-bold leading-[18px] text-center">{reportPending > 99 ? '99+' : reportPending}</span>}
                     </button>
                 )}
             </div>

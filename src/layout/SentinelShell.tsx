@@ -15,7 +15,8 @@ interface SentinelShellProps {
 const HEAVY_TOOLS: string[] = ['forja', 'perforador', 'laboratorio', 'cronograma', 'imprenta', 'arquitecto'];
 
 // 🟢 SIDE TOOLS: Render in Zone C (Overlay or Split)
-const SIDE_TOOLS: string[] = ['director', 'tribunal', 'guardian', 'chat', 'sentinel'];
+// Nov 2026: Mira (director) ya no es panel lateral: se abre como ventana central (MiraDialog).
+const SIDE_TOOLS: string[] = ['tribunal', 'guardian', 'chat', 'sentinel'];
 
 const SentinelShell: React.FC<SentinelShellProps> = ({
     sidebar,
@@ -87,8 +88,6 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
         showSidebar = false;
     } else if (HEAVY_TOOLS.includes(activeView)) {
         showSidebar = false;
-    } else if (activeView === 'director' && isDirectorMaximized) {
-        showSidebar = false;
     }
     // Default is true (Editor, Director Standard, Chat, etc.)
 
@@ -143,7 +142,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
     }
 
     // 🟢 SHOW DRAG HANDLE FOR RESIZABLE TOOLS
-    const isResizable = ['director', 'tribunal', 'guardian'].includes(activeView);
+    const isResizable = ['tribunal', 'guardian'].includes(activeView);
 
     return (
         <div

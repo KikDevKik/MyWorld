@@ -15,7 +15,7 @@ import { GoogleGenerativeAI, TaskType, SchemaType } from "./utils/genai";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { textHash } from "./utils/text_hash";
 import { smartGenerateContent } from "./utils/smart_generate";
-import { claudeEnabledForCurrentUser, myworldClaudeAvailable, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, monthlyCapUsd } from "./utils/claude_router";
+import { claudeEnabledForCurrentUser, myworldClaudeAvailable, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, REWRITE_RULE, monthlyCapUsd } from "./utils/claude_router";
 import { getMemoryContext } from "./utils/memory_store";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
@@ -834,7 +834,15 @@ export const addForgeMessage = onCall(
       });
 
       // Update session heartbeat
-      await sessionRef.set({ lastActivity: FieldValue.serverTimestamp() }, { merge: true });
+      // Nov 2026: la lista de conversaciones muestra de qué se habló y cuántos mensajes hay (antes «…» y «- msgs»).
+      const clean = String(text || "").replace(/^\s*\[mira:[a-záéíóú]+\]\s*/i, "").replace(/\s+/g, " ").trim();
+      const extra: Record<string, any> = { lastActivity: FieldValue.serverTimestamp(), updatedAt: new Date().toISOString(), messageCount: FieldValue.increment(1) };
+      if (clean) extra.lastMessageSnippet = clean.slice(0, 160);
+      if (role === "user" && clean && !clean.startsWith("[")) {
+        const snap = await sessionRef.get();
+        if (!(snap.data() as any)?.firstUserMessage) extra.firstUserMessage = clean.slice(0, 140);
+      }
+      await sessionRef.set(extra, { merge: true });
 
       return { success: true };
     } catch (error: any) {
@@ -2022,7 +2030,7 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         if (activeFolder) logger.info(`📂 [DIRECTOR] Libro "${bookFolder}": ${bookChunks.length} fragmentos extra (${[...new Set(bookChunks.map(c => c.fileName))].join(', ')}); en la búsqueda general: ${diverse.filter(c => inFolder(c) > 0).length}`);
         const claudeChunks = ranked.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
         const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
-        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
+        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${REWRITE_RULE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
         // Memoria de MyWorld: fuera de la caché (cambia cuando se guarda algo nuevo)
         const myworldMemory = await getMemoryContext(userId, `${finalQuery} ${activeFileName || ''} ${(activeFileContent || '').slice(0, 3000)}`);
         // Quitar bloques <thinking> de respuestas anteriores (también provocan el bloqueo de Claude)

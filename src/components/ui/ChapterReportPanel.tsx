@@ -21,7 +21,82 @@ const TIPO_LABEL: Record<string, string> = { pov: 'punto de vista', continuidad:
 interface Voice { veredicto: string; lectura: string; nota?: number; citas?: string[] }
 interface Voices { arquitecto?: Voice; bardo?: Voice; hater?: Voice }
 interface Contradiction { tipo: string; gravedad: 'alta' | 'media' | 'baja'; titulo: string; explicacion: string; citaCapitulo?: string; citaCanon?: string; fuente?: string; sugerencia?: string }
-interface CanonCheck { resumen: string; contradicciones: Contradiction[]; dudas: { pregunta: string; citaCapitulo?: string; fuente?: string }[]; archivos?: string[] }
+interface Doubt { pregunta: string; citaCapitulo?: string; fuente?: string; resuelta?: boolean; estado?: string; decision?: string; chat?: { role: 'autor' | 'mira'; text: string }[]; cambio?: { archivo?: string; texto?: string } | null; llevarA?: string; aplicadoEn?: string }
+interface CanonCheck { resumen: string; contradicciones: Contradiction[]; dudas: Doubt[]; archivos?: string[] }
+
+// Nov 2026: cada duda del Guardián se responde en un minichat con Mira. Si se resuelve, queda en la memoria;
+// si cambia un archivo del canon, Mira propone el texto y se añade con un clic; si toca la estructura, va al Arquitecto.
+function DoubtItem({ d, index, fileId, fileName, accessToken, onUpdate, goBtn, onAskArquitecto }: { d: Doubt; index: number; fileId: string; fileName: string; accessToken?: string | null; onUpdate: (dudas: Doubt[]) => void; goBtn: React.ReactNode; onAskArquitecto?: (text: string) => void }) {
+    const [open, setOpen] = useState(false);
+    const [draft, setDraft] = useState('');
+    const [busy, setBusy] = useState<'' | 'chat' | 'apply'>('');
+    const chat = d.chat || [];
+    const send = async () => {
+        const text = draft.trim();
+        if (!text) return;
+        setBusy('chat');
+        try {
+            const r = await callFunction<any>('chapterReport', { mode: 'duda', fileId, fileName, index, mensajes: [...chat, { role: 'autor', text }], accessToken: accessToken || undefined }, { timeout: 120000 });
+            if (r?.dudas) onUpdate(r.dudas);
+            setDraft('');
+        } catch (e: any) { toast.error(e?.message || 'Mira no pudo responder.'); }
+        finally { setBusy(''); }
+    };
+    const apply = async () => {
+        setBusy('apply');
+        try {
+            const r = await callFunction<any>('chapterReport', { mode: 'aplicarDuda', fileId, fileName, index, accessToken: accessToken || undefined });
+            if (r?.dudas) onUpdate(r.dudas);
+            toast.success(`Añadido a «${r?.archivo || d.cambio?.archivo}».`);
+        } catch (e: any) { toast.error(e?.message || 'No se pudo guardar el cambio.'); }
+        finally { setBusy(''); }
+    };
+    if (d.resuelta) {
+        return (
+            <div className="rounded-md border border-titanium-800 bg-titanium-950/40 p-2">
+                <p className="flex items-start gap-1.5 text-titanium-400"><Check size={12} className="mt-0.5 shrink-0 text-logro" /><span className="line-through decoration-titanium-600">{d.pregunta}</span></p>
+                {d.decision && <p className="mt-1 pl-[18px] text-titanium-200">{d.decision}{d.aplicadoEn ? <span className="text-titanium-500"> · añadido a {d.aplicadoEn}</span> : null}</p>}
+            </div>
+        );
+    }
+    return (
+        <div className="rounded-md bg-titanium-950/40 p-2 space-y-2">
+            <div className="flex items-start gap-1.5">
+                <p className="flex-1">{d.pregunta}{d.fuente ? <span className="text-titanium-600"> · {d.fuente}</span> : null}</p>
+                {goBtn}
+            </div>
+            {!open && !chat.length && <button onClick={() => setOpen(true)} className="text-[12px] font-medium text-mira hover:underline">Responder</button>}
+            {(open || chat.length > 0) && (
+                <div className="space-y-2 border-t border-titanium-800 pt-2">
+                    {chat.map((m, i) => (
+                        <p key={i} className={m.role === 'mira' ? 'rounded-lg rounded-bl-sm bg-mira-bg border border-mira/40 px-2.5 py-1.5 text-titanium-100' : 'ml-6 rounded-lg rounded-br-sm bg-titanium-800 px-2.5 py-1.5 text-titanium-200'}>{m.text}</p>
+                    ))}
+                    {d.estado === 'cambio' && d.cambio?.texto && (
+                        <div className="rounded-lg border border-dashed border-mira/50 p-2 space-y-1.5">
+                            <p className="text-[11px] text-titanium-400">Propuesta para «{d.cambio.archivo || d.fuente}»:</p>
+                            <p className="whitespace-pre-wrap text-titanium-200">{d.cambio.texto}</p>
+                            <div className="flex flex-wrap gap-2">
+                                <button onClick={apply} disabled={!!busy} className="rounded-lg bg-coral px-2.5 py-1 text-[12px] font-semibold text-on-coral disabled:opacity-50">{busy === 'apply' ? 'Guardando…' : `Añadir a «${d.cambio.archivo || d.fuente}»`}</button>
+                            </div>
+                        </div>
+                    )}
+                    {d.llevarA === 'arquitecto' && onAskArquitecto && (
+                        <button onClick={() => onAskArquitecto(`Tengo una duda del canon sobre «${fileName}»: ${d.pregunta}\n\nLo que decidí con Mira: ${d.decision || chat.filter(m => m.role === 'autor').map(m => m.text).join(' ')}\n\n¿Cómo afecta esto la estructura del libro y qué capítulos habría que ajustar o reescribir?`)}
+                            className="text-[12px] font-medium text-mira hover:underline">Hablarlo con el Arquitecto</button>
+                    )}
+                    <div className="flex items-end gap-1.5">
+                        <label className="sr-only" htmlFor={`duda-${index}`}>Tu respuesta</label>
+                        <textarea id={`duda-${index}`} value={draft} onChange={e => setDraft(e.target.value)} rows={2} autoFocus={open && !chat.length}
+                            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+                            placeholder={chat.length ? 'Responde a Mira…' : 'Tu respuesta: qué es cierto en tu historia…'}
+                            className="flex-1 resize-none rounded-lg border border-titanium-700 bg-titanium-900 p-2 text-[13px] text-titanium-100 placeholder-titanium-500 focus:border-mira/70 focus-visible:outline-none" />
+                        <button onClick={send} disabled={!!busy || !draft.trim()} className="rounded-lg bg-coral px-3 py-2 text-[12px] font-semibold text-on-coral disabled:opacity-40">{busy === 'chat' ? <Loader2 size={13} className="animate-spin" /> : 'Enviar'}</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 type Extra = 'voices' | 'canon';
 const VOICE_META: { key: keyof Voices; nombre: string; enfoque: string; color: string }[] = [
     { key: 'arquitecto', nombre: 'El Arquitecto', enfoque: 'estructura y lógica', color: 'text-sky-300' },
@@ -39,6 +114,7 @@ interface Props {
     reveal: (from: number, to: number) => void;
     replace: (from: number, to: number, text: string) => void;
     onClose: () => void;
+    onAskArquitecto?: (text: string) => void;
 }
 
 const GRAVEDAD: Record<string, string> = {
@@ -47,7 +123,7 @@ const GRAVEDAD: Record<string, string> = {
     baja: 'bg-titanium-700/40 text-titanium-300 border-titanium-600/40',
 };
 
-export default function ChapterReportPanel({ fileId, fileName, accessToken, watchAlerts = [], getText, reveal, replace, onClose }: Props) {
+export default function ChapterReportPanel({ fileId, fileName, accessToken, watchAlerts = [], getText, reveal, replace, onClose, onAskArquitecto }: Props) {
     const [report, setReport] = useState<Report | null>(null);
     const [meta, setMeta] = useState<{ createdAt?: string; contentHash?: string }>({});
     const [loading, setLoading] = useState(true);
@@ -299,12 +375,12 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
             ))}
             {!!canon.dudas?.length && (
                 <div className="space-y-1.5 pt-1">
-                    <p className="flex items-center gap-1 text-[10px] uppercase tracking-wider text-titanium-500"><HelpCircle size={11} /> Dudas para ti</p>
+                    <p className="flex items-center gap-1 text-[11px] font-semibold text-titanium-400"><HelpCircle size={11} /> Dudas para ti ({canon.dudas.filter(x => !x.resuelta).length} por resolver)</p>
                     {canon.dudas.map((d, i) => (
-                        <div key={i} className="flex items-start gap-1.5 rounded-md bg-titanium-950/40 p-2">
-                            <p className="flex-1">{d.pregunta}{d.fuente ? <span className="text-titanium-600"> · {d.fuente}</span> : null}</p>
-                            {d.citaCapitulo && <GoBtn quote={d.citaCapitulo} />}
-                        </div>
+                        <DoubtItem key={i} d={d} index={i} fileId={fileId} fileName={fileName} accessToken={accessToken}
+                            onUpdate={(dudas) => setCanon(c => (c ? { ...c, dudas } : c))}
+                            goBtn={d.citaCapitulo ? <GoBtn quote={d.citaCapitulo} /> : null}
+                            onAskArquitecto={onAskArquitecto} />
                     ))}
                 </div>
             )}

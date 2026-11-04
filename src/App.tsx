@@ -57,6 +57,9 @@ import StartingAssistant, { GenesisAnswers } from './components/editor/StartingA
 import { PostGenesisPanel } from './components/PostGenesisPanel';
 import ContinueCard from './components/ui/ContinueCard';
 import { writeLastDoc } from './utils/lastDoc';
+import { useMisionesEditor } from './hooks/useMisionesEditor';
+import type { DeskArrival } from './components/mira/MiraDeskCompanion';
+import MiraDialog, { ZenMiraButton } from './components/mira/MiraDialog';
 import MiraDeskCompanion from './components/mira/MiraDeskCompanion';
 import { MiraSprite } from './components/mira/MiraSprite';
 import TipsCorner from './components/mira/TipsCorner';
@@ -204,6 +207,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const lastSavedContent = lastSavedContentRef.current;
 
         if (!fileIdToSave || !oauthToken || !contentToSave) return;
+        if (contentToSave === commonT.loading) return; // nunca guardar el texto de «Cargando…»
         // Don't save if content hasn't changed from last save (redundant check but safe)
         if (contentToSave === lastSavedContent) return;
         if (conflictFileRef.current === fileIdToSave) return;
@@ -396,6 +400,18 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [isEditorFocused, setIsEditorFocused] = useState(false);
     const [isZenMode, setIsZenMode] = useState(false);
     const [isReportOpen, setIsReportOpen] = useState(false); // Oct 2026: Reporte de capítulo
+    // Nov 2026: Escape sale del modo Zen (si Mira está abierta, primero se cierra Mira).
+    useEffect(() => {
+        if (!isZenMode) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape' || e.defaultPrevented) return;
+            if (useLayoutStore.getState().activeView === 'director') return;
+            if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+            setIsZenMode(false);
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [isZenMode]);
     const [prepararTab, setPrepararTab] = useState<PrepararTab>(loadPrepararTab); // Oct 2026: espacio Preparar
     const [arquitectoHandoff, setArquitectoHandoff] = useState<{ text: string; nonce: number } | null>(null);
     const [showLegacyExport, setShowLegacyExport] = useState(false); // Oct 2026: certificado de autoría (panel anterior)
@@ -631,6 +647,42 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
     openReportRef.current = () => { setActiveView('editor'); setIsReportOpen(true); };
 
+    // Nov 2026: lo pendiente del capítulo abierto (reporte y plan) para la insignia del Reporte y la llegada de Mira.
+    const { misiones: deskMisiones } = useMisionesEditor(arquitectoSessionId);
+    const [reportInfo, setReportInfo] = useState<{ fileId: string; problems: number; high: number; top?: string; spelling: number; dudas: number; hasReport: boolean } | null>(null);
+    useEffect(() => {
+        const id = currentFileId;
+        if (!id || id === 'mock-file-id') { setReportInfo(null); return; }
+        let alive = true;
+        callFunction<any>('chapterReport', { mode: 'get', fileId: id }).then(r => {
+            if (!alive) return;
+            let done: Record<string, boolean> = {};
+            try { done = JSON.parse(localStorage.getItem(`myworld_report_done_${id}`) || '{}'); } catch { /* */ }
+            const probs = ((r?.report?.problemas || []) as any[]).map((p, i) => ({ p, i })).filter(x => !done['p' + x.i]);
+            const spelling = ((r?.report?.ortografia || []) as any[]).filter((_, i) => !done['o' + i]).length;
+            const dudas = ((r?.canon?.dudas || []) as any[]).filter(d => !d?.resuelta).length;
+            setReportInfo({ fileId: id, problems: probs.length, high: probs.filter(x => x.p?.gravedad === 'alta').length, top: probs[0]?.p?.titulo, spelling, dudas, hasReport: !!(r?.report || r?.canon) });
+        }).catch(() => { if (alive) setReportInfo(null); });
+        return () => { alive = false; };
+    }, [currentFileId, isReportOpen]);
+    const reportPending = reportInfo && reportInfo.fileId === currentFileId ? reportInfo.problems + reportInfo.spelling + reportInfo.dudas : 0;
+    const deskArrival: DeskArrival | null = (() => {
+        const items: string[] = [];
+        const next = deskMisiones.find(m => !m.completed);
+        if (next) items.push(`Según tu plan, sigue: ${next.text}`);
+        const ri = reportInfo && reportInfo.fileId === currentFileId ? reportInfo : null;
+        if (ri?.problems) items.push(`Del reporte quedan ${ri.problems} ${ri.problems === 1 ? 'cosa' : 'cosas'} por corregir${ri.high ? ` (${ri.high} ${ri.high === 1 ? 'importante' : 'importantes'})` : ''}${ri.top ? `, como «${ri.top}»` : ''}.`);
+        if (ri?.dudas) items.push(`Hay ${ri.dudas} ${ri.dudas === 1 ? 'duda' : 'dudas'} del canon por definir.`);
+        if (ri?.spelling) items.push(`Y ${ri.spelling} ${ri.spelling === 1 ? 'corrección' : 'correcciones'} de ortografía.`);
+        return items.length ? { items, hasReport: !!ri?.hasReport } : null;
+    })();
+    const askMiraWhatsNext = (msg?: string) => {
+        if (msg === undefined) {
+            setDirectorPendingMessage(`Vuelvo a «${currentFileName || 'mi capítulo'}». ¿Qué sigue? Ten en cuenta mi plan, lo que hablé con el Arquitecto y lo pendiente del reporte de este capítulo, y dime si conviene seguir escribiendo, corregir primero o reescribir.`);
+        }
+        setActiveView('director');
+    };
+
     // Oct 2026: los accesos viejos (Forja, Nexus, Laboratorio) abren su pestaña dentro de Preparar.
     useEffect(() => {
         const map: Record<string, PrepararTab> = { forja: 'personajes', perforador: 'mapa', laboratorio: 'quepasa' };
@@ -832,15 +884,20 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // 🟢 HANDLE TIMELINE FILE SELECT
+    // Nov 2026: antes se ponía «Cargando…» como contenido mientras llegaba el archivo, y el autoguardado
+    // alcanzaba a mandar ese texto con la base del archivo anterior: Drive lo veía como un conflicto falso.
+    // Ahora el archivo cambia de una sola vez (id, contenido y base), cuando ya llegó.
     const handleTimelineFileSelect = async (fileId: string) => {
         setActiveView('editor'); // Go back to editor to show content
-        setSelectedFileContent(commonT.loading);
-        setCurrentFileId(fileId);
-
         try {
             const data = await callFunction<{ content: string; name: string }>('getDriveFileContent', { fileId, accessToken: oauthToken });
-            setSelectedFileContent(data.content);
-            setLastSavedContent(data.content); // 🟢 SYNC BASELINE
+            const content = data.content ?? '';
+            lastSavedContentRef.current = content;
+            selectedFileContentRef.current = content;
+            currentFileIdRef.current = fileId;
+            setCurrentFileId(fileId);
+            setSelectedFileContent(content);
+            setLastSavedContent(content); // 🟢 SYNC BASELINE
             setCurrentFileName(data.name);
         } catch (error) {
             console.error("Error loading file from timeline:", error);
@@ -1009,6 +1066,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onToggleSentinel={() => setActiveView(activeView === 'sentinel' ? 'editor' : 'sentinel')}
                 onOpenReport={openReport}
                 reportActive={isReportOpen}
+                reportPending={reportPending}
             />
         );
 
@@ -1025,9 +1083,12 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 />
             );
         } else if (activeView === 'director') {
+            // Nov 2026: Mira se abre como ventana en el centro, encima de lo que estés haciendo.
             expandedContent = (
+                <MiraDialog onClose={() => setActiveView('editor')}>
                 <ErrorBoundary>
                     <DirectorPanel
+                        variant="dialog"
                         isOpen={true}
                         onClose={() => setActiveView('editor')}
                         activeSessionId={activeDirectorSessionId}
@@ -1044,6 +1105,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         onInsertContent={handleInsertContent}
                     />
                 </ErrorBoundary>
+                </MiraDialog>
             );
         } else if (activeView === 'tribunal') {
             expandedContent = (
@@ -1388,9 +1450,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             reveal={(from, to) => hybridEditorRef.current?.revealRange(from, to)}
                             replace={(from, to, text) => hybridEditorRef.current?.replaceRange(from, to, text)}
                             onClose={() => setIsReportOpen(false)}
+                            onAskArquitecto={(text) => { setIsReportOpen(false); setArquitectoHandoff({ text, nonce: Date.now() }); setPrepararTab('conversacion'); setActiveView('arquitecto'); }}
                         />
                     )}
-                    {!isReportOpen && <MiraDeskCompanion content={selectedFileContent} fileId={currentFileId} isZenMode={isZenMode} />}
+                    {!isReportOpen && <MiraDeskCompanion content={selectedFileContent} fileId={currentFileId} isZenMode={isZenMode} arrival={deskArrival} onOpenReport={() => setIsReportOpen(true)} onAskMira={askMiraWhatsNext} />}
                     <StatusBar
                         content={selectedFileContent}
                         guardianStatus={canonWatch.status}
@@ -1401,6 +1464,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         }}
                         className="z-50 shrink-0"
                         onOpenReport={currentFileId ? () => setIsReportOpen(true) : undefined}
+                        reportPending={reportPending}
                         narratorControls={{
                             ...narratorControls,
                             isLoading: isNarratorLoading
@@ -1539,6 +1603,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     editor={renderZoneBContent()}
                     tools={renderZoneCContent()}
                 />
+                {isZenMode && activeView !== 'director' && <ZenMiraButton onOpen={() => setActiveView('director')} />}
             </div>
             </div>
         </>

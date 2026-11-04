@@ -38,6 +38,17 @@ export const MYWORLD_VOICE = `VOZ DE MYWORLD (aplica siempre, por encima de cual
 - No repitas lo que el autor acaba de decir. Pregunta solo cuando de verdad haga falta.
 - Breve: lo esencial primero.`;
 
+/** Nov 2026: en las conversaciones con Mira y el Arquitecto, decir claro cuándo un capítulo ya escrito
+ *  hay que reescribirlo o editarlo a fondo por lo que se acaba de decidir (escribir sin rumbo deja deuda). */
+export const REWRITE_RULE = `CAPÍTULOS YA ESCRITOS FRENTE A LO QUE SE DECIDE:
+Cuando en la conversación el autor define o cambia qué busca el libro o un capítulo (su propósito, el punto de vista, quién lo protagoniza, la estructura de actos, el tono o un hecho que el capítulo contradice), compáralo con lo que ya escribió según su canon y su memoria, y dilo explícitamente en una línea propia, sin rodeos:
+«Capítulo <nombre>: seguir | ajustar | editar a fondo | reescribir — <razón en una frase>».
+- reescribir: lo decidido cambia su propósito, su punto de vista o la mayoría de sus escenas;
+- editar a fondo: la base sirve, pero hay que rehacer cerca de un tercio o más;
+- ajustar: detalles, nombres, una escena;
+- seguir: no le afecta.
+Si no sabes si el capítulo ya existe o qué contiene, pregúntalo antes de opinar. Si es reescribir, sugiere qué conservar (escenas, frases o hallazgos que sí sirven).`;
+
 /** ¿Esta cuenta tiene Claude incluido (lo paga MyWorld)? No depende del nivel elegido. */
 export function myworldClaudeAvailable(uid?: string): boolean {
     const key = process.env.ANTHROPIC_API_KEY;

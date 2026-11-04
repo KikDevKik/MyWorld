@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "./genai";
 import * as logger from "firebase-functions/logger";
 import { getMemoryContext } from "./memory_store";
 import { getRequestUid } from "./request_context";
-import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, CACHE_SPLIT, MYWORLD_VOICE } from "./claude_router";
+import { claudeEnabledForCurrentUser, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, CACHE_SPLIT, MYWORLD_VOICE, REWRITE_RULE } from "./claude_router";
 import {
     MODEL_FLASH, MODEL_PRO, MODEL_FLASH_2_5, MODEL_FLASH_2_5_LITE,
     SAFETY_SETTINGS_PERMISSIVE, LITERARY_FICTION_PROTOCOL,
@@ -72,7 +72,7 @@ export async function smartGenerateContent(
         const memCtx = /^ArquitectoChat_/.test(contextLabel) ? await getMemoryContext(getRequestUid(), prompt.slice(-4000)) : "";
         content.push({ type: "text", text: (memCtx ? memCtx + "\n\n" : "") + variablePart + jsonRule });
         // Memoria del autor: solo en la conversación del Arquitecto (no en tareas automáticas)
-const sysText = CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + config.systemInstruction : "") + (config.jsonMode ? "" : "\n\n" + MYWORLD_VOICE);
+const sysText = CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + config.systemInstruction : "") + (config.jsonMode ? "" : "\n\n" + MYWORLD_VOICE) + (!config.jsonMode && /^ArquitectoChat_/.test(config.contextLabel || "") ? "\n\n" + REWRITE_RULE : "");
         const r = await callClaude({
             model,
             system: [
@@ -207,7 +207,7 @@ async function _executeGeneration(
 ): Promise<{ success: boolean; text?: string; error?: string; reason?: string; details?: string }> {
 
     try {
-        const finalSystemInstruction = LITERARY_FICTION_PROTOCOL + "\n\n" + (config.systemInstruction || "");
+        const finalSystemInstruction = LITERARY_FICTION_PROTOCOL + "\n\n" + (config.systemInstruction || "") + (!config.jsonMode && /^ArquitectoChat_/.test(config.contextLabel || "") ? "\n\n" + REWRITE_RULE : "");
 
         // Build thinkingConfig only when explicitly requested (budget >= 0)
         // Models that don't support thinking ignore unknown config keys gracefully.

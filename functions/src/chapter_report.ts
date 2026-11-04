@@ -11,7 +11,7 @@ import { google } from "./utils/gapi";
 import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
-import { getMemoryContext } from "./utils/memory_store";
+import { getMemoryContext, applyMemoryOps } from "./utils/memory_store";
 import { textHash } from "./utils/text_hash";
 import { getAIKey } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
@@ -111,6 +111,28 @@ Un hecho del canon que ocurre más adelante en la historia (p. ej. una muerte fu
 Lo normal es que no haya nada: entonces responde {"alertas":[]}. Nunca rellenes. Máximo 3.
 FORMATO (solo JSON): {"alertas":[{"titulo":"…","explicacion":"1-2 frases","citaCapitulo":"…","citaCanon":"…","fuente":"…"}]}
 Escribe en el idioma del autor.`;
+
+// Nov 2026: las «dudas para ti» del Guardián se responden en un minichat con Mira.
+const DOUBT_SYSTEM = `Eres Mira, la compañera de escritura de MyWorld. El Guardián del canon le dejó al autor una duda sobre su capítulo y ahora la están resolviendo juntos en un chat corto.
+Tu trabajo: entender lo que el autor decide y cerrar la duda sin hacerle perder tiempo.
+- Si su respuesta la resuelve y no cambia nada más, ciérrala: "estado":"resuelta".
+- Si su respuesta obliga a cambiar un archivo del canon (una ficha, la estructura del libro, una cronología), propón el cambio: "estado":"cambio", con "cambio.archivo" (el nombre exacto del archivo de la duda u otro que conozcas por el contexto) y "cambio.texto" (2-6 líneas en tono de apunte, para añadir al final del archivo, con lo que el autor dijo y sin inventar nada).
+- Si su respuesta abre otras preguntas, haz UNA sola pregunta breve: "estado":"sigue".
+- Si la decisión toca la estructura del libro (actos, orden de capítulos, qué debe lograr un capítulo), sugiere hablarlo con el Arquitecto: "llevarA":"arquitecto".
+- Si lo que el autor decide cambia lo que el capítulo cuenta de forma que buena parte habría que reescribirla, dilo claro en "respuesta".
+Nunca inventes canon. Breve y cálida, en el idioma del autor.
+Responde SOLO JSON: {"respuesta":"2-4 frases","estado":"resuelta|cambio|sigue","decision":"una línea con lo decidido, para la memoria del proyecto (vacía si sigue)","cambio":{"archivo":"…","texto":"…"} o null,"llevarA":"arquitecto|ninguno"}`;
+
+async function findCanonFile(uid: string, name: string): Promise<{ id: string; name: string } | null> {
+    if (!name) return null;
+    const col = getFirestore().collection("TDB_Index").doc(uid).collection("files");
+    const base = name.replace(/\.md$/i, "").trim();
+    for (const n of [base + ".md", base, base + ".txt"]) {
+        const s = await col.where("name", "==", n).limit(1).get();
+        if (!s.empty) return { id: s.docs[0].id, name: (s.docs[0].data() as any).name || n };
+    }
+    return null;
+}
 
 function parseJsonReply(text: string): any {
     const j = text.replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "");
@@ -270,6 +292,78 @@ export const chapterReport = onCall(
         if (mode === "get") {
             const snap = await ref.get();
             return snap.exists ? { found: true, ...(snap.data() as any) } : { found: false };
+        }
+
+        // Nov 2026: minichat para resolver una duda del Guardián.
+        if (mode === "duda" || mode === "aplicarDuda") {
+            const idx = Number(request.data?.index);
+            const prev: any = (await ref.get()).data() || {};
+            const dudas: any[] = prev.canon?.dudas || [];
+            const d = dudas[idx];
+            if (!d) throw new HttpsError("not-found", "No encontré esa duda. Rehaz la revisión del canon.");
+
+            if (mode === "aplicarDuda") {
+                const cambio = d.cambio;
+                if (!cambio?.texto) throw new HttpsError("failed-precondition", "Esta duda no tiene un cambio propuesto.");
+                if (!accessToken) throw new HttpsError("unauthenticated", "Reconecta Google Drive para guardar el cambio.");
+                const file = await findCanonFile(uid, cambio.archivo || d.fuente);
+                if (!file) throw new HttpsError("not-found", `No encontré «${cambio.archivo || d.fuente}» en tu proyecto. Cópialo a mano.`);
+                const auth = new google.auth.OAuth2();
+                auth.setCredentials({ access_token: accessToken });
+                const drive = google.drive({ version: "v3", auth });
+                const meta = await drive.files.get({ fileId: file.id, fields: "mimeType" });
+                if (meta.data.mimeType === "application/vnd.google-apps.document") throw new HttpsError("failed-precondition", `«${file.name}» es un Google Doc: copia el texto a mano.`);
+                const current = String(await _getDriveFileContentInternal(drive, file.id) || "");
+                const fecha = new Date().toLocaleDateString("es", { day: "numeric", month: "long", year: "numeric" });
+                const next = `${current.trimEnd()}\n\n> Decidido con Mira (${fecha}): ${String(cambio.texto).trim().replace(/\n/g, "\n> ")}\n`;
+                await drive.files.update({ fileId: file.id, media: { mimeType: meta.data.mimeType || "text/markdown", body: next } });
+                dudas[idx] = { ...d, resuelta: true, aplicadoEn: file.name, aplicadoAt: new Date().toISOString() };
+                await ref.set({ canon: { ...prev.canon, dudas } }, { merge: true });
+                logger.info(`[DUDA] Cambio aplicado en ${file.name}`);
+                return { found: true, dudas, archivo: file.name };
+            }
+
+            if (!claudeEnabledForCurrentUser()) throw new HttpsError("failed-precondition", "El chat de dudas usa Claude y todavía no está activo para tu cuenta.");
+            const mensajes: { role: string; text: string }[] = (Array.isArray(request.data?.mensajes) ? request.data.mensajes : []).slice(-10)
+                .map((m: any) => ({ role: m?.role === "mira" ? "mira" : "autor", text: String(m?.text || "").slice(0, 2000) })).filter((m: any) => m.text.trim());
+            if (!mensajes.some(m => m.role === "autor")) throw new HttpsError("invalid-argument", "Escribe tu respuesta a la duda.");
+            const [memory, file] = await Promise.all([
+                getMemoryContext(uid, `${d.pregunta} ${d.fuente || ""}`),
+                findCanonFile(uid, d.fuente || ""),
+            ]);
+            let fileText = "";
+            if (file && accessToken) {
+                try {
+                    const auth = new google.auth.OAuth2();
+                    auth.setCredentials({ access_token: accessToken });
+                    fileText = String(await _getDriveFileContentInternal(google.drive({ version: "v3", auth }), file.id) || "").slice(0, 6000);
+                } catch { /* sin acceso al archivo: se sigue sin él */ }
+            }
+            const contexto = [
+                `CAPÍTULO: ${fileName || prev.fileName || "(sin nombre)"}`,
+                `DUDA DEL GUARDIÁN: ${d.pregunta}`,
+                d.citaCapitulo ? `CITA DEL CAPÍTULO: «${d.citaCapitulo}»` : "",
+                d.fuente ? `ARCHIVO DEL CANON: ${d.fuente}${fileText ? `\n<<<\n${fileText}\n>>>` : ""}` : "",
+                memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
+                `CONVERSACIÓN:\n${mensajes.map(m => `${m.role === "mira" ? "Mira" : "Autor"}: ${m.text}`).join("\n")}`,
+            ].filter(Boolean).join("\n\n");
+            const r = await callClaude({
+                model: CLAUDE_SONNET,
+                system: [{ text: DOUBT_SYSTEM + "\n\n" + MYWORLD_VOICE, cache: true }],
+                content: [{ type: "text", text: contexto + "\n\nResponde SOLO con el JSON." }],
+                maxTokens: 2500, effort: "low", label: "ChapterDoubt",
+            } as any);
+            if (!r.ok || !r.text) throw new HttpsError("internal", r.noCredit || r.error === "MONTHLY_CAP" ? "Se acabó el saldo de Claude de este mes." : "Mira no pudo responder. Intenta de nuevo.");
+            let out: any;
+            try { out = parseJsonReply(r.text); } catch { out = { respuesta: r.text.slice(0, 600), estado: "sigue" }; }
+            const estado = ["resuelta", "cambio", "sigue"].includes(out.estado) ? out.estado : "sigue";
+            const chat = [...mensajes, { role: "mira", text: String(out.respuesta || "") }];
+            dudas[idx] = { ...d, chat, estado, resuelta: estado === "resuelta", decision: out.decision || d.decision || "", cambio: estado === "cambio" ? out.cambio || null : null, llevarA: out.llevarA === "arquitecto" ? "arquitecto" : "" };
+            if ((estado === "resuelta" || estado === "cambio") && out.decision) {
+                try { await applyMemoryOps(uid, [{ op: "add", file: "Decisiones del canon", kind: "libro", text: `${fileName || prev.fileName || "Capítulo"}: ${String(out.decision).trim()}` }], "duda"); } catch (e: any) { logger.warn(`[DUDA] Memoria: ${e?.message}`); }
+            }
+            await ref.set({ canon: { ...prev.canon, dudas } }, { merge: true });
+            return { found: true, dudas };
         }
 
         // Nov 2026: lo que dijo un lector real del capítulo; el próximo reporte lo responde punto por punto.

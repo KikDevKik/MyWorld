@@ -18,6 +18,7 @@ interface StatusBarProps {
     onGuardianClick?: () => void;
     onOpenSettings?: () => void;
     onOpenReport?: () => void; // Oct 2026: Reporte de capítulo
+    reportPending?: number; // Nov 2026: puntos del reporte sin resolver
     narratorControls?: {
         isPlaying: boolean;
         isLoading: boolean;
@@ -39,7 +40,7 @@ const getTodayKey = () => {
     return `myword_daily_${date}`;
 };
 
-const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, narratorControls }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, reportPending = 0, narratorControls }) => {
     const { tier, hasByok, isNormal } = useTier();
     const aiLevel = getAiLevel();
     const levelLabel = aiLevel === 'gratis' ? 'IA gratis' : aiLevel === 'propia' ? 'IA con tu clave' : aiLevel === 'myworld' ? 'IA de MyWorld' : null;
@@ -440,9 +441,10 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, className = '', guardian
                     <button
                         onClick={onOpenReport}
                         className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-purple-300 hover:bg-purple-900/30 transition-colors ml-2"
-                        title="Reporte del capítulo: qué corregir y dónde"
+                        title={reportPending ? `Reporte del capítulo: ${reportPending} ${reportPending === 1 ? 'punto pendiente' : 'puntos pendientes'}` : 'Reporte del capítulo: qué corregir y dónde'}
                     >
                         <FileSearch size={12} /> Reporte
+                        {reportPending > 0 && <span className="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-on-coral text-[11px] font-bold leading-[18px] text-center">{reportPending}</span>}
                     </button>
                 )}
 
