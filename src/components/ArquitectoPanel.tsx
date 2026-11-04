@@ -483,7 +483,18 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     {projectName}
                 </div>
 
-                <div className="w-[150px] flex justify-end">
+                <div className="w-[190px] flex justify-end">
+                    {/* Nov 2026: acceso fijo a la revisión del canon fuera del chat (en el chat está en el riel). */}
+                    {panelView !== 'chat' && (
+                        <button
+                            onClick={() => setActiveTool('names')}
+                            className="relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-titanium-700 hover:border-mira/60 text-[13px] text-titanium-200 hover:text-titanium-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60"
+                        >
+                            <SpellCheck size={15} aria-hidden="true" className="text-mira" />
+                            Revisar el canon
+                            {openNames > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-mira text-titanium-950 text-xs font-bold inline-flex items-center justify-center tabular-nums">{openNames}</span>}
+                        </button>
+                    )}
                     {panelView === 'chat' && (
                         <div className="relative">
                                 <button
