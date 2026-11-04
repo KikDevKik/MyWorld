@@ -39,7 +39,9 @@ CÓMO TRABAJAS:
 4. Cuida el miedo al retcon: si una decisión afecta libros o eras futuras, dilo y propón cómo dejarla abierta sin comprometerse todavía.
 5. Nunca escribes su trama ni su prosa. Puedes ordenar, resumir lo que ya decidió y señalar lo que falta decidir.
 6. Si lo que quiere es jugar sin compromiso, sugiérele la pestaña «Qué pasaría si»; si quiere completar la ficha de un personaje, la pestaña «Personajes».
-7. Breve y claro: entre 120 y 300 palabras. Sin títulos innecesarios. Termina con tu pregunta.`;
+7. Breve y claro: entre 120 y 300 palabras. Sin títulos innecesarios. Termina con tu pregunta.
+8. Su proyecto puede tener varias sagas o libros con documentos que se llaman igual (p. ej. «Capítulo 1» del libro de Anna y del de Megu). Fíjate en la carpeta de cada documento (va entre paréntesis) y no los mezcles. Si no sabes cuál es, pregúntale; si te falta el texto, pídele que lo traiga con «Traer un documento» (el botón junto al mensaje).
+9. Si el autor trajo documentos a la conversación, léelos completos: son la referencia principal cuando hable de ellos.`;
 
 const CLOSE_TASK = `El autor cierra esta sesión con El Arquitecto. Resume SOLO lo que pasó en la conversación, en markdown, con estas secciones (omite las vacías):
 ## Ideas sueltas
@@ -94,7 +96,7 @@ export async function namedMaterial(uid: string, text: string, maxFiles = 5): Pr
         const files = filesSnap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter((f: any) => f.type !== "folder" && f.mimeType !== FOLDER);
         const byName = new Map(files.map((f: any) => [norm(String(f.name || "").replace(/\.md$/i, "")), f]));
         const picked: { id: string; name: string; why: string }[] = [];
-        const add = (f: any, why: string) => { if (f && !picked.some(p => p.id === f.id) && picked.length < maxFiles) picked.push({ id: f.id, name: String(f.name || "").replace(/\.md$/i, ""), why }); };
+        const add = (f: any, why: string) => { if (f && !picked.some(p => p.id === f.id) && picked.length < maxFiles) picked.push({ id: f.id, name: `${String(f.name || "").replace(/\.md$/i, "")}${f.path && f.path !== f.name ? ` (${String(f.path).replace(/\/[^/]*$/, "")})` : ""}`, why }); };
         const entities: { nombre: string; alias?: string[]; fileId?: string | null; archivos?: string[] }[] = [
             ...(((pIdx.data() as any)?.personajes) || []).map((p: any) => ({ nombre: p.nombre, alias: p.alias, fileId: p.fichaFileId, archivos: p.archivos })),
             ...(((mapa.data() as any)?.nodes) || []).map((n: any) => ({ nombre: n.nombre, fileId: n.fileId, archivos: n.archivos })),
@@ -112,6 +114,28 @@ export async function namedMaterial(uid: string, text: string, maxFiles = 5): Pr
         return out.join("\n\n");
     } catch (e: any) {
         logger.warn(`[ARQUITECTO·CONECTAR] Sin material nombrado: ${e?.message}`);
+        return "";
+    }
+}
+
+/** Nov 2026: documentos que el autor trajo a la conversación con «Traer un documento» (hasta 3, completos). */
+async function sharedMaterial(uid: string, ids: string[]): Promise<string> {
+    if (!ids.length) return "";
+    try {
+        const col = getFirestore().collection("TDB_Index").doc(uid).collection("files");
+        const out: string[] = [];
+        let budget = 36000;
+        for (const id of ids.slice(-3)) {
+            const meta: any = (await col.doc(id).get()).data() || {};
+            const t = await fileText(uid, id, Math.max(2000, Math.floor(budget / Math.max(1, ids.length))));
+            if (!t) continue;
+            budget -= t.length;
+            const folder = meta.path && String(meta.path).includes("/") ? ` (${String(meta.path).replace(/\/[^/]*$/, "")})` : "";
+            out.push(`### ${String(meta.name || id).replace(/\.md$/i, "")}${folder}\n${t}`);
+        }
+        return out.join("\n\n");
+    } catch (e: any) {
+        logger.warn(`[ARQUITECTO·CONECTAR] Documentos traídos: ${e?.message}`);
         return "";
     }
 }
@@ -137,7 +161,8 @@ async function relevantMaterial(uid: string, text: string, apiKey: string): Prom
             perFile[name] = (perFile[name] || 0) + 1;
             if (perFile[name] > 2 || chars + t.length > 11000) continue;
             chars += t.length;
-            (c.category === "reference" ? refs : canon).push(`### ${name}\n${t}`);
+            const folder = c.path && String(c.path).includes("/") ? ` (${String(c.path).replace(/\/[^/]*$/, "")})` : "";
+            (c.category === "reference" ? refs : canon).push(`### ${name}${folder}\n${t}`);
         }
         return [canon.length ? `CANON:\n${canon.join("\n\n")}` : "", refs.length ? `RECURSOS (referencias e ideas no canon):\n${refs.join("\n\n")}` : ""].filter(Boolean).join("\n\n");
     } catch (e: any) {
@@ -192,16 +217,18 @@ export async function conectarStart(uid: string, goal: string, apiKey: string): 
 }
 
 /** Respuesta a un mensaje en una sesión «Conectar». */
-export async function conectarReply(uid: string, sessionId: string, goal: string, query: string, apiKey: string): Promise<string> {
+export async function conectarReply(uid: string, sessionId: string, goal: string, query: string, apiKey: string, sharedDocs: string[] = []): Promise<string> {
     const history = await sessionHistory(uid, sessionId);
     const hint = `${query} ${history.slice(-1200)}`;
-    const [memory, material, named] = await Promise.all([
+    const [memory, material, named, shared] = await Promise.all([
         getMemoryContext(uid, hint),
         relevantMaterial(uid, hint, apiKey),
         namedMaterial(uid, query, 4),
+        sharedMaterial(uid, sharedDocs),
     ]);
     return ask([
         goal ? `OBJETIVO DE LA SESIÓN: ${goal}` : "",
+        shared ? `DOCUMENTOS QUE EL AUTOR TRAJO A LA CONVERSACIÓN (completos):\n${shared}` : "",
         memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES DE SU MATERIAL:\n${material}` : "",

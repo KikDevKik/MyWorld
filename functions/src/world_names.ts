@@ -412,6 +412,12 @@ export const worldNames = onCall(
 
         if (mode === "get") return await loadState(uid);
 
+        // Nov 2026: lista de documentos indexados (para «Traer un documento» del Arquitecto), con su carpeta.
+        if (mode === "files") {
+            const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category").limit(800).get();
+            return { files: snap.docs.map(d => { const x: any = d.data(); return { id: d.id, name: String(x.name || ""), path: String(x.path || ""), category: x.category || "canon" }; }).filter(f => f.name) };
+        }
+
         if (mode === "scan") {
             const state = await loadState(uid);
             const files = await loadCorpus(uid);

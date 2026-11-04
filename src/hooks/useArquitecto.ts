@@ -571,7 +571,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         // y luego llama a initialize({ forceNew: true }).
     }, [initialize]);
 
-    const sendMessage = useCallback(async (text: string, attachment?: { fileName: string; fileData: string; mimeType: string }) => {
+    const sendMessage = useCallback(async (text: string, attachment?: { fileName: string; fileData: string; mimeType: string }, docIds?: string[]) => {
         if ((!text.trim() && !attachment) || isThinking) return;
         if (!sessionId) {
             toast.error("Sesión no iniciada.");
@@ -652,6 +652,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 accessToken,
                 objective: currentObjective,
                 attachment,
+                docIds: docIds && docIds.length ? docIds : undefined,
                 customGeminiKey,
                 customAnthropicKey
             });

@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm';
 import ContradiccionesDrawer from './architect/ContradiccionesDrawer';
 import ColisionesMap from './architect/ColisionesMap';
 import FalloDialog from './architect/FalloDialog';
+import DocPicker, { type PickedDoc } from './architect/DocPicker';
 import WorldNamesPanel, { scanWorldNames, reviewCount, type NamesState } from './architect/WorldNamesPanel';
 import RoadmapFinalView from './architect/RoadmapFinalView';
 import DrivePatches from './architect/DrivePatches';
@@ -107,6 +108,9 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
     // File Attachment State
     const [attachedFile, setAttachedFile] = useState<File | null>(null);
+    // Nov 2026: «Traer un documento» de MyWorld (el Arquitecto lo lee completo en la conversación)
+    const [docPickerOpen, setDocPickerOpen] = useState(false);
+    const [pendingDocs, setPendingDocs] = useState<PickedDoc[]>([]);
     const [isUploadingFile, setIsUploadingFile] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -363,11 +367,14 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     };
 
     const handleSendWithFile = async () => {
-        if (!inputValue.trim() && !attachedFile) return;
+        if (!inputValue.trim() && !attachedFile && !pendingDocs.length) return;
         if (isThinking || isUploadingFile) return;
-        
-        const currentInput = inputValue.trim();
+
+        const docs = pendingDocs;
+        const docNote = docs.length ? `\n\n(Te traje ${docs.length === 1 ? 'el documento' : 'los documentos'}: ${docs.map(d => `«${d.name}»${d.folder ? ` de ${d.folder}` : ''}`).join(', ')}.)` : '';
+        const currentInput = (inputValue.trim() || (docs.length ? 'Lee este documento.' : '')) + docNote;
         const currentFile = attachedFile;
+        setPendingDocs([]);
 
         // Limpiar inmediatamente para feedback UX
         setInputValue('');
@@ -395,7 +402,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 setIsUploadingFile(false);
             }
         } else {
-            await sendMessage(currentInput);
+            await sendMessage(currentInput, undefined, docs.map(d => d.id));
         }
     };
 
@@ -1011,6 +1018,18 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(103, 232, 249, 0.08)' }}>
                     <div className="max-w-[800px] mx-auto px-6 py-4">
                     <div className="relative flex flex-col w-full bg-titanium-900 border border-titanium-800 rounded-xl overflow-hidden shadow-2xl">
+                        {/* Documentos de MyWorld que se mandan con el próximo mensaje */}
+                        {pendingDocs.length > 0 && (
+                            <div className="flex flex-wrap gap-2 bg-titanium-900 border-b border-titanium-800 px-3 py-2">
+                                {pendingDocs.map(d => (
+                                    <span key={d.id} className="inline-flex items-center gap-1.5 rounded-lg border border-mira/40 bg-mira/10 px-2 py-1 text-xs text-titanium-100">
+                                        <FileText size={13} className="text-mira" aria-hidden="true" />
+                                        {d.name}{d.folder ? <span className="text-titanium-400"> · {d.folder}</span> : null}
+                                        <button onClick={() => setPendingDocs(p => p.filter(x => x.id !== d.id))} aria-label={`Quitar ${d.name}`} className="ml-0.5 text-titanium-400 hover:text-titanium-100"><X size={12} aria-hidden="true" /></button>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
                         {/* Indicador de archivo adjunto */}
                         {attachedFile && (
                             <div className="flex items-center gap-2 bg-titanium-900 border-b border-titanium-800 px-3 py-2 text-xs text-mira">
@@ -1031,7 +1050,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 onChange={e => setInputValue(e.target.value)}
                                 onKeyDown={handleKeyDown}
                                 disabled={isInitializing || isThinking || isUploadingFile}
-                                className="w-full bg-transparent border-none text-titanium-300 text-[15px] placeholder:text-titanium-600 focus:ring-0 resize-none py-4 pl-4 pr-24 max-h-[120px]"
+                                className="w-full bg-transparent border-none text-titanium-300 text-[15px] placeholder:text-titanium-600 focus:ring-0 resize-none py-4 pl-4 pr-36 max-h-[120px]"
                                 placeholder={attachedFile ? "Agrega un mensaje a tu documento…" : "Escríbele al Arquitecto…"}
                                 rows={1}
                             />
@@ -1046,6 +1065,15 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                             <div className="absolute right-2 bottom-2 flex gap-1 items-center">
                                 <button
+                                    onClick={() => setDocPickerOpen(true)}
+                                    disabled={isThinking || isInitializing || isUploadingFile}
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg text-titanium-500 hover:text-mira hover:bg-titanium-800/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    title="Traer un documento de tu proyecto (el Arquitecto lo lee completo)"
+                                    aria-label="Traer un documento"
+                                >
+                                    <FileText size={18} aria-hidden="true" />
+                                </button>
+                                <button
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={isThinking || isInitializing || isUploadingFile}
                                     className="w-10 h-10 flex items-center justify-center rounded-lg text-titanium-500 hover:text-mira hover:bg-titanium-800/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
@@ -1057,7 +1085,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                                 <button
                                     onClick={handleSendWithFile}
-                                    disabled={(!inputValue.trim() && !attachedFile) || isThinking || isInitializing || isUploadingFile}
+                                    disabled={(!inputValue.trim() && !attachedFile && !pendingDocs.length) || isThinking || isInitializing || isUploadingFile}
                                     className="w-10 h-10 flex items-center justify-center rounded-lg text-mira hover:bg-mira/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                     aria-label="Enviar mensaje"
                                 >
@@ -1148,6 +1176,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     <WorldNamesPanel accessToken={accessToken} initialState={namesState} onStateChange={setNamesState} onOpenDocument={onOpenDocument} />
                 )}
             </SlideUpPanel>
+
+            {docPickerOpen && (
+                <DocPicker picked={pendingDocs} onPick={d => setPendingDocs(p => (p.some(x => x.id === d.id) ? p : [...p, d].slice(0, 3)))} onClose={() => setDocPickerOpen(false)} />
+            )}
 
             {reviewGate && namesState && (
                 <ReviewGate

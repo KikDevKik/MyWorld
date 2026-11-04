@@ -1391,9 +1391,13 @@ export const arquitectoChat = onCall(
             const sdata: any = (await sref.get()).data() || {};
             const unresolved = (sdata.pendingItems || []).filter((i: any) => !i.resolved).length;
             if (sdata.engine === 'conectar' && unresolved === 0) {
+                // Nov 2026: documentos que el autor trae con «Traer un documento» (quedan en la conversación, hasta 3).
+                const newDocs: string[] = (Array.isArray(request.data?.docIds) ? request.data.docIds : []).map(String).filter(Boolean).slice(0, 3);
+                const sharedDocs: string[] = [...new Set([...(sdata.sharedDocs || []), ...newDocs])].slice(-3);
+                if (newDocs.length) await sref.set({ sharedDocs }, { merge: true });
                 // Se guarda primero el mensaje del autor para que la conversación lo incluya.
                 await sref.collection("messages").add({ role: 'user', text: query, timestamp: new Date() });
-                const responseText = await conectarReply(userId, sessionId, sdata.implementationGoal || '', query, getAIKey(request.data, googleApiKey.value()));
+                const responseText = await conectarReply(userId, sessionId, sdata.implementationGoal || '', query, getAIKey(request.data, googleApiKey.value()), sharedDocs);
                 await sref.collection("messages").add({ role: 'ia', text: responseText, timestamp: new Date(), arquitectoMode: 'conectar' });
                 await sref.set({ updatedAt: new Date().toISOString() }, { merge: true });
                 return { response: responseText, detectedIntent: 'CONECTAR', hadResolution: false };
