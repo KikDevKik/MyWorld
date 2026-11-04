@@ -113,6 +113,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         }]);
     }, [sessionResolved, roadmapReminderShown]);
 
+    const activeSessionIdsRef = useRef<string[]>([]);
     // Sprint 6.4: Detectar sesión existente al montar (solo una vez)
     useEffect(() => {
         if (isGhostMode) return;
@@ -122,13 +123,14 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                     setExistingSession(null);
                     return;
                 }
-                // Filtrar sesiones archivadas en el cliente
-                const activeSessions = sessions.filter((s: any) => s.status !== 'archived');
-                if (activeSessions.length === 0) {
+                // Nov 2026: solo se ofrece la conversación MÁS RECIENTE. Antes se tomaba la primera no archivada,
+                // así que al descartar una aparecía la anterior y parecía que «Descartar» no hacía nada.
+                activeSessionIdsRef.current = sessions.filter((s: any) => s.status !== 'archived').map((s: any) => s.id);
+                const latest = sessions[0];
+                if (!latest || latest.status === 'archived') {
                     setExistingSession(null);
                     return;
                 }
-                const latest = activeSessions[0];
                 const daysSince = (Date.now() - new Date(latest.updatedAt).getTime()) / (1000 * 60 * 60 * 24);
                 if (daysSince > 30) {
                     setExistingSession(null);
@@ -286,7 +288,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                 const hoursElapsed = (Date.now() - sessionUpdateTimestamp) / (1000 * 60 * 60);
                 
                 // Si la sesión tiene menos de 24 horas, restaurar sin re-analizar
-                if (hoursElapsed < 24 && latestSession.pendingItems?.length > 0) {
+                if (hoursElapsed < 24 && latestSession.status !== 'archived' && latestSession.pendingItems?.length > 0) {
                     console.log("🔄 [ARQUITECTO] Restaurando sesión existente...");
                     
                     setSessionId(latestSession.id);
@@ -510,11 +512,15 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
             const db = getFS();
             const userId = getA().currentUser?.uid;
             if (!userId) return;
-            await fsSetDoc(
-                fsDoc(db, 'users', userId, 'forge_sessions', existingSession.id),
-                { status: 'archived', archivedAt: new Date().toISOString() },
+            // Nov 2026: se archivan también las conversaciones viejas que seguían abiertas, para que no reaparezcan.
+            const ids = [...new Set([existingSession.id, ...activeSessionIdsRef.current])];
+            const now = new Date().toISOString();
+            await Promise.all(ids.map(id => fsSetDoc(
+                fsDoc(db, 'users', userId, 'forge_sessions', id),
+                { status: 'archived', archivedAt: now },
                 { merge: true }
-            );
+            )));
+            activeSessionIdsRef.current = [];
         } catch (e) {
             console.warn('[Arquitecto] No se pudo archivar la sesión:', e);
         }

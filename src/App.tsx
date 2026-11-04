@@ -83,6 +83,7 @@ const MapaView = lazyView(() => import('./components/preparar/MapaView'));
 const ImprentaView = lazyView(() => import('./components/imprenta/ImprentaView'));
 import { loadPrepararTab, type PrepararTab } from './components/preparar/tabs';
 import { locateQuote } from './utils/locateQuote';
+import { reviewCount, NAMES_CHANGED_EVENT, type NamesState } from './components/architect/WorldNamesPanel';
 const GenesisWizardModal = lazyView(() => import('./components/genesis/GenesisWizardModal'));
 
 interface AppContentProps {
@@ -415,6 +416,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     }, [isZenMode]);
     const [prepararTab, setPrepararTab] = useState<PrepararTab>(loadPrepararTab); // Oct 2026: espacio Preparar
     const [arquitectoHandoff, setArquitectoHandoff] = useState<{ text: string; nonce: number } | null>(null);
+    // Nov 2026: revisión del canon de Mira (nombres y documentos repetidos), para avisar antes de escribir.
+    const [canonReview, setCanonReview] = useState<NamesState | null>(null);
+    const [arqOpenTool, setArqOpenTool] = useState<{ tool: 'names'; nonce: number } | null>(null);
+    const openCanonReview = () => { setArqOpenTool({ tool: 'names', nonce: Date.now() }); setPrepararTab('conversacion'); setActiveView('arquitecto'); };
     const [showLegacyExport, setShowLegacyExport] = useState(false); // Oct 2026: certificado de autoría (panel anterior)
     const openReportRef = useRef<() => void>(() => {});
     const canonWatch = useCanonWatch(currentFileId, currentFileName, () => openReportRef.current());
@@ -675,7 +680,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         if (ri?.problems) items.push(`Del reporte quedan ${ri.problems} ${ri.problems === 1 ? 'cosa' : 'cosas'} por corregir${ri.high ? ` (${ri.high} ${ri.high === 1 ? 'importante' : 'importantes'})` : ''}${ri.top ? `, como «${ri.top}»` : ''}.`);
         if (ri?.dudas) items.push(`Hay ${ri.dudas} ${ri.dudas === 1 ? 'duda' : 'dudas'} del canon por definir.`);
         if (ri?.spelling) items.push(`Y ${ri.spelling} ${ri.spelling === 1 ? 'corrección' : 'correcciones'} de ortografía.`);
-        return items.length ? { items, hasReport: !!ri?.hasReport } : null;
+        const nG = canonReview?.groups?.length || 0, nD = canonReview?.docs?.length || 0;
+        if (nG || nD) items.push(`En tu canon ${[nG ? `hay ${nG} ${nG === 1 ? 'concepto' : 'conceptos'} con dos nombres` : '', nD ? `${nG ? '' : 'hay '}${nD} ${nD === 1 ? 'par' : 'pares'} de documentos repetidos` : ''].filter(Boolean).join(' y ')}: conviene resolverlo antes de seguir.`);
+        return items.length ? { items, hasReport: !!ri?.hasReport, review: reviewCount(canonReview) > 0 } : null;
     })();
     const askMiraWhatsNext = (msg?: string) => {
         if (msg === undefined) {
@@ -928,6 +935,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return () => clearTimeout(timer);
     }, [currentFileId, selectedFileContent, activeView]);
 
+    useEffect(() => {
+        if (!folderId) return;
+        callFunction<NamesState>('worldNames', { mode: 'get' }).then(s => s && setCanonReview(s)).catch(() => { /* sin revisión */ });
+        const on = (e: Event) => setCanonReview((e as CustomEvent).detail || null);
+        window.addEventListener(NAMES_CHANGED_EVENT, on);
+        return () => window.removeEventListener(NAMES_CHANGED_EVENT, on);
+    }, [folderId]);
+
     // Nov 2026: si «Nombres del mundo» cambió el documento abierto, se recarga para no pisar el cambio al guardar.
     const tokenRef = useRef(oauthToken);
     tokenRef.current = oauthToken;
@@ -935,7 +950,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         const onChanged = async (e: Event) => {
             const ids: string[] = (e as CustomEvent).detail?.fileIds || [];
             const cur = currentFileIdRef.current;
+            if ((e as CustomEvent).detail?.renamed || (e as CustomEvent).detail?.trashed) refreshConfig();
             if (!cur || !ids.includes(cur)) return;
+            if ((e as CustomEvent).detail?.trashed) { toast.warning('El documento que tienes abierto está ahora en la papelera de Drive.'); return; }
             try {
                 const data = await callFunction<{ content: string; name: string }>('getDriveFileContent', { fileId: cur, accessToken: tokenRef.current });
                 if (currentFileIdRef.current !== cur || !data) return;
@@ -1255,6 +1272,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                                 handoff={arquitectoHandoff}
                                 onHandoffConsumed={() => setArquitectoHandoff(null)}
                                 onOpenDocument={openDocumentAtQuote}
+                                openTool={arqOpenTool}
                             />
                         ),
                         mapa: (
@@ -1351,6 +1369,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     genesisContext={arquitectoGenesisContext}
                     onGenesisContextConsumed={() => setArquitectoGenesisContext(null)}
                     onOpenDocument={openDocumentAtQuote}
+                    openTool={arqOpenTool}
                 />
             );
         }
@@ -1498,7 +1517,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             onAskArquitecto={(text) => { setIsReportOpen(false); setArquitectoHandoff({ text, nonce: Date.now() }); setPrepararTab('conversacion'); setActiveView('arquitecto'); }}
                         />
                     )}
-                    {!isReportOpen && <MiraDeskCompanion content={selectedFileContent} fileId={currentFileId} isZenMode={isZenMode} arrival={deskArrival} onOpenReport={() => setIsReportOpen(true)} onAskMira={askMiraWhatsNext} />}
+                    {!isReportOpen && <MiraDeskCompanion content={selectedFileContent} fileId={currentFileId} isZenMode={isZenMode} arrival={deskArrival} onOpenReport={() => setIsReportOpen(true)} onAskMira={askMiraWhatsNext} onReviewCanon={openCanonReview} />}
                     <StatusBar
                         content={selectedFileContent}
                         fileId={currentFileId}

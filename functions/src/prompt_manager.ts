@@ -271,7 +271,7 @@ UBICACIÓN DE CADA PROBLEMA (obligatorio):
 - En "initialMessage", al final de cada problema que menciones pon su código entre paréntesis, por ejemplo (ARQ-003). La app lo convierte en un botón «Ver fallo» que muestra el pasaje, así que no copies citas largas en el mensaje.
 - Un documento que termina en [RECORTADO POR ESPACIO …] continúa en el original: nunca digas que está incompleto o cortado.
 - El proyecto «${escapePromptVariable(projectName)}»${acronym ? ` puede aparecer en las notas como ${acronym} o` : ''} con otro nombre: no lo reportes como ausente del canon por eso.
-${nameDecisions ? `- NOMBRES QUE EL AUTOR YA DECIDIÓ (respétalos; no los reportes como contradicción):\n${nameDecisions}` : '- Si un mismo concepto aparece con dos nombres en distintos documentos (un renombre a medias), no lo trates como dos cosas distintas ni construyas una contradicción sobre eso: menciónalo una sola vez y dile al autor que lo unifique en «Nombres del mundo».'}
+${nameDecisions ? `- LO QUE MIRA REVISÓ EN EL CANON (respétalo; no lo reportes como contradicción):\n${nameDecisions}` : '- Si un mismo concepto aparece con dos nombres en distintos documentos (un renombre a medias), no lo trates como dos cosas distintas ni construyas una contradicción sobre eso: menciónalo una sola vez y dile al autor que lo unifique en «Revisión del canon».'}
 
 Responde SOLO con JSON:
 {
@@ -566,7 +566,7 @@ WHERE EACH PROBLEM IS (required):
 - In "initialMessage", end each problem you mention with its code in parentheses, e.g. (ARQ-003). The app turns it into a "See issue" button that shows the passage, so do not paste long quotes into the message.
 - A document ending in [RECORTADO POR ESPACIO …] continues in the original: never say it is incomplete or cut off.
 - The project "${escapePromptVariable(projectName)}"${acronym ? ` may appear in the notes as ${acronym} or` : ''} under another name: do not report it as missing from the canon for that reason.
-${nameDecisions ? `- NAMES THE AUTHOR ALREADY DECIDED (respect them; do not report them as contradictions):\n${nameDecisions}` : '- If one concept appears under two names across documents (a half-finished rename), do not treat it as two different things or build a contradiction on it: mention it once and tell the author to unify it in "World names".'}
+${nameDecisions ? `- WHAT MIRA REVIEWED IN THE CANON (respect it; do not report it as a contradiction):\n${nameDecisions}` : '- If one concept appears under two names across documents (a half-finished rename), do not treat it as two different things or build a contradiction on it: mention it once and tell the author to unify it in "Canon review".'}
 
 Reply ONLY with JSON:
 {

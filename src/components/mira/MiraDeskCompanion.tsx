@@ -20,7 +20,7 @@ const todayKey = () => `myword_daily_${localDayKey()}`;
 type Bubble = { title?: string; text: string; rest?: boolean; until?: number; arrival?: boolean };
 
 /** Nov 2026: al entrar al escritorio Mira repasa lo pendiente (plan y reporte) y pregunta cómo seguir. */
-export interface DeskArrival { items: string[]; hasReport: boolean }
+export interface DeskArrival { items: string[]; hasReport: boolean; review?: boolean }
 
 const T = {
     es: {
@@ -32,7 +32,7 @@ const T = {
         start: 'Empezar', skip: 'Saltar', never: 'No volver a mostrar',
         opts: 'Opciones de Mira', oTips: 'Tips al despertar', oRitual: 'Ritual antes de escribir', oHide: 'Ocultar a Mira',
         talk: 'Hablar con Mira', arrT: 'Antes de seguir', arrQ: '¿Sigues escribiendo o resolvemos pendientes?',
-        aWrite: 'Seguir escribiendo', aReport: 'Ver el reporte', aNext: '¿Qué sigue?',
+        aWrite: 'Seguir escribiendo', aReport: 'Ver el reporte', aNext: '¿Qué sigue?', aReview: 'Revisar el canon',
     },
     en: {
         miraAria: 'Mira, your companion. Open her options', back: 'Welcome back', backText: (s: string) => `You were at: “${s}”. Carry on whenever you like.`,
@@ -43,7 +43,7 @@ const T = {
         start: 'Start', skip: 'Skip', never: 'Don’t show again',
         opts: 'Mira’s options', oTips: 'Tips when she wakes up', oRitual: 'Ritual before writing', oHide: 'Hide Mira',
         talk: 'Talk to Mira', arrT: 'Before you go on', arrQ: 'Keep writing or sort out what’s pending?',
-        aWrite: 'Keep writing', aReport: 'See the report', aNext: 'What’s next?',
+        aWrite: 'Keep writing', aReport: 'See the report', aNext: 'What’s next?', aReview: 'Review the canon',
     },
 };
 
@@ -55,9 +55,9 @@ const lastSentence = (s: string) => {
     return last.length > 90 ? '…' + last.slice(-90) : last;
 };
 
-interface Props { content: string; fileId?: string | null; isZenMode?: boolean; arrival?: DeskArrival | null; onOpenReport?: () => void; onAskMira?: (msg?: string) => void }
+interface Props { content: string; fileId?: string | null; isZenMode?: boolean; arrival?: DeskArrival | null; onOpenReport?: () => void; onAskMira?: (msg?: string) => void; onReviewCanon?: () => void }
 
-const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenReport, onAskMira }) => {
+const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenReport, onAskMira, onReviewCanon }) => {
     const lang = useLanguageStore(s => s.currentLanguage) === 'es' ? 'es' : 'en';
     const t = T[lang];
     const tips = useMemo(() => getTips(lang), [lang]);
@@ -191,6 +191,7 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
                                     <p className="mt-2 font-medium">{t.arrQ}</p>
                                     <div className="flex flex-wrap gap-2 mt-3">
                                         <button type="button" onClick={() => { setBubble(null); lastType.current = Date.now(); }} className="min-h-[36px] px-4 rounded-full bg-coral text-on-coral font-semibold text-sm">{t.aWrite}</button>
+                                        {arrival.review && onReviewCanon && <button type="button" onClick={() => { setBubble(null); onReviewCanon(); }} className="min-h-[36px] px-4 rounded-full border border-titanium-600 text-titanium-100 text-sm">{t.aReview}</button>}
                                         {arrival.hasReport && onOpenReport && <button type="button" onClick={() => { setBubble(null); onOpenReport(); }} className="min-h-[36px] px-4 rounded-full border border-titanium-600 text-titanium-100 text-sm">{t.aReport}</button>}
                                         {onAskMira && <button type="button" onClick={() => { setBubble(null); onAskMira(); }} className="min-h-[36px] px-4 rounded-full border border-titanium-600 text-titanium-100 text-sm">{t.aNext}</button>}
                                     </div>

@@ -1,11 +1,14 @@
-// Nov 2026: Nombres del mundo.
-// Como el corrector ortográfico, pero para el canon: Mira busca conceptos que aparecen con dos nombres
-// (un renombre a medias como «Anima Fusione» → «Anima», o variantes como «Psico-Energía» / «Psico Energía»).
-// El autor elige el nombre que queda y puede unificarlo en sus documentos o solo dejarlo decidido; las
-// decisiones pasan al Arquitecto y a la memoria para que ninguna IA los trate como dos cosas distintas.
+// Nov 2026: Revisión del canon con Mira («Nombres del mundo»).
+// Como el corrector ortográfico, pero para el canon. Tres cosas:
+//  1) Nombres: un concepto escrito con dos nombres (un renombre a medias como «Anima Fusione» / «Fusione»,
+//     o variantes como «Psico-Energía» / «Psico Energía»). Incluye los títulos de los documentos.
+//  2) Documentos repetidos: copias casi iguales con distinto nombre (un borrador viejo y el actual) y dos
+//     fichas del mismo tema en carpetas distintas. Se muestra hasta dónde llega cada uno y qué tiene solo él.
+//  3) Cambiar un nombre a mano en todo el canon (texto, enlaces [[ ]] y el título del documento).
+// Las decisiones pasan al Arquitecto y a la memoria para que ninguna IA trate un concepto como dos.
 //
-// Detección barata: los términos se extraen sin IA (nombres propios y negritas, con conteos por archivo)
-// y la IA solo agrupa los que son el mismo concepto. Los conteos y los reemplazos son deterministas.
+// Detección barata: términos, conteos y parecido entre documentos se calculan sin IA; la IA solo agrupa
+// los términos que son el mismo concepto. Los reemplazos son deterministas y con vista previa.
 import { HttpsError } from "firebase-functions/v2/https";
 import { onCall } from "./utils/on_call";
 import { defineSecret } from "firebase-functions/params";
@@ -24,69 +27,90 @@ const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
 
 interface VariantFile { fileId: string; fileName: string; count: number; sample: string }
-interface Variant { name: string; total: number; files: VariantFile[] }
-interface NameGroup { id: string; variants: Variant[]; suggested: string; reason: string; kind: "renombre" | "ortografia" }
+interface Variant { name: string; total: number; files: VariantFile[]; titles?: { fileId: string; fileName: string }[] }
+interface NameGroup { id: string; variants: Variant[]; suggested: string; reason: string; kind: "renombre" | "ortografia" | "manual" }
 interface NameDecision { canonical: string; others: string[]; kind: "mismo" | "distintos"; at: string; applied?: number }
-interface NamesState { groups: NameGroup[]; decisions: NameDecision[]; checkedAt?: string }
+interface DocInfo { fileId: string; name: string; folder: string; words: number; reach: number; modifiedTime?: string; uniqueWords: number; uniqueSample: string }
+interface DocPair { id: string; kind: "copia" | "mismo_tema"; overlap: number; a: DocInfo; b: DocInfo }
+interface DocDecision { ids: string[]; kind: "distintos" | "archivado"; keep?: string; at: string }
+interface NamesState { groups: NameGroup[]; decisions: NameDecision[]; docs: DocPair[]; docDecisions: DocDecision[]; checkedAt?: string }
+interface CorpusFile { id: string; name: string; path: string; text: string }
 
 const stateRef = (uid: string) => getFirestore().collection("users").doc(uid).collection("world_names").doc("state");
 
 async function loadState(uid: string): Promise<NamesState> {
     const d: any = (await stateRef(uid).get()).data() || {};
-    return { groups: d.groups || [], decisions: d.decisions || [], checkedAt: d.checkedAt };
+    return { groups: d.groups || [], decisions: d.decisions || [], docs: d.docs || [], docDecisions: d.docDecisions || [], checkedAt: d.checkedAt };
 }
 
 /** Texto para los prompts del Arquitecto: los nombres que el autor ya decidió. */
 export async function loadNameDecisionsText(uid: string): Promise<string> {
     try {
-        const { decisions } = await loadState(uid);
-        return decisions.slice(-30).map(d => d.kind === "distintos"
+        const { decisions, docs } = await loadState(uid);
+        const lines = decisions.slice(-30).map(d => d.kind === "distintos"
             ? `  · «${d.canonical}» y ${d.others.map(o => `«${o}»`).join(", ")} son conceptos distintos.`
             : `  · «${d.canonical}» es el nombre actual; ${d.others.map(o => `«${o}»`).join(", ")} es el nombre antiguo o una variante del mismo concepto. Usa «${d.canonical}».`
-        ).join("\n");
+        );
+        // Documentos repetidos sin resolver: que no los lea como dos fuentes distintas.
+        for (const p of docs.slice(0, 10)) {
+            lines.push(p.kind === "copia"
+                ? `  · «${p.a.name}» y «${p.b.name}» son versiones casi iguales del mismo texto (el autor aún no decide cuál queda). No los trates como dos historias ni saques contradicciones de sus diferencias; si importa, pregúntale cuál es la vigente.`
+                : `  · «${p.a.name}» y «${p.b.name}» tratan del mismo tema. Si se contradicen, no elijas tú: pregúntale al autor cuál es la versión oficial.`);
+        }
+        return lines.join("\n");
     } catch { return ""; }
 }
 
 // ── Corpus: el texto indexado del canon (incluye subcarpetas; sin pedir el token de Drive) ──
-async function loadCorpus(uid: string): Promise<{ id: string; name: string; text: string }[]> {
+async function loadCorpus(uid: string): Promise<CorpusFile[]> {
     const db = getFirestore();
-    const filesSnap = await db.collection("TDB_Index").doc(uid).collection("files").limit(200).get();
+    const filesSnap = await db.collection("TDB_Index").doc(uid).collection("files").limit(250).get();
     const docs = filesSnap.docs.filter(d => {
         const x: any = d.data();
         return x.category !== "reference" && !/^memoria del autor\.md$/i.test(x.name || "");
     });
-    const out: { id: string; name: string; text: string }[] = [];
+    const out: CorpusFile[] = [];
     for (let i = 0; i < docs.length; i += 15) {
         const part = await Promise.all(docs.slice(i, i + 15).map(async d => {
             const chunks = await d.ref.collection("chunks").select("text").get();
             const text = chunks.docs
                 .sort((a, b) => Number(a.id.replace(/\D/g, "")) - Number(b.id.replace(/\D/g, "")))
                 .map(c => String((c.data() as any).text || "")).join("\n\n");
-            return { id: d.id, name: String((d.data() as any).name || d.id), text };
+            const x: any = d.data();
+            return { id: d.id, name: String(x.name || d.id), path: String(x.path || x.name || ""), text };
         }));
         out.push(...part.filter(p => p.text.trim().length > 0));
     }
     return out;
 }
 
+const baseName = (name: string) => String(name || "").replace(/\.(md|txt|markdown)$/i, "").trim();
+const folderOf = (f: CorpusFile) => {
+    const parts = f.path.split("/").filter(Boolean);
+    return parts.length > 1 ? parts.slice(0, -1).join(" / ") : "";
+};
+
 // ── Extracción de términos (sin IA) ──
 const STOP = new Set(["El", "La", "Los", "Las", "Un", "Una", "Unos", "Unas", "Y", "O", "Pero", "Si", "No", "Sí", "En", "De", "Del", "Al", "A", "Con", "Por", "Para", "Que", "Qué", "Como", "Cómo", "Cuando", "Cuándo", "Donde", "Dónde", "Este", "Esta", "Estos", "Estas", "Ese", "Esa", "Eso", "Su", "Sus", "Lo", "Le", "Les", "Se", "Es", "Era", "Fue", "Hay", "Hace", "Ella", "Él", "Ellos", "Yo", "Tu", "Tú", "Mi", "Nos", "También", "Aun", "Aún", "Así", "Ya", "Sin", "Sobre", "Entre", "Desde", "Hasta", "Muy", "Más", "Todo", "Todos", "Cada", "Otro", "Otra", "Porque", "Entonces", "Luego", "Después", "Antes", "Ahora", "Además", "Incluso", "Mientras", "Aunque", "Bueno", "Obviamente", "Imagina", "Nota", "Ej", "Ejemplo", "Ver", "Fase", "Parte", "Capítulo", "The", "And", "Of"]);
 const LINK = new Set(["de", "del", "la", "las", "los", "el", "y"]);
 const TERM_RE = /(?<![\p{L}\p{N}])([A-ZÁÉÍÓÚÑ][\p{L}]{1,}(?:(?:-|\s(?:(?:de|del|de\s+la|de\s+las|de\s+los)\s)?)[A-ZÁÉÍÓÚÑ][\p{L}]{1,}){0,3})(?![\p{L}\p{N}])/gu;
 
-function extractTerms(files: { id: string; name: string; text: string }[]) {
-    const stats = new Map<string, { total: number; files: Set<string> }>();
+function extractTerms(files: CorpusFile[]) {
+    const stats = new Map<string, { total: number; files: Set<string>; title: boolean }>();
     const lowerFreq = new Map<string, number>();
     for (const f of files) {
         for (const w of f.text.match(/(?<![\p{L}])[a-záéíóúñ][\p{L}]+/gu) || []) lowerFreq.set(w, (lowerFreq.get(w) || 0) + 1);
     }
-    const add = (t: string, fileId: string) => {
+    const add = (t: string, fileId: string, title = false) => {
         const term = t.replace(/\s+/g, " ").trim();
         if (term.length < 3 || term.length > 48) return;
-        const s = stats.get(term) || { total: 0, files: new Set<string>() };
-        s.total++; s.files.add(fileId); stats.set(term, s);
+        const s = stats.get(term) || { total: 0, files: new Set<string>(), title: false };
+        s.total++; s.files.add(fileId); if (title) s.title = true; stats.set(term, s);
     };
     for (const f of files) {
+        // El título del documento también es un nombre: «Fusione.md» explica lo que el texto llama «Anima Fusione».
+        const title = baseName(f.name);
+        if (title && title.split(/\s+/).length <= 4 && /^[A-ZÁÉÍÓÚÑ]/.test(title)) add(title, f.id, true);
         const text = f.text.replace(/\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g, "$1");
         for (const m of text.matchAll(TERM_RE)) {
             let term = m[1];
@@ -128,12 +152,18 @@ function findSpans(text: string, variants: string[]): { from: number; to: number
     return spans.sort((x, y) => x.from - y.from);
 }
 
+// Enlaces [[destino|alias]] o [[destino#sección]] cuyo destino es uno de los nombres viejos.
+const LINK_RE = /\[\[([^\]|#]+)((?:[#|][^\]]*)?)\]\]/g;
+const linkTargetsOld = (target: string, others: string[]) => others.some(o => o.toLowerCase() === target.trim().toLowerCase());
+
 const snippet = (text: string, from: number, to: number, pad = 70) =>
     `${from > pad ? "…" : ""}${text.slice(Math.max(0, from - pad), from)}⟦${text.slice(from, to)}⟧${text.slice(to, to + pad)}${to + pad < text.length ? "…" : ""}`.replace(/\s+/g, " ");
 
-function countGroup(files: { id: string; name: string; text: string }[], names: string[]): Variant[] {
-    const by = new Map<string, Variant>(names.map(n => [n, { name: n, total: 0, files: [] }]));
+function countGroup(files: CorpusFile[], names: string[]): Variant[] {
+    const by = new Map<string, Variant>(names.map(n => [n, { name: n, total: 0, files: [], titles: [] }]));
     for (const f of files) {
+        const t = baseName(f.name);
+        for (const n of names) if (t.toLowerCase() === n.toLowerCase()) by.get(n)!.titles!.push({ fileId: f.id, fileName: f.name });
         const spans = findSpans(f.text, names);
         const per = new Map<string, { count: number; first: { from: number; to: number } }>();
         for (const s of spans) {
@@ -158,17 +188,126 @@ function isDecided(names: string[], decisions: NameDecision[]) {
     });
 }
 
-const SCAN_PROMPT = `Eres Mira, la compañera de escritura de MyWorld. Revisas el VOCABULARIO del canon de un autor (nombres propios, mecánicas, reglas, lugares, objetos) para encontrar el MISMO concepto escrito con nombres distintos: un renombre que quedó a medias en algunos documentos, una abreviatura, o una variante de escritura (tildes, guiones, espacios).
+// ── Documentos repetidos (sin IA) ──
+const plainWords = (t: string) => (t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().match(/[a-z0-9ñ]+/g) || []);
+function shingles(words: string[]): Set<number> {
+    const s = new Set<number>();
+    for (let i = 0; i + 5 <= words.length; i++) {
+        let h = 2166136261;
+        for (let k = i; k < i + 5; k++) {
+            const w = words[k];
+            for (let c = 0; c < w.length; c++) { h ^= w.charCodeAt(c); h = Math.imul(h, 16777619); }
+            h ^= 32; h = Math.imul(h, 16777619);
+        }
+        s.add(h >>> 0);
+    }
+    return s;
+}
+const NUMS: Record<string, number> = { uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10 };
+function romanToInt(r: string) { const m: Record<string, number> = { i: 1, v: 5, x: 10, l: 50, c: 100 }; let n = 0; for (let i = 0; i < r.length; i++) { const a = m[r[i]] || 0, b = m[r[i + 1]] || 0; n += a < b ? -a : a; } return n; }
+function chapterReach(text: string): number {
+    let max = 0;
+    for (const m of text.matchAll(/(?:^|\n)\s*#{0,4}\s*(?:cap[ií]tulo|chapter|cap\.)\s*([0-9]{1,3}|[ivxlc]{1,6}|uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez)\b/gi)) {
+        const raw = m[1].toLowerCase();
+        const n = /^\d+$/.test(raw) ? Number(raw) : NUMS[raw] || romanToInt(raw);
+        if (n > max && n < 500) max = n;
+    }
+    return max;
+}
+const TOPIC_NOISE = new Set(["ficha", "fichas", "personaje", "personajes", "pj", "copia", "copy", "borrador", "final", "nuevo", "nueva", "viejo", "vieja", "de", "del", "la", "el", "los", "las", "v", "version"]);
+const topicKey = (name: string) => plainWords(baseName(name).replace(/\(\d+\)|\bv\d+\b/gi, "")).filter(w => !TOPIC_NOISE.has(w) && !/^\d+$/.test(w)).join(" ");
+
+function uniquePart(a: CorpusFile, bSet: Set<number>) {
+    let words = 0; let sample = "";
+    for (const p of a.text.split(/\n\s*\n/)) {
+        const w = plainWords(p);
+        if (w.length < 12) continue;
+        const sh = shingles(w);
+        let hit = 0; sh.forEach(h => { if (bSet.has(h)) hit++; });
+        if (hit / Math.max(1, sh.size) < 0.3) {
+            words += w.length;
+            if (!sample) sample = p.replace(/\s+/g, " ").trim().slice(0, 220) + (p.length > 220 ? "…" : "");
+        }
+    }
+    return { words, sample };
+}
+
+function findDocPairs(files: CorpusFile[], decided: DocDecision[]): DocPair[] {
+    const sets = files.map(f => shingles(plainWords(f.text)));
+    const post = new Map<number, number[]>();
+    sets.forEach((s, i) => s.forEach(h => { const l = post.get(h); if (l) { if (l.length < 8) l.push(i); } else post.set(h, [i]); }));
+    const overlap = new Map<string, number>();
+    for (const list of post.values()) {
+        if (list.length < 2 || list.length > 6) continue;
+        for (let x = 0; x < list.length; x++) for (let y = x + 1; y < list.length; y++) {
+            const k = `${list[x]}:${list[y]}`;
+            overlap.set(k, (overlap.get(k) || 0) + 1);
+        }
+    }
+    const decidedKeys = new Set(decided.map(d => [...d.ids].sort().join("|")));
+    const pairs: DocPair[] = [];
+    const seen = new Set<string>();
+    const info = (i: number, otherSet: Set<number>): DocInfo => {
+        const f = files[i];
+        const u = uniquePart(f, otherSet);
+        return { fileId: f.id, name: f.name, folder: folderOf(f), words: plainWords(f.text).length, reach: chapterReach(f.text), uniqueWords: u.words, uniqueSample: u.sample };
+    };
+    const push = (i: number, j: number, kind: DocPair["kind"], ov: number) => {
+        const id = [files[i].id, files[j].id].sort().join("|");
+        if (seen.has(id) || decidedKeys.has(id)) return;
+        seen.add(id);
+        pairs.push({ id, kind, overlap: Math.round(ov * 100), a: info(i, sets[j]), b: info(j, sets[i]) });
+    };
+    for (const [k, n] of overlap) {
+        const [i, j] = k.split(":").map(Number);
+        const min = Math.min(sets[i].size, sets[j].size);
+        if (min < 40 || n < 30) continue;
+        const c = n / min;
+        if (c >= 0.45) push(i, j, "copia", c);
+    }
+    // Mismo tema en dos documentos (p. ej. dos fichas de Anna en carpetas distintas).
+    const byTopic = new Map<string, number[]>();
+    files.forEach((f, i) => { const t = topicKey(f.name); if (t.length >= 3) byTopic.set(t, [...(byTopic.get(t) || []), i]); });
+    for (const list of byTopic.values()) {
+        if (list.length < 2 || list.length > 5) continue;
+        for (let x = 0; x < list.length; x++) for (let y = x + 1; y < list.length; y++) {
+            const i = list[x], j = list[y];
+            const n = overlap.get(`${Math.min(i, j)}:${Math.max(i, j)}`) || 0;
+            push(i, j, "mismo_tema", n / Math.max(1, Math.min(sets[i].size, sets[j].size)));
+        }
+    }
+    return pairs.sort((p, q) => (p.kind === q.kind ? q.overlap - p.overlap : p.kind === "copia" ? -1 : 1)).slice(0, 25);
+}
+
+const SCAN_PROMPT = `Eres Mira, la compañera de escritura de MyWorld. Revisas el VOCABULARIO del canon de un autor (nombres propios, mecánicas, reglas, lugares, objetos y los TÍTULOS de sus documentos) para encontrar el MISMO concepto escrito con nombres distintos: un renombre que quedó a medias en algunos documentos, una abreviatura, el título de un documento que dice una cosa mientras el texto dice otra, o una variante de escritura (tildes, guiones, espacios).
 
 REGLAS:
 - Agrupa SOLO lo que es el mismo concepto. Dos cosas relacionadas pero distintas (una mecánica y una de sus partes, un personaje y su familia, un lugar y su región) NO van juntas. Usa los contextos para decidir; si dudas, no lo agrupes.
+- Ojo con los títulos: si el documento «Fusione» explica lo que el texto llama «Anima Fusione», son el mismo concepto.
 - Cada variante debe copiarse EXACTA de la lista de términos.
-- "sugerido": el nombre que parece el actual (el más usado o el de los documentos que lo definen). El autor decide al final.
+- "sugerido": el nombre que parece el actual (el título del documento que lo define, o el más usado). El autor decide al final.
 - "tipo": "ortografia" si solo cambian tildes, guiones, espacios o mayúsculas; "renombre" si cambian las palabras.
 - "razon": una frase corta y concreta para el autor, en español, con tono cercano.
 - Si no hay nada, devuelve "grupos": [].
 
 Responde SOLO con JSON: {"grupos":[{"variantes":["…","…"],"sugerido":"…","tipo":"renombre","razon":"…"}]}`;
+
+function driveFor(accessToken: string) {
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: accessToken });
+    return google.drive({ version: "v3", auth });
+}
+
+async function deleteFromIndex(uid: string, fileId: string) {
+    const ref = getFirestore().collection("TDB_Index").doc(uid).collection("files").doc(fileId);
+    const chunks = await ref.collection("chunks").listDocuments();
+    for (let i = 0; i < chunks.length; i += 400) {
+        const b = getFirestore().batch();
+        chunks.slice(i, i + 400).forEach(c => b.delete(c));
+        await b.commit();
+    }
+    await ref.delete();
+}
 
 export const worldNames = onCall(
     { region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS, enforceAppCheck: false, secrets: [googleApiKey, anthropicApiKey], timeoutSeconds: 300, memory: "1GiB" },
@@ -185,18 +324,21 @@ export const worldNames = onCall(
             const files = await loadCorpus(uid);
             if (!files.length) return { ...state, noIndex: true };
             const stats = extractTerms(files);
-            const terms = [...stats.entries()].filter(([, s]) => s.total >= 2).sort((a, b) => b[1].total - a[1].total).slice(0, 260);
+            const terms = [...stats.entries()].filter(([, s]) => s.total >= 2 || s.title).sort((a, b) => b[1].total - a[1].total).slice(0, 300);
             const termSet = new Set(terms.map(([t]) => t));
 
-            // Candidatos seguros para dar contexto: misma forma sin tildes/guiones, o uno es el comienzo del otro.
+            // Candidatos seguros para dar contexto: misma forma sin tildes/guiones, o uno es el comienzo o el final del otro.
             const cands = new Set<string>();
             const byFold = new Map<string, string[]>();
             for (const [t] of terms) byFold.set(fold(t), [...(byFold.get(fold(t)) || []), t]);
             for (const list of byFold.values()) if (list.length > 1) list.forEach(t => cands.add(t));
-            for (const [a] of terms) for (const [b] of terms) if (b !== a && b.startsWith(a + " ") && b.split(" ").length <= a.split(" ").length + 2) { cands.add(a); cands.add(b); }
-            const ctx = [...cands].slice(0, 70).map(t => {
+            for (const [a] of terms) for (const [b] of terms) {
+                if (b === a || b.split(" ").length > a.split(" ").length + 2) continue;
+                if (b.startsWith(a + " ") || b.endsWith(" " + a)) { cands.add(a); cands.add(b); }
+            }
+            const ctx = [...cands].slice(0, 80).map(t => {
                 const f = files.find(x => x.text.includes(t));
-                if (!f) return "";
+                if (!f) return stats.get(t)?.title ? `- «${t}»: es el título de un documento` : "";
                 const i = f.text.indexOf(t);
                 return `- «${t}» (${f.name}): ${snippet(f.text, i, i + t.length, 110)}`;
             }).filter(Boolean).join("\n");
@@ -204,38 +346,52 @@ export const worldNames = onCall(
 
             const prompt = [
                 SCAN_PROMPT,
-                `TÉRMINOS (veces · documentos):\n${terms.map(([t, s]) => `${t} · ${s.total} · ${s.files.size}`).join("\n")}`,
+                `TÉRMINOS (veces · documentos · T = título de un documento):\n${terms.map(([t, s]) => `${t} · ${s.total} · ${s.files.size}${s.title ? " · T" : ""}`).join("\n")}`,
                 ctx ? `CONTEXTOS DE LOS CANDIDATOS:\n${ctx}` : "",
                 decided ? `YA DECIDIDO POR EL AUTOR (no los repitas):\n${decided}` : "",
             ].filter(Boolean).join("\n\n");
 
             const genAI = new GoogleGenerativeAI(getAIKey(request.data, googleApiKey.value()));
             const r = await smartGenerateContent(genAI, prompt, { _tier: getTier(request.data), taskType: "standard", jsonMode: true, temperature: 0.1, contextLabel: "WorldNames" });
-            if (!r.text) throw new HttpsError("unavailable", "Mira no pudo revisar los nombres ahora. Intenta en un momento.");
-            const parsed = parseSecureJSON(r.text, "WorldNames");
+            const parsed = r.text ? parseSecureJSON(r.text, "WorldNames") : null;
             const raw: any[] = Array.isArray(parsed?.grupos) ? parsed.grupos : [];
 
-            const groups: NameGroup[] = [];
-            const seen = new Set<string>();
+            const groups: NameGroup[] = state.groups.filter(g => g.kind === "manual");
+            const seen = new Set<string>(groups.map(g => g.id));
             for (const g of raw.slice(0, 20)) {
                 const names = [...new Set((Array.isArray(g?.variantes) ? g.variantes : []).map((v: any) => String(v || "").trim()).filter((v: string) => termSet.has(v)))] as string[];
                 if (names.length < 2 || isDecided(names, state.decisions)) continue;
                 const key = groupKey(names);
                 if (seen.has(key)) continue;
                 seen.add(key);
-                const variants = countGroup(files, names).filter(v => v.total > 0);
+                const variants = countGroup(files, names).filter(v => v.total > 0 || (v.titles?.length || 0) > 0);
                 if (variants.length < 2) continue;
-                const suggested = names.includes(String(g?.sugerido)) ? String(g.sugerido) : variants.sort((a, b) => b.total - a.total)[0].name;
+                const suggested = names.includes(String(g?.sugerido)) ? String(g.sugerido) : [...variants].sort((a, b) => b.total - a.total)[0].name;
                 groups.push({ id: key, variants, suggested, reason: String(g?.razon || "").slice(0, 240), kind: g?.tipo === "ortografia" ? "ortografia" : "renombre" });
             }
-            const next: NamesState = { groups, decisions: state.decisions, checkedAt: new Date().toISOString() };
+
+            const docs = findDocPairs(files, state.docDecisions);
+            // Fecha de la última edición (Drive), para saber cuál es el viejo.
+            if (accessToken && docs.length) {
+                try {
+                    const drive = driveFor(accessToken);
+                    const ids = [...new Set(docs.flatMap(p => [p.a.fileId, p.b.fileId]))].slice(0, 40);
+                    const meta = new Map<string, string>();
+                    await Promise.all(ids.map(async id => {
+                        try { const m = await drive.files.get({ fileId: id, fields: "modifiedTime, trashed" }); if (!m.data.trashed) meta.set(id, String(m.data.modifiedTime || "")); else meta.set(id, "TRASHED"); } catch { /* sin acceso */ }
+                    }));
+                    for (const p of docs) { p.a.modifiedTime = meta.get(p.a.fileId); p.b.modifiedTime = meta.get(p.b.fileId); }
+                } catch (e: any) { logger.warn(`[NOMBRES] Fechas: ${e?.message}`); }
+            }
+            const liveDocs = docs.filter(p => p.a.modifiedTime !== "TRASHED" && p.b.modifiedTime !== "TRASHED");
+
+            const next: NamesState = { groups, decisions: state.decisions, docs: liveDocs, docDecisions: state.docDecisions, checkedAt: new Date().toISOString() };
             await ref.set(next, { merge: true });
-            logger.info(`[NOMBRES] ${uid}: ${groups.length} grupos en ${files.length} documentos`);
+            logger.info(`[NOMBRES] ${uid}: ${groups.length} grupos y ${liveDocs.length} pares de documentos en ${files.length} documentos`);
             return next;
         }
 
         const state = await loadState(uid);
-        const group = state.groups.find(g => g.id === groupId);
 
         if (mode === "forget") {
             const idx = Number(request.data?.index);
@@ -244,6 +400,54 @@ export const worldNames = onCall(
             return { ...state, decisions };
         }
 
+        // ── Documentos repetidos ──
+        if (mode === "docDistinct" || mode === "docKeep") {
+            const pair = state.docs.find(p => p.id === request.data?.pairId);
+            if (!pair) throw new HttpsError("not-found", "Ese par ya no está. Vuelve a revisar.");
+            const at = new Date().toISOString();
+            if (mode === "docDistinct") {
+                const docs = state.docs.filter(p => p.id !== pair.id);
+                const docDecisions = [...state.docDecisions, { ids: [pair.a.fileId, pair.b.fileId], kind: "distintos" as const, at }];
+                await ref.set({ docs, docDecisions }, { merge: true });
+                return { ...state, docs, docDecisions };
+            }
+            const keep = String(request.data?.keepId || "");
+            if (keep !== pair.a.fileId && keep !== pair.b.fileId) throw new HttpsError("invalid-argument", "Elige cuál documento se queda.");
+            if (!accessToken) throw new HttpsError("unauthenticated", "Reconecta Google Drive para mover el documento.");
+            const drop = keep === pair.a.fileId ? pair.b : pair.a;
+            const drive = driveFor(accessToken);
+            try {
+                await drive.files.update({ fileId: drop.fileId, requestBody: { trashed: true } });
+            } catch (e: any) {
+                throw new HttpsError("failed-precondition", `No pude mover «${drop.name}» a la papelera de Drive: ${e?.message || "sin permiso"}.`);
+            }
+            try { await deleteFromIndex(uid, drop.fileId); } catch (e: any) { logger.warn(`[NOMBRES] Índice: ${e?.message}`); }
+            const docs = state.docs.filter(p => p.a.fileId !== drop.fileId && p.b.fileId !== drop.fileId);
+            const docDecisions = [...state.docDecisions, { ids: [pair.a.fileId, pair.b.fileId], kind: "archivado" as const, keep, at }];
+            await ref.set({ docs, docDecisions }, { merge: true });
+            logger.info(`[NOMBRES] ${uid}: «${drop.name}» a la papelera; se queda ${keep}`);
+            return { ...state, docs, docDecisions, trashed: drop.name };
+        }
+
+        // ── Cambiar un nombre a mano ──
+        if (mode === "manual") {
+            const from = String(request.data?.from || "").trim().slice(0, 60);
+            const to = String(request.data?.to || "").trim().slice(0, 60);
+            if (from.length < 2 || to.length < 2) throw new HttpsError("invalid-argument", "Escribe el nombre actual y el nuevo.");
+            if (from.toLowerCase() === to.toLowerCase()) throw new HttpsError("invalid-argument", "El nombre nuevo es igual al actual.");
+            const files = await loadCorpus(uid);
+            const variants = countGroup(files, [from, to]);
+            const old = variants.find(v => v.name === from)!;
+            const linkFiles = files.filter(f => [...f.text.matchAll(LINK_RE)].some(m => linkTargetsOld(m[1], [from])));
+            if (!old.total && !(old.titles?.length) && !linkFiles.length) throw new HttpsError("not-found", `No encontré «${from}» en tus documentos. Revisa cómo está escrito (mayúsculas y tildes cuentan).`);
+            const id = groupKey([from, to]);
+            const group: NameGroup = { id, variants, suggested: to, reason: `Cambio de nombre que pediste: «${from}» pasa a llamarse «${to}».`, kind: "manual" };
+            const groups = [...state.groups.filter(g => g.id !== id), group];
+            await ref.set({ groups }, { merge: true });
+            return { ...state, groups, groupId: id };
+        }
+
+        const group = state.groups.find(g => g.id === groupId);
         if (!group) throw new HttpsError("not-found", "Ese grupo ya no está. Vuelve a revisar los nombres.");
         const names = group.variants.map(v => v.name);
 
@@ -258,6 +462,12 @@ export const worldNames = onCall(
             return { ...state, decisions, groups };
         };
 
+        if (mode === "dismissManual") {
+            const groups = state.groups.filter(g => g.id !== group.id);
+            await ref.set({ groups }, { merge: true });
+            return { ...state, groups };
+        }
+
         if (mode === "distinct") {
             return await saveDecision({ canonical: names[0], others: names.slice(1), kind: "distintos", at: new Date().toISOString() });
         }
@@ -271,23 +481,43 @@ export const worldNames = onCall(
 
         // preview / apply: se lee Drive en ese momento (la fuente de verdad), no el índice.
         if (!accessToken) throw new HttpsError("unauthenticated", "Reconecta Google Drive para revisar tus documentos.");
-        const auth = new google.auth.OAuth2();
-        auth.setCredentials({ access_token: accessToken });
-        const drive = google.drive({ version: "v3", auth });
-        const targets = [...new Set(group.variants.filter(v => v.name !== canonical).flatMap(v => v.files.map(f => f.fileId)))];
+        const drive = driveFor(accessToken);
+        const corpus = await loadCorpus(uid);
+        // Documentos con el nombre viejo en el texto o en un enlace [[ ]].
+        const withLinks = corpus.filter(f => [...f.text.matchAll(LINK_RE)].some(m => linkTargetsOld(m[1], others))).map(f => f.id);
+        const targets = [...new Set([...group.variants.filter(v => v.name !== canonical).flatMap(v => v.files.map(f => f.fileId)), ...withLinks])];
+        // Documentos cuyo título es el nombre viejo (se pueden renombrar) y si ya existe uno con el nombre nuevo.
+        const renameable = corpus.filter(f => others.some(o => baseName(f.name).toLowerCase() === o.toLowerCase()))
+            .map(f => ({ fileId: f.id, fileName: f.name, newName: f.name.replace(baseName(f.name), canonical) }));
+        const canonicalFileExists = corpus.some(f => baseName(f.name).toLowerCase() === canonical.toLowerCase());
+
+        const transform = (text: string, retarget: boolean) => {
+            const spans = findSpans(text, names).filter(s => s.v !== canonical);
+            let next = "", last = 0;
+            for (const s of spans) { next += text.slice(last, s.from) + canonical; last = s.to; }
+            next += text.slice(last);
+            let links = 0;
+            if (retarget) next = next.replace(LINK_RE, (m, target: string, rest: string) => {
+                if (!linkTargetsOld(target, others)) return m;
+                links++;
+                return `[[${canonical}${rest || ""}]]`;
+            });
+            return { next, count: spans.length, links, spans };
+        };
 
         if (mode === "preview") {
             const out: any[] = [];
             for (let i = 0; i < targets.length; i += 6) {
                 const part = await Promise.all(targets.slice(i, i + 6).map(async id => {
                     try {
-                        const meta = await drive.files.get({ fileId: id, fields: "name, mimeType" });
+                        const meta = await drive.files.get({ fileId: id, fields: "name, mimeType, trashed" });
+                        if (meta.data.trashed) return null;
                         const text = String(await _getDriveFileContentInternal(drive, id) || "");
-                        const spans = findSpans(text, names).filter(s => s.v !== canonical);
-                        const links = ((text.match(/\[\[[^\]]*\]\]/g) || []) as string[]).filter(l => others.some(o => l.includes(o))).length;
-                        if (!spans.length && !links) return null;
+                        const { count, spans } = transform(text, false);
+                        const links = [...text.matchAll(LINK_RE)].filter(m => linkTargetsOld(m[1], others)).length;
+                        if (!count && !links) return null;
                         return {
-                            fileId: id, fileName: meta.data.name, count: spans.length, links,
+                            fileId: id, fileName: meta.data.name, count, links,
                             googleDoc: meta.data.mimeType === "application/vnd.google-apps.document",
                             samples: spans.slice(0, 3).map(s => snippet(text, s.from, s.to, 60)),
                         };
@@ -295,35 +525,47 @@ export const worldNames = onCall(
                 }));
                 out.push(...part.filter(Boolean));
             }
-            return { files: out };
+            return { files: out, renameable, canonicalFileExists };
         }
 
         if (mode === "apply") {
             const chosen: string[] = (Array.isArray(fileIds) ? fileIds : []).filter((id: string) => targets.includes(id));
-            if (!chosen.length) throw new HttpsError("invalid-argument", "Elige al menos un documento.");
+            const toRename: string[] = (Array.isArray(request.data?.renameFileIds) ? request.data.renameFileIds : []).filter((id: string) => renameable.some(r => r.fileId === id));
+            if (!chosen.length && !toRename.length) throw new HttpsError("invalid-argument", "Elige al menos un documento.");
+            // Los enlaces solo se cambian si el destino nuevo existe (ya hay un documento con ese nombre o se renombra ahora).
+            const retarget = canonicalFileExists || toRename.length > 0;
             const changed: { fileId: string; fileName: string; count: number }[] = [];
             const skipped: string[] = [];
-            for (const id of chosen.slice(0, 60)) {
+            const renamed: string[] = [];
+            for (const id of chosen.slice(0, 80)) {
                 try {
                     const meta = await drive.files.get({ fileId: id, fields: "name, mimeType" });
                     if (meta.data.mimeType === "application/vnd.google-apps.document") { skipped.push(String(meta.data.name)); continue; }
                     const text = String(await _getDriveFileContentInternal(drive, id) || "");
-                    const spans = findSpans(text, names).filter(s => s.v !== canonical);
-                    if (!spans.length) continue;
-                    let next = "", last = 0;
-                    for (const s of spans) { next += text.slice(last, s.from) + canonical; last = s.to; }
-                    next += text.slice(last);
+                    const { next, count, links } = transform(text, retarget);
+                    if (next === text) continue;
                     await drive.files.update({ fileId: id, media: { mimeType: meta.data.mimeType || "text/markdown", body: next } });
-                    changed.push({ fileId: id, fileName: String(meta.data.name), count: spans.length });
+                    changed.push({ fileId: id, fileName: String(meta.data.name), count: count + links });
                 } catch (e: any) {
                     logger.warn(`[NOMBRES] No se pudo cambiar ${id}: ${e?.message}`);
                     skipped.push(id);
                 }
             }
+            for (const id of toRename) {
+                const r = renameable.find(x => x.fileId === id)!;
+                try {
+                    await drive.files.update({ fileId: id, requestBody: { name: r.newName } });
+                    await getFirestore().collection("TDB_Index").doc(uid).collection("files").doc(id).set({ name: r.newName }, { merge: true });
+                    renamed.push(`${r.fileName} → ${r.newName}`);
+                } catch (e: any) {
+                    logger.warn(`[NOMBRES] No se pudo renombrar ${id}: ${e?.message}`);
+                    skipped.push(r.fileName);
+                }
+            }
             const total = changed.reduce((a, c) => a + c.count, 0);
             const s2 = await saveDecision({ canonical, others, kind: "mismo", at: new Date().toISOString(), applied: total });
-            logger.info(`[NOMBRES] ${uid}: «${others.join("/")}» → «${canonical}» en ${changed.length} documentos (${total} cambios)`);
-            return { ...s2, changed, skipped };
+            logger.info(`[NOMBRES] ${uid}: «${others.join("/")}» → «${canonical}» en ${changed.length} documentos (${total} cambios, ${renamed.length} renombrados)`);
+            return { ...s2, changed, skipped, renamed };
         }
 
         throw new HttpsError("invalid-argument", "Modo desconocido.");

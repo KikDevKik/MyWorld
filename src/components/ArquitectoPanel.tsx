@@ -10,7 +10,7 @@ import remarkGfm from 'remark-gfm';
 import ContradiccionesDrawer from './architect/ContradiccionesDrawer';
 import ColisionesMap from './architect/ColisionesMap';
 import FalloDialog from './architect/FalloDialog';
-import WorldNamesPanel, { scanWorldNames, type NamesState } from './architect/WorldNamesPanel';
+import WorldNamesPanel, { scanWorldNames, reviewCount, type NamesState } from './architect/WorldNamesPanel';
 import RoadmapFinalView from './architect/RoadmapFinalView';
 import DrivePatches from './architect/DrivePatches';
 import ArquitectoPendingWidget from './ArquitectoPendingWidget';
@@ -42,12 +42,14 @@ interface ArquitectoPanelProps {
     onHandoffConsumed?: () => void;
     // Nov 2026: «Ver fallo» → abrir el documento en el pasaje exacto
     onOpenDocument?: (fileId: string, quote: string) => void;
+    // Nov 2026: abrir una herramienta al entrar (p. ej. la revisión del canon desde el aviso de Mira en el escritorio)
+    openTool?: { tool: 'names'; nonce: number } | null;
 }
 
 type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings' | 'names';
 type PanelView = 'welcome' | 'intention' | 'chat' | 'reinitializing';
 
-const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate, genesisContext, onGenesisContextConsumed, handoff, onHandoffConsumed, onOpenDocument }) => {
+const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate, genesisContext, onGenesisContextConsumed, handoff, onHandoffConsumed, onOpenDocument, openTool }) => {
     const { config } = useProjectConfig();
     const { hasByok } = useTier();
     const projectName = config?.projectName || 'Mi Proyecto';
@@ -76,14 +78,24 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 // Mira revisa sola una vez al día, en silencio; solo avisa si encuentra algo.
                 const stale = !s.checkedAt || Date.now() - new Date(s.checkedAt).getTime() > 24 * 3600 * 1000;
                 if (stale) {
-                    const fresh = await scanWorldNames().catch(() => null);
+                    const fresh = await scanWorldNames(accessToken).catch(() => null);
                     if (alive && fresh && !fresh.noIndex) setNamesState(fresh);
                 }
             } catch { /* sin nombres: no pasa nada */ }
         })();
         return () => { alive = false; };
     }, [folderId]);
-    const openNames = namesState?.groups?.length || 0;
+    const openNames = reviewCount(namesState);
+    useEffect(() => { if (openTool?.tool === 'names') setActiveTool('names'); }, [openTool?.nonce]);
+    // Nov 2026: si ignoró el aviso, se lo recuerda una vez más justo antes de hablar con el Arquitecto.
+    const [reviewGate, setReviewGate] = useState<null | (() => void)>(null);
+    const ackKey = `mw-review-ack-${folderId}`;
+    const guardReview = (run: () => void) => {
+        let acked = false;
+        try { acked = sessionStorage.getItem(ackKey) === '1'; } catch { /* sin almacenamiento */ }
+        if (openNames > 0 && !acked) setReviewGate(() => run);
+        else run();
+    };
     const [activeTool, setActiveTool] = useState<ActiveTool>('none');
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const isPurging = useArquitectoStore(state => state.isPurging); // 🟢 Fetch isPurging flag
@@ -627,7 +639,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         <WelcomeState
                             projectName={projectName}
                             onStart={() => (existingSession ? handleStartFresh() : setPanelView('intention'))}
-                            onResume={handleResume}
+                            onResume={() => guardReview(handleResume)}
                             onDiscard={handleDiscard}
                             lastSessionDate={lastAnalyzedAt
                                 ? new Date(lastAnalyzedAt).toLocaleDateString(currentLanguage === 'en' ? 'en' : 'es', { day: 'numeric', month: 'long' })
@@ -643,7 +655,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     <div className="flex-1 min-h-0 w-full overflow-y-auto custom-scrollbar">
                         {openNames > 0 && <NamesBanner state={namesState!} onOpen={() => setActiveTool('names')} />}
                         <IntentionModal
-                            onConfirm={handleIntentionConfirm}
+                            onConfirm={(goal, file) => guardReview(() => handleIntentionConfirm(goal, file))}
                             isLoading={isInitializing}
                             isFirstTime={!existingSession && (() => { try { return !localStorage.getItem(`mw-arq-started-${folderId}`); } catch { return false; } })()}
                         />
@@ -922,14 +934,14 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         <button
                             onClick={() => setActiveTool(activeTool === 'names' ? 'none' : 'names')}
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'names' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'}`}
-                            aria-label="Nombres del mundo"
+                            aria-label="Revisión del canon"
                         >
                             <SpellCheck size={20} />
                             {openNames > 0 && (
                                 <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-mira text-titanium-950 text-[10px] font-bold rounded-full flex items-center justify-center z-10">{openNames}</span>
                             )}
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
-                                Nombres del mundo
+                                Revisión del canon: nombres y documentos repetidos
                             </span>
                         </button>
 
@@ -1113,14 +1125,23 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             <SlideUpPanel
                 isOpen={activeTool === 'names'}
-                title="Nombres del mundo"
+                title="Revisión del canon"
                 icon={<SpellCheck size={16} />}
                 onClose={() => setActiveTool('none')}
             >
                 {activeTool === 'names' && (
-                    <WorldNamesPanel accessToken={accessToken} initialState={namesState} onStateChange={setNamesState} />
+                    <WorldNamesPanel accessToken={accessToken} initialState={namesState} onStateChange={setNamesState} onOpenDocument={onOpenDocument} />
                 )}
             </SlideUpPanel>
+
+            {reviewGate && namesState && (
+                <ReviewGate
+                    state={namesState}
+                    onReview={() => { setReviewGate(null); setActiveTool('names'); }}
+                    onContinue={() => { try { sessionStorage.setItem(ackKey, '1'); } catch { /* sin almacenamiento */ } const run = reviewGate; setReviewGate(null); run(); }}
+                    onClose={() => setReviewGate(null)}
+                />
+            )}
 
             {falloItem && (
                 <FalloDialog
@@ -1143,18 +1164,58 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     );
 };
 
-/** Nov 2026: aviso de Mira cuando un concepto tiene dos nombres en tus documentos. */
+/** Nov 2026: lo que Mira encontró en el canon, en una frase. */
+function reviewSummary(state: NamesState) {
+    const g = state.groups?.[0];
+    const nG = state.groups?.length || 0;
+    const nD = state.docs?.length || 0;
+    const parts: string[] = [];
+    if (g) parts.push(nG === 1 ? `${g.variants.map(v => `«${v.name}»`).join(' y ')} parecen ser lo mismo con dos nombres` : `hay ${nG} conceptos con dos nombres, como ${g.variants.map(v => `«${v.name}»`).join(' y ')}`);
+    if (nD) parts.push(nD === 1 ? 'hay dos documentos casi iguales o sobre el mismo tema' : `hay ${nD} pares de documentos repetidos o casi iguales`);
+    const text = parts.join(', y ');
+    return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** Aviso de Mira arriba de la mesa. */
 function NamesBanner({ state, onOpen }: { state: NamesState; onOpen: () => void }) {
-    const g = state.groups[0];
-    const more = state.groups.length - 1;
     return (
         <div className="max-w-[700px] mx-auto mt-6 px-6">
             <div className="flex items-center gap-3 rounded-2xl border border-mira/30 bg-mira/10 px-4 py-3">
                 <img src="/assets/mira/mira_cara_icono.png" alt="" width={36} height={36} className="w-9 h-9 shrink-0" style={{ imageRendering: 'pixelated' }} />
                 <p className="flex-1 text-sm text-titanium-100 leading-relaxed">
-                    {g.variants.map(v => `«${v.name}»`).join(' y ')} parecen ser lo mismo con dos nombres{more > 0 ? `, y hay ${more} caso${more === 1 ? '' : 's'} más` : ''}. Unifícalo antes de hablar con el Arquitecto para que no lo confunda.
+                    {reviewSummary(state)}. Resuélvelo antes de hablar con el Arquitecto para que no se confunda.
                 </p>
                 <button onClick={onOpen} className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg bg-coral text-on-coral hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60">Revisar</button>
+            </div>
+        </div>
+    );
+}
+
+/** Segundo aviso, justo antes de empezar o seguir la conversación, si el primero se ignoró. */
+function ReviewGate({ state, onReview, onContinue, onClose }: { state: NamesState; onReview: () => void; onContinue: () => void; onClose: () => void }) {
+    useEffect(() => {
+        const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', k);
+        return () => window.removeEventListener('keydown', k);
+    }, [onClose]);
+    return (
+        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-titanium-950/55 backdrop-blur-[2px]" onMouseDown={onClose} aria-hidden="true" />
+            <div role="alertdialog" aria-modal="true" aria-labelledby="gate-title" aria-describedby="gate-desc"
+                className="relative w-full max-w-[520px] rounded-2xl border border-titanium-700 bg-titanium-950 shadow-[0_30px_80px_rgba(0,0,0,0.55)] p-6 flex flex-col gap-4">
+                <div className="flex items-start gap-4">
+                    <img src="/assets/mira/mira_cara_icono.png" alt="" width={48} height={48} className="w-12 h-12 shrink-0" style={{ imageRendering: 'pixelated' }} />
+                    <div className="min-w-0">
+                        <h2 id="gate-title" className="font-serif text-xl text-titanium-100">Antes de hablar con el Arquitecto</h2>
+                        <p id="gate-desc" className="text-[15px] text-titanium-200 leading-relaxed mt-2">
+                            {reviewSummary(state)}. Si el Arquitecto lee las dos versiones, puede tomar una como verdad y construir sobre la equivocada. Te toma un par de minutos.
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                    <button onClick={onContinue} className="px-4 py-2 text-sm text-titanium-200 hover:text-titanium-50 rounded-lg border border-titanium-700 hover:border-titanium-500">Hablar igual</button>
+                    <button autoFocus onClick={onReview} className="px-4 py-2 text-sm font-medium rounded-lg bg-coral text-on-coral hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60">Revisarlo ahora</button>
+                </div>
             </div>
         </div>
     );
