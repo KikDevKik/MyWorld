@@ -1,5 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { Send, Paperclip, X, FileText, Lightbulb } from 'lucide-react';
+import { useProjectConfig } from '../../contexts/ProjectConfigContext';
+import { readLastDoc } from '../../utils/lastDoc';
+import { MiraSprite } from '../mira/MiraSprite';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 
@@ -10,9 +13,11 @@ interface Props {
         mimeType: string;
     }) => void;
     isLoading: boolean;
+    /** Nov 2026: primera conversación con el Arquitecto en este proyecto (no hay sesiones anteriores). */
+    isFirstTime?: boolean;
 }
 
-export default function IntentionModal({ onConfirm, isLoading }: Props) {
+export default function IntentionModal({ onConfirm, isLoading, isFirstTime }: Props) {
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
     const tArch = t.architect;
@@ -32,6 +37,36 @@ export default function IntentionModal({ onConfirm, isLoading }: Props) {
         { label: 'Estoy atascado', value: 'Estoy atascado y no sé cómo avanzar.' },
         { label: 'Revisar contradicciones', value: 'Quiero revisar si hay inconsistencias y contradicciones en mi mundo.' },
     ];
+
+    // Nov 2026: la primera vez, el Arquitecto propone cómo empezar según la situación del autor
+    // (proyecto vacío, notas traídas de otra app, o ya escribiendo). La propuesta se puede editar antes de enviar.
+    const { config, fileTree } = useProjectConfig() as any;
+    const projectName = config?.projectName || (isEn ? 'my story' : 'mi historia');
+    const hasCanon = ((fileTree || []).length > 0) || ((config?.canonPaths || []).length > 0);
+    const isWriting = !!readLastDoc(config?.folderId);
+    const proposal = useMemo(() => {
+        if (!hasCanon) return isEn ? {
+            title: 'Start your story from scratch',
+            why: 'Your project is empty, so let’s find the premise first.',
+            text: `I want to start "${projectName}" from scratch. Help me find the premise: ask me one question at a time about what it is about, who lives it and how it could end. When we have the essentials, put together a first spine of the story (theme, possible ending and 3 to 5 facts that won't change, marked FIXED).`,
+        } : {
+            title: 'Empezar tu historia desde cero',
+            why: 'Tu proyecto está vacío: primero encontremos la premisa.',
+            text: `Quiero empezar «${projectName}» desde cero. Ayúdame a encontrar la premisa: hazme una pregunta a la vez sobre de qué trata, quién la vive y cómo podría terminar. Cuando tengamos lo esencial, arma una primera columna de la historia (tema, final posible y de 3 a 5 hechos que no van a cambiar, marcados como FIJO).`,
+        };
+        const base = isEn
+            ? `Let's do a foundations session for "${projectName}". I don't want a detailed map of everything; I want three layers: 1) the spine of the story on one page (theme, ending, order of books if there are several, and the facts that won't change, marked FIXED); 2) one paragraph per book or part, marked PROVISIONAL; 3) the first book in detail: three acts and what each chapter must achieve. Use all my canon and what we already decided. Before proposing, tell me which contradictions or gaps must be solved for layer 1, one question at a time.`
+            : `Vamos a hacer una sesión de cimientos para «${projectName}». No quiero un mapa detallado de todo: quiero tres capas: 1) la columna de la historia en una página (tema, final, orden de los libros si hay varios y los hechos que no van a cambiar, marcados como FIJO); 2) un párrafo por libro o parte, marcado como PROVISIONAL; 3) el primer libro en detalle: tres actos y qué debe lograr cada capítulo. Usa todo mi canon y lo que ya decidimos. Antes de proponer, dime qué contradicciones o huecos hay que resolver para la capa 1, una pregunta a la vez.`;
+        return isWriting ? {
+            title: isEn ? 'A foundations session' : 'Una sesión de cimientos',
+            why: isEn ? 'You already have canon and you’re writing: let’s give it a direction without freezing everything.' : 'Ya tienes canon y estás escribiendo: démosle rumbo sin congelarlo todo.',
+            text: base + (isEn ? ' At the end, give me the verdict on what I already wrote (keep / adjust / heavy edit / rewrite) and what to keep.' : ' Al final, dame el veredicto de lo que ya escribí (seguir / ajustar / editar a fondo / reescribir) y qué conservar.'),
+        } : {
+            title: isEn ? 'A foundations session' : 'Una sesión de cimientos',
+            why: isEn ? 'You have notes and canon but haven’t started writing: a direction first.' : 'Tienes notas y canon pero aún no escribes: primero un rumbo.',
+            text: base,
+        };
+    }, [hasCanon, isWriting, projectName, isEn]);
 
     const FILTER_CAMERA_TIP = tArch.filterCameraTip || '💡 Si un elemento no aparecerá constantemente en tu obra y es solo un acabado visual o una mención ocasional, no lo desarrolles en profundidad. Primero lo esencial.';
 
@@ -91,111 +126,95 @@ export default function IntentionModal({ onConfirm, isLoading }: Props) {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center h-full px-6 py-8 max-w-[680px] mx-auto">
-            
-            {/* Header */}
-            <div className="text-center mb-8">
-                <h2 className="text-xl font-medium text-titanium-100 mb-2">
-                    {isEn ? 'What are you bringing today?' : '¿Qué traes hoy?'}
-                </h2>
-                <p className="text-sm text-titanium-500">
-                    {isEn ? 'The Architect knows your material and helps you connect it. It asks; you decide.' : 'El Arquitecto conoce tu material y te ayuda a conectarlo. Él pregunta; tú decides.'}
-                </p>
-            </div>
+        <div className="flex flex-col items-center justify-start h-full overflow-y-auto px-6 py-10">
+            <div className="w-full max-w-[700px] flex flex-col gap-5">
+                {/* Encabezado en el lenguaje de la casa */}
+                <div className="flex items-end gap-4">
+                    <img src="/assets/objetos/planos.png" alt="" width={64} height={64} className="w-16 h-16 shrink-0" style={{ imageRendering: 'pixelated' }} />
+                    <div>
+                        <h2 className="font-serif text-2xl font-semibold text-titanium-100">{isEn ? 'What shall we bring to the table today?' : '¿Qué traemos hoy a la mesa?'}</h2>
+                        <p className="text-sm text-titanium-400 mt-1">{isEn ? 'The Architect knows your material and helps you connect it. It asks; you decide.' : 'El Arquitecto conoce tu material y te ayuda a conectarlo. Él pregunta; tú decides.'}</p>
+                    </div>
+                </div>
 
-            {/* Chips de sugerencia */}
-            <div className="flex flex-wrap gap-2 mb-6 justify-center">
-                {SUGGESTION_CHIPS.map(chip => (
-                    <button
-                        key={chip.label}
-                        onClick={() => setGoal(chip.value)}
-                        className={`px-3 py-1.5 text-[12px] rounded-full border transition-all ${
-                            goal === chip.value
-                                ? 'bg-cyan-500/20 border-cyan-500/50 text-cyan-300'
-                                : 'bg-titanium-900/50 border-titanium-700 text-titanium-400 hover:border-titanium-500 hover:text-titanium-300'
-                        }`}
-                    >
-                        {chip.label}
-                    </button>
-                ))}
-            </div>
-
-            {/* Campo de texto */}
-            <div className="w-full bg-titanium-950 border border-titanium-700 rounded-xl overflow-hidden mb-4 focus-within:border-cyan-500/50 transition-colors">
-                <textarea
-                    value={goal}
-                    onChange={e => setGoal(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Describe qué quieres lograr en esta sesión... (o elige una sugerencia arriba)"
-                    className="w-full bg-transparent text-[14px] text-titanium-200 placeholder-titanium-600 px-4 pt-4 pb-2 resize-none focus:outline-none min-h-[80px] max-h-[160px]"
-                    disabled={isLoading}
-                />
-
-                {/* Footer del textarea */}
-                <div className="flex items-center justify-between px-3 pb-3">
-                    
-                    {/* Archivo adjunto */}
-                    <div className="flex items-center gap-2">
-                        <input
-                            ref={fileInputRef}
-                            type="file"
-                            accept=".pdf,.md,.txt,.docx"
-                            className="hidden"
-                            onChange={e => e.target.files?.[0] && handleFileAttach(e.target.files[0])}
-                        />
-                        {attachedFile ? (
-                            <div className="flex items-center gap-1.5 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-2 py-1">
-                                <FileText size={11} className="text-cyan-400" />
-                                <span className="text-[11px] text-cyan-400 max-w-[140px] truncate">
-                                    {attachedFile.fileName}
-                                </span>
-                                <button
-                                    onClick={() => setAttachedFile(null)}
-                                    className="text-titanium-500 hover:text-red-400 ml-1"
-                                >
-                                    <X size={11} />
-                                </button>
+                {/* Primera vez: propuesta según la situación del autor */}
+                {isFirstTime && (
+                    <div className="relative mt-20">
+                        <MiraSprite pose="sentada" label="Mira" className="absolute right-6 bottom-full -mb-[15px] pointer-events-none" />
+                        <div className="rounded-2xl border border-mira/50 bg-mira-bg p-5 flex flex-col gap-2">
+                            <div className="text-xs font-semibold text-mira">{isEn ? 'Shall we start here?' : '¿Empezamos por aquí?'}</div>
+                            <div className="font-serif text-lg text-titanium-100">{proposal.title}</div>
+                            <p className="text-sm text-titanium-300">{proposal.why}</p>
+                            <p className="text-[13px] leading-relaxed text-titanium-200 bg-titanium-950/50 border border-titanium-700 rounded-xl px-3 py-2.5">{proposal.text}</p>
+                            <div className="flex flex-wrap gap-2 pt-1">
+                                <button type="button" onClick={() => onConfirm(proposal.text, attachedFile || undefined)} disabled={isLoading}
+                                    className="px-4 py-2 rounded-xl bg-coral text-on-coral text-sm font-semibold hover:brightness-110 disabled:opacity-50">{isEn ? 'Start with this' : 'Empezar con esto'}</button>
+                                <button type="button" onClick={() => setGoal(proposal.text)} disabled={isLoading}
+                                    className="px-4 py-2 rounded-xl border border-titanium-600 text-sm text-titanium-100 hover:border-mira">{isEn ? 'Edit it first' : 'Editarla primero'}</button>
                             </div>
-                        ) : (
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isLoading || isProcessingFile}
-                                className="flex items-center gap-1.5 text-titanium-500 hover:text-titanium-300 transition-colors text-[12px] disabled:opacity-40"
-                                title="Adjuntar documento de referencia cultural (PDF, MD, DOCX)"
-                            >
-                                <Paperclip size={14} />
-                                <span>Adjuntar referencia cultural</span>
+                        </div>
+                    </div>
+                )}
+
+                {/* Otras formas de empezar */}
+                <div>
+                    <div className="text-xs font-semibold text-titanium-400 mb-2">{isFirstTime ? (isEn ? 'Or start another way' : 'O empieza de otra forma') : (isEn ? 'Ways to start' : 'Formas de empezar')}</div>
+                    <div className="flex flex-wrap gap-2">
+                        {!isFirstTime && (
+                            <button onClick={() => setGoal(proposal.text)}
+                                className={`px-3 py-1.5 text-[13px] rounded-full border transition-colors ${goal === proposal.text ? 'bg-mira-bg border-mira text-titanium-100' : 'border-titanium-700 text-titanium-300 hover:border-mira/60 hover:text-titanium-100'}`}>
+                                {isEn ? 'Foundations session' : 'Sesión de cimientos'}
                             </button>
                         )}
+                        {SUGGESTION_CHIPS.map(chip => (
+                            <button key={chip.label} onClick={() => setGoal(chip.value)}
+                                className={`px-3 py-1.5 text-[13px] rounded-full border transition-colors ${goal === chip.value ? 'bg-mira-bg border-mira text-titanium-100' : 'border-titanium-700 text-titanium-300 hover:border-mira/60 hover:text-titanium-100'}`}>
+                                {chip.label}
+                            </button>
+                        ))}
                     </div>
-
-                    {/* Botón de envío */}
-                    <button
-                        onClick={handleConfirm}
-                        disabled={isLoading || isProcessingFile}
-                        className="flex items-center gap-2 px-4 py-1.5 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 text-[13px] font-medium rounded-lg hover:bg-cyan-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        {isLoading ? (
-                            <>
-                                <div className="w-3 h-3 rounded-full border border-cyan-400 border-t-transparent animate-spin" />
-                                {t.common?.analyzing || "Analizando..."}
-                            </>
-                        ) : (
-                            <>
-                                <Send size={13} />
-                                {tArch.startSession || "Iniciar sesión"}
-                            </>
-                        )}
-                    </button>
                 </div>
-            </div>
 
-            {/* Tip del Filtro de Cámara */}
-            <div className="w-full flex items-start gap-2 bg-titanium-900/30 border border-titanium-800/50 rounded-lg px-4 py-3">
-                <Lightbulb size={14} className="text-amber-400 shrink-0 mt-0.5" />
-                <p className="text-[11px] text-titanium-500 leading-relaxed">
-                    {FILTER_CAMERA_TIP}
-                </p>
+                {/* Campo de texto */}
+                <div className="w-full bg-titanium-900 border border-titanium-700 rounded-2xl overflow-hidden focus-within:border-mira/70 focus-within:ring-2 focus-within:ring-mira/15 transition-colors">
+                    <label className="sr-only" htmlFor="arq-goal">{isEn ? 'What you want to achieve' : 'Qué quieres lograr'}</label>
+                    <textarea
+                        id="arq-goal"
+                        value={goal}
+                        onChange={e => setGoal(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder={isEn ? 'Tell the Architect what you want to achieve in this conversation…' : 'Cuéntale al Arquitecto qué quieres lograr en esta conversación…'}
+                        className="w-full bg-transparent text-[15px] text-titanium-100 placeholder-titanium-500 px-4 pt-4 pb-2 resize-none focus:outline-none focus-visible:outline-none min-h-[96px] max-h-[220px]"
+                        disabled={isLoading}
+                    />
+                    <div className="flex items-center justify-between gap-3 px-3 pb-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                            <input ref={fileInputRef} type="file" accept=".pdf,.md,.txt,.docx" className="hidden" onChange={e => e.target.files?.[0] && handleFileAttach(e.target.files[0])} />
+                            {attachedFile ? (
+                                <div className="flex items-center gap-1.5 bg-mira-bg border border-mira/40 rounded-lg px-2 py-1 min-w-0">
+                                    <FileText size={12} className="text-mira shrink-0" />
+                                    <span className="text-xs text-titanium-200 truncate max-w-[160px]">{attachedFile.fileName}</span>
+                                    <button onClick={() => setAttachedFile(null)} className="text-titanium-400 hover:text-red-300 ml-1" aria-label={isEn ? 'Remove file' : 'Quitar archivo'}><X size={12} /></button>
+                                </div>
+                            ) : (
+                                <button onClick={() => fileInputRef.current?.click()} disabled={isLoading || isProcessingFile}
+                                    className="flex items-center gap-1.5 text-titanium-400 hover:text-titanium-100 transition-colors text-[13px] disabled:opacity-40"
+                                    title={isEn ? 'Attach a reference (PDF, MD, DOCX)' : 'Adjuntar una referencia (PDF, MD, DOCX)'}>
+                                    <Paperclip size={14} /><span>{isEn ? 'Attach a reference' : 'Adjuntar una referencia'}</span>
+                                </button>
+                            )}
+                        </div>
+                        <button onClick={handleConfirm} disabled={isLoading || isProcessingFile}
+                            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-coral text-on-coral text-sm font-semibold hover:brightness-110 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                            {isLoading ? (<><div className="w-3.5 h-3.5 rounded-full border-2 border-on-coral border-t-transparent animate-spin" />{isEn ? 'Reading your canon…' : 'Leyendo tu canon…'}</>) : (<><Send size={14} />{isEn ? 'Start the conversation' : 'Empezar la conversación'}</>)}
+                        </button>
+                    </div>
+                </div>
+
+                <div className="flex items-start gap-2 text-[13px] text-titanium-400 leading-relaxed">
+                    <Lightbulb size={14} className="text-logro shrink-0 mt-0.5" />
+                    <p>{FILTER_CAMERA_TIP.replace(/^💡\s*/, '')}</p>
+                </div>
             </div>
         </div>
     );

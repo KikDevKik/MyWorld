@@ -1200,7 +1200,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             {/* Header Section */}
                             <div className="flex flex-col items-center justify-center text-center space-y-4 pt-4">
                                 <div className="relative">
-                                    <img src="/assets/myworld-logo.svg" alt="MyWorld Logo" className="w-20 h-20 drop-shadow-[0_0_15px_rgba(103,232,249,0.3)]" />
+                                    <img src="/assets/marca/icono-192.png" alt="MyWorld" className="w-20 h-20 rounded-2xl" style={{ imageRendering: 'pixelated' }} />
                                     <span className="absolute -bottom-2 -right-4 bg-violet-600/90 text-white text-[10px] font-bold px-2 py-0.5 rounded-full border border-violet-400/50 shadow-lg">
                                         BETA
                                     </span>

@@ -16,6 +16,9 @@ interface ArsenalDockProps {
     reportPending?: number;
 }
 
+// Nov 2026: cada cuarto lleva su objeto pixel (el mismo de la guía y del inicio), para que todo se reconozca igual.
+const PixelIcon = ({ name }: { name: string }) => <img src={`/assets/objetos/icono/${name}.png`} alt="" width={28} height={28} className="w-7 h-7 opacity-80 group-hover:opacity-100 transition-opacity" draggable={false} />;
+
 const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive, reportPending = 0 }) => {
     const { currentLanguage } = useLanguageStore();
     const tTools = TRANSLATIONS[currentLanguage].tools;
@@ -30,14 +33,14 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
         switch (id) {
             // Nov 2026: el cuarto de Mira lleva su cara (pixel art); la mesa, un compás de dibujo.
             case 'director': return <img src="/assets/mira/mira_cara_icono.png" alt="" width={34} height={34} className="w-[34px] h-[34px] mira-rim" draggable={false} />;
-            case 'arquitecto': return <DraftingCompass size={20} />;
+            case 'arquitecto': return <PixelIcon name="planos" />;
             case 'perforador': return <Globe2 size={20} />;
             case 'forja': return <Hammer size={20} />;
             case 'guardian': return <ShieldCheck size={20} />;
             case 'tribunal': return <Scale size={20} />;
             case 'laboratorio': return <FlaskConical size={20} />;
             case 'cronograma': return <CalendarClock size={20} />;
-            case 'imprenta': return <Printer size={20} />;
+            case 'imprenta': return <PixelIcon name="imprenta" />;
             default: return <Globe2 size={20} />;
         }
     };
@@ -89,7 +92,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                         title={es ? 'El estudio: reporte del capítulo (canon y tres lecturas)' : 'The study: chapter report'}
                         aria-label={es ? 'El estudio' : 'The study'}
                     >
-                        <FileSearch size={20} />
+                        <PixelIcon name="lupa" />
                         {reportPending > 0 && <span aria-label={`${reportPending} pendientes`} className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-on-coral text-[11px] font-bold leading-[18px] text-center">{reportPending > 99 ? '99+' : reportPending}</span>}
                     </button>
                 )}

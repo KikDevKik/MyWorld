@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { MiraSprite } from './mira/MiraSprite';
 import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks } from 'lucide-react';
 import { callFunction } from '../services/api';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
@@ -101,6 +102,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         existingSession,
         resumeSession,
         discardSession,
+        archiveSession,
         sessionResolved,
         generateRoadmap,
         appendAssistantMessage,
@@ -200,6 +202,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         mimeType: string;
     }) => {
         setPanelView('intention'); // Muestra loading state en el modal
+        try { localStorage.setItem(`mw-arq-started-${folderId}`, '1'); } catch { /* sin almacenamiento */ }
         
         try {
             await initialize({
@@ -226,12 +229,16 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     const handleReinitConfirm2 = async () => {
         setReinitStep(0);
         setPanelView('reinitializing');
-        summarizeInBackground(arquitectoSessionId);
+        const prevId = arquitectoSessionId;
+        summarizeInBackground(prevId);
+        await archiveSession(prevId);
         await reinitialize();
         setPanelView('intention');
     };
     const handleStartFresh = async () => {
-        summarizeInBackground(existingSession?.id);
+        const prevId = existingSession?.id;
+        summarizeInBackground(prevId);
+        await archiveSession(prevId);
         await reinitialize();
         setPanelView('intention');
     };
@@ -380,7 +387,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     if (!hasByok) return <AIMotorBlockedOverlay toolName={tArch.toolName || "El Arquitecto"} />;
 
     return (
-        <div className="h-full w-full bg-titanium-950 bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-cyan-500/30 font-display">
+        <div className="h-full w-full bg-titanium-950 bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-mira/30 font-display">
 
             {/* Top Drawer: Pendientes — solo en estado chat */}
             {panelView === 'chat' && (
@@ -454,7 +461,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                     <p className="text-[13px] text-titanium-300 mb-1">
                                         {tArch.confirmSure}
                                     </p>
-                                    <p className="text-[11px] text-titanium-600 mb-3">
+                                    <p className="text-xs text-titanium-600 mb-3">
                                         {tArch.irrecoverableChat}
                                     </p>
                                     <div className="flex gap-2">
@@ -483,7 +490,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 <div className="flex justify-center shrink-0 z-30 bg-titanium-950/60">
                     <button
                         onClick={() => setIsPendingDrawerOpen(v => !v)}
-                        className="flex items-center gap-1.5 px-4 py-1 text-titanium-500 hover:text-cyan-400 transition-colors text-xs font-mono tracking-wider group"
+                        className="flex items-center gap-1.5 px-4 py-1 text-titanium-500 hover:text-mira transition-colors text-xs group"
                         aria-label={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
                         title={isPendingDrawerOpen ? 'Cerrar misiones' : 'Ver misiones pendientes'}
                     >
@@ -496,22 +503,22 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             {/* Barra de modo — solo en estado chat */}
             {panelView === 'chat' && (
-                <div className="flex items-center justify-between px-6 py-2 border-b border-titanium-800/50 bg-titanium-950/50 shrink-0 text-[11px] font-mono">
+                <div className="flex items-center justify-between px-6 py-2 border-b border-titanium-800/50 bg-titanium-950/50 shrink-0 text-xs">
                     <div className="flex items-center gap-2">
                         {pendingItems.length === 0 ? (
                             <div className="flex items-center gap-1.5">
-                                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                                <span className="text-cyan-500 uppercase tracking-wider">Conectar</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-mira animate-pulse" />
+                                <span className="text-titanium-200">Conversación</span>
                                 <span className="text-titanium-700 mx-1">·</span>
                                 <span className="text-titanium-600">El Arquitecto pregunta; tú decides</span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                <span className="text-amber-500 uppercase tracking-wider">Modo Auditoría</span>
+                                <span className="text-amber-200">Revisando dudas</span>
                                 <span className="text-titanium-700 mx-1">·</span>
                                 <span className="text-titanium-600">
-                                    {pendingItems.filter(i => !i.resolved).length} disonancia(s) activa(s)
+                                    {(() => { const n = pendingItems.filter(i => !i.resolved).length; return `${n} ${n === 1 ? 'duda abierta' : 'dudas abiertas'}`; })()}
                                 </span>
                             </div>
                         )}
@@ -520,7 +527,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         <button
                             onClick={handleCloseSession}
                             disabled={isClosing || isThinking}
-                            className="ml-auto mr-4 flex items-center gap-1.5 text-titanium-400 hover:text-emerald-400 transition-colors disabled:opacity-40"
+                            className="ml-auto mr-4 flex items-center gap-1.5 text-titanium-400 hover:text-mira transition-colors disabled:opacity-40"
                             title="Resumen: ideas sueltas, conexiones que decidiste, lo que falta y una escena que ya puedes escribir"
                         >
                             {isClosing ? <Loader2 size={11} className="animate-spin" /> : <ListChecks size={11} />}
@@ -531,14 +538,14 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         <button
                             onClick={handleAnalyze}
                             disabled={isAnalyzing}
-                            className="flex items-center gap-1.5 text-titanium-500 hover:text-cyan-400 transition-colors disabled:opacity-40"
+                            className="flex items-center gap-1.5 text-titanium-500 hover:text-mira transition-colors disabled:opacity-40"
                             title="Solicitar análisis formal de disonancias"
                         >
                             {isAnalyzing
                                 ? <Loader2 size={11} className="animate-spin" />
                                 : <RefreshCw size={11} />
                             }
-                            <span>Analizar disonancias</span>
+                            <span>Buscar dudas en mi canon</span>
                         </button>
                     )}
                 </div>
@@ -547,16 +554,16 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             {/* Progreso de sesión */}
             {panelView === 'chat' && hasInitialized && sessionResolved > 0 && (
                 <div className="px-6 py-1.5 border-b border-titanium-800/50 bg-titanium-950/30 shrink-0 flex items-center gap-3">
-                    <span className="text-[10px] font-mono text-titanium-600 whitespace-nowrap">
+                    <span className="text-xs text-titanium-600 whitespace-nowrap">
                         {sessionResolved} resuelta{sessionResolved !== 1 ? 's' : ''} esta sesión
                     </span>
                     <div className="flex-1 h-1 bg-titanium-800 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-gradient-to-r from-cyan-700 to-cyan-400 rounded-full transition-all duration-500"
+                            className="h-full bg-gradient-to-r from-mira/60 to-mira rounded-full transition-all duration-500"
                             style={{ width: `${Math.min((sessionResolved / 10) * 100, 100)}%` }}
                         />
                     </div>
-                    <span className={`text-[10px] font-mono whitespace-nowrap ${sessionResolved >= 10 ? 'text-cyan-500' : 'text-titanium-700'}`}>
+                    <span className={`text-xs whitespace-nowrap ${sessionResolved >= 10 ? 'text-mira' : 'text-titanium-700'}`}>
                         {Math.min(sessionResolved, 10)}/10
                     </span>
                 </div>
@@ -588,6 +595,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         <IntentionModal
                             onConfirm={handleIntentionConfirm}
                             isLoading={isInitializing}
+                            isFirstTime={!existingSession && (() => { try { return !localStorage.getItem(`mw-arq-started-${folderId}`); } catch { return false; } })()}
                         />
                     </div>
                 )}
@@ -595,7 +603,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 {/* ESTADO: REINICIALIZANDO */}
                 {panelView === 'reinitializing' && (
                     <div className="flex flex-col items-center justify-center h-full gap-4 opacity-60">
-                        <div className="w-8 h-8 rounded-full border-2 border-cyan-500 border-t-transparent animate-spin" />
+                        <div className="w-8 h-8 rounded-full border-2 border-mira border-t-transparent animate-spin" />
                         <p className="text-sm text-titanium-400">Iniciando nueva sesión...</p>
                     </div>
                 )}
@@ -616,23 +624,22 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         {(!hasInitialized && isInitializing) ? (
                             <div className="flex flex-col items-center justify-center py-24 opacity-90 w-full">
                                 {/* Núcleo de Escaneo */}
-                                <div className="relative flex items-center justify-center w-24 h-24 mb-8">
-                                    <div className="absolute inset-0 border-2 border-cyan-500/20 rounded-full animate-ping" style={{ animationDuration: '2s' }}></div>
-                                    <div className="absolute inset-3 border border-titanium-700 border-t-cyan-500/50 rounded-full animate-spin" style={{ animationDuration: '3s' }}></div>
-                                    <Landmark size={36} className="text-cyan-400 animate-pulse relative z-10" />
+                                <div className="flex items-end gap-2 mb-6">
+                                    <img src="/assets/objetos/planos.png" alt="" width={72} height={72} className="w-[72px] h-[72px] mb-2" />
+                                    <MiraSprite pose="escribiendo" label="Mira toma notas" />
                                 </div>
 
                                 <div className="text-xl font-medium text-titanium-100 tracking-wide mb-3">
                                     {currentLanguage === 'en' ? 'Reading your material…' : 'Leyendo tu material…'}
                                 </div>
                                 
-                                <div className="text-xs text-cyan-500/80 font-mono mb-8 animate-pulse flex items-center gap-2">
-                                    <span className="inline-block w-2 h-2 bg-cyan-500 rounded-full"></span>
+                                <div className="text-xs text-mira mb-8 animate-pulse flex items-center gap-2">
+                                    <span className="inline-block w-2 h-2 bg-mira rounded-full"></span>
                                     {currentLanguage === 'en' ? 'Looking for what connects with what you brought' : 'Buscando lo que se conecta con lo que traes'}
                                 </div>
                                 {/* Barra de Asimilación (Simulada) */}
                                 <div className="w-72 h-1.5 bg-titanium-900 rounded-full overflow-hidden relative shadow-[inset_0_1px_2px_rgba(0,0,0,0.5)]">
-                                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-cyan-700 to-cyan-400 rounded-full animate-pulse" 
+                                    <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-mira/60 to-mira rounded-full animate-pulse" 
                                          style={{ width: '85%', transition: 'width 8s cubic-bezier(0.1, 0.5, 0.1, 1)' }}>
                                     </div>
                                 </div>
@@ -675,12 +682,12 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 if (msg.role === 'user') {
                                     return (
                                         <div key={msg.id} className="flex flex-col max-w-[85%] items-end self-end mb-1">
-                                            <div className="border px-5 py-4 rounded-xl rounded-br-none text-[15px] leading-[1.6] bg-emerald-950/20 border-titanium-800/50 text-titanium-300 shadow-sm">
-                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500">
+                                            <div className="border px-5 py-3.5 rounded-2xl rounded-br-sm text-[15px] leading-[1.6] bg-titanium-800 border-titanium-700 text-titanium-100">
+                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira">
                                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
                                                 </div>
                                             </div>
-                                            <span className="text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest mr-1">Tú</span>
+                                            <span className="text-xs text-titanium-400 mt-1 mr-1">Tú</span>
                                         </div>
                                     );
                                 }
@@ -694,16 +701,19 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 const firstTwoParagraphs = paragraphs.slice(0, 2).join('\n\n');
                                 const restParagraphs = paragraphs.slice(2).join('\n\n');
                                 const restWordCount = restParagraphs.split(/\s+/).filter(Boolean).length;
-                                const newsreaderStyle: React.CSSProperties = { fontFamily: "'Newsreader', Georgia, serif", fontSize: '16px', lineHeight: '1.75' };
+                                const newsreaderStyle: React.CSSProperties = { fontFamily: 'var(--font-serif)', fontSize: '16px', lineHeight: '1.75' };
                                 return (
-                                <div key={msg.id} className="flex flex-col max-w-[85%] items-start mb-7"
-                                    style={{ background: 'rgba(103, 232, 249, 0.02)', borderLeft: '2px solid rgba(103, 232, 249, 0.08)', paddingLeft: '16px', borderRadius: '0 8px 8px 0' }}>
-                                    <div className="py-4 text-titanium-200 w-full">
+                                <div key={msg.id} className="flex flex-col max-w-[88%] items-start mb-7">
+                                    <div className="flex items-center gap-2 mb-1.5 ml-1">
+                                        <img src="/assets/objetos/planos.png" alt="" width={28} height={28} className="w-7 h-7" />
+                                        <span className="font-serif text-sm text-titanium-300">El Arquitecto</span>
+                                    </div>
+                                    <div className="px-5 py-4 text-titanium-100 w-full rounded-2xl rounded-tl-sm bg-titanium-900 border border-titanium-700">
                                         {isOld && !isExpanded ? (
                                             // Change 1: collapsed old message — show first 3 lines
                                             <div className="relative">
                                                 <div className="overflow-hidden" style={{ maxHeight: '84px' }}>
-                                                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
                                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
                                                     </div>
                                                 </div>
@@ -713,64 +723,63 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                         ) : isLong && !isAccordionExpanded ? (
                                             // Change 4: accordion for long recent messages — show first 2 paragraphs
                                             <div>
-                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
                                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{firstTwoParagraphs}</ReactMarkdown>
                                                 </div>
                                                 <button onClick={() => toggleAccordion(msg.id)}
-                                                    className="mt-3 text-[11px] font-mono text-cyan-600 hover:text-cyan-400 transition-colors uppercase tracking-wider">
-                                                    Ver análisis completo ({restWordCount} palabras más) ↓
+                                                    className="mt-3 text-xs text-mira hover:text-mira transition-colors uppercase tracking-wider">
+                                                    Ver todo ({restWordCount} palabras más)
                                                 </button>
                                             </div>
                                         ) : isLong && isAccordionExpanded ? (
                                             // Change 4: accordion expanded
                                             <div>
-                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
                                                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{firstTwoParagraphs}</ReactMarkdown>
                                                 </div>
                                                 <div style={{ maxHeight: '5000px', overflow: 'hidden', transition: 'max-height 300ms ease' }}>
-                                                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                                    <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
                                                         <ReactMarkdown remarkPlugins={[remarkGfm]}>{restParagraphs}</ReactMarkdown>
                                                     </div>
                                                 </div>
                                                 <button onClick={() => toggleAccordion(msg.id)}
-                                                    className="mt-3 text-[11px] font-mono text-cyan-600 hover:text-cyan-400 transition-colors uppercase tracking-wider">
-                                                    Colapsar ↑
+                                                    className="mt-3 text-xs text-mira hover:text-mira transition-colors uppercase tracking-wider">
+                                                    Ver menos
                                                 </button>
                                             </div>
                                         ) : (
                                             // Normal full display
-                                            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-cyan-500" style={newsreaderStyle}>
+                                            <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
                                                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
                                             </div>
                                         )}
                                     </div>
                                     {isOld && (
                                         <button onClick={() => toggleMessageExpanded(msg.id)}
-                                            className="mb-2 text-[11px] font-mono text-cyan-600 hover:text-cyan-400 transition-colors uppercase tracking-wider">
-                                            {isExpanded ? 'Colapsar ↑' : 'Leer respuesta completa ↓'}
+                                            className="mb-2 text-xs text-mira hover:text-mira transition-colors uppercase tracking-wider">
+                                            {isExpanded ? 'Ver menos' : 'Leer la respuesta completa'}
                                         </button>
                                     )}
-                                    <span className="text-[11px] text-titanium-600 mt-1 uppercase font-mono tracking-widest ml-1">Arquitecto</span>
                                     {lastDetectedIntent && msg.id === messages[messages.length - 1]?.id && (
                                         <div className="flex items-center gap-1.5 mt-1">
                                             {lastDetectedIntent === 'RESOLUCION' && (
-                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                                    ✓ RESOLUCIÓN
+                                                <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                                    Resolución
                                                 </span>
                                             )}
                                             {lastDetectedIntent === 'REFUTACION' && (
-                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                                    ⚡ REFUTACIÓN
+                                                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                                    Refutación
                                                 </span>
                                             )}
                                             {lastDetectedIntent === 'CONSULTA' && (
-                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                                                    📖 CONSULTA
+                                                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                                                    Consulta
                                                 </span>
                                             )}
                                             {lastDetectedIntent === 'DEBATE' && (
-                                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-titanium-800 text-titanium-500 border border-titanium-700">
-                                                    ⚔ DEBATE
+                                                <span className="text-xs px-2 py-0.5 rounded-full bg-titanium-800 text-titanium-500 border border-titanium-700">
+                                                    Debate
                                                 </span>
                                             )}
                                         </div>
@@ -785,11 +794,11 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             <div className="flex flex-col items-start max-w-[85%] mt-2">
                                 <div className="bg-titanium-900 border border-titanium-800 px-5 py-4 rounded-xl rounded-bl-none flex items-center gap-3 h-[56px]">
                                     <div className="flex gap-1">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce"></div>
-                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                                        <div className="w-1.5 h-1.5 rounded-full bg-cyan-500 animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-mira animate-bounce"></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-mira animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-mira animate-bounce" style={{ animationDelay: '0.4s' }}></div>
                                     </div>
-                                    <span className="text-xs text-titanium-400 font-mono">{tArch.processing || 'El Arquitecto está procesando la estructura...'}</span>
+                                    <span className="text-xs text-titanium-400">{currentLanguage === 'en' ? 'The Architect is reading your canon…' : 'El Arquitecto revisa tu canon…'}</span>
                                 </div>
                             </div>
                         )}
@@ -801,7 +810,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                     <button
                                         key={opt.id}
                                         onClick={() => handleChipClick(opt)}
-                                        className="flex items-center gap-2 px-3 py-1.5 bg-cyan-950/30 border border-cyan-800/50 hover:bg-cyan-900/50 hover:border-cyan-700 rounded-lg text-cyan-400 text-sm font-medium transition-all"
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-mira-bg border border-mira/40 hover:border-mira rounded-lg text-mira text-sm font-medium transition-all"
                                     >
                                         {opt.label}
                                     </button>
@@ -828,7 +837,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'domino' ? 'none' : 'domino')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'domino' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'domino' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
                         >
                             <Network size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -840,7 +849,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'patches' ? 'none' : 'patches')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'patches' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'patches' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'patches' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'patches' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
                         >
                             <GitMerge size={20} />
                             
@@ -858,7 +867,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'map' ? 'none' : 'map')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'map' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'map' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
                         >
                             <Map size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -868,7 +877,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'lore' ? 'none' : 'lore')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'lore' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'lore' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
                         >
                             <Book size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -878,7 +887,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'settings' ? 'none' : 'settings')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-cyan-500 bg-cyan-500/10 shadow-[0_0_15px_rgba(7,182,213,0.15)]' : 'text-titanium-500 hover:text-cyan-500 hover:bg-titanium-800/50'} ${tourHighlightedTool === 'settings' ? 'ring-2 ring-cyan-400/70 ring-offset-1 ring-offset-[#111] shadow-[0_0_18px_rgba(34,211,238,0.4)]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'settings' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
                         >
                             <Settings size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -890,7 +899,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setForceShowOverlay(true)}
-                            className="w-10 h-10 flex items-center justify-center rounded-full transition-all group relative text-titanium-600 hover:text-cyan-400 hover:bg-titanium-800/50"
+                            className="w-10 h-10 flex items-center justify-center rounded-full transition-all group relative text-titanium-600 hover:text-mira hover:bg-titanium-800/50"
                         >
                             <HelpCircle size={18} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -909,7 +918,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     <div className="relative flex flex-col w-full bg-titanium-900 border border-titanium-800 rounded-xl overflow-hidden shadow-2xl">
                         {/* Indicador de archivo adjunto */}
                         {attachedFile && (
-                            <div className="flex items-center gap-2 bg-titanium-900 border-b border-titanium-800 px-3 py-2 text-xs text-cyan-400">
+                            <div className="flex items-center gap-2 bg-titanium-900 border-b border-titanium-800 px-3 py-2 text-xs text-mira">
                                 <FileText size={14} />
                                 <span className="flex-1 truncate">{attachedFile.name}</span>
                                 <button 
@@ -928,7 +937,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 onKeyDown={handleKeyDown}
                                 disabled={isInitializing || isThinking || isUploadingFile}
                                 className="w-full bg-transparent border-none text-titanium-300 text-[15px] placeholder:text-titanium-600 focus:ring-0 resize-none py-4 pl-4 pr-24 max-h-[120px]"
-                                placeholder={attachedFile ? "Agrega un mensaje a tu documento..." : "Instruye al Arquitecto..."}
+                                placeholder={attachedFile ? "Agrega un mensaje a tu documento…" : "Escríbele al Arquitecto…"}
                                 rows={1}
                             />
                             
@@ -944,7 +953,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 <button
                                     onClick={() => fileInputRef.current?.click()}
                                     disabled={isThinking || isInitializing || isUploadingFile}
-                                    className="w-10 h-10 flex items-center justify-center rounded-lg text-titanium-500 hover:text-cyan-400 hover:bg-titanium-800/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg text-titanium-500 hover:text-mira hover:bg-titanium-800/50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                     title="Adjuntar documento de referencia cultural (PDF)"
                                     aria-label="Adjuntar PDF"
                                 >
@@ -954,7 +963,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 <button
                                     onClick={handleSendWithFile}
                                     disabled={(!inputValue.trim() && !attachedFile) || isThinking || isInitializing || isUploadingFile}
-                                    className="w-10 h-10 flex items-center justify-center rounded-lg text-cyan-500 hover:bg-cyan-500/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                    className="w-10 h-10 flex items-center justify-center rounded-lg text-mira hover:bg-mira/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                                     aria-label="Enviar mensaje"
                                 >
                                     {isUploadingFile ? <Loader2 size={20} className="animate-spin" /> : <Send size={20} />}
@@ -963,11 +972,6 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         </div>
                     </div>
                     </div>{/* end max-w input centering */}
-                    <div className="text-center pb-2">
-                        <span className="text-[10px] text-titanium-600 font-mono uppercase tracking-widest">
-                            {tArch.motto}
-                        </span>
-                    </div>
                 </div>
                 </>
                 )}

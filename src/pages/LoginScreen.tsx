@@ -131,9 +131,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
                     }}
                 >
                     <img
-                        src="/assets/myworld-logo.svg"
+                        src="/assets/marca/icono-512.png"
                         alt="MyWorld"
-                        style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                        style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }}
                     />
                 </div>
 

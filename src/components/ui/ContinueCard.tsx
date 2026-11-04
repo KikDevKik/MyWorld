@@ -169,12 +169,12 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
 
                 <div className="grid gap-4 md:grid-cols-3">
                     <button onClick={onGoToArquitecto} className="text-left rounded-2xl border border-titanium-700 bg-titanium-800 hover:border-mira p-5 transition-colors flex flex-col gap-2 min-h-[120px]">
-                        <DraftingCompass size={18} className="text-mira" />
+                        <img src="/assets/objetos/icono/planos.png" alt="" width={36} height={36} className="w-9 h-9" />
                         <span className="font-serif text-lg text-titanium-100">{s.architect}</span>
                         <span className="text-sm text-titanium-400">{s.architectP}</span>
                     </button>
                     <button onClick={onGoToDirector} className="text-left rounded-2xl border border-titanium-700 bg-titanium-800 hover:border-mira p-5 transition-colors flex flex-col gap-2 min-h-[120px]">
-                        <MessageCircle size={18} className="text-mira" />
+                        <img src="/assets/mira/mira_cara_icono.png" alt="" width={36} height={36} className="w-9 h-9 mira-rim" />
                         <span className="font-serif text-lg text-titanium-100">{s.mira}</span>
                         <span className="text-sm text-titanium-400">{s.miraP}</span>
                     </button>

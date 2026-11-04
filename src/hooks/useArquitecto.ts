@@ -486,6 +486,22 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         setHasInitialized(true);
     }, [existingSession, setSessionId, setHasInitialized]);
 
+    // Nov 2026: al empezar otra conversación, la anterior se archiva (queda guardada con su resumen, pero la
+    // mesa ya no la ofrece como «Seguir donde quedamos» al volver a entrar).
+    const archiveSession = useCallback(async (id?: string | null) => {
+        if (!id) return;
+        try {
+            const { getFirestore: getFS, doc: fsDoc, setDoc: fsSetDoc } = await import('firebase/firestore');
+            const { getAuth: getA } = await import('firebase/auth');
+            const userId = getA().currentUser?.uid;
+            if (!userId) return;
+            await fsSetDoc(fsDoc(getFS(), 'users', userId, 'forge_sessions', id), { status: 'archived', archivedAt: new Date().toISOString() }, { merge: true });
+        } catch (e) {
+            console.warn('[Arquitecto] No se pudo archivar la sesión:', e);
+        }
+        setExistingSession(prev => (prev?.id === id ? null : prev));
+    }, []);
+
     const discardSession = useCallback(async () => {
         if (!existingSession) return;
         try {
@@ -907,6 +923,7 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
         existingSession,
         resumeSession,
         discardSession,
+        archiveSession,
         sessionResolved,
     };
 };

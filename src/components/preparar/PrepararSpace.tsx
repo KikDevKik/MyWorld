@@ -17,11 +17,14 @@ const ROOM_MIRA: Partial<Record<PrepararTab, { pose: MiraPose; line: string; sid
 };
 export type { PrepararTab } from './tabs';
 
+// Nov 2026: el objeto pixel de cada cuarto (el mismo de la guía y del inicio).
+const TabIcon = ({ name }: { name: string }) => <img src={`/assets/objetos/icono/${name}.png`} alt="" width={20} height={20} className="w-5 h-5" draggable={false} />;
+
 const TABS: { id: PrepararTab; label: string; hint: string; icon: React.ReactNode }[] = [
-    { id: 'conversacion', label: 'La mesa', hint: 'Planea con el Arquitecto: partes, hilos y dudas', icon: <DraftingCompass size={14} /> },
-    { id: 'mapa', label: 'El observatorio', hint: 'Tu mundo como un mapa de conexiones', icon: <Network size={14} /> },
-    { id: 'personajes', label: 'El fichero', hint: 'Las fichas de tus personajes', icon: <Users size={14} /> },
-    { id: 'quepasa', label: 'El frasco de ideas', hint: 'Qué pasaría si: aquí nada es canon hasta que lo decidas', icon: <Lightbulb size={14} /> },
+    { id: 'conversacion', label: 'La mesa', hint: 'Planea con el Arquitecto: partes, hilos y dudas', icon: <TabIcon name="planos" /> },
+    { id: 'mapa', label: 'El observatorio', hint: 'Tu mundo como un mapa de conexiones', icon: <TabIcon name="telescopio" /> },
+    { id: 'personajes', label: 'El fichero', hint: 'Las fichas de tus personajes', icon: <TabIcon name="fichero" /> },
+    { id: 'quepasa', label: 'El frasco de ideas', hint: 'Qué pasaría si: aquí nada es canon hasta que lo decidas', icon: <TabIcon name="frasco_luciernagas" /> },
 ];
 
 const KEY = PREPARAR_TAB_KEY;
