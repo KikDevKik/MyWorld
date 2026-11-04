@@ -635,10 +635,13 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                 {/* ESTADO: BIENVENIDA */}
                 {panelView === 'welcome' && (
-                    <div className="flex-1 flex items-center justify-center w-full">
+                    <div className="flex-1 min-h-0 w-full overflow-y-auto custom-scrollbar flex flex-col">
+                        {/* Nov 2026: el aviso de Mira también al entrar (antes solo salía después de crear o descartar un chat) */}
+                        {openNames > 0 && <NamesBanner state={namesState!} onOpen={() => setActiveTool('names')} />}
+                        <div className="flex-1 flex items-center justify-center w-full py-8">
                         <WelcomeState
                             projectName={projectName}
-                            onStart={() => (existingSession ? handleStartFresh() : setPanelView('intention'))}
+                            onStart={() => guardReview(() => (existingSession ? handleStartFresh() : setPanelView('intention')))}
                             onResume={() => guardReview(handleResume)}
                             onDiscard={handleDiscard}
                             lastSessionDate={lastAnalyzedAt
@@ -647,6 +650,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             }
                             existingSession={existingSession}
                         />
+                        </div>
                     </div>
                 )}
 

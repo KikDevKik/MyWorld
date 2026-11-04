@@ -14,12 +14,14 @@ interface ArsenalDockProps {
     onOpenReport?: () => void; // Oct 2026: Reporte (incluye Tribunal y Guardián)
     reportActive?: boolean;
     reportPending?: number;
+    onOpenBiblioteca?: () => void; // Nov 2026: la biblioteca (aprender y practicar con Mira)
+    bibliotecaActive?: boolean;
 }
 
 // Nov 2026: cada cuarto lleva su objeto pixel (el mismo de la guía y del inicio), para que todo se reconozca igual.
 const PixelIcon = ({ name }: { name: string }) => <img src={`/assets/objetos/icono/${name}.png`} alt="" width={28} height={28} className="w-7 h-7 opacity-80 group-hover:opacity-100 transition-opacity" draggable={false} />;
 
-const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive, reportPending = 0 }) => {
+const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive, reportPending = 0, onOpenBiblioteca, bibliotecaActive }) => {
     const { currentLanguage } = useLanguageStore();
     const tTools = TRANSLATIONS[currentLanguage].tools;
 
@@ -94,6 +96,16 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                     >
                         <PixelIcon name="lupa" />
                         {reportPending > 0 && <span aria-label={`${reportPending} pendientes`} className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-on-coral text-[11px] font-bold leading-[18px] text-center">{reportPending > 99 ? '99+' : reportPending}</span>}
+                    </button>
+                )}
+                {onOpenBiblioteca && (
+                    <button
+                        onClick={onOpenBiblioteca}
+                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:outline-none active:scale-95 ${bibliotecaActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
+                        title={es ? 'La biblioteca: aprende y practica con Mira' : 'The library: learn and practice with Mira'}
+                        aria-label={es ? 'La biblioteca' : 'The library'}
+                    >
+                        <PixelIcon name="libros" />
                     </button>
                 )}
             </div>

@@ -17,6 +17,7 @@ const ROOMS: Room[] = [
     { obj: 'telescopio', es: ['El observatorio', 'Tu mundo como un mapa de conexiones entre personajes, lugares y reglas.'], en: ['The observatory', 'Your world as a map of connections between characters, places and rules.'] },
     { obj: 'fichero', es: ['El fichero', 'Una ficha por personaje. Mira te ayuda a completarlas con lo que ya escribiste.'], en: ['The card file', 'One card per character. Mira helps you fill them in from what you already wrote.'] },
     { obj: 'frasco_luciernagas', es: ['El frasco de ideas', '«¿Qué pasaría si…?». Nada de aquí cambia tu historia hasta que lo llevas al canon.'], en: ['The idea jar', '"What if…?". Nothing here changes your story until you bring it into the canon.'] },
+    { obj: 'libros', es: ['La biblioteca', 'Decide cómo se cuenta cada libro, aprende con lecciones cortas y practica con ejercicios de Mira.'], en: ['The library', 'Decide how each book is told, learn with short lessons and practice with Mira’s exercises.'] },
     { obj: 'imprenta', es: ['La imprenta', 'Convierte tus capítulos en un libro: Word, EPUB o PDF.'], en: ['The press', 'Turn your chapters into a book: Word, EPUB or PDF.'] },
 ];
 

@@ -81,6 +81,7 @@ const QuePasariaSiView = lazyView(() => import('./components/preparar/QuePasaria
 const PersonajesView = lazyView(() => import('./components/preparar/PersonajesView'));
 const MapaView = lazyView(() => import('./components/preparar/MapaView'));
 const ImprentaView = lazyView(() => import('./components/imprenta/ImprentaView'));
+const BibliotecaView = lazyView(() => import('./components/biblioteca/BibliotecaView')); // Nov 2026: aprender y practicar con Mira
 import { loadPrepararTab, type PrepararTab } from './components/preparar/tabs';
 import { locateQuote } from './utils/locateQuote';
 import { reviewCount, NAMES_CHANGED_EVENT, type NamesState } from './components/architect/WorldNamesPanel';
@@ -1127,6 +1128,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 onOpenReport={openReport}
                 reportActive={isReportOpen}
                 reportPending={reportPending}
+                onOpenBiblioteca={() => setActiveView(activeView === 'biblioteca' ? 'editor' : 'biblioteca')}
+                bibliotecaActive={activeView === 'biblioteca'}
             />
         );
 
@@ -1339,6 +1342,9 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     isSecurityReady={isSecurityReady}
                 />
             );
+        }
+        if (activeView === 'biblioteca') {
+            return <BibliotecaView onClose={() => setActiveView('editor')} />;
         }
         if (activeView === 'imprenta' && !showLegacyExport) {
             return (
