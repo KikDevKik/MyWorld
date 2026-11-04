@@ -82,6 +82,7 @@ const PersonajesView = lazyView(() => import('./components/preparar/PersonajesVi
 const MapaView = lazyView(() => import('./components/preparar/MapaView'));
 const ImprentaView = lazyView(() => import('./components/imprenta/ImprentaView'));
 import { loadPrepararTab, type PrepararTab } from './components/preparar/tabs';
+import { locateQuote } from './utils/locateQuote';
 const GenesisWizardModal = lazyView(() => import('./components/genesis/GenesisWizardModal'));
 
 interface AppContentProps {
@@ -907,6 +908,48 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         }
     };
 
+    // Nov 2026: «Ver fallo» del Arquitecto → abre el documento y marca el pasaje exacto.
+    const pendingRevealRef = useRef<{ fileId: string; quote: string } | null>(null);
+    const openDocumentAtQuote = (fileId: string, quote: string) => {
+        pendingRevealRef.current = { fileId, quote };
+        if (currentFileIdRef.current === fileId) setActiveView('editor');
+        else handleTimelineFileSelect(fileId);
+    };
+    useEffect(() => {
+        const p = pendingRevealRef.current;
+        if (!p || p.fileId !== currentFileId || activeView !== 'editor') return;
+        const timer = setTimeout(() => {
+            const text = hybridEditorRef.current?.getText() || selectedFileContentRef.current || '';
+            const pos = locateQuote(text, p.quote);
+            pendingRevealRef.current = null;
+            if (pos) hybridEditorRef.current?.revealRange(pos.from, pos.to);
+            else toast.info('Abrí el documento, pero no encontré ese pasaje: puede que ya lo hayas cambiado.');
+        }, 450);
+        return () => clearTimeout(timer);
+    }, [currentFileId, selectedFileContent, activeView]);
+
+    // Nov 2026: si «Nombres del mundo» cambió el documento abierto, se recarga para no pisar el cambio al guardar.
+    const tokenRef = useRef(oauthToken);
+    tokenRef.current = oauthToken;
+    useEffect(() => {
+        const onChanged = async (e: Event) => {
+            const ids: string[] = (e as CustomEvent).detail?.fileIds || [];
+            const cur = currentFileIdRef.current;
+            if (!cur || !ids.includes(cur)) return;
+            try {
+                const data = await callFunction<{ content: string; name: string }>('getDriveFileContent', { fileId: cur, accessToken: tokenRef.current });
+                if (currentFileIdRef.current !== cur || !data) return;
+                const content = data.content ?? '';
+                lastSavedContentRef.current = content;
+                selectedFileContentRef.current = content;
+                setSelectedFileContent(content);
+                setLastSavedContent(content);
+            } catch { /* se verá al volver a abrirlo */ }
+        };
+        window.addEventListener('mw-docs-changed', onChanged);
+        return () => window.removeEventListener('mw-docs-changed', onChanged);
+    }, []);
+
     // 🟢 HANDLE NEW FILE CREATED
     const handleFileCreated = (id: string, content: string, name: string) => {
         setCurrentFileId(id);
@@ -1211,6 +1254,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                                 onGenesisContextConsumed={() => setArquitectoGenesisContext(null)}
                                 handoff={arquitectoHandoff}
                                 onHandoffConsumed={() => setArquitectoHandoff(null)}
+                                onOpenDocument={openDocumentAtQuote}
                             />
                         ),
                         mapa: (
@@ -1306,6 +1350,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     onPendingItemsUpdate={setArquitectoPendingItems}
                     genesisContext={arquitectoGenesisContext}
                     onGenesisContextConsumed={() => setArquitectoGenesisContext(null)}
+                    onOpenDocument={openDocumentAtQuote}
                 />
             );
         }

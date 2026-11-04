@@ -17,6 +17,7 @@ import { _getDriveFileContentInternal } from "./utils/drive";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { TaskType } from "./utils/genai";
 import { getPrompt } from "./prompt_manager";
+import { loadNameDecisionsText } from "./world_names";
 import { wantsAudit, connectAvailable, conectarStart, conectarReply, conectarClose } from "./arquitecto_conectar";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -32,6 +33,7 @@ interface PendingItem {
     title: string;
     description: string;
     relatedFiles?: string[];
+    evidence?: { file: string; fileId?: string; quote: string; issue?: string }[];
     category: 'continuidad' | 'worldbuilding' | 'personaje' | 'cronologia' | 'estructura';
     
     // ★ NUEVOS — del AI Studio
@@ -93,6 +95,92 @@ async function getProjectConfigLocal(userId: string) {
     return doc.exists ? doc.data() : {};
 }
 
+// ─────────────────────────────────────────────
+// Nov 2026: lectura completa del canon y ubicación de cada fallo
+// ─────────────────────────────────────────────
+const CANON_BUDGET = 72000;
+const FOLDER_MIME = "application/vnd.google-apps.folder";
+const SKIP_MIME = /^(image|video|audio)\/|application\/(zip|x-|octet-stream$)/;
+
+async function listCanonFilesRecursive(drive: any, rootIds: string[], maxFiles: number, maxDepth: number): Promise<{ id: string; name: string }[]> {
+    const out: { id: string; name: string }[] = [];
+    const seen = new Set<string>();
+    let level = rootIds.slice(0, 8).map(id => ({ id, depth: 0 }));
+    while (level.length && out.length < maxFiles) {
+        const next: { id: string; depth: number }[] = [];
+        for (const folder of level) {
+            if (seen.has(folder.id)) continue;
+            seen.add(folder.id);
+            let pageToken: string | undefined;
+            do {
+                const res: any = await drive.files.list({
+                    q: `'${folder.id}' in parents and trashed = false`,
+                    fields: "nextPageToken, files(id, name, mimeType)",
+                    pageSize: 200, orderBy: "name", pageToken,
+                });
+                for (const f of res.data.files || []) {
+                    if (f.mimeType === FOLDER_MIME) { if (folder.depth < maxDepth) next.push({ id: f.id, depth: folder.depth + 1 }); continue; }
+                    if (SKIP_MIME.test(f.mimeType || "") && !/\.(md|txt)$/i.test(f.name || "")) continue;
+                    if (out.length < maxFiles) out.push({ id: f.id, name: f.name });
+                }
+                pageToken = res.data.nextPageToken;
+            } while (pageToken && out.length < maxFiles);
+        }
+        level = next;
+    }
+    return out;
+}
+
+// Reparte el presupuesto: los archivos cortos entran enteros y el resto se divide entre los largos.
+function allocateBudget(lengths: number[], budget: number): number[] {
+    const shares = lengths.map(() => 0);
+    let left = budget;
+    let open = lengths.map((_, i) => i);
+    while (open.length && left > 0) {
+        const fair = Math.floor(left / open.length);
+        const small = open.filter(i => lengths[i] <= fair);
+        if (!small.length) { open.forEach(i => { shares[i] = Math.max(fair, 1500); }); break; }
+        small.forEach(i => { shares[i] = lengths[i]; left -= lengths[i]; });
+        open = open.filter(i => lengths[i] > fair);
+    }
+    return shares;
+}
+
+function normForMatch(t: string): string {
+    return String(t || "").toLowerCase()
+        .replace(/[*_#>`~\[\]]/g, "")
+        .replace(/[«»“”"']/g, "")
+        .replace(/[\u2013\u2014]/g, "-")
+        .replace(/\s+/g, " ").trim();
+}
+
+function projectAcronym(name: string): string {
+    const words = String(name || "").split(/\s+/).filter(w => /^[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(w));
+    return words.length >= 2 ? words.map(w => w[0].toUpperCase()).join("") : "";
+}
+
+// Cada fallo trae citas del canon; solo se guardan las que de verdad están en el archivo (si la IA
+// parafraseó o inventó la cita, se descarta) y se les pone el id del archivo para abrirlo.
+function attachEvidence(items: any[], files: { id: string; name: string; text: string }[]): any[] {
+    if (!files.length) return items.map(it => ({ ...it, evidence: [] }));
+    const base = (n: string) => normForMatch(n).replace(/\.(md|txt)$/i, "");
+    const normed = files.map(f => ({ ...f, n: normForMatch(f.text), b: base(f.name) }));
+    return items.map(it => {
+        const ev: any[] = [];
+        for (const e of (Array.isArray(it.evidence) ? it.evidence : []).slice(0, 3)) {
+            const quote = String(e?.quote || "").trim().slice(0, 320);
+            const nq = normForMatch(quote);
+            if (nq.length < 12) continue;
+            const probe = nq.slice(0, 90);
+            const named = normed.find(f => f.b === base(String(e?.file || "")));
+            const hit = (named && named.n.includes(probe)) ? named : normed.find(f => f.n.includes(probe));
+            if (!hit) continue;
+            ev.push({ file: hit.name, fileId: hit.id, quote, issue: String(e?.issue || "").slice(0, 300) });
+        }
+        return { ...it, evidence: ev };
+    });
+}
+
 /**
  * Lee el Canon del proyecto usando 3 fuentes en cascada.
  * Fuente 1 (Primaria): canonPaths del ProjectConfig → Drive directo
@@ -106,9 +194,10 @@ async function readCanonContext(
     userId: string,
     projectId: string,
     drive?: any // Google Drive client, opcional
-): Promise<{ canon: string; resources: string; worldEntities: string }> {
+): Promise<{ canon: string; resources: string; worldEntities: string; fullFiles: { id: string; name: string; text: string }[] }> {
     const db = getFirestore();
     const config = await getProjectConfigLocal(userId);
+    const fullFiles: { id: string; name: string; text: string }[] = [];
     const canonPaths: Array<{ id: string; name: string }> = (config as any)?.canonPaths || [];
     const resourcePaths: Array<{ id: string; name: string }> = (config as any)?.resourcePaths || [];
     const folderMapping: Record<string, string> = (config as any)?.folderMapping || {};
@@ -121,25 +210,33 @@ async function readCanonContext(
     // FUENTE 1: canonPaths → Drive directo
     // El usuario clasificó estas carpetas como Canon en Configuración.
     // ══════════════════════════════════════════
+    // Nov 2026: antes se leían 5 archivos por carpeta y solo 800 caracteres de cada uno. El Arquitecto veía
+    // documentos cortados a mitad de frase y los reportaba como «incompletos» (falso positivo), y no veía
+    // las subcarpetas. Ahora recorre las subcarpetas y reparte un presupuesto de texto entre todos los
+    // archivos; si uno no cabe entero, se marca el recorte para que no lo confunda con un texto inacabado.
     if (drive && canonPaths.length > 0) {
         try {
-            for (const path of canonPaths.slice(0, 5)) {
-                const listRes = await drive.files.list({
-                    q: `'${path.id}' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'`,
-                    fields: "files(id, name, mimeType)",
-                    pageSize: 8,
-                });
-                const files = listRes.data.files || [];
-                for (const file of files.slice(0, 5)) {
+            const files = await listCanonFilesRecursive(drive, canonPaths.map(p => p.id), 90, 4);
+            const texts: { id: string; name: string; text: string }[] = [];
+            for (let i = 0; i < files.length; i += 8) {
+                const batch = await Promise.all(files.slice(i, i + 8).map(async f => {
                     try {
-                        const content = await _getDriveFileContentInternal(drive, file.id);
-                        if (content && content.length > 50) {
-                            canonChunks.push(`[CANON: ${file.name}]\n${content.substring(0, 800)}`);
-                        }
-                    } catch (e) { /* archivo inaccesible, continuar */ }
-                }
+                        const content = String(await _getDriveFileContentInternal(drive, f.id) || "");
+                        return content.trim().length > 50 ? { id: f.id, name: f.name, text: content } : null;
+                    } catch { return null; }
+                }));
+                batch.forEach(b => { if (b) texts.push(b); });
             }
-            logger.info(`✅ [ARQUITECTO] Fuente 1 (Drive Canon): ${canonChunks.length} documentos`);
+            const shares = allocateBudget(texts.map(t => t.text.length), CANON_BUDGET);
+            texts.forEach((t, i) => {
+                fullFiles.push(t);
+                const cut = shares[i] < t.text.length;
+                const body = cut
+                    ? `${t.text.slice(0, shares[i]).trimEnd()}\n[RECORTADO POR ESPACIO: el documento continúa en el original. No lo trates como incompleto ni cortado.]`
+                    : t.text;
+                canonChunks.push(`[CANON: ${t.name}]\n${body}`);
+            });
+            logger.info(`✅ [ARQUITECTO] Fuente 1 (Drive Canon): ${texts.length} documentos de ${files.length} encontrados`);
         } catch (e) {
             logger.warn('[ARQUITECTO] Fuente 1 falló, continuando con Fuente 2:', e);
         }
@@ -255,7 +352,8 @@ async function readCanonContext(
             : "Sin documentos de Recursos configurados.",
         worldEntities: entityChunks.length > 0
             ? entityChunks.join("\n\n")
-            : "Sin entidades procesadas por la Forja."
+            : "Sin entidades procesadas por la Forja.",
+        fullFiles,
     };
 }
 
@@ -618,6 +716,7 @@ export const arquitectoInitialize = onCall(
             severityMode,
             implementationGoal,
             isCreativeBlock: arquitectoMode === 'EXPLORACION',
+            nameDecisions: await loadNameDecisionsText(userId),
         });
 
         const initResult = await smartGenerateContent(genAI, analysisPrompt, {
@@ -643,7 +742,7 @@ export const arquitectoInitialize = onCall(
             const parsed = parseSecureJSON(initResult.text, "ArquitectoInitMessage");
             if (parsed && !parsed.error) {
                 initialMessage = parsed.initialMessage || initialMessage;
-                pendingItems = (parsed.items || []).map((item: any) => ({
+                pendingItems = attachEvidence(parsed.items || [], contextData.fullFiles).map((item: any) => ({
                     ...item,
                     layer: item.layer || 'MACRO',  // Default a MACRO si no viene
                     resolved: false
@@ -681,7 +780,7 @@ export const arquitectoInitialize = onCall(
             pendingItems,
             projectSummary,
             lastAnalyzedAt: now,
-            cachedCanonContext: contextData.canon.substring(0, 50000),
+            cachedCanonContext: contextData.canon.substring(0, 72000),
             cachedWorldEntities: contextData.worldEntities.substring(0, 10000),
             implementationGoal,
             isCreativeBlockMode,
@@ -1882,6 +1981,7 @@ export const arquitectoAnalyze = onCall(
             severityMode,
             implementationGoal,
             isCreativeBlock: analyzeMode === 'EXPLORACION',
+            nameDecisions: await loadNameDecisionsText(userId),
         });
 
         const result = await smartGenerateContent(genAI, analysisPrompt, {
@@ -1898,7 +1998,7 @@ export const arquitectoAnalyze = onCall(
         if (result.text) {
             const parsed = parseSecureJSON(result.text, "ArquitectoAnalyze");
             if (parsed && !parsed.error) {
-                pendingItems = (parsed.items || []).map((item: any) => ({
+                pendingItems = attachEvidence(parsed.items || [], contextData.fullFiles).map((item: any) => ({
                     ...item,
                     layer: item.layer || 'MACRO',  // Default a MACRO si no viene
                     resolved: false

@@ -168,9 +168,11 @@ ${chunksText.substring(0, 15000)}
         architectAnalysis: (
             projectName: string, 
             contextData: { canon: string; resources: string; worldEntities: string }, 
-            options: { focusMode?: string; severityMode?: string; implementationGoal?: string; isCreativeBlock?: boolean; }
+            options: { focusMode?: string; severityMode?: string; implementationGoal?: string; isCreativeBlock?: boolean; nameDecisions?: string; }
         ) => {
-            const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal, isCreativeBlock = false } = options;
+            const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal, isCreativeBlock = false, nameDecisions = '' } = options;
+            const acronymWords = String(projectName || '').split(/\s+/).filter(w => /^[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(w));
+            const acronym = acronymWords.length >= 2 ? acronymWords.map(w => w[0].toUpperCase()).join('') : '';
 
             // ── INSTRUCCIONES DE ENFOQUE ──
             let focusInstructions = '';
@@ -212,7 +214,7 @@ Estrés esta idea contra el Canon. Úsala como BRÚJULA. Evalúa todas las dison
 
             const fullContext = `
 === CANON DEL PROYECTO (${projectName}) ===
-${contextData.canon.substring(0, 25000)}
+${contextData.canon.substring(0, 72000)}
 
 === RECURSOS E INSPIRACIONES ===
 ${contextData.resources.substring(0, 10000)}
@@ -262,6 +264,15 @@ ${outputInstructions}
 Genera un "initialMessage" extenso, inmersivo. Diagnóstico brutal pero constructivo del estado de la obra.
 FORMATO: Markdown. Párrafos cortos. Negritas para conceptos clave. Viñetas si listas.
 
+UBICACIÓN DE CADA PROBLEMA (obligatorio):
+- Cada item lleva "evidence": de 1 a 3 pasajes del canon donde se ve el problema. Cada uno: "file" (nombre exacto del archivo, como aparece en [CANON: …]), "quote" (copia LITERAL de una o dos frases de ese archivo, máximo 250 caracteres, sin cambiar ni una palabra) e "issue" (qué falla en ese pasaje, en una frase).
+- Si el problema es algo que falta, cita el pasaje donde debería estar explicado y di en "issue" qué no se explica ahí.
+- Si no puedes citar literalmente, deja "evidence": [] antes que inventar una cita.
+- En "initialMessage", al final de cada problema que menciones pon su código entre paréntesis, por ejemplo (ARQ-003). La app lo convierte en un botón «Ver fallo» que muestra el pasaje, así que no copies citas largas en el mensaje.
+- Un documento que termina en [RECORTADO POR ESPACIO …] continúa en el original: nunca digas que está incompleto o cortado.
+- El proyecto «${escapePromptVariable(projectName)}»${acronym ? ` puede aparecer en las notas como ${acronym} o` : ''} con otro nombre: no lo reportes como ausente del canon por eso.
+${nameDecisions ? `- NOMBRES QUE EL AUTOR YA DECIDIÓ (respétalos; no los reportes como contradicción):\n${nameDecisions}` : '- Si un mismo concepto aparece con dos nombres en distintos documentos (un renombre a medias), no lo trates como dos cosas distintas ni construyas una contradicción sobre eso: menciónalo una sola vez y dile al autor que lo unifique en «Nombres del mundo».'}
+
 Responde SOLO con JSON:
 {
   "initialMessage": "Diagnóstico extenso en Markdown...",
@@ -273,6 +284,7 @@ Responde SOLO con JSON:
       "description": "Explicación detallada de la disonancia y por qué rompe la historia.",
       "layer": "MACRO",
       "relatedFiles": ["archivo.md"],
+      "evidence": [{ "file": "archivo.md", "quote": "frase copiada tal cual del archivo", "issue": "qué falla aquí" }],
       "category": "worldbuilding",
       "resolved": false
     }
@@ -451,9 +463,11 @@ ${chunksText.substring(0, 15000)}
         architectAnalysis: (
             projectName: string, 
             contextData: { canon: string; resources: string; worldEntities: string }, 
-            options: { focusMode?: string; severityMode?: string; implementationGoal?: string; isCreativeBlock?: boolean; }
+            options: { focusMode?: string; severityMode?: string; implementationGoal?: string; isCreativeBlock?: boolean; nameDecisions?: string; }
         ) => {
-            const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal, isCreativeBlock = false } = options;
+            const { focusMode = 'TRIAGE', severityMode = 'ALL', implementationGoal, isCreativeBlock = false, nameDecisions = '' } = options;
+            const acronymWords = String(projectName || '').split(/\s+/).filter(w => /^[A-Za-zÁÉÍÓÚÑáéíóúñ]/.test(w));
+            const acronym = acronymWords.length >= 2 ? acronymWords.map(w => w[0].toUpperCase()).join('') : '';
 
             // ── ENFOQUE INSTRUCTIONS ──
             let focusInstructions = '';
@@ -495,7 +509,7 @@ Stress test this idea against the Canon. Use it as a COMPASS. Evaluate all disso
 
             const fullContext = `
 === PROJECT CANON (${projectName}) ===
-${contextData.canon.substring(0, 25000)}
+${contextData.canon.substring(0, 72000)}
 
 === RESOURCES AND INSPIRATION ===
 ${contextData.resources.substring(0, 10000)}
@@ -545,6 +559,15 @@ ${outputInstructions}
 Generate an extensive, immersive "initialMessage". A brutal but constructive diagnosis of the work's state.
 FORMAT: Markdown. Short paragraphs. Bold for key concepts. Bullet points for lists.
 
+WHERE EACH PROBLEM IS (required):
+- Each item has "evidence": 1 to 3 canon passages where the problem shows. Each: "file" (exact file name as in [CANON: …]), "quote" (a LITERAL copy of one or two sentences from that file, max 250 characters, not a word changed) and "issue" (what fails in that passage, one sentence).
+- If the problem is something missing, quote the passage where it should be explained and say in "issue" what is not explained there.
+- If you cannot quote literally, leave "evidence": [] rather than invent a quote.
+- In "initialMessage", end each problem you mention with its code in parentheses, e.g. (ARQ-003). The app turns it into a "See issue" button that shows the passage, so do not paste long quotes into the message.
+- A document ending in [RECORTADO POR ESPACIO …] continues in the original: never say it is incomplete or cut off.
+- The project "${escapePromptVariable(projectName)}"${acronym ? ` may appear in the notes as ${acronym} or` : ''} under another name: do not report it as missing from the canon for that reason.
+${nameDecisions ? `- NAMES THE AUTHOR ALREADY DECIDED (respect them; do not report them as contradictions):\n${nameDecisions}` : '- If one concept appears under two names across documents (a half-finished rename), do not treat it as two different things or build a contradiction on it: mention it once and tell the author to unify it in "World names".'}
+
 Reply ONLY with JSON:
 {
   "initialMessage": "Extensive diagnosis in Markdown...",
@@ -556,6 +579,7 @@ Reply ONLY with JSON:
       "description": "Detailed explanation of the dissonance and why it breaks the story.",
       "layer": "MACRO",
       "relatedFiles": ["file.md"],
+      "evidence": [{ "file": "file.md", "quote": "sentence copied verbatim from the file", "issue": "what fails here" }],
       "category": "worldbuilding",
       "resolved": false
     }

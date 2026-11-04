@@ -126,7 +126,7 @@ export default function IntentionModal({ onConfirm, isLoading, isFirstTime }: Pr
     };
 
     return (
-        <div className="flex flex-col items-center justify-start h-full overflow-y-auto px-6 py-10">
+        <div className="flex flex-col items-center justify-start px-6 py-10">
             <div className="w-full max-w-[700px] flex flex-col gap-5">
                 {/* Encabezado en el lenguaje de la casa */}
                 <div className="flex items-end gap-4">

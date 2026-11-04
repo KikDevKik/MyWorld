@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MiraSprite } from './mira/MiraSprite';
-import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks } from 'lucide-react';
+import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks, SpellCheck } from 'lucide-react';
 import { callFunction } from '../services/api';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
@@ -9,6 +9,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import ContradiccionesDrawer from './architect/ContradiccionesDrawer';
 import ColisionesMap from './architect/ColisionesMap';
+import FalloDialog from './architect/FalloDialog';
+import WorldNamesPanel, { scanWorldNames, type NamesState } from './architect/WorldNamesPanel';
 import RoadmapFinalView from './architect/RoadmapFinalView';
 import DrivePatches from './architect/DrivePatches';
 import ArquitectoPendingWidget from './ArquitectoPendingWidget';
@@ -38,12 +40,14 @@ interface ArquitectoPanelProps {
     // Oct 2026: mensajes que llegan desde el Mapa de Preparar
     handoff?: { text: string; nonce: number } | null;
     onHandoffConsumed?: () => void;
+    // Nov 2026: «Ver fallo» → abrir el documento en el pasaje exacto
+    onOpenDocument?: (fileId: string, quote: string) => void;
 }
 
-type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings';
+type ActiveTool = 'none' | 'domino' | 'personajes' | 'patches' | 'map' | 'lore' | 'settings' | 'names';
 type PanelView = 'welcome' | 'intention' | 'chat' | 'reinitializing';
 
-const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate, genesisContext, onGenesisContextConsumed, handoff, onHandoffConsumed }) => {
+const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken, folderId, onPendingItemsUpdate, genesisContext, onGenesisContextConsumed, handoff, onHandoffConsumed, onOpenDocument }) => {
     const { config } = useProjectConfig();
     const { hasByok } = useTier();
     const projectName = config?.projectName || 'Mi Proyecto';
@@ -59,6 +63,27 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
     const [inputValue, setInputValue] = useState('');
     const [isPendingDrawerOpen, setIsPendingDrawerOpen] = useState(false);
+    // Nov 2026: «Ver fallo» y Nombres del mundo
+    const [falloItem, setFalloItem] = useState<PendingItem | null>(null);
+    const [namesState, setNamesState] = useState<NamesState | null>(null);
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                const s = await callFunction<NamesState>('worldNames', { mode: 'get' });
+                if (!alive || !s) return;
+                setNamesState(s);
+                // Mira revisa sola una vez al día, en silencio; solo avisa si encuentra algo.
+                const stale = !s.checkedAt || Date.now() - new Date(s.checkedAt).getTime() > 24 * 3600 * 1000;
+                if (stale) {
+                    const fresh = await scanWorldNames().catch(() => null);
+                    if (alive && fresh && !fresh.noIndex) setNamesState(fresh);
+                }
+            } catch { /* sin nombres: no pasa nada */ }
+        })();
+        return () => { alive = false; };
+    }, [folderId]);
+    const openNames = namesState?.groups?.length || 0;
     const [activeTool, setActiveTool] = useState<ActiveTool>('none');
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
     const isPurging = useArquitectoStore(state => state.isPurging); // 🟢 Fetch isPurging flag
@@ -255,6 +280,29 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         setPanelView('intention');
     };
 
+    // Nov 2026: los códigos de los avisos (ARQ-003) se vuelven un botón «Ver fallo» con el pasaje exacto.
+    const itemsByCode = useMemo(() => new globalThis.Map(pendingItems.map(i => [i.code, i] as const)), [pendingItems]);
+    const renderArq = (text: string) => {
+        const withLinks = text.replace(/[(\[]?\b(ARQ-\d{2,4})\b[)\]]?/g, (_m, code: string) => itemsByCode.has(code) ? ` [Ver fallo](#fallo-${code})` : '');
+        return (
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={{
+                a: ({ href, children }) => {
+                    const m = String(href || '').match(/^#fallo-(ARQ-\d+)$/);
+                    if (m) {
+                        const it = itemsByCode.get(m[1]);
+                        return (
+                            <button type="button" onClick={() => it && setFalloItem(it)}
+                                className="not-prose inline-flex items-center align-baseline mx-0.5 px-2 py-px rounded-md border border-mira/40 text-mira hover:text-titanium-50 hover:border-mira/70 text-[13px] font-sans leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60">
+                                {children}
+                            </button>
+                        );
+                    }
+                    return <a href={href} target="_blank" rel="noreferrer">{children}</a>;
+                },
+            }}>{withLinks}</ReactMarkdown>
+        );
+    };
+
     // 🟢 Fix Bug 1: Abrir drawer automáticamente si hay pendingItems restaurados del cache
     useEffect(() => {
         if (pendingItems.length > 0 && messages.length <= 1) {
@@ -398,6 +446,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             isOpen={isPendingDrawerOpen}
                             onToggle={() => setIsPendingDrawerOpen(v => !v)}
                             activeItemCode={undefined}
+                            onShowFallo={setFalloItem}
                             onSelectItem={(item) => {
                                 sendMessage(`[Retomar disonancia: ${item.code}] ${item.title}`);
                                 setIsPendingDrawerOpen(false);
@@ -591,7 +640,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                 {/* ESTADO: MODAL DE INTENCIÓN */}
                 {panelView === 'intention' && (
-                    <div className="flex-1 flex items-center justify-center w-full">
+                    <div className="flex-1 min-h-0 w-full overflow-y-auto custom-scrollbar">
+                        {openNames > 0 && <NamesBanner state={namesState!} onOpen={() => setActiveTool('names')} />}
                         <IntentionModal
                             onConfirm={handleIntentionConfirm}
                             isLoading={isInitializing}
@@ -617,6 +667,10 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                     {/* Centered content with breathing room */}
                     <div className="max-w-[800px] mx-auto px-10 pt-8 pb-6 flex flex-col min-h-full">
+
+                    {openNames > 0 && (
+                        <div className="-mx-6 mb-4"><NamesBanner state={namesState!} onOpen={() => setActiveTool('names')} /></div>
+                    )}
 
                     {/* Messages List */}
                     <div className="flex flex-col gap-0 w-full mt-auto">
@@ -714,7 +768,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                             <div className="relative">
                                                 <div className="overflow-hidden" style={{ maxHeight: '84px' }}>
                                                     <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
-                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                                        {renderArq(msg.text)}
                                                     </div>
                                                 </div>
                                                 <div className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
@@ -724,7 +778,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                             // Change 4: accordion for long recent messages — show first 2 paragraphs
                                             <div>
                                                 <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{firstTwoParagraphs}</ReactMarkdown>
+                                                    {renderArq(firstTwoParagraphs)}
                                                 </div>
                                                 <button onClick={() => toggleAccordion(msg.id)}
                                                     className="mt-3 text-xs text-mira hover:text-mira transition-colors uppercase tracking-wider">
@@ -735,11 +789,11 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                             // Change 4: accordion expanded
                                             <div>
                                                 <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
-                                                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{firstTwoParagraphs}</ReactMarkdown>
+                                                    {renderArq(firstTwoParagraphs)}
                                                 </div>
                                                 <div style={{ maxHeight: '5000px', overflow: 'hidden', transition: 'max-height 300ms ease' }}>
                                                     <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
-                                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{restParagraphs}</ReactMarkdown>
+                                                        {renderArq(restParagraphs)}
                                                     </div>
                                                 </div>
                                                 <button onClick={() => toggleAccordion(msg.id)}
@@ -750,7 +804,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                         ) : (
                                             // Normal full display
                                             <div className="prose prose-invert prose-sm max-w-none prose-p:my-1 prose-a:text-mira" style={newsreaderStyle}>
-                                                <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.text}</ReactMarkdown>
+                                                {renderArq(msg.text)}
                                             </div>
                                         )}
                                     </div>
@@ -862,6 +916,20 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
                                 Cambios propuestos al canon
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTool(activeTool === 'names' ? 'none' : 'names')}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'names' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'}`}
+                            aria-label="Nombres del mundo"
+                        >
+                            <SpellCheck size={20} />
+                            {openNames > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-mira text-titanium-950 text-[10px] font-bold rounded-full flex items-center justify-center z-10">{openNames}</span>
+                            )}
+                            <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
+                                Nombres del mundo
                             </span>
                         </button>
 
@@ -1016,16 +1084,17 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             <SlideUpPanel
                 isOpen={activeTool === 'map'}
-                title="Mapa de Colisiones"
+                title="Mapa de dudas"
                 icon={<Map size={16} />}
                 onClose={() => setActiveTool('none')}
             >
                 {activeTool === 'map' && (
-                    <ColisionesMap 
+                    <ColisionesMap
                         pendingItems={pendingItems}
+                        onOpenDocument={onOpenDocument}
                         onSelectItem={(item) => {
                             setActiveTool('none');
-                            setIsPendingDrawerOpen(true);
+                            sendMessage(`[Retomar disonancia: ${item.code}] ${item.title}`);
                         }}
                     />
                 )}
@@ -1042,6 +1111,26 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 )}
             </SlideUpPanel>
 
+            <SlideUpPanel
+                isOpen={activeTool === 'names'}
+                title="Nombres del mundo"
+                icon={<SpellCheck size={16} />}
+                onClose={() => setActiveTool('none')}
+            >
+                {activeTool === 'names' && (
+                    <WorldNamesPanel accessToken={accessToken} initialState={namesState} onStateChange={setNamesState} />
+                )}
+            </SlideUpPanel>
+
+            {falloItem && (
+                <FalloDialog
+                    item={falloItem}
+                    onClose={() => setFalloItem(null)}
+                    onOpenDocument={onOpenDocument}
+                    onDiscuss={(item) => sendMessage(`[Retomar disonancia: ${item.code}] ${item.title}`)}
+                />
+            )}
+
             {activeTool === 'settings' && (
                 <ArquitectoConfigModal 
                     sessionId={useArquitectoStore.getState().arquitectoSessionId} 
@@ -1053,5 +1142,22 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         </div>
     );
 };
+
+/** Nov 2026: aviso de Mira cuando un concepto tiene dos nombres en tus documentos. */
+function NamesBanner({ state, onOpen }: { state: NamesState; onOpen: () => void }) {
+    const g = state.groups[0];
+    const more = state.groups.length - 1;
+    return (
+        <div className="max-w-[700px] mx-auto mt-6 px-6">
+            <div className="flex items-center gap-3 rounded-2xl border border-mira/30 bg-mira/10 px-4 py-3">
+                <img src="/assets/mira/mira_cara_icono.png" alt="" width={36} height={36} className="w-9 h-9 shrink-0" style={{ imageRendering: 'pixelated' }} />
+                <p className="flex-1 text-sm text-titanium-100 leading-relaxed">
+                    {g.variants.map(v => `«${v.name}»`).join(' y ')} parecen ser lo mismo con dos nombres{more > 0 ? `, y hay ${more} caso${more === 1 ? '' : 's'} más` : ''}. Unifícalo antes de hablar con el Arquitecto para que no lo confunda.
+                </p>
+                <button onClick={onOpen} className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg bg-coral text-on-coral hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60">Revisar</button>
+            </div>
+        </div>
+    );
+}
 
 export default ArquitectoPanel;

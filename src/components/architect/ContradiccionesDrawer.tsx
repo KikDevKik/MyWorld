@@ -10,12 +10,13 @@ interface Props {
     onToggle: () => void;
     onSelectItem?: (item: PendingItem) => void;
     activeItemCode?: string;
+    onShowFallo?: (item: PendingItem) => void;
 }
 
 const getLayerConfig = (t: any) => ({
     MACRO: {
-        label: 'MACRO',
-        sublabel: t.macroDesc || 'Worldbuilding · Magia · Economía',
+        label: 'Reglas del mundo',
+        sublabel: 'Magia, historia, economía',
         color: 'text-red-400',
         bg: 'bg-red-500/10',
         border: 'border-red-500/30',
@@ -23,8 +24,8 @@ const getLayerConfig = (t: any) => ({
         icon: <Layers size={12} />
     },
     MESO: {
-        label: 'MESO', 
-        sublabel: t.mesoDesc || 'Estructura · Facciones · Personajes',
+        label: 'Trama y personajes',
+        sublabel: 'Estructura, facciones, arcos',
         color: 'text-amber-400',
         bg: 'bg-amber-500/10',
         border: 'border-amber-500/30',
@@ -32,17 +33,17 @@ const getLayerConfig = (t: any) => ({
         icon: <Zap size={12} />
     },
     MICRO: {
-        label: 'MICRO',
-        sublabel: t.microDesc || 'Escenas · Diálogos · Detalles',
-        color: 'text-blue-400',
-        bg: 'bg-blue-500/10',
-        border: 'border-blue-500/30',
-        dot: 'bg-blue-500',
+        label: 'Escenas y detalles',
+        sublabel: 'Diálogos y acciones concretas',
+        color: 'text-mira',
+        bg: 'bg-mira/10',
+        border: 'border-mira/30',
+        dot: 'bg-mira',
         icon: <MessageSquare size={12} />
     }
 });
 
-export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, onSelectItem, activeItemCode }: Props) {
+export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, onSelectItem, activeItemCode, onShowFallo }: Props) {
     const { currentLanguage } = useLanguageStore();
     const t = TRANSLATIONS[currentLanguage];
     const tArch = t.architect;
@@ -83,18 +84,18 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                     return (
                         <div key={layer} className="flex items-center gap-1.5">
                             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                            <span className={`text-[11px] font-mono ${cfg.color}`}>{layer}</span>
-                            <span className="text-[11px] text-titanium-500">{count}</span>
+                            <span className={`text-sm ${cfg.color}`}>{cfg.label}</span>
+                            <span className="text-sm text-titanium-500">{count}</span>
                         </div>
                     );
                 })}
                 {resolvedCount > 0 && (
                     <div className="flex items-center gap-1.5 opacity-50">
                         <CheckCircle2 size={11} className="text-emerald-500" />
-                        <span className="text-[11px] text-titanium-600">{resolvedCount} {t.common?.resolved || 'resueltos'}</span>
+                        <span className="text-sm text-titanium-400">{resolvedCount} {t.common?.resolved || 'resueltos'}</span>
                     </div>
                 )}
-                <ChevronDown size={14} className="text-titanium-600 ml-2" />
+                <ChevronDown size={14} className="text-titanium-400 ml-2" />
             </div>
         );
     }
@@ -107,10 +108,10 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                     onClick={onToggle}
                     className="flex items-center justify-between px-6 py-3 cursor-pointer hover:bg-titanium-950/30 sticky top-0 bg-titanium-950 z-10 border-b border-titanium-800/50"
                 >
-                    <span className="text-[11px] font-mono text-titanium-500 uppercase tracking-wider">
-                        {tArch.activeDissonances || "Disonancias Activas"} — {pendingOnly.length} {t.common?.pending || 'pendientes'} · {resolvedCount} {t.common?.resolved || 'resueltas'}
+                    <span className="text-sm text-titanium-500">
+                        Dudas del canon: {pendingOnly.length} {pendingOnly.length === 1 ? 'abierta' : 'abiertas'}{resolvedCount ? ` · ${resolvedCount} ${resolvedCount === 1 ? 'resuelta' : 'resueltas'}` : ''}
                     </span>
-                    <ChevronUp size={14} className="text-titanium-600" />
+                    <ChevronUp size={14} className="text-titanium-400" />
                 </div>
 
                 {/* Grupos por capa */}
@@ -129,14 +130,14 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                             >
                                 <div className="flex items-center gap-2">
                                     <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
-                                    <span className={`text-[11px] font-mono font-semibold ${cfg.color}`}>{layer}</span>
-                                    <span className="text-[10px] text-titanium-600">{cfg.sublabel}</span>
+                                    <span className={`text-sm font-semibold ${cfg.color}`}>{cfg.label}</span>
+                                    <span className="text-xs text-titanium-400">{cfg.sublabel}</span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
+                                    <span className={`text-xs px-1.5 py-0.5 rounded ${cfg.bg} ${cfg.color} border ${cfg.border}`}>
                                         {items.length}
                                     </span>
-                                    {isExpanded ? <ChevronUp size={12} className="text-titanium-600" /> : <ChevronDown size={12} className="text-titanium-600" />}
+                                    {isExpanded ? <ChevronUp size={12} className="text-titanium-400" /> : <ChevronDown size={12} className="text-titanium-400" />}
                                 </div>
                             </button>
 
@@ -148,30 +149,30 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                                         const severityColor = item.severity === 'critical' ? 'text-red-400' : item.severity === 'warning' ? 'text-amber-400' : 'text-blue-400';
                                         
                                         return (
-                                            <div key={`${item.code}-${idx}`} className={`w-full group flex flex-col px-6 py-3 transition-colors hover:bg-titanium-900/40 ${isActive ? 'bg-cyan-500/5 border-l-2 border-cyan-500' : ''}`}>
+                                            <div key={`${item.code}-${idx}`} className={`w-full group flex flex-col px-6 py-3 transition-colors hover:bg-titanium-900/40 ${isActive ? 'bg-mira/5 border-l-2 border-mira' : ''}`}>
                                                 <div 
                                                     className="flex items-start gap-2 cursor-pointer flex-1"
                                                     onClick={() => onSelectItem?.(item)}
-                                                    onDoubleClick={(e) => { e.stopPropagation(); setDetailItem(item); }}
+                                                    onDoubleClick={(e) => { e.stopPropagation(); onShowFallo ? onShowFallo(item) : setDetailItem(item); }}
                                                 >
                                                     <Circle size={12} className={`${severityColor} mt-0.5 shrink-0`} />
                                                     <div className="min-w-0 flex-1">
                                                         <div className="flex items-center gap-2 justify-between">
                                                             <div className="flex items-center gap-2">
-                                                                <span className="text-[11px] font-mono text-titanium-600">{item.code}</span>
-                                                                <span className={`text-[10px] font-mono ${severityColor}`}>{item.severity}</span>
+                                                                <span className="text-sm text-titanium-400">{item.code}</span>
+                                                                <span className={`text-xs ${severityColor}`}>{item.severity === 'critical' ? 'Rompe la historia' : item.severity === 'warning' ? 'Conviene resolverlo' : 'Sugerencia'}</span>
                                                             </div>
                                                             <button 
-                                                                onClick={(e) => { e.stopPropagation(); setDetailItem(item); }}
-                                                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-titanium-800 rounded flex items-center gap-1 text-titanium-400 hover:text-white"
-                                                                title="Ver detalle"
+                                                                onClick={(e) => { e.stopPropagation(); onShowFallo ? onShowFallo(item) : setDetailItem(item); }}
+                                                                className="shrink-0 px-2.5 py-1 rounded-lg border border-mira/30 hover:border-mira/60 flex items-center gap-1 text-mira hover:text-titanium-50 transition-colors"
+                                                                title="Ver el pasaje del canon donde está el problema"
                                                             >
-                                                                <Info size={12} />
-                                                                <span className="text-[10px]">Detalle</span>
+                                                                <Info size={13} />
+                                                                <span className="text-xs">Ver fallo</span>
                                                             </button>
                                                         </div>
-                                                        <p className="text-[13px] text-titanium-300 font-medium truncate pr-4">{item.title}</p>
-                                                        <p className="text-[11px] text-titanium-600 line-clamp-1 mt-0.5">{item.description}</p>
+                                                        <p className="text-[15px] text-titanium-300 font-medium truncate pr-4">{item.title}</p>
+                                                        <p className="text-sm text-titanium-400 line-clamp-1 mt-0.5">{item.description}</p>
                                                     </div>
                                                 </div>
                                             </div>
@@ -187,7 +188,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                 {resolvedCount > 0 && (
                     <div className="px-6 py-3 flex items-center gap-2 opacity-50">
                         <CheckCircle2 size={12} className="text-emerald-500" />
-                        <span className="text-[11px] text-titanium-600">{resolvedCount} {tArch.resolvedDissonancesCountDesc?.replace('{count}', String(resolvedCount)) || `${resolvedCount} contradicción(es) resuelta(s)`}</span>
+                        <span className="text-sm text-titanium-400">{resolvedCount} {tArch.resolvedDissonancesCountDesc?.replace('{count}', String(resolvedCount)) || `${resolvedCount} contradicción(es) resuelta(s)`}</span>
                     </div>
                 )}
             </div>
@@ -198,10 +199,10 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                     <div className="bg-titanium-900 border border-titanium-700/50 rounded-lg shadow-2xl max-w-lg w-full max-h-[90%] flex flex-col animate-in fade-in zoom-in-95 duration-200">
                         <div className="flex items-center justify-between p-4 border-b border-titanium-800/50">
                             <div className="flex items-center gap-3">
-                                <span className="text-xs font-mono px-2 py-1 rounded bg-titanium-900 text-titanium-400">
+                                <span className="text-xs px-2 py-1 rounded bg-titanium-900 text-titanium-400">
                                     {detailItem.code}
                                 </span>
-                                <span className={`text-xs font-mono ${
+                                <span className={`text-xs ${
                                     detailItem.severity === 'critical' ? 'text-red-400' : 
                                     detailItem.severity === 'warning' ? 'text-amber-400' : 'text-blue-400'
                                 }`}>

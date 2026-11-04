@@ -4,6 +4,7 @@ export interface PendingItem {
     title: string;
     description: string;
     relatedFiles?: string[];
+    evidence?: { file: string; fileId?: string; quote: string; issue?: string }[]; // Nov 2026: pasaje exacto del canon (verificado)
     category: 'continuidad' | 'worldbuilding' | 'personaje' | 'cronologia' | 'estructura';
     
     // ★ NUEVOS — del AI Studio

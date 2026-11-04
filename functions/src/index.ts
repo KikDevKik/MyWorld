@@ -79,6 +79,7 @@ export { forgeChatStream } from './forge_chat';
 export { builderStream } from './builder';
 export { updateMemory, undoMemory, getMemory, editMemory } from './memory'; // Oct 2026: Memoria de MyWorld
 export { chapterReport } from './chapter_report'; // Oct 2026: Reporte de capítulo
+export { worldNames } from './world_names'; // Nov 2026: Nombres del mundo (un concepto con dos nombres)
 export { whatIf } from './whatif'; // Oct 2026: «Qué pasaría si» (ideas no canon)
 export { personajes } from './personajes'; // Oct 2026: Personajes (antes: la Forja)
 export { mapaMundo } from './mapa'; // Oct 2026: Mapa del mundo (antes: Nexus)

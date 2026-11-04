@@ -54,8 +54,8 @@ const SlideUpPanel: React.FC<SlideUpPanelProps> = ({ isOpen, title, icon, onClos
                     {/* Header */}
                     <div className="flex items-center justify-between px-6 py-3 border-b border-titanium-800/60 shrink-0">
                         <div className="flex items-center gap-2.5 text-titanium-300">
-                            <span className="text-cyan-500">{icon}</span>
-                            <h2 className="text-sm font-semibold uppercase tracking-widest font-mono">{title}</h2>
+                            <span className="text-mira">{icon}</span>
+                            <h2 className="font-serif text-lg text-titanium-100">{title}</h2>
                         </div>
                         <button
                             onClick={onClose}
