@@ -43,13 +43,16 @@ NO SE GUARDA (ejemplos reales que estuvieron mal):
 - Explicaciones o datos que el autor le dio a la IA para que entendiera su texto ("STOP es un juego de…"), salvo que sea una regla nueva del mundo que no está en el canon.
 - Avances dentro del mismo capítulo: NO actualices "Dónde quedó" por cada escena; solo por hitos.
 - Cualquier cosa que ya esté en la MEMORIA ACTUAL, aunque cambie la redacción.
+- Lo que el autor dice DENTRO de una pregunta o un pedido ("para escribir el acto 1, ¿qué me falta?", "quiero enfocarme en el libro de Anna, desde su niñez hasta Daniel"): es contexto de la pregunta, no una decisión. Guarda solo lo que afirma como decidido o corrige ("decidí que…", "no, en realidad…", "queda así").
+- Resúmenes del plan que el autor hace de pasada o con palabras aproximadas: si contradicen o simplifican lo que ya está en la MEMORIA ACTUAL o en su canon, NO los guardes.
+- Detalles de una escena concreta (quién mira a quién, gestos, qué regalo recibe): van en el manuscrito cuando lo escriba, no en la memoria.
 
 ARCHIVOS: "Preferencias del autor" (preferencias), "Libro de <nombre>" (libro), "Personaje: <nombre>" (personaje), "Pendientes" (pendientes).
 Si el autor pide olvidar algo o una línea quedó desactualizada, usa remove/update sobre esa línea.
 
 FORMATO: responde SOLO JSON:
 {"ops":[{"op":"add|update|remove","file":"<nombre>","kind":"<kind>","text":"<≤20 palabras, en tercera persona>","lineId":"<id si update/remove>","porque":"<qué parte de la PRUEBA cumple y por qué seguirá importando en dos semanas>"}]}
-Máximo 2 ops. Si dudas, no guardes: {"ops":[]}.`;
+Máximo 2 ops. Si dudas, no guardes: {"ops":[]}. Una memoria equivocada hace más daño que una que falta.`;
 
 function memoryIndex(files: MemoryFile[]): string {
     if (!files.length) return "(memoria vacía)";

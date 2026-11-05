@@ -33,7 +33,7 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
                 {/* Header */}
                 <div className="flex items-center gap-3 px-6 py-4 border-b border-amber-500/20 bg-amber-950/20">
                     <ShieldAlert size={20} className="text-amber-400 shrink-0" />
-                    <h2 className="text-amber-300 font-semibold font-mono tracking-wide flex-1">
+                    <h2 className="text-amber-300 font-semibold tracking-wide flex-1">
                         {tArch.guardianDetectedMissing || "El Guardián ha detectado pilares faltantes"}
                     </h2>
                     <button
@@ -56,7 +56,7 @@ const ReadinessModal: React.FC<ReadinessModalProps> = ({
                     {/* Missing elements list */}
                     {missingElements.length > 0 && (
                         <div className="bg-amber-950/20 border border-amber-500/20 rounded-xl px-4 py-3 flex flex-col gap-2">
-                            <p className="text-amber-400/70 text-xs font-mono uppercase tracking-wider mb-1">
+                            <p className="text-amber-400/70 text-xs mb-1">
                                 {tArch.undefinedPillars || "Pilares sin definir"}:
                             </p>
                             {missingElements.map((el, i) => (

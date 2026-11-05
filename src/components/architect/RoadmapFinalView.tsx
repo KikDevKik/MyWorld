@@ -64,12 +64,12 @@ export default function RoadmapFinalView({ sessionId }: Props) {
 
     const handleDownload = () => {
         if (!roadmap) return;
-        const md = `# Mega-Roadmap: Plan de Implementación Definitivo\n\n## 1. Changelog (Lo Resuelto)\n${roadmap.changelog.map(i => `- ${i}`).join('\n')}\n\n## 2. Misiones de Creación (Lo Nuevo)\n${roadmap.creationMissions.map(i => `- ${i}`).join('\n')}\n\n## 3. Misiones de Investigación (Contexto Externo)\n${roadmap.researchMissions.map(i => `- ${i}`).join('\n')}`;
+        const md = `# El plan\n\n## 1. Changelog (Lo Resuelto)\n${(roadmap.changelog || []).map(i => `- ${i}`).join('\n')}\n\n## 2. Misiones de Creación (Lo Nuevo)\n${(roadmap.creationMissions || []).map(i => `- ${i}`).join('\n')}\n\n## 3. Misiones de Investigación (Contexto Externo)\n${(roadmap.researchMissions || []).map(i => `- ${i}`).join('\n')}`;
         const blob = new Blob([md], { type: 'text/markdown' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'Mega-Roadmap.md';
+        a.download = 'El plan.md';
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -81,12 +81,12 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                     <Search size={20} className="text-titanium-600" />
                 </div>
                 <p className="text-titanium-400 text-sm text-center">
-                    El Roadmap Final se genera cuando el interrogatorio socrático llega a su conclusión.
+                    El plan se arma cuando cierras una conversación con «Cerrar y resumir»: lo decidido pasa aquí y al escritorio.
                 </p>
                 <button
                     onClick={handleGenerate}
                     disabled={isGenerating}
-                    className="flex items-center gap-2 px-4 py-2 bg-cyan-950/30 border border-cyan-500/30 text-cyan-400 text-sm rounded-lg hover:bg-cyan-950/50 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-2 px-4 py-2 bg-mira/30 border border-mira/30 text-mira text-sm rounded-lg hover:bg-mira/50 transition-colors disabled:opacity-50"
                 >
                     {isGenerating ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
                     {isGenerating ? (t.common?.generating || 'Generando...') : (t.common?.generateNow || 'Generar Ahora')}
@@ -100,7 +100,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
             <div className="flex justify-end px-4 py-2 border-b border-titanium-800 shrink-0">
                 <button
                     onClick={handleDownload}
-                    className="flex items-center gap-1.5 text-[11px] text-titanium-500 hover:text-titanium-300 transition-colors"
+                    className="flex items-center gap-1.5 text-xs text-titanium-500 hover:text-titanium-300 transition-colors"
                 >
                     <Download size={12} />
                     {t.common?.downloadMd || "Descargar .md"}
@@ -114,7 +114,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                         <span className="text-xs font-medium text-emerald-300">Changelog</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                        {roadmap.changelog.map((item, i) => (
+                        {(roadmap.changelog || []).map((item, i) => (
                             <div key={i} className="text-[12px] text-titanium-300 bg-titanium-900/50 p-2.5 rounded-lg border border-titanium-800/50">
                                 <Markdown>{item}</Markdown>
                             </div>
@@ -128,7 +128,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                         <span className="text-xs font-medium text-amber-300">{t.architect?.creationMissions || "Misiones de Creación"}</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                        {roadmap.creationMissions.map((item, i) => (
+                        {(roadmap.creationMissions || []).map((item, i) => (
                             <div key={i} className="text-[12px] text-titanium-300 bg-titanium-900/50 p-2.5 rounded-lg border border-titanium-800/50">
                                 <Markdown>{item}</Markdown>
                             </div>
@@ -142,7 +142,7 @@ export default function RoadmapFinalView({ sessionId }: Props) {
                         <span className="text-xs font-medium text-blue-300">{t.common?.research || "Investigación"}</span>
                     </div>
                     <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-                        {roadmap.researchMissions.map((item, i) => (
+                        {(roadmap.researchMissions || []).map((item, i) => (
                             <div key={i} className="text-[12px] text-titanium-300 bg-titanium-900/50 p-2.5 rounded-lg border border-titanium-800/50">
                                 <Markdown>{item}</Markdown>
                             </div>

@@ -3,6 +3,13 @@ import { driver } from 'driver.js';
 import 'driver.js/dist/driver.css';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
+import { useLayoutStore } from '../stores/useLayoutStore';
+import { NARROW_QUERY } from './useMediaQuery';
+
+// Nov 2026: en pantallas angostas la barra de documentos es un cajón: se abre para los pasos que la señalan.
+const isNarrow = () => typeof window !== 'undefined' && !!window.matchMedia?.(NARROW_QUERY).matches;
+const drawer = (open: boolean) => { if (isNarrow()) useLayoutStore.getState().setVaultDrawerOpen(open); };
+const inSidebar = (s: any) => typeof s?.element === 'string' && s.element.startsWith('#sidebar');
 
 interface UseTutorialProps {
     setIsProjectSettingsOpen: (isOpen: boolean) => void;
@@ -120,11 +127,15 @@ export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading, isEm
 
                 if (nextStep && nextStep.element === '#project-settings-modal') {
                      // Opening Modal
+                     drawer(false);
                      setIsProjectSettingsOpen(true);
                      // Wait for animation
                      setTimeout(() => {
                          driverObj.current.moveNext();
                      }, 800);
+                } else if (inSidebar(nextStep) && isNarrow()) {
+                    drawer(true);
+                    setTimeout(() => driverObj.current.moveNext(), 260);
                 } else {
                     driverObj.current.moveNext();
                 }
@@ -142,18 +153,21 @@ export const useTutorial = ({ setIsProjectSettingsOpen, user, isAppLoading, isEm
                 } else if (step.element === '#project-settings-modal') {
                     // Going back to Sidebar from Modal
                     setIsProjectSettingsOpen(false);
-                    driverObj.current.movePrevious();
+                    if (isNarrow()) { drawer(true); setTimeout(() => driverObj.current.movePrevious(), 260); }
+                    else driverObj.current.movePrevious();
                 } else {
                     driverObj.current.movePrevious();
                 }
             },
             onDestroyStarted: () => {
                 localStorage.setItem('has_seen_intro_tutorial_v1', 'true');
+                drawer(false);
                 driverObj.current.destroy();
             }
         });
 
-        driverObj.current.drive();
+        if (inSidebar(steps[0]) && isNarrow()) { drawer(true); setTimeout(() => driverObj.current.drive(), 260); }
+        else driverObj.current.drive();
 
     }, [user, isAppLoading, isEmptyProject, currentLanguage]);
 

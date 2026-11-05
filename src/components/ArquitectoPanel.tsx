@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { MiraSprite } from './mira/MiraSprite';
-import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks, SpellCheck } from 'lucide-react';
+import { DraftingCompass as Landmark, RefreshCw, Send, Loader2, User, ArrowLeft, Network, Users, Map, Book, Settings, ChevronDown, ChevronUp, Paperclip, FileText, X, GitMerge, HelpCircle, ListChecks, SpellCheck, LayoutGrid } from 'lucide-react';
 import { callFunction } from '../services/api';
+import { getFirestore, doc as fsDoc, onSnapshot } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { useProjectConfig } from '../contexts/ProjectConfigContext';
 import { useArquitecto } from '../hooks/useArquitecto';
 import { PendingItem } from '../types/roadmap';
@@ -30,6 +32,7 @@ import { useTier } from '../hooks/useTier';
 import { AIMotorBlockedOverlay } from './ui/AIMotorBlockedOverlay';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
+import { useIsNarrow } from '../hooks/useMediaQuery';
 
 interface ArquitectoPanelProps {
     onClose: () => void;
@@ -99,11 +102,28 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     };
     const [activeTool, setActiveTool] = useState<ActiveTool>('none');
     const arquitectoSessionId = useArquitectoStore(state => state.arquitectoSessionId);
+    // Nov 2026: agenda de la sesión (el Arquitecto la arma y la marca al avanzar) para que la charla tenga fin.
+    const [agenda, setAgenda] = useState<{ t: string; e: 'hecho' | 'ahora' | 'pendiente' }[]>([]);
+    const [agendaCerrar, setAgendaCerrar] = useState(false);
+    const [agendaOpen, setAgendaOpen] = useState(false);
+    useEffect(() => {
+        setAgenda([]); setAgendaCerrar(false);
+        const uid = getAuth().currentUser?.uid;
+        if (!arquitectoSessionId || !uid) return;
+        return onSnapshot(fsDoc(getFirestore(), 'users', uid, 'forge_sessions', arquitectoSessionId), snap => {
+            const d: any = snap.data() || {};
+            setAgenda(Array.isArray(d.agenda) ? d.agenda : []);
+            setAgendaCerrar(!!d.agendaCerrar);
+        }, () => { /* sin permiso */ });
+    }, [arquitectoSessionId]);
     const isPurging = useArquitectoStore(state => state.isPurging); // 🟢 Fetch isPurging flag
 
     // Welcome card (primera visita)
     const [showWelcome, dismissWelcome] = useToolWelcome('arquitecto', folderId);
     const [forceShowOverlay, setForceShowOverlay] = useState(false);
+    // Nov 2026: en pantallas angostas las herramientas se guardan en un botón para no tapar la conversación.
+    const narrow = useIsNarrow();
+    const [toolsOpen, setToolsOpen] = useState(false);
     const [tourHighlightedTool, setTourHighlightedTool] = useState<string | null>(null);
 
     // File Attachment State
@@ -424,7 +444,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         try {
             const r = await callFunction<{ summary: string; savedAs?: string | null }>('arquitectoCerrarSesion', { sessionId: arquitectoSessionId, accessToken }, { timeout: 180000 });
             if (r?.summary) appendAssistantMessage(r.summary);
-            toast.success('Sesión resumida.', { description: r?.savedAs ? `Guardada en ${r.savedAs}.` : undefined });
+            toast.success('Sesión resumida. Lo decidido quedó en tu plan del escritorio.', { description: r?.savedAs ? `El resumen está en ${r.savedAs}.` : undefined });
         } catch (e: any) {
             toast.error(e?.message || 'No pude resumir la sesión.');
         } finally {
@@ -454,7 +474,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
     if (!hasByok) return <AIMotorBlockedOverlay toolName={tArch.toolName || "El Arquitecto"} />;
 
     return (
-        <div className="h-full w-full bg-titanium-950 bg-[radial-gradient(circle_at_50%_30%,#1c1c1e_0%,#0f0f10_80%)] flex flex-col overflow-hidden relative selection:bg-mira/30 font-display">
+        <div className="h-full w-full bg-titanium-950 bg-[radial-gradient(circle_at_50%_30%,var(--color-titanium-900)_0%,var(--color-titanium-950)_80%)] flex flex-col overflow-hidden relative selection:bg-mira/30 font-display">
 
             {/* Top Drawer: Pendientes — solo en estado chat */}
             {panelView === 'chat' && (
@@ -476,21 +496,21 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             )}
 
             {/* HEADER — siempre visible */}
-            <header className="h-14 border-b border-titanium-800 flex items-center justify-between px-6 shrink-0 bg-titanium-950/80 backdrop-blur-md z-30 relative">
+            <header className="h-14 border-b border-titanium-800 flex items-center justify-between gap-2 px-3 sm:px-6 shrink-0 bg-titanium-950/80 backdrop-blur-md z-30 relative">
                 <button
                     onClick={onClose}
                     className="flex items-center gap-2 text-titanium-500 hover:text-titanium-300 transition-colors group"
                     aria-label="Cerrar Arquitecto"
                 >
                     <ArrowLeft size={18} className="group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-sm">{currentLanguage === 'en' ? 'Back to the desk' : 'Volver al escritorio'}</span>
+                    <span className="text-sm hidden sm:inline">{currentLanguage === 'en' ? 'Back to the desk' : 'Volver al escritorio'}</span>
                 </button>
 
-                <div className="font-serif text-[15px] text-titanium-300 truncate px-4">
+                <div className="font-serif text-[15px] text-titanium-300 truncate px-2 sm:px-4 min-w-0">
                     {projectName}
                 </div>
 
-                <div className="w-[190px] flex justify-end">
+                <div className="sm:w-[190px] shrink-0 flex justify-end">
                     {/* Nov 2026: acceso fijo a la revisión del canon fuera del chat (en el chat está en el riel). */}
                     {panelView !== 'chat' && (
                         <button
@@ -498,7 +518,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             className="relative inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-titanium-700 hover:border-mira/60 text-[13px] text-titanium-200 hover:text-titanium-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60"
                         >
                             <SpellCheck size={15} aria-hidden="true" className="text-mira" />
-                            Revisar el canon
+                            <span className="hidden sm:inline">Revisar el canon</span><span className="sm:hidden">Revisar</span>
                             {openNames > 0 && <span className="min-w-5 h-5 px-1.5 rounded-full bg-mira text-titanium-950 text-xs font-bold inline-flex items-center justify-center tabular-nums">{openNames}</span>}
                         </button>
                     )}
@@ -582,14 +602,14 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             {/* Barra de modo — solo en estado chat */}
             {panelView === 'chat' && (
-                <div className="flex items-center justify-between px-6 py-2 border-b border-titanium-800/50 bg-titanium-950/50 shrink-0 text-xs">
+                <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 border-b border-titanium-800/50 bg-titanium-950/50 shrink-0 text-xs">
                     <div className="flex items-center gap-2">
                         {pendingItems.length === 0 ? (
                             <div className="flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-mira animate-pulse" />
                                 <span className="text-titanium-200">Conversación</span>
                                 <span className="text-titanium-700 mx-1">·</span>
-                                <span className="text-titanium-600">El Arquitecto pregunta; tú decides</span>
+                                <span className="text-titanium-600 hidden md:inline">El Arquitecto pregunta; tú decides</span>
                             </div>
                         ) : (
                             <div className="flex items-center gap-1.5">
@@ -630,9 +650,46 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 </div>
             )}
 
+            {/* Agenda de la sesión */}
+            {panelView === 'chat' && agenda.length > 0 && (() => {
+                const done = agenda.filter(p => p.e === 'hecho').length;
+                const now = agenda.find(p => p.e === 'ahora') || agenda.find(p => p.e !== 'hecho');
+                return (
+                    <div className="px-3 sm:px-6 py-2 border-b border-titanium-800/50 bg-titanium-950/40 shrink-0">
+                        <div className="max-w-[800px] mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                            <button onClick={() => setAgendaOpen(v => !v)} aria-expanded={agendaOpen} className="inline-flex items-center gap-2 text-titanium-200 hover:text-titanium-50">
+                                <span className="text-titanium-400">Agenda de hoy</span>
+                                <span className="flex items-center gap-1" aria-hidden="true">
+                                    {agenda.map((p, i) => <span key={i} className={`w-2 h-2 rounded-full ${p.e === 'hecho' ? 'bg-logro' : p.e === 'ahora' ? 'bg-mira' : 'bg-titanium-700'}`} />)}
+                                </span>
+                                <span className="tabular-nums">{done} de {agenda.length}</span>
+                                {now && !agendaCerrar && <span className="text-titanium-400 truncate max-w-[260px]">· Ahora: {now.t}</span>}
+                            </button>
+                            {agendaCerrar && (
+                                <button onClick={handleCloseSession} disabled={isClosing} className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-coral text-on-coral text-sm font-medium hover:brightness-110 disabled:opacity-50">
+                                    {isClosing ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <ListChecks size={14} aria-hidden="true" />}
+                                    Ya puedes escribir: pasar al plan
+                                </button>
+                            )}
+                        </div>
+                        {agendaOpen && (
+                            <ol className="max-w-[800px] mx-auto mt-2 flex flex-col gap-1 text-sm">
+                                {agenda.map((p, i) => (
+                                    <li key={i} className="flex items-center gap-2">
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${p.e === 'hecho' ? 'bg-logro' : p.e === 'ahora' ? 'bg-mira' : 'bg-titanium-700'}`} aria-hidden="true" />
+                                        <span className={p.e === 'hecho' ? 'text-titanium-400 line-through' : 'text-titanium-100'}>{p.t}</span>
+                                        <span className="text-xs text-titanium-500">{p.e === 'hecho' ? 'listo' : p.e === 'ahora' ? 'en esto' : 'falta'}</span>
+                                    </li>
+                                ))}
+                            </ol>
+                        )}
+                    </div>
+                );
+            })()}
+
             {/* Progreso de sesión */}
             {panelView === 'chat' && hasInitialized && sessionResolved > 0 && (
-                <div className="px-6 py-1.5 border-b border-titanium-800/50 bg-titanium-950/30 shrink-0 flex items-center gap-3">
+                <div className="px-3 sm:px-6 py-1.5 border-b border-titanium-800/50 bg-titanium-950/30 shrink-0 flex items-center gap-3">
                     <span className="text-xs text-titanium-600 whitespace-nowrap">
                         {sessionResolved} resuelta{sessionResolved !== 1 ? 's' : ''} esta sesión
                     </span>
@@ -700,7 +757,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 <div className="architect-chat-container h-full w-full overflow-y-auto scroll-smooth">
 
                     {/* Centered content with breathing room */}
-                    <div className="max-w-[800px] mx-auto px-10 pt-8 pb-6 flex flex-col min-h-full">
+                    <div className="max-w-[800px] mx-auto px-4 sm:px-10 pt-16 lg:pt-8 pb-6 flex flex-col min-h-full">
 
                     {openNames > 0 && (
                         <div className="-mx-6 mb-4"><NamesBanner state={namesState!} onOpen={() => setActiveTool('names')} /></div>
@@ -739,7 +796,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                     {tArch.explorationMode}
                                 </p>                                <p className="text-[12px] text-titanium-600 max-w-[320px] leading-relaxed">
                                     {tArch.readyToTalk || "El Arquitecto está listo para conversar."}
-                                    {tArch.useFormalAnalysis || "Si quieres un análisis formal de tu proyecto, usa el botón 'Analizar disonancias' arriba."}
+                                    {tArch.useFormalAnalysis || " Cuéntale qué quieres planear. Si quieres que revise tu canon en busca de contradicciones y huecos, pídeselo."}
                                 </p>
                             </div>
                         ) : (
@@ -753,11 +810,11 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                                 </div>
                                             )}
                                             {msg.mode === 'roadmap_reminder' && (
-                                                <div className="max-w-[85%] bg-violet-950/20 border border-violet-800/30 rounded-xl px-5 py-3.5 text-center">
+                                                <div className="max-w-[85%] bg-mira/20 border border-mira/30 rounded-xl px-5 py-3.5 text-center">
                                                     <p className="text-xs text-titanium-400 leading-relaxed mb-3">{msg.text}</p>
                                                     <button
                                                         onClick={generateRoadmap}
-                                                        className="text-xs px-4 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg transition-colors"
+                                                        className="text-xs px-4 py-1.5 bg-coral hover:brightness-110 text-white rounded-lg transition-colors"
                                                     >
                                                         Cristalizar Roadmap
                                                     </button>
@@ -914,18 +971,29 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 {/* Step tour overlay — positioned to the right of the toolbar */}
                 {(showWelcome || forceShowOverlay) && (
                     <ArquitectoWelcomeOverlay
+                        narrow={narrow}
                         onDismiss={() => { dismissWelcome(); setForceShowOverlay(false); setTourHighlightedTool(null); }}
                         onHighlight={setTourHighlightedTool}
                     />
                 )}
 
                 {/* Floating Toolbar — absolute inside the outer wrapper, never scrolls */}
-                <div className="absolute left-6 bottom-4 z-20">
-                    <div className="bg-titanium-900/70 backdrop-blur-xl border border-titanium-800 rounded-full p-2 flex flex-col gap-3 shadow-2xl">
+                <div className={narrow ? "absolute left-3 top-3 z-20 flex flex-col items-start gap-2" : "absolute left-6 bottom-4 z-20"}>
+                    {narrow && (
+                        <button
+                            onClick={() => setToolsOpen(v => !v)}
+                            aria-expanded={toolsOpen}
+                            className={`h-10 px-3 inline-flex items-center gap-2 rounded-full border text-sm shadow-lg backdrop-blur-xl transition-colors ${toolsOpen ? 'bg-titanium-800 border-titanium-600 text-titanium-50' : 'bg-titanium-900/90 border-titanium-800 text-titanium-200 hover:text-titanium-50'}`}
+                        >
+                            {toolsOpen ? <X size={16} aria-hidden="true" /> : <LayoutGrid size={16} aria-hidden="true" className="text-mira" />}
+                            Herramientas
+                        </button>
+                    )}
+                    <div onClick={() => narrow && setToolsOpen(false)} className={`bg-titanium-900/90 backdrop-blur-xl border border-titanium-800 rounded-full p-2 flex-col gap-3 shadow-2xl ${!narrow || toolsOpen || showWelcome || forceShowOverlay ? 'flex' : 'hidden'}`}>
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'domino' ? 'none' : 'domino')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'domino' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'domino' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-titanium-950' : ''}`}
                         >
                             <Network size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -937,13 +1005,13 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'patches' ? 'none' : 'patches')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'patches' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'patches' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'patches' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'patches' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-titanium-950' : ''}`}
                         >
                             <GitMerge size={20} />
                             
                             {/* Badge para patches */}
                             {pendingDrivePatches.filter(p => p.status === 'pending').length > 0 && (
-                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-black text-[9px] font-bold rounded-full flex items-center justify-center z-10">
+                                <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-black text-xs font-bold rounded-full flex items-center justify-center z-10">
                                     {pendingDrivePatches.filter(p => p.status === 'pending').length > 9 ? '9+' : pendingDrivePatches.filter(p => p.status === 'pending').length}
                                 </span>
                             )}
@@ -960,7 +1028,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         >
                             <SpellCheck size={20} />
                             {openNames > 0 && (
-                                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-mira text-titanium-950 text-[10px] font-bold rounded-full flex items-center justify-center z-10">{openNames}</span>
+                                <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 bg-mira text-titanium-950 text-xs font-bold rounded-full flex items-center justify-center z-10">{openNames}</span>
                             )}
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity z-30">
                                 Revisión del canon: nombres y documentos repetidos
@@ -969,7 +1037,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'map' ? 'none' : 'map')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'map' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'map' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-titanium-950' : ''}`}
                         >
                             <Map size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -979,7 +1047,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'lore' ? 'none' : 'lore')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'lore' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'lore' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'lore' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-titanium-950' : ''}`}
                         >
                             <Book size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -989,7 +1057,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'settings' ? 'none' : 'settings')}
-                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'settings' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-[#111]' : ''}`}
+                            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'settings' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'settings' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-titanium-950' : ''}`}
                         >
                             <Settings size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
@@ -1014,9 +1082,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 </div>{/* end outer scroll wrapper */}
 
                 {/* Chat Input Area — flex sibling, never scrolls */}
-                <div className="shrink-0 w-full"
-                    style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(103, 232, 249, 0.08)' }}>
-                    <div className="max-w-[800px] mx-auto px-6 py-4">
+                <div className="shrink-0 w-full bg-titanium-950/95 backdrop-blur-xl border-t border-titanium-800">
+                    <div className="max-w-[800px] mx-auto px-3 sm:px-6 py-3 sm:py-4">
                     <div className="relative flex flex-col w-full bg-titanium-900 border border-titanium-800 rounded-xl overflow-hidden shadow-2xl">
                         {/* Documentos de MyWorld que se mandan con el próximo mensaje */}
                         {pendingDocs.length > 0 && (
@@ -1103,7 +1170,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             {/* Overlays - Tools */}
             <SlideUpPanel
                 isOpen={activeTool === 'domino'}
-                title="Efecto Dominó"
+                title="Efecto dominó"
                 icon={<Network size={16} />}
                 onClose={() => setActiveTool('none')}
             >
@@ -1121,7 +1188,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             <SlideUpPanel
                 isOpen={activeTool === 'patches'}
-                title="Parches de Canon"
+                title="Cambios propuestos al canon"
                 icon={<GitMerge size={16} />}
                 onClose={() => setActiveTool('none')}
             >
@@ -1157,7 +1224,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             <SlideUpPanel
                 isOpen={activeTool === 'lore'}
-                title="Roadmap Final"
+                title="El plan"
                 icon={<Book size={16} />}
                 onClose={() => setActiveTool('none')}
             >

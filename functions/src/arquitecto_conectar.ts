@@ -41,7 +41,34 @@ CÓMO TRABAJAS:
 6. Si lo que quiere es jugar sin compromiso, sugiérele la pestaña «Qué pasaría si»; si quiere completar la ficha de un personaje, la pestaña «Personajes».
 7. Breve y claro: entre 120 y 300 palabras. Sin títulos innecesarios. Termina con tu pregunta.
 8. Su proyecto puede tener varias sagas o libros con documentos que se llaman igual (p. ej. «Capítulo 1» del libro de Anna y del de Megu). Fíjate en la carpeta de cada documento (va entre paréntesis) y no los mezcles. Si no sabes cuál es, pregúntale; si te falta el texto, pídele que lo traiga con «Traer un documento» (el botón junto al mensaje).
-9. Si el autor trajo documentos a la conversación, léelos completos: son la referencia principal cuando hable de ellos.`;
+9. Si el autor trajo documentos a la conversación, léelos completos: son la referencia principal cuando hable de ellos.
+10. Antes de decir que algo «no está en su material», búscalo en el MATERIAL DEL LIBRO EN FOCO, en lo que nombró y en los fragmentos. Si de verdad no está, di en qué documentos lo buscaste para que él pueda corregirte.
+11. La sesión tiene un fin: que el autor pueda escribir sin dudas que lo frenen. Decide con él solo lo necesario para escribir. Lo que se decide mejor al redactar (gestos, quién mira a quién, frases, el orden exacto dentro de una escena) no lo preguntes: dile «esto lo decides al escribir». No abras un tema nuevo si el actual ya alcanza.`;
+
+// Nov 2026: la agenda de la sesión. Para que la conversación no parezca infinita: el Arquitecto arma los puntos
+// al empezar, los marca al avanzar y avisa cuando ya se puede escribir. La línea no se le muestra al autor.
+const AGENDA_RULE = `AGENDA (obligatorio): termina SIEMPRE tu respuesta con una línea aparte, que el autor no ve, así:
+[[AGENDA]] {"puntos":[{"t":"título corto","e":"hecho|ahora|pendiente"}],"cerrar":false}
+- Si no hay agenda todavía, ármala desde el objetivo del autor: de 3 a 6 puntos, lo mínimo para que pueda escribir (p. ej. «Narrador», «Amigos del campo», «Por qué se van», «Capítulos del acto 1»).
+- Después mantén los mismos puntos y su orden. Agrega uno solo si el autor abre un tema nuevo de verdad.
+- Un punto está «hecho» cuando lo decidido alcanza para escribir esa parte, aunque queden detalles.
+- "cerrar": true cuando todos estén hechos. Entonces, en tu respuesta, dile que ya puede escribir y que con «Cerrar y resumir» lo decidido pasa a su plan del escritorio. No sigas preguntando.
+- Si llevas varias respuestas en el mismo punto, dile en una frase dónde van y qué falta, y propón dejar el resto para cuando escriba.`;
+
+export interface AgendaPoint { t: string; e: "hecho" | "ahora" | "pendiente" }
+export function splitAgenda(text: string): { text: string; agenda: AgendaPoint[] | null; cerrar: boolean } {
+    const i = text.lastIndexOf("[[AGENDA]]");
+    if (i < 0) return { text: text.trim(), agenda: null, cerrar: false };
+    const clean = text.slice(0, i).trim();
+    try {
+        const raw = text.slice(i + 10).trim();
+        const j = JSON.parse(raw.slice(raw.indexOf("{"), raw.lastIndexOf("}") + 1));
+        const puntos: AgendaPoint[] = (Array.isArray(j.puntos) ? j.puntos : []).slice(0, 8)
+            .map((p: any) => ({ t: String(p?.t || "").slice(0, 60), e: (["hecho", "ahora", "pendiente"].includes(p?.e) ? p.e : "pendiente") as AgendaPoint["e"] }))
+            .filter((p: AgendaPoint) => p.t);
+        return { text: clean, agenda: puntos.length ? puntos : null, cerrar: !!j.cerrar };
+    } catch { return { text: clean, agenda: null, cerrar: false }; }
+}
 
 const CLOSE_TASK = `El autor cierra esta sesión con El Arquitecto. Resume SOLO lo que pasó en la conversación, en markdown, con estas secciones (omite las vacías):
 ## Ideas sueltas
@@ -53,6 +80,9 @@ const CLOSE_TASK = `El autor cierra esta sesión con El Arquitecto. Resume SOLO 
 ## Una escena que ya puedes escribir
 (UNA escena concreta que, con lo decidido, ya se puede escribir: quién, dónde, qué cambia. En una o dos frases; sin prosa)
 No agregues nada que el autor no haya dicho o aceptado en Conexiones. Breve.`;
+
+const PLAN_TASK = `Convierte lo que el autor decidió en esta sesión en los pasos que hará en el escritorio, en orden: de 3 a 8 misiones cortas y concretas, empezando por un verbo (p. ej. «Reescribir el capítulo 1: el festival de los 5 años, con Anna escondida detrás de Marco»). Solo lo decidido o lo que falta escribir según lo decidido; nada inventado. "libro": el libro o la parte que trabajó, si se sabe.
+Responde SOLO con JSON: {"libro":"…","misiones":["…"]}`;
 
 function drv(accessToken: string) {
     const auth = new google.auth.OAuth2();
@@ -115,6 +145,44 @@ export async function namedMaterial(uid: string, text: string, maxFiles = 5): Pr
     } catch (e: any) {
         logger.warn(`[ARQUITECTO·CONECTAR] Sin material nombrado: ${e?.message}`);
         return "";
+    }
+}
+
+/** Nov 2026: el libro en foco. Si el objetivo de la sesión o un documento traído apunta a una carpeta
+ *  (p. ej. «JUST ANNA» para «el libro de Anna»), todos sus documentos entran (fichas, estructura, capítulos),
+ *  así el Arquitecto no dice «no está en tu material» cuando sí está en la ficha o en la estructura. */
+const GENERIC = new Set(["historia", "historias", "libro", "libros", "capitulo", "capitulos", "personaje", "personajes", "mundo", "canon", "recursos", "ideas", "design", "character", "notas", "borrador", "borradores", "just", "saga", "sagas", "the"]);
+async function focusMaterial(uid: string, goal: string, sharedDocs: string[], budget = 42000): Promise<{ text: string; folders: string[] }> {
+    try {
+        const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category", "type", "mimeType").limit(800).get();
+        const files = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) })).filter((f: any) => f.type !== "folder" && f.mimeType !== FOLDER && f.category !== "reference" && f.path);
+        const top = (p: string) => String(p).split("/")[0];
+        const folders = new Set<string>();
+        for (const id of sharedDocs) { const f: any = files.find((x: any) => x.id === id); if (f && String(f.path).includes("/")) folders.add(top(f.path)); }
+        const g = ` ${norm(goal)} `;
+        for (const name of new Set(files.filter((f: any) => String(f.path).includes("/")).map((f: any) => top(f.path)))) {
+            const tokens = norm(String(name)).split(/[^a-z0-9]+/).filter(t => t.length >= 4 && !GENERIC.has(t));
+            if (tokens.some(t => new RegExp(`[^a-z0-9]${t}[^a-z0-9]`).test(g))) folders.add(String(name));
+        }
+        if (!folders.size) return { text: "", folders: [] };
+        // Primero lo que define el libro (estructura, fichas, personajes), después los capítulos.
+        const inFocus = files.filter((f: any) => folders.has(top(f.path)))
+            .sort((a: any, b: any) => (/(estructura|ficha|personaje|plan|resumen)/i.test(b.name) ? 1 : 0) - (/(estructura|ficha|personaje|plan|resumen)/i.test(a.name) ? 1 : 0));
+        const out: string[] = [];
+        let left = budget;
+        for (const f of inFocus.slice(0, 30) as any[]) {
+            if (left < 1500) break;
+            const t = await fileText(uid, f.id, Math.min(9000, left));
+            if (!t) continue;
+            left -= t.length;
+            out.push(`### ${String(f.name).replace(/\.md$/i, "")} (${String(f.path).replace(/\/[^/]*$/, "")})\n${t}`);
+        }
+        logger.info(`🏛️ [ARQUITECTO·CONECTAR] Libro en foco: ${[...folders].join(", ")} (${out.length} documentos)`);
+        return { text: out.join("\n\n"), folders: [...folders] };
+    } catch (e: any) {
+        logger.warn(`[ARQUITECTO·CONECTAR] Sin libro en foco: ${e?.message}`);
+        return { text: "", folders: [] };
     }
 }
 
@@ -183,11 +251,15 @@ async function sessionHistory(uid: string, sessionId: string, limit = 16): Promi
         }).join("\n\n");
 }
 
-async function ask(contextBlocks: string[], instruction: string, label: string, maxTokens = 3000): Promise<string> {
+async function ask(contextBlocks: string[], instruction: string, label: string, maxTokens = 3000, stable = ""): Promise<string> {
+    // Nov 2026: el material del libro en foco no cambia entre mensajes: va primero y con caché de 1 h (1/10 del precio).
+    const content: any[] = [];
+    if (stable) content.push({ type: "text", text: stable, cache_control: { type: "ephemeral", ttl: "1h" } });
+    content.push({ type: "text", text: [...contextBlocks.filter(Boolean), instruction].join("\n\n") });
     const r = await callClaude({
         model: CLAUDE_SONNET,
         system: [{ text: CONECTAR_SYSTEM + "\n\n" + MYWORLD_VOICE, cache: true, ttl1h: true }],
-        content: [{ type: "text", text: [...contextBlocks.filter(Boolean), instruction].join("\n\n") }],
+        content,
         maxTokens,
         effort: "low",
         label,
@@ -213,27 +285,37 @@ export async function conectarStart(uid: string, goal: string, apiKey: string): 
         memory ? `MEMORIA DEL PROYECTO (decisiones y dónde quedó):\n${memory}` : "",
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES:\n${material}` : "",
-    ], `INICIO DE SESIÓN. El autor dice lo que trae hoy:\n«${goal}»\n\nResponde: en 3 a 5 líneas, qué piezas de su material ves relacionadas con eso (nombrando archivos) y por qué; luego tu primera pregunta (máximo 2). Si su material está vacío, pregúntale por lo esencial en vez de suponer.`, "ArquitectoConectarInicio");
+    ], `INICIO DE SESIÓN. El autor dice lo que trae hoy:\n«${goal}»\n\nResponde: en 3 a 5 líneas, qué piezas de su material ves relacionadas con eso (nombrando archivos) y por qué; luego dile en una línea los puntos que van a ver hoy (la agenda) y haz tu primera pregunta (máximo 2). Si su material está vacío, pregúntale por lo esencial en vez de suponer.\n\n${AGENDA_RULE}`, "ArquitectoConectarInicio", 3000, (await focusMaterial(uid, goal, [])).text);
 }
 
 /** Respuesta a un mensaje en una sesión «Conectar». */
 export async function conectarReply(uid: string, sessionId: string, goal: string, query: string, apiKey: string, sharedDocs: string[] = []): Promise<string> {
     const history = await sessionHistory(uid, sessionId);
     const hint = `${query} ${history.slice(-1200)}`;
-    const [memory, material, named, shared] = await Promise.all([
+    const [memory, material, named, shared, focus] = await Promise.all([
         getMemoryContext(uid, hint),
         relevantMaterial(uid, hint, apiKey),
         namedMaterial(uid, query, 4),
         sharedMaterial(uid, sharedDocs),
+        focusMaterial(uid, goal, sharedDocs),
     ]);
-    return ask([
+    const stable = focus.text ? `MATERIAL DEL LIBRO EN FOCO (carpetas: ${focus.folders.join(", ")}; documentos completos o casi):\n${focus.text}` : "";
+    const sref = getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId);
+    const sdata: any = (await sref.get()).data() || {};
+    const agenda: AgendaPoint[] = Array.isArray(sdata.agenda) ? sdata.agenda : [];
+    const turns = Number(sdata.turns || 0) + 1;
+    const raw = await ask([
         goal ? `OBJETIVO DE LA SESIÓN: ${goal}` : "",
         shared ? `DOCUMENTOS QUE EL AUTOR TRAJO A LA CONVERSACIÓN (completos):\n${shared}` : "",
         memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES DE SU MATERIAL:\n${material}` : "",
         history ? `CONVERSACIÓN HASTA AHORA:\n${history}` : "",
-    ], `AUTOR: ${query}`, "ArquitectoConectar");
+        agenda.length ? `AGENDA ACTUAL DE LA SESIÓN (respuesta n.º ${turns}):\n${agenda.map(p => `- [${p.e}] ${p.t}`).join("\n")}` : `AGENDA: todavía no hay (respuesta n.º ${turns}); ármala.`,
+    ], `AUTOR: ${query}\n\n${AGENDA_RULE}`, "ArquitectoConectar", 3000, stable);
+    const out = splitAgenda(raw);
+    await sref.set({ turns, ...(out.agenda ? { agenda: out.agenda } : {}), agendaCerrar: out.cerrar }, { merge: true });
+    return out.text;
 }
 
 /** Cierre: resumen en cuatro partes; se guarda como nota en Recursos/«Sesiones del Arquitecto». */
@@ -241,6 +323,20 @@ export async function conectarClose(uid: string, sessionId: string, accessToken?
     const history = await sessionHistory(uid, sessionId, 40);
     if (!history) throw new HttpsError("failed-precondition", "No hay conversación que resumir.");
     const summary = await ask([`CONVERSACIÓN COMPLETA:\n${history}`], CLOSE_TASK, "ArquitectoCierre", 3000);
+    // Nov 2026: lo decidido pasa al plan del escritorio («Según tu plan, sigue…»), y queda a nivel de proyecto:
+    // no se pierde al empezar otra conversación.
+    try {
+        const planRaw = await ask([`RESUMEN DE LA SESIÓN:\n${summary}`], PLAN_TASK, "ArquitectoPlan", 1200);
+        const j = JSON.parse(planRaw.slice(planRaw.indexOf("{"), planRaw.lastIndexOf("}") + 1));
+        const misiones: string[] = (Array.isArray(j.misiones) ? j.misiones : []).map((m: any) => String(m || "").trim().slice(0, 200)).filter(Boolean).slice(0, 8);
+        if (misiones.length) {
+            const db = getFirestore();
+            const now = new Date().toISOString();
+            await db.collection("users").doc(uid).collection("forge_sessions").doc(sessionId).collection("architect").doc("roadmapFinal")
+                .set({ creationMissions: misiones, changelog: [], researchMissions: [], source: "conectar", createdAt: now }, { merge: true });
+            await db.collection("users").doc(uid).collection("plan").doc("current").set({ missions: misiones, sessionId, at: now, libro: String(j.libro || "").slice(0, 80) });
+        }
+    } catch (e: any) { logger.warn(`[ARQUITECTO·CONECTAR] Plan sin guardar: ${e?.message}`); }
     let savedAs: string | undefined;
     if (accessToken) {
         try {

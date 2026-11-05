@@ -99,7 +99,7 @@ const DominoCanvas: React.FC<DominoCanvasProps> = ({ cards, onCardClick }) => {
                 <p className="text-titanium-400 text-sm">
                     El Roadmap se generará al inicializar El Arquitecto.
                 </p>
-                <p className="text-titanium-600 text-xs font-mono mt-1">
+                <p className="text-titanium-600 text-xs mt-1">
                     Presiona "Analizar" para crear la Línea de Escritura.
                 </p>
             </div>

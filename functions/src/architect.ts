@@ -18,7 +18,7 @@ import { GeminiEmbedder } from "./utils/vector_utils";
 import { TaskType } from "./utils/genai";
 import { getPrompt } from "./prompt_manager";
 import { loadNameDecisionsText } from "./world_names";
-import { wantsAudit, connectAvailable, conectarStart, conectarReply, conectarClose } from "./arquitecto_conectar";
+import { wantsAudit, connectAvailable, conectarStart, conectarReply, conectarClose, splitAgenda } from "./arquitecto_conectar";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
@@ -564,7 +564,8 @@ export const arquitectoInitialize = onCall(
         // queda para cuando el autor la pide explícitamente (o con el botón «Analizar disonancias»).
         if (connectAvailable() && !culturalDocument?.fileData && !wantsAudit(implementationGoal)) {
             const goal = String(implementationGoal || '').trim() || 'Quiero ver cómo se conectan las piezas de mi mundo.';
-            const initialMessage = await conectarStart(userId, goal, getAIKey(request.data, googleApiKey.value()));
+            const started = splitAgenda(await conectarStart(userId, goal, getAIKey(request.data, googleApiKey.value())));
+            const initialMessage = started.text;
             const now = new Date().toISOString();
             const sessionRef = db.collection("users").doc(userId).collection("forge_sessions").doc();
             await sessionRef.set({
@@ -578,7 +579,13 @@ export const arquitectoInitialize = onCall(
                 implementationGoal: goal,
                 isCreativeBlockMode: true,
                 snapshot: { currentState: 'conectar' },
+                turns: 1,
+                ...(started.agenda ? { agenda: started.agenda } : {}),
             });
+            // Nov 2026: el mensaje con que el autor abrió la sesión también queda en la conversación (antes solo se veía la respuesta).
+            if (implementationGoal && String(implementationGoal).trim()) {
+                await sessionRef.collection("messages").add({ role: 'user', text: String(implementationGoal).trim(), timestamp: new Date(Date.now() - 1000) });
+            }
             await sessionRef.collection("messages").add({ role: 'ia', text: initialMessage, timestamp: new Date() });
             logger.info(`✅ [ARQUITECTO] Sesión «Conectar» creada (${sessionRef.id})`);
             return { pendingItems: [], initialMessage, sessionId: sessionRef.id, projectSummary: '', lastAnalyzedAt: now, focusMode, severityMode };

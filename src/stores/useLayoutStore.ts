@@ -31,6 +31,10 @@ interface LayoutState {
 
   arquitectoWidgetVisible: boolean;
   setArquitectoWidgetVisible: (v: boolean) => void;
+
+  // Nov 2026: en pantallas angostas la barra de documentos es un cajón.
+  vaultDrawerOpen: boolean;
+  setVaultDrawerOpen: (v: boolean) => void;
 }
 
 export const useLayoutStore = create<LayoutState>((set) => ({
@@ -76,6 +80,9 @@ export const useLayoutStore = create<LayoutState>((set) => ({
   // Sentinel Filter
   showOnlyHealthy: false,
   toggleShowOnlyHealthy: () => set((state) => ({ showOnlyHealthy: !state.showOnlyHealthy })),
+
+  vaultDrawerOpen: false,
+  setVaultDrawerOpen: (v) => set({ vaultDrawerOpen: v }),
 
   arquitectoWidgetVisible: true,
   setArquitectoWidgetVisible: (v) => set({ arquitectoWidgetVisible: v }),

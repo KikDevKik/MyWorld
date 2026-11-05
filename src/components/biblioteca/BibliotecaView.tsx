@@ -167,11 +167,11 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
             </header>
 
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain custom-scrollbar">
-                <div className="max-w-[820px] mx-auto px-6 pt-5 pb-40 flex flex-col gap-6">
-                    <div role="tablist" aria-label="Partes de la biblioteca" className="flex flex-wrap gap-1 border-b border-titanium-800">
+                <div className="max-w-[820px] mx-auto px-4 sm:px-6 pt-5 pb-40 flex flex-col gap-6">
+                    <div role="tablist" aria-label="Partes de la biblioteca" className="flex gap-1 border-b border-titanium-800 overflow-x-auto whitespace-nowrap [scrollbar-width:none]">
                         {TABS.map(t => (
                             <button key={t.id} role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-                                className={`px-3 py-2 -mb-px text-sm border-b-2 transition-colors ${tab === t.id ? 'border-mira text-titanium-50' : 'border-transparent text-titanium-400 hover:text-titanium-100'}`}>
+                                className={`shrink-0 px-3 py-2 -mb-px text-sm border-b-2 transition-colors ${tab === t.id ? 'border-mira text-titanium-50' : 'border-transparent text-titanium-400 hover:text-titanium-100'}`}>
                                 {t.label}
                             </button>
                         ))}

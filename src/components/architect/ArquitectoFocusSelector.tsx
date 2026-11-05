@@ -80,7 +80,7 @@ const ArquitectoFocusSelector: React.FC<ArquitectoFocusSelectorProps> = ({
                 className={`
                     h-full w-full px-4 rounded-none rounded-l-xl border-r border-titanium-600 flex items-center justify-center gap-1.5 transition-colors
                     ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-titanium-800/50 hover:border-titanium-500'}
-                    ${activeOption ? 'text-cyan-400' : 'text-titanium-500'}
+                    ${activeOption ? 'text-mira' : 'text-titanium-500'}
                 `}
                 title={tArch.focusSelectorTitle || "Selector de Foco Narrativo"}
             >
@@ -91,7 +91,7 @@ const ArquitectoFocusSelector: React.FC<ArquitectoFocusSelectorProps> = ({
             {isOpen && !disabled && (
                 <div className="absolute bottom-[calc(100%+12px)] left-0 w-64 bg-titanium-950 border border-titanium-800 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
                     <div className="px-3 py-2 mb-1 border-b border-titanium-800/50">
-                        <span className="text-xs font-mono text-titanium-500 tracking-wider uppercase">{tArch.battleFront || "Frente de Batalla"}</span>
+                        <span className="text-xs text-titanium-500">{tArch.battleFront || "Frente de Batalla"}</span>
                     </div>
                     <div className="flex flex-col gap-1 max-h-60 overflow-y-auto custom-scrollbar">
                         {FOCUS_OPTIONS.map(opt => {
@@ -111,7 +111,7 @@ const ArquitectoFocusSelector: React.FC<ArquitectoFocusSelectorProps> = ({
                                         </span>
                                         {isActive && <Check size={14} className="text-amber-500" />}
                                     </div>
-                                    <span className="text-[10px] text-titanium-500 mt-0.5 leading-tight">{opt.description}</span>
+                                    <span className="text-xs text-titanium-500 mt-0.5 leading-tight">{opt.description}</span>
                                 </button>
                             );
                         })}

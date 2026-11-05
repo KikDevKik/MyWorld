@@ -108,17 +108,17 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
             {/* Resumen */}
             <div className="flex items-center gap-4 px-4 py-2 border-b border-titanium-800 shrink-0">
                 {pendingPatches.length > 0 && (
-                    <span className="text-[11px] font-mono text-amber-400">
+                    <span className="text-xs text-amber-400">
                         {pendingPatches.length} pendiente{pendingPatches.length !== 1 ? 's' : ''}
                     </span>
                 )}
                 {approvedPatches.length > 0 && (
-                    <span className="text-[11px] font-mono text-emerald-500">
+                    <span className="text-xs text-emerald-500">
                         {approvedPatches.length} aplicado{approvedPatches.length !== 1 ? 's' : ''}
                     </span>
                 )}
                 {rejectedPatches.length > 0 && (
-                    <span className="text-[11px] font-mono text-titanium-600">
+                    <span className="text-xs text-titanium-600">
                         {rejectedPatches.length} rechazado{rejectedPatches.length !== 1 ? 's' : ''}
                     </span>
                 )}
@@ -139,13 +139,13 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
                             <FileText size={12} className={
                                 patch.status === 'approved' ? 'text-emerald-500' :
                                 patch.status === 'rejected' ? 'text-titanium-600' :
-                                patch.driveFileId ? 'text-cyan-500' : 'text-amber-400'
+                                patch.driveFileId ? 'text-mira' : 'text-amber-400'
                             } />
-                            <span className="text-[12px] font-mono text-titanium-400 truncate">
+                            <span className="text-[12px] text-titanium-400 truncate">
                                 {patch.documentName}
                             </span>
                             {!patch.driveFileId && patch.status === 'pending' && (
-                                <span className="text-[10px] text-amber-400/70 font-mono ml-auto shrink-0">
+                                <span className="text-xs text-amber-400/70 ml-auto shrink-0">
                                     sin ID de Drive
                                 </span>
                             )}
@@ -154,8 +154,8 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
                         {/* Modo Edición o Vista */}
                         {editingIndex === index ? (
                             <div className="flex flex-col gap-2 mb-3">
-                                <div className="bg-titanium-900/50 border border-cyan-500/30 rounded-lg p-3">
-                                    <p className="text-[11px] font-mono text-titanium-500 mb-1 uppercase tracking-wider">
+                                <div className="bg-titanium-900/50 border border-mira/30 rounded-lg p-3">
+                                    <p className="text-xs text-titanium-500 mb-1">
                                         Nueva regla canónica (editable):
                                     </p>
                                     <textarea
@@ -166,13 +166,13 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
                                     />
                                 </div>
                                 <div className="bg-titanium-900/30 border border-titanium-700/30 rounded-lg p-3">
-                                    <p className="text-[11px] font-mono text-titanium-600 mb-1 uppercase tracking-wider">
+                                    <p className="text-xs text-titanium-600 mb-1">
                                         Instrucción de integración (editable):
                                     </p>
                                     <textarea
                                         value={editedInstructions}
                                         onChange={e => setEditedInstructions(e.target.value)}
-                                        className="w-full bg-transparent text-[11px] text-titanium-400 italic resize-none focus:outline-none min-h-[40px] custom-scrollbar"
+                                        className="w-full bg-transparent text-xs text-titanium-400 italic resize-none focus:outline-none min-h-[40px] custom-scrollbar"
                                     />
                                 </div>
                                 <div className="flex gap-2 mt-1">
@@ -204,7 +204,7 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
                             <>
                                 {/* Nueva regla propuesta */}
                                 <div className="bg-titanium-900/50 border border-titanium-800/50 rounded-lg p-3 mb-3 group relative">
-                                    <p className="text-[11px] font-mono text-titanium-500 mb-1 uppercase tracking-wider">
+                                    <p className="text-xs text-titanium-500 mb-1">
                                         Nueva regla canónica:
                                     </p>
                                     <p className="text-[13px] text-titanium-200 leading-relaxed">
@@ -214,7 +214,7 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
 
                                 {/* Instrucción de integración */}
                                 {patch.patchInstructions && patch.status === 'pending' && (
-                                    <p className="text-[11px] text-titanium-600 italic mb-3">
+                                    <p className="text-xs text-titanium-600 italic mb-3">
                                         → {patch.patchInstructions}
                                     </p>
                                 )}
@@ -265,13 +265,13 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
 
                         {/* Estado final */}
                         {patch.status === 'approved' && (
-                            <div className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-mono">
+                            <div className="flex items-center gap-1.5 text-xs text-emerald-600">
                                 <Check size={11} />
                                 Aplicado en Drive
                             </div>
                         )}
                         {patch.status === 'rejected' && (
-                            <div className="flex items-center gap-1.5 text-[11px] text-titanium-700 font-mono">
+                            <div className="flex items-center gap-1.5 text-xs text-titanium-700">
                                 <X size={11} />
                                 Rechazado — documento sin cambios
                             </div>

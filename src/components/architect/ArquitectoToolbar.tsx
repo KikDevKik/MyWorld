@@ -57,8 +57,8 @@ const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToo
                             ${!tool.enabled
                                 ? 'text-titanium-700 cursor-not-allowed opacity-40'
                                 : activeTool === tool.id
-                                    ? 'text-cyan-400 bg-cyan-500/10 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
-                                    : 'text-titanium-500 hover:text-cyan-400 hover:bg-titanium-800/50'
+                                    ? 'text-mira bg-mira/10 shadow-[0_0_15px_rgba(6,182,212,0.2)]'
+                                    : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'
                             }
                         `}
                         aria-label={tool.label}
@@ -68,7 +68,7 @@ const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToo
                         
                         {/* Badge para patches */}
                         {tool.id === 'patches' && pendingPatchesCount !== undefined && pendingPatchesCount > 0 && (
-                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-black text-[9px] font-bold rounded-full flex items-center justify-center">
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 text-black text-xs font-bold rounded-full flex items-center justify-center">
                                 {pendingPatchesCount > 9 ? '9+' : pendingPatchesCount}
                             </span>
                         )}
@@ -77,7 +77,7 @@ const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToo
                         <span className="
                             absolute left-full ml-4 px-2 py-1
                             bg-titanium-950 border border-titanium-800 rounded
-                            text-[11px] font-mono uppercase tracking-wider text-titanium-300
+                            text-xs text-titanium-300
                             opacity-0 group-hover:opacity-100 pointer-events-none
                             whitespace-nowrap transition-opacity z-30
                         ">

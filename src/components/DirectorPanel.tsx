@@ -364,8 +364,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                         <div ref={messagesEndRef} />
                     </div>
 
-                    <div className="pt-4 px-4 pb-10 shrink-0"
-                        style={{ background: 'rgba(10, 12, 18, 0.97)', backdropFilter: 'blur(20px)', borderTop: '1px solid rgba(129, 140, 248, 0.08)' }}>
+                    <div className={`pt-3 sm:pt-4 px-3 sm:px-4 ${variant === 'dialog' ? 'pb-3 sm:pb-4' : 'pb-10'} shrink-0 bg-titanium-950/95 backdrop-blur-xl border-t border-titanium-800`}>
                         <ChatInput
                             onSend={(text, attachment) => {
                                 handleSendMessage(text, attachment || undefined);

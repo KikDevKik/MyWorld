@@ -13,42 +13,37 @@ export function useMisionesEditor(sessionId: string | null) {
     const [hasRoadmap, setHasRoadmap] = useState(false);
 
     useEffect(() => {
-        if (!sessionId) return;
-
         const auth = getAuth();
         const uid = auth.currentUser?.uid;
         if (!uid) return;
-
         const db = getFirestore();
-        const roadmapRef = doc(
-            db, 'users', uid, 'forge_sessions', sessionId, 'architect', 'roadmapFinal'
-        );
-
-        const unsub = onSnapshot(roadmapRef, (snap) => {
-            if (!snap.exists()) {
-                setHasRoadmap(false);
-                setMisiones([]);
-                return;
-            }
-
-            const data = snap.data();
-            const rawMissions: string[] = data.creationMissions || data.missions || [];
-
-            setHasRoadmap(true);
-
-            const completedKey = `missions_completed_${sessionId}`;
-            const completedIds: string[] = JSON.parse(
-                localStorage.getItem(completedKey) || '[]'
-            );
-
-            setMisiones(rawMissions.map((text, i) => ({
-                id: `mission_${i}`,
-                text,
-                completed: completedIds.includes(`mission_${i}`),
-            })));
-        });
-
-        return () => unsub();
+        // Nov 2026: el plan de la sesión actual manda; si no hay, el último plan del proyecto (users/uid/plan/current),
+        // para que «Según tu plan, sigue…» no desaparezca al empezar otra conversación.
+        let sessionMissions: string[] | null = null;
+        let projectMissions: { list: string[]; sessionId?: string } | null = null;
+        const apply = () => {
+            const list = sessionMissions && sessionMissions.length ? sessionMissions : projectMissions?.list || [];
+            const key = sessionMissions && sessionMissions.length ? sessionId : (projectMissions?.sessionId || sessionId);
+            setHasRoadmap(list.length > 0);
+            const completedKey = `missions_completed_${key}`;
+            let completedIds: string[] = [];
+            try { completedIds = JSON.parse(localStorage.getItem(completedKey) || '[]'); } catch { /* sin almacenamiento */ }
+            setMisiones(list.map((text, i) => ({ id: `mission_${i}`, text, completed: completedIds.includes(`mission_${i}`) })));
+        };
+        const unsubs: (() => void)[] = [];
+        unsubs.push(onSnapshot(doc(db, 'users', uid, 'plan', 'current'), (snap) => {
+            const d: any = snap.exists() ? snap.data() : null;
+            projectMissions = d ? { list: d.missions || [], sessionId: d.sessionId } : null;
+            apply();
+        }, () => { /* sin permiso o sin plan */ }));
+        if (sessionId) {
+            unsubs.push(onSnapshot(doc(db, 'users', uid, 'forge_sessions', sessionId, 'architect', 'roadmapFinal'), (snap) => {
+                const data: any = snap.exists() ? snap.data() : null;
+                sessionMissions = data ? (data.creationMissions || data.missions || []) : null;
+                apply();
+            }));
+        }
+        return () => unsubs.forEach(u => u());
     }, [sessionId]);
 
     const toggleMision = (id: string) => {

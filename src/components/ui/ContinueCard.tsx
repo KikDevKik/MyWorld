@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DraftingCompass, MessageCircle, PenLine } from 'lucide-react';
 import { useLanguageStore } from '../../stores/useLanguageStore';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
 import { useMisionesEditor } from '../../hooks/useMisionesEditor';
 import { MiraSprite } from '../mira/MiraSprite';
 import { getTips } from '../mira/tips';
-import { readLastDoc, LastDoc } from '../../utils/lastDoc';
+import { readLastDoc, LastDoc, syncLastDoc, LAST_DOC_EVENT } from '../../utils/lastDoc';
 import { localDayKey } from '../../utils/dayKey';
 
 // La Casa: lo primero que ves al entrar a un proyecto con historia.
@@ -82,7 +82,15 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
     const week = useMemo(weekActivity, []);
     const today = (new Date().getDay() + 6) % 7;
     const stars = useMemo(() => Array.from({ length: 34 }, (_, i) => ({ x: (i * 37) % 97, y: (i * 23) % 62, big: i % 7 === 0, d: (i % 5) * 0.7 })), []);
-    const last = useMemo(() => readLastDoc(folderId), [folderId]);
+    // Nov 2026: también desde la nube (otro computador u otro navegador).
+    const [lastTick, setLastTick] = useState(0);
+    useEffect(() => {
+        const on = () => setLastTick(t => t + 1);
+        window.addEventListener(LAST_DOC_EVENT, on);
+        syncLastDoc(folderId);
+        return () => window.removeEventListener(LAST_DOC_EVENT, on);
+    }, [folderId]);
+    const last = useMemo(() => readLastDoc(folderId), [folderId, lastTick]);
     const { misiones } = useMisionesEditor(sessionId || null);
     const pendingItems = useArquitectoStore(st => st.arquitectoPendingItems);
     const nextMission = misiones.find(m => !m.completed);

@@ -414,8 +414,8 @@ export const worldNames = onCall(
 
         // Nov 2026: lista de documentos indexados (para «Traer un documento» del Arquitecto), con su carpeta.
         if (mode === "files") {
-            const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category").limit(800).get();
-            return { files: snap.docs.map(d => { const x: any = d.data(); return { id: d.id, name: String(x.name || ""), path: String(x.path || ""), category: x.category || "canon" }; }).filter(f => f.name) };
+            const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category", "type", "mimeType").limit(800).get();
+            return { files: snap.docs.map(d => { const x: any = d.data(); return { id: d.id, name: String(x.name || ""), path: String(x.path || ""), category: x.category || "canon", folder: x.type === "folder" || x.mimeType === "application/vnd.google-apps.folder" }; }).filter(f => f.name && !f.folder) };
         }
 
         if (mode === "scan") {

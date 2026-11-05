@@ -85,7 +85,7 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-titanium-800/50">
                     <div className="flex items-center gap-2 text-titanium-200">
-                        <BrainCircuit size={18} className="text-cyan-400" />
+                        <BrainCircuit size={18} className="text-mira" />
                         <h2 className="font-semibold tracking-wide">{tArch.settings || "Configuración Multiversal"}</h2>
                     </div>
                     <button onClick={onClose} className="text-titanium-500 hover:text-titanium-300 transition-colors">
@@ -98,7 +98,7 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
 
                     {/* Sección Personalidad */}
                     <div className="flex flex-col gap-3">
-                        <h3 className="text-[11px] font-mono tracking-wider uppercase text-titanium-500">{tArch.architectPersonality || "Personalidad del Arquitecto"}</h3>
+                        <h3 className="text-xs text-titanium-500">{tArch.architectPersonality || "Personalidad del Arquitecto"}</h3>
                         
                         {/* 
                             TODO: Implementar como temperature=0.0 + prompt de crítico literario cuando esté activo 
@@ -113,7 +113,7 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
 
                     {/* Sección Filtros RAG */}
                     <div className="flex flex-col gap-3">
-                        <h3 className="text-[11px] font-mono tracking-wider uppercase text-titanium-500">{tArch.ragFilters || "Filtros de Conocimiento (RAG)"}</h3>
+                        <h3 className="text-xs text-titanium-500">{tArch.ragFilters || "Filtros de Conocimiento (RAG)"}</h3>
                         
                         {/* TODO: Implementar filtrado RAG real antes de mostrar */}
                         <p className="text-[12px] text-titanium-600 italic leading-snug">
@@ -125,7 +125,7 @@ const ArquitectoConfigModal: React.FC<ArquitectoConfigModalProps> = ({ sessionId
 
                     {/* Sección Zona de Peligro */}
                     <div className="flex flex-col gap-3">
-                        <h3 className="text-[11px] font-mono tracking-wider uppercase text-red-500/80">{t.common?.dangerZone || "Zona de Peligro"}</h3>
+                        <h3 className="text-xs text-red-500/80">{t.common?.dangerZone || "Zona de Peligro"}</h3>
 
                         <div className="bg-red-950/20 border border-red-900/30 rounded-xl p-4 flex flex-col gap-3">
                             <p className="text-[12px] text-red-300/80 leading-snug">

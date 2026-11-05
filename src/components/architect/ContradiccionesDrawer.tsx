@@ -233,7 +233,7 @@ export default function ContradiccionesDrawer({ pendingItems, isOpen, onToggle, 
                                     onSelectItem?.(detailItem);
                                     setDetailItem(null);
                                 }}
-                                className="px-4 py-2 text-xs font-medium bg-cyan-600 hover:bg-cyan-500 text-white rounded transition-colors"
+                                className="px-4 py-2 text-xs font-medium bg-coral hover:brightness-110 text-white rounded transition-colors"
                             >
                                 {t.common?.sendToChat || "Enviar al chat"}
                             </button>

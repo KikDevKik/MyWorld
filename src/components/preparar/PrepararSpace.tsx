@@ -46,20 +46,21 @@ export default function PrepararSpace({ views, tab, onTabChange }: Props) {
 
     return (
         <div className="h-full w-full flex flex-col overflow-hidden bg-titanium-950">
-            <nav className="shrink-0 h-11 flex items-center gap-1 border-b border-titanium-800 bg-titanium-950 px-3" role="tablist" aria-label="La mesa del arquitecto">
-                <span className="mr-3 font-serif text-[15px] font-semibold text-titanium-200">La mesa del arquitecto</span>
+            <nav className="shrink-0 h-11 flex items-center gap-1 border-b border-titanium-800 bg-titanium-950 px-2 sm:px-3 overflow-x-auto whitespace-nowrap [scrollbar-width:none]" role="tablist" aria-label="La mesa del arquitecto">
+                <span className="mr-3 hidden md:inline font-serif text-[15px] font-semibold text-titanium-200">La mesa del arquitecto</span>
                 {TABS.map(t => (
                     <button
                         key={t.id}
                         role="tab"
                         aria-selected={tab === t.id}
                         onClick={() => setTab(t.id)}
-                        className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[12.5px] transition-colors ${tab === t.id
+                        aria-label={t.label}
+                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 text-[12.5px] transition-colors ${tab === t.id
                             ? (t.id === 'quepasa' ? 'bg-mira-bg text-titanium-100' : 'bg-titanium-800 text-titanium-100')
                             : 'text-titanium-400 hover:text-titanium-100 hover:bg-titanium-900'}`}
                         title={t.hint}
                     >
-                        {t.icon}{t.label}
+                        {t.icon}<span className={tab === t.id ? '' : 'hidden sm:inline'}>{t.label}</span>
                     </button>
                 ))}
                 <span className="ml-auto hidden lg:block text-xs text-titanium-400 truncate">{current.hint}</span>

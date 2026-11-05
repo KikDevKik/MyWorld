@@ -20,13 +20,13 @@ interface EfectoDominoProps {
 
              {/* Sub-toolbar interna del Canvas */}
              <div className="flex items-center justify-between px-4 py-2 border-b border-titanium-800/40 shrink-0 bg-titanium-950">
-                 <div className="flex items-center gap-3 text-[11px] font-mono text-titanium-600 uppercase tracking-wider">
+                 <div className="flex items-center gap-3 text-xs text-titanium-600">
                      <span>{roadmapCards.length} {t.common?.phases || 'fase(s)'}</span>
                      {roadmapCards.length > 0 && (
                          <span className="text-titanium-700">·</span>
                      )}
                      {roadmapCards.length > 0 && (
-                         <span className="text-cyan-600">
+                         <span className="text-mira">
                              {roadmapCards.filter((c: any) => c.status === 'active').length} {t.common?.active || 'activa(s)'}
                          </span>
                      )}
@@ -34,7 +34,7 @@ interface EfectoDominoProps {
                  <button
                      disabled
                      title={`Zoom — ${t.common?.comingSoon || 'próximamente'}`}
-                     className="px-2 py-1 text-[10px] font-mono text-titanium-700 border border-titanium-800/50 rounded flex items-center gap-1 opacity-40 cursor-not-allowed"
+                     className="px-2 py-1 text-xs text-titanium-700 border border-titanium-800/50 rounded flex items-center gap-1 opacity-40 cursor-not-allowed"
                  >
                      <ZoomIn size={11} />
                      100%

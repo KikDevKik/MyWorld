@@ -1642,6 +1642,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 <div className="flex-1 overflow-hidden">
                 <SentinelShell
                     isZenMode={isZenMode}
+                    activeFileId={currentFileId}
                     // Props removed in SentinelShell refactor are implicitly handled via store
                     sidebar={
                         <VaultSidebar

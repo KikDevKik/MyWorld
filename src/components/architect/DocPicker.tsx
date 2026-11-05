@@ -15,8 +15,13 @@ export default function DocPicker({ picked, onPick, onClose }: { picked: PickedD
     const [all, setAll] = useState<PickedDoc[] | null>(cache);
     useEffect(() => {
         callFunction<{ files: { id: string; name: string; path: string }[] }>('worldNames', { mode: 'files' }).then(r => {
-            const list = (r?.files || []).map(f => ({ id: f.id, name: f.name.replace(/\.(md|txt)$/i, ''), folder: f.path.includes('/') ? f.path.replace(/\/[^/]*$/, '').split('/').join(' / ') : '' }))
-                .sort((a, b) => (a.folder + a.name).localeCompare(b.folder + b.name, 'es'));
+            const raw = r?.files || [];
+            // Una entrada es carpeta si otra vive dentro de ella (el índice a veces guarda carpetas como archivos).
+            const paths = raw.map(f => f.path || f.name);
+            const isFolder = (p: string) => paths.some(q => q !== p && q.startsWith(p + '/'));
+            const list = raw.filter(f => !isFolder(f.path || f.name))
+                .map(f => ({ id: f.id, name: f.name.replace(/\.(md|txt)$/i, ''), folder: f.path.includes('/') ? f.path.replace(/\/[^/]*$/, '').split('/').join(' / ') : '' }))
+                .sort((a, b) => (a.folder + '\u0000' + a.name).localeCompare(b.folder + '\u0000' + b.name, 'es'));
             cache = list; setAll(list);
         }).catch(() => setAll([]));
     }, []);
@@ -31,8 +36,13 @@ export default function DocPicker({ picked, onPick, onClose }: { picked: PickedD
         const f = fold(q.trim());
         const src = all || [];
         const hits = f ? src.filter(d => fold(`${d.name} ${d.folder}`).includes(f)) : src;
-        return hits.slice(0, 60);
+        return hits.slice(0, 200);
     }, [all, q]);
+    const groups = useMemo(() => {
+        const m = new Map<string, PickedDoc[]>();
+        for (const d of list) m.set(d.folder, [...(m.get(d.folder) || []), d]);
+        return [...m.entries()];
+    }, [list]);
     const dupNames = useMemo(() => { const c = new Map<string, number>(); (all || []).forEach(d => c.set(fold(d.name), (c.get(fold(d.name)) || 0) + 1)); return c; }, [all]);
 
     return createPortal(
@@ -58,24 +68,38 @@ export default function DocPicker({ picked, onPick, onClose }: { picked: PickedD
                 <ul className="overflow-y-auto overscroll-contain px-2 py-2">
                     {all === null && <li className="px-3 py-4 text-sm text-titanium-400 flex items-center gap-2"><Loader2 size={15} className="animate-spin" aria-hidden="true" /> Buscando tus documentos…</li>}
                     {all !== null && list.length === 0 && <li className="px-3 py-4 text-sm text-titanium-400">No encontré documentos con ese nombre.</li>}
-                    {list.map(d => {
-                        const already = picked.some(p => p.id === d.id);
-                        const full = picked.length >= 3 && !already;
-                        return (
-                            <li key={d.id}>
-                                <button disabled={already || full} onClick={() => { onPick(d); onClose(); }}
-                                    className="w-full flex items-start gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-titanium-800/70 disabled:opacity-50 disabled:hover:bg-transparent">
-                                    <FileText size={15} className="text-mira mt-1 shrink-0" aria-hidden="true" />
-                                    <span className="min-w-0">
-                                        <span className="block text-[15px] text-titanium-100 truncate">{d.name}</span>
-                                        <span className={`block text-xs truncate ${(dupNames.get(fold(d.name)) || 0) > 1 ? 'text-amber-200' : 'text-titanium-400'}`}>
-                                            {d.folder || 'Raíz del proyecto'}{(dupNames.get(fold(d.name)) || 0) > 1 ? ' · hay otro con el mismo nombre' : ''}{already ? ' · ya está en la conversación' : ''}
-                                        </span>
-                                    </span>
-                                </button>
-                            </li>
-                        );
-                    })}
+                    {groups.map(([folder, docs]) => (
+                        <li key={folder || '_raiz'} className="mb-1">
+                            <div className="sticky top-0 z-10 flex items-center gap-2 bg-titanium-950 px-3 pt-2 pb-1 text-xs text-titanium-300">
+                                <img src="/assets/objetos/icono/fichero.png" alt="" width={14} height={14} className="w-3.5 h-3.5 opacity-80" style={{ imageRendering: 'pixelated' }} />
+                                <span className="truncate">{folder || 'Raíz del proyecto'}</span>
+                                <span className="text-titanium-500 tabular-nums">{docs.length}</span>
+                            </div>
+                            <ul>
+                                {docs.map(d => {
+                                    const already = picked.some(p => p.id === d.id);
+                                    const full = picked.length >= 3 && !already;
+                                    const dup = (dupNames.get(fold(d.name)) || 0) > 1;
+                                    return (
+                                        <li key={d.id}>
+                                            <button disabled={already || full} onClick={() => { onPick(d); onClose(); }}
+                                                className="w-full flex items-start gap-3 rounded-xl pl-7 pr-3 py-2 text-left hover:bg-titanium-800/70 disabled:opacity-50 disabled:hover:bg-transparent">
+                                                <FileText size={15} className="text-mira mt-0.5 shrink-0" aria-hidden="true" />
+                                                <span className="min-w-0">
+                                                    <span className="block text-[15px] text-titanium-100 truncate">{d.name}</span>
+                                                    {(dup || already) && (
+                                                        <span className={`block text-xs ${dup ? 'text-amber-200' : 'text-titanium-400'}`}>
+                                                            {dup ? 'Hay otro documento con el mismo nombre en otra carpeta' : ''}{dup && already ? ' · ' : ''}{already ? 'Ya está en la conversación' : ''}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            </button>
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        </li>
+                    ))}
                 </ul>
             </div>
         </div>,

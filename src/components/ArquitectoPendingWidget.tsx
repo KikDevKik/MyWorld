@@ -49,7 +49,7 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
                             <button
                                 onClick={onOpenArquitecto}
                                 disabled={isAnalyzing}
-                                className="flex items-center justify-center rounded px-4 py-1.5 border border-cyan-500 text-cyan-500 text-sm font-semibold hover:bg-cyan-500/10 transition-colors cursor-pointer shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex items-center justify-center rounded px-4 py-1.5 border border-mira text-mira text-sm font-semibold hover:brightness-110/10 transition-colors cursor-pointer shadow-[0_0_10px_rgba(6,182,212,0.1)] disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 {isAnalyzing ? 'Analizando...' : 'Analizar'}
                             </button>
@@ -70,17 +70,17 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
 
                         {/* Column 1: Critical */}
                         <div className="flex flex-col">
-                            <h3 className="flex items-center gap-2 text-sm font-semibold text-red-500 mb-4 uppercase tracking-wider">
+                            <h3 className="flex items-center gap-2 text-sm font-semibold text-red-500 mb-4">
                                 <AlertCircle size={16} />
                                 Rojo / Crítico
                             </h3>
                             <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 custom-scrollbar max-h-80">
                                 {criticals.length === 0 ? (
-                                    <p className="text-xs text-titanium-600 font-mono">Sin problemas críticos detectados.</p>
+                                    <p className="text-xs text-titanium-600">Sin problemas críticos detectados.</p>
                                 ) : (
                                     criticals.map(item => (
                                         <div key={item.code} className="bg-titanium-900 border border-titanium-800 rounded-lg p-3 border-l-4 border-l-red-500 hover:bg-titanium-800/50 cursor-pointer transition-colors group">
-                                            <div className="font-mono text-xs text-titanium-500 mb-1 group-hover:text-cyan-400 transition-colors">{item.code}</div>
+                                            <div className="font-mono text-xs text-titanium-500 mb-1 group-hover:text-mira transition-colors">{item.code}</div>
                                             <p className="text-sm text-titanium-300 leading-relaxed">{item.title}: {item.description}</p>
                                         </div>
                                     ))
@@ -90,17 +90,17 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
 
                         {/* Column 2: Warning */}
                         <div className="flex flex-col">
-                            <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-500 mb-4 uppercase tracking-wider">
+                            <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-500 mb-4">
                                 <AlertTriangle size={16} />
                                 Amarillo / Aviso
                             </h3>
                             <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 custom-scrollbar max-h-80">
                                 {warnings.length === 0 ? (
-                                    <p className="text-xs text-titanium-600 font-mono">Sin advertencias detectadas.</p>
+                                    <p className="text-xs text-titanium-600">Sin advertencias detectadas.</p>
                                 ) : (
                                     warnings.map(item => (
                                         <div key={item.code} className="bg-titanium-900 border border-titanium-800 rounded-lg p-3 border-l-4 border-l-amber-500 hover:bg-titanium-800/50 cursor-pointer transition-colors group">
-                                            <div className="font-mono text-xs text-titanium-500 mb-1 group-hover:text-cyan-400 transition-colors">{item.code}</div>
+                                            <div className="font-mono text-xs text-titanium-500 mb-1 group-hover:text-mira transition-colors">{item.code}</div>
                                             <p className="text-sm text-titanium-300 leading-relaxed">{item.title}: {item.description}</p>
                                         </div>
                                     ))
@@ -110,17 +110,17 @@ const ArquitectoPendingWidget: React.FC<ArquitectoPendingWidgetProps> = ({
 
                         {/* Column 3: Suggestion */}
                         <div className="flex flex-col">
-                            <h3 className="flex items-center gap-2 text-sm font-semibold text-titanium-500 mb-4 uppercase tracking-wider">
+                            <h3 className="flex items-center gap-2 text-sm font-semibold text-titanium-500 mb-4">
                                 <Lightbulb size={16} />
                                 Gris / Sugerencia
                             </h3>
                             <div className="flex-1 overflow-y-auto space-y-3 pr-2 pb-4 custom-scrollbar max-h-80">
                                 {suggestions.length === 0 ? (
-                                    <p className="text-xs text-titanium-600 font-mono">Sin sugerencias pendientes.</p>
+                                    <p className="text-xs text-titanium-600">Sin sugerencias pendientes.</p>
                                 ) : (
                                     suggestions.map(item => (
                                         <div key={item.code} className="bg-titanium-900 border border-titanium-800 rounded-lg p-3 border-l-4 border-l-titanium-600 hover:bg-titanium-800/50 cursor-pointer transition-colors group">
-                                            <div className="font-mono text-xs text-titanium-500 mb-1 group-hover:text-cyan-400 transition-colors">{item.code}</div>
+                                            <div className="font-mono text-xs text-titanium-500 mb-1 group-hover:text-mira transition-colors">{item.code}</div>
                                             <p className="text-sm text-titanium-300 leading-relaxed">{item.title}: {item.description}</p>
                                         </div>
                                     ))

@@ -157,10 +157,10 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
     }, []);
 
     return (
-        <div className={`h-9 bg-titanium-950 border-t border-titanium-800 flex items-center justify-between px-4 text-xs text-titanium-400 select-none ${className}`}>
+        <div className={`h-9 bg-titanium-950 border-t border-titanium-800 flex items-center justify-between gap-2 px-2 sm:px-4 text-xs text-titanium-400 select-none whitespace-nowrap overflow-hidden ${className}`}>
 
             {/* LEFT: METRICS & GUARDIAN */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
                 {/* Badge de tier — siempre visible */}
                 <button
                     onClick={onOpenSettings}
@@ -185,7 +185,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                             <span className={`text-xs ${usagePct >= 100 ? 'text-red-300' : usagePct >= 80 ? 'text-amber-200' : 'text-titanium-300'}`}>
                                 {usagePct >= 100 ? 'Claude agotado' : levelLabel}
                             </span>
-                            <span className="relative w-12 h-1.5 rounded-full bg-titanium-800 overflow-hidden" aria-hidden="true">
+                            <span className="relative hidden sm:block w-12 h-1.5 rounded-full bg-titanium-800 overflow-hidden" aria-hidden="true">
                                 <span className={`absolute inset-y-0 left-0 rounded-full ${usagePct >= 100 ? 'bg-red-400' : usagePct >= 80 ? 'bg-amber-300' : 'bg-mira'}`} style={{ width: `${Math.max(3, usagePct)}%` }} />
                             </span>
                             <span className="text-xs tabular-nums text-titanium-400">{usagePct} %</span>
@@ -314,8 +314,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                         title={guardianStatus === 'scanning' ? t.tooltipArgosScan : guardianStatus === 'conflict' ? t.tooltipArgosConflict : t.tooltipArgosClean}
                         aria-label={guardianStatus === 'scanning' ? t.scanning : guardianStatus === 'conflict' ? t.conflict : t.argos}
                     >
-                        <ScanEye size={12} />
-                        <span className="font-medium">
+                        <ScanEye size={12} aria-hidden="true" />
+                        <span className="font-medium hidden sm:inline">
                             {guardianStatus === 'scanning' ? t.scanning :
                                 guardianStatus === 'conflict' ? t.conflict : t.argos}
                         </span>
@@ -374,10 +374,10 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                     tabIndex={0}
                 >
                     <Type size={12} aria-hidden="true" />
-                    <span>{wordCount.toLocaleString()} {t.words}</span>
+                    <span>{wordCount.toLocaleString()}<span className="hidden sm:inline"> {t.words}</span></span>
                 </div>
                 <div
-                    className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help focus-visible:ring-2 focus-visible:ring-emerald-500/50 outline-none rounded px-1"
+                    className="hidden md:flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help focus-visible:ring-2 focus-visible:ring-emerald-500/50 outline-none rounded px-1"
                     title={`${t.minutes}: ~${readingTime}`}
                     role="status"
                     aria-label={`${readingTime} ${t.minutes}`}
@@ -389,7 +389,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
             </div>
 
             {/* CENTER/RIGHT: DAILY GOAL (LA JOYA) */}
-            <div className="flex items-center gap-3 relative group">
+            <div className="flex items-center gap-1.5 sm:gap-3 relative group shrink-0">
 
                 {/* SETTINGS POPOVER */}
                 {isSettingsOpen && (
@@ -440,9 +440,9 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                     </>
                 )}
 
-                <div className="flex flex-col w-32 gap-1">
+                <div className="flex flex-col w-16 sm:w-32 gap-1">
                     <div className="flex justify-between gap-2 text-[11px] font-medium">
-                        <span className={dailyProgress >= dailyGoal ? "text-logro" : "text-titanium-400"}>
+                        <span className={`hidden sm:inline ${dailyProgress >= dailyGoal ? "text-logro" : "text-titanium-400"}`}>
                             {dailyProgress >= dailyGoal ? t.goalMet : t.dailyGoal}
                         </span>
                         <span className="text-titanium-400">{dailyProgress} / {dailyGoal}</span>
@@ -466,10 +466,11 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                 {onOpenReport && (
                     <button
                         onClick={onOpenReport}
-                        className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-purple-300 hover:bg-purple-900/30 transition-colors ml-2"
+                        className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-purple-300 hover:bg-purple-900/30 transition-colors sm:ml-2"
+                        aria-label="Reporte"
                         title={reportPending ? `Reporte del capítulo: ${reportPending} ${reportPending === 1 ? 'punto pendiente' : 'puntos pendientes'}` : 'Reporte del capítulo: qué corregir y dónde'}
                     >
-                        <FileSearch size={12} /> Reporte
+                        <FileSearch size={12} aria-hidden="true" /><span className="hidden sm:inline">Reporte</span>
                         {reportPending > 0 && <span className="ml-1 min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-on-coral text-[11px] font-bold leading-[18px] text-center">{reportPending}</span>}
                     </button>
                 )}
@@ -477,7 +478,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                 {!miraOn && (
                     <button
                         onClick={() => setMiraPrefs({ visible: true })}
-                        className="rounded px-2 py-0.5 text-xs font-medium text-mira hover:bg-titanium-800 transition-colors"
+                        className="hidden md:inline rounded px-2 py-0.5 text-xs font-medium text-mira hover:bg-titanium-800 transition-colors"
                         title="Mostrar a Mira en el escritorio"
                     >
                         Mostrar a Mira
@@ -485,7 +486,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                 )}
                 <button
                     onClick={() => window.dispatchEvent(new Event('OPEN_TIPS'))}
-                    className="rounded px-2 py-0.5 text-xs font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
+                    className="hidden sm:inline rounded px-2 py-0.5 text-xs font-medium text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800 transition-colors"
                     title="Rincón de tips"
                 >
                     Tips
@@ -496,7 +497,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                     title={theme === 'noche' ? 'Cambiar a modo papel' : 'Cambiar a modo noche'}
                     aria-label={theme === 'noche' ? 'Cambiar a modo papel' : 'Cambiar a modo noche'}
                 >
-                    {theme === 'noche' ? <Sun size={12} /> : <Moon size={12} />} {theme === 'noche' ? 'Papel' : 'Noche'}
+                    {theme === 'noche' ? <Sun size={12} aria-hidden="true" /> : <Moon size={12} aria-hidden="true" />}<span className="hidden sm:inline">{theme === 'noche' ? 'Papel' : 'Noche'}</span>
                 </button>
 
 

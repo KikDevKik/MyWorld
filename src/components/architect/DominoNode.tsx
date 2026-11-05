@@ -40,7 +40,7 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
     const phaseColor = PHASE_COLORS[phaseKey] ?? PHASE_COLORS.fundacion;
 
     const statusStyles: Record<string, string> = {
-        active: 'border-cyan-500/60 shadow-[0_0_24px_rgba(6,182,212,0.12)] bg-titanium-950',
+        active: 'border-mira/60 shadow-[0_0_24px_rgba(6,182,212,0.12)] bg-titanium-950',
         completed: 'border-titanium-700/50 bg-titanium-950',
         locked: 'border-titanium-800/40 bg-titanium-950 opacity-50',
     };
@@ -48,7 +48,7 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
     const StatusIcon = () => {
         if (card.status === 'locked') return <Lock size={12} className="text-titanium-600" />;
         if (card.status === 'completed') return <CheckCircle2 size={12} className="text-emerald-500" />;
-        return <Zap size={12} className="text-cyan-400 animate-pulse" />;
+        return <Zap size={12} className="text-mira animate-pulse" />;
     };
 
     return (
@@ -61,13 +61,13 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
                 transition-all duration-300
                 ${statusStyles[card.status] ?? statusStyles.locked}
                 ${card.status !== 'locked' ? 'cursor-pointer hover:scale-[1.02] hover:shadow-[0_0_30px_rgba(6,182,212,0.18)]' : 'cursor-not-allowed'}
-                ${isActive ? 'ring-2 ring-cyan-400/60 ring-offset-2 ring-offset-[#0a0a0a]' : ''}
+                ${isActive ? 'ring-2 ring-mira/60 ring-offset-2 ring-offset-[#0a0a0a]' : ''}
             `}
             role={card.status !== 'locked' ? 'button' : undefined}
             aria-label={`${t.common?.phase || 'Fase'} ${phaseLabel}: ${card.title}`}
         >
             {/* Phase Badge */}
-            <span className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full border mb-3 ${phaseColor}`}>
+            <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border mb-3 ${phaseColor}`}>
                 {phaseLabel}
             </span>
 
@@ -89,11 +89,11 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
             {/* Missions indicator */}
             {card.missions && card.missions.length > 0 && (
                 <div className="mt-3 pt-2.5 border-t border-titanium-800/60 flex items-center justify-between">
-                    <span className="text-[10px] font-mono text-titanium-600 uppercase tracking-wider">
+                    <span className="text-xs text-titanium-600">
                         {t.common?.missions || "Misiones"}
                     </span>
-                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${card.status === 'active'
-                            ? 'text-cyan-400 bg-cyan-900/30'
+                    <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${card.status === 'active'
+                            ? 'text-mira bg-mira/30'
                             : 'text-titanium-500 bg-titanium-800/30'
                         }`}>
                         {card.missions.length}
@@ -107,7 +107,7 @@ const DominoNode: React.FC<DominoNodeProps> = ({ card, isActive, onClick }) => {
                     <div className="h-0.5 w-full bg-titanium-800/60 rounded-full overflow-hidden">
                         <div
                             className={`h-full rounded-full transition-all duration-700 ${card.impactScore > 70 ? 'bg-rose-500' :
-                                    card.impactScore > 40 ? 'bg-amber-500' : 'bg-cyan-500'
+                                    card.impactScore > 40 ? 'bg-amber-500' : 'bg-mira'
                                 }`}
                             style={{ width: `${Math.min(card.impactScore, 100)}%` }}
                         />

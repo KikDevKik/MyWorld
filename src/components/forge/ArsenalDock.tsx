@@ -1,5 +1,7 @@
 import React from 'react';
-import { Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, DraftingCompass, FileSearch } from 'lucide-react';
+import { Globe2, Hammer, ShieldCheck, Scale, FlaskConical, CalendarClock, Printer, DraftingCompass, FileSearch, FolderOpen } from 'lucide-react';
+import { useLayoutStore } from '../../stores/useLayoutStore';
+import { useIsNarrow } from '../../hooks/useMediaQuery';
 import { GEMS } from '../../constants';
 import { GemId } from '../../types';
 import { useLanguageStore } from '../../stores/useLanguageStore';
@@ -24,6 +26,8 @@ const PixelIcon = ({ name }: { name: string }) => <img src={`/assets/objetos/ico
 const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive, reportPending = 0, onOpenBiblioteca, bibliotecaActive }) => {
     const { currentLanguage } = useLanguageStore();
     const tTools = TRANSLATIONS[currentLanguage].tools;
+    const narrow = useIsNarrow();
+    const { vaultDrawerOpen, setVaultDrawerOpen } = useLayoutStore();
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
     // Oct 2026: el Tribunal y el Guardián ya no son botones sueltos: viven dentro del Reporte.
@@ -59,6 +63,22 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
 
             {/* GEMS (Las Herramientas Principales) */}
             <div className="flex flex-col gap-4 w-full px-2">
+                {/* Nov 2026: en pantallas angostas, tus documentos se abren desde aquí. */}
+                {narrow && (
+                    <>
+                        <button
+                            onClick={() => setVaultDrawerOpen(!vaultDrawerOpen)}
+                            aria-expanded={vaultDrawerOpen}
+                            aria-controls="vault-drawer"
+                            className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-mira focus-visible:outline-none active:scale-95 ${vaultDrawerOpen ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-300 hover:text-titanium-100 hover:bg-titanium-900'}`}
+                            title={es ? 'Tus documentos' : 'Your documents'}
+                            aria-label={es ? 'Tus documentos' : 'Your documents'}
+                        >
+                            <FolderOpen size={22} aria-hidden="true" />
+                        </button>
+                        <div className="w-10 h-px bg-titanium-800" aria-hidden="true" />
+                    </>
+                )}
                 {DOCK_GEMS.map((gemId) => {
                     const isActive = activeGemId === gemId;
                     const translatedName = getTranslatedName(gemId);

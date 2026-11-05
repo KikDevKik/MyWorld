@@ -12,7 +12,7 @@ const PersonajesHerramienta: React.FC<PersonajesHerramientaProps> = () => {
             <div className="flex items-center justify-end px-4 py-2 border-b border-titanium-800 shrink-0">
                 <div className="relative">
                     <select
-                        className="appearance-none bg-titanium-900 border border-titanium-800 text-titanium-400 text-xs rounded-lg px-3 py-1.5 pr-8 focus:outline-none font-mono opacity-50 cursor-not-allowed"
+                        className="appearance-none bg-titanium-900 border border-titanium-800 text-titanium-400 text-xs rounded-lg px-3 py-1.5 pr-8 focus:outline-none opacity-50 cursor-not-allowed"
                         disabled
                     >
                         <option value="all">Filtrar por estado</option>
@@ -27,7 +27,7 @@ const PersonajesHerramienta: React.FC<PersonajesHerramientaProps> = () => {
                     <UserX size={32} />
                 </div>
                 <h3 className="text-titanium-300 text-sm font-medium">No hay personajes registrados en la Forja</h3>
-                <p className="text-titanium-500 text-[11px] font-mono mt-2 max-w-[280px]">
+                <p className="text-titanium-500 text-xs mt-2 max-w-[280px]">
                     El manifiesto de entidades está vacío o no ha sido sincronizado. Añade personajes en la Forja para analizarlos en escena.
                 </p>
             </div>

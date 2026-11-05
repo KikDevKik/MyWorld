@@ -1,94 +1,45 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { X, Network, Users, GitMerge, Map, Book, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, Network, GitMerge, SpellCheck, Map, Book, Settings, ChevronLeft, ChevronRight } from 'lucide-react';
+
+// Nov 2026: el tour del panel, con los colores de la app y lo que cada herramienta hace hoy.
+// Ya no avanza solo: cada quien lo lee a su ritmo (en el celular no hay «pasar el mouse» para pausarlo).
 
 interface ArquitectoWelcomeOverlayProps {
     onDismiss: () => void;
     onHighlight: (tool: string | null) => void;
+    narrow?: boolean; // en pantallas angostas las herramientas están arriba, no abajo
 }
 
-type Step = {
-    tool: string | null;
-    icon: React.ReactNode;
-    title: string;
-    subtitle?: string;
-    content: string;
-    tip?: string;
-};
+type Step = { tool: string | null; icon: React.ReactNode; title: string; subtitle?: string; content: string; tip?: string };
 
 const STEPS: Step[] = [
     {
         tool: null,
-        icon: <span className="text-xl">🏛️</span>,
+        icon: <img src="/assets/objetos/icono/planos.png" alt="" width={22} height={22} className="w-[22px] h-[22px]" style={{ imageRendering: 'pixelated' }} />,
         title: 'El Arquitecto',
-        subtitle: 'Estratega narrativo socrático',
-        content: 'Analiza tu mundo completo, detecta contradicciones y te hace las preguntas que desbloquean tu próxima decisión. No te da respuestas — te ayuda a encontrarlas.',
-        tip: 'Usa "Analizar disonancias" en la barra superior para un escaneo formal de 3 capas: MACRO, MESO y MICRO.',
+        subtitle: 'Planea contigo antes de escribir',
+        content: 'Conversa contigo sobre lo que quieres planear: un acto, una saga o una duda. Pregunta, propone y te dice de qué documento sale lo que afirma. Las decisiones son tuyas.',
+        tip: 'Cuando la agenda de hoy esté completa, pasa lo decidido a tu plan. Lo verás al llegar al escritorio.',
     },
-    {
-        tool: 'domino',
-        icon: <Network size={20} />,
-        title: 'Efecto Dominó',
-        content: 'Cuando resuelves una disonancia, otras partes de tu mundo pueden verse afectadas. Visualiza esas conexiones en cascada para que ningún cambio te tome por sorpresa.',
-    },
-    {
-        tool: 'personajes',
-        icon: <Users size={20} />,
-        title: 'Personajes',
-        content: 'Elenco discutido en esta sesión. Rastrea qué personajes fueron mencionados, modificados o cuestionados durante el análisis.',
-    },
-    {
-        tool: 'patches',
-        icon: <GitMerge size={20} />,
-        title: 'Parches de Canon',
-        content: 'Cambios propuestos a tus archivos .md y .txt. Los documentos en Drive requieren copia manual. Los parches quedan registrados hasta que los apliques.',
-    },
-    {
-        tool: 'map',
-        icon: <Map size={20} />,
-        title: 'Mapa de Colisiones',
-        content: 'Vista topográfica de todas las disonancias activas. Entiende qué tan interconectados están los conflictos de tu canon de un vistazo.',
-    },
-    {
-        tool: 'lore',
-        icon: <Book size={20} />,
-        title: 'Roadmap Final',
-        content: 'Cristaliza lo acordado en la sesión en un documento estructurado. Usa el modelo más potente — reserva esta herramienta para cuando tengas varias resoluciones listas.',
-    },
-    {
-        tool: 'settings',
-        icon: <Settings size={20} />,
-        title: 'Ajustes',
-        content: 'Personaliza el comportamiento del Arquitecto: tono, profundidad de análisis y cómo interactúa con tu estilo de trabajo.',
-    },
+    { tool: 'domino', icon: <Network size={18} />, title: 'Efecto dominó', content: 'Antes de cambiar algo, mira qué otras partes de tu mundo se verían afectadas.' },
+    { tool: 'patches', icon: <GitMerge size={18} />, title: 'Cambios propuestos al canon', content: 'Lo que el Arquitecto propone cambiar en tus documentos. Nada se aplica sin que lo apruebes.' },
+    { tool: 'names', icon: <SpellCheck size={18} />, title: 'Revisión del canon', content: 'Encuentra nombres escritos de varias formas y documentos repetidos, para que todo tu canon diga lo mismo.' },
+    { tool: 'map', icon: <Map size={18} />, title: 'Mapa de dudas', content: 'Las dudas abiertas de tu historia, ordenadas por capa, para ver qué está conectado con qué.' },
+    { tool: 'lore', icon: <Book size={18} />, title: 'El plan', content: 'Lo que decidieron, convertido en misiones. Es lo que Mira te recuerda cuando vuelves a escribir.' },
+    { tool: 'settings', icon: <Settings size={18} />, title: 'Ajustes', content: 'Ajusta cómo trabaja el Arquitecto contigo.' },
 ];
 
-export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoWelcomeOverlayProps) {
+export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight, narrow }: ArquitectoWelcomeOverlayProps) {
     const [step, setStep] = useState(0);
-    const [paused, setPaused] = useState(false);
     const callbacksRef = useRef({ onDismiss, onHighlight });
     useEffect(() => { callbacksRef.current = { onDismiss, onHighlight }; });
 
     useEffect(() => {
         callbacksRef.current.onHighlight(STEPS[0].tool);
-        return () => { callbacksRef.current.onHighlight(null); };
+        const k = (e: KeyboardEvent) => { if (e.key === 'Escape') callbacksRef.current.onDismiss(); };
+        window.addEventListener('keydown', k);
+        return () => { window.removeEventListener('keydown', k); callbacksRef.current.onHighlight(null); };
     }, []);
-
-    useEffect(() => {
-        if (paused) return;
-        const id = setInterval(() => {
-            setStep(prev => {
-                const next = prev + 1;
-                if (next >= STEPS.length) {
-                    clearInterval(id);
-                    callbacksRef.current.onDismiss();
-                    return prev;
-                }
-                callbacksRef.current.onHighlight(STEPS[next].tool);
-                return next;
-            });
-        }, 5000);
-        return () => clearInterval(id);
-    }, [paused, step]);
 
     const goTo = (s: number) => {
         const next = Math.max(0, Math.min(s, STEPS.length - 1));
@@ -101,138 +52,52 @@ export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight }: ArquitectoW
 
     return (
         <div
-            className="absolute left-[88px] bottom-4 z-50"
-            style={{ width: '256px' }}
-            onMouseEnter={() => setPaused(true)}
-            onMouseLeave={() => setPaused(false)}
+            role="dialog"
+            aria-label="Tour del panel del Arquitecto"
+            className={narrow ? 'absolute left-[76px] right-3 top-14 z-50' : 'absolute left-[88px] bottom-4 z-50 w-[280px]'}
         >
-            {/* Left-pointing caret connecting to toolbar */}
-            <div
-                className="absolute -left-[7px] top-8"
-                style={{
-                    width: 0,
-                    height: 0,
-                    borderTop: '6px solid transparent',
-                    borderBottom: '6px solid transparent',
-                    borderRight: '7px solid rgba(34,211,238,0.22)',
-                }}
-            />
+            {!narrow && <div aria-hidden="true" className="absolute -left-[6px] top-8 w-3 h-3 rotate-45 border-l border-b border-titanium-700 bg-titanium-900" />}
 
-            <div
-                className="rounded-xl shadow-2xl shadow-black/60"
-                style={{
-                    background: 'rgba(8, 14, 18, 0.97)',
-                    border: '1px solid rgba(34, 211, 238, 0.22)',
-                    backdropFilter: 'blur(16px)',
-                }}
-            >
-                {/* Step dots + close */}
-                <div className="flex items-center justify-between px-3 pt-3 pb-0">
-                    <div className="flex items-center gap-1">
+            <div className="relative rounded-2xl border border-titanium-700 bg-titanium-900 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+                <div className="flex items-center justify-between px-4 pt-3">
+                    <div className="flex items-center gap-1" aria-hidden="true">
                         {STEPS.map((_, i) => (
-                            <button
-                                key={i}
-                                onClick={() => { setPaused(true); goTo(i); }}
-                                aria-label={`Ir al paso ${i + 1}`}
-                                style={{
-                                    width: i === step ? '14px' : '6px',
-                                    height: '6px',
-                                    borderRadius: '9999px',
-                                    background: i === step
-                                        ? 'rgba(34,211,238,0.9)'
-                                        : i < step
-                                            ? 'rgba(34,211,238,0.3)'
-                                            : 'rgba(255,255,255,0.1)',
-                                    transition: 'width 200ms ease, background 200ms ease',
-                                    border: 'none',
-                                    padding: 0,
-                                    cursor: 'pointer',
-                                }}
-                            />
+                            <span key={i} className={`h-1.5 rounded-full transition-all duration-200 ${i === step ? 'w-4 bg-mira' : i < step ? 'w-1.5 bg-mira/40' : 'w-1.5 bg-titanium-700'}`} />
                         ))}
                     </div>
-                    <button
-                        onClick={onDismiss}
-                        className="text-zinc-600 hover:text-zinc-300 transition-colors"
-                        aria-label="Cerrar tour"
-                    >
-                        <X size={12} />
+                    <button onClick={onDismiss} aria-label="Cerrar tour" className="p-1 -mr-1 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-titanium-800">
+                        <X size={15} aria-hidden="true" />
                     </button>
                 </div>
 
-                <div className="px-4 pt-3 pb-4">
-                    {/* Icon + title */}
-                    <div className="flex items-center gap-2.5 mb-3">
-                        <div
-                            className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                            style={{
-                                background: 'rgba(34,211,238,0.08)',
-                                border: '1px solid rgba(34,211,238,0.18)',
-                                color: 'rgba(34,211,238,0.8)',
-                            }}
-                        >
+                <div className="px-4 pt-2 pb-4">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 bg-mira/10 border border-mira/25 text-mira" aria-hidden="true">
                             {current.icon}
                         </div>
-                        <div>
-                            <p className="text-[13px] font-semibold text-white leading-none mb-0.5">
-                                {current.title}
-                            </p>
-                            <p className="text-[10px]" style={{ color: 'rgba(34,211,238,0.55)' }}>
-                                {current.subtitle ?? `${step + 1} de ${STEPS.length}`}
-                            </p>
+                        <div className="min-w-0">
+                            <p className="font-serif text-[15px] text-titanium-50 leading-tight">{current.title}</p>
+                            <p className="text-xs text-titanium-400">{current.subtitle ?? `${step + 1} de ${STEPS.length}`}</p>
                         </div>
                     </div>
 
-                    {/* Description */}
-                    <p className="text-[12px] text-zinc-400 leading-relaxed mb-3">
-                        {current.content}
-                    </p>
+                    <p className="text-sm text-titanium-200 leading-relaxed mb-3" aria-live="polite">{current.content}</p>
 
-                    {/* Tip */}
                     {current.tip && (
-                        <div
-                            className="rounded-lg px-2.5 py-2 mb-3"
-                            style={{
-                                background: 'rgba(255,255,255,0.03)',
-                                border: '1px solid rgba(255,255,255,0.06)',
-                            }}
-                        >
-                            <p className="text-[10px] text-zinc-600 leading-snug">💡 {current.tip}</p>
-                        </div>
+                        <p className="rounded-lg px-3 py-2 mb-3 bg-titanium-950/60 border border-titanium-800 text-xs text-titanium-300 leading-snug">{current.tip}</p>
                     )}
 
-                    {/* Navigation */}
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-2">
                         {step > 0 && (
-                            <button
-                                onClick={() => { setPaused(true); goTo(step - 1); }}
-                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] transition-colors"
-                                style={{
-                                    background: 'rgba(255,255,255,0.04)',
-                                    border: '1px solid rgba(255,255,255,0.08)',
-                                    color: 'rgba(161,161,170,0.8)',
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-                                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                            >
-                                <ChevronLeft size={11} /> Atrás
+                            <button onClick={() => goTo(step - 1)} className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm border border-titanium-700 text-titanium-300 hover:text-titanium-100 hover:bg-titanium-800">
+                                <ChevronLeft size={14} aria-hidden="true" /> Atrás
                             </button>
                         )}
                         <button
-                            onClick={() => {
-                                if (isLast) { onDismiss(); }
-                                else { setPaused(true); goTo(step + 1); }
-                            }}
-                            className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-[11px] font-medium transition-colors"
-                            style={{
-                                background: 'rgba(34,211,238,0.1)',
-                                border: '1px solid rgba(34,211,238,0.22)',
-                                color: 'rgba(34,211,238,0.9)',
-                            }}
-                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(34,211,238,0.18)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(34,211,238,0.1)'; }}
+                            onClick={() => { if (isLast) onDismiss(); else goTo(step + 1); }}
+                            className="flex-1 inline-flex items-center justify-center gap-1 py-2 rounded-lg text-sm font-medium bg-coral text-on-coral hover:brightness-110"
                         >
-                            {isLast ? 'Entendido' : <><span>Siguiente</span><ChevronRight size={11} /></>}
+                            {isLast ? 'Entendido' : <>Siguiente <ChevronRight size={14} aria-hidden="true" /></>}
                         </button>
                     </div>
                 </div>
