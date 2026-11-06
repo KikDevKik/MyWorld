@@ -196,14 +196,14 @@ const FileNodeRow = React.memo(({
     return (
         <div
             className={`
-                group flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-cyan-500
+                group flex items-center gap-2 py-1.5 px-2 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-mira
                 ${isActive && !isEditing && !isDeleteMode
-                    ? 'bg-cyan-900/20 text-cyan-400 font-medium'
+                    ? 'bg-mira/10 text-titanium-50 font-medium'
                     : isConflicting
                         ? 'text-amber-500 hover:text-amber-400 hover:bg-amber-900/20'
                         : isDeleteSelected
                             ? 'bg-red-900/20 text-red-300' // Highlight selected for delete
-                            : 'text-titanium-300 hover:text-titanium-100 hover:bg-cyan-900/20'
+                            : 'text-titanium-300 hover:text-titanium-100 hover:bg-mira/10'
                 }
                 ${!isFolder && isLoading ? 'animate-pulse' : ''}
             `}
@@ -231,7 +231,7 @@ const FileNodeRow = React.memo(({
 
             {/* 🟢 CLICK AREA 1: ICON (TOGGLE) */}
             <div
-                className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer hover:text-cyan-400 transition-colors"
+                className="shrink-0 flex items-center justify-center w-4 h-4 cursor-pointer hover:text-mira transition-colors"
                 onClick={(e) => {
                     // 🟢 FIX: Respect delete mode on icon click too
                     if (isDeleteMode) {
@@ -243,15 +243,15 @@ const FileNodeRow = React.memo(({
                 }}
             >
                 {isLoading || isSaving || isMoving ? (
-                    <Loader2 size={14} className="animate-spin text-cyan-500" />
+                    <Loader2 size={14} className="animate-spin text-mira" />
                 ) : isConflicting ? (
                     <AlertTriangle size={14} className="animate-pulse" />
                 ) : isFolder ? (
-                    <div className="text-cyan-500">
+                    <div className="text-mira">
                         {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                     </div>
                 ) : (
-                    <FileText size={14} className={isActive ? "text-cyan-500" : "text-titanium-500"} />
+                    <FileText size={14} className={isActive ? "text-mira" : "text-titanium-500"} />
                 )}
             </div>
 
@@ -263,7 +263,7 @@ const FileNodeRow = React.memo(({
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         onBlur={handleSaveRename} // Auto-save on blur
-                        className="w-full bg-titanium-950 text-titanium-100 text-xs px-1 py-0.5 rounded border border-cyan-500/50 focus:outline-none focus:border-cyan-500"
+                        className="w-full bg-titanium-950 text-titanium-100 text-xs px-1 py-0.5 rounded border border-mira/50 focus:outline-none focus:border-mira"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>
@@ -325,7 +325,7 @@ const FileNodeRow = React.memo(({
                                         }}
                                         className="w-full text-left px-3 py-2 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
                                     >
-                                        <Pencil size={12} className="text-cyan-400" />
+                                        <Pencil size={12} className="text-mira" />
                                         <span>Renombrar</span>
                                     </button>
                                     {onDeleteFile && (
@@ -343,7 +343,7 @@ const FileNodeRow = React.memo(({
                                 </>
                             ) : (
                                 <div className="p-2.5">
-                                    <p className="text-[10px] text-red-300 text-center mb-2 leading-tight">
+                                    <p className="text-xs text-red-300 text-center mb-2 leading-tight">
                                         {isFolder ? '¿Mover la carpeta y todo su contenido a la papelera de Drive?' : '¿Mover a la papelera de Drive?'}
                                     </p>
                                     <div className="flex gap-1.5">
@@ -353,13 +353,13 @@ const FileNodeRow = React.memo(({
                                                 if (onDeleteFile) onDeleteFile(node.id, node.name);
                                                 setIsActionsOpen(false);
                                             }}
-                                            className="flex-1 py-1.5 rounded bg-red-800/70 hover:bg-red-700 text-red-100 text-[10px] font-bold uppercase transition-colors"
+                                            className="flex-1 py-1.5 rounded bg-red-800/70 hover:bg-red-700 text-red-100 text-xs font-semibold transition-colors"
                                         >
                                             Sí
                                         </button>
                                         <button
                                             onClick={(e) => { e.stopPropagation(); setIsConfirmingDelete(false); }}
-                                            className="flex-1 py-1.5 rounded bg-titanium-700 hover:bg-titanium-600 text-titanium-300 text-[10px] uppercase transition-colors"
+                                            className="flex-1 py-1.5 rounded bg-titanium-700 hover:bg-titanium-600 text-titanium-300 text-xs transition-colors"
                                         >
                                             No
                                         </button>
@@ -538,7 +538,7 @@ const FileTreeNode = React.memo(({ node, depth, onFileSelect, accessToken, isPre
                     ))}
                     {children.length === 0 && !isLoading && (
                         <div
-                            className="text-[10px] text-titanium-600 py-1 italic"
+                            className="text-xs text-titanium-600 py-1 italic"
                             style={{ paddingLeft: `${(depth + 1) * 12 + 24}px` }}
                         >
                             Vacío
@@ -595,7 +595,7 @@ const FileTree: React.FC<FileTreeProps> = ({ folderId, onFileSelect, accessToken
     if (isLoading) {
         return (
             <div className="flex flex-col items-center justify-center p-8 text-titanium-500 gap-2">
-                <Loader2 size={20} className="animate-spin text-cyan-500" />
+                <Loader2 size={20} className="animate-spin text-mira" />
                 <span className="text-xs">Escaneando neuro-enlaces...</span>
             </div>
         );

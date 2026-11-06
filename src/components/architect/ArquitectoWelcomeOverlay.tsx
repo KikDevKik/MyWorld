@@ -19,13 +19,13 @@ const STEPS: Step[] = [
         title: 'El Arquitecto',
         subtitle: 'Planea contigo antes de escribir',
         content: 'Conversa contigo sobre lo que quieres planear: un acto, una saga o una duda. Pregunta, propone y te dice de qué documento sale lo que afirma. Las decisiones son tuyas.',
-        tip: 'Cuando la agenda de hoy esté completa, pasa lo decidido a tu plan. Lo verás al llegar al escritorio.',
+        tip: 'Cuando la agenda de hoy esté completa, pasa lo decidido a tu roadmap. Lo verás al llegar al escritorio.',
     },
-    { tool: 'domino', icon: <Network size={18} />, title: 'Efecto dominó', content: 'Antes de cambiar algo, mira qué otras partes de tu mundo se verían afectadas.' },
+    { tool: 'domino', icon: <Network size={18} />, title: 'Efecto dominó', content: 'Cuando resuelves una contradicción, muestra qué otras partes de tu historia cambian por esa decisión.' },
     { tool: 'patches', icon: <GitMerge size={18} />, title: 'Cambios propuestos al canon', content: 'Lo que el Arquitecto propone cambiar en tus documentos. Nada se aplica sin que lo apruebes.' },
     { tool: 'names', icon: <SpellCheck size={18} />, title: 'Revisión del canon', content: 'Encuentra nombres escritos de varias formas y documentos repetidos, para que todo tu canon diga lo mismo.' },
     { tool: 'map', icon: <Map size={18} />, title: 'Mapa de dudas', content: 'Las dudas abiertas de tu historia, ordenadas por capa, para ver qué está conectado con qué.' },
-    { tool: 'lore', icon: <Book size={18} />, title: 'El plan', content: 'Lo que decidieron, convertido en misiones. Es lo que Mira te recuerda cuando vuelves a escribir.' },
+    { tool: 'lore', icon: <Book size={18} />, title: 'Roadmap', content: 'Lo que decidieron, convertido en misiones. Es lo que Mira te recuerda cuando vuelves a escribir.' },
     { tool: 'settings', icon: <Settings size={18} />, title: 'Ajustes', content: 'Ajusta cómo trabaja el Arquitecto contigo.' },
 ];
 

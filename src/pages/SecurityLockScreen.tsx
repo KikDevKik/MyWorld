@@ -13,7 +13,7 @@ const SecurityLockScreen: React.FC<SecurityLockScreenProps> = ({ errorType }) =>
     };
 
     return (
-        <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-8 p-8 font-sans overflow-hidden">
+        <div className="h-dvh w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-8 p-8 font-sans overflow-hidden">
             {/* Background Ambience */}
             <div className="absolute inset-0 pointer-events-none opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-red-900 via-transparent to-transparent" />
 

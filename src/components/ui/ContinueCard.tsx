@@ -101,7 +101,7 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
     const touch = week.filter(w => w > 0 && w < FULL_DAY).length;
 
     const next = nextMission
-        ? { label: es ? 'Lo que sigue, según tu plan' : 'What’s next, from your plan', text: nextMission.text }
+        ? { label: es ? 'Lo que sigue, según tu roadmap' : 'What’s next, from your roadmap', text: nextMission.text }
         : openItems.length
             ? { label: es ? `Lo que sigue: ${openItems.length} ${openItems.length === 1 ? 'duda pendiente' : 'dudas pendientes'} en la mesa` : `What’s next: ${openItems.length} open ${openItems.length === 1 ? 'question' : 'questions'} at the table`, text: openItems[0].title }
             : null;
@@ -156,7 +156,7 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
                                 ? 'Sin plan también se escribe, pero es fácil perder el rumbo. Si le cuentas a la mesa del arquitecto hacia dónde va tu historia (aunque cambie después), la próxima vez te digo qué sigue.'
                                 : 'You can write without a plan, but it’s easy to lose your way. Tell the architect’s table where your story is going (even if it changes later), and next time I’ll tell you what’s next.'}
                             <div className="mt-2 flex flex-wrap gap-3">
-                                <button type="button" onClick={onGoToArquitecto} className="font-semibold text-mira hover:underline underline-offset-4">{es ? 'Armar el plan en la mesa' : 'Make a plan at the table'}</button>
+                                <button type="button" onClick={onGoToArquitecto} className="font-semibold text-mira hover:underline underline-offset-4">{es ? 'Armar el roadmap en la mesa' : 'Make a roadmap at the table'}</button>
                                 <button type="button" onClick={() => { try { localStorage.setItem(PLAN_SNOOZE, String(Date.now() + 7 * 86400000)); } catch { /* sin almacenamiento */ } setSnoozed(true); }} className="text-titanium-400 hover:text-titanium-200">{es ? 'Voy explorando, avísame en una semana' : 'I’m exploring, remind me in a week'}</button>
                             </div>
                         </div>

@@ -17,6 +17,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { callFunction } from './services/api';
+import { getAiLevel, setAiLevelStored } from './hooks/aiLevel';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import { FileCache } from './utils/fileCache';
@@ -191,12 +192,17 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     };
 
     // Nov 2026: recuerda el último documento en el que el autor ESCRIBIÓ (para «Continuar donde lo dejaste» en la Casa).
+    // Nov 2026: solo cuenta si el autor tecleó en este documento hace poco. Abrir un documento o recargarlo
+    // (por ejemplo después de cambiar un nombre en «Revisión del canon») no es escribir.
     const lastDocRef = useRef<{ id: string | null; content: string }>({ id: null, content: '' });
+    const userEditRef = useRef<{ id: string | null; at: number }>({ id: null, at: 0 });
+    const handleUserEdit = useCallback(() => { userEditRef.current = { id: currentFileIdRef.current, at: Date.now() }; }, []);
     useEffect(() => {
         const id = currentFileId, content = selectedFileContent;
         const prev = lastDocRef.current;
         lastDocRef.current = { id, content };
         if (!id || id === 'mock-file-id' || prev.id !== id || !content || prev.content === content || prev.content === commonT.loading || content === commonT.loading) return;
+        if (userEditRef.current.id !== id || Date.now() - userEditRef.current.at > 10_000) return;
         const timer = window.setTimeout(() => writeLastDoc(config?.folderId, { id, name: currentFileName, content }), 1500);
         return () => window.clearTimeout(timer);
     }, [currentFileId, selectedFileContent]);
@@ -461,14 +467,19 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         if (!isAppLoading && user && !initialByokChecked && driveStatus === 'connected') {
             setInitialByokChecked(true);
             if (!customGeminiKey && !customAnthropicKey) {
-                toast("Falta Clave de IA (BYOK)", {
-                    description: "Para usar las herramientas avanzadas, necesitas configurar al menos una API Key (Google Gemini o Anthropic Claude).",
+                // Nov 2026: las cuentas con la IA de MyWorld no necesitan clave (en un navegador nuevo, como el
+                // celular, el nivel aún no está guardado): se elige solo y no se muestra el aviso.
+                const nag = () => toast("Falta tu clave de IA", {
+                    description: "Para que Mira y el Arquitecto funcionen, agrega una clave gratuita de Google Gemini.",
                     duration: 10000,
-                    action: {
-                        label: "Configurar",
-                        onClick: () => setIsSettingsModalOpen(true)
-                    }
+                    action: { label: "Agregar clave", onClick: () => setIsSettingsModalOpen(true) },
                 });
+                callFunction<{ myworldAvailable?: boolean }>('getAIStatus', {})
+                    .then(s => {
+                        if (s?.myworldAvailable) { if (!getAiLevel()) setAiLevelStored('myworld'); return; }
+                        nag();
+                    })
+                    .catch(nag);
             }
         }
     }, [isAppLoading, user, customGeminiKey, customAnthropicKey, initialByokChecked, driveStatus]);
@@ -676,7 +687,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const deskArrival: DeskArrival | null = (() => {
         const items: string[] = [];
         const next = deskMisiones.find(m => !m.completed);
-        if (next) items.push(`Según tu plan, sigue: ${next.text}`);
+        if (next) items.push(`Según tu roadmap, sigue: ${next.text}`);
         const ri = reportInfo && reportInfo.fileId === currentFileId ? reportInfo : null;
         if (ri?.problems) items.push(`Del reporte quedan ${ri.problems} ${ri.problems === 1 ? 'cosa' : 'cosas'} por corregir${ri.high ? ` (${ri.high} ${ri.high === 1 ? 'importante' : 'importantes'})` : ''}${ri.top ? `, como «${ri.top}»` : ''}.`);
         if (ri?.dudas) items.push(`Hay ${ri.dudas} ${ri.dudas === 1 ? 'duda' : 'dudas'} del canon por definir.`);
@@ -1104,7 +1115,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 LOADING GATE
     if (isAppLoading) {
         return (
-            <div className="h-screen w-screen bg-titanium-950 flex flex-col items-center justify-center text-titanium-200 gap-4">
+            <div className="h-dvh w-screen bg-titanium-950 flex flex-col items-center justify-center text-titanium-200 gap-4">
                 <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
                 <p className="text-sm font-mono tracking-widest opacity-70">{tApp.loadingSystems}</p>
             </div>
@@ -1497,6 +1508,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             ref={hybridEditorRef}
                             content={selectedFileContent}
                             onContentChange={handleContentChange}
+                            onUserEdit={handleUserEdit}
                             driftMarkers={driftMarkers}
                             activeSegment={activeSegment}
                             className="h-full"
@@ -1638,7 +1650,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                 }}
             />
 
-            <div className="flex flex-col h-screen w-screen overflow-hidden">
+            <div className="flex flex-col h-dvh w-screen overflow-hidden">
                 <div className="flex-1 overflow-hidden">
                 <SentinelShell
                     isZenMode={isZenMode}
@@ -1904,7 +1916,7 @@ function App() {
         const currentLanguage = useLanguageStore.getState().currentLanguage;
         const tApp = TRANSLATIONS[currentLanguage].app;
         return (
-            <div className="h-screen w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
+            <div className="h-dvh w-screen bg-zinc-950 flex flex-col items-center justify-center text-red-500 gap-6 p-8">
                 <div className="p-4 bg-red-950/30 rounded-full border border-red-900/50">
                     <AlertTriangle className="w-12 h-12" />
                 </div>
@@ -1925,7 +1937,7 @@ function App() {
     }
 
     if (authLoading) return (
-        <div className="h-screen w-screen bg-titanium-950 flex flex-col items-center justify-center gap-3 text-titanium-500 text-xs">
+        <div className="h-dvh w-screen bg-titanium-950 flex flex-col items-center justify-center gap-3 text-titanium-500 text-xs">
             <div className="w-7 h-7 border-2 border-titanium-800 border-t-purple-500 rounded-full animate-spin" />
             Cargando MyWorld…
         </div>

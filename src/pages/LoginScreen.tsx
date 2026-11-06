@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, Loader2 } from 'lucide-react';
+import { MiraSprite } from '../components/mira/MiraSprite';
 
 interface LoginScreenProps {
     onLoginSuccess: (user: User, token: string | null) => void;
@@ -10,26 +11,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [mounted, setMounted] = useState(false);
-    const orbRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         // Staggered mount reveal
         const t = setTimeout(() => setMounted(true), 80);
         return () => clearTimeout(t);
-    }, []);
-
-    // Subtle orb parallax on mouse move
-    useEffect(() => {
-        const handleMove = (e: MouseEvent) => {
-            if (!orbRef.current) return;
-            const cx = window.innerWidth / 2;
-            const cy = window.innerHeight / 2;
-            const dx = (e.clientX - cx) / cx;
-            const dy = (e.clientY - cy) / cy;
-            orbRef.current.style.transform = `translate(${dx * 18}px, ${dy * 12}px)`;
-        };
-        window.addEventListener('mousemove', handleMove);
-        return () => window.removeEventListener('mousemove', handleMove);
     }, []);
 
     const handleLogin = async () => {
@@ -69,281 +55,60 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         }
     };
 
+    // Nov 2026: la pantalla de entrada con el estilo de la app (Mira, colores del tema) y un aviso de datos que dice la verdad.
     return (
-        <div
-            style={{ background: '#0a0a0f' }}
-            className="h-screen w-screen flex items-center justify-center relative overflow-hidden"
-        >
-            {/* ── BG GRID ── */}
+        <main className="min-h-[100dvh] w-full bg-titanium-950 text-titanium-100 flex items-center justify-center px-4 py-10 relative overflow-hidden">
+            <div aria-hidden="true" className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_50%_35%,var(--color-titanium-900)_0%,var(--color-titanium-950)_70%)]" />
             <div
-                className="absolute inset-0 pointer-events-none"
-                style={{
-                    backgroundImage: `
-                        linear-gradient(rgba(129,140,248,0.04) 1px, transparent 1px),
-                        linear-gradient(90deg, rgba(129,140,248,0.04) 1px, transparent 1px)
-                    `,
-                    backgroundSize: '48px 48px',
-                }}
-            />
-
-            {/* ── AMBIENT GLOW ── */}
-            <div
-                ref={orbRef}
-                className="absolute pointer-events-none"
-                style={{
-                    width: '600px',
-                    height: '600px',
-                    borderRadius: '50%',
-                    background: 'radial-gradient(circle, rgba(109,40,217,0.07) 0%, rgba(103,232,249,0.04) 45%, transparent 70%)',
-                    top: '50%',
-                    left: '50%',
-                    marginTop: '-300px',
-                    marginLeft: '-300px',
-                    transition: 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                }}
-            />
-
-            {/* ── CARD ── */}
-            <div
-                className="relative z-10 w-full flex flex-col items-center"
-                style={{
-                    maxWidth: '400px',
-                    padding: '0 24px',
-                    opacity: mounted ? 1 : 0,
-                    transform: mounted ? 'translateY(0)' : 'translateY(16px)',
-                    transition: 'opacity 0.7s ease, transform 0.7s ease',
-                }}
+                className={`relative z-10 w-full max-w-[400px] flex flex-col items-center text-center transition-all duration-700 motion-reduce:transition-none ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-3'}`}
             >
-                {/* Logo */}
-                <div
-                    className="flex items-center justify-center mb-8"
-                    style={{
-                        width: '72px',
-                        height: '72px',
-                        borderRadius: '18px',
-                        background: 'rgba(255,255,255,0.03)',
-                        border: '1px solid rgba(103,232,249,0.2)',
-                        boxShadow: '0 0 32px rgba(103,232,249,0.06)',
-                        overflow: 'hidden',
-                        opacity: mounted ? 1 : 0,
-                        transform: mounted ? 'scale(1)' : 'scale(0.92)',
-                        transition: 'opacity 0.7s ease 0.1s, transform 0.7s ease 0.1s',
-                    }}
-                >
-                    <img
-                        src="/assets/marca/icono-512.png"
-                        alt="MyWorld"
-                        style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }}
-                    />
-                </div>
+                <MiraSprite pose="saludo" scale={2} label="Mira te saluda" />
 
-                {/* Title */}
-                <div
-                    className="text-center mb-10"
-                    style={{
-                        opacity: mounted ? 1 : 0,
-                        transform: mounted ? 'translateY(0)' : 'translateY(8px)',
-                        transition: 'opacity 0.7s ease 0.15s, transform 0.7s ease 0.15s',
-                    }}
-                >
-                    <h1
-                        style={{
-                            fontFamily: "'Newsreader', Georgia, serif",
-                            fontSize: '40px',
-                            fontWeight: '400',
-                            letterSpacing: '-0.025em',
-                            color: '#e2e8f0',
-                            lineHeight: '1',
-                            marginBottom: '8px',
-                        }}
-                    >
-                        MyWorld
-                    </h1>
-                    <p
-                        style={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: '10px',
-                            letterSpacing: '0.2em',
-                            textTransform: 'uppercase',
-                            color: '#475569',
-                        }}
-                    >
-                        Creative IDE
-                    </p>
-                </div>
+                <h1 className="mt-4 font-serif text-[40px] leading-none text-titanium-50">MyWorld</h1>
+                <p className="mt-3 text-[15px] text-titanium-300 leading-relaxed text-pretty">Tu mesa de escritura. Mira te acompaña mientras escribes y el Arquitecto te ayuda a planear.</p>
 
-                {/* Login button */}
-                <div
-                    className="w-full"
-                    style={{
-                        opacity: mounted ? 1 : 0,
-                        transform: mounted ? 'translateY(0)' : 'translateY(8px)',
-                        transition: 'opacity 0.7s ease 0.22s, transform 0.7s ease 0.22s',
-                    }}
+                <button
+                    onClick={handleLogin}
+                    disabled={isLoading}
+                    className="mt-8 w-full h-12 inline-flex items-center justify-center gap-3 rounded-xl bg-white text-[#1f1f1f] text-[15px] font-medium border border-[#dadce0] shadow-sm hover:bg-[#f8f9fa] active:bg-[#f1f3f4] disabled:opacity-70 disabled:cursor-wait focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-950 transition-colors"
                 >
-                    <button
-                        onClick={handleLogin}
-                        disabled={isLoading}
-                        className="w-full group relative flex items-center justify-center gap-3"
-                        style={{
-                            padding: '14px 24px',
-                            borderRadius: '10px',
-                            background: isLoading
-                                ? 'rgba(103,232,249,0.05)'
-                                : 'linear-gradient(135deg, rgba(103,232,249,0.12), rgba(129,140,248,0.12))',
-                            border: '1px solid rgba(103,232,249,0.25)',
-                            color: '#67e8f9',
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: '13px',
-                            fontWeight: '500',
-                            letterSpacing: '0.02em',
-                            cursor: isLoading ? 'not-allowed' : 'pointer',
-                            boxShadow: '0 0 24px rgba(103,232,249,0.06)',
-                            transition: 'all 0.2s ease',
-                        }}
-                        onMouseEnter={e => {
-                            if (!isLoading) {
-                                (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(103,232,249,0.2), rgba(129,140,248,0.2))';
-                                (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 32px rgba(103,232,249,0.15)';
-                                (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(-1px)';
-                            }
-                        }}
-                        onMouseLeave={e => {
-                            (e.currentTarget as HTMLButtonElement).style.background = 'linear-gradient(135deg, rgba(103,232,249,0.12), rgba(129,140,248,0.12))';
-                            (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 0 24px rgba(103,232,249,0.06)';
-                            (e.currentTarget as HTMLButtonElement).style.transform = 'translateY(0)';
-                        }}
-                    >
-                        {isLoading ? (
-                            <>
-                                <span
-                                    style={{
-                                        width: '14px',
-                                        height: '14px',
-                                        border: '1.5px solid rgba(103,232,249,0.3)',
-                                        borderTopColor: '#67e8f9',
-                                        borderRadius: '50%',
-                                        animation: 'spin 0.8s linear infinite',
-                                        display: 'inline-block',
-                                        flexShrink: 0,
-                                    }}
-                                />
-                                <span style={{ color: 'rgba(103,232,249,0.6)' }}>Autenticando...</span>
-                            </>
-                        ) : (
-                            <>
-                                {/* Google G icon */}
-                                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0 }}>
-                                    <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 0 1-1.59 2.41v2h2.57c1.5-1.38 2.4-3.42 2.4-5.87z" fill="#67e8f9" opacity="0.9"/>
-                                    <path d="M8 16c2.16 0 3.97-.72 5.29-1.94l-2.57-2a4.8 4.8 0 0 1-7.15-2.53H.96v2.06A8 8 0 0 0 8 16z" fill="#818cf8" opacity="0.9"/>
-                                    <path d="M3.57 9.53A4.83 4.83 0 0 1 3.32 8c0-.53.09-1.04.25-1.53V4.41H.96A8.01 8.01 0 0 0 0 8c0 1.29.31 2.51.96 3.59l2.61-2.06z" fill="#34d399" opacity="0.9"/>
-                                    <path d="M8 3.18c1.22 0 2.3.42 3.16 1.24l2.37-2.37A7.96 7.96 0 0 0 8 0 8 8 0 0 0 .96 4.41L3.57 6.47A4.77 4.77 0 0 1 8 3.18z" fill="#fbbf24" opacity="0.9"/>
-                                </svg>
-                                Iniciar sesión con Google
-                            </>
-                        )}
-                    </button>
-                </div>
+                    {isLoading ? (
+                        <><Loader2 size={18} className="animate-spin text-[#5f6368]" aria-hidden="true" /> Entrando…</>
+                    ) : (
+                        <>
+                            {/* Logo oficial de Google (sus colores no se cambian) */}
+                            <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                                <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                                <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                                <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                                <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                            </svg>
+                            Continuar con Google
+                        </>
+                    )}
+                </button>
 
-                {/* Error */}
                 {error && (
-                    <div
-                        className="w-full flex items-center gap-2 mt-4"
-                        style={{
-                            padding: '10px 14px',
-                            borderRadius: '8px',
-                            background: 'rgba(252,100,100,0.06)',
-                            border: '1px solid rgba(252,100,100,0.2)',
-                            color: '#fc6464',
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: '12px',
-                            animation: 'fadeIn 0.3s ease',
-                        }}
-                        role="alert"
-                    >
-                        <AlertCircle size={13} style={{ flexShrink: 0 }} />
-                        {error}
-                    </div>
+                    <p role="alert" className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-lg border border-coral/40 bg-coral/10 px-3 py-2 text-sm text-titanium-100">
+                        <AlertCircle size={15} className="text-coral shrink-0" aria-hidden="true" /> {error}
+                    </p>
                 )}
 
-                {/* Disclaimer */}
-                <div
-                    style={{
-                        marginTop: '32px',
-                        padding: '16px',
-                        borderRadius: '8px',
-                        background: 'rgba(255,255,255,0.02)',
-                        border: '1px solid rgba(129,140,248,0.08)',
-                        opacity: mounted ? 1 : 0,
-                        transition: 'opacity 0.7s ease 0.35s',
-                    }}
-                >
-                    <p
-                        style={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: '11px',
-                            lineHeight: '1.7',
-                            color: '#475569',
-                            textAlign: 'center',
-                        }}
-                    >
-                        Al iniciar sesión autorizas a MyWorld a crear carpetas y documentos en tu Drive.{' '}
-                        <span style={{ color: '#64748b' }}>Nosotros no guardamos ni una sola letra de tu obra en nuestros servidores.</span>
-                    </p>
+                <div className="mt-6 w-full rounded-xl border border-titanium-800 bg-titanium-900/60 px-4 py-3 text-left text-[13px] leading-relaxed text-titanium-300">
+                    <p>Tus documentos se guardan en tu Google Drive: MyWorld solo crea y edita las carpetas de tu proyecto.</p>
+                    <p className="mt-1.5">Para buscar en tu canon, MyWorld guarda fragmentos de tus textos, y también tus conversaciones con Mira y el Arquitecto. Si quieres que los borremos, escríbenos a <a href="mailto:deidev180@gmail.com" className="text-titanium-100 underline underline-offset-2">deidev180@gmail.com</a>.</p>
+                    <p className="mt-1.5 text-titanium-400">Para usar la IA hace falta una clave gratuita de Google Gemini. Te ayudamos a crearla al entrar.</p>
                 </div>
 
-                {/* Gemini note */}
-                <p
-                    style={{
-                        marginTop: '16px',
-                        fontFamily: "'JetBrains Mono', monospace",
-                        fontSize: '10px',
-                        letterSpacing: '0.02em',
-                        color: '#334155',
-                        textAlign: 'center',
-                        opacity: mounted ? 1 : 0,
-                        transition: 'opacity 0.7s ease 0.4s',
-                    }}
-                >
-                    También necesitarás una API Key de Google Gemini (gratuita) para activar la IA.
-                </p>
-
-                {/* Footer links */}
-                <div
-                    className="flex gap-6 mt-10"
-                    style={{
-                        opacity: mounted ? 0.4 : 0,
-                        transition: 'opacity 0.7s ease 0.5s',
-                    }}
-                >
-                    {['Privacy Policy', 'Terms of Service'].map(label => (
-                        <a
-                            key={label}
-                            href={label === 'Privacy Policy' ? '/privacy' : '/terms'}
-                            style={{
-                                fontFamily: "'JetBrains Mono', monospace",
-                                fontSize: '10px',
-                                letterSpacing: '0.08em',
-                                color: '#475569',
-                                textDecoration: 'none',
-                                textTransform: 'uppercase',
-                                transition: 'color 0.2s',
-                            }}
-                            onMouseEnter={e => (e.currentTarget.style.color = '#94a3b8')}
-                            onMouseLeave={e => (e.currentTarget.style.color = '#475569')}
-                        >
-                            {label}
-                        </a>
-                    ))}
-                </div>
+                <nav aria-label="Información legal" className="mt-6 flex items-center gap-4 text-sm text-titanium-400">
+                    <a href="/privacy" className="hover:text-titanium-100 underline-offset-4 hover:underline">Privacidad</a>
+                    <span aria-hidden="true">·</span>
+                    <a href="/terms" className="hover:text-titanium-100 underline-offset-4 hover:underline">Términos</a>
+                    <span aria-hidden="true">·</span>
+                    <a href="/" className="hover:text-titanium-100 underline-offset-4 hover:underline">Qué es MyWorld</a>
+                </nav>
             </div>
-
-            <style>{`
-                @import url('https://fonts.googleapis.com/css2?family=Newsreader:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap');
-                @keyframes spin { to { transform: rotate(360deg); } }
-                @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-            `}</style>
-        </div>
+        </main>
     );
 };
 

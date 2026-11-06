@@ -173,7 +173,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
 
     return (
         <div
-            className="h-screen w-screen overflow-hidden bg-titanium-900 text-titanium-100 flex flex-row relative"
+            className="h-dvh w-screen overflow-hidden bg-titanium-900 text-titanium-100 flex flex-row relative"
             data-active-view={activeView}
             data-show-sidebar={showSidebar.toString()}
         >

@@ -46,7 +46,7 @@ const VerificationPage: React.FC<VerificationPageProps> = ({ certificateId }) =>
 
     if (loading) {
         return (
-            <div className="h-screen w-screen bg-black flex flex-col items-center justify-center text-white gap-4">
+            <div className="h-dvh w-screen bg-black flex flex-col items-center justify-center text-white gap-4">
                 <Loader2 className="w-10 h-10 animate-spin text-cyan-500" />
                 <p className="text-sm font-mono tracking-widest opacity-70">VERIFICANDO BLOCKCHAIN...</p>
             </div>
@@ -55,7 +55,7 @@ const VerificationPage: React.FC<VerificationPageProps> = ({ certificateId }) =>
 
     if (error || !data) {
         return (
-            <div className="h-screen w-screen bg-red-950 flex flex-col items-center justify-center text-white p-8">
+            <div className="h-dvh w-screen bg-red-950 flex flex-col items-center justify-center text-white p-8">
                 <div className="p-6 bg-red-900/30 rounded-full border-4 border-red-500 mb-6 animate-pulse">
                     <AlertTriangle className="w-20 h-20 text-red-500" />
                 </div>
@@ -73,7 +73,7 @@ const VerificationPage: React.FC<VerificationPageProps> = ({ certificateId }) =>
     const aiColor = '#f59e0b'; // Amber 500
 
     return (
-        <div className="min-h-screen w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-100 flex flex-col items-center py-12 px-4">
+        <div className="min-h-dvh w-full bg-zinc-950 text-zinc-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-100 flex flex-col items-center py-12 px-4">
 
             {/* HEADER */}
             <div className="mb-12 text-center">

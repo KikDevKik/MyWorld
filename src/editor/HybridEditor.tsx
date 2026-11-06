@@ -62,6 +62,7 @@ export interface HybridEditorHandle {
 interface HybridEditorProps {
     content: string;
     onContentChange?: (content: string) => void;
+    onUserEdit?: () => void; // Nov 2026: solo cuando el autor teclea o borra (no al cargar ni al recargar el documento)
     driftMarkers?: DriftMarker[];
     activeSegment?: ActiveSegmentState | null;
     className?: string;
@@ -139,6 +140,7 @@ const titaniumTheme = EditorView.theme({
 const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
     content,
     onContentChange,
+    onUserEdit,
     driftMarkers = [],
     activeSegment = null,
     className = "",
@@ -203,6 +205,8 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
     useEffect(() => {
         onContentChangeRef.current = onContentChange;
     }, [onContentChange]);
+    const onUserEditRef = useRef(onUserEdit);
+    useEffect(() => { onUserEditRef.current = onUserEdit; }, [onUserEdit]);
 
     // 🟢 THE SPY: AUDIT LOGIC
     const { config, user } = useProjectConfig();
@@ -289,6 +293,7 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                         );
 
                         if (isUserEvent) {
+                            onUserEditRef.current?.();
                             // 1. Calculate Change Metrics
                             let charsAdded = 0;
                             update.changes.iterChanges((fromA, toA, fromB, toB, inserted) => {

@@ -424,10 +424,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             type="button"
                             onClick={onGenesis}
                             aria-label="Iniciar proceso creativo (Génesis)"
-                            className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-cyan-900/40 border border-titanium-700 hover:border-cyan-500/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
+                            className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-mira/20 border border-titanium-700 hover:border-mira/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
                         >
-                            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <Sparkles size={14} className="text-purple-400 group-hover:text-cyan-400 transition-colors shrink-0" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-mira/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Sparkles size={14} className="text-purple-400 group-hover:text-mira transition-colors shrink-0" />
                             <span className="text-xs font-medium tracking-wide">{t.spark}</span>
                         </button>
                     </div>
@@ -441,14 +441,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         </svg>
                     </div>
                     {/* Replaced 'Manual de Campo' text with generic 'Explorador' or similar if needed, or kept structural header */}
-                    <h2 className="text-xs font-medium text-titanium-400 uppercase tracking-wider">{t.explorer}</h2>
+                    <h2 className="text-sm font-medium text-titanium-200">{t.explorer}</h2>
 
                     {/* ACTION BUTTONS (DISTRIBUTED) */}
                     <div className="ml-auto flex items-center gap-2">
                         {!isEmptyProject && (
                             <button
                                 onClick={() => setIsCreateItemOpen(true)}
-                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-cyan-400"
+                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-mira"
                                 title="Crear archivo o carpeta"
                                 aria-label="Crear archivo o carpeta"
                             >
@@ -459,7 +459,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             <button
                                 onClick={handleBringNotes}
                                 disabled={isBringing}
-                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-cyan-400 disabled:opacity-40"
+                                className="p-1.5 rounded-md hover:bg-titanium-700 transition-all active:scale-90 text-titanium-400 hover:text-mira disabled:opacity-40"
                                 title="Sincronizar con Drive/Obsidian ahora"
                                 aria-label="Sincronizar con Drive/Obsidian ahora"
                             >
@@ -490,7 +490,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         }}
                                         className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors border-b border-titanium-700/50"
                                     >
-                                        <BrainCircuit size={14} className="text-cyan-400" />
+                                        <BrainCircuit size={14} className="text-mira" />
                                         <span>{t.scanFiles}</span>
                                     </button>
                                     <button
@@ -552,7 +552,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             <div className="flex flex-col items-center p-6 text-center gap-4 mt-4 mb-auto animate-in fade-in zoom-in duration-300">
                             {driveStatus !== 'connected' && (
                                 <div className="w-full mx-3 mb-1 p-3 bg-amber-500/8 border border-amber-500/20 rounded-lg">
-                                    <p className="text-[11px] text-amber-600 leading-relaxed">
+                                    <p className="text-xs text-amber-600 leading-relaxed">
                                         {t.connectDriveHint}
                                     </p>
                                 </div>
@@ -563,7 +563,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
                                 <div className="space-y-1">
                                     <h3 className="text-sm font-bold text-titanium-200 tracking-wide">{t.emptyProject}</h3>
-                                    <p className="text-[11px] text-titanium-400 leading-relaxed max-w-[200px] mx-auto">
+                                    <p className="text-xs text-titanium-400 leading-relaxed max-w-[200px] mx-auto">
                                         {t.emptyVaultMsg}
                                     </p>
                                 </div>
@@ -575,7 +575,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         className="group w-full flex items-center justify-center gap-2.5 py-2.5 bg-gradient-to-b from-titanium-700 to-titanium-800 hover:from-titanium-600 hover:to-titanium-700 border border-titanium-600 hover:border-titanium-500 text-titanium-100 rounded-lg text-xs font-semibold transition-all shadow-md hover:shadow-lg hover:shadow-black/20 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
                                         aria-label={t.createStandard}
                                     >
-                                        <LayoutTemplate size={14} className="text-cyan-500 group-hover:text-cyan-400 transition-colors" />
+                                        <LayoutTemplate size={14} className="text-mira group-hover:text-mira transition-colors" />
                                         {t.createStandard}
                                     </button>
 
@@ -596,15 +596,15 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                 <button
                                     type="button"
                                     onClick={() => setIsCanonOpen(!isCanonOpen)}
-                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-emerald-900/10 transition-colors group focus-visible:ring-2 focus-visible:ring-emerald-500 outline-none"
+                                    className="flex items-center gap-2 w-full px-2 py-1.5 mb-1 rounded hover:bg-titanium-700/40 transition-colors group focus-visible:ring-2 focus-visible:ring-mira outline-none"
                                     aria-expanded={isCanonOpen}
                                     aria-controls="canon-tree"
                                 >
-                                    <ChevronDown size={12} className={`text-emerald-500 transition-transform ${isCanonOpen ? '' : '-rotate-90'}`} />
-                                    <div className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest">
+                                    <ChevronDown size={12} className={`text-titanium-400 transition-transform ${isCanonOpen ? '' : '-rotate-90'}`} />
+                                    <div className="text-xs font-semibold text-titanium-200">
                                         {t.canon}
                                     </div>
-                                    <div className="h-px flex-1 bg-emerald-900/30 ml-2 group-hover:bg-emerald-900/50 transition-colors"></div>
+                                    <div className="h-px flex-1 bg-titanium-700/60 ml-2 group-hover:bg-titanium-600/60 transition-colors"></div>
                                 </button>
 
                                 {isCanonOpen && (
@@ -641,8 +641,8 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                     aria-expanded={isResourcesOpen}
                                     aria-controls="resources-tree"
                                 >
-                                    <ChevronDown size={12} className={`text-blue-500 transition-transform ${isResourcesOpen ? '' : '-rotate-90'}`} />
-                                    <div className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">
+                                    <ChevronDown size={12} className={`text-titanium-400 transition-transform ${isResourcesOpen ? '' : '-rotate-90'}`} />
+                                    <div className="text-xs font-semibold text-titanium-200">
                                         {t.resources}
                                     </div>
                                     <div className="h-px flex-1 bg-blue-900/30 ml-2 group-hover:bg-blue-900/50 transition-colors"></div>
@@ -676,7 +676,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         {unassignedNodes.length > 0 && (
                             <div className="mb-4">
                                 <div className="flex items-center gap-2 px-2 py-1.5 mb-1 text-titanium-500">
-                                    <div className="text-[10px] font-bold uppercase tracking-widest">
+                                    <div className="text-xs font-semibold">
                                         {t.unassigned}
                                     </div>
                                     <div className="h-px flex-1 bg-titanium-800"></div>
@@ -741,7 +741,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 {driveStatus !== 'connected' && (
                     <button
                         onClick={onRefreshTokens}
-                        className={`w-full mb-1.5 flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-cyan-900/20 transition-all text-xs font-medium ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
+                        className={`w-full mb-1.5 flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-mira/10 transition-all text-xs font-medium ${status.color} disabled:opacity-50 disabled:cursor-not-allowed`}
                         title={tStatus.reconnect}
                         disabled={driveStatus === 'refreshing'}
                         aria-label={status.text}
@@ -752,19 +752,19 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                 )}
                 <div className="flex items-center justify-between">
                     <button onClick={() => setIsGuidePanelOpen(true)} title={t.guide} aria-label={t.guide}
-                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">
+                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-mira/10 transition-all">
                         <HelpCircle size={16} />
                     </button>
                     <button onClick={() => setIsMemoryOpen(true)} title="Memoria: lo que MyWorld recuerda de tu proyecto (ver, corregir, borrar)" aria-label="Memoria"
-                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-purple-300/90 hover:text-purple-200 hover:bg-purple-900/20 transition-all text-[11px] font-medium">
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-purple-300/90 hover:text-purple-200 hover:bg-purple-900/20 transition-all text-xs font-medium">
                         <Brain size={15} /> Memoria
                     </button>
                     <button id="sidebar-project-settings" onClick={onOpenProjectSettings} title={t.project} aria-label={t.project}
-                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">
+                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-mira/10 transition-all">
                         <FolderCog size={16} />
                     </button>
                     <button onClick={onOpenSettings} title={t.settings} aria-label={t.settings}
-                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-cyan-900/20 transition-all">
+                        className="p-2 rounded-md text-titanium-400 hover:text-titanium-100 hover:bg-mira/10 transition-all">
                         <Settings size={16} />
                     </button>
                     {driveStatus === 'connected' && (

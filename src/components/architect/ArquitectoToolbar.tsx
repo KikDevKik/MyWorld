@@ -33,7 +33,7 @@ const ArquitectoToolbar: React.FC<ArquitectoToolbarProps> = ({ activeTool, onToo
         { id: 'personajes', icon: <Users size={20} />, label: tArch.characters || 'Personajes', enabled: true },
         { id: 'patches', icon: <GitMerge size={20} />, label: tArch.canonPatches || 'Parches de Canon', enabled: true },
         { id: 'map', icon: <Map size={20} />, label: tArch.worldMap || 'Mapa de Colisiones', enabled: true },
-        { id: 'lore', icon: <Book size={20} />, label: tArch.lore || 'Roadmap Final', enabled: true },
+        { id: 'lore', icon: <Book size={20} />, label: tArch.lore || 'Roadmap', enabled: true },
         { id: 'settings', icon: <Settings size={20} />, label: tArch.settings || 'Ajustes Socráticos', enabled: true }
     ];
 

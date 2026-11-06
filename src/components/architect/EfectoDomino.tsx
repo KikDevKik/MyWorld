@@ -1,5 +1,4 @@
 import React from 'react';
-import { ZoomIn } from 'lucide-react';
 import { RoadmapCard } from '../../types/roadmap';
 import DominoCanvas from './DominoCanvas';
 import { useLanguageStore } from '../../stores/useLanguageStore';
@@ -18,8 +17,8 @@ interface EfectoDominoProps {
      return (
          <div className="flex flex-col h-full min-h-[300px]">
 
-             {/* Sub-toolbar interna del Canvas */}
-             <div className="flex items-center justify-between px-4 py-2 border-b border-titanium-800/40 shrink-0 bg-titanium-950">
+             {/* Sub-toolbar interna del Canvas (solo si hay fases) */}
+             {roadmapCards.length > 0 && <div className="flex items-center justify-between px-4 py-2 border-b border-titanium-800/40 shrink-0 bg-titanium-950">
                  <div className="flex items-center gap-3 text-xs text-titanium-600">
                      <span>{roadmapCards.length} {t.common?.phases || 'fase(s)'}</span>
                      {roadmapCards.length > 0 && (
@@ -31,15 +30,7 @@ interface EfectoDominoProps {
                          </span>
                      )}
                  </div>
-                 <button
-                     disabled
-                     title={`Zoom — ${t.common?.comingSoon || 'próximamente'}`}
-                     className="px-2 py-1 text-xs text-titanium-700 border border-titanium-800/50 rounded flex items-center gap-1 opacity-40 cursor-not-allowed"
-                 >
-                     <ZoomIn size={11} />
-                     100%
-                 </button>
-             </div>
+             </div>}
             {/* Canvas principal */}
             <div className="flex-1 overflow-hidden bg-titanium-950 relative">
                 {/* Grid de fondo sutil */}

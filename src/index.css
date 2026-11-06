@@ -206,3 +206,10 @@ body {
 .cm-drift-low {
     background-color: rgba(6, 78, 59, 0.2) !important; /* Emerald 900 / 20% */
 }
+
+/* Nov 2026: en el celular, Safari hace zoom al tocar un campo con letra menor de 16 px. */
+@media (max-width: 1023px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), textarea, select {
+        font-size: 16px;
+    }
+}

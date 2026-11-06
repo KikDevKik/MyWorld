@@ -84,7 +84,7 @@ const ProjectHUD: React.FC = () => {
 
       {/* LEFT: Project Identity */}
       <div className="flex flex-col min-w-0 w-full">
-        <span className={`text-[10px] font-mono tracking-widest uppercase mb-0.5 ${isCritical ? 'text-orange-400 font-bold' : 'text-titanium-500'}`}>
+        <span className={`text-xs mb-0.5 ${isCritical ? 'text-orange-400 font-bold' : 'text-titanium-500'}`}>
           {isCritical ? (t.common?.criticalFailure || "⚠️ FALLO CRÍTICO") : (t.common?.project || "PROYECTO")}
         </span>
 
@@ -98,7 +98,7 @@ const ProjectHUD: React.FC = () => {
              </button>
         ) : (
         */}
-            <h3 className="text-sm font-bold text-titanium-200 truncate pr-2 group-hover:text-cyan-400 transition-colors w-full">
+            <h3 className="font-serif text-[15px] text-titanium-100 truncate pr-2 group-hover:text-titanium-50 transition-colors w-full">
               {projectName}
             </h3>
         {/* )} */}

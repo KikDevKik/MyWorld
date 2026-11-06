@@ -175,7 +175,7 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
         const u = res.usage || {};
         const stopReason = String(res.stop_reason || '');
         logger.info(`🟣 [CLAUDE] ${label} | ${opts.model} | stop=${stopReason} | in=${u.input_tokens} cacheW=${u.cache_creation_input_tokens || 0} cacheR=${u.cache_read_input_tokens || 0} out=${u.output_tokens} (pensamiento=${u.output_tokens_details?.thinking_tokens ?? '?'})`);
-        recordUsage(opts.model, u).catch(() => {});
+        recordUsage(opts.model, u, label).catch(() => {});
         if (!text) {
             const details = JSON.stringify(res.stop_details || res.content || []).slice(0, 500);
             logger.warn(`⚠️ [CLAUDE] ${label}: respuesta vacía (stop=${stopReason}) ${details}`);
@@ -190,7 +190,18 @@ export async function callClaude(opts: ClaudeCallOptions): Promise<ClaudeCallRes
     }
 }
 
-async function recordUsage(model: string, u: any) {
+// Nov 2026: el gasto también se guarda por herramienta, para saber en qué se fue (Ajustes → IA).
+export function featureOf(label: string): string {
+    const l = String(label || "");
+    if (/Taller/i.test(l)) return "biblioteca";
+    if (/^Arquitecto/i.test(l)) return "arquitecto";
+    if (/^(Director|ChatRAG|Mira)/i.test(l)) return "mira";
+    if (/^(Chapter|Tribunal|Hater|Guardian|Reality|Friction|Resonance)/i.test(l)) return "estudio";
+    if (/^(WhatIf|Nexus|Forge|Personaje|Profile|Psychology|Soul)/i.test(l)) return "mesa";
+    return "otras";
+}
+
+async function recordUsage(model: string, u: any, label = "") {
     const uid = getRequestUid();
     if (!uid) return;
     const p = PRICES[model];
@@ -215,6 +226,7 @@ async function recordUsage(model: string, u: any) {
         inputTokens: FieldValue.increment(inTok + cw + cr),
         outputTokens: FieldValue.increment(outTok),
         byModel: { [model.replace(/[.\-]/g, "_")]: FieldValue.increment(cost) },
+        byFeature: { [featureOf(label)]: FieldValue.increment(cost) },
         updatedAt: new Date().toISOString(),
     }, { merge: true });
 }

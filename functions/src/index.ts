@@ -4331,7 +4331,7 @@ export const getAIStatus = onCall(
     const u: any = (await getFirestore().collection("users").doc(request.auth.uid).collection("ai_usage").doc(month).get()).data() || {};
     return {
       claudeActive, myworldAvailable,
-      monthCostUsd: u.costUsd || 0, calls: u.calls || 0,
+      monthCostUsd: u.costUsd || 0, calls: u.calls || 0, byFeature: u.byFeature || {},
       byokCostUsd: u.byokCostUsd || 0, byokCalls: u.byokCalls || 0,
       capUsd: monthlyCapUsd(), conversationModel: "Claude Sonnet 5.5", taskModel: "Claude Haiku 5.5",
     };

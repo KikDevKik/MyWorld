@@ -36,10 +36,10 @@ export default function DrivePatches({ patches, sessionId, accessToken, onPatche
 
     if (patches.length === 0) {
         return (
-            <div className="flex flex-col items-center justify-center h-full gap-3 opacity-50 p-6">
-                <GitMerge size={24} className="text-titanium-600" />
-                <p className="text-titanium-500 text-sm text-center">
-                    Los parches de Canon aparecerán aquí cuando el Arquitecto proponga cambios a tus documentos al resolver una disonancia.
+            <div className="flex flex-col items-center justify-center h-full gap-3 p-6">
+                <GitMerge size={24} className="text-titanium-500" aria-hidden="true" />
+                <p className="text-titanium-300 text-[15px] text-center max-w-[460px] text-pretty">
+                    Cuando el Arquitecto proponga cambiar algo en tus documentos (por ejemplo, al resolver una contradicción), lo verás aquí para aprobarlo o descartarlo. Nada se aplica sin tu permiso.
                 </p>
             </div>
         );

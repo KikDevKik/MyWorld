@@ -6,7 +6,9 @@ import { callFunction } from '../../services/api';
 import { AiLevel, getAiLevel, setAiLevelStored, getGeminiPaid, setGeminiPaidStored } from '../../hooks/aiLevel';
 
 const usd = (n: number) => n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: n > 0 && n < 0.01 ? 3 : 2 });
-interface Status { myworldAvailable?: boolean; claudeActive?: boolean; monthCostUsd: number; calls: number; byokCostUsd?: number; byokCalls?: number; capUsd?: number }
+interface Status { myworldAvailable?: boolean; claudeActive?: boolean; monthCostUsd: number; calls: number; byokCostUsd?: number; byokCalls?: number; capUsd?: number; byFeature?: Record<string, number> }
+// Nov 2026: en qué se fue el gasto del mes (se registra desde noviembre; lo anterior cuenta en el total).
+const FEATURE_NAMES: Record<string, string> = { arquitecto: 'La mesa del arquitecto', mira: 'Mira', estudio: 'El estudio (reportes)', mesa: 'Mapa, fichero y frasco', biblioteca: 'La biblioteca', otras: 'Tareas en segundo plano' };
 interface Props { hasGeminiKey: boolean; hasAnthropicKey: boolean }
 
 export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props) {
@@ -68,6 +70,22 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                                 <div className={`h-full rounded-full ${status.capUsd && status.monthCostUsd >= status.capUsd ? 'bg-red-400' : status.capUsd && status.monthCostUsd >= status.capUsd * 0.8 ? 'bg-amber-300' : 'bg-mira'}`} style={{ width: `${Math.min(100, Math.max(3, status.capUsd ? (status.monthCostUsd / status.capUsd) * 100 : 0))}%` }} />
                             </div>
                             <p className="text-titanium-300">Este mes: US$ {usd(status.monthCostUsd)} de US$ {status.capUsd || 8} en {status.calls} llamadas. Al 80 % pasa a Haiku; al 100 % sigue con Gemini hasta el 1 del mes siguiente.</p>
+                            {status.byFeature && Object.keys(status.byFeature).length > 0 && (() => {
+                                const rows = Object.entries(status.byFeature).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+                                const tracked = rows.reduce((s, [, v]) => s + v, 0);
+                                const before = Math.max(0, status.monthCostUsd - tracked);
+                                return (
+                                    <div className="mt-1">
+                                        <p className="text-titanium-400">En qué se usó:</p>
+                                        <ul className="mt-1 flex flex-col gap-0.5">
+                                            {rows.map(([k, v]) => (
+                                                <li key={k} className="flex justify-between gap-3 text-titanium-300"><span>{FEATURE_NAMES[k] || k}</span><span className="tabular-nums">US$ {usd(v)}</span></li>
+                                            ))}
+                                            {before >= 0.01 && <li className="flex justify-between gap-3 text-titanium-500"><span>Antes de separar por herramienta</span><span className="tabular-nums">US$ {usd(before)}</span></li>}
+                                        </ul>
+                                    </div>
+                                );
+                            })()}
                         </>
                     ) : <p className="text-titanium-500">Lo abriremos cuando estén listos los planes.</p>}
                 </Card>

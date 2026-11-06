@@ -444,7 +444,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         try {
             const r = await callFunction<{ summary: string; savedAs?: string | null }>('arquitectoCerrarSesion', { sessionId: arquitectoSessionId, accessToken }, { timeout: 180000 });
             if (r?.summary) appendAssistantMessage(r.summary);
-            toast.success('Sesión resumida. Lo decidido quedó en tu plan del escritorio.', { description: r?.savedAs ? `El resumen está en ${r.savedAs}.` : undefined });
+            toast.success('Sesión resumida. Lo decidido quedó en tu roadmap del escritorio.', { description: r?.savedAs ? `El resumen está en ${r.savedAs}.` : undefined });
         } catch (e: any) {
             toast.error(e?.message || 'No pude resumir la sesión.');
         } finally {
@@ -668,7 +668,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             {agendaCerrar && (
                                 <button onClick={handleCloseSession} disabled={isClosing} className="ml-auto inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-coral text-on-coral text-sm font-medium hover:brightness-110 disabled:opacity-50">
                                     {isClosing ? <Loader2 size={14} className="animate-spin" aria-hidden="true" /> : <ListChecks size={14} aria-hidden="true" />}
-                                    Ya puedes escribir: pasar al plan
+                                    Ya puedes escribir: pasar al roadmap
                                 </button>
                             )}
                         </div>
@@ -1051,7 +1051,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         >
                             <Book size={20} />
                             <span className="absolute left-full ml-4 px-2 py-1 bg-titanium-950 border border-titanium-800 rounded text-xs text-titanium-200 opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap transition-opacity">
-                                El plan (roadmap)
+                                Roadmap
                             </span>
                         </button>
 
@@ -1224,7 +1224,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
 
             <SlideUpPanel
                 isOpen={activeTool === 'lore'}
-                title="El plan"
+                title="Roadmap"
                 icon={<Book size={16} />}
                 onClose={() => setActiveTool('none')}
             >
