@@ -34,7 +34,7 @@ const JUDGE_COLORS = {
     hater: '#fc6464',
 } as const;
 
-const newsreaderStyle: React.CSSProperties = { fontFamily: "'Newsreader', Georgia, serif" };
+const newsreaderStyle: React.CSSProperties = { fontFamily: "'Literata', Georgia, serif" };
 
 const TribunalPanel: React.FC<TribunalPanelProps> = ({ onClose, initialText = '', currentFileId, accessToken }) => {
     const { currentLanguage } = useLanguageStore();

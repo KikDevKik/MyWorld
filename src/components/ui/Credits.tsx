@@ -22,7 +22,7 @@ const Credits: React.FC = () => {
             <div className="flex flex-wrap gap-4">
                 {list.map((s, i) => (
                     <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="group flex items-center gap-1 text-titanium-200 hover:text-white transition-all">
-                        <span style={{ fontFamily: "'Newsreader', Georgia, serif", fontSize: '16px' }} className="group-hover:underline decoration-1 underline-offset-4">{s.name}</span>
+                        <span style={{ fontFamily: "'Literata', Georgia, serif", fontSize: '16px' }} className="group-hover:underline decoration-1 underline-offset-4">{s.name}</span>
                         <ExternalLink size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-titanium-400" />
                     </a>
                 ))}

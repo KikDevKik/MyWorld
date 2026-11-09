@@ -49,6 +49,12 @@ if ($Solo -ne 'web') {
     }
 }
 if ($Solo -ne 'funciones') {
+    # Nov 2026: si cambiaron las dependencias (package-lock.json más nuevo que lo instalado), se instalan antes de compilar.
+    $lock = Get-Item 'package-lock.json'
+    $instalado = Get-Item 'node_modules/.package-lock.json' -ErrorAction SilentlyContinue
+    if (-not $instalado -or $lock.LastWriteTime -gt $instalado.LastWriteTime) {
+        Paso 'Instalar dependencias nuevas de la web' { npm install --no-audit --no-fund }
+    }
     Paso 'Compilar la web' { npm run build }
     PasoConReintento 'Publicar la web' { firebase deploy --only hosting }
 }

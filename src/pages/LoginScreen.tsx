@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { getAuth, signInWithPopup, GoogleAuthProvider, User, setPersistence, browserLocalPersistence } from 'firebase/auth';
+import { getAuth, signInWithPopup, signInWithRedirect, GoogleAuthProvider, User, setPersistence, browserLocalPersistence } from 'firebase/auth';
+
+// Nov 2026: en el iPhone, con MyWorld agregado a la pantalla de inicio, la ventana emergente de Google
+// se abre aparte y nunca devuelve la sesión: el botón se quedaba en «Entrando…». Ahí se entra por redirección
+// (Google y vuelta a la app, en la misma ventana). Funciona porque authDomain es el propio myworldhistory.site.
+function isStandaloneApp(): boolean {
+    try {
+        return (navigator as any).standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+    } catch { return false; }
+}
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { MiraSprite } from '../components/mira/MiraSprite';
 
@@ -25,22 +34,20 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
         const auth = getAuth();
         const provider = new GoogleAuthProvider();
         
-        const stateToken = crypto.randomUUID();
-        sessionStorage.setItem('oauth_state', stateToken);
-        
         provider.addScope('https://www.googleapis.com/auth/drive.file');
-        provider.setCustomParameters({ 
-            prompt: 'consent',
-            state: stateToken
-        });
+        // Nov 2026: antes se forzaba la pantalla de permisos (prompt: 'consent') en cada inicio de sesión,
+        // y Google mostraba «MyWorld quiere acceder a tu cuenta» aunque ya los hubieras dado. Ahora solo
+        // aparece la primera vez; después basta con elegir la cuenta. (Firebase ya maneja el parámetro state.)
+        provider.setCustomParameters({ prompt: 'select_account' });
 
         try {
             await setPersistence(auth, browserLocalPersistence);
+            if (isStandaloneApp()) {
+                await signInWithRedirect(auth, provider);
+                return; // la página se va a Google y vuelve; App recoge el resultado
+            }
             const result = await signInWithPopup(auth, provider);
-            
-            const savedState = sessionStorage.getItem('oauth_state');
-            sessionStorage.removeItem('oauth_state');
-            
+
             const credential = GoogleAuthProvider.credentialFromResult(result);
             const token = credential?.accessToken ?? null;
             onLoginSuccess(result.user, token);
@@ -96,8 +103,9 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLoginSuccess }) => {
 
                 <div className="mt-6 w-full rounded-xl border border-titanium-800 bg-titanium-900/60 px-4 py-3 text-left text-[13px] leading-relaxed text-titanium-300">
                     <p>Tus documentos se guardan en tu Google Drive: MyWorld solo crea y edita las carpetas de tu proyecto.</p>
-                    <p className="mt-1.5">Para buscar en tu canon, MyWorld guarda fragmentos de tus textos, y también tus conversaciones con Mira y el Arquitecto. Si quieres que los borremos, escríbenos a <a href="mailto:deidev180@gmail.com" className="text-titanium-100 underline underline-offset-2">deidev180@gmail.com</a>.</p>
+                    <p className="mt-1.5">Para buscar en tu canon, MyWorld guarda fragmentos de tus textos, y también tus conversaciones con Mira y el Arquitecto. Puedes borrarlos cuando quieras desde Ajustes.</p>
                     <p className="mt-1.5 text-titanium-400">Para usar la IA hace falta una clave gratuita de Google Gemini. Te ayudamos a crearla al entrar.</p>
+                    <p className="mt-1.5 text-titanium-400">La primera vez, Google te pide permiso para que MyWorld use tu Drive. Es el permiso más pequeño que existe: solo ve los archivos que MyWorld crea, nunca el resto de tu Drive.</p>
                 </div>
 
                 <nav aria-label="Información legal" className="mt-6 flex items-center gap-4 text-sm text-titanium-400">

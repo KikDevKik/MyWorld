@@ -14,7 +14,7 @@ import { ErrorBoundary } from "./components/ErrorBoundary";
  * - src/services/api.ts
  */
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuthProvider, getRedirectResult } from 'firebase/auth';
 import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { callFunction } from './services/api';
 import { getAiLevel, setAiLevelStored } from './hooks/aiLevel';
@@ -1812,6 +1812,12 @@ function App() {
         }
 
         const auth = getAuth();
+        // Nov 2026: al volver del inicio de sesión por redirección (app del iPhone en la pantalla de inicio),
+        // se recoge el permiso de Drive que trae Google.
+        getRedirectResult(auth).then(res => {
+            const token = res ? GoogleAuthProvider.credentialFromResult(res)?.accessToken : null;
+            if (token) setOauthToken(token);
+        }).catch(e => console.warn('[AUTH] Sin resultado de redirección:', e?.code || e?.message));
         const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
             setUser(currentUser);
             setAuthLoading(false);

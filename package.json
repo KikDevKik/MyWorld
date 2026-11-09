@@ -38,7 +38,7 @@
     "d3-polygon": "^3.0.1",
     "d3-selection": "^3.0.0",
     "driver.js": "^1.4.0",
-    "firebase": "^10.12.3",
+    "firebase": "^12.19.0",
     "framer-motion": "^12.33.0",
     "lucide-react": "^0.554.0",
     "marked": "^17.0.1",
@@ -67,5 +67,9 @@
     "playwright": "^1.58.2",
     "typescript": "~5.8.2",
     "vite": "^6.4.1"
+  },
+  "overrides": {
+    "@grpc/grpc-js": "^1.14.7",
+    "postcss-selector-parser": "^6.1.5"
   }
 }

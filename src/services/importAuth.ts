@@ -14,8 +14,8 @@ export async function requestImportScope(): Promise<string> {
     // Solicitar SOLO el scope adicional — Google hace el merge con los existentes
     provider.addScope(IMPORT_SCOPE);
     
-    // Forzar selección de cuenta para que Google muestre el consent screen
-    provider.setCustomParameters({ prompt: 'consent' });
+    // Nov 2026: sin forzar la pantalla de permisos; Google solo la muestra si todavía no lo concediste.
+    provider.setCustomParameters({ include_granted_scopes: 'true' });
     
     try {
         const result = await signInWithPopup(auth, provider);

@@ -1,0 +1,121 @@
+/* Nov 2026: fuentes servidas desde el propio sitio (antes Google Fonts). Fontsource, licencia OFL. */
+/* figtree-latin-400-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 400;
+  src: url(/fonts/figtree-latin-400-normal.woff2) format('woff2');
+}
+/* figtree-latin-500-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 500;
+  src: url(/fonts/figtree-latin-500-normal.woff2) format('woff2');
+}
+/* figtree-latin-600-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 600;
+  src: url(/fonts/figtree-latin-600-normal.woff2) format('woff2');
+}
+/* figtree-latin-700-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 700;
+  src: url(/fonts/figtree-latin-700-normal.woff2) format('woff2');
+}
+/* figtree-latin-ext-400-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 400;
+  src: url(/fonts/figtree-latin-ext-400-normal.woff2) format('woff2');
+}
+/* figtree-latin-ext-500-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 500;
+  src: url(/fonts/figtree-latin-ext-500-normal.woff2) format('woff2');
+}
+/* figtree-latin-ext-600-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 600;
+  src: url(/fonts/figtree-latin-ext-600-normal.woff2) format('woff2');
+}
+/* figtree-latin-ext-700-normal */
+@font-face {
+  font-family: 'Figtree';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 700;
+  src: url(/fonts/figtree-latin-ext-700-normal.woff2) format('woff2');
+}
+/* literata-latin-400-normal */
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 400;
+  src: url(/fonts/literata-latin-400-normal.woff2) format('woff2');
+}
+/* literata-latin-600-normal */
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 600;
+  src: url(/fonts/literata-latin-600-normal.woff2) format('woff2');
+}
+/* literata-latin-400-italic */
+@font-face {
+  font-family: 'Literata';
+  font-style: italic;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 400;
+  src: url(/fonts/literata-latin-400-italic.woff2) format('woff2');
+}
+/* literata-latin-ext-400-normal */
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 400;
+  src: url(/fonts/literata-latin-ext-400-normal.woff2) format('woff2');
+}
+/* literata-latin-ext-600-normal */
+@font-face {
+  font-family: 'Literata';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 600;
+  src: url(/fonts/literata-latin-ext-600-normal.woff2) format('woff2');
+}
+/* literata-latin-ext-400-italic */
+@font-face {
+  font-family: 'Literata';
+  font-style: italic;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 400;
+  src: url(/fonts/literata-latin-ext-400-italic.woff2) format('woff2');
+}
+/* jetbrains-mono-latin-400-normal */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-display: var(--fontsource-display, swap);
+  font-weight: 400;
+  src: url(/fonts/jetbrains-mono-latin-400-normal.woff2) format('woff2');
+}
