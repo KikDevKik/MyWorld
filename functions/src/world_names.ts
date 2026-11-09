@@ -419,8 +419,9 @@ export const worldNames = onCall(
 
         // Nov 2026: lista de documentos indexados (para «Traer un documento» del Arquitecto), con su carpeta.
         if (mode === "files") {
-            const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category", "type", "mimeType").limit(800).get();
-            return { files: snap.docs.map(d => { const x: any = d.data(); return { id: d.id, name: String(x.name || ""), path: String(x.path || ""), category: x.category || "canon", folder: x.type === "folder" || x.mimeType === "application/vnd.google-apps.folder" }; }).filter(f => f.name && !f.folder) };
+            const snap = await getFirestore().collection("TDB_Index").doc(uid).collection("files").select("name", "path", "category", "type", "mimeType", "driveId").limit(800).get();
+            // Nov 2026: sin las entradas fantasma de las fichas antiguas (otra clave, mismo archivo de Drive).
+            return { files: snap.docs.filter(d => { const dr = (d.data() as any).driveId; return !dr || dr === d.id; }).map(d => { const x: any = d.data(); return { id: d.id, name: String(x.name || ""), path: String(x.path || ""), category: x.category || "canon", folder: x.type === "folder" || x.mimeType === "application/vnd.google-apps.folder" }; }).filter(f => f.name && !f.folder) };
         }
 
         if (mode === "scan") {

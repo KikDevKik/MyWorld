@@ -116,7 +116,7 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
                         {busy ? <><Loader2 size={12} className="animate-spin" /> Guardando…</> : <><Plus size={12} /> Añadir</>}
                     </button>
                 </div>
-                <p className="px-5 pb-3 text-[10px] text-titanium-600">Hay una copia en la carpeta “_Memoria MyWorld” de tu proyecto (la ves en Obsidian). Edita aquí: los cambios hechos en Obsidian no vuelven a MyWorld.</p>
+                <p className="px-5 pb-3 text-[12px] text-titanium-500">Hay una copia en la carpeta «_Memoria MyWorld» de tu Drive. Edítala aquí: si la cambias en otro programa (como Obsidian), MyWorld no ve esos cambios.</p>
             </div>
         </div>
     );

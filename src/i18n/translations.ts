@@ -105,13 +105,15 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             scanFiles: "Escanear Archivos",
             loadMemory: "Cargar Memoria"
         },
+        // Nov 2026: sin mayúsculas sostenidas (se leen peor y «gritan»).
         folderNames: {
-            universe: "UNIVERSO",
-            characters: "PERSONAJES",
-            bestiary: "BESTIARIO",
-            manuscript: "MANUSCRITO",
-            extras: "EXTRAS",
-            resources: "RECURSOS"
+            universe: "Universo",
+            characters: "Personajes",
+            bestiary: "Bestiario",
+            objects: "Objetos",
+            manuscript: "Manuscrito",
+            extras: "Extras",
+            resources: "Recursos"
         },
         editor: {
             emptyTitle: "Espacio de Trabajo Vacío",
@@ -817,12 +819,13 @@ STRICT ANTI-HALLUCINATION RULE: If there is no data in the context about an elem
             loadMemory: "Load Memory"
         },
         folderNames: {
-            universe: "UNIVERSE",
-            characters: "CHARACTERS",
-            bestiary: "BESTIARY",
-            manuscript: "MANUSCRIPT",
-            extras: "EXTRAS",
-            resources: "RESOURCES"
+            universe: "Universe",
+            characters: "Characters",
+            bestiary: "Bestiary",
+            objects: "Objects",
+            manuscript: "Manuscript",
+            extras: "Extras",
+            resources: "Resources"
         },
         editor: {
             emptyTitle: "Empty Workspace",

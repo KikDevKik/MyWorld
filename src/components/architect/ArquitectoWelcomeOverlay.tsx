@@ -8,11 +8,12 @@ interface ArquitectoWelcomeOverlayProps {
     onDismiss: () => void;
     onHighlight: (tool: string | null) => void;
     narrow?: boolean; // en pantallas angostas las herramientas están arriba, no abajo
+    hideTools?: string[]; // Nov 2026: herramientas que no se muestran en esta conversación
 }
 
 type Step = { tool: string | null; icon: React.ReactNode; title: string; subtitle?: string; content: string; tip?: string };
 
-const STEPS: Step[] = [
+const ALL_STEPS: Step[] = [
     {
         tool: null,
         icon: <img src="/assets/objetos/icono/planos.png" alt="" width={22} height={22} className="w-[22px] h-[22px]" style={{ imageRendering: 'pixelated' }} />,
@@ -29,7 +30,8 @@ const STEPS: Step[] = [
     { tool: 'settings', icon: <Settings size={18} />, title: 'Ajustes', content: 'Ajusta cómo trabaja el Arquitecto contigo.' },
 ];
 
-export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight, narrow }: ArquitectoWelcomeOverlayProps) {
+export function ArquitectoWelcomeOverlay({ onDismiss, onHighlight, narrow, hideTools = [] }: ArquitectoWelcomeOverlayProps) {
+    const STEPS = ALL_STEPS.filter(s => !s.tool || !hideTools.includes(s.tool));
     const [step, setStep] = useState(0);
     const callbacksRef = useRef({ onDismiss, onHighlight });
     useEffect(() => { callbacksRef.current = { onDismiss, onHighlight }; });

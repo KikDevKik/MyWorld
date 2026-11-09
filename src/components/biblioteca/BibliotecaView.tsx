@@ -400,7 +400,7 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
                                 <div className={`${card} flex flex-col gap-3`}>
                                     <h2 className="font-serif text-xl text-titanium-100 text-pretty">{exercise.titulo}</h2>
                                     <p className="text-[15px] text-titanium-100 leading-relaxed">{exercise.consigna}</p>
-                                    <p className="text-[15px] text-mira leading-relaxed"><span className="text-titanium-400">La idea es que: </span>{exercise.objetivo}</p>
+                                    <p className="text-[15px] text-mira leading-relaxed"><span className="text-titanium-400">La idea es que: </span>{String(exercise.objetivo || '').replace(/^\s*la idea es que:?\s*/i, '')}</p>
                                     <p className="text-sm text-titanium-400">Unas {exercise.palabras} palabras.</p>
                                     {exercise.pista && (
                                         <div>

@@ -18,6 +18,7 @@ import { textHash } from "./utils/text_hash";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { claudeEnabledForCurrentUser, myworldClaudeAvailable, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, REWRITE_RULE, monthlyCapUsd } from "./utils/claude_router";
 import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
+import { planContext } from "./plan_context";
 import { getMemoryContext } from "./utils/memory_store";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
@@ -181,6 +182,38 @@ export const forgeToolExecution = onCall(
   }
 );
 
+/** Nov 2026: crea o corrige la entrada del índice de un archivo (carpeta real, categoría) y borra entradas fantasma.
+ *  Devuelve true si cambió algo (para re-indexar ya). */
+async function repairIndexEntry(db: FirebaseFirestore.Firestore, drive: any, uid: string, fileId: string, current: any | null): Promise<boolean> {
+  const files = db.collection("TDB_Index").doc(uid).collection("files");
+  let changed = false;
+  try {
+    const ghosts = await files.where("driveId", "==", fileId).limit(5).get();
+    for (const g of ghosts.docs) if (g.id !== fileId) { await g.ref.delete(); changed = true; }
+  } catch { /* sin índice por driveId: no pasa nada */ }
+  const pathHasFolder = current && String(current.path || "").includes("/");
+  if (current && (pathHasFolder || current.parentId)) return changed;
+  try {
+    const meta = await drive.files.get({ fileId, fields: "id,name,parents,mimeType" });
+    const name = String(meta.data.name || current?.name || "");
+    const parentId = meta.data.parents?.[0];
+    if (!name || !parentId) return changed;
+    const parent = await files.doc(parentId).get();
+    if (!parent.exists && !current) return changed; // fuera de las carpetas del proyecto: no se indexa
+    const p: any = parent.exists ? parent.data() : {};
+    const path = parent.exists ? `${p.path || p.name}/${name}` : (current?.path || name);
+    await files.doc(fileId).set({
+      name, path, parentId, driveId: fileId, category: p.category || current?.category || "canon",
+      saga: p.saga || current?.saga || "Global", mimeType: meta.data.mimeType || "text/markdown",
+      ...(current ? {} : { lastIndexed: new Date(0).toISOString() }),
+    }, { merge: true });
+    return true;
+  } catch (e: any) {
+    logger.warn(`[SAVE] No se pudo reparar la entrada del índice de ${fileId}: ${e?.message}`);
+    return changed;
+  }
+}
+
 /**
  * SAVE DRIVE FILE (Auto-Save Bridge)
  * Directly updates a file in Google Drive.
@@ -237,13 +270,18 @@ export const saveDriveFile = onCall(
       try {
         const db = getFirestore();
         const fileRef = db.collection("TDB_Index").doc(request.auth.uid).collection("files").doc(fileId);
-        const fSnap = await fileRef.get();
+        let fSnap = await fileRef.get();
+        // Nov 2026: un capítulo creado desde «Nuevo» no tenía entrada en el índice y el Arquitecto no lo leía nunca.
+        // Las fichas antiguas dejaban además una entrada fantasma (con otra clave) y la ruta sin carpeta («raíz»).
+        // Al guardar se arregla: se crea o corrige la entrada con su carpeta real y se borran los fantasmas.
+        const repaired = await repairIndexEntry(db, drive, request.auth.uid, fileId, fSnap.exists ? fSnap.data() : null);
+        if (repaired) { fSnap = await fileRef.get(); }
         if (fSnap.exists) {
           const f: any = fSnap.data();
           const isAuthorMemory = /^memoria del autor\.md$/i.test(f.name || '');
           const last = f.lastIndexed ? new Date(f.lastIndexed).getTime() : 0;
           // Nov 2026: cada 3 min (antes 10): el Arquitecto no veía lo escrito hace un rato en un capítulo nuevo.
-          if (isAuthorMemory || Date.now() - last > 3 * 60 * 1000) {
+          if (isAuthorMemory || repaired || Date.now() - last > 3 * 60 * 1000) {
             const embedder = new GeminiEmbedder({
               apiKey: getAIKey(request.data, googleApiKey.value()),
               model: "gemini-embedding-001",
@@ -2065,11 +2103,13 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${REWRITE_RULE}\n\n${CRAFT_RULE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
         // Memoria de MyWorld: fuera de la caché (cambia cuando se guarda algo nuevo)
         // Nov 2026: + los focos de oficio ya anotados (para no repetirlos).
-        const [myworldMemoryBase, craftNotes] = await Promise.all([
+        // Nov 2026: + el plan del libro (misiones del roadmap): Mira no sabía lo decidido con el Arquitecto.
+        const [myworldMemoryBase, craftNotes, planNotes] = await Promise.all([
           getMemoryContext(userId, `${finalQuery} ${activeFileName || ''} ${(activeFileContent || '').slice(0, 3000)}`),
           craftContext(userId),
+          planContext(userId),
         ]);
-        const myworldMemory = [myworldMemoryBase, craftNotes].filter(Boolean).join('\n\n');
+        const myworldMemory = [myworldMemoryBase, planNotes, craftNotes].filter(Boolean).join('\n\n');
         // Quitar bloques <thinking> de respuestas anteriores (también provocan el bloqueo de Claude)
         // Oct 2026 (costos): el historial era la parte más cara sin caché (~12k tokens por mensaje): las
         // respuestas largas del Director viajaban completas 20 veces. Ahora: últimos 12 mensajes; los del

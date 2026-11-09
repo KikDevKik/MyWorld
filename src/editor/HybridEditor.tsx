@@ -13,6 +13,7 @@ import { lintKeymap } from '@codemirror/lint';
 
 import { driftExtension, setDriftMarkers, DriftMarker } from './extensions/driftPlugin';
 import { livePreview } from './extensions/livePreviewPlugin';
+import { systemMetaFold, systemMetaTheme } from './extensions/systemMetaFold';
 import { narratorHighlighter, setActiveSegment, ActiveSegmentState } from './extensions/narratorHighlighter';
 import '../styles/narrator.css';
 import { Lock } from 'lucide-react';
@@ -281,6 +282,8 @@ const HybridEditor = forwardRef<HybridEditorHandle, HybridEditorProps>(({
                 flashField,
                 driftExtension,
                 livePreview,
+                systemMetaFold,
+                systemMetaTheme,
                 narratorHighlighter, // 🟢 NEW
 
                 // Update Listener (The Spy's Eyes)

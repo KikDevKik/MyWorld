@@ -7,11 +7,13 @@ import { Modal } from './Modal';
 interface CreateProjectModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (name: string) => Promise<void>;
+    onSubmit: (name: string, kind: 'mundo' | 'realista') => Promise<void>;
 }
 
 const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose, onSubmit }) => {
     const [projectName, setProjectName] = useState('');
+    // Nov 2026: las carpetas dependen del libro. Un libro realista no necesita «Bestiario» ni «Objetos».
+    const [kind, setKind] = useState<'mundo' | 'realista'>('mundo');
     const [isLoading, setIsLoading] = useState(false);
 
     // 🟢 LOCALIZATION
@@ -24,7 +26,7 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
 
         setIsLoading(true);
         try {
-            await onSubmit(projectName);
+            await onSubmit(projectName, kind);
             onClose();
         } catch (error) {
             console.error("Error creating project:", error);
@@ -92,6 +94,18 @@ const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ isOpen, onClose
                         {t.description}
                     </p>
                 </div>
+                <fieldset className="space-y-2" disabled={isLoading}>
+                    <legend className="text-xs font-semibold text-titanium-400 mb-2">¿Qué tipo de historia es?</legend>
+                    {([
+                        ['mundo', 'Con un mundo propio', 'Fantasía, ciencia ficción, mundos inventados: carpetas para universo, personajes, bestiario y objetos.'],
+                        ['realista', 'En nuestro mundo', 'Realista, contemporánea, histórica: solo personajes, lugares y reglas del mundo, y tu manuscrito.'],
+                    ] as const).map(([v, label, hint]) => (
+                        <label key={v} className={`flex gap-3 rounded-lg border px-3 py-2.5 cursor-pointer ${kind === v ? 'border-mira/60 bg-mira/10' : 'border-titanium-700 hover:border-titanium-500'}`}>
+                            <input type="radio" name="bookKind" value={v} checked={kind === v} onChange={() => setKind(v)} className="mt-1 accent-[var(--color-mira)]" />
+                            <span><span className="block text-sm text-titanium-100">{label}</span><span className="block text-xs text-titanium-400 leading-relaxed">{hint}</span></span>
+                        </label>
+                    ))}
+                </fieldset>
             </form>
         </Modal>
     );

@@ -10,6 +10,8 @@ import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { lineDiff } from '../../utils/lineDiff';
 import { textHash } from '../../utils/textHash';
+import { useIsNarrow } from '../../hooks/useMediaQuery';
+import { costSuffix } from '../../utils/costHint';
 import { MiraSprite } from '../mira/MiraSprite';
 
 interface Personaje { id: string; nombre: string; alias: string[]; tipo: 'personaje' | 'criatura' | 'grupo'; rol: string; resumen: string; fichaFileId: string | null; fichaNombre: string | null; archivos: string[] }
@@ -26,6 +28,8 @@ const ROL_STYLE: Record<string, string> = {
 };
 
 export default function PersonajesView({ accessToken, onOpenFile }: Props) {
+    // Nov 2026: en el celular, lista o ficha (una a la vez). Antes la ficha quedaba con 64 px y fuera de la pantalla.
+    const narrow = useIsNarrow();
     const [list, setList] = useState<Personaje[]>([]);
     const [scannedAt, setScannedAt] = useState<string | null>(null);
     const [carpetas, setCarpetas] = useState<{ id: string; path: string }[]>([]);
@@ -48,7 +52,9 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
             setList(r?.personajes || []);
             setScannedAt(r?.scannedAt || null);
             setCarpetas(r?.carpetas || []);
-            setCarpeta(c => c || r?.carpetaSugerida || '');
+            // Nov 2026: si el servidor no sugiere carpeta, la de personajes (antes empezaba en «Elige…»).
+            const guess = (r?.carpetas || []).find((c: any) => /personaj|characters/i.test(String(c.path || '')))?.id || '';
+            setCarpeta(c => c || r?.carpetaSugerida || guess);
         } catch { /* sin datos */ } finally { setLoading(false); }
     };
     useEffect(() => { loadList(); }, []);
@@ -116,7 +122,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                 if (!carpeta) { toast.info('Elige la carpeta donde va la ficha.'); return; }
                 const r = await callFunction<any>('personajes', { mode: 'createFicha', id: sel, accessToken, folderId: carpeta, content: prop.propuesta });
                 setList(l => l.map(x => x.id === sel ? { ...x, fichaFileId: r.fileId, fichaNombre: String(r.name).replace(/\.md$/, '') } : x));
-                toast.success(`Creé la ficha de ${p?.nombre}.`, { description: 'Aparecerá en tu bóveda al sincronizar.' });
+                toast.success(`Creé la ficha de ${p?.nombre}.`, { description: 'Ya está en tu carpeta de personajes.' });
             }
             setProp(null);
         } catch (e: any) { toast.error(e?.message || 'No pude guardar.'); } finally { setBusy(''); }
@@ -145,12 +151,12 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
     return (
         <div className="h-full w-full flex overflow-hidden bg-titanium-950">
             {/* Lista */}
-            <aside className="w-80 shrink-0 border-r border-titanium-800 flex flex-col">
+            <aside className={`${narrow ? (cur ? 'hidden' : 'w-full') : 'w-80 shrink-0 border-r border-titanium-800'} flex flex-col`}>
                 <div className="p-4 border-b border-titanium-800 space-y-3">
                     <div className="flex items-center gap-2">
                         <Users size={15} className="text-cyan-400" />
                         <p className="flex-1 text-sm font-medium text-titanium-100">Tus personajes</p>
-                        <button onClick={scan} disabled={scanning} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-2.5 py-1 text-[11px] text-titanium-100 disabled:opacity-50" title="Lee tu canon y encuentra a tus personajes (~US$0,02)">
+                        <button onClick={scan} disabled={scanning} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-2.5 py-1 text-[11px] text-titanium-100 disabled:opacity-50" title={`Lee tu canon y encuentra a tus personajes${costSuffix('~US$0,02')}`}>
                             {scanning ? <Loader2 size={12} className="animate-spin" /> : <ScanSearch size={12} />} {list.length ? 'Volver a escanear' : 'Escanear mi canon'}
                         </button>
                     </div>
@@ -184,7 +190,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
             </aside>
 
             {/* Detalle */}
-            <section className="flex-1 min-w-0 flex flex-col">
+            <section className={`${narrow && !cur ? 'hidden' : 'flex'} flex-1 min-w-0 flex-col`}>
                 {!cur ? (
                     <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-10">
                         {/* Nov 2026: Mira espera junto al fichero en vez de en la esquina. */}
@@ -197,7 +203,12 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                     </div>
                 ) : (
                     <div className="flex-1 overflow-y-auto">
-                        <div className="max-w-[820px] mx-auto px-8 py-6 space-y-6">
+                        <div className="max-w-[820px] mx-auto px-4 sm:px-8 py-6 space-y-6">
+                            {narrow && (
+                                <button onClick={() => setSel(null)} className="-ml-1 inline-flex items-center gap-1 rounded-md px-1 py-2 text-sm text-titanium-300 hover:text-titanium-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60">
+                                    ← Tus personajes
+                                </button>
+                            )}
                             <header className="space-y-1">
                                 <div className="flex items-center gap-2 flex-wrap">
                                     <h2 className="text-xl font-medium text-titanium-100">{cur.nombre}</h2>
@@ -219,7 +230,7 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                                 <div className="flex items-center gap-2">
                                     <p className="flex-1 text-[11px] font-semibold uppercase tracking-wider text-titanium-500">{cur.fichaFileId ? 'Revisión de la ficha' : 'Lo que ya sabe tu manuscrito'}</p>
                                     <button onClick={() => run('analyze')} disabled={!!busy} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-2.5 py-1 text-[11px] text-titanium-100 disabled:opacity-50">
-                                        {busy === 'analyze' ? <Loader2 size={12} className="animate-spin" /> : <ScanSearch size={12} />} {analisis ? 'Revisar de nuevo' : 'Revisar'} · ~US$0,03
+                                        {busy === 'analyze' ? <Loader2 size={12} className="animate-spin" /> : <ScanSearch size={12} />} {analisis ? 'Revisar de nuevo' : 'Revisar'}{costSuffix('~US$0,03')}
                                     </button>
                                 </div>
                                 {busy === 'detail' ? <div className="py-4 text-titanium-600"><Loader2 size={14} className="animate-spin" /></div>
@@ -319,16 +330,17 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                             {editMode ? (
                                 <textarea value={prop.propuesta} onChange={e => setProp({ ...prop, propuesta: e.target.value })} className="h-[55vh] w-full rounded-md border border-titanium-700 bg-titanium-950 p-3 font-mono text-[12.5px] leading-relaxed text-titanium-200 outline-none" />
                             ) : (
-                                <pre className="whitespace-pre-wrap font-mono text-[12.5px] leading-relaxed">
+                                <div className="whitespace-pre-wrap font-serif text-[14px] leading-relaxed">
+                                    {/* Nov 2026: la ficha como texto, no como código: lo nuevo con un borde verde, lo que sale tachado. */}
                                     {diff.map((l, i) => (
-                                        <div key={i} className={l.type === 'add' ? 'bg-emerald-900/30 text-emerald-200' : l.type === 'del' ? 'bg-red-900/30 text-red-300 line-through' : 'text-titanium-400'}>
-                                            {l.type === 'add' ? '+ ' : l.type === 'del' ? '− ' : '  '}{l.text || ' '}
+                                        <div key={i} className={l.type === 'add' ? 'border-l-2 border-logro pl-3 text-titanium-50' : l.type === 'del' ? 'border-l-2 border-red-400/60 pl-3 text-red-300/80 line-through' : 'border-l-2 border-transparent pl-3 text-titanium-400'}>
+                                            {(l.text || ' ').replace(/^#+\s/, '')}
                                         </div>
                                     ))}
-                                </pre>
+                                </div>
                             )}
                         </div>
-                        <div className="flex items-center gap-2 border-t border-titanium-800 px-5 py-3">
+                        <div className="flex flex-wrap items-center gap-2 border-t border-titanium-800 px-5 py-3">
                             {!prop.fileId && (
                                 <label className="flex items-center gap-2 text-[12px] text-titanium-400">
                                     <FilePlus2 size={13} /> Carpeta:
@@ -338,9 +350,9 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
                                     </select>
                                 </label>
                             )}
-                            <span className="ml-auto text-[11px] text-titanium-600">{prop.fileId ? (textHash(prop.original) === textHash(prop.propuesta) ? 'Sin cambios' : 'Se guarda en Drive (y en Obsidian).') : 'Se crea en Drive (y en Obsidian).'}</span>
+                            <span className="ml-auto text-[11px] text-titanium-600">{prop.fileId ? (textHash(prop.original) === textHash(prop.propuesta) ? 'Sin cambios' : 'Se guarda en tu Drive.') : 'Se crea en tu Drive.'}</span>
                             <button onClick={() => setProp(null)} className="rounded-md px-3 py-1.5 text-[12px] text-titanium-400 hover:text-titanium-100">Cancelar</button>
-                            <button onClick={save} disabled={busy === 'save' || (!prop.fileId && !carpeta)} className="inline-flex items-center gap-1.5 rounded-md bg-cyan-700 hover:bg-cyan-600 px-4 py-1.5 text-[12px] font-medium text-white disabled:opacity-40">
+                            <button onClick={save} disabled={busy === 'save' || (!prop.fileId && !carpeta)} className="inline-flex items-center gap-1.5 rounded-md bg-coral text-on-coral hover:brightness-110 px-4 py-1.5 text-[12px] font-medium disabled:opacity-40">
                                 {busy === 'save' ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />} Aprobar y guardar
                             </button>
                         </div>

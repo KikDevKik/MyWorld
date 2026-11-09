@@ -214,7 +214,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                     onClick={() => setItemType('file')}
                     className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-xs font-bold transition-all ${
                         itemType === 'file'
-                            ? 'bg-cyan-900/60 text-cyan-300 border border-cyan-500/30 shadow'
+                            ? 'bg-titanium-800 text-titanium-50 border border-titanium-600'
                             : 'text-titanium-500 hover:text-titanium-300 hover:bg-titanium-800/50'
                     }`}
                 >
@@ -272,7 +272,7 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                                         onClick={() => setSelectedFolderId(folder.id)}
                                         className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-xs transition-colors ${
                                             selectedFolderId === folder.id
-                                                ? 'bg-cyan-500/15 text-cyan-300 border border-cyan-500/20'
+                                                ? 'bg-mira/15 text-titanium-50 border border-mira/40'
                                                 : 'text-titanium-400 hover:bg-titanium-800/60 hover:text-titanium-200 border border-transparent'
                                         }`}
                                         style={{ paddingLeft: `${folder.depth * 14 + 8}px` }}
@@ -280,10 +280,8 @@ const CreateItemModal: React.FC<CreateItemModalProps> = ({
                                         <Folder size={11} className={`shrink-0 ${folder.section === 'canon' ? 'text-emerald-500' : 'text-blue-500'}`} />
                                         <span className="truncate flex-1">{folder.name}</span>
                                         {folder.depth === 0 && (
-                                            <span className={`text-xs font-bold px-1 py-0.5 rounded shrink-0 ${
-                                                folder.section === 'canon' ? 'bg-emerald-900/50 text-emerald-400' : 'bg-blue-900/50 text-blue-400'
-                                            }`}>
-                                                {folder.section === 'canon' ? 'C' : 'R'}
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded shrink-0 text-titanium-400 border border-titanium-700">
+                                                {folder.section === 'canon' ? 'Canon' : 'Recursos'}
                                             </span>
                                         )}
                                     </button>

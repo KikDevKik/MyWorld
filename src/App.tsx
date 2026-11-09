@@ -76,7 +76,6 @@ const ForgePanel = lazyView(() => import('./components/forge/ForgePanel'));
 const TribunalPanel = lazyView(() => import('./components/TribunalPanel'));
 const LaboratoryPanel = lazyView(() => import('./components/LaboratoryPanel'));
 const TimelinePanel = lazyView(() => import('./components/TimelinePanel'));
-const ExportPanel = lazyView(() => import('./components/ExportPanel'));
 const ArquitectoPanel = lazyView(() => import('./components/ArquitectoPanel'));
 const WorldEnginePageV2 = lazyView(() => import('./components/WorldEngineV2/WorldEnginePageV2'));
 const CanonRadar = lazyView(() => import('./components/CanonRadar'));
@@ -88,7 +87,7 @@ const ImprentaView = lazyView(() => import('./components/imprenta/ImprentaView')
 const BibliotecaView = lazyView(() => import('./components/biblioteca/BibliotecaView')); // Nov 2026: aprender y practicar con Mira
 import { loadPrepararTab, type PrepararTab } from './components/preparar/tabs';
 import { locateQuote } from './utils/locateQuote';
-import { reviewCount, NAMES_CHANGED_EVENT, type NamesState } from './components/architect/WorldNamesPanel';
+import { reviewCount, scanWorldNames, NAMES_CHANGED_EVENT, type NamesState } from './components/architect/WorldNamesPanel';
 const GenesisWizardModal = lazyView(() => import('./components/genesis/GenesisWizardModal'));
 
 interface AppContentProps {
@@ -125,6 +124,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     // 🟢 AUTO-SAVE STATE
     const [lastSavedContent, setLastSavedContent] = useState<string>("");
     const [isSaving, setIsSaving] = useState(false);
+    // Nov 2026: estado visible del guardado (barra de estado). Antes no había ningún «Guardado».
+    const [saveError, setSaveError] = useState<'' | 'error' | 'conflict'>('');
 
     // 🟢 REF SYNC FOR CLOSURE SAFETY (FILE TREE BACKGROUND UPDATE)
     const currentFileIdRef = useRef(currentFileId);
@@ -249,12 +250,14 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             // Oct 2026: el archivo cambió fuera de MyWorld (p. ej. en Obsidian). No se pisó nada.
             if (saveRes?.conflict) {
                 conflictFileRef.current = fileIdToSave;
+                setSaveError('conflict');
                 const remote = saveRes.remoteContent ?? '';
                 const fileLabel = currentFileName || 'este archivo';
                 const useRemote = (id: string | number) => {
                     toast.dismiss(id);
                     try { localStorage.setItem(`myworld_conflict_backup_${fileIdToSave}`, contentToSave); } catch { /* sin almacenamiento */ }
                     conflictFileRef.current = null;
+                    setSaveError('');
                     FileCache.set(fileIdToSave, remote);
                     lastSavedContentRef.current = remote;
                     setLastSavedContent(remote);
@@ -267,6 +270,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         const latest = selectedFileContentRef.current || contentToSave;
                         await callFunction('saveDriveFile', { fileId: fileIdToSave, content: latest, accessToken: oauthToken, force: true });
                         conflictFileRef.current = null;
+                        setSaveError('');
                         FileCache.set(fileIdToSave, latest);
                         lastSavedContentRef.current = latest;
                         setLastSavedContent(latest);
@@ -292,6 +296,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
 
             // 🟢 CACHE UPDATE: Keep local cache in sync with saves
+            setSaveError('');
             FileCache.set(fileIdToSave, contentToSave);
             canonWatchNotifyRef.current(fileIdToSave, contentToSave); // Guardián pasivo (con freno)
 
@@ -321,6 +326,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             }
         } catch (error) {
             console.error("❌ Auto-save failed:", error);
+            setSaveError('error');
             toast.error(t.autoSaveError);
         } finally {
             saveInFlightRef.current = false;
@@ -431,7 +437,6 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const [canonReview, setCanonReview] = useState<NamesState | null>(null);
     const [arqOpenTool, setArqOpenTool] = useState<{ tool: 'names'; nonce: number } | null>(null);
     const openCanonReview = () => { setArqOpenTool({ tool: 'names', nonce: Date.now() }); setPrepararTab('conversacion'); setActiveView('arquitecto'); };
-    const [showLegacyExport, setShowLegacyExport] = useState(false); // Oct 2026: certificado de autoría (panel anterior)
     const openReportRef = useRef<() => void>(() => {});
     const canonWatch = useCanonWatch(currentFileId, currentFileName, () => openReportRef.current());
     const canonWatchNotifyRef = useRef(canonWatch.notifySaved);
@@ -961,7 +966,16 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     useEffect(() => {
         if (!folderId) return;
-        callFunction<NamesState>('worldNames', { mode: 'get' }).then(s => s && setCanonReview(s)).catch(() => { /* sin revisión */ });
+        // Nov 2026: un aviso guardado de hace más de 30 min se verifica antes de mostrarlo en el escritorio.
+        callFunction<NamesState>('worldNames', { mode: 'get' }).then(async s => {
+            if (!s) return;
+            const age = s.checkedAt ? Date.now() - new Date(s.checkedAt).getTime() : Infinity;
+            if (reviewCount(s) > 0 && age > 30 * 60 * 1000) {
+                const fresh = await scanWorldNames(oauthToken).catch(() => null);
+                if (fresh && !fresh.noIndex) { setCanonReview(fresh); return; }
+            }
+            setCanonReview(s);
+        }).catch(() => { /* sin revisión */ });
         const on = (e: Event) => setCanonReview((e as CustomEvent).detail || null);
         window.addEventListener(NAMES_CHANGED_EVENT, on);
         return () => window.removeEventListener(NAMES_CHANGED_EVENT, on);
@@ -1369,20 +1383,11 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         if (activeView === 'biblioteca') {
             return <BibliotecaView onClose={() => setActiveView('editor')} />;
         }
-        if (activeView === 'imprenta' && !showLegacyExport) {
+        // Nov 2026: la imprenta antigua («ALPHA v3.3 TITAN») se retiró; la autoría vive dentro de la imprenta.
+        if (activeView === 'imprenta') {
             return (
                 <ImprentaView
                     onClose={() => setActiveView('editor')}
-                    folderId={folderId}
-                    accessToken={oauthToken}
-                    onOpenCertificate={() => setShowLegacyExport(true)}
-                />
-            );
-        }
-        if (activeView === 'imprenta') {
-            return (
-                <ExportPanel
-                    onClose={() => setShowLegacyExport(false)}
                     folderId={folderId}
                     accessToken={oauthToken}
                 />
@@ -1567,6 +1572,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                         className="z-50 shrink-0"
                         onOpenReport={currentFileId ? () => setIsReportOpen(true) : undefined}
                         reportPending={reportPending}
+                        saveState={!currentFileId ? null : saveError ? saveError : isSaving ? 'saving' : isDirty ? 'pending' : 'saved'}
                         narratorControls={{
                             ...narratorControls,
                             isLoading: isNarratorLoading
@@ -1654,12 +1660,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
             <CreateProjectModal
                 isOpen={isCreateProjectModalOpen}
                 onClose={() => setIsCreateProjectModalOpen(false)}
-                onSubmit={async (name) => {
+                onSubmit={async (name, kind) => {
                     try {
                         toast.info(t.creatingStructure);
                         await callFunction('createTitaniumStructure', {
                             accessToken: oauthToken,
-                            newProjectName: name
+                            newProjectName: name,
+                            bookKind: kind,
                         });
                         toast.success("¡Proyecto creado exitosamente!");
                         setTimeout(() => {

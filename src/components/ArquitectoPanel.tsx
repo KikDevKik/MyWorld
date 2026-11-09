@@ -78,9 +78,13 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
             try {
                 const s = await callFunction<NamesState>('worldNames', { mode: 'get' });
                 if (!alive || !s) return;
-                setNamesState(s);
                 // Mira revisa sola una vez al día, en silencio; solo avisa si encuentra algo.
-                const stale = !s.checkedAt || Date.now() - new Date(s.checkedAt).getTime() > 24 * 3600 * 1000;
+                // Nov 2026: si el resultado guardado trae avisos y tiene más de 30 min, se vuelve a revisar ANTES de
+                // mostrarlos (un aviso viejo, ya resuelto o falso, se quedaba horas en tres pantallas).
+                const age = s.checkedAt ? Date.now() - new Date(s.checkedAt).getTime() : Infinity;
+                const hasOpen = reviewCount(s) > 0;
+                const stale = age > 24 * 3600 * 1000 || (hasOpen && age > 30 * 60 * 1000);
+                if (!(stale && hasOpen)) setNamesState(s);
                 if (stale) {
                     const fresh = await scanWorldNames(accessToken).catch(() => null);
                     if (alive && fresh && !fresh.noIndex) setNamesState(fresh);
@@ -171,6 +175,8 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
         appendAssistantMessage,
         roadmapCards,
     } = useArquitecto({ accessToken, folderId });
+    // Nov 2026: herramientas de la revisión de contradicciones (efecto dominó, mapa de dudas): solo si hay dudas.
+    const auditTools = pendingItems.length > 0;
 
     // Compute which assistant messages are "old" (2+ exchanges from the latest)
     const oldAssistantMessageIds = useMemo(() => {
@@ -976,6 +982,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                         narrow={narrow}
                         onDismiss={() => { dismissWelcome(); setForceShowOverlay(false); setTourHighlightedTool(null); }}
                         onHighlight={setTourHighlightedTool}
+                        hideTools={auditTools ? [] : ['domino', 'map']}
                     />
                 )}
 
@@ -993,6 +1000,9 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                     )}
                     <div onClick={() => narrow && setToolsOpen(false)} className={`bg-titanium-900/90 backdrop-blur-xl border border-titanium-800 rounded-full p-2 flex-col gap-3 shadow-2xl ${!narrow || toolsOpen || showWelcome || forceShowOverlay ? 'flex' : 'hidden'}`}>
 
+                        {/* Nov 2026: el efecto dominó y el mapa de dudas salen de la revisión de contradicciones; en una conversación
+                            normal estaban siempre vacíos. Solo aparecen cuando hay dudas del canon. */}
+                        {auditTools && (<>
                         <button
                             onClick={() => setActiveTool(activeTool === 'domino' ? 'none' : 'domino')}
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'domino' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'domino' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-titanium-950' : ''}`}
@@ -1002,6 +1012,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 Efecto dominó: qué cambia si cambias algo
                             </span>
                         </button>
+                        </>)}
 
                         {/* Nov 2026: «Personajes» quitado: era un marcador vacío. Los personajes viven en El fichero. */}
 
@@ -1037,6 +1048,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                             </span>
                         </button>
 
+                        {auditTools && (<>
                         <button
                             onClick={() => setActiveTool(activeTool === 'map' ? 'none' : 'map')}
                             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all group relative ${activeTool === 'map' ? 'text-mira bg-mira/10' : 'text-titanium-500 hover:text-mira hover:bg-titanium-800/50'} ${tourHighlightedTool === 'map' ? 'ring-2 ring-mira/70 ring-offset-1 ring-offset-titanium-950' : ''}`}
@@ -1046,6 +1058,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                                 Mapa de dudas por capa
                             </span>
                         </button>
+                        </>)}
 
                         <button
                             onClick={() => setActiveTool(activeTool === 'lore' ? 'none' : 'lore')}
@@ -1179,14 +1192,7 @@ const ArquitectoPanel: React.FC<ArquitectoPanelProps> = ({ onClose, accessToken,
                 {activeTool === 'domino' && <EfectoDomino onClose={() => setActiveTool('none')} roadmapCards={roadmapCards} />}
             </SlideUpPanel>
 
-            <SlideUpPanel
-                isOpen={activeTool === 'personajes'}
-                title="Herramienta de Personajes"
-                icon={<Users size={16} />}
-                onClose={() => setActiveTool('none')}
-            >
-                {activeTool === 'personajes' && <PersonajesHerramienta onClose={() => setActiveTool('none')} />}
-            </SlideUpPanel>
+            {/* Nov 2026: la «Herramienta de Personajes» se quitó: los personajes viven en la pestaña Personajes. */}
 
             <SlideUpPanel
                 isOpen={activeTool === 'patches'}
@@ -1295,11 +1301,12 @@ function reviewSummary(state: NamesState) {
 /** Aviso de Mira arriba de la mesa. */
 function NamesBanner({ state, onOpen }: { state: NamesState; onOpen: () => void }) {
     return (
-        <div className="max-w-[700px] mx-auto mt-6 px-6">
-            <div className="flex items-center gap-3 rounded-2xl border border-mira/30 bg-mira/10 px-4 py-3">
-                <img src="/assets/mira/mira_cara_icono.png" alt="" width={36} height={36} className="w-9 h-9 shrink-0" style={{ imageRendering: 'pixelated' }} />
-                <p className="flex-1 text-sm text-titanium-100 leading-relaxed">
-                    {reviewSummary(state)}. Resuélvelo antes de hablar con el Arquitecto para que no se confunda.
+        <div className="max-w-[700px] mx-auto mt-4 sm:mt-6 px-3 sm:px-6">
+            {/* Nov 2026: en el celular ocupaba el 40 % de la pantalla; ahora el icono se esconde y la frase es más corta. */}
+            <div className="flex items-center gap-3 rounded-2xl border border-mira/30 bg-mira/10 px-3 sm:px-4 py-2.5 sm:py-3">
+                <img src="/assets/mira/mira_cara_icono.png" alt="" width={36} height={36} className="hidden sm:block w-9 h-9 shrink-0" style={{ imageRendering: 'pixelated' }} />
+                <p className="flex-1 min-w-0 text-sm text-titanium-100 leading-relaxed">
+                    {reviewSummary(state)}.<span className="hidden sm:inline"> Resuélvelo antes de hablar con el Arquitecto para que no se confunda.</span>
                 </p>
                 <button onClick={onOpen} className="shrink-0 px-3 py-1.5 text-sm font-medium rounded-lg bg-coral text-on-coral hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60">Revisar</button>
             </div>

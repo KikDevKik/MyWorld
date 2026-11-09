@@ -106,11 +106,20 @@ export function toChapters(files: { name: string; content: string }[], d: Design
     });
 }
 
+// Nov 2026: «Capítulo 1: La tormenta» bajo «CAPÍTULO 1» repetía el número. Se quita el prefijo del título.
+export function bareTitle(title: string | undefined, word: string): string {
+    const t = String(title || '').trim();
+    if (!t) return '';
+    const w = String(word || 'Capítulo').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return t.replace(new RegExp(`^(${w}|cap\\.?)\\s+(\\d+|[ivxlc]+)\\s*[:.\\-–—]?\\s*`, 'i'), '').trim();
+}
+
 function chapterHeading(c: Chapter, i: number, d: Design): string {
     const num = `${esc(d.chapterWord)} ${i + 1}`;
+    const bare = bareTitle(c.title, d.chapterWord);
     if (d.chapterStyle === 'numero') return `<p class="ch-num">${num}</p>`;
     if (d.chapterStyle === 'titulo') return c.title ? `<h1 class="ch-title">${esc(c.title)}</h1>` : `<p class="ch-num">${num}</p>`;
-    return `<p class="ch-num">${num}</p>${c.title ? `<h1 class="ch-title">${esc(c.title)}</h1>` : ''}`;
+    return `<p class="ch-num">${num}</p>${bare ? `<h1 class="ch-title">${esc(bare)}</h1>` : ''}`;
 }
 
 export function bookCss(d: Design, meta: BookMeta): string {
@@ -171,7 +180,7 @@ export function bookHtml(chapters: Chapter[], d: Design, meta: BookMeta): string
     if (d.cover) parts.push(`<section class="front sheet"><div class="cover"><h1>${esc(meta.title)}</h1>${meta.subtitle ? `<p class="sub">${esc(meta.subtitle)}</p>` : ''}<p class="author">${esc(meta.author)}</p></div></section>`);
     if (meta.dedication?.trim()) parts.push(`<section class="front sheet"><p class="dedication">${esc(meta.dedication).replace(/\n/g, '<br>')}</p></section>`);
     if (d.toc && chapters.length > 1) {
-        parts.push(`<section class="front sheet toc"><h2>Índice</h2><ol>${chapters.map((c, i) => `<li><span class="n">${i + 1}</span><a href="#cap-${i + 1}">${esc(c.title || `${d.chapterWord} ${i + 1}`)}</a></li>`).join('')}</ol></section>`);
+        parts.push(`<section class="front sheet toc"><h2>Índice</h2><ol>${chapters.map((c, i) => `<li><span class="n">${i + 1}</span><a href="#cap-${i + 1}">${esc(bareTitle(c.title, d.chapterWord) || c.title || `${d.chapterWord} ${i + 1}`)}</a></li>`).join('')}</ol></section>`);
     }
     chapters.forEach((c, i) => {
         parts.push(`<section class="chapter sheet" id="cap-${i + 1}"><header class="ch-head">${chapterHeading(c, i, d)}</header><div class="body">${c.html.replace(/§§SCENE§§/g, scene)}</div></section>`);
@@ -287,7 +296,7 @@ export function buildDocx(chapters: Chapter[], d: Design, meta: BookMeta): Blob 
         const heads: string[] = [];
         const first = i > 0 || d.cover || !!meta.dedication?.trim();
         if (d.chapterStyle !== 'titulo' || !c.title) heads.push(para('NumeroCapitulo', textRun(num), first ? '<w:pageBreakBefore/>' : ''));
-        if (d.chapterStyle !== 'numero' && c.title) heads.push(para('Heading1', textRun(c.title), heads.length || !first ? '' : '<w:pageBreakBefore/>'));
+        if (d.chapterStyle !== 'numero' && bareTitle(c.title, d.chapterWord)) heads.push(para('Heading1', textRun(d.chapterStyle === 'titulo' ? c.title : bareTitle(c.title, d.chapterWord)), heads.length || !first ? '' : '<w:pageBreakBefore/>'));
         body.push(...heads, blocksToDocx(c.html.replace(/§§SCENE§§/g, scene), scene));
     });
     const half = Math.round(d.size * 2);

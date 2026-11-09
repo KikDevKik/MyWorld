@@ -4,9 +4,16 @@ import App from './App';
 import VerificationPage from './pages/VerificationPage';
 import './index.css'
 import { initTheme } from './utils/theme';
+import { reloadForNewVersion } from './utils/lazyView';
 import './lib/firebase'; // 👈 IMPORTACIÓN DE LA IGNICIÓN (Efecto secundario)
 
 initTheme();
+
+// Nov 2026: Vite avisa cuando no puede cargar un archivo de la versión anterior (pasa justo después de un deploy).
+// Se recarga una vez para traer la versión nueva en lugar de dejar la app en negro.
+window.addEventListener('vite:preloadError', (event) => {
+  if (reloadForNewVersion()) event.preventDefault();
+});
 
 // 🟢 MANUAL ROUTING (The Judge's Chambers)
 const path = window.location.pathname;

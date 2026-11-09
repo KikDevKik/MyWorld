@@ -93,7 +93,7 @@ export default function QuePasariaSiView({ accessToken, onOpenFile }: Props) {
             const r = await callFunction<any>('whatIf', { mode: 'saveIdea', titulo: draft.titulo, cuerpo: draft.cuerpo, accessToken }, { timeout: 120000 });
             setIdeas(prev => [r.idea, ...prev.filter(i => i.id !== r.idea.id)]);
             setDraft(null);
-            toast.success('Idea guardada en Recursos → Ideas (no canon).', { description: 'También la verás en Obsidian.' });
+            toast.success('Idea guardada en Recursos → Ideas (no canon).');
         } catch (e: any) {
             toast.error(e?.message || 'No pude guardar la idea.');
         } finally {

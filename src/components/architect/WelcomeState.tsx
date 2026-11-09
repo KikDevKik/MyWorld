@@ -36,7 +36,7 @@ export default function WelcomeState({ projectName, onStart, onResume, onDiscard
     const resolved = existingSession?.resolvedCount ?? 0;
     const line = existingSession
         ? (es
-            ? (pending > 0 ? `La última vez quedaron ${pending} ${pending === 1 ? 'duda' : 'dudas'} por resolver. ¿Seguimos?` : 'La última vez no quedó nada pendiente. Podemos seguir o empezar otra cosa.')
+            ? (pending > 0 ? `La última vez ${pending === 1 ? 'quedó 1 punto' : `quedaron ${pending} puntos`} por decidir. ¿Seguimos?` : 'La última vez no quedó nada pendiente. Podemos seguir o empezar otra cosa.')
             : (pending > 0 ? `Last time we left ${pending} open ${pending === 1 ? 'question' : 'questions'}. Shall we continue?` : 'Nothing was left open last time. We can continue or start something new.'))
         : (es ? 'Cuéntale al Arquitecto qué quieres planear: una parte del libro, un hilo de la trama o una duda.' : 'Tell the Architect what you want to plan: a part of the book, a plot thread or a question.');
 

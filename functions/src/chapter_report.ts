@@ -12,6 +12,7 @@ import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext, applyMemoryOps } from "./utils/memory_store";
+import { planContext, markMissionsDone } from "./plan_context";
 import { textHash } from "./utils/text_hash";
 import { saveCraft } from "./craft";
 import { getAIKey } from "./utils/security";
@@ -94,8 +95,10 @@ FORMATO: responde SOLO JSON con esta forma:
  "ortografia": [{"original":"…","correccion":"…","cita":"…","nota":"regla breve, opcional"}],
  "preguntas": [{"pregunta":"lo que no sabes si es a propósito, en una o dos frases","cita":"…","tema":"pov|otro"}],
  "lecturas": [{"titulo":"…","autor":"autor o estudio","tipo":"libro|serie|anime|película|otro","deSusReferencias":true,"porque":"qué escena o técnica mirar y para qué problema de este capítulo"}],
- "siguientePaso": "la primera cosa que haría en la reescritura"
+ "siguientePaso": "la primera cosa que haría en la reescritura",
+ "misionesHechas": [1]
 }
+"misionesHechas": si hay PLAN DEL LIBRO, los números de las misiones PENDIENTES que este capítulo ya cumple (la escena o lo decidido está escrito en él). Solo las que se ven en el texto; una decisión sin escribir no cuenta. Si ninguna, [].
 Máximo: 4 fortalezas, 8 problemas (ordenados por gravedad), 30 ortografía, 3 preguntas, 6 referencias. Escribe en el idioma del autor.`;
 
 // Antes "El Tribunal": tres lectores con enfoques distintos, ahora dentro del reporte.
@@ -479,14 +482,16 @@ export const chapterReport = onCall(
             return { found: true, ...out };
         }
 
-        const [memory, references, prevDoc] = await Promise.all([
+        const [memory, references, prevDoc, plan] = await Promise.all([
             getMemoryContext(uid, `${fileName || ""} reporte capítulo`),
             loadReferences(uid, accessToken),
             ref.get(),
+            planContext(uid),
         ]);
         const lectores: { texto: string; fecha: string }[] = ((prevDoc.data() as any)?.lectores || []).slice(-5);
         const extra = [
             memory ? `MEMORIA DEL PROYECTO (plan y decisiones del autor):\n${memory}` : "",
+            plan,
             lectores.length ? `OPINIONES DE LECTORES REALES (lo que le dijeron al autor sobre este capítulo, tal cual):\n${lectores.map((l, i) => `[Lector ${i + 1}]\n${l.texto}`).join("\n\n")}` : "",
             references ? `REFERENCIAS DEL AUTOR (de sus carpetas de Recursos):\n${references}` : "REFERENCIAS DEL AUTOR: (no hay archivos de Recursos indexados)",
         ].filter(Boolean).join("\n\n");
@@ -494,6 +499,9 @@ export const chapterReport = onCall(
         const saved = { report, fileName: fileName || "", contentHash: hash, createdAt: new Date().toISOString() };
         await ref.set(saved, { merge: true });
         await noteRepeatedCraft(uid, fileId, report).catch(() => {});
+        // Nov 2026: las misiones del roadmap que este capítulo ya cumple se marcan solas (antes nunca avanzaban).
+        const hechas = (Array.isArray(report?.misionesHechas) ? report.misionesHechas : []).map((n: any) => Number(n) - 1);
+        if (plan && hechas.length) await markMissionsDone(uid, hechas).catch(() => {});
         return { found: true, ...saved };
     }
 );

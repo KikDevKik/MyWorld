@@ -11,6 +11,7 @@ import { getFirestore } from "firebase-admin/firestore";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext, slugify } from "./utils/memory_store";
+import { planContext } from "./plan_context";
 import { canonFiles, fileText, runPersonajesScan, Personaje } from "./personajes";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
@@ -133,11 +134,14 @@ export const mapaMundo = onCall(
             const deg: Record<string, number> = {};
             links.forEach(l => { deg[l.source] = (deg[l.source] || 0) + 1; deg[l.target] = (deg[l.target] || 0) + 1; });
             const name = (id: string) => nodes.find(n => n.id === id)?.nombre || id;
-            const memory = await getMemoryContext(uid, nodes.slice(0, 30).map(n => n.nombre).join(" "));
+            // Nov 2026: + el plan del libro, para no sugerir como «posible» algo que el autor ya decidió.
+            const [memory, plan] = await Promise.all([getMemoryContext(uid, nodes.slice(0, 30).map(n => n.nombre).join(" ")), planContext(uid)]);
             const parsed = await ask(CLAUDE_SONNET, SUGGEST_TASK, [
                 `ELEMENTOS (nombre · tipo · conexiones · resumen):\n${nodes.map(n => `- ${n.nombre} · ${n.tipo} · ${deg[n.id] || 0} · ${n.resumen}`).join("\n").slice(0, 20000)}`,
                 `RELACIONES ACTUALES:\n${links.map(l => `- ${name(l.source)} —${l.tipo}→ ${name(l.target)}`).join("\n").slice(0, 15000)}`,
                 memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
+                plan,
+                "No propongas lo que la memoria o el plan ya deciden, ni preguntes lo que ya está respondido ahí.",
                 "Responde SOLO con el JSON.",
             ].filter(Boolean).join("\n\n"), "MapaSugerencias", 5000, "medium");
             const byName = new Map(nodes.map(n => [n.nombre.toLowerCase(), n.id]));

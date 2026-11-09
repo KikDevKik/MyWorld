@@ -1,4 +1,5 @@
 import React from 'react';
+import { toast } from 'sonner';
 import { Search, User, AlertTriangle, ArrowRight } from 'lucide-react';
 
 interface Entity {
@@ -55,7 +56,7 @@ export const AnalysisCard: React.FC<AnalysisCardProps> = ({ data }) => {
                             {ent.status === 'DETECTED' && (
                                 <button
                                     className="mt-1 flex items-center justify-center gap-2 w-full py-1.5 bg-titanium-800 hover:bg-cyan-900/20 text-titanium-400 hover:text-cyan-400 text-[10px] uppercase font-bold rounded transition-colors border border-transparent hover:border-cyan-500/30"
-                                    onClick={() => alert("Función de Forja no disponible en modo Director. Ve a la Forja para registrar.")}
+                                    onClick={() => toast.info('Para crear su ficha, abre la pestaña Personajes en la mesa del Arquitecto.')}
                                     title="Ir a la Forja (Solo Lectura)"
                                 >
                                     <span>Ir a la Forja</span>

@@ -23,6 +23,8 @@ interface StatusBarProps {
     onOpenSettings?: () => void;
     onOpenReport?: () => void; // Oct 2026: Reporte de capítulo
     reportPending?: number; // Nov 2026: puntos del reporte sin resolver
+    /** Nov 2026: el autor tiene que ver que su texto está a salvo en Drive. */
+    saveState?: 'saved' | 'pending' | 'saving' | 'error' | 'conflict' | null;
     narratorControls?: {
         isPlaying: boolean;
         isLoading: boolean;
@@ -44,7 +46,7 @@ const getTodayKey = () => {
     return `myword_daily_${date}`;
 };
 
-const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, reportPending = 0, narratorControls }) => {
+const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', guardianStatus, onGuardianClick, onOpenSettings, onOpenReport, reportPending = 0, narratorControls, saveState = null }) => {
     const { tier, hasByok, isNormal } = useTier();
     const aiLevel = getAiLevel();
     const levelLabel = aiLevel === 'gratis' ? 'IA gratis' : aiLevel === 'propia' ? 'IA con tu clave' : aiLevel === 'myworld' ? 'IA de MyWorld' : null;
@@ -184,7 +186,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                     ) : showUsage ? (
                         <>
                             <Leaf size={12} className={usagePct >= 100 ? 'text-red-400' : usagePct >= 80 ? 'text-amber-300' : 'text-titanium-400'} />
-                            <span className={`text-xs ${usagePct >= 100 ? 'text-red-300' : usagePct >= 80 ? 'text-amber-200' : 'text-titanium-300'}`}>
+                            <span className={`hidden sm:inline text-xs whitespace-nowrap ${usagePct >= 100 ? 'text-red-300' : usagePct >= 80 ? 'text-amber-200' : 'text-titanium-300'}`}>
                                 {usagePct >= 100 ? 'Claude agotado' : levelLabel}
                             </span>
                             <span className="relative hidden sm:block w-12 h-1.5 rounded-full bg-titanium-800 overflow-hidden" aria-hidden="true">
@@ -382,6 +384,20 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
 
                 <div className="h-3 w-px bg-titanium-800 mx-1" />
 
+                {saveState && (
+                    <span
+                        role="status"
+                        aria-live="polite"
+                        className={`flex items-center gap-1 px-1 whitespace-nowrap ${saveState === 'error' || saveState === 'conflict' ? 'text-red-300' : 'text-titanium-400'}`}
+                        title={saveState === 'saved' ? 'Todo lo que escribiste está guardado en tu Drive.' : saveState === 'error' ? 'No se pudo guardar. Se vuelve a intentar al seguir escribiendo; no cierres la pestaña.' : saveState === 'conflict' ? 'El archivo cambió en Drive. Elige con qué versión te quedas.' : 'Guardando en tu Drive…'}
+                    >
+                        {saveState === 'saved' ? <Check size={12} aria-hidden="true" /> : saveState === 'error' || saveState === 'conflict' ? <AlertCircle size={12} aria-hidden="true" /> : <Loader2 size={12} className="animate-spin motion-reduce:animate-none" aria-hidden="true" />}
+                        <span className={saveState === 'saved' ? 'hidden sm:inline' : ''}>
+                            {saveState === 'saved' ? 'Guardado' : saveState === 'error' ? 'Sin guardar' : saveState === 'conflict' ? 'Elige versión' : 'Guardando…'}
+                        </span>
+                    </span>
+                )}
+
                 <div
                     className="flex items-center gap-1.5 hover:text-titanium-200 transition-colors cursor-help focus-visible:ring-2 focus-visible:ring-emerald-500/50 outline-none rounded px-1"
                     title={`${t.words}: ${wordCount.toLocaleString()}`}
@@ -470,7 +486,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                         aria-valuemin={0}
                         aria-valuemax={dailyGoal}
                         aria-label={`${t.dailyGoal}: ${Math.round(progressPercentage)}%`}
-                        title={`${t.dailyGoal}: ${Math.round(progressPercentage)}%`}
+                        title={`${t.dailyGoal}: ${Math.round(progressPercentage)}%. Cuenta lo que escribes aquí; un bloque pegado de golpe (más de 50 palabras) no suma.`}
                     >
                         <div
                             className={`h-full transition-all duration-500 ${dailyProgress >= dailyGoal ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-blue-500'}`}

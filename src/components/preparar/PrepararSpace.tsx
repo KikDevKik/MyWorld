@@ -20,11 +20,12 @@ export type { PrepararTab } from './tabs';
 // Nov 2026: el objeto pixel de cada cuarto (el mismo de la guía y del inicio).
 const TabIcon = ({ name }: { name: string }) => <img src={`/assets/objetos/icono/${name}.png`} alt="" width={20} height={20} className="w-5 h-5" draggable={false} />;
 
+// Nov 2026: la pestaña dice qué hace; el nombre del cuarto queda como pista (antes «El fichero» no decía que eran los personajes).
 const TABS: { id: PrepararTab; label: string; hint: string; icon: React.ReactNode }[] = [
-    { id: 'conversacion', label: 'La mesa', hint: 'Planea con el Arquitecto: partes, hilos y dudas', icon: <TabIcon name="planos" /> },
-    { id: 'mapa', label: 'El observatorio', hint: 'Tu mundo como un mapa de conexiones', icon: <TabIcon name="telescopio" /> },
-    { id: 'personajes', label: 'El fichero', hint: 'Las fichas de tus personajes', icon: <TabIcon name="fichero" /> },
-    { id: 'quepasa', label: 'El frasco de ideas', hint: 'Qué pasaría si: aquí nada es canon hasta que lo decidas', icon: <TabIcon name="frasco_luciernagas" /> },
+    { id: 'conversacion', label: 'Conversación', hint: 'La mesa: planea con el Arquitecto partes, hilos y dudas', icon: <TabIcon name="planos" /> },
+    { id: 'mapa', label: 'Mapa', hint: 'El observatorio: tu mundo como un mapa de conexiones', icon: <TabIcon name="telescopio" /> },
+    { id: 'personajes', label: 'Personajes', hint: 'El fichero: las fichas de tus personajes', icon: <TabIcon name="fichero" /> },
+    { id: 'quepasa', label: 'Ideas', hint: 'El frasco de ideas: qué pasaría si. Aquí nada es canon hasta que lo decidas', icon: <TabIcon name="frasco_luciernagas" /> },
 ];
 
 const KEY = PREPARAR_TAB_KEY;
@@ -46,7 +47,7 @@ export default function PrepararSpace({ views, tab, onTabChange }: Props) {
 
     return (
         <div className="h-full w-full flex flex-col overflow-hidden bg-titanium-950">
-            <nav className="shrink-0 h-11 flex items-center gap-1 border-b border-titanium-800 bg-titanium-950 px-2 sm:px-3 overflow-x-auto whitespace-nowrap [scrollbar-width:none]" role="tablist" aria-label="La mesa del arquitecto">
+            <nav className="shrink-0 h-12 flex items-center gap-1 border-b border-titanium-800 bg-titanium-950 px-2 sm:px-3 overflow-x-auto whitespace-nowrap [scrollbar-width:none]" role="tablist" aria-label="La mesa del arquitecto">
                 <span className="mr-3 hidden md:inline font-serif text-[15px] font-semibold text-titanium-200">La mesa del arquitecto</span>
                 {TABS.map(t => (
                     <button
@@ -54,13 +55,12 @@ export default function PrepararSpace({ views, tab, onTabChange }: Props) {
                         role="tab"
                         aria-selected={tab === t.id}
                         onClick={() => setTab(t.id)}
-                        aria-label={t.label}
-                        className={`shrink-0 inline-flex items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-1.5 text-[12.5px] transition-colors ${tab === t.id
+                        className={`shrink-0 inline-flex min-h-[40px] items-center gap-1.5 rounded-md px-2.5 sm:px-3 py-2 text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60 ${tab === t.id
                             ? (t.id === 'quepasa' ? 'bg-mira-bg text-titanium-100' : 'bg-titanium-800 text-titanium-100')
                             : 'text-titanium-400 hover:text-titanium-100 hover:bg-titanium-900'}`}
                         title={t.hint}
                     >
-                        {t.icon}<span className={tab === t.id ? '' : 'hidden sm:inline'}>{t.label}</span>
+                        {t.icon}<span>{t.label}</span>
                     </button>
                 ))}
                 <span className="ml-auto hidden lg:block text-xs text-titanium-400 truncate">{current.hint}</span>

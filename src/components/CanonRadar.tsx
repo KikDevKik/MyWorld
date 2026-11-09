@@ -61,7 +61,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
 
     const handleSyncCanon = async (drift: GuardianPersonalityDrift) => {
         if (!accessToken) {
-            alert("Error: No Access Token available for Sync.");
+            toast.error('Conecta tu Drive para sincronizar.');
             return;
         }
 
@@ -87,7 +87,7 @@ const CanonRadar: React.FC<CanonRadarProps & { accessToken?: string | null }> = 
             onForceAudit(); // Re-scan to clear the alert
         } catch (e: any) {
             console.error("Sync Failed:", e);
-            alert(`${t.syncError}: ${e.message}`);
+            toast.error(`${t.syncError}: ${e.message}`);
         } finally {
             setSyncingIds(prev => {
                 const next = new Set(prev);

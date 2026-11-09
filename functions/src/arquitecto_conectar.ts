@@ -15,6 +15,7 @@ import { GoogleGenerativeAI } from "./utils/genai";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { fileText } from "./personajes";
 import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
+import { planContext } from "./plan_context";
 import { saveBookPov } from "./mira_taller";
 
 const FOLDER = "application/vnd.google-apps.folder";
@@ -57,7 +58,7 @@ const AGENDA_RULE = `AGENDA (obligatorio): termina SIEMPRE tu respuesta con una 
 [[AGENDA]] {"puntos":[{"t":"título corto","e":"hecho|ahora|pendiente"}],"cerrar":false}
 - Si no hay agenda todavía, ármala desde el objetivo del autor: de 3 a 6 puntos, lo mínimo para que pueda escribir (p. ej. «Narrador», «Amigos del campo», «Por qué se van», «Capítulos del acto 1»).
 - Después mantén los mismos puntos y su orden. Agrega uno solo si el autor abre un tema nuevo de verdad.
-- Un punto está «hecho» cuando lo decidido alcanza para escribir esa parte, aunque queden detalles.
+- Un punto está «hecho» cuando lo decidido alcanza para escribir esa parte, aunque queden detalles. Si en tu respuesta dices que algo «ya está decidido» o resumes lo decidido de un punto, ese punto va «hecho» en esta misma línea: no lo dejes en «ahora» por prudencia.
 - "cerrar": true cuando todos estén hechos. Entonces, en tu respuesta, dile que ya puede escribir y que con «Cerrar y resumir» lo decidido pasa a su roadmap del escritorio. No sigas preguntando.
 - Si llevas varias respuestas en el mismo punto, dile en una frase dónde van y qué falta, y propón dejar el resto para cuando escriba.
 - Una sesión rinde hasta unas 25 respuestas. Pasada esa cantidad, propón cerrar esta y seguir lo pendiente en una conversación nueva (lo decidido no se pierde: queda en su roadmap).`;
@@ -105,6 +106,7 @@ async function worldMap(uid: string): Promise<string> {
     for (const d of snap.docs) {
         const f: any = d.data();
         if (f.type === "folder" || f.mimeType === FOLDER) continue;
+        if (f.driveId && f.driveId !== d.id) continue; // Nov 2026: entrada fantasma de una ficha antigua
         const path = String(f.path || f.name || "");
         const top = path.includes("/") ? path.slice(0, path.lastIndexOf("/")) : (f.category === "reference" ? "Recursos" : "Raíz");
         const label = `${f.category === "reference" ? "[Recursos] " : ""}${top}`;
@@ -302,16 +304,18 @@ async function askGemini(contextBlocks: string[], instruction: string, label: st
 
 /** Primer mensaje de una sesión «Conectar». */
 export async function conectarStart(uid: string, goal: string, apiKey: string): Promise<string> {
-    const [map, memory, material, named] = await Promise.all([
+    const [map, memory, material, named, plan] = await Promise.all([
         worldMap(uid),
         getMemoryContext(uid, goal),
         relevantMaterial(uid, goal, apiKey),
         namedMaterial(uid, goal),
+        planContext(uid),
     ]);
     logger.info(`🏛️ [ARQUITECTO·CONECTAR] Inicio: mapa ${map.length} car., material ${material.length} car.`);
     return ask([
         map ? `MAPA DE SU MATERIAL (archivos por carpeta):\n${map}` : "MAPA DE SU MATERIAL: (todavía no hay archivos)",
         memory ? `MEMORIA DEL PROYECTO (decisiones y dónde quedó):\n${memory}` : "",
+        plan,
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES:\n${material}` : "",
     ], `INICIO DE SESIÓN. El autor dice lo que trae hoy:\n«${goal}»\n\nResponde: en 3 a 5 líneas, qué piezas de su material ves relacionadas con eso (nombrando archivos) y por qué; luego dile en una línea los puntos que van a ver hoy (la agenda) y haz tu primera pregunta (máximo 2). Si su material está vacío, pregúntale por lo esencial en vez de suponer.\n\n${AGENDA_RULE}`, "ArquitectoConectarInicio", 3000, (await focusMaterial(uid, goal, [])).text, apiKey);
@@ -328,11 +332,12 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
     // Nov 2026 (gasto): 12 mensajes de historial (la agenda y la memoria guardan lo anterior).
     const history = await sessionHistory(uid, sessionId, 12);
     const hint = `${query} ${history.slice(-1200)}`;
-    const [memory, shared, focus, craft] = await Promise.all([
+    const [memory, shared, focus, craft, plan] = await Promise.all([
         getMemoryContext(uid, hint),
         sharedMaterial(uid, sharedDocs),
         focusMaterial(uid, goal, sharedDocs),
         craftContext(uid),
+        planContext(uid),
     ]);
     const already = new Set([...focus.names, ...sharedNames(shared)].map(normName));
     const [material, named] = await Promise.all([
@@ -352,6 +357,7 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
     const raw = await ask([
         goal ? `OBJETIVO DE LA SESIÓN: ${goal}` : "",
         memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
+        plan,
         craft,
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES DE SU MATERIAL:\n${material}` : "",

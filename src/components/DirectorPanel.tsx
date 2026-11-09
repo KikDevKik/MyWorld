@@ -3,7 +3,7 @@ import { X, Send, Loader2, LayoutTemplate, RefreshCcw, AlertCircle } from 'lucid
 import { useLayoutStore } from '../stores/useLayoutStore';
 import { SessionManagerModal } from './SessionManagerModal';
 // 🟢 LAZY LOAD: Break Circular Dependency
-const DirectorTools = React.lazy(() => import('./DirectorTools').then(module => ({ default: module.DirectorTools })));
+const DirectorTools = React.lazy(withNewVersionReload(() => import('./DirectorTools').then(module => ({ default: module.DirectorTools }))));
 import { SessionList } from './ui/SessionList';
 import { useDirectorChat } from '../hooks/useDirectorChat';
 import { ChatMessage } from './director/chat/ChatMessage';
@@ -20,6 +20,7 @@ import { useToolWelcome } from '../hooks/useToolWelcome';
 import { useLanguageStore } from '../stores/useLanguageStore';
 import { TRANSLATIONS } from '../i18n/translations';
 import { MiraSprite } from './mira/MiraSprite';
+import { withNewVersionReload } from '../utils/lazyView';
 
 interface DirectorPanelProps {
     isOpen: boolean;
@@ -96,6 +97,20 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
     });
 
     const [showWelcome, dismissWelcome] = useToolWelcome('director', folderId);
+
+    // Nov 2026: lo que dice Mira se guarda como nota en Recursos, nunca dentro del manuscrito.
+    // (Antes «Llevar al capítulo» lo reescribía con IA y lo pegaba en el capítulo: la voz tiene que ser del autor.)
+    const saveAsNote = useCallback(async (text: string) => {
+        if (!accessToken) { toast.error('Conecta tu Drive para guardar notas.'); return; }
+        const first = String(text || '').replace(/[#*_>`\[\]]/g, '').split(/(?<=[.!?])\s|\n/).map(s => s.trim()).find(Boolean) || 'Nota de Mira';
+        const titulo = `Mira · ${first.slice(0, 60)}${first.length > 60 ? '…' : ''}`;
+        try {
+            await callFunction('whatIf', { mode: 'saveIdea', titulo, cuerpo: text, origen: 'Mira', accessToken }, { timeout: 120000 });
+            toast.success('Nota guardada en Recursos → Ideas (no canon).');
+        } catch (e: any) {
+            toast.error(e?.message || 'No se pudo guardar la nota.');
+        }
+    }, [accessToken]);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const [isSessionManagerOpen, setIsSessionManagerOpen] = useState(false);
@@ -344,7 +359,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                     onPurge={handlePurge}
                                     rescuingIds={rescuingIds}
                                     purgingIds={purgingIds}
-                                    onInsert={activeFileId ? onInsertContent : undefined}
+                                    onInsert={accessToken ? saveAsNote : undefined}
                                     isOld={oldAssistantMessageIds.has(msg.id)}
                                     isExpanded={expandedMessages.has(msg.id)}
                                     onToggleExpand={toggleMessageExpanded}

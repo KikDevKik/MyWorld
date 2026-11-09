@@ -7,6 +7,7 @@ import { X, FileSearch, Loader2, LocateFixed, Check, RefreshCw, BookOpen, Sparkl
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
 import { textHash } from '../../utils/textHash';
+import { costSuffix, showCosts } from '../../utils/costHint';
 import { locateQuote, locateWord } from '../../utils/locateQuote';
 
 interface Strength { titulo: string; explicacion: string; cita?: string }
@@ -355,7 +356,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
             <p className="flex items-center gap-1.5 font-medium text-titanium-100">{icon} {title}</p>
             <p className="mt-1 text-titanium-400">{text}</p>
             <button onClick={() => runExtra(kind)} disabled={busy[kind]} className="mt-2 inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-3 py-1.5 text-[11px] text-titanium-100 disabled:opacity-50">
-                {busy[kind] ? <><Loader2 size={12} className="animate-spin" /> Leyendo…</> : <><Sparkles size={12} /> Revisar · {cost}</>}
+                {busy[kind] ? <><Loader2 size={12} className="animate-spin" /> Leyendo…</> : <><Sparkles size={12} aria-hidden="true" /> Revisar{costSuffix(cost)}</>}
             </button>
         </div>
     );
@@ -372,7 +373,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
 
     const renderWatch = () => !watchAlerts.length ? null : (
         <section className="space-y-2 rounded-lg border border-red-800/40 bg-red-950/10 p-3">
-            <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-red-300/90"><AlertTriangle size={12} /> El Guardián vio esto al guardar</h3>
+            <h3 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-red-300/90"><AlertTriangle size={12} /> Esto se vio al guardar</h3>
             {watchAlerts.map((a, i) => (
                 <div key={i} className="space-y-1">
                     <p className="font-medium text-titanium-100">{a.titulo}</p>
@@ -391,7 +392,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
 
     const renderCanon = () => !canon ? (
         <ExtraIntro kind="canon" icon={<ShieldCheck size={13} className="text-emerald-400" />} title="Coherencia con tu canon"
-            text="El Guardián compara el capítulo con tus fichas, reglas y capítulos anteriores, y te muestra solo las contradicciones que puede demostrar con las dos citas." cost="~US$0,05" />
+            text="Compara el capítulo con tus fichas, reglas y capítulos anteriores, y te muestra solo las contradicciones que puede demostrar con las dos citas." cost="~US$0,05" />
     ) : (
         <section className="space-y-2">
             <ExtraHeader kind="canon" icon={<ShieldCheck size={12} />} title={`Coherencia con tu canon${canon.contradicciones?.length ? ` (${canon.contradicciones.length})` : ''}`} />
@@ -433,7 +434,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
 
     const renderVoices = () => !voices ? (
         <ExtraIntro kind="voices" icon={<Users size={13} className="text-sky-400" />} title="Tres lecturas"
-            text="Tres lectores leen el capítulo cada uno a su manera: estructura (el Arquitecto), voz y emoción (el Bardo) y dónde dejaría de leer alguien exigente (el Hater)." cost="~US$0,04" />
+            text="Tres lecturas del capítulo: la estructura, la voz y la emoción, y dónde dejaría de leer alguien exigente." cost="~US$0,04" />
     ) : (
         <section className="space-y-2">
             <ExtraHeader kind="voices" icon={<Users size={12} />} title="Tres lecturas" />
@@ -468,7 +469,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
     );
 
     return (
-        <div className="fixed right-0 top-0 bottom-0 z-[150] w-[440px] max-w-[96vw] bg-titanium-900 border-l border-titanium-700 shadow-2xl flex flex-col">
+        <div className="fixed right-0 top-0 bottom-0 z-[150] w-full sm:w-[440px] bg-titanium-900 sm:border-l border-titanium-700 shadow-2xl flex flex-col overscroll-contain">
             <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800">
                 <div className="flex items-center gap-2 min-w-0">
                     <MiraSprite pose={((canon?.contradicciones?.length || 0) + watchAlerts.length) > 0 ? 'ojo' : 'contenta'} face label="Mira" className="shrink-0 -my-2" />
@@ -499,7 +500,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                     <div className="py-6 text-center space-y-3">
                         <MiraSprite pose="leyendo" className="mx-auto" />
                         <p className="text-titanium-300">Cuando termines un capítulo, pide un reporte: qué funciona, qué corregir y dónde está cada cosa en tu texto, ortografía con corrección de un clic y lecturas apoyadas en tus referencias. Debajo puedes pedir también la revisión del canon y las tres lecturas.</p>
-                        <p className="text-titanium-600">Usa Claude · cuesta alrededor de US$0,10 por reporte.</p>
+                        {showCosts() && <p className="text-titanium-600">Usa Claude · cuesta alrededor de US$0,10 por reporte.</p>}
                         <button onClick={generate} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-purple-700/80 hover:bg-purple-600 px-4 py-2 text-xs font-medium text-white">
                             <Sparkles size={13} /> Generar reporte
                         </button>

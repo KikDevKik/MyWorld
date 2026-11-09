@@ -16,6 +16,7 @@ import { _getDriveFileContentInternal } from "./utils/drive";
 import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext, slugify } from "./utils/memory_store";
+import { planContext } from "./plan_context";
 import { getAIKey } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { textHash } from "./utils/text_hash";
@@ -241,7 +242,8 @@ export const personajes = onCall(
             const message = String(request.data?.message || "").trim().slice(0, 4000);
             const s: any = (await sRef.get()).data() || {};
             const mensajes: { role: string; text: string }[] = s.mensajes || [];
-            const [ficha, ment] = await Promise.all([readFicha(), mentions(uid, `${who} ${message}`, apiKey, p.fichaFileId)]);
+            // Nov 2026: + memoria y plan del libro: la entrevista preguntaba la edad de Ana aunque ya estaba decidida.
+            const [ficha, ment, memory, plan] = await Promise.all([readFicha(), mentions(uid, `${who} ${message}`, apiKey, p.fichaFileId), getMemoryContext(uid, `${who} ${message}`), planContext(uid)]);
             const falta = (s.analisis?.falta || []).map((f: any) => `- ${f.aspecto}: ${f.pregunta}`).join("\n");
             const convo = mensajes.slice(-14).map(m => `${m.role === "user" ? "AUTOR" : "ARQUITECTO"}: ${m.text}`).join("\n\n");
             const reply = await claude(CLAUDE_SONNET, INTERVIEW_SYSTEM, [
@@ -249,6 +251,8 @@ export const personajes = onCall(
                 ficha ? `SU FICHA ACTUAL:\n<<<\n${ficha.slice(0, 20000)}\n>>>` : "SU FICHA ACTUAL: (no tiene)",
                 falta ? `LO QUE FALTA (según la revisión):\n${falta}` : "",
                 ment ? `LO QUE DICE SU MANUSCRITO:\n${ment}` : "",
+                memory ? `LO QUE YA DECIDIÓ EL AUTOR (memoria del proyecto; no lo vuelvas a preguntar):\n${memory.slice(0, 4000)}` : "",
+                plan,
                 convo ? `ENTREVISTA HASTA AHORA:\n${convo}` : "",
                 message ? `AUTOR: ${message}` : "INICIO: haz tu primera pregunta (la que más le sirve a este personaje ahora).",
             ].filter(Boolean).join("\n\n"), "PersonajesEntrevista", 2500);

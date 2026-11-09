@@ -2684,7 +2684,7 @@ export const arquitectoCerrarSesion = onCall(
             return { summary: prev.closingSummary || '', savedAs: null, skipped: true };
         }
         const { summary, savedAs } = await conectarClose(uid, sessionId, accessToken, getAIKey(request.data, googleApiKey.value()));
-        const text = summary + (savedAs ? `\n\n_Guardé este resumen en ${savedAs} (también lo ves en Obsidian)._` : '');
+        const text = summary + (savedAs ? `\n\n_Guardé este resumen en ${savedAs} ._` : '');
         const sref = getFirestore().collection("users").doc(uid).collection("forge_sessions").doc(sessionId);
         await sref.collection("messages").add({ role: 'ia', text, timestamp: new Date(), arquitectoMode: 'cierre' });
         await sref.set({ closedAt: new Date().toISOString(), closingSummary: summary }, { merge: true }); // Nov 2026: sin tocar updatedAt (si no, una conversación archivada pasaba a ser «la más reciente»)

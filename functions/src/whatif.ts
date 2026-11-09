@@ -240,7 +240,9 @@ export const whatIf = onCall(
             const drive = drv(accessToken);
             const folder = (await findIdeasFolder(drive, uid, true))!;
             const today = new Date().toISOString().slice(0, 10);
-            const content = `---\ntipo: idea\ncanon: no\ncreada: ${today}\norigen: Qué pasaría si (MyWorld)\n---\n\n# ${titulo}\n\n${cuerpo}\n`;
+            // Nov 2026: también guarda notas de Mira («Guardar como nota»), con su origen.
+            const origen = String(request.data?.origen || "Qué pasaría si").replace(/[\n\r]/g, " ").slice(0, 40);
+            const content = `---\ntipo: ${origen === "Mira" ? "nota" : "idea"}\ncanon: no\ncreada: ${today}\norigen: ${origen} (MyWorld)\n---\n\n# ${titulo}\n\n${cuerpo}\n`;
             const made = await drive.files.create({
                 requestBody: { name: `${titulo}.md`, mimeType: "text/markdown", parents: [folder.id] },
                 media: { mimeType: "text/markdown", body: content },

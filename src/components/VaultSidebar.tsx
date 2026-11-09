@@ -309,13 +309,14 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
 
 
     // 🟢 CREATE STANDARD PROJECT
-    const handleCreateProject = async (name: string) => {
+    const handleCreateProject = async (name: string, kind?: 'mundo' | 'realista') => {
         try {
-            toast.info("Creando estructura del proyecto...");
+            toast.info("Creando la estructura del proyecto…");
 
             const result = await callFunction<any>('createTitaniumStructure', {
                 accessToken: accessToken,
-                newProjectName: name
+                newProjectName: name,
+                bookKind: kind,
             });
 
             console.log('[DEBUG] createTitaniumStructure result:', JSON.stringify(result));

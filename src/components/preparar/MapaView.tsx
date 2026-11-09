@@ -9,6 +9,8 @@ import { forceCollide } from 'd3-force';
 import { Network, ScanSearch, Loader2, Sparkles, X, FileText, Ghost, DraftingCompass as Landmark, Users, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import { callFunction } from '../../services/api';
+import { useIsNarrow } from '../../hooks/useMediaQuery';
+import { costSuffix } from '../../utils/costHint';
 
 interface MapNode { id: string; nombre: string; tipo: string; resumen: string; fileId: string | null; archivos: string[]; rol?: string; x?: number; y?: number }
 interface MapLink { source: string | MapNode; target: string | MapNode; tipo: string; descripcion: string; fuente: string; sug?: boolean }
@@ -44,6 +46,9 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
     const [sel, setSel] = useState<string | null>(null);
     const [selSug, setSelSug] = useState<Sugerencia | null>(null);
     const [query, setQuery] = useState('');
+    // Nov 2026: el mapa también como lista (se lee en el celular y con teclado; el lienzo no).
+    const narrow = useIsNarrow();
+    const [asList, setAsList] = useState(narrow);
     const [size, setSize] = useState({ w: 800, h: 600 });
     const boxRef = useRef<HTMLDivElement>(null);
     const fgRef = useRef<any>(null);
@@ -68,7 +73,9 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
     const scan = async () => {
         setBusy('scan');
         try {
-            const r = await callFunction<any>('mapaMundo', { mode: 'scan' }, { timeout: 540000 });
+            // Nov 2026: los personajes se vuelven a buscar al actualizar: antes el mapa usaba la lista vieja y no
+            // aparecían los personajes de capítulos nuevos (en la prueba faltaban Tomás, Lucía y el padre).
+            const r = await callFunction<any>('mapaMundo', { mode: 'scan', refreshPersonajes: true }, { timeout: 540000 });
             setNodes(r.nodes || []); setLinks(r.links || []); setSugs([]); setScannedAt(r.scannedAt || null); setSel(null); setSelSug(null);
             toast.success(`Mapa listo: ${r.nodes?.length || 0} elementos y ${r.links?.length || 0} conexiones.`);
             fittedRef.current = false;
@@ -149,15 +156,18 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                 <Network size={15} className="text-cyan-400" />
                 <span className="text-sm text-titanium-100">Mapa de tu mundo</span>
                 {scannedAt && <span className="text-xs text-titanium-400">· {nodes.length} {nodes.length === 1 ? 'elemento' : 'elementos'} · {links.length} {links.length === 1 ? 'conexión' : 'conexiones'} · {ghosts} sin archivo</span>}
-                <div className="ml-auto flex items-center gap-2">
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                    {!!nodes.length && (
+                        <button onClick={() => setAsList(v => !v)} aria-pressed={asList} className="rounded-md border border-titanium-800 px-2.5 py-1 text-[12px] text-titanium-300 hover:bg-titanium-900 hover:text-titanium-100">{asList ? 'Ver el mapa' : 'Ver como lista'}</button>
+                    )}
                     <div className="flex items-center gap-1 rounded-md border border-titanium-800 bg-titanium-950 px-2">
                         <Search size={12} className="text-titanium-600" />
                         <input value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => e.key === 'Enter' && searchHit()} placeholder="Buscar…" className="w-32 bg-transparent py-1 text-[12px] text-titanium-200 outline-none" />
                     </div>
-                    <button onClick={suggest} disabled={!!busy || !nodes.length} className="inline-flex items-center gap-1.5 rounded-md bg-amber-800/60 hover:bg-amber-700/70 px-2.5 py-1 text-[11px] text-amber-50 disabled:opacity-40" title="El Arquitecto propone 5 conexiones posibles entre piezas sueltas (~US$0,03)">
+                    <button onClick={suggest} disabled={!!busy || !nodes.length} className="inline-flex items-center gap-1.5 rounded-md bg-mira/15 hover:bg-mira/25 border border-mira/30 px-2.5 py-1 text-[12px] text-titanium-50 disabled:opacity-40" title={`El Arquitecto propone 5 conexiones posibles entre piezas sueltas${costSuffix('~US$0,03', ' · ')}`}>
                         {busy === 'suggest' ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />} Sugerir conexiones
                     </button>
-                    <button onClick={scan} disabled={!!busy} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-2.5 py-1 text-[11px] text-titanium-100 disabled:opacity-50" title="Lee tu canon y dibuja el mapa (~US$0,03)">
+                    <button onClick={scan} disabled={!!busy} className="inline-flex items-center gap-1.5 rounded-md bg-titanium-800 hover:bg-titanium-700 px-2.5 py-1 text-[11px] text-titanium-100 disabled:opacity-50" title={`Lee tu canon y dibuja el mapa${costSuffix('~US$0,03', ' · ')}`}>
                         {busy === 'scan' ? <Loader2 size={12} className="animate-spin" /> : <ScanSearch size={12} />} {nodes.length ? 'Actualizar mapa' : 'Dibujar mi mundo'}
                     </button>
                 </div>
@@ -172,8 +182,26 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                             <Network size={36} className="text-titanium-700" />
                             <p className="text-titanium-300">Dibuja tu mundo: leo tu canon y te muestro quién y qué se conecta con qué.</p>
                             <p className="max-w-md text-[12px] text-titanium-600">Cada conexión trae el archivo donde la estableciste. Después, el Arquitecto puede sugerirte conexiones posibles entre piezas sueltas.</p>
-                            {busy === 'scan' && <p className="text-[12px] text-cyan-400/80">Leyendo tu canon… puede tardar uno o dos minutos.</p>}
+                            {busy === 'scan' && <p className="text-[12px] text-mira">Leyendo tu canon… puede tardar uno o dos minutos.</p>}
                         </div>
+                    ) : asList ? (
+                        <ul className="absolute inset-0 overflow-y-auto p-3 sm:p-4 space-y-2" aria-label="Elementos de tu mundo">
+                            {data.nodes.map((n: any) => {
+                                const ls = links.filter(l => idOf(l.source) === n.id || idOf(l.target) === n.id);
+                                return (
+                                    <li key={n.id}>
+                                        <button onClick={() => { setSel(n.id); setSelSug(null); }} className={`w-full text-left rounded-lg border px-3 py-2.5 ${sel === n.id ? 'border-mira/60 bg-titanium-900' : 'border-titanium-800 hover:bg-titanium-900'}`}>
+                                            <span className="flex flex-wrap items-center gap-2">
+                                                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLOR[n.tipo] || '#94a3b8' }} aria-hidden="true" />
+                                                <span className="text-[14px] text-titanium-100">{n.nombre}</span>
+                                                <span className="text-[12px] text-titanium-500">{TIPOS.find(t => t.id === n.tipo)?.label || n.tipo}{n.fileId ? '' : ' · sin archivo'}</span>
+                                            </span>
+                                            {ls.length > 0 && <span className="mt-1 block text-[12px] leading-relaxed text-titanium-400">{ls.map(l => idOf(l.source) === n.id ? `${l.tipo} → ${name(idOf(l.target))}` : `${name(idOf(l.source))} → ${l.tipo}`).join(' · ')}</span>}
+                                        </button>
+                                    </li>
+                                );
+                            })}
+                        </ul>
                     ) : (
                         <ForceGraph2D
                             ref={fgRef}
@@ -207,8 +235,9 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                                 else { ctx.setLineDash([3 / scale, 2.5 / scale]); ctx.lineWidth = 1.4 / scale; ctx.strokeStyle = color; ctx.stroke(); ctx.setLineDash([]); }
                                 if (n.id === sel) { ctx.lineWidth = 2 / scale; ctx.strokeStyle = '#fff'; ctx.stroke(); }
                                 // Nivel de detalle: lejos solo los nombres de los elementos grandes.
-                                if (scale > 1.4 || deg >= 6 || n.id === sel || (neighbors && neighbors.has(n.id))) {
-                                    const fs = Math.max(10 / scale, 2.5);
+                                // Nov 2026: en mundos pequeños (un libro corto) todos los nombres se ven siempre, y a 12 px.
+                                if (nodes.length <= 25 || scale > 1.4 || deg >= 6 || n.id === sel || (neighbors && neighbors.has(n.id))) {
+                                    const fs = Math.max(12 / scale, 3);
                                     ctx.font = `${fs}px ui-sans-serif, system-ui`;
                                     ctx.textAlign = 'center';
                                     ctx.textBaseline = 'top';
@@ -223,7 +252,12 @@ export default function MapaView({ onOpenFile, onAskArquitecto, onGoToPersonajes
                             }}
                         />
                     )}
-                    {!!nodes.length && (
+                    {busy && !!nodes.length && (
+                        <div role="status" className="absolute top-3 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-full border border-titanium-700 bg-titanium-900 px-3 py-1 text-[12px] text-titanium-200">
+                            <Loader2 size={12} className="animate-spin motion-reduce:animate-none" aria-hidden="true" /> {busy === 'scan' ? 'Actualizando el mapa (lee tus capítulos y personajes)…' : 'El Arquitecto busca conexiones…'}
+                        </div>
+                    )}
+                    {!!nodes.length && !asList && (
                         <div className="absolute left-3 bottom-3 flex flex-wrap gap-1.5 max-w-[70%]">
                             {TIPOS.filter(t => nodes.some(n => n.tipo === t.id)).map(t => (
                                 <button key={t.id} onClick={() => setHidden(h => { const n = new Set(h); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}

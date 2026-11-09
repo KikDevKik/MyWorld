@@ -57,7 +57,9 @@ function weekActivity(): number[] {
 }
 
 function lastSentence(tail: string): string {
-    const paras = tail.split(/\n+/).map(p => p.trim()).filter(p => p && !/^#+\s/.test(p));
+    // Nov 2026: solo prosa (sin títulos, metadatos ni citas del sistema).
+    const paras = tail.split(/\n+/).map(p => p.trim().replace(/#+\s.*$/, '').trim())
+        .filter(p => p && !/^(#+\s|>|---|[a-z_]+:\s|[-*•]\s)/i.test(p));
     const p = paras[paras.length - 1] || '';
     if (p.length <= 180) return p;
     const cut = p.slice(-180);
@@ -121,9 +123,9 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
         <div className="flex-1 overflow-y-auto bg-titanium-950 p-6 md:p-10">
             <div className="max-w-5xl mx-auto flex flex-col gap-6">
                 {/* Ventana al cielo */}
-                <div className="relative h-56 rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg,#0B0A12 0 35%,#100E1A 35% 62%,#1A1630 62%)' }}>
+                <div className="relative h-32 sm:h-56 rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(180deg,#0B0A12 0 35%,#100E1A 35% 62%,#1A1630 62%)' }}>
                     {stars.map((st, i) => (
-                        <span key={i} aria-hidden className="absolute animate-pulse" style={{ left: `${st.x}%`, top: `${st.y}%`, width: st.big ? 4 : 2, height: st.big ? 4 : 2, background: st.big ? '#B9AEE0' : '#FFF4F4', animationDelay: `${st.d}s`, animationDuration: '3.6s' }} />
+                        <span key={i} aria-hidden className="absolute animate-pulse motion-reduce:animate-none" style={{ left: `${st.x}%`, top: `${st.y}%`, width: st.big ? 4 : 2, height: st.big ? 4 : 2, background: st.big ? '#B9AEE0' : '#FFF4F4', animationDelay: `${st.d}s`, animationDuration: '3.6s' }} />
                     ))}
                     <svg aria-hidden viewBox="0 0 1000 80" preserveAspectRatio="none" className="absolute left-0 bottom-0 w-full h-20"><path d="M0 50 Q 250 10 520 40 T 1000 30 V80 H0 Z" fill="#17282B" /><rect x="0" y="66" width="1000" height="14" fill="#1F3D35" /></svg>
                     <svg aria-hidden width="320" height="140" viewBox="0 0 320 140" className="absolute right-8 top-5 hidden sm:block">
@@ -133,7 +135,7 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
                     </svg>
                     <MiraSprite pose="saludo" label="Mira te saluda" className="absolute right-[38%] bottom-1 hidden md:block" />
                     <div className="absolute left-8 bottom-7">
-                        <h1 className="font-serif text-4xl font-semibold text-[#FFF4F4]">{s.hi(new Date().getHours())}.</h1>
+                        <h1 className="font-serif text-3xl sm:text-4xl font-semibold text-[#FFF4F4] text-balance">{s.hi(new Date().getHours())}.</h1>
                     </div>
                 </div>
 

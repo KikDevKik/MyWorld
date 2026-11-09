@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle, FilePlus, Wand2, FileText } from 'lucide-react';
+import { User, Bot, AlertTriangle, ShieldAlert, Loader2, X, AlertCircle, FilePlus, FileText } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AnalysisCard } from './AnalysisCard';
 import { VerdictCard } from './VerdictCard';
-import { callFunction } from '../../../services/api';
 import { ChatMessageData } from '../../../types/director';
 import { parseThinking } from '../../../utils/thinking';
 import { ThinkingBubble } from './ThinkingBubble';
@@ -31,7 +30,8 @@ interface ChatMessageProps {
     message: ChatMessageData;
     onRescue: (drift: any, id: string, category: string) => void;
     onPurge: (drift: any, id: string) => void;
-    onInsert?: (text: string) => void;
+    /** Nov 2026: guarda la respuesta como nota en Recursos (antes «Llevar al capítulo» la reescribía con IA dentro del manuscrito). */
+    onInsert?: (text: string) => void | Promise<void>;
     rescuingIds: Set<string>;
     purgingIds: Set<string>;
     isOld?: boolean;
@@ -261,19 +261,16 @@ export const ChatMessage = React.memo(({
                     <div className="mt-3 pt-2 border-t border-mira/20 flex justify-end gap-2">
                         <button
                             onClick={() => {
+                                if (!onInsert) return;
                                 setIsTransforming(true);
-                                callFunction<{text: string}>('transformToGuide', { text: content })
-                                    .then((res) => { if (onInsert) onInsert(res.text); })
-                                    .catch(() => { if (onInsert) onInsert(content); })
-                                    .finally(() => setIsTransforming(false));
+                                Promise.resolve(onInsert(content)).finally(() => setIsTransforming(false));
                             }}
                             disabled={isTransforming}
-                            className="flex items-center gap-1.5 text-xs font-medium text-mira hover:text-titanium-100 hover:bg-mira/10 px-2.5 py-1.5 rounded-lg transition-colors"
-                            title="Convierte la respuesta en una nota-guía y la pone en tu capítulo"
-                            aria-label="Llevar la respuesta al capítulo como guía"
+                            className="flex items-center gap-1.5 text-xs font-medium text-mira hover:text-titanium-100 hover:bg-mira/10 px-2.5 py-1.5 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/60"
+                            title="Guarda esta respuesta como nota en Recursos → Ideas (no canon). Tu capítulo no cambia."
                         >
-                            {isTransforming ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
-                            <span>{isTransforming ? 'Preparando…' : 'Llevar al capítulo'}</span>
+                            {isTransforming ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <FilePlus size={13} aria-hidden="true" />}
+                            <span>{isTransforming ? 'Guardando…' : 'Guardar como nota'}</span>
                         </button>
                     </div>
                 )}

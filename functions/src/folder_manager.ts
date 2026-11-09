@@ -260,7 +260,7 @@ export const createTitaniumStructure = onCall(
     async (request) => {
         if (!request.auth) throw new HttpsError("unauthenticated", "Login requerido.");
 
-        const { accessToken, rootFolderId, newProjectName } = request.data;
+        const { accessToken, rootFolderId, newProjectName, bookKind } = request.data;
         if (!accessToken) throw new HttpsError("unauthenticated", "Falta accessToken.");
 
         // 🛡️ SENTINEL CHECK: Input Length (DoS Prevention)
@@ -276,7 +276,7 @@ export const createTitaniumStructure = onCall(
         const userId = request.auth.uid;
         const db = getFirestore();
 
-        const STRUCTURE = [
+        const FULL_STRUCTURE = [
             { name: "UNIVERSO", legacyName: "00_UNIVERSO", role: FolderRole.WORLD_CORE },
             { name: "PERSONAJES", legacyName: "01_PERSONAJES", role: FolderRole.ENTITY_PEOPLE },
             { name: "BESTIARIO", legacyName: "02_BESTIARIO", role: FolderRole.ENTITY_BESTIARY },
@@ -285,6 +285,11 @@ export const createTitaniumStructure = onCall(
             { name: "EXTRAS", legacyName: "04_EXTRAS", role: FolderRole.SAGA_EXTRAS },
             { name: "RECURSOS", legacyName: "99_RECURSOS", role: FolderRole.RESOURCES }
         ];
+        // Nov 2026: un libro realista no recibe «Bestiario» ni «Objetos» (antes todos los proyectos eran de fantasía).
+        // Solo aplica al crear un proyecto nuevo; en uno existente no se toca nada.
+        const STRUCTURE = bookKind === "realista" && newProjectName && !rootFolderId
+            ? FULL_STRUCTURE.filter(f => f.role !== FolderRole.ENTITY_BESTIARY && f.role !== FolderRole.ENTITY_OBJECTS)
+            : FULL_STRUCTURE;
 
         try {
             const auth = new google.auth.OAuth2();

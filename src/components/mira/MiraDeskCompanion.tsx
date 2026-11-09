@@ -97,13 +97,17 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
         } catch { /* */ }
     }, [fileId, prefs.ritual]);
 
-    // Llegada: una vez al día por archivo, cuando ya no está el ritual, Mira repasa lo pendiente.
+    // Llegada: cuando ya no está el ritual, Mira repasa lo pendiente.
+    // Nov 2026: cada aviso sale una vez al día (antes, el mismo aviso del roadmap salía en cada capítulo que abrías);
+    // al abrir otro capítulo solo vuelve si trae algo nuevo, como lo pendiente de su reporte.
     useEffect(() => {
         if (!fileId || ritual || !arrival || !arrival.items.length) return;
-        const k = `mw-arrival-${fileId}-${localDayKey()}`;
-        try { if (localStorage.getItem(k)) return; } catch { /* */ }
+        const k = `mw-arrival-${localDayKey()}`;
+        let seen: string[] = [];
+        try { seen = JSON.parse(localStorage.getItem(k) || '[]'); } catch { /* */ }
+        if (arrival.items.every(it => seen.includes(it))) return;
         const id = window.setTimeout(() => {
-            try { localStorage.setItem(k, '1'); } catch { /* */ }
+            try { localStorage.setItem(k, JSON.stringify([...new Set([...seen, ...arrival.items])].slice(-30))); } catch { /* */ }
             setPose('neutral');
             setBubble({ title: t.arrT, text: '', arrival: true });
         }, 1200);
@@ -184,9 +188,10 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
                 </div>
             )}
 
-            <div className="absolute right-5 bottom-12 z-30 flex items-end gap-2 pointer-events-none">
+            {/* Nov 2026: en el celular Mira no se dibuja sobre el texto (tapaba palabras); quedan solo sus avisos. */}
+            <div className="absolute right-3 max-lg:left-3 lg:right-5 bottom-12 z-30 flex items-end justify-end gap-2 pointer-events-none">
                 {bubble && (
-                    <div className={`pointer-events-auto mb-16 ${bubble.arrival ? 'max-w-[340px]' : 'max-w-[290px]'} transition-opacity duration-300`} style={{ opacity: bubble.rest || bubble.arrival ? 1 : Math.max(0.35, 1 - bubbleChars / 16) }}>
+                    <div className={`pointer-events-auto mb-2 lg:mb-16 ${bubble.arrival ? 'max-w-[340px]' : 'max-w-[290px]'} transition-opacity duration-300`} style={{ opacity: bubble.rest || bubble.arrival ? 1 : Math.max(0.35, 1 - bubbleChars / 16) }}>
                         <MiraBubble title={bubble.title} tail="right" live>
                             {bubble.text}
                             {bubble.arrival && arrival && (
@@ -212,7 +217,7 @@ const MiraDeskCompanion: React.FC<Props> = ({ content, fileId, arrival, onOpenRe
                         </MiraBubble>
                     </div>
                 )}
-                <div className="relative pointer-events-auto">
+                <div className="relative pointer-events-auto max-lg:hidden">
                     <button type="button" onClick={() => setMenu(m => !m)} aria-label={t.miraAria} aria-expanded={menu} className="block rounded-lg">
                         <MiraSprite
                             pose={pose}

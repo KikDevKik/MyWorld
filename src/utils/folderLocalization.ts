@@ -17,6 +17,8 @@ export const getLocalizedFolderName = (name: string, language: Language): string
         case 'MANUSCRITO': return t.manuscript || name;
         case 'EXTRAS': return t.extras || name;
         case 'RECURSOS': return t.resources || name;
-        default: return name;
+        case 'OBJETOS': return (t as any).objects || name;
+        // Nov 2026: en la interfaz, sin «.md» ni guiones bajos («Libro_01» → «Libro 01»).
+        default: return name.replace(/\.md$/i, '').replace(/_/g, ' ');
     }
 };

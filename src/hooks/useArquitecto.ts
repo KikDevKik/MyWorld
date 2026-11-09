@@ -150,12 +150,16 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
                     return;
                 }
                 const items: any[] = latest.pendingItems || [];
+                // Nov 2026: las conversaciones nuevas no tienen «dudas» sino agenda: se cuenta la agenda
+                // (antes decía «0 resueltas · 0 pendientes» con 5 puntos abiertos).
+                const agenda: any[] = Array.isArray(latest.agenda) ? latest.agenda : [];
+                const useAgenda = !items.length && agenda.length > 0;
                 setExistingSession({
                     id: latest.id,
                     name: latest.name || latest.projectName || 'Sesión anterior',
                     lastUpdatedAt: latest.updatedAt,
-                    resolvedCount: items.filter((i: any) => i.resolved === true).length,
-                    pendingCount: items.filter((i: any) => !i.resolved).length,
+                    resolvedCount: useAgenda ? agenda.filter((p: any) => p.e === 'hecho').length : items.filter((i: any) => i.resolved === true).length,
+                    pendingCount: useAgenda ? agenda.filter((p: any) => p.e !== 'hecho').length : items.filter((i: any) => !i.resolved).length,
                 });
             })
             .catch(() => { if (!cancelled) setExistingSession(null); });
@@ -901,7 +905,8 @@ export const useArquitecto = ({ accessToken, folderId }: UseArquitectoProps) => 
     return {
         messages,
         // Oct 2026: agrega una respuesta del Arquitecto que llegó por otra vía (p. ej. el resumen de cierre)
-        appendAssistantMessage: (text: string) => setMessages(prev => [...prev, { id: `ia_${Date.now()}`, role: 'assistant', text, timestamp: Date.now(), mode: 'cierre' }]),
+        // Nov 2026: el resumen también llega por el listener de mensajes; sin este filtro salía dos veces.
+        appendAssistantMessage: (text: string) => setMessages(prev => prev.some(m => m.role === 'assistant' && (m.text || '').trim().slice(0, 200) === text.trim().slice(0, 200)) ? prev : [...prev, { id: `ia_${Date.now()}`, role: 'assistant', text, timestamp: Date.now(), mode: 'cierre' }]),
         pendingItems,
         projectSummary,
         sessionId,
