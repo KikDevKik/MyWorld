@@ -774,6 +774,49 @@ export const importDriveFolder = onCall(
 );
 
 /**
+ * IMPORT PICKED FILES (Nov 2026)
+ * Copia al proyecto los archivos que el autor eligió en el selector de Google. Con drive.file,
+ * MyWorld puede leer exactamente esos archivos (y nada más del Drive), así que basta el token de
+ * sesión: ya no hace falta el permiso restringido drive.readonly.
+ */
+export const importPickedFiles = onCall(
+  { region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS, enforceAppCheck: false, timeoutSeconds: 300, memory: "512MiB" },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Login Required");
+    const { files, role, groupName, projectRootId, sessionToken } = request.data || {};
+    if (!sessionToken) throw new HttpsError("invalid-argument", "Falta el permiso de Drive. Vuelve a entrar.");
+    if (!projectRootId) throw new HttpsError("invalid-argument", "Falta la carpeta del proyecto.");
+    const list: { id: string; name: string; mimeType?: string }[] = Array.isArray(files) ? files.slice(0, 200) : [];
+    if (!list.length) throw new HttpsError("invalid-argument", "No elegiste archivos.");
+
+    const auth = new google.auth.OAuth2();
+    auth.setCredentials({ access_token: sessionToken });
+    const drive = google.drive({ version: "v3", auth });
+
+    const target = await getOrCreateRoleFolder(drive, projectRootId, (role === "canon" || role === "resource") ? role : "root", request.data._lang || "es");
+    const name = String(groupName || "").trim().slice(0, 120) || `Traído de mi Drive ${new Date().toISOString().slice(0, 10)}`;
+    const folder = await drive.files.create({
+      requestBody: { name, mimeType: "application/vnd.google-apps.folder", parents: [target] },
+      fields: "id", supportsAllDrives: true,
+    });
+    const folderId = folder.data.id!;
+
+    const stats = { copied: 0, skipped: 0, errors: [] as string[] };
+    for (const f of list) {
+      if (!f?.id || !isAllowedFile(String(f.name || ""), String(f.mimeType || ""))) { stats.skipped++; continue; }
+      try {
+        await drive.files.copy({ fileId: f.id, requestBody: { name: f.name, parents: [folderId] }, supportsAllDrives: true });
+        stats.copied++;
+      } catch (err: any) {
+        logger.warn(`[ImportFiles] No pude copiar ${f.name}: ${err?.message}`);
+        stats.errors.push(String(f.name || f.id));
+      }
+    }
+    return { success: true, copied: stats.copied, skipped: stats.skipped, errors: stats.errors, createdFolder: { id: folderId, name } };
+  }
+);
+
+/**
  * SAVE PROJECT CONFIG
  * Persists project-specific settings to Firestore.
  */

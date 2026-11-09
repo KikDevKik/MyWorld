@@ -1,3 +1,5 @@
+// Nov 2026: YA NO SE USA. La importación pasó al selector de archivos de Google (utils/drivePicker.ts),
+// que no necesita el permiso restringido drive.readonly. Se deja por si hay que volver atrás.
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 
 const IMPORT_SCOPE = 'https://www.googleapis.com/auth/drive.readonly';
