@@ -7,8 +7,11 @@ import { getAiLevel } from '../hooks/aiLevel';
 try { localStorage.removeItem('myworld_quota_today'); } catch { /* ignore */ }
 
 export class QuotaExceededError extends Error {
-    constructor() {
-        super('QUOTA_EXCEEDED');
+    // Nov 2026: el aviso decía «QUOTA_EXCEEDED». Ahora usa el mensaje del servidor (tope de Claude o
+    // límite de la clave gratis de Gemini) o uno claro por defecto.
+    constructor(serverMessage?: string) {
+        const m = String(serverMessage || '');
+        super(m && !/429|RESOURCE_EXHAUSTED|quota|resource-exhausted/i.test(m) ? m : 'La IA llegó a su límite por ahora. Espera unos minutos o cambia de nivel en Ajustes → Config IA.');
         this.name = 'QuotaExceededError';
     }
 }
@@ -77,7 +80,7 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
             error?.code === 'resource-exhausted';
 
         if (isQuotaError) {
-            throw new QuotaExceededError();
+            throw new QuotaExceededError(error?.message);
         }
 
         // Manejo de Errores (Safety Net)
@@ -117,6 +120,19 @@ export const callFunction = async <T>(name: string, data: any = {}, options?: Ht
         // pero para errores de *conexión* (que es el contexto del problema CORS), retornamos null.
 
         console.error(`❌ Error en Cloud Function [${name}]:`, error);
+
+        // Nov 2026: «internal» a secas tampoco le dice nada al autor.
+        if (String(error?.message || '').trim().toLowerCase() === 'internal') {
+            const e = new Error('Algo falló en el servidor. Intenta otra vez; si se repite, escríbenos a deidev180@gmail.com.');
+            (e as any).code = error?.code;
+            throw e;
+        }
+        // Nov 2026: el aviso mostraba «deadline-exceeded» tal cual. Se reemplaza por algo que el autor entienda.
+        if (error?.code === 'deadline-exceeded' || error?.code === 'functions/deadline-exceeded' || /deadline-exceeded/i.test(String(error?.message || ''))) {
+            const e = new Error('Tardó demasiado y lo corté. Intenta otra vez en un momento; si se repite, la IA puede estar saturada.');
+            (e as any).code = 'deadline-exceeded';
+            throw e;
+        }
 
         // En lugar de tragar el error y retornar null (lo que causa falsos positivos), lanzamos el error
         // a menos que sea un error crítico de red que debe manejarse en silencio (rare case).

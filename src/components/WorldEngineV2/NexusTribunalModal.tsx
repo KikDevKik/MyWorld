@@ -44,7 +44,7 @@ const getTypeColor = (type: AnalysisAmbiguityType) => {
         case 'CONFLICT': return 'text-orange-400 border-orange-500/50 bg-orange-950/20';
         case 'DUPLICATE': return 'text-yellow-400 border-yellow-500/50 bg-yellow-950/20';
         case 'NEW': return 'text-mira border-mira/50 bg-mira/15';
-        case 'ITEM_LORE': return 'text-purple-400 border-purple-500/50 bg-purple-950/20';
+        case 'ITEM_LORE': return 'text-mira border-mira/50 bg-mira/15';
         default: return 'text-slate-400 border-slate-500/50 bg-slate-950/20';
     }
 };
@@ -338,7 +338,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                 <button
                                     onClick={handleAutoMerge}
                                     disabled={isProcessing}
-                                    className="px-3 py-1.5 bg-purple-900/50 border border-purple-500/30 rounded text-[10px] font-bold text-purple-200 hover:bg-purple-800 hover:border-purple-400 transition-colors flex items-center gap-1"
+                                    className="px-3 py-1.5 bg-mira/15 border border-mira/30 rounded text-[10px] font-bold text-mira hover:bg-mira/12 hover:border-mira/30 transition-colors flex items-center gap-1"
                                 >
                                     <GitMerge size={12} />
                                     AUTO-MERGE ({highConfidenceMerges.length})
@@ -386,7 +386,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                         </button>
                         <button
                             onClick={() => setFilterMode('NEW')}
-                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'NEW' ? 'border-b-2 border-purple-500 text-purple-100 bg-purple-950/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
+                            className={`flex-1 py-3 text-center transition-colors ${filterMode === 'NEW' ? 'border-b-2 border-mira/40 text-mira bg-mira/10' : 'hover:bg-slate-900/50 hover:text-slate-300'}`}
                         >
                             New
                         </button>
@@ -604,7 +604,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                         { (selectedCandidate as any).subtype && (
                                              <>
                                                 <span>•</span>
-                                                <span className="text-purple-400">SUBTYPE: {(selectedCandidate as any).subtype}</span>
+                                                <span className="text-mira">SUBTYPE: {(selectedCandidate as any).subtype}</span>
                                              </>
                                         )}
                                         { (selectedCandidate as any).type && (
@@ -692,7 +692,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                                         {selectedCandidate.suggestedAction === 'CONVERT_TYPE' && (
                                                             <div className="flex items-center gap-3 p-3 bg-slate-900 rounded border border-slate-800">
                                                                  <div className="text-xs text-slate-500">Change Type:</div>
-                                                                 <div className="text-sm font-bold text-purple-400">
+                                                                 <div className="text-sm font-bold text-mira">
                                                                      ENTITY → {selectedCandidate.category}
                                                                  </div>
                                                             </div>
@@ -772,7 +772,7 @@ const NexusTribunalModal: React.FC<NexusTribunalModalProps> = ({ isOpen, onClose
                                             const missingTarget = isMerge && !hasMergeTarget;
 
                                             const baseColor = isMerge
-                                                ? (missingTarget ? 'bg-slate-700 hover:bg-slate-600 border border-slate-500' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/20')
+                                                ? (missingTarget ? 'bg-slate-700 hover:bg-slate-600 border border-slate-500' : 'bg-coral text-on-coral hover:brightness-110')
                                                 : 'bg-mira/25 hover:bg-mira/25 shadow-mira/20';
 
                                             let label = isProcessing ? 'PROCESSING...' : (isMerge ? 'MERGE' : 'APPROVE');

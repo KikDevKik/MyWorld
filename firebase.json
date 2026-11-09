@@ -24,12 +24,12 @@
         "destination": "/app.html"
       },
       {
-        "source": "/",
-        "destination": "/landing.html"
+        "source": "/verify/**",
+        "destination": "/app.html"
       },
       {
-        "source": "**",
-        "destination": "/app.html"
+        "source": "/",
+        "destination": "/landing.html"
       }
     ],
     "headers": [

@@ -73,6 +73,20 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
 
     // 🟢 NUKE STEP: 0=normal, 1=primera confirmacion, 2=segunda confirmacion final
     const [nukeStep, setNukeStep] = useState<0 | 1 | 2>(0);
+    // Nov 2026: borrar lo que MyWorld guarda en sus servidores (sin tocar Drive).
+    const [dataStep, setDataStep] = useState<0 | 1>(0);
+    const [deletingData, setDeletingData] = useState(false);
+    const deleteMyData = async () => {
+        setDeletingData(true);
+        try {
+            await callFunction('deleteMyData', { confirm: 'BORRAR' }, { timeout: 540000 });
+            try { Object.keys(localStorage).filter(k => k.startsWith('mw-personajes-cache') || k.startsWith('mw-arrival') || k.startsWith('myworld_report_done_')).forEach(k => localStorage.removeItem(k)); } catch { /* sin storage */ }
+            toast.success('Listo: borré tus datos de MyWorld. Tus archivos de Drive siguen ahí.');
+            setTimeout(() => window.location.reload(), 2000);
+        } catch (e: any) {
+            toast.error(e?.message || 'No pude borrar tus datos. Intenta de nuevo.');
+        } finally { setDeletingData(false); setDataStep(0); }
+    };
 
     // 🟢 NEW: Project Name Local State (for input binding)
     const [localProjectName, setLocalProjectName] = useState('');
@@ -544,7 +558,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                         id="tab-ai_config"
                         onClick={() => setActiveTab('ai_config')}
                         className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-DEFAULT/50 focus-visible:bg-white/5 ${activeTab === 'ai_config'
-                            ? 'border-purple-400 text-purple-400'
+                            ? 'border-mira/30 text-mira'
                             : 'border-transparent text-titanium-400 hover:text-titanium-200'
                             }`}
                     >
@@ -733,6 +747,29 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                 {t.folderConfigMoved}
                             </p>
 
+                            {/* Nov 2026: tus datos en MyWorld (Ley 1581: derecho a suprimir). */}
+                            <div className="mt-4 p-4 border border-titanium-700 rounded-xl space-y-3">
+                                <h4 className="text-sm font-semibold text-titanium-100">Tus datos en MyWorld</h4>
+                                <p className="text-[13px] leading-relaxed text-titanium-400">
+                                    Tus historias viven en tu Google Drive. En los servidores de MyWorld se guarda un índice con fragmentos de tu texto (para buscar en tu canon), la memoria, tus conversaciones con Mira y el Arquitecto, los reportes, el plan, las fichas del fichero, el mapa y tus certificados de autoría. Puedes borrarlo todo; tu Drive no se toca. Solo se conserva cuánto gastó la IA cada mes, sin nada de tu texto.
+                                </p>
+                                {dataStep === 0 ? (
+                                    <button onClick={() => setDataStep(1)} disabled={deletingData} className="w-full py-2 rounded-lg border border-titanium-600 text-titanium-200 text-sm hover:bg-titanium-800 disabled:opacity-50">
+                                        Borrar mis datos de MyWorld
+                                    </button>
+                                ) : (
+                                    <div className="flex flex-col gap-3 rounded-lg border border-red-500/40 bg-red-950/20 p-3">
+                                        <p className="text-[13px] text-red-200">Se borra para siempre lo que MyWorld guarda de ti. Después, MyWorld tendrá que volver a leer tu Drive para buscar en tu canon. ¿Seguro?</p>
+                                        <div className="flex gap-2">
+                                            <button onClick={deleteMyData} disabled={deletingData} className="flex-1 py-2 rounded-lg border border-red-500/60 text-red-200 text-sm hover:bg-red-500/15 disabled:opacity-50">
+                                                {deletingData ? 'Borrando…' : 'Sí, borrar mis datos'}
+                                            </button>
+                                            <button onClick={() => setDataStep(0)} disabled={deletingData} className="flex-1 py-2 rounded-lg border border-titanium-700 text-titanium-300 text-sm hover:bg-titanium-800">Cancelar</button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
                             {/* 🟢 NUKE ZONE */}
                             <div className="mt-4 p-4 bg-red-950/20 border border-red-900/30 rounded-xl space-y-3">
                                 <div className="flex items-center gap-2">
@@ -817,7 +854,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                             <div className="flex flex-col gap-2 h-full">
                                 <div className="flex items-center justify-between">
                                     <label className="text-sm font-medium text-titanium-100 flex items-center gap-2">
-                                        <Dna size={14} className="text-purple-400" />
+                                        <Dna size={14} className="text-mira" />
                                         {t.styleDef}
                                     </label>
                                     <button
@@ -990,7 +1027,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                 spellCheck={false}
                                                 value={localGeminiKey}
                                                 onChange={(e) => setLocalGeminiKey(e.target.value)}
-                                                className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localGeminiKey ? 'border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500' : 'border-slate-700 focus:border-purple-500 focus:ring-purple-500'}`}
+                                                className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localGeminiKey ? 'border-emerald-500/40 focus:border-emerald-500 focus:ring-emerald-500' : 'border-slate-700 focus:border-mira/40 focus:ring-mira/60'}`}
                                                 placeholder={customGeminiKey && !geminiCleared ? "Nueva clave (opcional)" : "AIzaSy..."}
                                             />
                                             <button
@@ -1043,7 +1080,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSave, accessTo
                                                 spellCheck={false}
                                                 value={localAnthropicKey}
                                                 onChange={(e) => setLocalAnthropicKey(e.target.value)}
-                                                className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localAnthropicKey ? 'border-amber-500/40 focus:border-amber-500 focus:ring-amber-500' : 'border-slate-700 focus:border-purple-500 focus:ring-purple-500'}`}
+                                                className={`w-full bg-slate-800 text-white placeholder-gray-500 border p-2.5 pr-10 rounded-xl focus:ring-1 outline-none font-mono text-sm ${localAnthropicKey ? 'border-amber-500/40 focus:border-amber-500 focus:ring-amber-500' : 'border-slate-700 focus:border-mira/40 focus:ring-mira/60'}`}
                                                 placeholder={customAnthropicKey && !anthropicCleared ? "Nueva clave (opcional)" : "sk-ant-..."}
                                             />
                                             <button

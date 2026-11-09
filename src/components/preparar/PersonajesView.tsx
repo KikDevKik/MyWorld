@@ -7,6 +7,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Users, ScanSearch, Loader2, FileText, Ghost, Anchor, Send, RotateCcw, Wand2, X, Check, AlertTriangle, HelpCircle, Search, FilePlus2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAuth } from 'firebase/auth';
 import { callFunction } from '../../services/api';
 import { lineDiff } from '../../utils/lineDiff';
 import { textHash } from '../../utils/textHash';
@@ -37,7 +38,8 @@ function FichaBlock({ fileId, name, accessToken }: { fileId: string; name: strin
             .catch(() => { if (alive) setText(''); });
         return () => { alive = false; };
     }, [fileId, accessToken]);
-    const body = (text || '').replace(/^---\n[\s\S]*?\n---\n?/, '').replace(/^>\s*\*\*(Role|Traits)\*\*:.*$/gm, '').trim();
+    // Sin el frontmatter, las líneas técnicas ni el título «# Nombre» (el nombre ya está arriba).
+    const body = (text || '').replace(/^---\n[\s\S]*?\n---\n?/, '').replace(/^>\s*\*\*(Role|Traits)\*\*:.*$/gm, '').trim().replace(/^#\s+[^\n]*\n+/, '').trim();
     const save = async () => {
         setSaving(true);
         try {
@@ -96,10 +98,19 @@ export default function PersonajesView({ accessToken, onOpenFile }: Props) {
     const [editMode, setEditMode] = useState(false);
     const endRef = useRef<HTMLDivElement>(null);
 
+    // Nov 2026: la lista llegaba en 5 a 20 s (arranque en frío). Se muestra la última conocida mientras llega la nueva.
+    const CACHE_KEY = `mw-personajes-cache-${getAuth().currentUser?.uid || 'anon'}`;
+    useEffect(() => {
+        try {
+            const c = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+            if (c?.personajes?.length) { setList(c.personajes); setScannedAt(c.scannedAt || null); setLoading(false); }
+        } catch { /* sin caché */ }
+    }, []);
     const loadList = async () => {
         try {
             const r = await callFunction<any>('personajes', { mode: 'list' });
             setList(r?.personajes || []);
+            try { localStorage.setItem(CACHE_KEY, JSON.stringify({ personajes: r?.personajes || [], scannedAt: r?.scannedAt || null })); } catch { /* lleno */ }
             setScannedAt(r?.scannedAt || null);
             setCarpetas(r?.carpetas || []);
             // Nov 2026: si el servidor no sugiere carpeta, la de personajes (antes empezaba en «Elige…»).

@@ -49,7 +49,7 @@ export const TRANSLATIONS: Record<Language, any> = {
             folderName: "Nombre de carpeta"
         },
         app: {
-            loadingSystems: "CARGANDO SISTEMAS NEURONALES...",
+            loadingSystems: "Abriendo tu escritorio…",
             syncingNeurons: "Sincronizando Neuronas",
             securityFailed: "Protocolo de Seguridad Fallido",
             securityWarning: "Advertencia de Seguridad"
@@ -762,7 +762,7 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             folderName: "Folder Name"
         },
         app: {
-            loadingSystems: "LOADING NEURAL SYSTEMS...",
+            loadingSystems: "Opening your desk…",
             syncingNeurons: "Syncing Neurons",
             securityFailed: "Security Protocol Failed",
             securityWarning: "Security Warning"

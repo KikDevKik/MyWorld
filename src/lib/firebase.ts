@@ -2,7 +2,7 @@
 // ¡¡¡NUESTRA IGNICIÓN!!!
 import { initializeApp, getApp, getApps } from "firebase/app";
 // firebase/app-check import removido — App Check bypassed hasta configurar dominio en reCAPTCHA Admin
-import { getAnalytics } from "firebase/analytics";
+// Nov 2026: sin Google Analytics (no se usaba; así no hacen falta cookies ni aviso de consentimiento).
 import { initializeFirestore, CACHE_SIZE_UNLIMITED } from "firebase/firestore";
 
 // ¡¡¡TU "TESORO" VA AQUÍ!!!

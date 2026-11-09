@@ -49,7 +49,7 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
             <div className="bg-titanium-900 border border-titanium-700 rounded-xl shadow-2xl w-[38rem] max-w-[94vw] max-h-[82vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between px-5 py-4 border-b border-titanium-800">
                     <div className="flex items-center gap-2">
-                        <Brain size={16} className="text-purple-400" />
+                        <Brain size={16} className="text-mira" />
                         <div>
                             <p className="text-sm font-medium text-titanium-100">Memoria</p>
                             <p className="text-xs text-titanium-400">Lo que MyWorld recuerda de tu trabajo. Mira y el Arquitecto la leen en cada mensaje.</p>
@@ -59,7 +59,7 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-5 py-4 space-y-5">
-                    {files === null && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-purple-400" size={18} /></div>}
+                    {files === null && <div className="flex justify-center py-8"><Loader2 className="animate-spin text-mira" size={18} /></div>}
                     {files && total === 0 && (
                         <p className="text-xs text-titanium-400 leading-relaxed">
                             Todavía no hay nada guardado. A medida que hables con el Director o el Arquitecto, MyWorld irá recordando tus decisiones, cómo quieres que te ayuden y dónde quedaste. También puedes añadir algo a mano abajo.
@@ -79,7 +79,7 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
                                                 <textarea
                                                     value={editing.text}
                                                     onChange={e => setEditing({ ...editing, text: e.target.value })}
-                                                    className="flex-1 bg-titanium-950 border border-purple-500/40 rounded px-2 py-1 text-xs text-titanium-100 focus:outline-none"
+                                                    className="flex-1 bg-titanium-950 border border-mira/40 rounded px-2 py-1 text-xs text-titanium-100 focus:outline-none"
                                                     rows={2}
                                                     autoFocus
                                                 />
@@ -106,12 +106,12 @@ export default function MemoryPanel({ onClose, accessToken }: { onClose: () => v
                         onChange={e => setNewText(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter' && newText.trim()) { act({ action: 'add', slug: 'preferencias-del-autor', name: 'Preferencias del autor', kind: 'preferencias', text: newText }, 'Guardado en la memoria.'); setNewText(''); } }}
                         placeholder="Añadir algo que quieras que siempre recuerde…"
-                        className="flex-1 bg-titanium-950 border border-titanium-700 rounded-lg px-3 py-2 text-xs text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:border-purple-500/50"
+                        className="flex-1 bg-titanium-950 border border-titanium-700 rounded-lg px-3 py-2 text-xs text-titanium-100 placeholder:text-titanium-600 focus:outline-none focus:border-mira/50"
                     />
                     <button
                         disabled={!newText.trim() || busy}
                         onClick={() => { act({ action: 'add', slug: 'preferencias-del-autor', name: 'Preferencias del autor', kind: 'preferencias', text: newText }, 'Guardado en la memoria.'); setNewText(''); }}
-                        className="px-3 py-2 rounded-lg bg-purple-700/70 hover:bg-purple-600 text-white text-xs disabled:opacity-40 flex items-center gap-1"
+                        className="px-3 py-2 rounded-lg bg-coral hover:brightness-110 text-on-coral text-xs disabled:opacity-40 flex items-center gap-1"
                     >
                         {busy ? <><Loader2 size={12} className="animate-spin" /> Guardando…</> : <><Plus size={12} /> Añadir</>}
                     </button>

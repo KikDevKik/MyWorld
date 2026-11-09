@@ -22,7 +22,7 @@ const PHASE_COLORS: Record<string, string> = {
     fundacion: 'text-sky-400   border-sky-500/30   bg-sky-900/20',
     conflicto: 'text-rose-400  border-rose-500/30  bg-rose-900/20',
     desarrollo: 'text-amber-400 border-amber-500/30 bg-amber-900/20',
-    climax: 'text-purple-400 border-purple-500/30 bg-purple-900/20',
+    climax: 'text-mira border-mira/30 bg-mira/15',
     resolucion: 'text-emerald-400 border-emerald-500/30 bg-emerald-900/20',
 };
 

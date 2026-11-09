@@ -30,9 +30,9 @@ const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: s
         iconColor: 'text-mira'
     },
     idea: {
-        border: 'border-purple-500',
+        border: 'border-mira/40',
         shadow: 'shadow-[0_0_15px_rgba(168,85,247,0.5)]', // Purple-500
-        iconColor: 'text-purple-500'
+        iconColor: 'text-mira'
     },
     conflict: {
         border: 'border-red-600',
@@ -50,9 +50,9 @@ const NODE_STYLES: Record<string, { border: string, shadow: string, iconColor: s
         iconColor: 'text-emerald-500'
     },
     race: {
-        border: 'border-purple-500',
+        border: 'border-mira/40',
         shadow: 'shadow-[0_0_15px_rgba(168,85,247,0.5)]', // Purple-500
-        iconColor: 'text-purple-500'
+        iconColor: 'text-mira'
     },
     default: {
         border: 'border-slate-600',

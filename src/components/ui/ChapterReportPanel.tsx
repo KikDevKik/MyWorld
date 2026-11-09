@@ -144,7 +144,7 @@ function DoubtItem({ d, index, fileId, fileName, accessToken, onUpdate, goBtn, o
 type Extra = 'voices' | 'canon';
 const VOICE_META: { key: keyof Voices; nombre: string; enfoque: string; color: string }[] = [
     { key: 'arquitecto', nombre: 'El Arquitecto', enfoque: 'estructura y lógica', color: 'text-sky-300' },
-    { key: 'bardo', nombre: 'El Bardo', enfoque: 'voz, prosa y emoción', color: 'text-purple-300' },
+    { key: 'bardo', nombre: 'El Bardo', enfoque: 'voz, prosa y emoción', color: 'text-mira' },
     { key: 'hater', nombre: 'El Hater', enfoque: 'dónde dejaría de leer', color: 'text-red-300' },
 ];
 const TIPO_CANON: Record<string, string> = { hecho: 'hecho', cronologia: 'cronología', ley: 'ley del mundo', personaje: 'personaje' };
@@ -501,7 +501,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                         <MiraSprite pose="leyendo" className="mx-auto" />
                         <p className="text-titanium-300">Cuando termines un capítulo, pide un reporte: qué funciona, qué corregir y dónde está cada cosa en tu texto, ortografía con corrección de un clic y lecturas apoyadas en tus referencias. Debajo puedes pedir también la revisión del canon y las tres lecturas.</p>
                         {showCosts() && <p className="text-titanium-600">Usa Claude · cuesta alrededor de US$0,10 por reporte.</p>}
-                        <button onClick={generate} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-purple-700/80 hover:bg-purple-600 px-4 py-2 text-xs font-medium text-white">
+                        <button onClick={generate} className="mt-2 inline-flex items-center gap-2 rounded-lg bg-coral hover:brightness-110 px-4 py-2 text-xs font-semibold text-on-coral">
                             <Sparkles size={13} /> Generar reporte
                         </button>
                         <div className="pt-4 space-y-3 text-left">
@@ -521,7 +521,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                         )}
                         <section>
                             <p className="text-titanium-100 text-[13px] leading-relaxed">{report.resumen}</p>
-                            {report.siguientePaso && <p className="mt-2 text-purple-300"><b>Primer paso:</b> {report.siguientePaso}</p>}
+                            {report.siguientePaso && <p className="mt-2 text-mira"><b>Primer paso:</b> {report.siguientePaso}</p>}
                         </section>
 
                         {report.lector?.veredicto && (
@@ -640,7 +640,7 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                                     <div key={i} className="rounded-lg border border-titanium-800 bg-titanium-950/40 p-3">
                                         <p className="text-titanium-100"><b>{l.titulo}</b>{l.autor ? ` — ${l.autor}` : ''}
                                             {l.tipo && <span className="ml-2 text-[10px] text-titanium-500">{l.tipo}</span>}
-                                            {l.deSusReferencias && <span className="ml-2 rounded bg-purple-900/40 px-1.5 py-px text-[10px] text-purple-300">de tus referencias</span>}
+                                            {l.deSusReferencias && <span className="ml-2 rounded bg-mira/15 px-1.5 py-px text-[10px] text-mira">de tus referencias</span>}
                                         </p>
                                         <p className="mt-1">{l.porque}</p>
                                     </div>

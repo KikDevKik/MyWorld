@@ -33,6 +33,7 @@ export interface SmartConfig {
     jsonMode?: boolean;
     contextLabel?: string;
     maxOutputTokens?: number;
+    requestTimeoutMs?: number; // tope por intento (por defecto 80 s; 200 s con Pro)
     mediaPayload?: {
         inlineData: {
             mimeType: string;
@@ -125,6 +126,14 @@ const sysText = CLAUDE_FICTION_SYSTEM + (config.systemInstruction ? "\n\n" + con
             // Oct 2026: el modelo gratuito responde a veces 503 "high demand". Un reintento
             // y, si sigue saturado, un modelo de respaldo (sin thinkingBudget: flash-lite rechaza 0).
             const isOverloaded = (r: any) => !r.success && /503|high demand|overloaded|unavailable/i.test(String(r.details || ''));
+            const timedOut = (r: any) => !r.success && /timed? ?out|abort|deadline/i.test(String(r.details || ''));
+            if (timedOut(result) && modelName !== MODEL_FLASH_2_5_LITE) {
+                // Sin segundo intento con el mismo modelo: dos esperas largas superan el tiempo del navegador.
+                logger.warn(`⏱️ [SMART_GENERATE] ${contextLabel}: ${modelName} no respondió a tiempo; usando ${MODEL_FLASH_2_5_LITE}.`);
+                const backup = await _executeGeneration(genAI, MODEL_FLASH_2_5_LITE, prompt, { ...config, maxOutputTokens: maxTokens }, undefined);
+                if (backup.success) return { text: backup.text, modelUsed: MODEL_FLASH_2_5_LITE };
+                result = backup;
+            }
             if (isOverloaded(result)) {
                 logger.warn(`⏳ [SMART_GENERATE] ${contextLabel}: modelo saturado, reintentando...`);
                 await new Promise(r => setTimeout(r, 2500));
@@ -215,6 +224,9 @@ async function _executeGeneration(
             ? { thinkingBudget }
             : undefined;
 
+        // Nov 2026: tope por intento. Una llamada de Gemini colgada dejaba la revisión de Personajes
+        // girando 3 minutos hasta que el navegador se rendía; ahora el intento se corta y entra el respaldo.
+        const timeoutMs = config.requestTimeoutMs ?? (modelName === MODEL_PRO || config.taskType === 'deep_analysis' ? 200000 : 80000);
         const model = genAI.getGenerativeModel({
             model: modelName,
             safetySettings: SAFETY_SETTINGS_PERMISSIVE,
@@ -225,7 +237,7 @@ async function _executeGeneration(
                 maxOutputTokens: config.maxOutputTokens,
                 ...(thinkingConfig ? { thinkingConfig } : {}),
             } as any
-        });
+        }, { timeout: timeoutMs });
 
         const result = await model.generateContent(prompt);
         const response = result.response;

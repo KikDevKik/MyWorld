@@ -178,7 +178,7 @@ const CrystallizeModal: React.FC<CrystallizeModalProps> = ({
                             type="text"
                             value={tags}
                             onChange={(e) => setTags(e.target.value)}
-                            className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-purple-300 font-mono focus:border-purple-500 focus:outline-none"
+                            className="w-full bg-black/50 border border-titanium-700 rounded px-3 py-2 text-sm text-mira font-mono focus:border-mira/40 focus:outline-none"
                             placeholder="concept, memory, important"
                         />
                     </div>

@@ -1,18 +1,23 @@
 <!DOCTYPE html>
-<html class="dark" lang="en" data-theme="noche">
+<html class="dark" lang="es" data-theme="noche">
 
 <head>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-  <title>MyWorld — Creative IDE for Worldbuilders &amp; Writers</title>
+  <title>MyWorld — Tu escritorio para escribir mundos</title>
   <link rel="icon" type="image/png" sizes="32x32" href="/assets/marca/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="64x64" href="/assets/marca/favicon-64.png" />
   <link rel="apple-touch-icon" href="/assets/marca/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="MyWorld" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
   <!-- ═══════════════════════════════════════════════════════════
        PRIMARY SEO
   ═══════════════════════════════════════════════════════════ -->
-  <meta name="description" content="MyWorld is a Creative IDE for writers and worldbuilders. Build fictional universes, manage characters, craft lore, and write stories — powered by Google Gemini AI. Free to start." />
+  <meta name="description" content="MyWorld es un entorno para escribir novelas y construir mundos: guarda el canon de tu historia, avisa de contradicciones y te acompaña con Mira mientras escribes. La IA ayuda; no escribe por ti." />
   <meta name="keywords" content="creative writing ide, worldbuilding tool, fictional universe creator, lore builder, character manager, story writing app, AI writing assistant, escritura creativa, creador de mundos ficticios, worldbuilder, fanfic writer, ワールドビルディング, 創作支援ツール" />
   <meta name="author" content="MyWorld" />
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
@@ -26,15 +31,15 @@
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://myworldhistory.site/" />
   <meta property="og:site_name" content="MyWorld" />
-  <meta property="og:title" content="MyWorld — Creative IDE for Worldbuilders &amp; Writers" />
-  <meta property="og:description" content="Build your fictional universe. Manage characters, craft lore, write and organize stories — powered by Google Gemini AI. For writers, worldbuilders &amp; fanfic creators." />
+  <meta property="og:title" content="MyWorld — Escribe un mundo que no se olvide" />
+  <meta property="og:description" content="Guarda el canon de tu historia para que la IA te ayude sin inventar ni olvidar. Para escritores y creadores de mundos." />
   <meta property="og:image" content="https://myworldhistory.site/og.png" />
   <meta property="og:image:secure_url" content="https://myworldhistory.site/og.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta property="og:image:alt" content="MyWorld: Mira sentada en una colina de noche, frente a una casa con la luz encendida" />
-  <meta property="og:locale" content="en_US" />
-  <meta property="og:locale:alternate" content="es_419" />
+  <meta property="og:locale" content="es_419" />
+  <meta property="og:locale:alternate" content="en_US" />
   <meta property="og:locale:alternate" content="es_ES" />
   <meta property="og:locale:alternate" content="ja_JP" />
 
@@ -44,8 +49,8 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@myworldapp" />
   <meta name="twitter:creator" content="@myworldapp" />
-  <meta name="twitter:title" content="MyWorld — Creative IDE for Worldbuilders &amp; Writers" />
-  <meta name="twitter:description" content="Build your fictional universe. Characters, lore, stories — all in one place. Powered by Google Gemini AI." />
+  <meta name="twitter:title" content="MyWorld — Escribe un mundo que no se olvide" />
+  <meta name="twitter:description" content="Tu canon, tus personajes y tu libro en un solo lugar, con una IA que ayuda sin escribir por ti." />
   <meta name="twitter:image" content="https://myworldhistory.site/og.png" />
   <meta name="twitter:image:alt" content="MyWorld Creative Writing IDE" />
 
@@ -68,7 +73,7 @@
     "name": "MyWorld",
     "alternateName": ["MyWorld IDE", "MyWorld Creative Writing IDE"],
     "url": "https://myworldhistory.site/",
-    "description": "A Creative IDE for writers and worldbuilders. Build fictional universes, manage characters, craft lore, and write stories — powered by Google Gemini AI.",
+    "description": "Un entorno para escribir novelas y construir mundos: guarda el canon, avisa de contradicciones y acompaña al autor con Mira. La IA ayuda; no escribe por el autor.",
     "applicationCategory": "Productivity",
     "applicationSubCategory": "Creative Writing",
     "operatingSystem": "Web Browser",
@@ -85,8 +90,7 @@
       "Character management and lore building",
       "Fictional world visualization",
       "Story organization and manuscript export",
-      "Canon consistency guardian",
-      "Powered by Google Gemini"
+      "Canon consistency review"
     ],
     "screenshot": "https://myworldhistory.site/og.png",
     "creator": {

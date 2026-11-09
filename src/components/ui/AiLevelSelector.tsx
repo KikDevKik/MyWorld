@@ -106,7 +106,7 @@ export default function AiLevelSelector({ hasGeminiKey, hasAnthropicKey }: Props
                     ] as const).map(opt => (
                         <button key={opt.v} type="button" title={opt.hint}
                             onClick={() => { try { localStorage.setItem('myworld_claude_quality', opt.v); } catch { /* */ } setQuality(opt.v); }}
-                            className={`rounded-md border px-2.5 py-1 text-[11px] ${quality === opt.v ? 'border-purple-400 bg-purple-900/30 text-purple-200' : 'border-titanium-700 text-titanium-400 hover:text-titanium-200'}`}>
+                            className={`rounded-md border px-2.5 py-1 text-[11px] ${quality === opt.v ? 'border-mira/30 bg-mira/15 text-mira' : 'border-titanium-700 text-titanium-400 hover:text-titanium-200'}`}>
                             {opt.label}
                         </button>
                     ))}

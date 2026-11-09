@@ -113,7 +113,7 @@ export default function ContinueCard({ projectName, folderId, sessionId, onGoToA
     const touch = week.filter(w => w > 0 && w < FULL_DAY).length;
 
     const next = nextMission
-        ? { label: es ? 'Lo que sigue, según tu roadmap' : 'What’s next, from your roadmap', text: nextMission.text }
+        ? { label: es ? 'Lo que sigue, según tu plan' : 'What’s next, from your plan', text: nextMission.text }
         : openItems.length
             ? { label: es ? `Lo que sigue: ${openItems.length} ${openItems.length === 1 ? 'duda pendiente' : 'dudas pendientes'} en la mesa` : `What’s next: ${openItems.length} open ${openItems.length === 1 ? 'question' : 'questions'} at the table`, text: openItems[0].title }
             : null;

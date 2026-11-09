@@ -257,7 +257,7 @@ export const ChatMessage = React.memo(({
                 )}
 
                 {/* Insert button — only when content is visible */}
-                {isAssistant && onInsert && message.id !== 'intro' && (!isOld || isExpanded) && (
+                {isAssistant && onInsert && message.id !== 'intro' && (!isOld || isExpanded) && !/^\s*(⚠️|⏳|🛡️)/.test(content) && (
                     <div className="mt-3 pt-2 border-t border-mira/20 flex justify-end gap-2">
                         <button
                             onClick={() => {

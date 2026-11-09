@@ -44,6 +44,7 @@ export { genesisManifest } from './genesis';
 
 export { exchangeAuthCode, loginWithGoogleCode, refreshDriveToken, revokeDriveAccess } from './auth';
 export { auditContent, purgeEcho, scanProjectDrift, rescueEcho, auditGlobal } from './guardian';
+export { deleteMyData } from './delete_my_data';
 export { scribeCreateFile, integrateNarrative, scribePatchFile, transformToGuide } from './scribe';
 export { syncSmart, getPickerStartFolder } from './sync_smart'; // Oct 2026: sincronización real Drive/Obsidian ↔ índice
 import { getTranslation } from './backend_i18n';
@@ -2421,7 +2422,7 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         if (invokeError.message === "EMPTY_FRAGMENT_ERROR") {
           logger.error("💥 [BYPASS] CRITICAL: Gemini returned empty fragment after retries.");
           return {
-            response: "La Forja recibió un fragmento vacío de Gemini. Reintentando con parámetros de seguridad reducidos...",
+            response: "La IA devolvió una respuesta vacía. Vuelve a enviar tu mensaje; si se repite, pregúntalo de otra forma.",
             sources: []
           };
         }
@@ -2431,13 +2432,13 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         const isOverloaded = invokeMsg.includes('503') || invokeMsg.includes('high demand') || invokeMsg.includes('overloaded');
         const errorText = isQuotaError(invokeError)
             ? (claudeEnabledForCurrentUser()
-                ? "⚠️ Claude no pudo responder este mensaje y el respaldo gratuito (Gemini) ya gastó su cuota de hoy. Vuelve a enviarlo en un momento; si se repite, avísale a Claude en el chat de desarrollo."
+                ? "⚠️ Claude no pudo responder este mensaje y el respaldo gratuito (Gemini) ya gastó su cuota de hoy. Vuelve a enviarlo en un momento."
                 : QUOTA_USER_MESSAGE)
             : isOverloaded
               ? "⏳ Los servidores gratuitos de Gemini están saturados en este momento. Tu mensaje no se perdió: vuelve a enviarlo en un minuto."
               : /PROHIBITED_CONTENT|blocked/i.test(String(invokeError?.message || ''))
                 ? "🛡️ Gemini bloqueó esta respuesta con su filtro de contenido, que MyWorld no puede desactivar. Suele saltar con escenas duras que involucran a menores (acoso, violencia, muerte). Tu texto no tiene nada malo: prueba a reformular la pregunta de forma más general o cierra el archivo abierto y vuelve a preguntar."
-                : "⚠️ Error de Conexión: La Forja no pudo procesar este fragmento.";
+                : (/timed? ?out|abort|deadline/i.test(String(invokeError?.message || "")) ? "⏳ La IA tardó demasiado en responder y lo corté. Tu mensaje no se perdió: vuelve a enviarlo en un momento." : "⚠️ No pude responder esta vez. Vuelve a enviar tu mensaje en un momento; si se repite, escríbenos a deidev180@gmail.com.");
 
         logger.error(
           isQuotaError(invokeError) ? "⚠️ [QUOTA] Cuota API agotada en forgeRagChat:" : "💥 ERROR CRÍTICO EN GENERACIÓN (Chat RAG) [CATCH-ALL]:",

@@ -287,7 +287,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             La versión en Drive no es la que abriste aquí (¿Obsidian u otra pestaña?). No guardé para no borrar nada. ¿Con cuál te quedas?
                         </p>
                         <div className="mt-3 flex gap-2">
-                            <button onClick={() => keepMine(id)} className="flex-1 rounded-md bg-purple-700/80 hover:bg-purple-600 px-3 py-1.5 text-xs font-medium">Guardar la mía</button>
+                            <button onClick={() => keepMine(id)} className="flex-1 rounded-md bg-coral text-on-coral hover:brightness-110 px-3 py-1.5 text-xs font-medium">Guardar la mía</button>
                             <button onClick={() => useRemote(id)} className="flex-1 rounded-md bg-titanium-800 hover:bg-titanium-700 px-3 py-1.5 text-xs font-medium">Usar la de Drive</button>
                         </div>
                     </div>
@@ -667,7 +667,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // Oct 2026: el Reporte reúne el Tribunal y el Guardián; se abre sobre el editor.
     const openReport = () => {
-        if (!currentFileId) { toast.info('Abre un capítulo para pedir su reporte.'); return; }
+        // Nov 2026: sin capítulo abierto, El estudio se abre igual y explica qué hace (antes era solo un aviso).
         if (isReportOpen) { setIsReportOpen(false); return; }
         setActiveView('editor');
         setIsReportOpen(true);
@@ -1143,7 +1143,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         return (
             <div className="h-dvh w-screen bg-titanium-950 flex flex-col items-center justify-center text-titanium-200 gap-4">
                 <Loader2 className="w-10 h-10 animate-spin text-mira" />
-                <p className="text-sm font-mono tracking-widest opacity-70">{tApp.loadingSystems}</p>
+                <p className="font-serif text-[15px] text-titanium-300">{tApp.loadingSystems}</p>
             </div>
         );
     }
@@ -1559,6 +1559,20 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                             onAskArquitecto={(text) => { setIsReportOpen(false); setArquitectoHandoff({ text, nonce: Date.now() }); setPrepararTab('conversacion'); setActiveView('arquitecto'); }}
                         />
                     )}
+                    {isReportOpen && !currentFileId && (
+                        <div role="dialog" aria-label="El estudio" className="fixed right-0 top-0 bottom-0 z-[150] w-full sm:w-[440px] bg-titanium-900 sm:border-l border-titanium-700 shadow-2xl flex flex-col">
+                            <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800">
+                                <p className="font-serif text-base font-semibold text-titanium-100">El estudio <span className="font-sans text-xs font-normal text-titanium-400">· reporte del capítulo</span></p>
+                                <button onClick={() => setIsReportOpen(false)} className="p-1.5 rounded text-titanium-400 hover:text-titanium-100" aria-label="Cerrar">✕</button>
+                            </div>
+                            <div className="flex-1 flex flex-col items-center justify-center gap-4 px-8 text-center">
+                                <MiraSprite pose="leyendo" label="Mira espera un capítulo" />
+                                <h2 className="font-serif text-xl text-titanium-100">Mira lee un capítulo a la vez</h2>
+                                <p className="max-w-[34ch] text-[14px] leading-relaxed text-titanium-300">Abre un capítulo y vuelve aquí. Te dirá qué funciona, qué corregir y dónde está cada cosa en tu texto, y lo compara con tu canon.</p>
+                                <button onClick={() => { setIsReportOpen(false); setActiveView('editor'); setVaultDrawerOpen(true); }} className="rounded-xl bg-coral text-on-coral px-5 py-2.5 text-sm font-semibold hover:brightness-110">Elegir un capítulo</button>
+                            </div>
+                        </div>
+                    )}
                     {!isReportOpen && <MiraDeskCompanion content={selectedFileContent} fileId={currentFileId} isZenMode={isZenMode} arrival={deskArrival} onOpenReport={() => setIsReportOpen(true)} onAskMira={askMiraWhatsNext} onReviewCanon={openCanonReview} />}
                     <StatusBar
                         content={selectedFileContent}
@@ -1968,7 +1982,7 @@ function App() {
 
     if (authLoading) return (
         <div className="h-dvh w-screen bg-titanium-950 flex flex-col items-center justify-center gap-3 text-titanium-500 text-xs">
-            <div className="w-7 h-7 border-2 border-titanium-800 border-t-purple-500 rounded-full animate-spin" />
+            <div className="w-7 h-7 border-2 border-titanium-800 border-t-mira/40 rounded-full animate-spin" />
             Cargando MyWorld…
         </div>
     );

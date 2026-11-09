@@ -425,10 +425,10 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                             type="button"
                             onClick={onGenesis}
                             aria-label="Iniciar proceso creativo (Génesis)"
-                            className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-purple-900/40 hover:to-mira/20 border border-titanium-700 hover:border-mira/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
+                            className="w-full relative flex items-center justify-center gap-2 py-1.5 px-3 rounded-lg bg-titanium-800/50 hover:bg-gradient-to-r hover:from-mira/40 hover:to-mira/20 border border-titanium-700 hover:border-mira/30 text-titanium-200 hover:text-white transition-all group overflow-hidden focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:ring-offset-2 focus-visible:ring-offset-titanium-900 outline-none"
                         >
-                            <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-mira/10 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            <Sparkles size={14} className="text-purple-400 group-hover:text-mira transition-colors shrink-0" />
+                            <div className="absolute inset-0 bg-gradient-to-r from-mira/10 to-mira/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            <Sparkles size={14} className="text-mira group-hover:text-mira transition-colors shrink-0" />
                             <span className="text-xs font-medium tracking-wide">{t.spark}</span>
                         </button>
                     </div>
@@ -501,7 +501,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                                         }}
                                         className="w-full text-left px-4 py-2.5 text-xs text-titanium-200 hover:bg-titanium-700 hover:text-white flex items-center gap-2 transition-colors"
                                     >
-                                        <Sparkles size={14} className="text-purple-400" />
+                                        <Sparkles size={14} className="text-mira" />
                                         <span>{t.loadMemory}</span>
                                     </button>
                                 </div>
@@ -757,7 +757,7 @@ const VaultSidebar: React.FC<VaultSidebarProps> = ({
                         <HelpCircle size={16} />
                     </button>
                     <button onClick={() => setIsMemoryOpen(true)} title="Memoria: lo que MyWorld recuerda de tu proyecto (ver, corregir, borrar)" aria-label="Memoria"
-                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-purple-300/90 hover:text-purple-200 hover:bg-purple-900/20 transition-all text-xs font-medium">
+                        className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-mira/90 hover:text-mira hover:bg-mira/15 transition-all text-xs font-medium">
                         <Brain size={15} /> Memoria
                     </button>
                     <button id="sidebar-project-settings" onClick={onOpenProjectSettings} title={t.project} aria-label={t.project}

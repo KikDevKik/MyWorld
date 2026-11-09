@@ -253,7 +253,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-titanium-800 bg-titanium-900/50">
                     <div>
-                        <h2 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-mira/20 flex items-center gap-2">
+                        <h2 className="text-xl font-bold text-titanium-100 flex items-center gap-2">
                             <Sparkles size={20} className="text-mira" />
                             {t.title}
                         </h2>
@@ -271,7 +271,7 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                             <div className={`max-w-[80%] rounded-2xl px-5 py-3.5 text-sm leading-relaxed ${
                                 msg.role === 'user'
                                     ? 'bg-titanium-800 text-titanium-100 border border-titanium-700'
-                                    : 'bg-gradient-to-br from-mira/30 to-purple-950/20 text-mira border border-mira/30'
+                                    : 'bg-gradient-to-br from-mira/30 to-mira/20 text-mira border border-mira/30'
                             }`}>
                                 {msg.role === 'model' && <Wand2 size={14} className="mb-2 text-mira opacity-70" />}
                                 {formatMessage(msg.message)}
@@ -303,8 +303,8 @@ const GenesisWizardModal: React.FC<GenesisWizardModalProps> = ({ isOpen, onClose
                                     text-white font-bold rounded-full shadow-lg transition-all
                                     active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed
                                     ${isReadyToMaterialize
-                                        ? 'bg-gradient-to-r from-purple-500 to-mira/20 hover:from-purple-400 hover:to-mira/20 shadow-mira/50 animate-pulse'
-                                        : 'bg-gradient-to-r from-titanium-700 to-titanium-600 hover:from-purple-600 hover:to-mira/20'
+                                        ? 'bg-coral text-on-coral hover:brightness-110'
+                                        : 'bg-gradient-to-r from-titanium-700 to-titanium-600 hover:from-mira/20 hover:to-mira/20'
                                     }
                                 `}
                             >

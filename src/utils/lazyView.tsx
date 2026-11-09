@@ -5,7 +5,7 @@ import React, { Suspense } from 'react';
 function ViewLoader() {
     return (
         <div className="flex h-full w-full items-center justify-center gap-2 text-xs text-titanium-500">
-            <div className="h-4 w-4 animate-spin rounded-full border-2 border-titanium-700 border-t-purple-500" />
+            <div className="h-4 w-4 animate-spin rounded-full border-2 border-titanium-700 border-t-mira/40" />
             Cargando…
         </div>
     );

@@ -23,10 +23,15 @@ interface ArsenalDockProps {
 // Nov 2026: cada cuarto lleva su objeto pixel (el mismo de la guía y del inicio), para que todo se reconozca igual.
 const PixelIcon = ({ name }: { name: string }) => <img src={`/assets/objetos/icono/${name}.png`} alt="" width={28} height={28} className="w-7 h-7 opacity-80 group-hover:opacity-100 transition-opacity" draggable={false} />;
 
+// Nov 2026: en la barra inferior del celular cada icono lleva su nombre corto (solo con iconos nadie sabía qué era la lupa o la mesa).
+const NarrowLabel = ({ text }: { text: string }) => <span className="mt-0.5 text-[10px] leading-none text-titanium-400 group-hover:text-titanium-200" aria-hidden="true">{text}</span>;
+
 const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onSimulateDrift, onOpenReport, reportActive, reportPending = 0, onOpenBiblioteca, bibliotecaActive }) => {
     const { currentLanguage } = useLanguageStore();
     const tTools = TRANSLATIONS[currentLanguage].tools;
     const narrow = useIsNarrow();
+    // Tamaño de cada botón: cuadrado en el riel de escritorio; columna icono + nombre en la barra del celular.
+    const btnSize = narrow ? 'flex-col w-14 h-12' : 'w-10 h-10';
     const { vaultDrawerOpen, setVaultDrawerOpen } = useLayoutStore();
 
     // 🟢 DEFINIMOS LA LISTA DE ÉLITE
@@ -38,7 +43,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     const getIcon = (id: string) => {
         switch (id) {
             // Nov 2026: el cuarto de Mira lleva su cara (pixel art); la mesa, un compás de dibujo.
-            case 'director': return <img src="/assets/mira/mira_cara_icono.png" alt="" width={34} height={34} className="w-[34px] h-[34px] mira-rim" draggable={false} />;
+            case 'director': return <img src="/assets/mira/mira_cara_icono.png" alt="" width={34} height={34} className={narrow ? 'w-7 h-7 mira-rim' : 'w-[34px] h-[34px] mira-rim'} draggable={false} />;
             case 'arquitecto': return <PixelIcon name="planos" />;
             case 'perforador': return <Globe2 size={20} />;
             case 'forja': return <Hammer size={20} />;
@@ -61,7 +66,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
     return (
         // Nov 2026: en el celular el riel es una barra inferior (antes ocupaba 64 de 375 px a la derecha, también al escribir).
         <nav aria-label={es ? 'Herramientas' : 'Tools'} className={narrow
-            ? 'w-full h-14 bg-titanium-950 flex flex-row items-center z-30 flex-shrink-0 pointer-events-auto'
+            ? 'w-full h-16 bg-titanium-950 flex flex-row items-center z-30 flex-shrink-0 pointer-events-auto'
             : 'w-16 h-full bg-titanium-950 flex flex-col items-center py-6 gap-6 z-30 flex-shrink-0 pointer-events-auto'}
             style={narrow ? { paddingBottom: 'env(safe-area-inset-bottom)' } : undefined}>
 
@@ -74,11 +79,12 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                             onClick={() => setVaultDrawerOpen(!vaultDrawerOpen)}
                             aria-expanded={vaultDrawerOpen}
                             aria-controls="vault-drawer"
-                            className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-mira focus-visible:outline-none active:scale-95 ${vaultDrawerOpen ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-300 hover:text-titanium-100 hover:bg-titanium-900'}`}
+                            className={`group relative flex items-center justify-center ${btnSize} rounded-xl transition-colors focus-visible:ring-2 focus-visible:ring-mira focus-visible:outline-none active:scale-95 ${vaultDrawerOpen ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-300 hover:text-titanium-100 hover:bg-titanium-900'}`}
                             title={es ? 'Tus documentos' : 'Your documents'}
                             aria-label={es ? 'Tus documentos' : 'Your documents'}
                         >
-                            <FolderOpen size={22} aria-hidden="true" />
+                            <FolderOpen size={narrow ? 20 : 22} aria-hidden="true" />
+                            <NarrowLabel text={es ? 'Archivos' : 'Files'} />
                         </button>
                         <div className={narrow ? 'w-px h-8 bg-titanium-800' : 'w-10 h-px bg-titanium-800'} aria-hidden="true" />
                     </>
@@ -91,7 +97,7 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                             key={gemId}
                             onClick={() => onGemSelect(gemId)}
                             className={`
-                                group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300
+                                group relative flex items-center justify-center ${btnSize} rounded-xl transition-all duration-300
                                 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none
                                 ${isActive
                                     ? 'bg-titanium-800 text-titanium-100 shadow-[0_0_15px_rgba(255,255,255,0.05)] border border-titanium-600'
@@ -104,9 +110,12 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                             <div className="relative z-10">
                                 {getIcon(gemId)}
                             </div>
+                            {narrow && <NarrowLabel text={gemId === 'director' ? 'Mira' : gemId === 'arquitecto' ? (es ? 'Mesa' : 'Table') : (es ? 'Imprenta' : 'Press')} />}
 
                             {isActive && (
-                                <div className="absolute -right-3 w-1 h-5 bg-titanium-200 rounded-l-full shadow-[0_0_8px_rgba(255,255,255,0.4)]" />
+                                <div className={narrow
+                                    ? 'absolute -top-1 left-1/2 -translate-x-1/2 h-1 w-6 bg-titanium-200 rounded-b-full'
+                                    : 'absolute -right-3 w-1 h-5 bg-titanium-200 rounded-l-full shadow-[0_0_8px_rgba(255,255,255,0.4)]'} />
                             )}
                         </button>
                     );
@@ -114,22 +123,24 @@ const ArsenalDock: React.FC<ArsenalDockProps> = ({ activeGemId, onGemSelect, onS
                 {onOpenReport && (
                     <button
                         onClick={onOpenReport}
-                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none active:scale-95 ${reportActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
+                        className={`group relative flex items-center justify-center ${btnSize} rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none active:scale-95 ${reportActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
                         title={es ? 'El estudio: reporte del capítulo (canon y tres lecturas)' : 'The study: chapter report'}
                         aria-label={es ? 'El estudio' : 'The study'}
                     >
                         <PixelIcon name="lupa" />
+                        {narrow && <NarrowLabel text={es ? 'Estudio' : 'Study'} />}
                         {reportPending > 0 && <span aria-label={`${reportPending} pendientes`} className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-coral text-on-coral text-[11px] font-bold leading-[18px] text-center">{reportPending > 99 ? '99+' : reportPending}</span>}
                     </button>
                 )}
                 {onOpenBiblioteca && (
                     <button
                         onClick={onOpenBiblioteca}
-                        className={`group relative flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none active:scale-95 ${bibliotecaActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
+                        className={`group relative flex items-center justify-center ${btnSize} rounded-xl transition-all duration-300 focus-visible:ring-2 focus-visible:ring-mira/60 focus-visible:outline-none active:scale-95 ${bibliotecaActive ? 'bg-titanium-800 text-titanium-100 border border-titanium-600' : 'text-titanium-500 hover:text-titanium-200 hover:bg-titanium-900'}`}
                         title={es ? 'La biblioteca: aprende y practica con Mira' : 'The library: learn and practice with Mira'}
                         aria-label={es ? 'La biblioteca' : 'The library'}
                     >
                         <PixelIcon name="libros" />
+                        {narrow && <NarrowLabel text={es ? 'Biblioteca' : 'Library'} />}
                     </button>
                 )}
             </div>

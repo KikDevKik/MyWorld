@@ -498,7 +498,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                 {onOpenReport && (
                     <button
                         onClick={onOpenReport}
-                        className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-purple-300 hover:bg-purple-900/30 transition-colors sm:ml-2"
+                        className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-mira hover:bg-mira/15 transition-colors sm:ml-2"
                         aria-label="Reporte"
                         title={reportPending ? `Reporte del capítulo: ${reportPending} ${reportPending === 1 ? 'punto pendiente' : 'puntos pendientes'}` : 'Reporte del capítulo: qué corregir y dónde'}
                     >

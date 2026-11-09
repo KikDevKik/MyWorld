@@ -466,7 +466,7 @@ const ChatPanel: React.FC<ChatPanelProps> = ({
                 <div className="flex items-center gap-3">
                     {activeGem && (
                         <>
-                            <div className={`w-2 h-2 rounded-full ${activeGem.color === 'blue' ? 'bg-blue-500' : activeGem.color === 'purple' ? 'bg-purple-500' : activeGem.color === 'emerald' ? 'bg-emerald-500' : 'bg-green-500'} shadow-[0_0_10px_currentColor]`} />
+                            <div className={`w-2 h-2 rounded-full ${activeGem.color === 'blue' ? 'bg-blue-500' : activeGem.color === 'purple' ? 'bg-mira/25' : activeGem.color === 'emerald' ? 'bg-emerald-500' : 'bg-green-500'} shadow-[0_0_10px_currentColor]`} />
                             <span className="font-bold text-titanium-100 tracking-wide">{displayGemName}</span>
                         </>
                     )}

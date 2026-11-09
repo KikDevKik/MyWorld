@@ -82,7 +82,7 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
     }
 
     const isBestiary = activeChar.category === 'CREATURE' || activeChar.category === 'FLORA';
-    const headerColor = activeChar.category === 'FLORA' ? 'text-pink-400' : (activeChar.category === 'CREATURE' ? 'text-purple-400' : 'text-mira');
+    const headerColor = activeChar.category === 'FLORA' ? 'text-pink-400' : (activeChar.category === 'CREATURE' ? 'text-mira' : 'text-mira');
 
     return (
         <div className="h-full flex flex-col bg-titanium-950 relative">
@@ -113,7 +113,7 @@ const ForgeSoul: React.FC<ForgeSoulProps> = ({ activeChar, accessToken }) => {
                     (content.trim().length === 0 && isBestiary) && (
                         <button
                             onClick={handleInjectTemplate}
-                            className="flex items-center gap-2 px-3 py-1.5 bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-bold rounded-lg border border-purple-500/30 transition-all"
+                            className="flex items-center gap-2 px-3 py-1.5 bg-mira/10 hover:bg-mira/20 text-mira text-xs font-bold rounded-lg border border-mira/30 transition-all"
                         >
                             <Zap size={14} />
                             <span>{tForge.useTemplate}</span>

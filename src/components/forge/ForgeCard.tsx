@@ -42,9 +42,9 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
     const t = TRANSLATIONS[currentLanguage].forge;
 
     const isBestiary = entity.category === 'CREATURE' || entity.category === 'FLORA';
-    const accentColor = isBestiary ? (entity.category === 'FLORA' ? 'text-pink-400' : 'text-purple-400') : 'text-mira';
-    const borderColor = isBestiary ? (entity.category === 'FLORA' ? 'border-pink-500/30' : 'border-purple-500/30') : 'border-mira/30';
-    const hoverBg = isBestiary ? (entity.category === 'FLORA' ? 'hover:bg-pink-900/30' : 'hover:bg-purple-900/30') : 'hover:bg-mira/15';
+    const accentColor = isBestiary ? (entity.category === 'FLORA' ? 'text-pink-400' : 'text-mira') : 'text-mira';
+    const borderColor = isBestiary ? (entity.category === 'FLORA' ? 'border-pink-500/30' : 'border-mira/30') : 'border-mira/30';
+    const hoverBg = isBestiary ? (entity.category === 'FLORA' ? 'hover:bg-pink-900/30' : 'hover:bg-mira/15') : 'hover:bg-mira/15';
 
     // VARIANT A: GHOST (The Radar)
     if (entity.tier === 'GHOST') {
@@ -55,7 +55,7 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                         <CategoryIcon category={entity.category} className={`w-3 h-3 opacity-50`} />
                         {entity.name}
                     </h3>
-                    <Ghost size={14} className={`${isBestiary ? 'text-purple-500' : 'text-mira'} opacity-50 group-hover:opacity-100`} />
+                    <Ghost size={14} className={`${isBestiary ? 'text-mira' : 'text-mira'} opacity-50 group-hover:opacity-100`} />
                 </div>
 
                 <p className="text-xs text-titanium-500 italic mb-4 line-clamp-3 font-serif leading-relaxed">
@@ -66,7 +66,7 @@ const ForgeCard: React.FC<ForgeCardProps> = ({ entity, onAction }) => {
                     onClick={() => onAction(entity)}
                     className={`w-full py-2 flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-wider border rounded transition-all
                         ${isBestiary
-                            ? 'text-purple-500/80 border-purple-500/20 hover:bg-purple-500/10 hover:text-purple-300'
+                            ? 'text-mira/80 border-mira/20 hover:bg-mira/10 hover:text-mira'
                             : 'text-mira/80 border-mira/20 hover:bg-mira/10 hover:text-mira'}
                     `}
                 >

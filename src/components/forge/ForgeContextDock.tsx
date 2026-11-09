@@ -131,7 +131,7 @@ const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detecte
                 {/* DETECTED (GHOSTS) */}
                 {ghosts.length > 0 && (
                     <section>
-                        <h4 className="text-xs font-bold text-purple-400 mb-3 px-2 flex items-center gap-2 animate-pulse">
+                        <h4 className="text-xs font-bold text-mira mb-3 px-2 flex items-center gap-2 animate-pulse">
                             <Ghost size={12} /> DETECTADOS (GHOST)
                         </h4>
                         <div className="space-y-1">
@@ -139,11 +139,11 @@ const ForgeContextDock: React.FC<ForgeContextDockProps> = ({ characters, detecte
                                 <button
                                     key={`ghost-${idx}`}
                                     onClick={() => onCharacterSelect(entity)}
-                                    className="w-full text-left p-3 rounded-lg border border-dashed border-purple-900/50 hover:bg-purple-900/10 hover:border-purple-500/50 transition-all group"
+                                    className="w-full text-left p-3 rounded-lg border border-dashed border-mira/50 hover:bg-mira/10 hover:border-mira/50 transition-all group"
                                 >
-                                    <div className="font-medium text-titanium-400 group-hover:text-purple-300 truncate italic flex justify-between">
+                                    <div className="font-medium text-titanium-400 group-hover:text-mira truncate italic flex justify-between">
                                         <span>{entity.name}</span>
-                                        <span className="text-[10px] bg-purple-900/50 px-1.5 rounded text-purple-300">{entity.relevance_score}/10</span>
+                                        <span className="text-[10px] bg-mira/15 px-1.5 rounded text-mira">{entity.relevance_score}/10</span>
                                     </div>
                                     <div className="text-xs text-titanium-600 truncate">{entity.role}</div>
                                 </button>

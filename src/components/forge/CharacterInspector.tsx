@@ -259,7 +259,7 @@ Materialized from Deep Scan.
 
                         <div className="flex items-center gap-2">
                              {/* Status Badge */}
-                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isGhost ? 'bg-purple-900/20 border-purple-500/30 text-purple-300' : 'bg-mira/15 border-mira/30 text-mira'}`}>
+                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isGhost ? 'bg-mira/15 border-mira/30 text-mira' : 'bg-mira/15 border-mira/30 text-mira'}`}>
                                 {isGhost ? (tForge.detected || 'Detected') : (tForge.existing || 'Existing')}
                              </span>
 
@@ -320,26 +320,26 @@ Materialized from Deep Scan.
 
                     {/* 🔮 PHASE 2: CONTEXTUAL ANALYSIS SECTION */}
                     {realData && realData.contextualAnalysis && (
-                        <div className="mt-12 pt-8 border-t border-titanium-800/50 bg-gradient-to-r from-purple-900/10 to-transparent -mx-10 px-10 pb-8 animate-fade-in">
+                        <div className="mt-12 pt-8 border-t border-titanium-800/50 bg-gradient-to-r from-mira/10 to-transparent -mx-10 px-10 pb-8 animate-fade-in">
                              <div className="flex items-center justify-between mb-4">
-                                <h4 className="text-sm font-bold text-purple-400 uppercase tracking-widest flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-mira uppercase tracking-widest flex items-center gap-2">
                                     <BrainCircuit size={16} />
                                     📂 {tForge.intelFiles || "ARCHIVOS DE INTELIGENCIA"}
                                 </h4>
                                 {realData.lastAnalyzed && (
-                                    <span className="text-[10px] font-mono text-purple-400/50">
+                                    <span className="text-[10px] font-mono text-mira/50">
                                         UPDATED: {new Date(realData.lastAnalyzed).toLocaleString()}
                                     </span>
                                 )}
                              </div>
 
-                             <div className="prose prose-invert prose-sm max-w-none text-purple-200/80">
+                             <div className="prose prose-invert prose-sm max-w-none text-mira/80">
                                 <MarkdownRenderer content={realData.contextualAnalysis} mode="compact" />
                              </div>
 
                              {/* 📚 SOURCES FOOTNOTE */}
                              {realData.sources && realData.sources.length > 0 && (
-                                <div className="mt-4 pt-3 border-t border-purple-500/20 text-[10px] text-purple-400/50 font-mono">
+                                <div className="mt-4 pt-3 border-t border-mira/20 text-[10px] text-mira/50 font-mono">
                                     <span className="font-bold">📚 SOURCES:</span> {realData.sources.join(", ")}
                                 </div>
                              )}
@@ -349,7 +349,7 @@ Materialized from Deep Scan.
                     {/* Scan Notes (Secondary / Append) */}
                     {data.description && (
                          <div className="mt-16 pt-8 border-t border-titanium-800/30">
-                             <h4 className="text-xs font-bold text-purple-400/70 uppercase tracking-widest mb-3 flex items-center gap-2">
+                             <h4 className="text-xs font-bold text-mira/70 uppercase tracking-widest mb-3 flex items-center gap-2">
                                 <Sparkles size={12} />
                                 Analysis Vector (Current Session)
                              </h4>
@@ -383,8 +383,8 @@ Materialized from Deep Scan.
                             disabled={isAnalyzing}
                             className={`px-6 py-2.5 font-bold rounded-lg flex items-center gap-2 transition-all border ${
                                 realData?.contextualAnalysis
-                                ? 'bg-slate-800 hover:bg-slate-700 text-purple-300 border-purple-500/30'
-                                : 'bg-purple-900/30 hover:bg-purple-900/50 text-purple-300 border-purple-500/30'
+                                ? 'bg-slate-800 hover:bg-slate-700 text-mira border-mira/30'
+                                : 'bg-mira/15 hover:bg-mira/15 text-mira border-mira/30'
                             }`}
                          >
                             {isAnalyzing ? <Loader2 className="animate-spin" size={18} /> : <BrainCircuit size={18} />}
@@ -400,7 +400,7 @@ Materialized from Deep Scan.
                              <button
                                 onClick={handleMaterialize}
                                 disabled={isSaving}
-                                className="px-8 py-2.5 bg-purple-600 hover:bg-purple-500 hover:scale-105 active:scale-95 text-white font-bold rounded-lg shadow-lg shadow-purple-900/20 flex items-center gap-2 transition-all"
+                                className="px-8 py-2.5 bg-coral hover:brightness-110 active:scale-95 text-on-coral font-bold rounded-lg shadow-lg shadow-mira/20 flex items-center gap-2 transition-all"
                              >
                                 {isSaving ? <Sparkles className="animate-spin" size={18} /> : <Save size={18} />}
                                 <span>{isSaving ? 'Forging...' : 'Materialize Entity'}</span>

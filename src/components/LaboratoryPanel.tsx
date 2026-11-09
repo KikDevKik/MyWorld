@@ -233,7 +233,7 @@ const LaboratoryPanel: React.FC<LaboratoryPanelProps> = ({ onClose, folderId, ac
 
     const getIcon = (mime: string) => {
         if (!mime) return <FileText size={16} className="text-blue-400" />;
-        if (mime.includes('image')) return <ImageIcon size={16} className="text-purple-400" />;
+        if (mime.includes('image')) return <ImageIcon size={16} className="text-mira" />;
         if (mime.includes('audio')) return <Music size={16} className="text-pink-400" />;
         if (mime.includes('pdf')) return <Book size={16} className="text-red-400" />;
         return <FileText size={16} className="text-blue-400" />;

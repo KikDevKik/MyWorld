@@ -182,6 +182,12 @@ footer a:hover{text-decoration:underline}
   .reveal{opacity:1;transform:none;transition:none}
 }
 </style>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"WebApplication","name":"MyWorld","url":"https://myworldhistory.site/","inLanguage":["es","en"],
+ "description":"Un entorno para escribir novelas y construir mundos: guarda el canon de tu historia, avisa de contradicciones y te acompaña con Mira. La IA ayuda; no escribe por ti.",
+ "applicationCategory":"Productivity","operatingSystem":"Web","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},
+ "image":"https://myworldhistory.site/og.png","publisher":{"@type":"Organization","name":"NorthForge Studios","email":"deidev180@gmail.com"}}
+</script>
 </head>
 <body>
 <a class="skip" href="#main" data-i18n="skip">Saltar al contenido</a>
@@ -273,7 +279,7 @@ footer a:hover{text-decoration:underline}
       <div class="rooms">
         <div class="room reveal"><img class="obj" src="/assets/objetos/escritorio.png" alt="" width="60" height="60"><span class="tag" data-i18n="r1t">Escribir</span><h3 data-i18n="r1">El escritorio</h3><p data-i18n="r1p">Un editor sin distracciones, con modo enfoque, meta diaria y tu mundo siempre a mano.</p></div>
         <div class="room reveal"><img class="obj" src="/assets/objetos/sillon.png" alt="" width="60" height="60"><span class="tag" data-i18n="r2t">Conversar</span><h3>Mira</h3><p data-i18n="r2p">Pregúntale por cualquier personaje o escena. Ya conoce tu mundo y cita sus fuentes.</p><div class="spr rim sit" id="roomMira"></div></div>
-        <div class="room reveal"><img class="obj" src="/assets/objetos/lupa.png" alt="" width="60" height="60"><span class="tag" data-i18n="r3t">Revisar</span><h3 data-i18n="r3">El estudio</h3><p data-i18n="r3p">Tres lectores —el Arquitecto, el Bardo y el Hater— evalúan lógica, emoción y mercado.</p></div>
+        <div class="room reveal"><img class="obj" src="/assets/objetos/lupa.png" alt="" width="60" height="60"><span class="tag" data-i18n="r3t">Revisar</span><h3 data-i18n="r3">El estudio</h3><p data-i18n="r3p">El reporte de cada capítulo: qué funciona, qué corregir con la cita exacta y tres lecturas —estructura, voz y dónde dejaría de leer alguien exigente.</p></div>
         <div class="room reveal"><img class="obj" src="/assets/objetos/planos.png" alt="" width="60" height="60"><span class="tag" data-i18n="r4t">Planear</span><h3 data-i18n="r4">La mesa del arquitecto</h3><p data-i18n="r4p">Las partes de tu libro, los hilos de la trama y las dudas que faltan por resolver.</p></div>
         <div class="room reveal"><img class="obj" src="/assets/objetos/telescopio.png" alt="" width="60" height="60"><span class="tag" data-i18n="r5t">Mapa</span><h3 data-i18n="r5">El observatorio</h3><p data-i18n="r5p">Tu mundo como un mapa de conexiones: quién se relaciona con quién, con qué lugar y con qué regla.</p></div>
         <div class="room reveal"><img class="obj" src="/assets/objetos/fichero.png" alt="" width="60" height="60"><span class="tag" data-i18n="r6t">Personajes</span><h3 data-i18n="r6">El fichero</h3><p data-i18n="r6p">Una ficha por personaje, completada con Mira a partir de lo que ya escribiste.</p></div>
@@ -290,7 +296,7 @@ footer a:hover{text-decoration:underline}
       <div class="judges">
         <div class="judge reveal"><div class="top"><div class="score">7<small>/10</small></div><img class="px" src="/assets/objetos/planos.png" alt="" width="72" height="72"></div><h3 data-i18n="j1">El Arquitecto</h3><p data-i18n="j1p">Lógica y estructura: «Buenas bases, pero la motivación del personaje todavía es un misterio».</p></div>
         <div class="judge reveal"><div class="top"><div class="score">7<small>/10</small></div><img class="px" src="/assets/objetos/libros.png" alt="" width="72" height="72"></div><h3 data-i18n="j2">El Bardo</h3><p data-i18n="j2p">Emoción y estética: «Las imágenes son vívidas; el cambio de tono entre capítulos desorienta».</p></div>
-        <div class="judge reveal"><div class="top"><div class="score">3<small>/10</small></div><img class="px" src="/assets/objetos/lupa.png" alt="" width="72" height="72"></div><h3 data-i18n="j3">El Hater</h3><p data-i18n="j3p">Mercado: «La revelación llega sin preparación. El lector no lo compra».</p></div>
+        <div class="judge reveal"><div class="top"><div class="score">3<small>/10</small></div><img class="px" src="/assets/objetos/lupa.png" alt="" width="72" height="72"></div><h3 data-i18n="j3">El Hater</h3><p data-i18n="j3p">Dónde dejaría de leer: «La revelación llega sin preparación. El lector no lo compra».</p></div>
       </div>
     </div>
   </section>
@@ -299,7 +305,7 @@ footer a:hover{text-decoration:underline}
     <div class="sky2" aria-hidden="true"></div>
     <div class="wrap">
       <h2 class="reveal" data-i18n="fh">Tu mundo te espera.</h2>
-      <p class="reveal" data-i18n="fp">Entra con tu cuenta de Google. Tus historias viven en tu Drive y no hay suscripción durante la beta. Si MyWorld te sirve, puedes apoyarlo.</p>
+      <p class="reveal" data-i18n="fp">Entra con tu cuenta de Google. Tus historias viven en tu Drive; para buscar en tu canon, MyWorld guarda un índice con fragmentos de tu texto. La IA gratis usa tu propia clave de Gemini, que se saca sin costo en Google AI Studio. No hay suscripción durante la beta. Si MyWorld te sirve, puedes apoyarlo.</p>
       <div class="row reveal">
         <a class="btn" href="/app" data-enter data-i18n="open">Abrir MyWorld</a>
         <a class="pill" id="donate" href="https://github.com/sponsors/KikDevKik" target="_blank" rel="noopener" data-i18n="donate">Donar</a>
@@ -360,7 +366,7 @@ footer a:hover{text-decoration:underline}
     s3h:'A house with a room for everything.', s3p:'Each tool is a room, and Mira has something of hers in every one.',
     r1t:'Write', r1:'The desk', r1p:'A distraction-free editor with focus mode, a daily goal and your world always at hand.',
     r2t:'Talk', r2p:'Ask her about any character or scene. She already knows your world and cites her sources.',
-    r3t:'Review', r3:'The study', r3p:'Three readers —the Architect, the Bard and the Hater— score logic, emotion and market appeal.',
+    r3t:'Review', r3:'The study', r3p:'A report for every chapter: what works, what to fix with the exact quote, and three readings —structure, voice and where a demanding reader would stop.',
     r4t:'Plan', r4:'The architect’s table', r4p:'The parts of your book, the plot threads and the questions still to answer.',
     r5t:'Map', r5:'The observatory', r5p:'Your world as a map of connections: who relates to whom, to which place and to which rule.',
     r6t:'Characters', r6:'The card file', r6p:'One card per character, filled in with Mira from what you already wrote.',
@@ -368,8 +374,8 @@ footer a:hover{text-decoration:underline}
     r8t:'Export', r8:'The press', r8p:'Turn your chapters into a book ready to share.',
     s4h:'Three honest readers before the real one.', s4ex:'Example of what a report tells you (these are not user reviews).', j1:'The Architect', j1p:'Logic and structure: “Good foundations, but the character’s motivation is still a mystery.”',
     j2:'The Bard', j2p:'Emotion and aesthetics: “The imagery is vivid; the shift in tone between chapters is disorienting.”',
-    j3:'The Hater', j3p:'Market: “The reveal comes out of nowhere. Readers won’t buy it.”',
-    fh:'Your world is waiting.', fp:'Sign in with your Google account. Your stories live in your Drive and there is no subscription during the beta. If MyWorld helps you, you can support it.',
+    j3:'The Hater', j3p:'Where they’d stop reading: “The reveal comes out of nowhere. Readers won’t buy it.”',
+    fh:'Your world is waiting.', fp:'Sign in with your Google account. Your stories live in your Drive; to search your canon, MyWorld keeps an index with fragments of your text. The free AI uses your own Gemini key, which you can get at no cost in Google AI Studio. There is no subscription during the beta. If MyWorld helps you, you can support it.',
     donate:'Donate', contact:'Contact support', privacy:'Privacy', terms:'Terms', contact2:'Contact',
     skipAnim:'Skip', hello:'Hi! I’m Mira.', close:'Close', supT:'Write to us', supP:'Send us an email and we’ll get back to you as soon as we can.', copy:'Copy', copied:'Email copied', mail:'Open your email'
   };

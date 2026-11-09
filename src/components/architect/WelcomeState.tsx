@@ -75,7 +75,7 @@ export default function WelcomeState({ projectName, onStart, onResume, onDiscard
                                     </button>
                                 </>
                             ) : (
-                                <button onClick={onStart} className="px-5 py-2.5 rounded-xl bg-coral text-on-coral text-sm font-semibold hover:brightness-110 transition">
+                                <button onClick={onStart} disabled={loading} className="px-5 py-2.5 rounded-xl bg-coral text-on-coral text-sm font-semibold hover:brightness-110 transition disabled:opacity-40 disabled:cursor-wait">
                                     {es ? 'Empezar con el Arquitecto' : 'Start with the Architect'}
                                 </button>
                             )}

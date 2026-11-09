@@ -42,7 +42,7 @@ export const VerdictCard: React.FC<VerdictCardProps> = ({ data }) => {
                     <span>{tDir.verdict}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] text-purple-300 uppercase opacity-70">Puntuación Global</span>
+                    <span className="text-[10px] text-mira uppercase opacity-70">Puntuación Global</span>
                     <span className={`text-lg font-bold ${getScoreColor(parseFloat(avgScore))}`}>{avgScore}</span>
                 </div>
             </div>

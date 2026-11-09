@@ -9,7 +9,7 @@ const getTypeIcon = (type: EntityType) => {
     switch (type) {
         case 'character': return <User size={18} className="text-yellow-400" />;
         case 'location': return <MapPin size={18} className="text-mira" />;
-        case 'object': return <Box size={18} className="text-purple-400" />;
+        case 'object': return <Box size={18} className="text-mira" />;
         case 'event': return <Zap size={18} className="text-orange-400" />;
         case 'faction': return <Swords size={18} className="text-red-400" />;
         case 'idea': return <BrainCircuit size={18} className="text-emerald-400" />;
