@@ -15,6 +15,7 @@ import { getAIKey, getTier } from "./utils/security";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { parseSecureJSON } from "./utils/json";
 import { applyMemoryOps, getMemoryContext, memoryCol, slugify } from "./utils/memory_store";
+import { craftCol, craftId, saveCraft } from "./craft";
 
 const googleApiKey = defineSecret("GOOGLE_API_KEY");
 const anthropicApiKey = defineSecret("ANTHROPIC_API_KEY");
@@ -32,6 +33,15 @@ const TOPICS: Record<string, string> = {
     narradora: "una narradora adulta que recuerda su infancia: la voz del recuerdo y la de la niña",
     sentido: "anclar una escena con un sentido además de la vista (olor, sonido, textura)",
     estudio: "analizar una escena de una serie, película o anime que le gustó y llevar la técnica a su historia",
+    tercera_cercana: "la tercera persona cercana: contar en «ella/él» pero desde dentro del personaje (lo que nota, piensa y siente, con sus palabras), sin «pensó» ni «sintió» de más",
+    primera: "la primera persona: que la voz del narrador se oiga en cada frase (lo que elige contar, cómo lo dice y lo que calla)",
+};
+
+// Nov 2026: la voz en la que se escribe el ejercicio (cualquiera de los temas se puede practicar en cualquier voz).
+const VOICES: Record<string, string> = {
+    primera: "en primera persona («yo»), desde dentro del personaje",
+    tercera_cercana: "en tercera persona cercana («ella/él», pegada a un solo personaje: solo lo que ese personaje percibe, piensa y siente)",
+    tercera_todo: "en tercera persona omnisciente (un narrador que sabe lo que pasa en todas partes y lo que piensan todos)",
 };
 
 const MIRA = `Eres Mira, la compañera de escritura de MyWorld: cercana, honesta y concreta, como una amiga que sabe de oficio. Hablas en español, en segunda persona y con frases claras. Enseñas con ejemplos breves inventados por ti (nunca citas libros ni canciones). Usas lo que sabes del autor y su historia para que el ejercicio o la explicación le sirva a él.`;
@@ -46,6 +56,19 @@ async function generate(requestData: any, prompt: string, label: string) {
 }
 
 const s = (v: any, max: number) => String(v || "").trim().slice(0, max);
+
+/** Nov 2026: guarda (o actualiza) el punto de vista de un libro en «Decisiones del libro». También lo usa el
+ *  Arquitecto al cerrar una conversación donde se decidió quién narra. */
+export async function saveBookPov(uid: string, book: string, detail: string, source = "biblioteca") {
+    const text = `Punto de vista de «${book}»: ${detail}${/[.!?]$/.test(detail) ? "" : "."}`;
+    const snap = await memoryCol(uid).doc(slugify(DECISIONS_FILE)).get();
+    const lines: any[] = (snap.data() as any)?.lines || [];
+    const prev = lines.find(l => String(l.text || "").startsWith(`Punto de vista de «${book}»`));
+    await applyMemoryOps(uid, [prev
+        ? { op: "update", file: DECISIONS_FILE, kind: "libro", lineId: prev.id, text }
+        : { op: "add", file: DECISIONS_FILE, kind: "libro", description: "Decisiones de oficio por libro: punto de vista, narrador y tiempo verbal. Respétalas al revisar o proponer.", text }] as any, source);
+    return text;
+}
 
 export const miraTaller = onCall(
     { region: FUNCTIONS_REGION, cors: ALLOWED_ORIGINS, enforceAppCheck: false, secrets: [googleApiKey, anthropicApiKey], timeoutSeconds: 120, memory: "512MiB" },
@@ -97,6 +120,14 @@ export const miraTaller = onCall(
 
         if (mode === "exercise") {
             const topic = TOPICS[d.topic] ? d.topic : "sorpresa";
+            const voz = s(d.voz, 40);
+            // «libro»: la voz decidida para su libro (si la hay en «Decisiones del libro»).
+            let vozText = VOICES[voz] || "";
+            if (voz === "libro") {
+                const dsnap = await memoryCol(uid).doc(slugify(DECISIONS_FILE)).get();
+                const pov = (((dsnap.data() as any)?.lines) || []).map((l: any) => String(l.text || "")).find((t: string) => t.startsWith("Punto de vista de"));
+                vozText = pov ? `con el mismo punto de vista que decidió para su libro (${pov})` : "";
+            }
             const memory = await getMemoryContext(uid, `${TOPICS[topic]} ${s(d.hint, 300)}`);
             const prompt = `${MIRA}
 
@@ -106,13 +137,14 @@ TAREA: crea UN ejercicio de escritura corto para practicar: ${TOPICS[topic]}.
 - "consigna": lo que debe escribir, en dos o tres frases, con una situación concreta.
 - "objetivo": qué debe lograr el texto para que el ejercicio funcione («la idea es que se entienda…»).
 - "pista": un consejo de oficio corto para lograrlo, con un mini ejemplo inventado si ayuda.
+${vozText ? `- VOZ: el texto se escribe ${vozText}. Dilo en la consigna y haz que el objetivo incluya sostener esa voz.` : ""}
 ${s(d.hint, 300) ? `PIDE ADEMÁS: ${s(d.hint, 300)}` : ""}
 
 ${memory || "(No hay memoria del autor todavía.)"}
 
 Responde SOLO con JSON: {"titulo":"…","consigna":"…","objetivo":"…","palabras":250,"pista":"…"}`;
             const ex = await generate(d, prompt, "TallerEjercicio");
-            return { exercise: { topic, titulo: s(ex.titulo, 120), consigna: s(ex.consigna, 900), objetivo: s(ex.objetivo, 400), palabras: Math.min(600, Math.max(100, Number(ex.palabras) || 250)), pista: s(ex.pista, 600) } };
+            return { exercise: { topic, voz: vozText ? voz : "", titulo: s(ex.titulo, 120), consigna: s(ex.consigna, 900), objetivo: s(ex.objetivo, 400), palabras: Math.min(600, Math.max(100, Number(ex.palabras) || 250)), pista: s(ex.pista, 600) } };
         }
 
         if (mode === "feedback") {
@@ -123,7 +155,7 @@ Responde SOLO con JSON: {"titulo":"…","consigna":"…","objetivo":"…","palab
             const prompt = `${MIRA}
 
 TAREA: el autor hizo este ejercicio de práctica y te pide tu opinión.
-EJERCICIO: ${s(ex.titulo, 120)}
+EJERCICIO: ${s(ex.titulo, 120)}${VOICES[ex.voz] ? `\nVOZ PEDIDA: ${VOICES[ex.voz]} (revisa si la sostiene en todo el texto; si se sale, cita dónde)` : ""}
 CONSIGNA: ${s(ex.consigna, 900)}
 OBJETIVO: ${s(ex.objetivo, 400)}
 
@@ -171,6 +203,69 @@ ${memory || "(No hay memoria del autor todavía.)"}
 Responde SOLO con JSON: {"respuesta":"…markdown…"}`;
             const r = await generate(d, prompt, "Director_TallerPregunta");
             return { respuesta: s(r.respuesta, 4000) };
+        }
+
+        // ── Nov 2026: focos de oficio («Para ti») ──
+        if (mode === "craft") {
+            const snap = await craftCol(uid).limit(40).get();
+            const items = snap.docs.map(x => ({ id: x.id, ...(x.data() as any) }))
+                .sort((a: any, b: any) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+            return { items };
+        }
+        if (mode === "craftAdd") {
+            const tema = s(d.tema, 80);
+            if (tema.length < 3) throw new HttpsError("invalid-argument", "Escribe qué quieres mejorar.");
+            await saveCraft(uid, { tema, porque: s(d.nota, 300) || "Lo dijiste tú.", paso: "" }, "autor");
+            return { id: craftId(tema) };
+        }
+        if (mode === "craftState") {
+            const id = s(d.id, 80);
+            const estado = d.estado === "hecho" ? "hecho" : d.estado === "activo" ? "activo" : "";
+            if (!id) throw new HttpsError("invalid-argument", "Falta el tema.");
+            if (d.forget) { await craftCol(uid).doc(id).delete(); return { ok: true }; }
+            if (estado) await craftCol(uid).doc(id).set({ estado, updatedAt: new Date().toISOString() }, { merge: true });
+            return { ok: true };
+        }
+        if (mode === "lesson") {
+            // Una lección hecha para el autor sobre uno de sus focos: con su historia, sus personajes y lo que se notó.
+            const id = s(d.id, 80);
+            const ref = craftCol(uid).doc(id);
+            const f: any = (await ref.get()).data();
+            if (!f) throw new HttpsError("not-found", "Ese tema ya no está.");
+            if (f.leccion && !d.refresh) return { lesson: f.leccion };
+            const [memory, practices] = await Promise.all([
+                getMemoryContext(uid, `${f.tema} ${f.porque || ""}`),
+                practiceCol(uid).orderBy("at", "desc").limit(5).get().catch(() => null),
+            ]);
+            const past = (practices?.docs || []).map(x => (x.data() as any)?.feedback?.resumen).filter(Boolean).slice(0, 3);
+            const prompt = `${MIRA}
+
+TAREA: escribe una lección corta, hecha para este autor, sobre: «${f.tema}».
+${f.porque ? `POR QUÉ LE SIRVE (lo que se notó): ${f.porque}` : ""}
+${f.paso ? `PUNTO DE PARTIDA YA SUGERIDO: ${f.paso}` : ""}
+${past.length ? `LO QUE MIRA LE DIJO EN SUS ÚLTIMAS PRÁCTICAS:\n- ${past.join("\n- ")}` : ""}
+
+REGLAS:
+- "resumen": en una o dos frases, qué es y por qué le importa a SU libro.
+- "bloques": de 3 a 5, cada uno con un subtítulo corto ("h") y un párrafo claro ("p"). El primero es SIEMPRE el punto de partida: qué hacer mañana al escribir, en pasos concretos.
+- "ejemplos": 2 o 3 fragmentos inventados por ti, cortos (2 a 4 líneas), que contrasten cómo no y cómo sí, con una etiqueta ("label"). Pueden usar sus personajes en situaciones nuevas; nunca reescribas su texto ni cites libros o canciones.
+- "practica": una frase con el ejercicio que conviene hacer después de leer.
+- Nada genérico: si algo no aplica a su historia, no lo pongas.
+
+${memory || "(No hay memoria del autor todavía.)"}
+
+Responde SOLO con JSON: {"titulo":"…","resumen":"…","bloques":[{"h":"…","p":"…"}],"ejemplos":[{"label":"…","text":"…"}],"practica":"…"}`;
+            const r = await generate(d, prompt, "Director_TallerLeccion");
+            const lesson = {
+                titulo: s(r.titulo, 120) || f.tema,
+                resumen: s(r.resumen, 500),
+                bloques: (Array.isArray(r.bloques) ? r.bloques : []).slice(0, 6).map((b: any) => ({ h: s(b?.h, 100), p: s(b?.p, 1200) })).filter((b: any) => b.p),
+                ejemplos: (Array.isArray(r.ejemplos) ? r.ejemplos : []).slice(0, 3).map((e: any) => ({ label: s(e?.label, 60), text: s(e?.text, 600) })).filter((e: any) => e.text),
+                practica: s(r.practica, 300),
+                at: new Date().toISOString(),
+            };
+            await ref.set({ leccion: lesson }, { merge: true });
+            return { lesson };
         }
 
         throw new HttpsError("invalid-argument", "Modo desconocido.");

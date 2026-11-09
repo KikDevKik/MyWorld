@@ -10,6 +10,7 @@ import { useLanguageStore } from '../../stores/useLanguageStore';
 import { useArquitectoStore } from '../../stores/useArquitectoStore';
 import { TRANSLATIONS } from '../../i18n/translations';
 import { useMisionesEditor } from '../../hooks/useMisionesEditor';
+import { useCraftFocus, openBiblioteca } from '../../hooks/useCraft';
 import { localDayKey } from '../../utils/dayKey';
 import { useAiUsage, fmtReset } from '../../hooks/useAiUsage';
 
@@ -57,6 +58,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
 
     const { misiones, hasRoadmap, toggleMision, resetProgress, pendingCount } = useMisionesEditor(arquitectoSessionId);
     const [isMisionesExpanded, setIsMisionesExpanded] = useState(false);
+    const focos = useCraftFocus(); // Nov 2026: lo que conviene practicar (biblioteca → Para ti)
 
     // METRICS STATE
     const [wordCount, setWordCount] = useState(() => countWords(content));
@@ -165,7 +167,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                 <button
                     onClick={onOpenSettings}
                     className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors
-                        ${!hasByok ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-zinc-700/50'}`}
+                        ${!hasByok ? 'bg-red-500/10 hover:bg-red-500/20' : 'hover:bg-titanium-800'}`}
                     title={!hasByok ? t.noApiKeyTooltip : showUsage ? `Claude este mes: US$ ${usage!.spent.toFixed(2)} de US$ ${usage!.cap} (${usagePct} %)${usagePct >= 100 ? ' · agotado: MyWorld usa Gemini' : usagePct >= 80 ? ' · ahora con Haiku para estirarlo' : ''} · se renueva el ${fmtReset(usage!.resetsOn, currentLanguage)}` : levelLabel ? `Nivel de IA: ${levelLabel} — click para cambiar` : tier === 'ultra' ? t.ultraModeTooltip : t.normalModeTooltip}
                     aria-label={showUsage ? `Claude este mes: ${usagePct} por ciento usado` : undefined}
                 >
@@ -176,8 +178,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                         </>
                     ) : tier === 'ultra' ? (
                         <>
-                            <Zap size={11} className="text-violet-400" />
-                            <span className="text-xs font-medium text-violet-400">{levelLabel || 'Ultra'}</span>
+                            <Zap size={11} className="text-mira" />
+                            <span className="text-xs font-medium text-mira">{levelLabel || 'Ultra'}</span>
                         </>
                     ) : showUsage ? (
                         <>
@@ -200,13 +202,13 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
 
                 <div className="h-3 w-px bg-titanium-800 mx-1" />
 
-                {/* 🎯 MISIONES DEL ROADMAP */}
-                {hasRoadmap && (
+                {/* 🎯 MISIONES DEL ROADMAP (+ lo que conviene practicar) */}
+                {(hasRoadmap || focos.length > 0) && (
                     <>
                         <div className="relative flex items-center">
                             <button
                                 onClick={() => setIsMisionesExpanded(v => !v)}
-                                className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-zinc-700/50 transition-colors"
+                                className="flex items-center gap-1.5 px-2 py-0.5 rounded hover:bg-titanium-800 transition-colors"
                                 title={pendingCount > 0
                                     ? `${pendingCount} ${t.pendingMissionsCount}`
                                     : t.allMissionsCompleted}
@@ -214,12 +216,12 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                                     ? `${pendingCount} ${t.pendingMissionsCount}`
                                     : t.allMissionsCompleted}
                             >
-                                <Target size={12} className={pendingCount > 0 ? 'text-violet-400' : 'text-emerald-400'} />
+                                <Target size={12} className={pendingCount > 0 ? 'text-mira' : 'text-logro'} />
                                 {pendingCount > 0 && (
-                                    <span className="font-medium text-violet-400">{pendingCount}</span>
+                                    <span className="font-medium text-mira">{pendingCount}</span>
                                 )}
                                 {pendingCount === 0 && misiones.length > 0 && (
-                                    <span className="text-emerald-400">✓</span>
+                                    <span className="text-logro">✓</span>
                                 )}
                             </button>
 
@@ -231,18 +233,18 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                                         onClick={() => setIsMisionesExpanded(false)}
                                         aria-hidden="true"
                                     />
-                                    <div className="absolute bottom-full left-0 mb-2 w-80 z-50 bg-zinc-900 border border-zinc-700/50 rounded-xl shadow-2xl overflow-hidden">
+                                    <div className="absolute bottom-full left-0 mb-2 w-80 z-50 bg-titanium-900 border border-titanium-700 rounded-xl shadow-2xl overflow-hidden">
                                         {/* Header */}
-                                        <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+                                        <div className="flex items-center justify-between px-4 py-3 border-b border-titanium-800">
                                             <div className="flex items-center gap-2">
-                                                <Target size={13} className="text-violet-400" />
-                                                <span className="text-xs font-medium text-zinc-300">{t.roadmapMissions}</span>
+                                                <Target size={13} className="text-mira" />
+                                                <span className="text-sm font-medium text-titanium-100">{t.roadmapMissions}</span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-xs text-zinc-500">{pendingCount} {t.pending}</span>
+                                                <span className="text-xs text-titanium-400">{pendingCount} {t.pending}</span>
                                                 <button
                                                     onClick={() => setIsMisionesExpanded(false)}
-                                                    className="text-zinc-600 hover:text-zinc-300 transition-colors"
+                                                    className="text-titanium-500 hover:text-titanium-200 transition-colors"
                                                     aria-label={t.close}
                                                 >
                                                     <X size={13} />
@@ -253,7 +255,7 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                                         {/* Lista */}
                                         <div className="overflow-y-auto max-h-72 p-2 space-y-1">
                                             {misiones.length === 0 && (
-                                                <p className="text-xs text-zinc-600 text-center py-4">
+                                                <p className="text-xs text-titanium-500 text-center py-4">
                                                     {t.noMissions}
                                                 </p>
                                             )}
@@ -262,18 +264,18 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                                                     key={mision.id}
                                                     onClick={() => toggleMision(mision.id)}
                                                     className={`w-full flex items-start gap-3 px-3 py-2.5 rounded-lg text-left transition-colors ${
-                                                        mision.completed ? 'opacity-50 hover:opacity-70' : 'hover:bg-zinc-800/60'
+                                                        mision.completed ? 'opacity-50 hover:opacity-70' : 'hover:bg-titanium-800/60'
                                                     }`}
                                                 >
                                                     <div className={`mt-0.5 w-3.5 h-3.5 rounded border flex-shrink-0 flex items-center justify-center transition-colors ${
                                                         mision.completed
-                                                            ? 'bg-emerald-500/20 border-emerald-500/50'
-                                                            : 'border-zinc-600'
+                                                            ? 'bg-logro/20 border-logro/50'
+                                                            : 'border-titanium-500'
                                                     }`}>
-                                                        {mision.completed && <Check size={9} className="text-emerald-400" />}
+                                                        {mision.completed && <Check size={9} className="text-logro" />}
                                                     </div>
-                                                    <span className={`text-xs leading-relaxed ${
-                                                        mision.completed ? 'line-through text-zinc-600' : 'text-zinc-300'
+                                                    <span className={`text-sm leading-relaxed ${
+                                                        mision.completed ? 'line-through text-titanium-500' : 'text-titanium-200'
                                                     }`}>
                                                         {mision.text}
                                                     </span>
@@ -281,12 +283,26 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                                             ))}
                                         </div>
 
+                                        {/* Nov 2026: para practicar (no son misiones del libro: son tu oficio) */}
+                                        {focos.length > 0 && (
+                                            <div className="border-t border-titanium-800 p-2">
+                                                <p className="px-3 pt-1 pb-1.5 text-xs text-titanium-400">Para practicar</p>
+                                                {focos.slice(0, 3).map(f => (
+                                                    <button key={f.id} onClick={() => { setIsMisionesExpanded(false); openBiblioteca('parati'); }}
+                                                        className="w-full flex items-start gap-3 px-3 py-2 rounded-lg text-left hover:bg-titanium-800/60 transition-colors">
+                                                        <img src="/assets/objetos/icono/libros.png" alt="" width={16} height={16} className="w-4 h-4 mt-0.5 shrink-0" style={{ imageRendering: 'pixelated' }} />
+                                                        <span className="text-sm leading-snug text-titanium-200">{f.tema}<span className="block text-xs text-titanium-400">En la biblioteca: lección y práctica</span></span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+
                                         {/* Footer */}
                                         {misiones.some(m => m.completed) && (
-                                            <div className="border-t border-zinc-800 px-4 py-2">
+                                            <div className="border-t border-titanium-800 px-4 py-2">
                                                 <button
                                                     onClick={resetProgress}
-                                                    className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
+                                                    className="text-xs text-titanium-500 hover:text-titanium-200 transition-colors"
                                                 >
                                                     {t.resetProgress}
                                                 </button>
@@ -308,8 +324,8 @@ const StatusBar: React.FC<StatusBarProps> = ({ content, fileId, className = '', 
                             flex items-center gap-1.5 px-2 py-0.5 rounded transition-all duration-300
                             ${guardianStatus === 'scanning' ? 'text-amber-400 bg-amber-900/20 animate-pulse' :
                                 guardianStatus === 'conflict' ? 'text-red-400 bg-red-900/20 animate-pulse' :
-                                    guardianStatus === 'clean' ? 'text-zinc-500 hover:text-emerald-400' :
-                                        'text-zinc-600 hover:text-zinc-400'}
+                                    guardianStatus === 'clean' ? 'text-titanium-400 hover:text-logro' :
+                                        'text-titanium-500 hover:text-titanium-200'}
                         `}
                         title={guardianStatus === 'scanning' ? t.tooltipArgosScan : guardianStatus === 'conflict' ? t.tooltipArgosConflict : t.tooltipArgosClean}
                         aria-label={guardianStatus === 'scanning' ? t.scanning : guardianStatus === 'conflict' ? t.conflict : t.argos}

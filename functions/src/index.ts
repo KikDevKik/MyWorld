@@ -16,6 +16,7 @@ import { _getDriveFileContentInternal } from "./utils/drive";
 import { textHash } from "./utils/text_hash";
 import { smartGenerateContent } from "./utils/smart_generate";
 import { claudeEnabledForCurrentUser, myworldClaudeAvailable, pickClaudeModel, callClaude, CLAUDE_FICTION_SYSTEM, MYWORLD_VOICE, REWRITE_RULE, monthlyCapUsd } from "./utils/claude_router";
+import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
 import { getMemoryContext } from "./utils/memory_store";
 import { parseSecureJSON } from "./utils/json";
 import { ingestFile, deleteFileVectors, IngestionFile } from './ingestion';
@@ -2032,9 +2033,14 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
         if (activeFolder) logger.info(`📂 [DIRECTOR] Libro "${bookFolder}": ${bookChunks.length} fragmentos extra (${[...new Set(bookChunks.map(c => c.fileName))].join(', ')}); en la búsqueda general: ${diverse.filter(c => inFolder(c) > 0).length}`);
         const claudeChunks = ranked.slice(0, 8).filter(c => { memChars += (c.text || '').length; return memChars <= 9000; });
         const claudeMemory = `[MEMORIA A LARGO PLAZO - DATOS RELEVANTES DEL PROYECTO]:\n${claudeChunks.map(c => `(${c.fileName})\n${c.text}`).join("\n\n---\n\n") || "No se encontraron datos relevantes en la memoria."}`;
-        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${REWRITE_RULE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
+        const staticSystem = `${CLAUDE_FICTION_SYSTEM}\n\n${systemInstruction || ''}\n\n${MYWORLD_VOICE}\n\n${REWRITE_RULE}\n\n${CRAFT_RULE}\n\n${continuityForClaude}\n\n${coAuthorInstruction}`;
         // Memoria de MyWorld: fuera de la caché (cambia cuando se guarda algo nuevo)
-        const myworldMemory = await getMemoryContext(userId, `${finalQuery} ${activeFileName || ''} ${(activeFileContent || '').slice(0, 3000)}`);
+        // Nov 2026: + los focos de oficio ya anotados (para no repetirlos).
+        const [myworldMemoryBase, craftNotes] = await Promise.all([
+          getMemoryContext(userId, `${finalQuery} ${activeFileName || ''} ${(activeFileContent || '').slice(0, 3000)}`),
+          craftContext(userId),
+        ]);
+        const myworldMemory = [myworldMemoryBase, craftNotes].filter(Boolean).join('\n\n');
         // Quitar bloques <thinking> de respuestas anteriores (también provocan el bloqueo de Claude)
         // Oct 2026 (costos): el historial era la parte más cara sin caché (~12k tokens por mensaje): las
         // respuestas largas del Director viajaban completas 20 veces. Ahora: últimos 12 mensajes; los del
@@ -2078,8 +2084,10 @@ Si el usuario quiere insertar texto en su documento, puede usar el botón 'Inser
           label: 'Director',
         });
         if (r.ok && r.text) {
+          const sc = splitCraft(r.text);
+          if (sc.craft) await saveCraft(userId, sc.craft, 'mira');
           return {
-            response: ragNotice + r.text,
+            response: ragNotice + sc.text,
             // Las fuentes son lo que de verdad recibió Claude (incluye los fragmentos de la carpeta del libro).
             sources: claudeChunks.map((chunk: any) => ({ text: String(chunk.text || '').substring(0, 200) + "...", fileName: chunk.fileName })),
           };

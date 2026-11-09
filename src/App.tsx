@@ -18,6 +18,7 @@ import { getAuth, onAuthStateChanged, User, signOut, signInWithPopup, GoogleAuth
 import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { callFunction } from './services/api';
 import { getAiLevel, setAiLevelStored } from './hooks/aiLevel';
+import { useCraftFocus, OPEN_BIBLIOTECA_EVENT } from './hooks/useCraft';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import { FileCache } from './utils/fileCache';
@@ -667,6 +668,13 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     // Nov 2026: lo pendiente del capítulo abierto (reporte y plan) para la insignia del Reporte y la llegada de Mira.
     const { misiones: deskMisiones } = useMisionesEditor(arquitectoSessionId);
+    // Nov 2026: lo que conviene practicar (Mira o el Arquitecto lo notaron) y abrir la biblioteca desde otros lugares.
+    const craftFocos = useCraftFocus();
+    useEffect(() => {
+        const on = () => setActiveView('biblioteca');
+        window.addEventListener(OPEN_BIBLIOTECA_EVENT, on);
+        return () => window.removeEventListener(OPEN_BIBLIOTECA_EVENT, on);
+    }, []);
     const [reportInfo, setReportInfo] = useState<{ fileId: string; problems: number; high: number; top?: string; spelling: number; dudas: number; hasReport: boolean } | null>(null);
     useEffect(() => {
         const id = currentFileId;
@@ -693,6 +701,7 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
         if (ri?.dudas) items.push(`Hay ${ri.dudas} ${ri.dudas === 1 ? 'duda' : 'dudas'} del canon por definir.`);
         if (ri?.spelling) items.push(`Y ${ri.spelling} ${ri.spelling === 1 ? 'corrección' : 'correcciones'} de ortografía.`);
         const nG = canonReview?.groups?.length || 0, nD = canonReview?.docs?.length || 0;
+        if (craftFocos[0] && items.length) items.push(`Para practicar cuando hagas una pausa: ${craftFocos[0].tema} (en la biblioteca, «Para ti»).`);
         if (nG || nD) items.push(`En tu canon ${[nG ? `hay ${nG} ${nG === 1 ? 'concepto' : 'conceptos'} con dos nombres` : '', nD ? `${nG ? '' : 'hay '}${nD} ${nD === 1 ? 'par' : 'pares'} de documentos repetidos` : ''].filter(Boolean).join(' y ')}: conviene resolverlo antes de seguir.`);
         return items.length ? { items, hasReport: !!ri?.hasReport, review: reviewCount(canonReview) > 0 } : null;
     })();

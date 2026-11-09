@@ -56,6 +56,10 @@ service cloud.firestore {
       match /plan/{doc} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+      // Nov 2026: focos de oficio («Para ti» en la biblioteca). Solo lectura: los escribe el servidor.
+      match /craft/{doc} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+      }
       match /user_state/{doc} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }

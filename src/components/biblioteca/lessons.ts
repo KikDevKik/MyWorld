@@ -1,7 +1,38 @@
 // Nov 2026: lecciones cortas de la biblioteca. Ejemplos inventados (no citas de libros).
-export interface Lesson { id: string; topic: string; title: string; summary: string; body: { h?: string; p: string }[]; example?: { label: string; text: string }[] }
+export interface Lesson { id: string; topic: string; title: string; summary: string; body: { h?: string; p: string }[]; example?: { label: string; text: string }[]; voz?: string; hint?: string; craftId?: string }
 
 export const LESSONS: Lesson[] = [
+    {
+        id: 'tercera_cercana', topic: 'tercera_cercana', voz: 'tercera_cercana',
+        title: 'Tercera persona cercana: por dónde empezar',
+        summary: 'Cuentas en «ella», pero desde dentro de ella: el lector ve, oye y piensa lo que ella, con sus palabras.',
+        body: [
+            { h: 'Punto de partida: elige una cámara y no la sueltes', p: 'Antes de cada escena, decide por los ojos de quién va. Durante esa escena solo cuentas lo que esa persona puede ver, oír, recordar o suponer. Si otro personaje siente algo, el lector lo sabe por un gesto que ella nota, no porque el narrador se meta en la cabeza del otro.' },
+            { h: 'Quita los filtros', p: 'Los «vio», «sintió», «pensó», «se dio cuenta» alejan al lector: lo ponen a mirar al personaje desde fuera. En vez de «Lía sintió que el agua estaba fría», escribe «El agua estaba helada». Ya sabemos que es ella quien la siente.' },
+            { h: 'Sus palabras, no las tuyas', p: 'El narrador usa el vocabulario del personaje. Una niña del campo no ve «un cielo cerúleo»: ve «el cielo de cuando va a llover». Si una palabra no la diría ella, sobra o se cambia.' },
+            { h: 'Los pensamientos van sin comillas', p: 'Puedes pasar del relato al pensamiento sin avisar: «Mamá tardaba. Seguro se le olvidó otra vez.» La segunda frase es ella pensando, en pasado y sin cursiva. Eso es lo que hace la cercanía.' },
+            { h: 'La distancia se mueve', p: 'No todo va pegado. Al abrir una escena puedes alejarte un poco (dónde estamos, qué hora es) y acercarte cuando llega lo importante. Lo que no se hace es cambiar de cabeza a mitad de escena.' },
+            { h: 'Cómo revisarlo', p: 'Relee una escena y marca cada frase que ella no podría saber. Cada marca es un salto de punto de vista: o lo cambias por algo que ella note, o lo dejas para otra escena contada desde otro personaje.' },
+        ],
+        example: [
+            { label: 'Lejos (narrador que mira)', text: 'Lía estaba nerviosa. Pensó que su padre se enojaría al ver la cerca rota y sintió miedo cuando oyó la camioneta.' },
+            { label: 'Cerca (desde dentro de ella)', text: 'La cerca seguía rota. Lía la miró como si así se fuera a arreglar sola. Entonces sonó la camioneta, ese motor que tosía, y se le cerró el estómago.' },
+        ],
+    },
+    {
+        id: 'primera', topic: 'primera', voz: 'primera',
+        title: 'Que la primera persona tenga voz',
+        summary: 'En primera persona, el narrador no solo cuenta: elige qué contar y cómo. Esa elección es el personaje.',
+        body: [
+            { h: 'Punto de partida', p: 'Escribe tres frases sobre algo cotidiano (despertarse, el desayuno) como lo diría tu personaje a un amigo. Si suenan como las diría cualquiera, todavía no tiene voz.' },
+            { h: 'Lo que calla', p: 'Un narrador en primera persona no lo dice todo. Lo que evita nombrar o cuenta con prisa dice tanto como lo que cuenta.' },
+            { h: 'Cuidado con el «yo» en cada frase', p: '«Yo fui, yo vi, yo sentí» cansa. Varía: empieza por lo que ve o por lo que le pasa, y deja que el «yo» se sobreentienda.' },
+        ],
+        example: [
+            { label: 'Sin voz', text: 'Me desperté temprano. Desayuné y fui a la escuela.' },
+            { label: 'Con voz', text: 'El gallo de don Rafa tiene algo personal conmigo: a las cinco ya estaba despierta y con hambre.' },
+        ],
+    },
     {
         id: 'narradora', topic: 'narradora',
         title: 'Narrar en primera persona desde la adultez',

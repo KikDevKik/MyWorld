@@ -12,6 +12,8 @@ import { callClaude, claudeEnabledForCurrentUser, CLAUDE_SONNET, MYWORLD_VOICE }
 import { getMemoryContext } from "./utils/memory_store";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { fileText } from "./personajes";
+import { CRAFT_RULE, splitCraft, saveCraft, craftContext } from "./craft";
+import { saveBookPov } from "./mira_taller";
 
 const FOLDER = "application/vnd.google-apps.folder";
 export const SESSIONS_FOLDER = "Sesiones del Arquitecto";
@@ -83,7 +85,8 @@ const CLOSE_TASK = `El autor cierra esta sesión con El Arquitecto. Resume SOLO 
 No agregues nada que el autor no haya dicho o aceptado en Conexiones. Breve.`;
 
 const PLAN_TASK = `Convierte lo que el autor decidió en esta sesión en los pasos que hará en el escritorio, en orden: de 3 a 8 misiones cortas y concretas, empezando por un verbo (p. ej. «Reescribir el capítulo 1: el festival de los 5 años, con Anna escondida detrás de Marco»). Solo lo decidido o lo que falta escribir según lo decidido; nada inventado. "libro": el libro o la parte que trabajó, si se sabe.
-Responde SOLO con JSON: {"libro":"…","misiones":["…"]}`;
+"pov": solo si en la sesión se decidió de forma explícita quién narra ese libro (persona, distancia y tiempo verbal, en una frase); si no se decidió, "".
+Responde SOLO con JSON: {"libro":"…","misiones":["…"],"pov":""}`;
 
 function drv(accessToken: string) {
     const auth = new google.auth.OAuth2();
@@ -303,10 +306,11 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
     // Nov 2026 (gasto): 12 mensajes de historial (la agenda y la memoria guardan lo anterior).
     const history = await sessionHistory(uid, sessionId, 12);
     const hint = `${query} ${history.slice(-1200)}`;
-    const [memory, shared, focus] = await Promise.all([
+    const [memory, shared, focus, craft] = await Promise.all([
         getMemoryContext(uid, hint),
         sharedMaterial(uid, sharedDocs),
         focusMaterial(uid, goal, sharedDocs),
+        craftContext(uid),
     ]);
     const already = new Set([...focus.names, ...sharedNames(shared)].map(normName));
     const [material, named] = await Promise.all([
@@ -326,12 +330,16 @@ export async function conectarReply(uid: string, sessionId: string, goal: string
     const raw = await ask([
         goal ? `OBJETIVO DE LA SESIÓN: ${goal}` : "",
         memory ? `MEMORIA DEL PROYECTO:\n${memory}` : "",
+        craft,
         named ? `LO QUE NOMBRÓ (archivos de lo que mencionó):\n${named}` : "",
         material ? `FRAGMENTOS RELEVANTES DE SU MATERIAL:\n${material}` : "",
         history ? `CONVERSACIÓN HASTA AHORA:\n${history}` : "",
         agenda.length ? `AGENDA ACTUAL DE LA SESIÓN (respuesta n.º ${turns}):\n${agenda.map(p => `- [${p.e}] ${p.t}`).join("\n")}` : `AGENDA: todavía no hay (respuesta n.º ${turns}); ármala.`,
-    ], `AUTOR: ${query}\n\n${AGENDA_RULE}`, "ArquitectoConectar", 3000, stable);
-    const out = splitAgenda(raw);
+    ], `AUTOR: ${query}\n\n${CRAFT_RULE}\n\n${AGENDA_RULE}`, "ArquitectoConectar", 3000, stable);
+    // Nov 2026: primero el foco de oficio (si lo anotó), después la agenda.
+    const sc = splitCraft(raw);
+    if (sc.craft) await saveCraft(uid, sc.craft, "arquitecto");
+    const out = splitAgenda(sc.text);
     await sref.set({ turns, ...(out.agenda ? { agenda: out.agenda } : {}), agendaCerrar: out.cerrar }, { merge: true });
     return out.text;
 }
@@ -354,6 +362,10 @@ export async function conectarClose(uid: string, sessionId: string, accessToken?
                 .set({ creationMissions: misiones, changelog: [], researchMissions: [], source: "conectar", createdAt: now }, { merge: true });
             await db.collection("users").doc(uid).collection("plan").doc("current").set({ missions: misiones, sessionId, at: now, libro: String(j.libro || "").slice(0, 80) });
         }
+        // Nov 2026: si decidieron quién narra, queda en «Decisiones del libro» (la biblioteca, Mira y el reporte lo respetan).
+        const pov = String(j.pov || "").trim().slice(0, 300);
+        const libro = String(j.libro || "").trim().slice(0, 80);
+        if (pov && libro) await saveBookPov(uid, libro, pov, "arquitecto").catch(() => {});
     } catch (e: any) { logger.warn(`[ARQUITECTO·CONECTAR] Plan sin guardar: ${e?.message}`); }
     let savedAs: string | undefined;
     if (accessToken) {

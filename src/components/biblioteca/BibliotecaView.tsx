@@ -1,5 +1,6 @@
 // Nov 2026: La biblioteca. Aprender y practicar con Mira, sin presión.
-// Tres partes: decisiones del libro (punto de vista), practicar (ejercicios con opinión de Mira) y aprender (lecciones).
+// Cuatro partes: para ti (lo que conviene reforzar, según tus conversaciones), practicar (ejercicios con opinión de Mira),
+// aprender (lecciones, algunas hechas para ti) y decisiones del libro (punto de vista).
 import React, { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -8,14 +9,18 @@ import { toast } from 'sonner';
 import RoomMira from '../mira/RoomMira';
 import { callFunction } from '../../services/api';
 import { LESSONS, Lesson } from './lessons';
+import ParaTi, { toLesson } from './ParaTi';
+import { useCraftFocus, OPEN_BIBLIOTECA_EVENT } from '../../hooks/useCraft';
 
-type Tab = 'decisiones' | 'practicar' | 'aprender';
-interface Exercise { topic: string; titulo: string; consigna: string; objetivo: string; palabras: number; pista: string }
+type Tab = 'parati' | 'decisiones' | 'practicar' | 'aprender';
+interface Exercise { topic: string; voz?: string; titulo: string; consigna: string; objetivo: string; palabras: number; pista: string }
 interface Feedback { resumen: string; funciona: { cita: string; porque: string }[]; mejorar: { cita: string; que: string }[]; siguiente: string }
 interface Practice { id: string; exercise: Exercise; text: string; feedback: Feedback; at: string; words: number }
 
 const TOPICS: { id: string; label: string }[] = [
     { id: 'sorpresa', label: 'Sorpréndeme' },
+    { id: 'tercera_cercana', label: 'Tercera persona cercana' },
+    { id: 'primera', label: 'Primera persona' },
     { id: 'dialogo', label: 'Quién habla' },
     { id: 'presentar', label: 'Presentar a un personaje' },
     { id: 'relacion', label: 'Una relación de años' },
@@ -24,6 +29,15 @@ const TOPICS: { id: string; label: string }[] = [
     { id: 'narradora', label: 'Narrar recordando' },
     { id: 'sentido', label: 'Un sentido' },
     { id: 'estudio', label: 'Lo que vi en una serie' },
+];
+
+// Nov 2026: cualquier tema se puede practicar en cualquier voz.
+const VOICES: { id: string; label: string }[] = [
+    { id: '', label: 'La que elija Mira' },
+    { id: 'libro', label: 'La de mi libro' },
+    { id: 'primera', label: 'Primera persona' },
+    { id: 'tercera_cercana', label: 'Tercera cercana' },
+    { id: 'tercera_todo', label: 'Tercera que lo sabe todo' },
 ];
 
 const NARRATORS = [
@@ -57,8 +71,14 @@ function Option({ name, checked, onChange, label, children }: { name: string; ch
 }
 
 export default function BibliotecaView({ onClose }: { onClose: () => void }) {
-    const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('mw-biblioteca-tab') as Tab) || 'decisiones'; } catch { return 'decisiones'; } });
+    const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('mw-biblioteca-tab') as Tab) || 'parati'; } catch { return 'parati'; } });
     useEffect(() => { try { localStorage.setItem('mw-biblioteca-tab', tab); } catch { /* sin almacenamiento */ } }, [tab]);
+    useEffect(() => {
+        const on = (e: Event) => { const t = (e as CustomEvent).detail?.tab as Tab | undefined; if (t) setTab(t); };
+        window.addEventListener(OPEN_BIBLIOTECA_EVENT, on);
+        return () => window.removeEventListener(OPEN_BIBLIOTECA_EVENT, on);
+    }, []);
+    const focos = useCraftFocus();
 
     // ── Decisiones ──
     const [book, setBook] = useState(() => { try { return localStorage.getItem('mw-biblioteca-book') || ''; } catch { return ''; } });
@@ -75,6 +95,8 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
 
     // ── Práctica ──
     const [topic, setTopic] = useState('sorpresa');
+    const [voz, setVoz] = useState<string>(() => { try { return localStorage.getItem('mw-biblioteca-voz') ?? ''; } catch { return ''; } });
+    const [practiceHint, setPracticeHint] = useState('');
     const [exercise, setExercise] = useState<Exercise | null>(null);
     const [draft, setDraft] = useState('');
     const [feedback, setFeedback] = useState<Feedback | null>(null);
@@ -121,16 +143,20 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
         finally { setAsking(false); }
     };
 
-    const newExercise = async (t = topic, hint = '') => {
+    const newExercise = async (t = topic, hint = practiceHint, v = voz) => {
         setBusy('exercise'); setFeedback(null); setShowHint(false);
+        try { localStorage.setItem('mw-biblioteca-voz', v); } catch { /* */ }
         try {
-            const r = await callFunction<{ exercise: Exercise }>('miraTaller', { mode: 'exercise', topic: t, hint });
+            const r = await callFunction<{ exercise: Exercise }>('miraTaller', { mode: 'exercise', topic: t, hint, voz: v });
             if (r?.exercise) { setExercise(r.exercise); setDraft(''); }
         } catch (e: any) { toast.error(e?.message || 'Mira no pudo pensar un ejercicio.'); }
         finally { setBusy(null); }
     };
 
-    const practiceTopic = (t: string, hint = '') => { setTopic(t); setTab('practicar'); newExercise(t, hint); };
+    const practiceTopic = (t: string, hint = '', v?: string) => {
+        const vv = v ?? voz;
+        setTopic(t); setPracticeHint(hint); if (v !== undefined) setVoz(v); setTab('practicar'); newExercise(t, hint, vv);
+    };
 
     const askFeedback = async () => {
         if (!exercise) return;
@@ -145,15 +171,18 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
         finally { setBusy(null); }
     };
 
-    const miraLine = useMemo(() => tab === 'decisiones'
+    const miraLine = useMemo(() => tab === 'parati'
+        ? 'Lo que vamos notando al conversar. Poco a poco, sin prisa.'
+        : tab === 'decisiones'
         ? 'Antes de escribir, decidamos quién cuenta tu historia. Si dudas, pregúntame.'
         : tab === 'practicar' ? 'Sin presión: esto no entra a tu libro. Es para soltar la mano.'
             : 'Lecciones cortas. Cuando una te sirva, practícala.', [tab]);
 
     const TABS: { id: Tab; label: string }[] = [
-        { id: 'decisiones', label: 'Decisiones del libro' },
+        { id: 'parati', label: focos.length ? `Para ti · ${focos.length}` : 'Para ti' },
         { id: 'practicar', label: 'Practicar' },
         { id: 'aprender', label: 'Aprender' },
+        { id: 'decisiones', label: 'Decisiones del libro' },
     ];
 
     return (
@@ -176,6 +205,15 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
                             </button>
                         ))}
                     </div>
+
+                    {/* ── Para ti ── */}
+                    {tab === 'parati' && (
+                        <ParaTi
+                            onPractice={hint => practiceTopic('sorpresa', hint)}
+                            onOpenLesson={l => { setLesson(l); setTab('aprender'); }}
+                            btnPrimary={btnPrimary} btnSecondary={btnSecondary} card={card} inputCls={inputCls}
+                        />
+                    )}
 
                     {/* ── Decisiones del libro ── */}
                     {tab === 'decisiones' && (
@@ -290,11 +328,27 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
                             <p className="text-[15px] text-titanium-200 leading-relaxed">
                                 Para cuando estás en pausa o no sabes qué escribir. Elige qué practicar y te propongo un ejercicio corto, con tus personajes si sirve. Es práctica: no entra a tu libro.
                             </p>
+                            {practiceHint && (
+                                <p className="text-sm text-titanium-300 flex items-center gap-2">
+                                    <span><span className="text-mira">Enfoque: </span>{practiceHint.replace(/^Practicar:\s*/, '')}</span>
+                                    <button onClick={() => setPracticeHint('')} className="text-titanium-500 hover:text-titanium-100 underline underline-offset-2">quitar</button>
+                                </p>
+                            )}
+                            <h2 className="text-sm text-titanium-300 -mb-3">¿Qué practicar?</h2>
                             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Qué practicar">
                                 {TOPICS.map(t => (
                                     <button key={t.id} role="radio" aria-checked={topic === t.id} onClick={() => setTopic(t.id)}
                                         className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${topic === t.id ? 'border-mira/60 bg-mira/15 text-titanium-50' : 'border-titanium-700 text-titanium-300 hover:border-titanium-500'}`}>
                                         {t.label}
+                                    </button>
+                                ))}
+                            </div>
+                            <h2 className="text-sm text-titanium-300 -mb-3">¿En qué voz?</h2>
+                            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="En qué voz escribir">
+                                {VOICES.filter(v => v.id !== 'libro' || decisions.some(d => d.text.startsWith('Punto de vista'))).map(v => (
+                                    <button key={v.id || 'libre'} role="radio" aria-checked={voz === v.id} onClick={() => setVoz(v.id)}
+                                        className={`px-3 py-1.5 rounded-full border text-sm transition-colors ${voz === v.id ? 'border-mira/60 bg-mira/15 text-titanium-50' : 'border-titanium-700 text-titanium-300 hover:border-titanium-500'}`}>
+                                        {v.label}
                                     </button>
                                 ))}
                             </div>
@@ -379,6 +433,22 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
                     )}
 
                     {/* ── Aprender ── */}
+                    {tab === 'aprender' && !lesson && focos.some(f => f.leccion) && (
+                        <section aria-label="Hechas para ti" className="flex flex-col gap-2">
+                            <h2 className="text-sm text-titanium-300">Hechas para ti</h2>
+                            <ul className="grid gap-3 sm:grid-cols-2">
+                                {focos.filter(f => f.leccion).map(f => (
+                                    <li key={f.id}>
+                                        <button onClick={() => setLesson(toLesson(f, f.leccion))} className={`${card} w-full h-full text-left border-mira/40 hover:border-mira/70 transition-colors`}>
+                                            <span className="block font-serif text-lg text-titanium-100 text-pretty">{f.leccion.titulo || f.tema}</span>
+                                            <span className="block text-sm text-titanium-300 mt-1 leading-relaxed">{f.leccion.resumen}</span>
+                                        </button>
+                                    </li>
+                                ))}
+                            </ul>
+                            <h2 className="text-sm text-titanium-300 mt-3">Para todos</h2>
+                        </section>
+                    )}
                     {tab === 'aprender' && !lesson && (
                         <ul className="grid gap-3 sm:grid-cols-2">
                             {LESSONS.map(l => (
@@ -409,7 +479,7 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
                                 </figure>
                             ))}
                             <div className="flex flex-wrap gap-2 pt-2">
-                                <button onClick={() => practiceTopic(lesson.topic)} className={btnPrimary}>Practicar esto</button>
+                                <button onClick={() => practiceTopic(lesson.topic, lesson.hint || '', lesson.voz)} className={btnPrimary}>Practicar esto</button>
                                 <button onClick={() => { setTab('decisiones'); setQuestion(`Sobre «${lesson.title}»: ¿cómo lo aplico en mi libro?`); }} className={btnSecondary}>Preguntarle a Mira por mi libro</button>
                             </div>
                         </article>
