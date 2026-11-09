@@ -26,7 +26,8 @@ export default function RoomMira({ pose, line, roomKey, className = 'right-5 bot
         </button>
     );
     return (
-        <div className={`absolute z-30 flex items-end gap-1 pointer-events-none ${className}`}>
+        // Nov 2026: en el celular no cabe: tapaba las opciones del cuarto. Mira sigue a un toque en el riel.
+        <div className={`absolute z-30 hidden sm:flex items-end gap-1 pointer-events-none ${className}`}>
             {side === 'left' ? <>{sprite}{bubble}</> : <>{bubble}{sprite}</>}
         </div>
     );

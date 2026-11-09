@@ -1,15 +1,24 @@
 import { useState, useCallback } from 'react';
 
-export function useToolWelcome(toolKey: string, folderId?: string): [boolean, () => void] {
-    const storageKey = `welcome_dismissed_${toolKey}_${folderId || 'global'}`;
+// Nov 2026: la bienvenida de cada herramienta se muestra una vez por persona (antes, una vez por proyecto:
+// al crear el primer proyecto volvía a salir la de Mira que ya habías cerrado).
+export function useToolWelcome(toolKey: string, _folderId?: string): [boolean, () => void] {
+    const storageKey = `welcome_dismissed_${toolKey}`;
 
     const [dismissed, setDismissed] = useState(() => {
-        const globallyDisabled = localStorage.getItem('welcome_cards_disabled') === 'true';
-        return globallyDisabled || localStorage.getItem(storageKey) === 'true';
+        try {
+            if (localStorage.getItem('welcome_cards_disabled') === 'true' || localStorage.getItem(storageKey) === 'true') return true;
+            // Las claves viejas iban por proyecto (welcome_dismissed_<tool>_<carpeta>): cualquiera cuenta.
+            for (let i = 0; i < localStorage.length; i++) {
+                const k = localStorage.key(i) || '';
+                if (k.startsWith(`${storageKey}_`) && localStorage.getItem(k) === 'true') return true;
+            }
+        } catch { /* sin almacenamiento */ }
+        return false;
     });
 
     const dismiss = useCallback(() => {
-        localStorage.setItem(storageKey, 'true');
+        try { localStorage.setItem(storageKey, 'true'); } catch { /* sin almacenamiento */ }
         setDismissed(true);
     }, [storageKey]);
 

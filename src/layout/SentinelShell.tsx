@@ -193,7 +193,7 @@ const SentinelShell: React.FC<SentinelShellProps> = ({
                         aria-label="Tus documentos"
                         aria-hidden={!vaultDrawerOpen}
                         ref={drawerRef}
-                        className={`fixed left-0 top-0 bottom-0 z-[71] w-[min(20rem,86vw)] bg-titanium-800 border-r border-titanium-500/20 flex flex-col overflow-hidden transition-transform duration-200 ease-out motion-reduce:transition-none ${vaultDrawerOpen ? 'translate-x-0 shadow-[20px_0_60px_rgba(0,0,0,0.45)]' : '-translate-x-full'}`}
+                        className={`fixed left-0 top-0 bottom-0 z-[71] w-[min(20rem,86vw)] bg-titanium-800 border-r border-titanium-500/20 flex flex-col overflow-hidden transition-transform duration-200 ease-out motion-reduce:transition-none ${vaultDrawerOpen ? 'translate-none shadow-[20px_0_60px_rgba(0,0,0,0.45)]' : '-translate-x-full'}`}
                     >
                         {sidebar}
                     </aside>

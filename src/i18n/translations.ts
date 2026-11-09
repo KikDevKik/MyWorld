@@ -235,7 +235,7 @@ REGLA ESTRICTA - ANTI-ALUCINACIÓN: Si no hay datos en el contexto sobre un elem
             ecosCritical: "Ecos Críticos",
             verdict: "Veredicto del Tribunal",
             analyzingCast: "Analizando Elenco",
-            directorOnline: "¡Hola! Ya leí tu canon. Pregúntame por un personaje, un lugar o una escena."
+            directorOnline: "¡Hola! Pregúntame por tus personajes, tus lugares o tu próxima escena."
         },
         architect: {
             toolName: "El Arquitecto",

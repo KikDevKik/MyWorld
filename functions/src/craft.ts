@@ -14,7 +14,7 @@ Si en lo que el autor escribe o dice ves una dificultad de oficio concreta y con
 1. Dale un punto de partida concreto: qué hacer primero y un ejemplo breve inventado por ti (2 a 4 líneas, con otros personajes; nunca reescribas su prosa ni escribas su escena).
 2. Invítalo, en una frase, a practicarlo en la biblioteca (pestaña «Para ti»).
 3. Anótalo en una línea aparte, que el autor no ve, ANTES de cualquier otra línea oculta:
-[[OFICIO]] {"tema":"nombre corto del tema","porque":"la evidencia en una frase (qué viste o qué dijo)","paso":"el primer paso en una frase"}
+[[OFICIO]] {"tema":"nombre corto del tema","porque":"la evidencia en una frase, hablándole a él en segunda persona («En tu párrafo saltas a…», «Me dijiste que…»)","paso":"el primer paso en una frase, también en segunda persona"}
 Como máximo uno por respuesta. Si el tema ya está en FOCOS DE OFICIO, no lo anotes otra vez salvo que el paso cambie. Si el autor está en otra cosa urgente, basta una frase; no conviertas la conversación en una clase. Sin evidencia, no anotes nada.`;
 
 const ONE_LINE = /\[\[OFICIO\]\]\s*(\{[^\n]*\})/;

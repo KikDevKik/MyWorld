@@ -1579,9 +1579,10 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
 
     return (
         <>
+            {/* Nov 2026: en el celular los avisos van arriba: abajo tapaban el campo para escribirle a Mira. */}
             <Toaster
                 theme="dark"
-                position="bottom-right"
+                position={isNarrow ? 'top-center' : 'bottom-right'}
                 toastOptions={{
                     style: {
                         background: 'var(--mw-800)',

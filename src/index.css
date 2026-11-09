@@ -123,7 +123,9 @@ body {
 :root[data-theme="papel"] .prose-invert { --tw-prose-body: var(--mw-200); --tw-prose-headings: var(--mw-100); --tw-prose-bold: var(--mw-100); --tw-prose-links: var(--mw-ai-400); }
 
 /* --- Sprites de Mira --- */
-.mira-spr { image-rendering: pixelated; background-repeat: no-repeat; display: block; flex: 0 0 auto; }
+/* Nov 2026: en la capa de componentes, para que las clases de Tailwind (hidden, md:block…) puedan ocultarla.
+   Fuera de capa ganaba siempre y Mira salía en el celular encima del saludo. */
+@layer components { .mira-spr { image-rendering: pixelated; background-repeat: no-repeat; display: block; flex: 0 0 auto; } }
 .mira-rim { filter: drop-shadow(0 0 2px rgba(185,174,224,.55)); }
 :root[data-theme="papel"] .mira-rim { filter: drop-shadow(0 1px 1px rgba(26,22,38,.25)); }
 @media (prefers-reduced-motion: reduce) { .mira-spr { animation: none !important; } }
