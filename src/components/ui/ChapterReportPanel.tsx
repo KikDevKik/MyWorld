@@ -15,7 +15,8 @@ interface Spelling { original: string; correccion: string; cita?: string; nota?:
 interface Reading { titulo: string; autor: string; tipo?: string; deSusReferencias?: boolean; porque: string }
 interface ReaderView { veredicto: string; seEntiende?: 'si' | 'a medias' | 'no'; confusiones?: string[] }
 interface ReaderReply { punto: string; coincide: boolean; explicacion: string; cita?: string }
-interface Report { resumen: string; fortalezas: Strength[]; problemas: Problem[]; ortografia: Spelling[]; lecturas: Reading[]; siguientePaso?: string; lector?: ReaderView; respuestaLector?: ReaderReply[] }
+interface Question { pregunta: string; cita?: string; tema?: string }
+interface Report { resumen: string; fortalezas: Strength[]; problemas: Problem[]; ortografia: Spelling[]; lecturas: Reading[]; siguientePaso?: string; lector?: ReaderView; respuestaLector?: ReaderReply[]; preguntas?: Question[] }
 const TIPO_LABEL: Record<string, string> = { pov: 'punto de vista', continuidad: 'continuidad', ritmo: 'ritmo', dialogo: 'diálogo', claridad: 'claridad', tono: 'tono', estructura: 'estructura', reparto: 'reparto', personaje: 'personajes' };
 // Oct 2026: el Tribunal y el Guardián viven ahora dentro del reporte.
 interface Voice { veredicto: string; lectura: string; nota?: number; citas?: string[] }
@@ -23,6 +24,48 @@ interface Voices { arquitecto?: Voice; bardo?: Voice; hater?: Voice }
 interface Contradiction { tipo: string; gravedad: 'alta' | 'media' | 'baja'; titulo: string; explicacion: string; citaCapitulo?: string; citaCanon?: string; fuente?: string; sugerencia?: string }
 interface Doubt { pregunta: string; citaCapitulo?: string; fuente?: string; resuelta?: boolean; estado?: string; decision?: string; chat?: { role: 'autor' | 'mira'; text: string }[]; cambio?: { archivo?: string; texto?: string } | null; llevarA?: string; aplicadoEn?: string }
 interface CanonCheck { resumen: string; contradicciones: Contradiction[]; dudas: Doubt[]; archivos?: string[] }
+
+// Nov 2026: «Antes de juzgar». El reporte pregunta cuando algo parece deliberado (otro narrador en este capítulo,
+// un salto de tiempo…). Si el autor dice que es a propósito y por qué, queda como excepción del libro y ya no se señala.
+function QuestionItem({ q, fileName, answered, onAnswered, goBtn }: { q: Question; fileName: string; answered?: string; onAnswered: (how: string) => void; goBtn: React.ReactNode }) {
+    const [why, setWhy] = useState('');
+    const [busy, setBusy] = useState(false);
+    const keep = async () => {
+        const text = why.trim();
+        if (text.length < 3) { toast.info('Cuéntale por qué, en una frase.'); return; }
+        setBusy(true);
+        try {
+            await callFunction('miraTaller', { mode: 'povException', where: fileName || 'este capítulo', why: text });
+            onAnswered('apropósito');
+            toast.success('Anotado como decisión de tu libro. No se volverá a señalar.');
+        } catch (e: any) { toast.error(e?.message || 'No se pudo guardar.'); }
+        finally { setBusy(false); }
+    };
+    return (
+        <div className={`rounded-lg border border-mira/40 bg-titanium-950/40 p-3 space-y-2 ${answered ? 'opacity-60' : ''}`}>
+            <div className="flex items-start gap-2">
+                <HelpCircle size={14} className="mt-0.5 shrink-0 text-mira" aria-hidden="true" />
+                <p className="flex-1 text-titanium-100 leading-relaxed">{q.pregunta}</p>
+                {goBtn}
+            </div>
+            {answered ? (
+                <p className="text-xs text-titanium-400">{answered === 'apropósito' ? 'Es a propósito: quedó en las decisiones de tu libro.' : 'Era un desliz: corrígelo cuando reescribas.'}</p>
+            ) : (
+                <>
+                    <label className="sr-only" htmlFor={`q-${q.pregunta.slice(0, 12)}`}>Por qué lo hiciste así</label>
+                    <textarea id={`q-${q.pregunta.slice(0, 12)}`} value={why} onChange={e => setWhy(e.target.value)} rows={2} placeholder="Si es a propósito, cuéntale por qué (p. ej. «este capítulo lo narra Daniel»)"
+                        className="w-full rounded-lg bg-titanium-900 border border-titanium-700 px-2.5 py-2 text-[13px] text-titanium-100 placeholder:text-titanium-500 focus:border-mira/70 focus-visible:outline-none" />
+                    <div className="flex flex-wrap gap-2">
+                        <button onClick={keep} disabled={busy} className="inline-flex items-center gap-1.5 rounded-lg bg-coral text-on-coral px-3 py-1.5 text-[13px] font-medium disabled:opacity-50">
+                            {busy && <Loader2 size={13} className="animate-spin" aria-hidden="true" />} Es a propósito
+                        </button>
+                        <button onClick={() => onAnswered('error')} className="rounded-lg border border-titanium-700 px-3 py-1.5 text-[13px] text-titanium-200 hover:border-titanium-500">Fue un desliz</button>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
 
 // Nov 2026: cada duda del Guardián se responde en un minichat con Mira. Si se resuelve, queda en la memoria;
 // si cambia un archivo del canon, Mira propone el texto y se añade con un clic; si toca la estructura, va al Arquitecto.
@@ -490,6 +533,19 @@ export default function ChapterReportPanel({ fileId, fileName, accessToken, watc
                                 {!!report.lector.confusiones?.length && (
                                     <ul className="list-disc pl-4 space-y-0.5">{report.lector.confusiones.map((c, i) => <li key={i}>{c}</li>)}</ul>
                                 )}
+                            </section>
+                        )}
+
+                        {!!report.preguntas?.length && (
+                            <section className="space-y-2">
+                                <h3 className="text-[13px] font-semibold text-titanium-100">Antes de juzgar, una pregunta</h3>
+                                <p className="text-titanium-400">Esto no lo cuento como problema: puede ser una decisión tuya.</p>
+                                {report.preguntas.map((q, i) => (
+                                    <QuestionItem key={i} q={q} fileName={fileName}
+                                        answered={done['q' + i] ? (localStorage.getItem(`myworld_report_q_${fileId}_${i}`) || 'apropósito') : undefined}
+                                        onAnswered={how => { try { localStorage.setItem(`myworld_report_q_${fileId}_${i}`, how); } catch { /* */ } if (!done['q' + i]) toggleDone('q' + i); }}
+                                        goBtn={q.cita ? <GoBtn quote={q.cita} /> : null} />
+                                ))}
                             </section>
                         )}
 

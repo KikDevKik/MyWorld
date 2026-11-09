@@ -40,5 +40,9 @@ if ($Solo -ne 'funciones') {
     Paso 'Compilar la web' { npm run build }
     Paso 'Publicar la web' { firebase deploy --only hosting }
 }
+# Nov 2026: las reglas de Firestore no se publicaban nunca (permisos de plan, user_state, craft…).
+if ($Solo -eq 'todo') {
+    Paso 'Publicar las reglas de Firestore' { firebase deploy --only firestore:rules }
+}
 $min = [math]::Round(((Get-Date) - $inicio).TotalMinutes, 1)
 Write-Host "`nOK Deploy completo en $min min." -ForegroundColor Green

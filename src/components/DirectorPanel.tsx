@@ -212,6 +212,20 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [messages, isThinking, isLoadingHistory]);
 
+    // Nov 2026: si la respuesta tarda, decirlo (en la prueba con la IA gratis una respuesta tardó 80 s y solo se veía
+    // «Revisando tu canon…»).
+    const [thinkingSecs, setThinkingSecs] = useState(0);
+    useEffect(() => {
+        if (!isThinking) { setThinkingSecs(0); return; }
+        const t0 = Date.now();
+        const id = window.setInterval(() => setThinkingSecs(Math.floor((Date.now() - t0) / 1000)), 1000);
+        return () => window.clearInterval(id);
+    }, [isThinking]);
+    const es = currentLanguage === 'es';
+    const thinkingLabel = thinkingSecs < 12 ? (es ? 'Revisando tu canon…' : 'Checking your canon…')
+        : thinkingSecs < 35 ? (es ? 'Pensando la respuesta…' : 'Thinking it through…')
+            : (es ? 'Está tardando más de lo normal. Puedes cerrar y seguir escribiendo: la respuesta queda aquí.' : 'This is taking longer than usual. You can close this and keep writing: the answer will be here.');
+
     if (!isOpen) return null;
     if (!hasByok) return <AIMotorBlockedOverlay toolName="El Director" />;
 
@@ -248,7 +262,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                 <div className="min-w-0">
                     <h2 className="font-serif text-[17px] font-semibold text-titanium-100 leading-tight">{t.title}</h2>
                     <div className="text-xs text-titanium-400 mt-0.5 truncate" aria-live="polite">
-                        {isThinking ? (currentLanguage === 'es' ? 'Revisando tu canon…' : 'Checking your canon…') : (activeSessionId ? t.activeSession : t.standby)}
+                        {isThinking ? thinkingLabel : (activeSessionId && messages.length > 0 ? t.activeSession : t.standby)}
                     </div>
                 </div>
 
@@ -268,7 +282,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                     </button>
                     <button
                         onClick={toggleArsenalWidth}
-                        className={`p-2 transition-colors rounded-lg hover:bg-titanium-800 ${isArsenalWide ? 'text-mira' : 'text-titanium-400 hover:text-mira'}`}
+                        className={`hidden lg:inline-flex p-2 transition-colors rounded-lg hover:bg-titanium-800 ${isArsenalWide ? 'text-mira' : 'text-titanium-400 hover:text-mira'}`}
                         title={t.strategistMode}
                         aria-label={t.strategistMode}
                         aria-pressed={isArsenalWide}
@@ -330,7 +344,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                                     onPurge={handlePurge}
                                     rescuingIds={rescuingIds}
                                     purgingIds={purgingIds}
-                                    onInsert={onInsertContent}
+                                    onInsert={activeFileId ? onInsertContent : undefined}
                                     isOld={oldAssistantMessageIds.has(msg.id)}
                                     isExpanded={expandedMessages.has(msg.id)}
                                     onToggleExpand={toggleMessageExpanded}
@@ -357,7 +371,7 @@ export const DirectorPanel: React.FC<DirectorPanelProps> = ({
                             <div className="flex items-end" role="status">
                                 <MiraSprite pose="escribiendo" className="-ml-4 shrink-0" />
                                 <div className="-ml-8 mb-8 bg-mira-bg border border-dashed border-mira/60 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm text-mira">
-                                    {currentLanguage === 'es' ? 'Revisando tu canon…' : 'Checking your canon…'}
+                                    {thinkingLabel}
                                 </div>
                             </div>
                         )}

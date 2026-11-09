@@ -26,14 +26,14 @@ export default function MiraDialog({ onClose, children }: { onClose: () => void;
     }, [onClose]);
 
     return createPortal(
-        <div className="fixed inset-0 z-[140] flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[140] flex items-center justify-center p-0 sm:p-6">
             <div className="absolute inset-0 bg-titanium-950/45 backdrop-blur-[2px] animate-in fade-in duration-200" onMouseDown={onClose} aria-hidden="true" />
             <div
                 ref={boxRef}
                 role="dialog"
                 aria-modal="true"
                 aria-label="Mira"
-                className={`relative w-full ${wide ? 'max-w-[1240px]' : 'max-w-[820px]'} h-[min(86vh,880px)] rounded-2xl border border-titanium-700 bg-titanium-950 shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
+                className={`relative w-full ${wide ? 'max-w-[1240px]' : 'max-w-[820px]'} h-dvh sm:h-[min(86vh,880px)] rounded-none sm:rounded-2xl border-0 sm:border border-titanium-700 bg-titanium-950 shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden animate-in fade-in zoom-in-95 duration-200`}
             >
                 {children}
             </div>

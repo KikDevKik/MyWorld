@@ -19,6 +19,8 @@ import { getFirestore, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { callFunction } from './services/api';
 import { getAiLevel, setAiLevelStored } from './hooks/aiLevel';
 import { useCraftFocus, OPEN_BIBLIOTECA_EVENT } from './hooks/useCraft';
+import { useIsNarrow } from './hooks/useMediaQuery';
+import FirstSteps from './components/ui/FirstSteps';
 import { initSecurity } from "./lib/firebase"; // 👈 IMPORT CENTRALIZED SECURITY
 import { Toaster, toast } from 'sonner';
 import { FileCache } from './utils/fileCache';
@@ -110,7 +112,8 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
     const commonT = TRANSLATIONS[currentLanguage].common;
 
     // 🟢 GLOBAL STORE CONSUMPTION
-    const { activeView, setActiveView, arquitectoWidgetVisible } = useLayoutStore();
+    const { activeView, setActiveView, arquitectoWidgetVisible, setVaultDrawerOpen } = useLayoutStore();
+    const isNarrow = useIsNarrow();
     const { arquitectoPendingItems, setArquitectoPendingItems } = useArquitectoStore();
 
     // APP STATE
@@ -1455,13 +1458,19 @@ function AppContent({ user, setUser, setOauthToken, oauthToken, driveStatus, set
                     />
                 );
             }
+            // Nov 2026: escritorio vacío: primeros pasos (sin proyecto) o abrir un capítulo (con proyecto).
+            if (configLoading) return <div className="flex-1 bg-titanium-950" />;
             return (
-                <div className="flex-1 flex flex-col items-center justify-center gap-2 bg-titanium-950">
-                    <MiraSprite pose="esperando" label="Mira espera" />
-                    <div className="text-titanium-400 text-sm">
-                        Elige un capítulo o un archivo en la barra de la izquierda para empezar.
-                    </div>
-                </div>
+                <FirstSteps
+                    hasProject={!!config?.folderId}
+                    driveConnected={driveStatus === 'connected'}
+                    narrow={isNarrow}
+                    onConnectDrive={handleDriveLink}
+                    onCreateProject={() => setIsCreateProjectModalOpen(true)}
+                    onUseExistingFolder={() => setIsProjectSettingsOpen(true)}
+                    onTalkToMira={() => setActiveView('director')}
+                    onOpenDocuments={() => setVaultDrawerOpen(true)}
+                />
             );
         }
 

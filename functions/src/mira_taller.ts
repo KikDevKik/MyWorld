@@ -205,6 +205,18 @@ Responde SOLO con JSON: {"respuesta":"…markdown…"}`;
             return { respuesta: s(r.respuesta, 4000) };
         }
 
+        // Nov 2026: el autor explica por qué un capítulo o personaje se narra distinto: queda como excepción del libro
+        // (el reporte, Mira y el Arquitecto la respetan y ya no lo señalan).
+        if (mode === "povException") {
+            const where = s(d.where, 120);
+            const why = s(d.why, 400);
+            if (!where || !why) throw new HttpsError("invalid-argument", "Falta dónde y por qué.");
+            const text = `Excepción de punto de vista en «${where}»: ${why}${/[.!?]$/.test(why) ? "" : "."}`;
+            await applyMemoryOps(uid, [{ op: "add", file: DECISIONS_FILE, kind: "libro", description: "Decisiones de oficio por libro: punto de vista, narrador y tiempo verbal. Respétalas al revisar o proponer.", text }] as any, "biblioteca");
+            const snap = await memoryCol(uid).doc(slugify(DECISIONS_FILE)).get();
+            return { ok: true, text, lines: (((snap.data() as any)?.lines) || []).map((l: any) => ({ id: l.id, text: l.text, at: l.at })) };
+        }
+
         // ── Nov 2026: focos de oficio («Para ti») ──
         if (mode === "craft") {
             const snap = await craftCol(uid).limit(40).get();

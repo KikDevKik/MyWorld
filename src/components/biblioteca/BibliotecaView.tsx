@@ -58,6 +58,42 @@ const card = 'rounded-2xl border border-titanium-700 bg-titanium-900 px-5 py-4';
 const inputCls = 'w-full rounded-xl bg-titanium-900 border border-titanium-700 px-3 py-2.5 text-[15px] text-titanium-100 placeholder:text-titanium-500 focus:border-mira/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-mira/30';
 const words = (t: string) => t.split(/\s+/).filter(Boolean).length;
 
+// Nov 2026: un capítulo o un personaje puede narrarse distinto a propósito. Anotarlo aquí evita que el reporte,
+// Mira o el Arquitecto lo señalen como error (y si no está anotado, preguntan antes de juzgar).
+function ExceptionForm({ inputCls, btnSecondary, onSaved }: { inputCls: string; btnSecondary: string; onSaved: (lines: { id: string; text: string }[]) => void }) {
+    const [open, setOpen] = useState(false);
+    const [where, setWhere] = useState('');
+    const [why, setWhy] = useState('');
+    const [busy, setBusy] = useState(false);
+    const save = async () => {
+        if (!where.trim() || !why.trim()) { toast.info('Di dónde y por qué.'); return; }
+        setBusy(true);
+        try {
+            const r = await callFunction<{ lines: { id: string; text: string }[] }>('miraTaller', { mode: 'povException', where: where.trim(), why: why.trim() });
+            if (r?.lines) onSaved(r.lines);
+            setWhere(''); setWhy(''); setOpen(false);
+        } catch (e: any) { toast.error(e?.message || 'No se pudo guardar.'); }
+        finally { setBusy(false); }
+    };
+    if (!open) return <button onClick={() => setOpen(true)} className="mt-3 text-sm text-mira hover:text-titanium-50">+ Un capítulo o personaje que se narra distinto</button>;
+    return (
+        <div className="mt-3 flex flex-col gap-2 border-t border-titanium-800 pt-3">
+            <label className="flex flex-col gap-1">
+                <span className="text-sm text-titanium-300">¿Dónde? (capítulo, parte o personaje)</span>
+                <input value={where} onChange={e => setWhere(e.target.value)} placeholder="Ej.: Capítulo 7, o los capítulos de Daniel" className={inputCls} />
+            </label>
+            <label className="flex flex-col gap-1">
+                <span className="text-sm text-titanium-300">¿Cómo se narra y por qué?</span>
+                <input value={why} onChange={e => setWhy(e.target.value)} placeholder="Ej.: en tercera persona desde Daniel, porque Anna no está en esa escena" className={inputCls} />
+            </label>
+            <div className="flex gap-2">
+                <button onClick={save} disabled={busy} className={btnSecondary}>{busy && <Loader2 size={15} className="animate-spin" aria-hidden="true" />} Guardar</button>
+                <button onClick={() => setOpen(false)} className="text-sm text-titanium-400 hover:text-titanium-100 px-2">Cancelar</button>
+            </div>
+        </div>
+    );
+}
+
 function Option({ name, checked, onChange, label, children }: { name: string; checked: boolean; onChange: () => void; label: string; children?: React.ReactNode }) {
     return (
         <label className={`flex items-start gap-3 rounded-xl border px-4 py-3 cursor-pointer transition-colors ${checked ? 'border-mira/60 bg-mira/10' : 'border-titanium-700 hover:border-titanium-500'}`}>
@@ -297,6 +333,7 @@ export default function BibliotecaView({ onClose }: { onClose: () => void }) {
                                             </li>
                                         ))}
                                     </ul>
+                                    <ExceptionForm inputCls={inputCls} btnSecondary={btnSecondary} onSaved={setDecisions} />
                                 </div>
                             )}
 

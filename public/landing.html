@@ -455,9 +455,11 @@ footer a:hover{text-decoration:underline}
   // primera visita: estrella fugaz → aterriza → saluda → se sienta
   var seen = true; try { seen = localStorage.getItem('mw-intro') === '1'; } catch(e) {}
   var skip = false, skipBtn = document.getElementById('skipIntro'), hello = document.getElementById('hello');
+  // Nov 2026: el texto ya no se esconde mientras Mira llega, y la llegada empieza cuando la colina se ve
+  // (en el celular la escena queda debajo del texto: antes la animación pasaba fuera de la pantalla).
   async function intro(){
     try { localStorage.setItem('mw-intro', '1'); } catch(e) {}
-    copy.style.opacity = 0; skipBtn.style.display = 'inline-flex';
+    skipBtn.style.display = 'inline-flex';
     var sc = S(), sh = document.getElementById('shoot1');
     mira.set('salto', 4); miraEl.style.opacity = 0;
     var tx = 760 + 72, ty = 234 + 120; // pies de Mira
@@ -483,7 +485,13 @@ footer a:hover{text-decoration:underline}
   }
   function endIntro(){ skip = true; skipBtn.style.display = 'none'; hello.style.opacity = 0; miraEl.style.opacity = 1; miraEl.style.transform = ''; copy.style.opacity = 1; idleSit(); }
   skipBtn.addEventListener('click', endIntro);
-  if (!seen && !reduce) intro(); else idleSit();
+  if (!seen && !reduce && 'IntersectionObserver' in window){
+    miraEl.style.opacity = 0;
+    var io = new IntersectionObserver(function(es){
+      if (es.some(function(x){ return x.isIntersecting; })){ io.disconnect(); intro(); }
+    }, { threshold: .6 });
+    io.observe(miraEl);
+  } else idleSit();
 
   // ───────── entrar a casa: sube por el camino, se abre la puerta y la cámara entra ─────────
   var entering = false;

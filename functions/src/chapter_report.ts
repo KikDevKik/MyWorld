@@ -13,6 +13,7 @@ import { ALLOWED_ORIGINS, FUNCTIONS_REGION } from "./config";
 import { claudeEnabledForCurrentUser, callClaude, CLAUDE_SONNET, CLAUDE_HAIKU, MYWORLD_VOICE } from "./utils/claude_router";
 import { getMemoryContext, applyMemoryOps } from "./utils/memory_store";
 import { textHash } from "./utils/text_hash";
+import { saveCraft } from "./craft";
 import { getAIKey } from "./utils/security";
 import { GeminiEmbedder } from "./utils/vector_utils";
 import { TaskType } from "./utils/genai";
@@ -26,12 +27,44 @@ const EDITOR_BASE = `Eres el editor de MyWorld. El autor te da un capítulo comp
 Lees con atención, eres honesto y concreto, y nunca reescribes su prosa: señalas, explicas y sugieres.
 Respondes SOLO con el JSON que pida la tarea.`;
 
+// Nov 2026: si el mismo tipo de problema (importante o medio) aparece en este capítulo y en al menos otros dos,
+// ya no es de un capítulo: es algo de oficio. Se anota en la biblioteca («Para ti») con un punto de partida.
+const CRAFT_BY_TIPO: Record<string, { tema: string; paso: string }> = {
+    pov: { tema: "Sostener el punto de vista", paso: "Antes de cada escena, decide por los ojos de quién va y revisa que nada de lo que cuentas salga de otra cabeza." },
+    reparto: { tema: "Presentar personajes sin perder al lector", paso: "Que cada personaje nuevo entre con un rasgo y su relación con la protagonista, y no más de dos por escena." },
+    dialogo: { tema: "Que se sepa quién habla", paso: "En escenas de tres o más voces, ata cada línea a un gesto o a una forma de hablar propia." },
+    ritmo: { tema: "Ritmo de las escenas", paso: "Marca en cada escena el momento que importa y recorta lo que llega antes sin preparar nada." },
+    claridad: { tema: "Claridad", paso: "Relee como si no conocieras tu mundo: marca cada frase donde el lector necesita algo que no le diste." },
+    personaje: { tema: "Relaciones creíbles entre personajes", paso: "Antes de una escena, escribe en una línea qué historia comparten los que hablan y cómo se nota." },
+    tono: { tema: "Mantener el tono", paso: "Define en tres palabras el tono del capítulo y revisa las escenas que se salen." },
+    estructura: { tema: "Estructura del capítulo", paso: "Escribe en una frase qué cambia del principio al final del capítulo; si no cambia nada, ahí está el problema." },
+};
+async function noteRepeatedCraft(uid: string, fileId: string, report: any) {
+    const tipos = new Set<string>(((report?.problemas || []) as any[]).filter(p => p?.gravedad === "alta" || p?.gravedad === "media").map(p => String(p?.tipo || "")).filter(t => CRAFT_BY_TIPO[t]));
+    if (!tipos.size) return;
+    const snap = await getFirestore().collection("users").doc(uid).collection("chapter_reports").select("report").limit(60).get();
+    const count: Record<string, number> = {};
+    for (const d of snap.docs) {
+        if (d.id === fileId) continue;
+        const seen = new Set<string>((((d.data() as any)?.report?.problemas) || []).filter((p: any) => p?.gravedad === "alta" || p?.gravedad === "media").map((p: any) => String(p?.tipo || "")));
+        for (const t of seen) if (tipos.has(t)) count[t] = (count[t] || 0) + 1;
+    }
+    for (const [t, n] of Object.entries(count)) {
+        if (n < 2) continue;
+        const c = CRAFT_BY_TIPO[t];
+        await saveCraft(uid, { tema: c.tema, porque: `Salió como problema en ${n + 1} capítulos distintos.`, paso: c.paso }, "reporte");
+    }
+}
+
 const REPORT_SYSTEM = `TAREA: REPORTE DEL CAPÍTULO. El autor terminó el capítulo y te pide un reporte para reescribirlo.
 Devuelves un diagnóstico útil, honesto y accionable.
 
 QUÉ REVISAS:
 - Lo que funciona (con la cita que lo demuestra), para que lo conserve.
-- Si la memoria trae «Decisiones del libro» (punto de vista, quién narra, tiempo verbal, tono), el capítulo debe cumplirlas: cada salida es un problema de punto de vista con su cita, salvo las excepciones que el autor decidió (p. ej. capítulos cortos en otra voz).
+- PUNTO DE VISTA: si la memoria trae «Decisiones del libro» (quién narra, persona, tiempo verbal, tono, y sus excepciones), compáralo con el capítulo y distingue:
+  · Un desliz: dentro de una misma escena el narrador salta a la cabeza de otro personaje o cambia de persona o de tiempo verbal sin motivo. Es un problema "pov" con su cita.
+  · Un cambio sostenido: el capítulo entero, o una escena completa, va narrado desde otro personaje, en otra persona o en otro tiempo, y ninguna excepción lo explica. Puede ser a propósito (otro narrador para ese capítulo, un recuerdo, un interludio). NO lo marques como problema: va en "preguntas", diciendo qué decidió el libro y qué ves aquí, y pidiendo el motivo.
+- PREGUNTAR ANTES DE JUZGAR: lo mismo con cualquier cosa que parezca deliberada y no entiendas (un salto de tiempo, un estilo distinto, un personaje que actúa contra lo que dice su ficha). Si no sabes si es un error o una decisión, pregunta en "preguntas"; no lo cuentes como problema.
 - Problemas de oficio: punto de vista y persona narrativa, promesas sin cumplir (armas de Chéjov), continuidad con su plan y su canon, ritmo (escenas infladas o apresuradas), diálogos, claridad, tono.
 - Ortografía y puntuación (incluida la de diálogos: raya, incisos, mayúsculas de nombres propios).
 - LO QUE NOTA UN LECTOR REAL. Revísalo siempre; la gravedad depende de cuánto le cuesta al lector (alta solo si de verdad se pierde o deja de creerle a la escena):
@@ -59,10 +92,11 @@ FORMATO: responde SOLO JSON con esta forma:
  "fortalezas": [{"titulo":"…","explicacion":"…","cita":"…"}],
  "problemas": [{"tipo":"pov|continuidad|ritmo|dialogo|claridad|tono|estructura|reparto|personaje","gravedad":"alta|media|baja","titulo":"…","explicacion":"por qué no funciona","sugerencia":"qué hacer (sin escribirle la prosa)","citas":["…"]}],
  "ortografia": [{"original":"…","correccion":"…","cita":"…","nota":"regla breve, opcional"}],
+ "preguntas": [{"pregunta":"lo que no sabes si es a propósito, en una o dos frases","cita":"…","tema":"pov|otro"}],
  "lecturas": [{"titulo":"…","autor":"autor o estudio","tipo":"libro|serie|anime|película|otro","deSusReferencias":true,"porque":"qué escena o técnica mirar y para qué problema de este capítulo"}],
  "siguientePaso": "la primera cosa que haría en la reescritura"
 }
-Máximo: 4 fortalezas, 8 problemas (ordenados por gravedad), 30 ortografía, 6 referencias. Escribe en el idioma del autor.`;
+Máximo: 4 fortalezas, 8 problemas (ordenados por gravedad), 30 ortografía, 3 preguntas, 6 referencias. Escribe en el idioma del autor.`;
 
 // Antes "El Tribunal": tres lectores con enfoques distintos, ahora dentro del reporte.
 const VOICES_TASK = `TAREA: TRES LECTURAS. Tres lectores leen el mismo capítulo, cada uno desde su enfoque, y le dicen al autor lo que vieron.
@@ -459,6 +493,7 @@ export const chapterReport = onCall(
         const report = await runReview(REPORT_SYSTEM, text, name, extra, { maxTokens: 12000, effort: "medium", label: "ChapterReport" });
         const saved = { report, fileName: fileName || "", contentHash: hash, createdAt: new Date().toISOString() };
         await ref.set(saved, { merge: true });
+        await noteRepeatedCraft(uid, fileId, report).catch(() => {});
         return { found: true, ...saved };
     }
 );
